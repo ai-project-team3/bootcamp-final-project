@@ -1,0 +1,14 @@
+# 보험 상담 템플릿. 카탈로그의 항목 중 무엇을 쓸지 고른다.
+#
+# 검증 규칙
+#   item_id가 카탈로그에 존재 / 템플릿 안에서 중복 금지
+#   2층은 default_on=true 강제 · 템플릿당 12개 이하 · slots 없음
+#   default_on=true인 1층은 3~7개 (경고)
+
+id: insurance_consult
+label: 보험 상담
+items:
+  - item_id: budget_approval
+    layer: 1
+    default_on: true
+    priority: 10
