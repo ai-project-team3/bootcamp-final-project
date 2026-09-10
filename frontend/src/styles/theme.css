@@ -1,0 +1,52 @@
+/* Design tokens. Owner: 역할 1 (공통 셸).
+   Signal colours are product meaning, not decoration - do not restyle them
+   without 조장 approval. */
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --line: #262b36;
+  --text: #e6e8ee;
+  --muted: #9aa1b1;
+
+  --signal-blocked: #e5484d;  /* 🔴 raised  - still stuck */
+  --signal-partial: #f5a524;  /* 🟡 partial - halfway */
+  --signal-resolved: #30a46c; /* 🟢 resolved */
+  --signal-unseen: #4a5164;   /* ⚪ unseen  - not raised yet */
+
+  --radius: 10px;
+  --gap: 12px;
+  --font: -apple-system, "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}
+
+.page { padding: var(--gap); }
+.muted { color: var(--muted); }
+
+/* 화면 ② — three columns, each answering a different question:
+   left "what is the customer stuck on" / middle "what have I not said"
+   / right "what do I do now" */
+.meeting-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--gap);
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--gap);
+  min-height: 200px;
+}
+
+@media (max-width: 900px) {
+  .meeting-grid { grid-template-columns: 1fr; }
+}
