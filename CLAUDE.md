@@ -10,14 +10,46 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Product text stays Korean** — UI copy, mock data, API error messages returned to clients.
 - Keep identifiers, file paths, command names and flags in their original form inside Korean sentences.
 
+## Start here — read this before anything else
+
+**Work out who you are and what week it is, then read only your own brief.**
+
+1. `git branch --show-current` → the branch is named after its owner. Map it below.
+   On `main`, or if the name doesn't match, **ask the user which role they hold.**
+2. Compare today's date against `guidelines/6_통합_체크포인트.md` §6-1 to find the week.
+3. Read **only** `guidelines/4_프롬프트_브리프.md` §4-N for that role, plus `guidelines/0`.
+4. **Do not read other roles' sections. Do not edit files another role owns.**
+5. To change `2` (data model), `3` (API) or `5` (folder/stack): stop and tell the
+   user to raise it with 조장. Do not edit them.
+
+| Branch | Role | Owner |
+|---|---|---|
+| `feature/leejaehwan` | 1 — audio · realtime · deployment | 이재환 |
+| `feature/parkjinwoong` | 2 — item matching | 박진웅 |
+| `feature/ahnchiyoung` | 3 — state tracking · evaluation | 안치영 |
+| `feature/choiminwoo` | 4 — generation | 최민우 |
+| `feature/leejonghoon` | 5 — template · carryover (조장) | 이종훈 |
+
+Role assignments and reasoning: `docs/역할_배정_결과.md`.
+Never push to `main`. Open a PR; 조장 reviews and merges.
+
 ## Repository state
 
-Only documents exist so far — `guidelines/0`–`6` (frozen specs), `docs/` (product plan), `gaps/`
-(the 17 decision records those specs were derived from). **No `backend/` or `frontend/` code yet.**
-The folder layout in `guidelines/5_기술스택_폴더구조.md` is the contract for what gets created;
-follow it exactly rather than inventing an alternative structure.
+**The skeleton is in place** (PR #20). `backend/` and `frontend/` follow
+`guidelines/5_기술스택_폴더구조.md` §5-2 exactly — every owner's file already exists and names
+its owner in the docstring. `backend/app/schemas/` holds all eight frozen models, transcribed
+field for field from `guidelines/2`. `backend/app/database.py` holds the one and only `Base`.
 
-Five people build this in parallel on `feature/role{1..5}-*` branches merging into `main`.
+**Nothing is implemented yet.** Routers are empty `APIRouter`s whose docstrings list the exact
+endpoints that file owes. Per-role packages (`audio/ matching/ state/ generation/ carryover/
+eval/`) are empty. Fill in your own; do not scaffold someone else's.
+
+Verified at scaffold time: the app boots, `/health` answers, and 404 / 409 / 422 / 500 all come
+back as `{"error": true, "message": "..."}`. The frontend builds.
+
+Also present: `guidelines/0`–`6` (frozen specs), `docs/` (product plan, implementation plan,
+role assignment), `gaps/` (the 17 decision records the specs were derived from).
+
 Check `git log` / `git branch -a` for what has landed before assuming a file's current content.
 
 ## What this project is
@@ -136,16 +168,18 @@ These are `guidelines/1_시스템_개요.md` §1-5. Violating one silently break
 **Relapse recall is the project's only technical differentiator.** It is measured as *event*
 detection, not per-timestep accuracy — a rare class would otherwise vanish into overall accuracy.
 
-## Commands (once the skeleton exists)
+## Commands
 
-- Backend: `uvicorn main:app --reload` from `backend/`, fixed port `8000`
-- Frontend: `npm run dev` from `frontend/`
+- Backend: `pip install -r requirements.txt` then `uvicorn main:app --reload` from `backend/`,
+  fixed port `8000`. `GET /health` should answer `{"status": "ok"}`.
+- Frontend: `npm install` then `npm run dev` from `frontend/`, port `5173`. Vite proxies
+  `/api` and `/ws` to `:8000`, so the frontend never hardcodes a backend URL.
 - Eval: `python -m app.eval.run --fixtures fixtures/`
 - Env vars: see `guidelines/5_기술스택_폴더구조.md` §5-3. Real values go in `.env` (gitignored);
   only `.env.example` is committed. `CONFIDENCE_THRESHOLD` (0.7) and `RECURRENCE_COOLDOWN_SEC`
   (30) are tuning targets confirmed against fixtures in W3, not settled constants.
-- No test or lint config exists yet — check `requirements.txt` / `package.json` once they are
-  added rather than assuming a framework.
+- No test or lint config exists yet. `backend/requirements.txt` and `frontend/package.json`
+  hold only runtime dependencies — check them before assuming a test framework is available.
 
 ## Before implementing these, check with 조장
 
