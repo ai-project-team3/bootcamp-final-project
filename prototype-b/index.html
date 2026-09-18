@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>말로 짓는 인형극 · 초안 B — 같이 짓는 책</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F7F1E3; --ink:#33291F; --muted:#8B7B68;
+  --red:#E4572E; --yellow:#F3B61F; --teal:#2A9D8F; --navy:#264653; --pink:#E9868B;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#DED2BC;font-family:"Noto Sans KR",system-ui,sans-serif;color:var(--ink);padding:14px}
+h1,.hand{font-family:"Gaegu","Noto Sans KR",cursive}
+.top{max-width:1240px;margin:0 auto 10px;display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+.top h1{margin:0;font-size:24px;color:var(--red)}
+.top .sub{font-size:12px;color:#6b5c4a}
+.wrap{max-width:1240px;margin:0 auto}
+.outer{width:100%;aspect-ratio:2/1;position:relative}
+.phone{position:absolute;left:0;top:0;width:1200px;height:600px;transform-origin:0 0;border-radius:40px;background:#2b241c;padding:10px;box-shadow:0 16px 36px rgba(0,0,0,.3)}
+.screen{position:relative;width:100%;height:100%;border-radius:32px;overflow:hidden;background:var(--paper);display:flex}
+
+/* ── 왼쪽: 쌓이는 책 ─────────────────────────── */
+.bookside{width:42%;background:#EFE6D2;border-right:3px dashed #cbbda3;position:relative;display:flex;flex-direction:column;padding:14px}
+.bookside h2{margin:0 0 8px;font-family:"Gaegu";font-size:22px;color:var(--navy);display:flex;justify-content:space-between;align-items:baseline}
+.bookside h2 small{font-size:13px;color:var(--muted);font-family:"Noto Sans KR"}
+.stack{flex:1;position:relative}
+.leaf{position:absolute;left:0;right:0;background:#fff;border-radius:14px;box-shadow:0 4px 10px rgba(0,0,0,.10);
+      padding:10px 12px;transition:.55s cubic-bezier(.3,.9,.4,1);transform-origin:50% 100%}
+.leaf .art{height:92px;position:relative;overflow:hidden;border-radius:10px;background:#F3EDE0;margin-bottom:6px}
+.leaf .art img.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.leaf .art img.ob{position:absolute;bottom:4px;height:76%}
+.leaf .tx{font-family:"Gaegu";font-size:17px;line-height:1.25;min-height:22px}
+.leaf.new{animation:drop .6s cubic-bezier(.2,1.2,.4,1)}
+@keyframes drop{from{transform:translateY(-50px) rotate(-5deg);opacity:0}to{transform:none;opacity:1}}
+.empty{color:var(--muted);font-size:13px;text-align:center;margin-top:60px;line-height:1.8}
+
+/* ── 오른쪽: 무대 ─────────────────────────── */
+.right{width:58%;display:flex;flex-direction:column;position:relative}
+.stage{flex:1;position:relative;overflow:hidden;background:#EAE0CA}
+.stage img.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ob{position:absolute;bottom:8px;transition:.5s;filter:drop-shadow(0 4px 3px rgba(0,0,0,.18))}
+.ob.hero{left:7%;height:58%}
+.ob.veh{left:36%;height:46%}
+.ob.fr{right:8%;height:50%}
+.ob.dn{left:60%;height:44%}
+.shake{animation:shk .45s linear 3}
+@keyframes shk{0%,100%{transform:translate(0,0)}25%{transform:translate(-8px,3px)}75%{transform:translate(8px,-3px)}}
+
+.dock{height:118px;display:flex;align-items:flex-end;gap:10px;padding:0 14px 12px;background:linear-gradient(180deg,rgba(247,241,227,0),var(--paper) 30%)}
+.mascot{width:86px;height:86px;flex:0 0 auto}
+.mascot.talk{animation:bob .5s ease-in-out infinite alternate}
+@keyframes bob{from{transform:translateY(0) rotate(-3deg)}to{transform:translateY(-6px) rotate(3deg)}}
+.bubble{flex:1;background:#fff;border:2px solid var(--ink);border-radius:18px;padding:11px 14px;min-height:66px;
+        font-family:"Gaegu";font-size:21px;line-height:1.3;position:relative}
+.bubble .who{display:block;font-size:11px;color:var(--muted);font-family:"Noto Sans KR"}
+.bubble.child{background:#FFF6D8}
+.bubble.adult{background:#DFF1EC}
+.mic{width:80px;height:80px;border-radius:50%;border:3px solid var(--ink);background:var(--red);color:#fff;font-size:30px;cursor:pointer;flex:0 0 auto}
+.mic.on{animation:pulse .7s infinite alternate}
+@keyframes pulse{from{box-shadow:0 0 0 0 rgba(228,87,46,.5)}to{box-shadow:0 0 0 16px rgba(228,87,46,0)}}
+.side{display:flex;flex-direction:column;gap:6px}
+.mini{width:64px;height:36px;border-radius:12px;border:2px solid var(--ink);background:#fff;font-size:14px;cursor:pointer;font-family:"Gaegu"}
+
+
+/* 배경 소품 — 만질 수는 있지만 이야기를 바꾸지 않는다 */
+.prop{position:absolute;will-change:transform}
+.ob{z-index:4}
+.touchme{animation:breathe 2.2s ease-in-out infinite}
+@keyframes breathe{0%,100%{filter:drop-shadow(0 0 0 rgba(255,255,255,0))}50%{filter:drop-shadow(0 0 10px rgba(255,255,255,.9))}}
+
+/* 어른 차례 띠 */
+.adultbar{position:absolute;left:0;right:0;bottom:118px;background:var(--teal);color:#fff;padding:7px 14px;
+          font-family:"Gaegu";font-size:18px;display:none;align-items:center;gap:10px;z-index:9}
+.adultbar.on{display:flex}
+.adultbar button{border:0;border-radius:10px;padding:6px 12px;font-family:"Gaegu";font-size:16px;cursor:pointer}
+
+/* 레이어 */
+/* 레이어는 오른쪽 무대만 덮는다 — 왼쪽 책은 늘 보여야 한다 (초안 B의 핵심) */
+.layer{position:absolute;left:42%;right:0;top:0;bottom:0;z-index:20;display:none;flex-direction:column;
+       align-items:center;justify-content:center;gap:14px;background:rgba(247,241,227,.90);padding:10px}
+.btn{font-family:"Gaegu";font-size:20px;padding:11px 22px;border-radius:14px;border:2px solid var(--ink);background:#fff;cursor:pointer}
+.btn.pri{background:var(--yellow)}
+.big{font-family:"Gaegu";font-size:30px;padding:15px 34px;border-radius:20px;border:3px solid var(--ink);background:var(--red);color:#fff;cursor:pointer}
+.row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:center}
+.cards{display:flex;gap:14px}
+.card{width:124px;background:#fff;border:2px solid var(--ink);border-radius:16px;padding:10px;text-align:center;cursor:pointer}
+.card:hover{transform:translateY(-4px)}
+.card img{width:100%;height:82px;object-fit:contain}
+.card b{font-family:"Gaegu";font-size:18px;font-weight:400}
+.hint{font-size:12px;color:var(--muted)}
+
+/* 그림판 */
+#pad{background:#fff;border:2px solid var(--ink);border-radius:14px;touch-action:none;cursor:crosshair}
+.crayon{width:44px;height:44px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px var(--ink);cursor:pointer}
+.crayon.sel{outline:3px solid var(--red);outline-offset:2px}
+
+/* 미션 */
+.missionbar{position:absolute;left:50%;transform:translateX(-50%);top:8px;background:#fff;border:2px solid var(--ink);
+            border-radius:999px;padding:5px 16px;font-family:"Gaegu";font-size:17px;z-index:8}
+
+/* 리포트 */
+.report{position:absolute;inset:0;background:#FBF7EC;overflow:auto;z-index:25;padding:16px 22px;font-size:13.5px;display:none}
+.report h2{margin:0 0 4px;font-size:22px;color:var(--red);font-family:"Gaegu"}
+.rgrid{display:grid;grid-template-columns:320px 1fr;gap:20px;margin-top:8px}
+.axline{display:flex;align-items:center;gap:7px;background:#fff;border-radius:10px;padding:6px 9px;margin-bottom:5px}
+.axline b{width:92px;font-family:"Gaegu";font-weight:400}
+.dots span{color:#ddd;margin-right:1px}.dots span.on{color:var(--red)}
+.q{color:var(--muted);font-size:12px;flex:1}
+.pie{width:140px;height:140px;border-radius:50%}
+.note{font-size:11px;color:var(--muted);line-height:1.6;margin-top:10px;border-top:1px solid #e6dccd;padding-top:7px}
+
+/* 서랍 */
+#hot{position:absolute;right:0;top:0;width:64px;height:64px;z-index:30}
+.drawer{position:absolute;right:0;top:0;bottom:0;width:330px;background:rgba(30,25,20,.96);color:#f2e9dc;z-index:40;
+        transform:translateX(100%);transition:.3s;overflow:auto;padding:12px;font-size:12.5px}
+.drawer.open{transform:none}
+.drawer h3{margin:8px 0 5px;font-size:14px;color:var(--yellow)}
+.drawer button{font-size:11.5px;padding:5px 9px;border-radius:8px;border:0;background:#3c332a;color:#f2e9dc;cursor:pointer;margin:2px 2px 0 0}
+.kv{display:flex;justify-content:space-between;border-bottom:1px dotted #4a4036;padding:2px 0}
+.legend{font-size:11.5px;line-height:1.6;color:#c9bcab}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>초안 B — 같이 짓는 책</h1>
+  <span class="sub">그림체 · 책이 보이는 시점 · 어른 자리 · 턴 수를 초안 A와 다르게 잡은 비교용 초안 · 오른쪽 위 구석을 길게 누르면 시연 서랍</span>
+</div>
+<div class="wrap"><div class="outer" id="outer">
+<div class="phone" id="phone"><div class="screen" id="screen">
+
+  <!-- 왼쪽: 쌓이는 책 -->
+  <div class="bookside">
+    <h2><span>우리 책</span><small id="pgn">0쪽</small></h2>
+    <div class="stack" id="stack">
+      <div class="empty" id="emptyMsg">아직 빈 책이야.<br>말하면 한 쪽씩 생겨!</div>
+    </div>
+  </div>
+
+  <!-- 오른쪽: 무대 -->
+  <div class="right">
+    <div class="stage" id="stage"><img class="bg" id="bg" src="assets/bg_start.png" alt=""></div>
+    <div class="adultbar" id="abar"></div>
+    <div class="dock">
+      <img class="mascot talk" id="mas" src="assets/mascot.png" alt="">
+      <div class="bubble" id="bub"><span class="who">마스코트</span><span id="bt"></span></div>
+      <button class="mic" id="mic">🎤</button>
+      <div class="side">
+        <button class="mini" id="skip">➡️</button>
+        <button class="mini" id="draw">🖍️</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="layer" id="layer"></div>
+  <div class="report" id="rep"></div>
+  <div id="hot"></div>
+  <div class="drawer" id="drawer"></div>
+</div></div></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   초안 B — 같이 짓는 책
+   초안 A(안치영 데모 / prototype/)와 일부러 다르게 잡은 것 넷
+     1. 그림체  : 찢은 색종이 콜라주 (SDXL) ↔ A는 펠트 3D (krea2 turbo)
+     2. 책      : 대화 중에 왼쪽에서 한 쪽씩 쌓임 ↔ A는 마지막에 한 번에
+     3. 어른    : 어른이 답해야 넘어가는 자리 1개 + 부르는 자리 1개 ↔ A는 1개(건너뛸 수 있음)
+     4. 턴 수   : 5턴 ↔ A는 8턴
+   같게 둔 것(비교를 위해): 미션 2개 · 부모 리포트 6축 · 가로 화면 · 열린 질문
+   ═══════════════════════════════════════════════════════════ */
+
+const A = n => `assets/${n}.png`;
+
+/* ── 흰 배경 빼기 ───────────────────────────────
+   초안 A는 BiRefNet으로 배경을 뺐다. 초안 B는 모델을 더 받지 않으려고
+   흰 바탕에 그린 뒤 브라우저에서 흰색을 알파로 바꾼다. 가장자리는 부드럽게 남긴다. */
+function whiteKey(img){
+  if(img.dataset.keyed) return;
+  try{
+    const c=document.createElement('canvas');
+    c.width=img.naturalWidth; c.height=img.naturalHeight;
+    if(!c.width) return;
+    const x=c.getContext('2d',{willReadFrequently:true});
+    x.drawImage(img,0,0);
+    const d=x.getImageData(0,0,c.width,c.height), p=d.data;
+    for(let i=0;i<p.length;i+=4){
+      const m=Math.min(p[i],p[i+1],p[i+2]);
+      if(m>243) p[i+3]=0;
+      else if(m>219) p[i+3]=Math.round((243-m)/24*255);
+    }
+    x.putImageData(d,0,0);
+    img.dataset.keyed='1';
+    img.src=c.toDataURL();
+  }catch(e){}
+}
+/* 지금은 쓰지 않는다 — tools/cutout.py가 미리 잘라 RGBA로 저장하기 때문이다.
+   (켜 두면 인형 안쪽의 흰 부분까지 뚫린다. 안경알·새 배 같은 곳)
+   렌더만 하고 cutout을 안 돌렸을 때만 아래 줄의 주석을 푼다. */
+// document.addEventListener('load', e=>{ const t=e.target;
+//   if(t.tagName==='IMG' && /assets\//.test(t.src) && !/assets\/bg_/.test(t.src)) whiteKey(t); }, true);
+
+const $ = s => document.querySelector(s);
+
+function fit(){ const o=$('#outer'), k=o.clientWidth/1200;
+  $('#phone').style.transform=`scale(${k})`; o.style.height=(600*k)+'px'; }
+addEventListener('resize',fit); fit();
+
+/* 그림이 아직 없을 때 자리만 잡아둔다 */
+document.addEventListener('error', e=>{
+  if(e.target.tagName==='IMG'){ e.target.style.visibility='hidden'; }
+}, true);
+
+const S = {
+  hero:'hero_a', place:null, problem:null, friend:null, reason:null, solution:null,
+  dino:null, friendName:null, title:null, drawing:null,
+  s1:0, s2:0, level:'이어 짓기', adultTurns:0, answers:[], events:[], pages:[], friendsMet:[]
+};
+const PLACE = {
+  space:{n:'우주', bg:'bg_space', v:'rocket', vn:'로켓', ev:'로켓이 흔들려'},
+  sea:  {n:'바닷속', bg:'bg_sea',  v:'turtle', vn:'거북이', ev:'거북이가 휘청휘청해'},
+  dino: {n:'공룡 나라', bg:'bg_dino', v:'train', vn:'기차', ev:'기차가 덜컹거려'}
+};
+
+function ev(type,d={}){ S.events.push({type,...d}); const l=$('#log');
+  if(l) l.insertAdjacentHTML('afterbegin',`<div>${type} ${JSON.stringify(d).slice(0,60)}</div>`); }
+
+/* ── 말하기 ── */
+let typer;
+function say(t, who='마스코트', cls=''){
+  const b=$('#bub'); b.className='bubble '+cls;
+  b.innerHTML=`<span class="who">${who}</span><span id="bt"></span>`;
+  const el=b.querySelector('#bt'); let i=0; clearInterval(typer);
+  typer=setInterval(()=>{ el.textContent=t.slice(0,++i); if(i>=t.length) clearInterval(typer); },20);
+}
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* 받침에 따라 조사를 고른다 — "기차을" 같은 말이 아이에게 읽히면 안 된다 */
+function josa(w, a, b){            // a = 받침 있을 때, b = 없을 때
+  const c = w.charCodeAt(w.length-1);
+  if(c < 0xAC00 || c > 0xD7A3) return b;
+  return ((c - 0xAC00) % 28) ? a : b;
+}
+const eul = w => w + josa(w,'을','를');
+
+async function turn3(a,b,c){ say(a); await wait(1000); if(b){ say(b); await wait(1300);} say(c); }
+
+/* ── 책에 한 쪽 붙이기 (초안 B의 핵심) ── */
+function addPage(text, art){
+  S.pages.push({text,art});
+  const st=$('#stack'); const em=$('#emptyMsg'); if(em) em.remove();  // 첫 쪽에서만 있다
+  st.innerHTML = S.pages.map((p,i)=>{
+    const top = i===S.pages.length-1;
+    const off = (S.pages.length-1-i);
+    const bgSrc = p.art?.bg ? `<img class="bg" src="${A(p.art.bg)}">` : '';
+    const obs = (p.art?.obs||[]).map((o,j)=>`<img class="ob" src="${o.src||A(o)}" style="left:${8+j*30}%">`).join('');
+    return `<div class="leaf ${top?'new':''}" style="
+        top:${Math.max(0, off*-4)}px; z-index:${i};
+        transform:translateY(${off*46}px) scale(${1-off*0.015});
+        opacity:${off>4?0:1 - off*0.06}">
+      <div class="art">${bgSrc}${obs}</div>
+      <div class="tx">${p.text}</div></div>`;
+  }).reverse().join('');
+  $('#pgn').textContent = S.pages.length + '쪽';
+  ev('page_added',{n:S.pages.length});
+}
+
+/* ── 질문 엔진 ── */
+let Q=null, micOn=false, na=0;
+function ask(q){ Q=q; na=0; $('#draw').style.display=q.noDraw?'none':''; say(q.text); }
+$('#mic').onclick=()=>{ if(!Q)return; micOn=!micOn; $('#mic').classList.toggle('on',micOn);
+  if(!micOn){ const c=Q.cands[Math.floor(Math.random()*Q.cands.length)]; answer(c,'말로'); } };
+$('#skip').onclick=()=>{ if(Q) naFlow(); };
+$('#draw').onclick=()=>{ if(Q) openPad(()=>answer({t:'(직접 그림)'},'그려서')); };
+
+async function answer(c,mode){
+  micOn=false; $('#mic').classList.remove('on');
+  const q=Q; Q=null;
+  S.answers.push({mode,text:c.t});
+  ev('utterance',{text:c.t,mode});
+  if(c.sig){ if(c.sig.includes('S1'))S.s1++; if(c.sig.includes('S2'))S.s2++; ev('signal',{sig:c.sig}); }
+  if(c.emo) ev('emotion_mention',{emo:c.emo});
+  say(c.t,'아이','child'); await wait(850);
+  const n=S.s1+S.s2; S.level = n>=4?'까닭 짓기':n>=2?'이어 짓기':'고르며 짓기';
+  paintDrawer();
+  await q.on(c);
+}
+async function naFlow(){
+  const q=Q; na++;
+  if(na===1&&q.easy){ say(q.easy); Q=q; return; }
+  Q=null;
+  const cs=(q.cards||q.cands.slice(0,3));
+  say('이 중에 골라 볼까?');
+  showCards(cs.map(c=>({img:c.img,label:c.t,on:()=>answer(c,'골라서')})));
+}
+function showCards(items){
+  const L=$('#layer'); L.style.display='flex';
+  L.innerHTML=`<div class="cards">${items.map((it,i)=>
+    `<div class="card" data-i="${i}"><img src="${A(it.img)}"><b>${it.label}</b></div>`).join('')}</div>`;
+  L.querySelectorAll('.card').forEach(el=>el.onclick=()=>{ L.style.display='none'; items[+el.dataset.i].on(); });
+}
+function showLayer(html){ const L=$('#layer'); L.style.display='flex'; L.innerHTML=html; }
+function hideLayer(){ $('#layer').style.display='none'; $('#layer').innerHTML=''; }
+
+
+/* ══════════════════════════════════════════════════════════
+   배경 소품 배치기
+
+   소품은 14종뿐이다. 세계마다 새로 만들지 않고 **배치로** 다르게 보이게 한다.
+   붙여넣은 티를 없애는 규칙 일곱:
+     1. 깊이 세 띠  — 멀수록 작고 흐리고 채도가 낮다
+     2. 빈 자리     — 칸의 3할쯤은 일부러 비운다. 고르게 놓으면 인공적이다
+     3. 좌우 뒤집기 · 기울이기 ±7°
+     4. 색 흔들기   — 색상 ±12°, 밝기 ±6%
+     5. 무리 짓기   — 가끔 옆에 작은 것을 하나 더 붙인다
+     6. 같은 소품은 한 띠에 3번까지
+     7. 세계마다 씨앗 고정 — 같은 세계를 다시 열면 같은 배치라야 "내 세계"가 된다
+   ══════════════════════════════════════════════════════════ */
+const WORLD_PROPS = {
+  space:{ tint:'saturate(.9) hue-rotate(-6deg)',
+    far:['sp_star','sp_star','sp_star','sp_planet','sp_moon'], mid:['sp_rock_l','sp_tower'], near:['sp_rock_s','sp_rock_l'] },
+  sea:{ tint:'saturate(1.05) hue-rotate(10deg)',
+    far:['sp_weed','sp_star'], mid:['sp_rock_l','sp_weed'], near:['sp_rock_s','sp_grass'] },
+  dino:{ tint:'saturate(1) hue-rotate(0deg)',
+    far:['sp_cloud','sp_bird'], mid:['sp_tree','sp_bush'], near:['sp_grass','sp_rock_s','sp_bunny'] },
+  snow:{ tint:'saturate(.25) brightness(1.12)',
+    far:['sp_cloud','sp_star'], mid:['sp_tree','sp_house'], near:['sp_rock_s','sp_bush'] }
+};
+const BANDS = [
+  {k:'far',  yA:12, yB:34, sA:.30, sB:.46, op:.55, sat:.6, blur:.7, z:1, slots:7},
+  {k:'mid',  yA:34, yB:56, sA:.48, sB:.68, op:.85, sat:.85, blur:.2, z:2, slots:5},
+  {k:'near', yA:58, yB:84, sA:.78, sB:1.10, op:1,   sat:1,   blur:0,  z:3, slots:4}
+];
+function rngFrom(seed){ let a=seed>>>0; return ()=>{ a=a+0x6D2B79F5|0;
+  let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function hashStr(str){ let h=2166136261; for(const c of str){ h^=c.charCodeAt(0); h=Math.imul(h,16777619);} return h>>>0; }
+
+function scatter(world){
+  const cfg = WORLD_PROPS[world]; const st=$('#stage');
+  st.querySelectorAll('.prop').forEach(e=>e.remove());
+  if(!cfg) return;
+  const rnd = rngFrom(hashStr(world));
+  const put1 = (name,x,y,s,b)=>{
+    const im=document.createElement('img'); im.className='prop'; im.src=A(name);
+    const flip = rnd()<.5?-1:1, rot=(rnd()*14-7).toFixed(1);
+    const hue=Math.round(rnd()*24-12), bri=(0.94+rnd()*0.12).toFixed(2);
+    const tf=`translate(-50%,-50%) scaleX(${flip}) rotate(${rot}deg)`;
+    im.style.cssText=`left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;height:${(s*26).toFixed(1)}%;`+
+      `transform:${tf};opacity:${b.op};z-index:${b.z};cursor:pointer;`+
+      `filter:${cfg.tint} saturate(${b.sat}) brightness(${bri}) hue-rotate(${hue}deg) blur(${b.blur}px)`;
+    im.onclick=()=>im.animate([{transform:tf},{transform:tf+' translateY(-9px)'},{transform:tf}],{duration:400});
+    st.appendChild(im);
+  };
+  BANDS.forEach(b=>{
+    const pool=cfg[b.k]||[]; if(!pool.length) return;
+    const used={}; const w=100/b.slots;
+    // 아직 3번을 안 채운 소품 중에서만 고른다 (없으면 그 자리는 비운다)
+    const pickable = ()=>{
+      const left = pool.filter(n=>(used[n]||0) < 3);
+      return left.length ? left[Math.floor(rnd()*left.length)] : null;
+    };
+    for(let i=0;i<b.slots;i++){
+      if(rnd()<0.28) continue;                               // 2. 빈 자리
+      const n=pickable(); if(!n) continue;                   // 6. 같은 소품 3번까지
+      used[n]=(used[n]||0)+1;
+      const x=i*w + w*(0.15+rnd()*0.7), y=b.yA+rnd()*(b.yB-b.yA), sc=b.sA+rnd()*(b.sB-b.sA);
+      put1(n,x,y,sc,b);
+      if(rnd()<0.30){                                        // 5. 무리 짓기
+        const n2=pickable();
+        if(n2){ used[n2]=(used[n2]||0)+1;
+          const dx=(3+rnd()*7)*(rnd()<.5?-1:1);
+          put1(n2, x+dx, y+rnd()*3, sc*(0.55+rnd()*0.3), b); }
+      }
+    }
+  });
+}
+
+/* ── 무대 인형 ── */
+function put(cls,src){ const i=document.createElement('img'); i.className='ob '+cls; i.src=A(src);
+  $('#stage').appendChild(i); return i; }
+function clearStage(){ $('#stage').querySelectorAll('.ob').forEach(e=>e.remove()); }
+
+/* ══ 시작 ══ */
+function start(){
+  clearStage(); $('#bg').src=A('bg_start');
+  showLayer(`<img src="${A('mascot')}" style="width:130px">
+    <button class="big" id="go">같이 만들자</button>
+    <div class="hint">어른과 아이가 함께 하는 놀이예요</div>`);
+  $('#go').onclick=()=>{ hideLayer(); ev('story_start'); t1(); };
+}
+
+/* ══ 1턴 · 어디로 ══ */
+function t1(){
+  ask({ text:'오늘은 어디로 가 볼까?', easy:'우주, 바닷속, 공룡 나라가 있어. 어디로 갈까?',
+    cands:[
+      {t:'우주!',v:'space',img:'bg_space'},
+      {t:'바닷속!',v:'sea',img:'bg_sea'},
+      {t:'공룡 나라!',v:'dino',img:'bg_dino'},
+      {t:'로켓 타고 우주 갈래!',v:'space',sig:'S2',img:'rocket'},
+      {t:'바다 깊은 데!',v:'sea',img:'bg_sea'}],
+    on: async c=>{
+      S.place=c.v; ev('slot_filled',{slot:'place',val:c.v});
+      const p=PLACE[c.v]; $('#bg').src=A(p.bg); scatter(c.v);
+      put('hero',S.hero); put('veh',p.v);
+      addPage(`지호는 ${eul(p.vn)} 타고 ${p.n}${josa(p.n,'으로','로')} 떠났어요.`, {bg:p.bg, obs:[S.hero,p.v]});
+      await turn3(`${p.n}로 가는구나!`, null, '잘 가고 있었는데…');
+      await wait(1100); t2();
+    }});
+}
+
+/* ══ 2턴 · 사건과 원인 ══ */
+function t2(){
+  const p=PLACE[S.place];
+  $('#stage').classList.add('shake'); setTimeout(()=>$('#stage').classList.remove('shake'),1400);
+  ask({ text:`어? ${p.ev}. 왜 그럴까?`, easy:'누가 그랬을까?',
+    cands:[
+      {t:'외계인이 흔들어서!',v:'nc_alien',nm:'외계인',sig:'S1',img:'nc_alien'},
+      {t:'운석이 부딪혀서!',v:'nc_meteor',nm:'운석',sig:'S1',img:'nc_meteor'},
+      {t:'바람이 세게 밀어서!',v:'nc_wind',nm:'바람',sig:'S1',img:'nc_wind'},
+      {t:'외계인이 장난쳐서! 꽉 잡고 흔들었어!',v:'nc_alien',nm:'외계인',sig:'S1+S2',img:'nc_alien'},
+      {t:'운석이 날아와서 쿵 했어!',v:'nc_meteor',nm:'운석',sig:'S1+S2',img:'nc_meteor'}],
+    on: async c=>{
+      S.problem=c.nm; S.friend=c.v; S.friendsMet.push({id:c.v,nm:c.nm});
+      ev('slot_filled',{slot:'problem',val:c.nm});
+      put('fr',c.v);
+      addPage(`그런데 갑자기 ${c.nm}이 나타났어요. 쿵!`, {bg:PLACE[S.place].bg, obs:[c.v]});
+      await turn3(`${c.nm}이었구나!`, null, `${c.nm}을 그려 줄래?`);
+      await wait(900); openPad(()=>nameFriend(c.nm));
+    }});
+}
+
+/* 그림판 */
+function openPad(after){
+  showLayer(`<div class="row" style="align-items:center;gap:16px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${['#E4572E','#2A9D8F','#F3B61F','#264653'].map((c,i)=>
+        `<div class="crayon ${i===0?'sel':''}" data-c="${c}" style="background:${c}"></div>`).join('')}
+      <div class="crayon" data-c="erase" style="background:#fff;text-align:center;line-height:44px">🧽</div>
+    </div>
+    <canvas id="pad" width="380" height="270"></canvas>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn pri" id="pd">다 그렸어</button>
+      <button class="btn" id="ps">그리기 싫어</button>
+    </div></div>`);
+  const cv=$('#pad'), cx=cv.getContext('2d'); cx.lineCap=cx.lineJoin='round';
+  let col='#E4572E', down=false;
+  $('#layer').querySelectorAll('.crayon').forEach(c=>c.onclick=()=>{
+    $('#layer').querySelectorAll('.crayon').forEach(x=>x.classList.remove('sel'));
+    c.classList.add('sel'); col=c.dataset.c; });
+  const pos=e=>{const r=cv.getBoundingClientRect(),k=380/r.width;
+    return [(e.clientX-r.left)*k,(e.clientY-r.top)*k];};
+  cv.onpointerdown=e=>{down=true;cx.beginPath();cx.moveTo(...pos(e));};
+  cv.onpointermove=e=>{ if(!down)return;
+    cx.strokeStyle=col==='erase'?'#fff':col; cx.lineWidth=col==='erase'?30:11;
+    cx.lineTo(...pos(e)); cx.stroke(); };
+  addEventListener('pointerup',()=>down=false);
+  $('#pd').onclick=()=>{ S.drawing=cv.toDataURL(); ev('make',{what:'draw'}); hideLayer(); after(); };
+  $('#ps').onclick=()=>{ hideLayer(); after(); };
+}
+
+function nameFriend(nm){
+  ask({ text:'다 그렸네! 이름은 뭐야?', noDraw:true,
+    cands:[{t:'뿌뿌!'},{t:'삐삐!'},{t:'몽몽이!'},{t:'초코!'},{t:'별이!'}],
+    on: async c=>{
+      S.friendName=c.t.replace('!','');
+      if(S.friendsMet.length) S.friendsMet[S.friendsMet.length-1].nm=S.friendName;
+      if(S.drawing){ const f=$('#stage').querySelector('.ob.fr'); if(f) f.src=S.drawing; }
+      addPage(`창문 밖에서 ${S.friendName}가 쳐다보고 있었어요.`,
+              {bg:PLACE[S.place].bg, obs:[S.drawing?{src:S.drawing}:S.friend]});
+      await turn3(`${S.friendName}! 좋은 이름이다.`, '이름은 폰에만 있고 밖으로 안 나가.', '');
+      await wait(900); adultGate();
+    }});
+}
+
+/* ══ 어른이 답해야 넘어가는 자리 (초안 B에만 있음) ══ */
+function adultGate(){
+  say(`${S.friendName}는 왜 그랬을까? 어른한테 먼저 물어볼래!`);
+  const bar=$('#abar'); bar.classList.add('on');
+  bar.innerHTML=`<b>어른 차례</b><span>${S.friendName}가 왜 그랬을 것 같아요? 아이에게 되물어 주세요.</span>
+    <button id="a1">"같이 놀고 싶었나?"</button><button id="a2">"길을 잃었나?"</button>`;
+  const go=async txt=>{
+    bar.classList.remove('on');
+    S.adultTurns++; ev('adult_turn',{text:txt});
+    say(txt,'어른','adult'); await wait(1200);
+    await turn3('오, 어른은 그렇게 생각하는구나.', null, '지호는 어떻게 생각해?');
+    t3();
+  };
+  $('#a1').onclick=()=>go('같이 놀고 싶었나?');
+  $('#a2').onclick=()=>go('길을 잃었나?');
+}
+
+/* ══ 3턴 · 까닭 ══ */
+function t3(){
+  ask({ text:`${S.friendName}는 왜 그랬을까?`, easy:'왜 그랬을 것 같아?',
+    cands:[
+      {t:'심심해서! 친구가 없어서.',v:'친구가 없어서 심심했어',sig:'S1+S2',img:'nc_wind'},
+      {t:'같이 놀고 싶어서!',v:'같이 놀고 싶었어',sig:'S1',img:'nc_alien'},
+      {t:'배가 고파서!',v:'배가 고팠어',sig:'S1',img:'nc_meteor'},
+      {t:'길을 잃어서! 집을 못 찾아서.',v:'길을 잃었어',sig:'S1+S2',img:'nc_alien'},
+      {t:'인사하고 싶어서!',v:'인사하고 싶었어',sig:'S1',img:'nc_wind'}],
+    on: async c=>{
+      S.reason=c.v; ev('slot_filled',{slot:'reason',val:c.v});
+      addPage(`${S.friendName}는 "${c.v}. 미안해" 하고 말했어요.`,
+              {bg:PLACE[S.place].bg, obs:[S.drawing?{src:S.drawing}:S.friend]});
+      await turn3('아, 그래서 그랬구나.', null, `${S.friendName}랑 어떻게 친해질까?`);
+      t4();
+    }});
+}
+
+/* ══ 4턴 · 해결 ══ */
+function t4(){
+  ask({ text:`${S.friendName}랑 어떻게 친해질까?`, easy:'뭘 해 주면 좋을까?',
+    cands:[
+      {t:'같이 별 따기 놀이 해!',v:'같이 별을 땄어요',sig:'S2',img:'nc_meteor'},
+      {t:'선물 줄 거야! 반짝이는 돌!',v:'반짝이는 돌을 선물했어요',sig:'S2',img:'prop_cloud'},
+      {t:'우리 집에 놀러 오라고 해!',v:'집에 초대했어요',img:'nc_alien'},
+      {t:'같이 춤추면 돼!',v:'손을 잡고 춤을 췄어요',img:'nc_wind'},
+      {t:'맛있는 거 나눠 줄래!',v:'맛있는 것을 나눠 주었어요',img:'nc_meteor'}],
+    on: async c=>{
+      S.solution=c.v; ev('slot_filled',{slot:'solution',val:c.v});
+      await turn3('좋은 생각이다!', null, '이 책 이름은 뭐라고 할까?');
+      t5();
+    }});
+}
+
+/* ══ 5턴 · 제목 ══ */
+function t5(){
+  const nm=S.friendName, pl=PLACE[S.place].n;
+  ask({ text:'이 책 이름은 뭐라고 할까?', noDraw:true,
+    cands:[{t:`지호랑 ${nm}랑 ${pl} 놀이!`},{t:`${nm}와 만난 날!`},
+           {t:`${pl}에서 생긴 일!`},{t:`${nm}야, 같이 놀자!`},{t:'우리 둘의 모험!'}],
+    on: async c=>{
+      S.title=c.t.replace('!','');
+      addPage(`${S.solution}. 둘은 다음에도 같이 놀기로 했어요.`,
+              {bg:PLACE[S.place].bg, obs:[S.hero, S.drawing?{src:S.drawing}:S.friend]});
+      await wait(600);
+      say(`『${S.title}』 책이 다 됐어! 이제 책 속에서 놀자!`);
+      await wait(1600); missions();
+    }});
+}
+
+/* ══ 미션 2개 (초안 A와 같게 둔 변인) ══ */
+function missions(){
+  $('#bub').parentElement.style.opacity='1';
+  clearStage();
+  const p=PLACE[S.place]; $('#bg').src=A(p.bg); scatter(S.place);
+  put('veh',p.v);
+  const bar=document.createElement('div'); bar.className='missionbar'; bar.id='mbar';
+  bar.textContent=`큰일이야, ${p.vn}에 불이 났어! 손가락으로 슥슥 문질러 줘!`;
+  $('#stage').appendChild(bar);
+  ev('mission',{n:1,kind:'문지르기',state:'start'});
+  const fires=[[28,52],[44,60],[58,48]].map(([x,y])=>{
+    const f=document.createElement('img'); f.src=A('prop_fire');
+    f.style.cssText=`position:absolute;left:${x}%;top:${y}%;height:20%`;
+    f.dataset.hp='3'; $('#stage').appendChild(f); return f; });
+  let done=0;
+  $('#stage').onpointermove=e=>{
+    fires.forEach(f=>{
+      if(f.dataset.hp==='0')return;
+      const r=f.getBoundingClientRect();
+      if(e.clientX>r.left&&e.clientX<r.right&&e.clientY>r.top&&e.clientY<r.bottom){
+        const hp=+f.dataset.hp-1; f.dataset.hp=hp; f.style.height=(20*hp/3+4)+'%';
+        if(hp===0){ f.src=A('prop_smoke'); setTimeout(()=>f.style.opacity='0',500);
+          if(++done===3){ bar.textContent='불을 다 껐어! 대단해!';
+            ev('mission',{n:1,state:'success'}); setTimeout(mission2,1400); } }
+      }});
+  };
+}
+function mission2(){
+  $('#stage').onpointermove=null;
+  clearStage(); $('#stage').querySelectorAll('img:not(.bg)').forEach(e=>e.remove());
+  const bar=$('#mbar'); bar.textContent=`${S.friendName} 별 우물이 말랐어. 비구름을 끌어다 우물 위에 놓아 줘!`;
+  ev('mission',{n:2,kind:'끌어다 놓기',state:'start'});
+  const well=document.createElement('img'); well.src=A('prop_well');
+  well.style.cssText='position:absolute;left:44%;bottom:8%;height:34%';
+  $('#stage').appendChild(well);
+  const cl=document.createElement('img'); cl.src=A('prop_cloud');
+  cl.style.cssText='position:absolute;left:8%;top:8%;height:26%;cursor:grab';
+  $('#stage').appendChild(cl);
+  let lv=0,drag=false;
+  cl.onpointerdown=e=>{drag=true;cl.setPointerCapture(e.pointerId);};
+  cl.onpointermove=e=>{ if(!drag)return; const r=$('#stage').getBoundingClientRect();
+    cl.style.left=((e.clientX-r.left)/r.width*100-9)+'%';
+    cl.style.top=((e.clientY-r.top)/r.height*100-12)+'%'; };
+  cl.onpointerup=()=>{ drag=false;
+    const a=cl.getBoundingClientRect(), b=well.getBoundingClientRect();
+    if(a.left<b.right+70&&a.right>b.left-70&&a.bottom>b.top-110){
+      lv=Math.min(3,lv+1);
+      bar.textContent=['','물이 조금 찼어!','반이나 찼어!','우물이 가득 찼어! 고마워!'][lv];
+      if(lv===3){ ev('mission',{n:2,state:'success'}); setTimeout(adultClose,1500); }
+    } else bar.textContent='우물 위에 놓아 줘!';
+  };
+}
+
+/* ══ 마무리 — 어른을 부르는 두 번째 자리 ══ */
+async function adultClose(){
+  $('#stage').querySelectorAll('img:not(.bg)').forEach(e=>e.remove());
+  const bar=$('#abar'); bar.classList.add('on');
+  bar.innerHTML=`<b>어른 차례</b><span>오늘 이야기에서 제일 마음에 든 곳을 아이에게 말해 주세요.</span>
+    <button id="c1">"나는 우물 채운 데가 좋았어"</button>`;
+  $('#c1').onclick=async()=>{
+    bar.classList.remove('on'); S.adultTurns++; ev('adult_turn',{text:'제일 좋았던 곳'});
+    say('나는 우물 채운 데가 좋았어','어른','adult'); await wait(1400);
+    say('책 다 만들었다! 엄마한테 보여주러 가자!'); await wait(1400);
+    ev('session_end',{done:true});
+    showLayer(`<div class="hand" style="font-size:30px">오늘은 여기까지!</div>
+      <button class="btn pri" id="rp">부모 모드 보기</button>`);
+    $('#rp').onclick=report;
+  };
+}
+
+/* ══ 부모 리포트 (초안 A와 같게 둔 변인) ══ */
+function report(){
+  hideLayer();
+  const E=S.events, utt=E.filter(e=>e.type==='utterance');
+  const ax={
+    '말하기':{n:utt.length,q:(utt.slice().sort((a,b)=>b.text.length-a.text.length)[0]||{}).text},
+    '이유 말하기':{n:E.filter(e=>e.type==='signal'&&e.sig.includes('S1')).length,q:S.reason},
+    '마음 말하기':{n:E.filter(e=>e.type==='emotion_mention').length,q:null},
+    '이야기 채우기':{n:E.filter(e=>e.type==='signal'&&e.sig.includes('S2')).length,q:S.solution},
+    '만들기':{n:E.filter(e=>e.type==='make').length,q:null},
+    '함께하기':{n:S.adultTurns,q:S.adultTurns?`어른이 ${S.adultTurns}번 함께했어요`:null}
+  };
+  const step=n=>n===0?0:n<=2?1:2;
+  const m={'말로':0,'골라서':0,'그려서':0}; S.answers.forEach(a=>m[a.mode]++);
+  const tot=Math.max(1,S.answers.length), d=k=>Math.round(m[k]/tot*360);
+  const c1=d('말로'), c2=c1+d('골라서');
+  const R=$('#rep'); R.style.display='block';
+  R.innerHTML=`<h2>오늘의 기록</h2>
+    <div class="hint">『${S.title||'제목 없음'}』 · ${S.pages.length}쪽 · ${utt.length}번 중 ${utt.length}번을 셌어요</div>
+    <div class="rgrid"><div>
+      <h3 style="font-size:14px;margin:8px 0 5px">오늘 이야기 모양</h3>
+      ${Object.entries(ax).map(([k,v])=>`<div class="axline"><b>${k}</b>
+        <span class="dots">${[0,1,2].map(i=>`<span class="${i<step(v.n)?'on':''}">●</span>`).join('')}</span>
+        <span style="width:22px;color:#8B7B68">${v.n}</span>
+        <span class="q">${v.n===0?'오늘은 안 나왔어요':(v.q?'"'+v.q+'"':'')}</span></div>`).join('')}
+      <div class="hint" style="margin-top:6px">점수도 또래 비교도 없습니다.</div>
+    </div><div>
+      <h3 style="font-size:14px;margin:8px 0 5px">오늘 말한 방식</h3>
+      <div class="row" style="justify-content:flex-start;gap:16px">
+        <div class="pie" style="background:conic-gradient(var(--red) 0 ${c1}deg,var(--teal) ${c1}deg ${c2}deg,var(--yellow) ${c2}deg 360deg)"></div>
+        <div class="legend" style="color:#8B7B68">
+          ● 말로 ${m['말로']}<br>● 골라서 ${m['골라서']}<br>● 그려서 ${m['그려서']}<br>
+          <span style="display:block;margin-top:6px">고르기도 이야기를 짓는 방법이에요.</span></div></div>
+      <h3 style="font-size:14px;margin:14px 0 5px">다음에 이렇게 물어보세요</h3>
+      <div class="legend" style="color:#8B7B68">· "${S.friendName||'친구'}는 어떻게 집에 갔을까?"<br>· "그때 지호 마음은 어땠어?"</div>
+      <div class="note">놀이 대화 요약이며 언어발달 평가·진단이 아닙니다. 본 제품은 의료기기가 아니므로 질병 유무를 판단할 수 없으며,
+        질병 유무 판단을 위해서는 의사의 검진이 필요합니다. 궁금한 점은 영유아건강검진(K-DST)이나 언어재활사와 상담하세요.</div>
+      <button class="btn" style="margin-top:8px" onclick="location.reload()">처음부터 다시</button>
+    </div></div>`;
+}
+
+/* ══ 시연 서랍 ══ */
+let hT;
+$('#hot').onpointerdown=()=>{ hT=setTimeout(()=>$('#drawer').classList.add('open'),900); };
+$('#hot').onpointerup=()=>clearTimeout(hT);
+function paintDrawer(){ buildDrawer(); }
+function buildDrawer(){
+  $('#drawer').innerHTML=`
+  <button style="float:right" onclick="document.getElementById('drawer').classList.remove('open')">닫기 ✕</button>
+  <h3>초안 A와 다르게 잡은 것</h3>
+  <div class="legend">
+    1. 그림체 — 찢은 색종이 콜라주 (SDXL) ↔ A는 펠트 3D<br>
+    2. 책 — 말할 때마다 왼쪽에 한 쪽씩 쌓임 ↔ A는 마지막에 한 번에<br>
+    3. 어른 — <b>답해야 넘어가는 자리 1개</b> + 마무리 자리 1개 ↔ A는 건너뛸 수 있는 1개<br>
+    4. 턴 — 5턴 ↔ A는 8턴
+  </div>
+  <h3>같게 둔 것 (비교 변인 통제)</h3>
+  <div class="legend">미션 2개 · 부모 리포트 6축 · 가로 화면 · 열린 질문 · 답 후보 5개</div>
+  <h3>상태</h3>
+  <div class="kv"><span>수준</span><b>${S.level}</b></div>
+  <div class="kv"><span>신호 S1 / S2</span><b>${S.s1} / ${S.s2}</b></div>
+  <div class="kv"><span>말한 횟수</span><b>${S.events.filter(e=>e.type==='utterance').length}</b></div>
+  <div class="kv"><span>어른 차례</span><b>${S.adultTurns}</b></div>
+  <div class="kv"><span>쌓인 쪽</span><b>${S.pages.length}</b></div>
+  <h3>장면 이동</h3>
+  <button onclick="start()">처음</button>
+  <button onclick="demo();missions()">미션</button>
+  <button onclick="demo();report()">리포트</button>
+  <h3>없는 것</h3>
+  <div class="legend">음성 인식 · LLM 호출 · 실시간 생성 · 저장 · 결제</div>
+  <h3>로그</h3><div id="log" style="font-family:monospace;font-size:10.5px;max-height:150px;overflow:auto;background:#241e18;padding:6px;border-radius:6px"></div>`;
+}
+function demo(){
+  S.place=S.place||'space'; S.friendName=S.friendName||'뿌뿌'; S.friend=S.friend||'nc_alien';
+  S.reason=S.reason||'친구가 없어서 심심했어'; S.solution=S.solution||'같이 별을 땄어요';
+  S.title=S.title||'지호랑 뿌뿌랑 우주 놀이';
+  if(!S.answers.length) S.answers=[{mode:'말로',text:'우주!'},{mode:'말로',text:'외계인이 흔들어서!'}];
+}
+buildDrawer();
+start();
+</script>
+</body>
+</html>

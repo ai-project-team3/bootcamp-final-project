@@ -24,3 +24,9 @@ Thumbs.db
 # runtime artifacts
 *.log
 backend/app/templates/harvested/*.jsonl
+
+# 프로토타입 그림 (91MB) — finalproject_demo/app/src/main/res/drawable 에서 복사
+prototype/assets/
+
+# 초안 B 렌더 원본 (잘라내기 전) — tools/render.py 로 다시 만들 수 있음
+prototype-b/assets_raw/
