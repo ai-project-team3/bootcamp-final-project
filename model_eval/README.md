@@ -1,0 +1,330 @@
+# 최민우 — 모델 검증 러너 / 채점기
+
+2026-09-18 최신 실행 지시서의 **최민우 파트**를 기준으로 만든 대기형 프로젝트다.
+
+지금 할 수 있는 코드는 전부 구현해 두고, 팀원에게 받아야 하는 최종 파일/API 키는 **자리만 비워 둔다.**
+실제 파일이 오면 코드 수정 대신 해당 위치에 넣고 `preflight.py`로 확인한 뒤 실행한다.
+
+## 지금 상태
+
+비유하면 **건전지 없는 로봇 장난감**이다.
+
+- 프로젝트 코드 = 로봇 본체/측정기
+- 조장 API 키 = 건전지
+- 안치영 100개 = 문제지
+- 박진웅 판정 프롬프트/스키마 = 시험 규칙
+- 박진웅 gold = 정답지
+
+최신 설계 변경인 **전체 슬롯 + 최대 2개 슬롯 채움 + next_slot + no_longer_needed + story_ready** 구조까지 mock으로 반영했다.
+
+---
+
+## 1. 무료 데모
+
+```bash
+python run_demo.py
+```
+
+실제 API 호출/과금은 없다.
+
+확인하는 것:
+
+- 새 17필드 판정 JSON 파싱/스키마 검증
+- JSON 실패 1건이 있어도 다음 항목 계속 실행
+- `slot_1`, `slot_2`, `no_longer_needed` 범주형 macro F1
+- `s1_reason`, `s2_addition` Precision/Recall/F1
+- `next_slot` 허용 집합 적중률
+- `value_1` 자모 편집거리 ≤ 0.30 보조 정확도
+- TTFT p50/p95, total, token
+- 이야기 생성 5개 자동 검사
+- 자모 손상 0%/10%/25%와 프리셋 매칭 전/후
+- seed `20260918`
+
+데모 스키마/데이터는 다음 파일만 사용한다.
+
+```text
+eval/judge_schema_demo.json
+eval/judge_prompt_demo.md
+eval/fixtures_judge_demo.jsonl
+```
+
+실제 팀 파일과 섞이지 않는다.
+
+---
+
+## 2. 팀원에게 받을 파일 — 현재는 자리만 있음
+
+### 박진웅
+
+```text
+eval/judge_prompt.md
+eval/judge_schema.json
+```
+
+나중에 판정 100개의 gold 라벨도 필요하다.
+
+생성 쪽은:
+
+```text
+eval/story_prompt.md
+eval/story_schema.json
+eval/forbidden_words.txt
+```
+
+### 안치영
+
+```text
+eval/fixtures_judge.jsonl
+eval/fixtures_story.jsonl
+```
+
+판정 평가셋의 핵심 입력 형식은:
+
+```json
+{
+  "id": "j001",
+  "slots": {"place": null, "problem": null},
+  "asked": "place",
+  "template": "C",
+  "utterance": "공룡나라 갈래"
+}
+```
+
+오전에는 gold가 없어도 된다. 예측을 먼저 수집하고, gold는 나중에 붙여 기존 raw만 재채점할 수 있다.
+
+### 조장
+
+환경변수/API 키:
+
+```text
+OPENAI_API_KEY
+MISTRAL_API_KEY
+ANTHROPIC_API_KEY   # 팀 실행 환경에 이미 있으면 그대로 사용
+```
+
+키는 코드에 넣지 않고 `.env` 또는 OS 환경변수로만 사용한다.
+
+전체 체크리스트는 `INCOMING_CHECKLIST.md` 참고.
+
+---
+
+## 3. 새 판정 구조 대응
+
+최신 demo 스키마는 다음 필드를 갖는다.
+
+```text
+reason
+slot_1 / value_1
+slot_2 / value_2
+contradiction / contradiction_with
+s1_reason / s2_addition
+emotion
+unclear / unclear_of
+next_slot / next_reason
+no_longer_needed
+story_ready
+```
+
+러너는 위 필드명을 코드에 직접 박아 검증하지 않고, **전달받은 JSON Schema의 `required/type/enum/additionalProperties`를 읽어 검증**한다.
+따라서 팀 스키마가 소폭 변경되어도 러너 자체 수정 가능성을 줄였다.
+
+모델 입력에는 gold를 절대 넣지 않고 다음만 전달한다.
+
+```text
+slots 전체
+asked
+template
+utterance
+```
+
+---
+
+## 4. 새 채점 규칙
+
+### slot_1 / slot_2 / no_longer_needed
+
+범주형 값이므로 실제 슬롯명을 one-vs-rest로 보고 **macro Precision/Recall/F1**을 계산한다.
+`null`은 양성 슬롯 클래스에서 제외하고 exact accuracy도 함께 기록한다.
+
+### s1_reason / s2_addition
+
+기존처럼 이진 Precision/Recall/F1.
+
+### next_slot
+
+정답 하나를 강요하지 않는다.
+Gold의:
+
+```json
+"next_slot_ok": ["problem", "companion", "newcomer"]
+```
+
+중 모델 예측이 하나라도 들어가면 정답.
+
+### value_1
+
+완전 문자열 일치를 쓰지 않는다.
+두 문자열을 자모로 펼친 뒤 정규화 편집거리:
+
+```text
+distance / max(jamo_length)
+```
+
+가 **0.30 이하**이면 정답으로 센다.
+이 값은 `corrupt.py`의 자모 로직을 재사용한다.
+
+---
+
+## 5. 팀 파일/API 키가 오면
+
+### `.env` 준비
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+macOS/Linux:
+
+```bash
+cp .env.example .env
+```
+
+팀 키를 `.env`에 넣는다.
+
+### 받은 파일 넣기
+
+```text
+eval/judge_prompt.md
+eval/judge_schema.json
+eval/fixtures_judge.jsonl
+```
+
+### 과금 전에 점검
+
+```bash
+python preflight.py
+```
+
+preflight는:
+
+- 파일 존재 여부
+- fixture 핵심 키 형식
+- gold 도착 여부
+- schema 핵심 required 필드
+- 모델별 API 키
+
+를 확인한다.
+
+### 실제 판정 예측 수집
+
+```bash
+python run_team_eval.py --yes-spend
+```
+
+`--yes-spend`가 없으면 실제 API 호출을 하지 않는다.
+키가 있는 후보만 실행하고 없는 후보는 건너뛴다.
+
+### Gold가 나중에 오면
+
+API를 다시 호출하지 않는다.
+
+```bash
+python score_existing.py
+```
+
+기존 `eval/raw/*.jsonl`을 읽어 추가 비용 0원으로 채점한다.
+
+---
+
+## 6. 실제 모델별 raw 기록
+
+각 row:
+
+```text
+id
+model / api_model / provider
+ok
+error / raw (실패 시)
+ttft / total
+pred
+in_tok / out_tok
+```
+
+JSON이 깨져도 `ok:false`로 남기고 다음 입력을 계속 실행한다.
+
+TTFT는 스트리밍의 **첫 content delta 도착 시점**으로 잰다.
+
+---
+
+## 7. 생성 자동 채점
+
+`score.py`에 그대로 유지되어 있다.
+
+- `-어요체` ≥95%
+- 15어절 이하 ≥95%
+- 금지 표현 0건
+- `{주인공}`, `{친구1}` 자리표시자 무결성 100%
+- 정확히 6장면 100%
+
+현재는 실제 생성 3벌/프롬프트를 기다리는 자리만 만들어 둔다.
+
+---
+
+## 8. 자모 방어 테스트
+
+`corrupt.py`는 그대로 독립 실행 가능한 핵심 코드다.
+
+- seed `20260918`
+- 10% 손상
+- 25% 손상 + 음절 탈락/띄어쓰기 오류
+- 초성/중성/종성 한국어 STT형 변형
+- exact 문자열 매칭 전
+- 자모 편집거리 매칭 후
+
+`value_1` fuzzy 채점도 같은 자모 함수들을 재사용한다.
+
+---
+
+## 9. 폴더 핵심
+
+```text
+minwoo_eval_ready/
+├─ run_demo.py
+├─ preflight.py
+├─ run_team_eval.py
+├─ score_existing.py
+├─ INCOMING_CHECKLIST.md
+├─ README.md
+├─ TEAM_EXPLANATION.md
+├─ .env.example
+└─ eval/
+   ├─ run_judge.py
+   ├─ score.py
+   ├─ corrupt.py
+   ├─ config.py
+   ├─ model_catalog.json
+   ├─ judge_prompt_demo.md
+   ├─ judge_schema_demo.json
+   ├─ fixtures_judge_demo.jsonl
+   ├─ judge_prompt.md.README
+   ├─ judge_schema.json.README
+   ├─ fixtures_judge.jsonl.README
+   ├─ story_prompt.md.README
+   ├─ story_schema.json.README
+   ├─ fixtures_story.jsonl.README
+   ├─ forbidden_words.txt.README
+   ├─ providers/
+   └─ raw/
+```
+
+---
+
+## 10. 주의
+
+- `results_demo.md` 숫자는 실제 후보 모델 성능이 아니다.
+- 후보 모델마다 프롬프트를 따로 튜닝하지 않는다.
+- 실제 API 단가는 실행 직전에 `model_catalog.json`을 팀 기준으로 확인한다.
+- `.env`는 `.gitignore` 대상이다.
+- 실제 API 호출은 `--yes-spend` 없이는 막혀 있다.

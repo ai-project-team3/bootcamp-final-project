@@ -1,0 +1,4 @@
+박진웅에게 최종 판정 스키마를 받으면 이 파일과 같은 위치에 `judge_schema.json` 이름으로 넣으세요.
+
+현재 무료 데모는 `judge_schema_demo.json`을 사용합니다.
+실제 팀 평가(`run_team_eval.py`)는 `judge_schema.json`이 없으면 preflight 단계에서 멈춥니다.
