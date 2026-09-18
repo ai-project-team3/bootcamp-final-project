@@ -1,5 +1,5 @@
 # If an LLM-written parent sentence contains any of these, drop it and use a
-# prewritten one. guidelines/4_금칙어.md §3
+# prewritten one. guidelines/8_금칙어.md §3
 또래
 평균
 백분위

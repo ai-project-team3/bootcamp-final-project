@@ -1,5 +1,5 @@
 # Never block these. Conflict and feeling are story material.
-# guidelines/4_금칙어.md §0
+# guidelines/8_금칙어.md §0
 무섭다
 무서워
 슬프다

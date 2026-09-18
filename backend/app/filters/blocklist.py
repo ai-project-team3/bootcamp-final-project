@@ -1,4 +1,4 @@
-"""Rule-based word filter, layer 1 of 2. Lists: guidelines/4_금칙어.md.
+"""Rule-based word filter, layer 1 of 2. Lists: guidelines/8_금칙어.md.
 
 Runs before any LLM call so a blocked utterance never leaves our servers.
 Name masking already happened on the phone — see 노션 「구현대본」.
