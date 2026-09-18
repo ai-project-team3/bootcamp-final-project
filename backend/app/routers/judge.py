@@ -1,7 +1,7 @@
 """POST /judge — one call per turn. ~16 per session.
 
 The model reads the whole slot state and decides what to ask next; the rules
-here keep the story from wandering. Spec: docs/프롬프트_모음.md §2.
+here keep the story from wandering. Spec: guidelines/7_프롬프트.md §2.
 """
 from fastapi import APIRouter
 from ..schemas.judge import JudgeRequest, JudgeResult, SLOT_NAMES

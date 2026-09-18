@@ -1,4 +1,4 @@
-"""Book pages. Spec: docs/프롬프트_모음.md §5."""
+"""Book pages. Spec: guidelines/7_프롬프트.md §5."""
 from pydantic import BaseModel
 
 

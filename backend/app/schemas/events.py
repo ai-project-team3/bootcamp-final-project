@@ -1,4 +1,4 @@
-"""Session events. Spec: docs/기술개요.md §7.
+"""Session events. Spec: 노션 「기술개요」 §7.
 
 `by` must survive to the report: mixing what the child said with what we
 filled in is how a parent report starts lying.

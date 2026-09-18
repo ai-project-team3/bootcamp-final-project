@@ -8,6 +8,8 @@
 
 | | |
 |---|---|
-| `tools/` | ComfyUI 렌더·잘라내기 스크립트 |
+| `tools/render.py` | **ComfyUI HTTP API 호출.** SDXL base 1.0 · 28 steps · cfg 6.5 · dpmpp_2m/karras. **주석에 프롬프트 요령 7개**가 있다 |
+| `tools/cutout.py` | **배경 제거** (BiRefNet 없이). 흰 배경 → 투명 PNG. ⚠️ **이미 자른 RGBA를 또 자르지 않게** 가드가 있다 |
+| `tools/gen_*.py` | 에셋 일괄 생성 |
 
-근거: `docs/기능별_모델선정.md` §2-3
+근거: 노션 「기능별 모델선정」 §2-3
