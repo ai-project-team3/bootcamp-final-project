@@ -1,0 +1,18 @@
+# If an LLM-written parent sentence contains any of these, drop it and use a
+# prewritten one. docs/금칙어_목록.md §3
+또래
+평균
+백분위
+정상
+등급
+레벨
+수준
+단계
+발달지수
+진단
+선별
+지연
+부족
+늦다
+향상
+증진

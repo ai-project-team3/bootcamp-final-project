@@ -1,0 +1,33 @@
+package com.example.finalproject_demo.ui
+
+/** 생성된 주인공 그림별 눈 위치 — tools/find_eyes.py가 채운다. 비어 있으면 DEFAULT_EYES */
+val HERO_EYES: Map<String, Eyes> = mapOf(
+    "hero_blue" to Eyes(0.4238f, 0.3320f, 0.5718f, 0.3329f, 0.0156f),
+    "hero_glasses" to Eyes(0.3906f, 0.3828f, 0.5748f, 0.3908f, 0.0469f),
+    "hero_long_blue_none" to Eyes(0.4241f, 0.3075f, 0.5725f, 0.3075f, 0.0156f),
+    "hero_long_blue_round" to Eyes(0.4721f, 0.3471f, 0.6205f, 0.3471f, 0.0137f),
+    "hero_long_blue_square" to Eyes(0.4337f, 0.3280f, 0.5625f, 0.3283f, 0.0508f),
+    "hero_long_red_none" to Eyes(0.4255f, 0.3143f, 0.5706f, 0.3145f, 0.0176f),
+    "hero_long_red_round" to Eyes(0.3869f, 0.3670f, 0.6203f, 0.3625f, 0.0391f),
+    "hero_long_red_square" to Eyes(0.3825f, 0.3616f, 0.6115f, 0.3615f, 0.0215f),
+    "hero_long_yellow_none" to Eyes(0.4375f, 0.3335f, 0.5593f, 0.3316f, 0.0137f),
+    "hero_long_yellow_square" to Eyes(0.4373f, 0.3523f, 0.5760f, 0.3508f, 0.0449f),
+    "hero_short_blue_none" to Eyes(0.4286f, 0.3196f, 0.5684f, 0.3203f, 0.0156f),
+    "hero_short_blue_round" to Eyes(0.4020f, 0.3698f, 0.5568f, 0.3698f, 0.0430f),
+    "hero_short_blue_square" to Eyes(0.4219f, 0.3594f, 0.6025f, 0.3584f, 0.0371f),
+    "hero_short_red_none" to Eyes(0.4262f, 0.3296f, 0.5694f, 0.3297f, 0.0176f),
+    "hero_short_red_round" to Eyes(0.3946f, 0.3992f, 0.6091f, 0.3973f, 0.0430f),
+    "hero_short_red_square" to Eyes(0.3943f, 0.3850f, 0.5762f, 0.3906f, 0.0488f),
+    "hero_short_yellow_none" to Eyes(0.4265f, 0.3255f, 0.5684f, 0.3242f, 0.0176f),
+    "hero_short_yellow_round" to Eyes(0.4219f, 0.3750f, 0.5762f, 0.3750f, 0.0215f),
+    "hero_short_yellow_square" to Eyes(0.4160f, 0.3945f, 0.5781f, 0.3945f, 0.0156f),
+    "hero_tied_blue_none" to Eyes(0.4223f, 0.3304f, 0.5623f, 0.3299f, 0.0176f),
+    "hero_tied_blue_round" to Eyes(0.4261f, 0.3393f, 0.5679f, 0.3390f, 0.0176f),
+    "hero_tied_blue_square" to Eyes(0.4342f, 0.3613f, 0.5635f, 0.3608f, 0.0156f),
+    "hero_tied_red_none" to Eyes(0.4137f, 0.3443f, 0.5663f, 0.3441f, 0.0176f),
+    "hero_tied_red_round" to Eyes(0.4303f, 0.3105f, 0.5676f, 0.3105f, 0.0156f),
+    "hero_tied_red_square" to Eyes(0.4150f, 0.3650f, 0.5818f, 0.3653f, 0.0605f),
+    "hero_tied_yellow_none" to Eyes(0.4280f, 0.3259f, 0.5652f, 0.3262f, 0.0156f),
+    "hero_tied_yellow_round" to Eyes(0.4203f, 0.3916f, 0.5746f, 0.3920f, 0.0547f),
+    "hero_tied_yellow_square" to Eyes(0.4157f, 0.3601f, 0.5848f, 0.3604f, 0.0605f),
+)

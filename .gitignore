@@ -10,10 +10,19 @@ __pycache__/
 venv/
 *.egg-info/
 
-# node
-node_modules/
-dist/
-.vite/
+# android / gradle
+android/.gradle/
+android/build/
+android/app/build/
+android/.idea/
+android/local.properties
+*.iml
+.cxx/
+
+# eval 산출물 (원자료는 커밋, 실행 결과는 제외)
+eval/raw/
+eval/audio/*.wav
+eval/audio/*.m4a
 
 # os / editor
 .DS_Store
@@ -21,12 +30,11 @@ Thumbs.db
 .idea/
 .vscode/
 
-# runtime artifacts
+# runtime
 *.log
-backend/app/templates/harvested/*.jsonl
 
-# 프로토타입 그림 (91MB) — finalproject_demo/app/src/main/res/drawable 에서 복사
+# 프로토타입 그림 (91MB) — android/app/src/main/res/drawable 에서 복사
 prototype/assets/
 
-# 초안 B 렌더 원본 (잘라내기 전) — tools/render.py 로 다시 만들 수 있음
+# 초안 B 렌더 원본 (잘라내기 전) — assets/tools/render.py 로 다시 만든다
 prototype-b/assets_raw/

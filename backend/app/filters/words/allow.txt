@@ -1,0 +1,23 @@
+# Never block these. Conflict and feeling are story material.
+# docs/금칙어_목록.md §0
+무섭다
+무서워
+슬프다
+울었다
+화났다
+싫어
+밉다
+싸웠다
+다퉜다
+밀었다
+넘어졌다
+다쳤다
+아프다
+괴물
+귀신
+도깨비
+마녀
+용
+어둠
+못했다
+졌다

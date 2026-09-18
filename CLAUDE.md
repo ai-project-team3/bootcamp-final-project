@@ -1,189 +1,91 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+이 레포에서 일하는 Claude Code를 위한 안내다.
 
-## Language policy
+## 언어
 
-- **Replies to the user: Korean.** Explanations, summaries, questions, status updates.
-- **Code and machine-facing artifacts: English.** Code, comments, commit messages, PR titles/bodies, log messages, test names.
-- **Documents people read: Korean.** `docs/`, `guidelines/`, `gaps/`, READMEs, retrospectives.
-- **Product text stays Korean** — UI copy, mock data, API error messages returned to clients.
-- Keep identifiers, file paths, command names and flags in their original form inside Korean sentences.
+- **사용자에게 보내는 답변: 한국어.** 설명·요약·질문·진행 보고
+- **코드와 기계가 읽는 것: 영어.** 코드·주석·커밋 메시지·PR·로그
+- **사람이 읽는 문서: 한국어.** `docs/` · `guidelines/` · README
+- **제품 문구는 한국어.** 앱 대사 · 더미 데이터 · 부모에게 보이는 글
+- 한국어 문장 안의 식별자·경로·명령은 **원형 그대로** (`next_slot`, `story_ready`)
 
-## Start here — read this before anything else
+## 먼저 읽을 것
 
-**Work out who you are and what week it is, then read only your own brief.**
+1. `guidelines/1_데이터_모델.md` — **슬롯·이벤트·출처·수준의 유일한 출처**
+2. `guidelines/2_폴더구조_스택.md` — 폴더 · 스택 · 환경변수 · 브랜치 · 명령
+3. `docs/현재상태_다음세션.md` — 지금 어디까지 왔나
+4. 처음이면 `docs/핸드오프_말로짓는인형극.md`
 
-1. `git branch --show-current` → the branch is named after its owner. Map it below.
-   On `main`, or if the name doesn't match, **ask the user which role they hold.**
-2. Compare today's date against `guidelines/6_통합_체크포인트.md` §6-1 to find the week.
-3. Read **only** `guidelines/4_프롬프트_브리프.md` §4-N for that role, plus `guidelines/0`.
-4. **Do not read other roles' sections. Do not edit files another role owns.**
-5. To change `2` (data model), `3` (API) or `5` (folder/stack): stop and tell the
-   user to raise it with 조장. Do not edit them.
+`git branch --show-current`로 담당을 확인한다. 브랜치 표는 guidelines §2-7.
+**`main`에 직접 푸시하지 않는다.**
 
-| Branch | Role | Owner |
+---
+
+## 이 제품이 무엇인가
+
+만 3~7세 아이와 어른이 **말을 주고받으며** 종이 인형극 그림책을 한 권 만든다. 끝나면 부모에게 **오늘 아이가 한 말 그대로**를 남긴다.
+
+**차별점은 둘뿐이다.**
+
+1. **아이가 만든 건 AI가 다시 그리지 않는다** — 아이 그림은 그대로 책에, 녹음은 폰 밖으로 안 나감
+2. **질문 순서가 고정이 아니다** — 무엇을 물을지는 방금 한 말이 정한다
+
+---
+
+## 남을 깨뜨리는 규칙 아홉
+
+**하나라도 어기면 다른 사람 코드가 조용히 깨진다.**
+
+1. **슬롯 이름은 고르는 것이지 만드는 것이 아니다.** 목록 12개(`guidelines/1` §1-1) 밖은 전부 `extra`에 원문 그대로. 새 이름이 들어오면 앱이 렌더링도 집계도 못 한다
+
+2. **필수 슬롯은 고정이 아니다.** 아이 답에 따라 빠지고 생긴다(`no_longer_needed`). **"필수 6칸이 다 찼으니 끝"을 쓰지 않는다.** 끝나는 기준은 `story_ready`
+
+3. **턴 상한을 두지 않는다.** 8턴 상한은 우리 핵심 지표인 **「주고받기 횟수」를 스스로 깎는다**
+
+4. **수준은 규칙이 계산한다. LLM은 신호만 표시한다.** LLM에게 "이 아이의 수준은?"이라고 묻지 않는다
+
+5. **발화 출처 `by` 3종을 끝까지 구분한다.** `child` · `card` · `mascot`. **아이가 한 말과 우리가 채운 말이 섞이면 부모 리포트가 거짓말을 시작한다.** `mascot`은 주고받기 횟수·수준 신호·리포트 인용에서 전부 빠진다
+
+6. **실명은 폰에서 가리고, 매핑표도 폰에만 둔다.** 백엔드가 가리려면 백엔드가 실명을 먼저 받아야 하고, 그러면 필터의 의미가 절반 사라진다
+
+7. **필터는 놓치는 것보다 과차단이 위험하다.** *무섭다 · 괴물 · 싸웠다 · 울었다*는 다섯 살 이야기의 **갈등 재료**다. 판단 기준 한 줄 — *"이 말이 그림책 한 쪽에 들어가도 되는가"*. 아이 말버릇을 교정하는 필터가 아니다
+
+8. **세션 중에 그림을 만들지 않는다.** 전부 미리 만들어 번들하고 앱에서 조합한다. 지연 0초 · 사람이 전수 검수 · 오프라인 동작
+
+9. **부모 리포트에 점수·등급·또래 비교를 쓰지 않는다.** 대신 **횟수와 원문 인용.** LLM이 만든 문장에 금지어가 하나라도 있으면 그 답을 버리고 미리 만든 문장을 쓴다
+
+---
+
+## 모델
+
+**측정 전 기본값이다. 근거와 뒤집기 조건은 `docs/기능별_모델선정.md`.**
+
+| 자리 | 지금 | 대안 |
 |---|---|---|
-| `feature/leejaehwan` | 1 — audio · realtime · deployment | 이재환 |
-| `feature/parkjinwoong` | 2 — item matching | 박진웅 |
-| `feature/ahnchiyoung` | 3 — state tracking · evaluation | 안치영 |
-| `feature/choiminwoo` | 4 — generation | 최민우 |
-| `feature/leejonghoon` | 5 — template · carryover (조장) | 이종훈 |
+| 판정 + 생성 | **`gpt-5.6-luna`** — 한 모델, effort 두 설정 | `claude-haiku-4-5` (ZDR 승인 실패 시) · `mistral-small-4` |
+| 음성 인식 | 자체 GPU faster-whisper large-v3-turbo | `gpt-4o-mini-transcribe` · ML Kit `ko-KR` (폴백) |
+| 그림 | ComfyUI + SDXL, **오프라인 사전 제작** | — |
+| 목소리 | **고정 대사 사전 합성 번들** | 가변 자막만 폰 TTS |
 
-Role assignments and reasoning: `docs/역할_배정_결과.md`.
-Never push to `main`. Open a PR; 조장 reviews and merges.
+**모델 ID를 상수로 박지 않는다. `.env`에서 읽는다.** W1 측정이 바꾼다.
 
-## Repository state
+**표를 바꾸는 것은 측정값뿐이다.** 가격만으로 안 바꾸고(6주 총액 차이 3만원), **추천만으로 안 바꾸고**(추천은 측정 우선순위를 바꿀 뿐이다), 신뢰구간이 겹치면 동률로 읽는다.
 
-**The skeleton is in place** (PR #20). `backend/` and `frontend/` follow
-`guidelines/5_기술스택_폴더구조.md` §5-2 exactly — every owner's file already exists and names
-its owner in the docstring. `backend/app/schemas/` holds all eight frozen models, transcribed
-field for field from `guidelines/2`. `backend/app/database.py` holds the one and only `Base`.
+---
 
-**Nothing is implemented yet.** Routers are empty `APIRouter`s whose docstrings list the exact
-endpoints that file owes. Per-role packages (`audio/ matching/ state/ generation/ carryover/
-eval/`) are empty. Fill in your own; do not scaffold someone else's.
+## 이 레포에서 일하는 법
 
-Verified at scaffold time: the app boots, `/health` answers, and 404 / 409 / 422 / 500 all come
-back as `{"error": true, "message": "..."}`. The frontend builds.
+- **같은 것을 두 곳에 적지 않는다.** 이름은 `guidelines/1`, 금칙어는 `docs/금칙어_목록.md`, 프롬프트는 `docs/프롬프트_모음.md`. 두 곳에 있으면 어느 쪽이 최신인지 아무도 모른다
+- **`android/`가 레포 안에 있다.** 공유 폴더를 고치면 갈라진다
+- **긴 한국어를 Bash 히어독으로 쓰지 않는다.** 두 번 깨졌다. Write 도구를 쓴다
+- **노션 붙여넣기를 자동화하지 않는다.** 합성 Ctrl+V는 진짜 클립보드를 못 건드린다. 9/16에 본문을 한 번 날렸다
+- **파괴적인 작업 전에 커밋한다.** 되돌리기가 그것뿐이다
 
-Also present: `guidelines/0`–`6` (frozen specs), `docs/` (product plan, implementation plan,
-role assignment), `gaps/` (the 17 decision records the specs were derived from).
+## 1차에 안 하는 것
 
-Check `git log` / `git branch -a` for what has landed before assuming a file's current content.
+**멘토가 직접 후순위로 민 것** — DB/API 구조. *"피처 완성과 UI 표현에 먼저 집중."*
 
-## What this project is
+로그인 · 서버 저장 · 결제 · 관리자 웹 · 월드 맵 · 세션 중 이미지 생성 · 자체 호스팅 LLM
 
-**영업 어시스턴트 AI** — a real-time sales-meeting assistant. It tracks, per item, what the
-customer is still stuck on (**반대사유**), detects when a resolved item **relapses** mid-meeting
-(재발), and carries item state across meeting rounds (차수) so the 2nd and 3rd meeting reports
-say things a single-meeting tool cannot.
-
-Two differentiators, and only two:
-
-1. **재발 탐지** — catching the moment something resolved gets blocked again, within one meeting
-2. **차수별 누적** — stitching meetings together instead of leaving them as separate documents
-
-## Source-of-truth documents (read before implementing)
-
-- `guidelines/0_목적_사용법.md` — how to use these docs; **`2` (data model), `3` (API), `5`
-  (folder/stack) are frozen and may only be changed by 조장.** Do not improvise around them.
-- `guidelines/1_시스템_개요.md` — screens, module ownership, and **§1-5's nine cross-cutting
-  rules**. Those nine are the ones that break other people when violated. Read them before
-  touching anything.
-- `guidelines/2_공통_데이터_모델.md` — exact Pydantic models (`Utterance`, `Item`, `Slot`,
-  `Template`, `StateChange`, `ChecklistState`, `Deal`, `Meeting`, `Card`, `BackchannelSignal`,
-  `TimingMark`) plus the state transition table. Every module exchanges data using these; do not
-  rename or add fields.
-- `guidelines/3_API_명세.md` — exact endpoints, the common error shape
-  `{"error": true, "message": "..."}`, and the single WebSocket channel contract.
-- `guidelines/4_프롬프트_브리프.md` — per-role briefs. §4-3 (상태 추적) is the most detailed
-  spec for relapse behaviour and evaluation.
-- `guidelines/5_기술스택_폴더구조.md` — stack, frozen folder layout, env var names, git branch
-  strategy, deployment (Cloudflare Pages + Railway), code-freeze dates.
-- `guidelines/6_통합_체크포인트.md` — schedule, the 14-step E2E scenario that must pass, §6-3's
-  three W1 blockers, §6-5's early-abort triggers, and §6-7's explicit "not in 1차" list.
-- `gaps/*.md` — the 17 decision records. When a spec looks arbitrary, the reasoning is here.
-
-## Architecture (once implemented, per the frozen spec)
-
-**Stack**: FastAPI + SQLAlchemy backend, MySQL, React + Vite frontend, a **single** FastAPI
-WebSocket channel carrying transcript / state / cards / backchannel together (one socket gives
-ordering for free). `claude-opus-5` for card sentences and report prose. STT provider and
-embedding model are **not chosen yet** — W1 spikes decide them; only the interfaces are frozen.
-
-**The pipeline is one direction:**
-
-```
-audio → SpeakerSource → Utterance → matching(역할 2) → state(역할 3) → cards/report(역할 4)
-                                          ↑ template(역할 5) ↑ carryover(역할 5)
-```
-
-**`SpeakerSource` is the seam.** `DualChannelSource` (video calls, two physically separate audio
-channels, `confidence` always `1.0`) is the only MVP implementation. `FixtureSource` replays
-labelled transcripts for demos and evaluation. `EnrolledVoiceSource` (in-person, speaker
-embedding) is W4-conditional. **Everything downstream sees only `Utterance`,** so adding a source
-later breaks nothing.
-
-**State is an event log, not a field.** `StateChange` rows are the record; current state is the
-last row's `to_st`, and a relapse is any row where `RANK[to_st] < RANK[from_st]`. Never store a
-"current state" column — deriving it from the log is what makes the timeline, the cross-round
-history, and the relapse metric all fall out of one structure.
-
-**Two layers, two state models.** 1층 (반대사유) has 4 states plus relapse and is driven by slot
-fulfilment. 2층 (필수 항목) is a checklist — 2 states, monotonically increasing, no relapse, no
-slots. They are separate models and separate columns on screen ②; do not merge them.
-
-## Conventions specific to this repo
-
-- **Field names and types in `schemas/` are frozen by spec** — do not rename or restructure them
-  even if a different name reads better.
-- **Do not add API endpoints** beyond `guidelines/3_API_명세.md` without flagging it to 조장; the
-  one standing exception is adding your own router's `import` / `include_router` lines in `main.py`.
-- **`routers/` files are individually owned.** Only touch your own. Conflicts in `schemas/`,
-  `main.py` and `theme.css` are resolved by 조장; conflicts inside one owner's folder by that owner.
-- **`backend/app/templates/` and `fixtures/` are data, not code.** YAML templates are hand-written
-  by 조장 and reviewed in PRs; keep them readable.
-- `schemas/` (API shape) and `models/` (DB shape) both stay. Don't collapse them into one.
-- Item `id` is English snake_case; `label` is Korean. The id is a machine identifier used across
-  fixture JSON, DB rows and module boundaries.
-
-## The nine rules that break other people
-
-These are `guidelines/1_시스템_개요.md` §1-5. Violating one silently breaks a teammate.
-
-1. **Items are selected, never generated.** The LLM does not invent items. Off-list utterances go
-   to the single reserved `_other` slot as raw text, unclassified.
-2. **A card is not an item.** Cards are regenerated and discarded every turn. **Candidates come
-   from state via rules; the LLM writes only the final sentence.**
-3. **Required items are "mentioned", not "completed".** Auto-check is allowed but the label must
-   stay 언급. Labelling it 완료 lets a false positive reassure the user into a statutory disclosure
-   failure. Final confirmation happens on the meeting-end screen, by a human.
-4. **Relapse IS auto-confirmed** — the opposite direction from rule 3. A false positive there says
-   "look at this again", which creates no risk. It is reversible by tap and the reversal is logged.
-5. **Signal-light order never changes mid-meeting.** Preload fixes the order; only colour, sticker
-   and evidence line update. Priority is the cards' job.
-6. **Utterances with `speaker != "them"` or sub-threshold `confidence` cause no transition.**
-7. **Never send raw audio to the backchannel.** Supreme Court 2023도8603 defined '청취' as
-   listening in real time during the conversation. Co-attendees receive state and signals only.
-   §2-4's backchannel never needed audio, so this costs no functionality.
-8. **Never auto-match deals.** No name or company string matching. Mis-linking surfaces another
-   customer's unresolved items on screen; `unlink` is mandatory.
-9. **Carryover keeps the previous round's colour.** Round 2 starts at round 1's final state, not
-   ⚪ — the item is not "unraised", it is *still blocked*. Recorded as a `trigger="carryover"`
-   change and excluded from every metric.
-
-## Metrics — each role owns one number
-
-`trigger` values `carryover` and `manual` are excluded from **all** metrics.
-
-| Role | Metric |
-|---|---|
-| 1 음성·실시간 | Korean WER · `utterance_end → state_rendered` p95 (target 3s) · session drop rate |
-| 2 항목 매칭 | matching F1 · `_other` misclassification rate |
-| 3 상태 추적 | state accuracy · **within-meeting relapse recall (target ≥ 0.80)** |
-| 4 생성 | card adoption rate · report evidence-citation rate |
-| 5 템플릿·누적 | carryover accuracy · template coverage |
-
-**Relapse recall is the project's only technical differentiator.** It is measured as *event*
-detection, not per-timestep accuracy — a rare class would otherwise vanish into overall accuracy.
-
-## Commands
-
-- Backend: `pip install -r requirements.txt` then `uvicorn main:app --reload` from `backend/`,
-  fixed port `8000`. `GET /health` should answer `{"status": "ok"}`.
-- Frontend: `npm install` then `npm run dev` from `frontend/`, port `5173`. Vite proxies
-  `/api` and `/ws` to `:8000`, so the frontend never hardcodes a backend URL.
-- Eval: `python -m app.eval.run --fixtures fixtures/`
-- Env vars: see `guidelines/5_기술스택_폴더구조.md` §5-3. Real values go in `.env` (gitignored);
-  only `.env.example` is committed. `CONFIDENCE_THRESHOLD` (0.7) and `RECURRENCE_COOLDOWN_SEC`
-  (30) are tuning targets confirmed against fixtures in W3, not settled constants.
-- No test or lint config exists yet. `backend/requirements.txt` and `frontend/package.json`
-  hold only runtime dependencies — check them before assuming a test framework is available.
-
-## Before implementing these, check with 조장
-
-`guidelines/6_통합_체크포인트.md` §6-7 lists what is deliberately out of 1차 scope: user login,
-CRM/calendar integration, in-person real-time audio, the home deal list with filters, a second
-template, storing raw audio, and any manager-facing dashboard. **Backchannel audio transmission is
-not deferred — it is permanently prohibited.**
+⚠️ **미루면 안 되는 것 하나** — Play 스토어가 AI 생성 콘텐츠 앱에 **「앱 내 신고 기능」**을 요구한다. 온디바이스여도 면제되지 않고 **현재 어느 화면 문서에도 없다.**
