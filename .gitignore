@@ -33,6 +33,4 @@ Thumbs.db
 # runtime
 *.log
 
-# 프로토타입 그림 (91MB) — android/app/src/main/res/drawable 에서 복사
-prototype/assets/
 
