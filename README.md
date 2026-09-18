@@ -69,7 +69,7 @@
 | `eval/` | 평가 하네스 — 프롬프트 · 픽스처 · 러너 |
 | `assets/` | 미리 만든 그림 + 만드는 도구 (ComfyUI) |
 | `guidelines/` | **코드가 지켜야 하는 것 — 이름 · 구조 · 프롬프트 · 금칙어** |
-| `prototype/` · `prototype-b/` | HTML 초안 A · B |
+| `prototype/` | HTML 초안 (흐름 확인용) |
 
 ---
 
