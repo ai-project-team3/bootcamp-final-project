@@ -36,5 +36,3 @@ Thumbs.db
 # 프로토타입 그림 (91MB) — android/app/src/main/res/drawable 에서 복사
 prototype/assets/
 
-# 초안 B 렌더 원본 (잘라내기 전) — assets/tools/render.py 로 다시 만든다
-prototype-b/assets_raw/
