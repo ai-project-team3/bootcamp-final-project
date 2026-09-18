@@ -2,7 +2,7 @@
 
 The phone sends only speech segments (Silero VAD), which cuts hallucination,
 cost and latency at once. Audio is deleted the moment it is transcribed:
-docs/기술개요.md §3.
+노션 「기술개요」 §3.
 """
 from fastapi import APIRouter, UploadFile
 

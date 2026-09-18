@@ -1,4 +1,4 @@
-"""Turn judgment. Spec: docs/프롬프트_모음.md §2.
+"""Turn judgment. Spec: guidelines/3_프롬프트.md §2.
 
 Flat by design. Nested schemas make "right value, wrong field" the dominant
 failure mode (arXiv 2608.25358). `reason` comes first on purpose: writing the

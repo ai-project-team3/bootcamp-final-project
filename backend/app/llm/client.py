@@ -1,8 +1,8 @@
-"""One LLM, two effort settings. Spec: docs/기능별_모델선정.md §2-2.
+"""One LLM, two effort settings. Spec: 노션 「기능별 모델선정」 §2-2.
 
 Judge and story have opposite latency budgets (2s vs 20s) but that is an
 effort setting, not a reason for two models. Split only if story quality
-misses the bar in docs/오늘_모델검증_역할.md §5.
+misses the bar in 노션 「오늘 모델검증 역할」 §5.
 
 Provider is a setting. W1 measurement decides luna vs haiku vs nano, and the
 answer must be one line in .env, not a code change.
