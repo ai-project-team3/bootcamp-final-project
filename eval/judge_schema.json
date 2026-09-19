@@ -1,0 +1,31 @@
+{
+  "name": "judge_turn",
+  "description": "한 턴 판정 결과. 판정 규칙은 시스템 프롬프트(judge_prompt.md)에만 있다. 구현 계약은 backend/app/schemas/judge.py, 필드 정의는 guidelines/2_공통_데이터_모델.md §1-2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reason", "slot_1", "value_1", "slot_2", "value_2",
+    "contradiction", "contradiction_with",
+    "s1_reason", "s2_addition", "emotion",
+    "unclear", "unclear_of",
+    "next_slot", "next_reason", "no_longer_needed", "story_ready"
+  ],
+  "properties": {
+    "reason":             { "type": "string" },
+    "slot_1":             { "type": ["string", "null"], "enum": [null, "place", "problem", "reaction", "cause", "newcomer", "name", "companion", "sound", "adult", "solution", "title", "extra"] },
+    "value_1":            { "type": ["string", "null"] },
+    "slot_2":             { "type": ["string", "null"], "enum": [null, "place", "problem", "reaction", "cause", "newcomer", "name", "companion", "sound", "adult", "solution", "title", "extra"] },
+    "value_2":            { "type": ["string", "null"] },
+    "contradiction":      { "type": "boolean" },
+    "contradiction_with": { "type": ["string", "null"] },
+    "s1_reason":          { "type": "boolean" },
+    "s2_addition":        { "type": "boolean" },
+    "emotion":            { "type": ["string", "null"] },
+    "unclear":            { "type": "boolean" },
+    "unclear_of":         { "type": ["string", "null"] },
+    "next_slot":          { "type": ["string", "null"], "enum": [null, "place", "problem", "reaction", "cause", "newcomer", "name", "companion", "sound", "adult", "solution", "title", "extra"] },
+    "next_reason":        { "type": ["string", "null"] },
+    "no_longer_needed":   { "type": ["string", "null"], "enum": [null, "place", "problem", "reaction", "cause", "newcomer", "name", "companion", "sound", "adult", "solution", "title", "extra"] },
+    "story_ready":        { "type": "boolean" }
+  }
+}
