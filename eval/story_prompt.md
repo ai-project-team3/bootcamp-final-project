@@ -3,6 +3,11 @@
 > 근거: `guidelines/7_프롬프트.md` §1(공통)·§5(책 자막). API 계약은 `guidelines/3_API_명세.md` §3-3,
 > 구현 계약은 `backend/app/schemas/story.py`(StoryResult/Scene).
 > 짝 파일: `story_schema.json`.
+> ⚠️ **`guidelines/7_프롬프트.md` §5의 프롬프트 예시(`title_candidates`+`pages[{n,text}]`)와 여기 출력
+> 형식(`scenes[{index,caption,keywords}]`)이 다르다.** 이 파일은 더 최신인 `guidelines/3_API_명세.md`
+> §3-3과 실제 구현(`backend/app/schemas/story.py`)을 따랐다 — `title_candidates`는 실제 계약에 없고
+> (책 제목은 `title` 슬롯 값을 그대로 쓴다), `keywords`(이미지 에셋 검색용 영어)가 새로 있다.
+> **`guidelines/7_프롬프트.md` §5 자체가 갱신이 필요해 보인다** — 조장 확인 필요.
 > **이름은 절대 실명으로 바꾸지 않는다** — 슬롯 값에 `{주인공}`·`{친구1}` 자리표시자로 들어오고,
 > 출력에도 그 자리표시자 그대로 남아야 한다. 실제 이름 치환은 폰에서 일어난다(서버는 이름을 모른다).
 
@@ -68,10 +73,14 @@ JSON 외에는 아무것도 출력하지 마라.
 
 [입력 슬롯]
 {slots}
+이야기 템플릿: {template}
+아이 수준: {level}
 ```
 
 ## 치환 변수
 - `{slots}`: `StoryRequest.slots` — 12칸 전부(가공 없이). `str.format()`이 아니라 `.replace("{slots}", ...)`로 치환한다(본문에 `{주인공}`·`{친구1}` 리터럴 중괄호가 있다).
+- `{template}`: `StoryRequest.template` — 이야기 템플릿(예: 오해-화해형). 템플릿 A~G가 아직 안 정해져서(`guidelines/7_프롬프트.md` §9) 지금 프롬프트는 이 값을 장면 구성에 반영하지 않는다 — 템플릿 확정 후 [장면 구성] 표를 템플릿별로 나눠야 한다. 없으면 "(없음)".
+- `{level}`: `StoryRequest.level` — 고르며 짓기/이어 짓기/까닭 짓기.
 
 ## 호출 방법
 - 구조화 출력으로 호출한다(`story_schema.json`).
