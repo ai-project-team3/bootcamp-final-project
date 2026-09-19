@@ -1,0 +1,8 @@
+# 줄바꿈 — 데이터 파일은 OS 상관없이 LF로 둔다.
+#
+# core.autocrlf=true 인 윈도우에서 체크아웃하면 .jsonl 이 CRLF 로 바뀐다.
+# 평가셋은 "씨앗 고정이라 같은 덤프에서 같은 100문항이 다시 나온다"가 성립해야 하는데,
+# OS마다 바이트가 달라지면 그 비교가 깨지고 diff 도 전부 바뀐 것처럼 보인다.
+*.jsonl text eol=lf
+*.json  text eol=lf
+*.py    text eol=lf
