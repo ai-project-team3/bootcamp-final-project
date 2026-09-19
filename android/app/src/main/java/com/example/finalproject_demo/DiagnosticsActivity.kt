@@ -106,25 +106,34 @@ class DiagnosticsActivity : ComponentActivity() {
                 log("기기 내 인식 가능  ${if (Build.VERSION.SDK_INT >= 31) onDeviceAvailable() else "API 31 미만 — 해당 없음"}")
                 log("일반 인식 가능  ${SpeechRecognizer.isRecognitionAvailable(this@DiagnosticsActivity)}")
                 log("")
-                log("아래 ①과 ②를 차례로 눌러 \"공룡나라 갈래\" 라고 말하세요.")
+                log("① 12 + ② 성공  →  한국어는 되는데 오프라인 팩만 없다")
+                log("① 12 + ② 12     →  이 기기는 한국어 인식 자체가 안 된다")
+                log("② 가 7 또는 6   →  마이크가 없는 것(에뮬레이터). 실패가 아니다")
+                log("")
+                log("버튼을 누르고 한 문장씩 말하세요.")
             }
         }
 
-        Column(
-            Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
+        // Buttons stay put. The log used to push them off-screen, which made a
+        // thirty-utterance run a scrolling exercise.
+        val scroll = rememberScrollState()
+        LaunchedEffect(lines.size) { scroll.animateScrollTo(scroll.maxValue) }
+
+        Column(Modifier.fillMaxSize().padding(20.dp)) {
             Text("기기 점검", fontSize = 22.sp)
-            Spacer(Modifier.height(8.dp))
-            lines.forEach { Text(it, fontSize = 14.sp) }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(10.dp))
             Button(onClick = { listen(log, offline = true) }) { Text("① 오프라인 우선") }
             Spacer(Modifier.height(6.dp))
             Button(onClick = { listen(log, offline = false) }) { Text("② 온라인 허용") }
+            Spacer(Modifier.height(8.dp))
+            Text("「인식」만 지연 예산에 센다. 발화·전체는 사람이 만든 시간이다", fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
-            Text("① 12 + ② 성공  →  한국어는 되는데 오프라인 팩만 없다", fontSize = 12.sp)
-            Text("① 12 + ② 12     →  이 기기는 한국어 인식 자체가 안 된다", fontSize = 12.sp)
-            Text("② 가 7 또는 6   →  마이크가 없는 것(에뮬레이터). 실패가 아니다", fontSize = 12.sp)
+            Column(
+                Modifier.weight(1f).verticalScroll(scroll),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                lines.forEach { Text(it, fontSize = 14.sp) }
+            }
         }
     }
 
@@ -148,6 +157,11 @@ class DiagnosticsActivity : ComponentActivity() {
             }
         }
         val started = System.currentTimeMillis()
+        // Split the wall clock. Only endOfSpeech -> results is recognition latency;
+        // the rest is the user deciding to talk, and the endpointer waiting them out.
+        // Measuring the whole span would fail a model for the tester's reaction time.
+        var spokeAt = 0L
+        var endedAt = 0L
         rec.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 log("$tag … 듣는 중")
@@ -155,7 +169,13 @@ class DiagnosticsActivity : ComponentActivity() {
 
             override fun onResults(results: Bundle?) {
                 val hit = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                log("$tag 결과  \"$hit\"   (${System.currentTimeMillis() - started}ms)")
+                val now = System.currentTimeMillis()
+                log("$tag 결과  \"$hit\"")
+                log(
+                    "$tag   인식 ${if (endedAt > 0) "${now - endedAt}ms" else "?"}" +
+                        " · 발화 ${if (spokeAt > 0 && endedAt > 0) "${endedAt - spokeAt}ms" else "?"}" +
+                        " · 전체 ${now - started}ms"
+                )
                 rec.destroy()
             }
 
@@ -164,8 +184,8 @@ class DiagnosticsActivity : ComponentActivity() {
                 rec.destroy()
             }
 
-            override fun onBeginningOfSpeech() {}
-            override fun onEndOfSpeech() {}
+            override fun onBeginningOfSpeech() { spokeAt = System.currentTimeMillis() }
+            override fun onEndOfSpeech() { endedAt = System.currentTimeMillis() }
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onPartialResults(partialResults: Bundle?) {}

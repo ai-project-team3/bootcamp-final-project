@@ -34,12 +34,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-            <!-- 기기 점검. 런처에 안 뜬다. adb로 띄운다:
-             adb shell am start -n com.example.finalproject_demo/.DiagnosticsActivity -->
+            <!-- 기기 점검. 런처에 "기기 점검" 아이콘으로 따로 뜬다. adb로도 띄운다:
+             adb shell am start -n com.example.finalproject_demo/.DiagnosticsActivity
+             제품 화면이 아니다. 실기기 확인이 끝나면 이 activity째로 지운다. -->
         <activity
             android:name=".DiagnosticsActivity"
             android:exported="true"
-            android:label="기기 점검" />
+            android:label="기기 점검">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>
