@@ -16,6 +16,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // android-vad ships on JitPack only.
+        maven { url = uri("https://jitpack.io") }
     }
 }
 
