@@ -82,6 +82,14 @@ class DiagnosticsActivity : ComponentActivity() {
         val log: (String) -> Unit = { lines.add(it) }
 
         LaunchedEffect(Unit) {
+            // Which build am I looking at. Two rounds of results were reported
+            // against a stale install before this line existed.
+            val installed = runCatching {
+                packageManager.getPackageInfo(packageName, 0).lastUpdateTime
+            }.getOrDefault(0L)
+            log("설치  " + if (installed > 0)
+                java.text.SimpleDateFormat("MM/dd HH:mm", Locale.KOREA).format(java.util.Date(installed))
+            else "?")
             log("기기  ${Build.MANUFACTURER} ${Build.MODEL}")
             log("안드로이드  ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
             log("")
