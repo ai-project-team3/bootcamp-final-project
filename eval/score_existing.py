@@ -6,10 +6,10 @@ from pathlib import Path
 
 from eval.config import resolve_model, usd_krw
 from eval.score import score_judge
-from run_team_eval import DEFAULT_MODELS, render_results, safe_name
+from eval.run_team_eval import DEFAULT_MODELS, render_results, safe_name
 
 ROOT = Path(__file__).resolve().parent
-EVAL = ROOT / "eval"
+EVAL = ROOT  # scripts live inside eval/ now; there is no nested eval/
 RAW = EVAL / "raw"
 
 

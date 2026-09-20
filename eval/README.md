@@ -35,6 +35,23 @@ python tools/kappa.py labels_진웅_전체100.jsonl labels_치영_검수20.jsonl
 - **다시 뽑으면 확정한 `gold` 가 지워진다.** 확정 뒤에는 `labels_*.jsonl` 을 따로 보관한다
 - 라벨 기준과 경계 사례는 `평가셋_라벨링_지침.md` §2. 칸 이름의 출처는 `../guidelines/2_공통_데이터_모델.md`
 
+## 돌리는 법
+
+**레포 루트에서** 모듈로 실행한다. 스크립트가 `eval/` 안에 있고 서로를 패키지로 임포트하므로,
+`python eval/preflight.py`처럼 파일로 직접 부르면 임포트가 깨진다.
+
+```bash
+pip install -r eval/requirements.txt
+
+python -m eval.preflight          # 팀 파일과 키가 갖춰졌는지 · 평가셋 형식·gold 검사
+python -m eval.run_demo           # API 없이 러너·채점기 동작 확인 (과금 0)
+python -m eval.run_team_eval --yes-spend   # 실제 호출. 비용이 든다
+python -m eval.score_existing     # gold가 늦게 왔을 때 API 재호출 없이 재채점
+```
+
+키는 레포 루트 `.env`에 넣는다 — `OPENAI_API_KEY` · `ANTHROPIC_API_KEY` · `MISTRAL_API_KEY`.
+`*_demo.*` 파일은 API 없이 돌려보는 모의 세트다. 실제 팀 파일과 섞이지 않는다.
+
 ## 규칙
 
 - **모델마다 프롬프트를 손보지 않는다.** 고치는 순간 뭘 비교한 건지 알 수 없다

@@ -8,7 +8,7 @@ from eval.run_judge import run as run_judge
 from eval.score import score_judge, score_stories
 
 ROOT = Path(__file__).resolve().parent
-EVAL = ROOT / "eval"
+EVAL = ROOT  # scripts live inside eval/ now; there is no nested eval/
 RAW = EVAL / "raw"
 
 

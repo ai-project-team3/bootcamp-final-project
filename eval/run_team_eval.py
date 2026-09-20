@@ -11,7 +11,7 @@ from eval.run_judge import run as run_judge
 from eval.score import score_judge
 
 ROOT = Path(__file__).resolve().parent
-EVAL = ROOT / "eval"
+EVAL = ROOT  # scripts live inside eval/ now; there is no nested eval/
 RAW = EVAL / "raw"
 DEFAULT_MODELS = ["gpt-5.6-luna", "gpt-5-nano", "claude-haiku-4-5", "mistral-small-4"]
 
@@ -89,7 +89,7 @@ def main():
     schema = Path(args.schema)
     missing_files = [str(p) for p in (fixtures, prompt, schema) if not p.exists()]
     if missing_files:
-        raise SystemExit("필수 팀 파일이 아직 없음:\n- " + "\n- ".join(missing_files) + "\n먼저 python preflight.py 확인")
+        raise SystemExit("필수 팀 파일이 아직 없음:\n- " + "\n- ".join(missing_files) + "\n먼저 python -m eval.preflight 확인")
 
     runnable = []
     skipped = []
@@ -109,7 +109,7 @@ def main():
         raise SystemExit("사용 가능한 API 키가 하나도 없음. 조장에게 키를 받은 뒤 다시 실행.")
     if not args.yes_spend:
         print("\n아직 API 호출하지 않았음. 비용 발생을 허용하려면:")
-        print("python run_team_eval.py --yes-spend")
+        print("python -m eval.run_team_eval --yes-spend")
         return
 
     RAW.mkdir(parents=True, exist_ok=True)
@@ -149,7 +149,7 @@ def main():
         print(f"통합 JSON: {summary_path}")
     else:
         print("\n예측 수집 완료. 아직 gold 라벨이 없어 채점은 보류함.")
-        print("박진웅 gold가 fixtures_judge.jsonl에 합쳐지면 API 재호출 없이 python score_existing.py 로 채점 가능.")
+        print("박진웅 gold가 fixtures_judge.jsonl에 합쳐지면 API 재호출 없이 python -m eval.score_existing 로 채점 가능.")
 
 
 if __name__ == "__main__":

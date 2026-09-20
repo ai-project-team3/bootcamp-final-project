@@ -7,7 +7,7 @@ from pathlib import Path
 from eval.config import key_env_for, load_dotenv, resolve_model
 
 ROOT = Path(__file__).resolve().parent
-EVAL = ROOT / "eval"
+EVAL = ROOT  # scripts live inside eval/ now; there is no nested eval/
 DEFAULT_MODELS = ["gpt-5.6-luna", "gpt-5-nano", "claude-haiku-4-5", "mistral-small-4"]
 REQUIRED_FIXTURE_KEYS = {"id", "slots", "asked", "template", "utterance"}
 
@@ -104,10 +104,10 @@ def main():
     schema_ok = not schema_problems
     if required_files and fixture_ok and schema_ok and any_ready:
         print("READY: 최소 1개 실제 모델의 판정 예측을 수집할 준비가 됨.")
-        print("실행 전 비용 확인 후: python run_team_eval.py --yes-spend")
+        print("실행 전 비용 확인 후: python -m eval.run_team_eval --yes-spend")
     else:
         print("WAIT: 위 MISSING / 형식 WARN / NO KEY 항목을 받은 뒤 다시 preflight 실행.")
-        print("무료 새 스키마 데모는 언제든: python run_demo.py")
+        print("무료 새 스키마 데모는 언제든: python -m eval.run_demo")
 
 
 if __name__ == "__main__":
