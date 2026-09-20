@@ -141,8 +141,10 @@ def main():
     md.append("- `eval/fixtures_story.jsonl` — 안치영")
     md.append("- `.env` API 키 — 조장")
 
+    # Demo output goes to its own file only. results.md is the team's
+    # accumulating record and the presentation table; mock numbers must never
+    # land there. Harmless while this lived in model_eval/, destructive here.
     (ROOT / "results_demo.md").write_text("\n".join(md) + "\n", encoding="utf-8")
-    (EVAL / "results.md").write_text("\n".join(md) + "\n", encoding="utf-8")
 
     print("=== Minwoo model-eval demo v3 ===")
     print(f"judge JSON success: {pct(judge['json_success_rate'])}")
@@ -153,7 +155,7 @@ def main():
     print(f"story yo-style: {pct(story['yo_style_rate'])}")
     print(f"corrupt level1 before/after: {pct(corrupt_summary['1']['before_accuracy'])} -> {pct(corrupt_summary['1']['after_accuracy'])}")
     print(f"corrupt level2 before/after: {pct(corrupt_summary['2']['before_accuracy'])} -> {pct(corrupt_summary['2']['after_accuracy'])}")
-    print("saved: results_demo.md, eval/results.md, eval/raw/*.jsonl")
+    print("saved: eval/results_demo.md, eval/raw/*.jsonl")
 
 
 if __name__ == "__main__":
