@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+# raw files can contain model outputs; keep local unless team explicitly chooses otherwise
+eval/raw/*.jsonl
+eval/raw/comparison_summary.json
