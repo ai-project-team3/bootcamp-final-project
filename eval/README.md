@@ -46,8 +46,9 @@ pip install -r eval/requirements.txt
 
 python -m eval.preflight          # 팀 파일과 키가 갖춰졌는지 · 평가셋 형식·gold 검사
 python -m eval.run_demo           # API 없이 러너·채점기 동작 확인 (과금 0)
+python -m eval.run_team_eval --yes-spend   # 후보 전체. 비용이 든다
+python -m eval.run_team_eval --models gpt-5.6-luna --yes-spend             # 한 종만
 python -m eval.run_team_eval --models mistral-small-4 --request-delay 1 --max-retries 4 --yes-spend
-python -m eval.run_team_eval --models ministral-3-3b --request-delay 1 --max-retries 4 --yes-spend
 python -m eval.score_existing     # gold가 늦게 왔을 때 API 재호출 없이 재채점
 python -m eval.corrupt --append-results    # 실제 Android THEMES 프리셋 손상 실험
 ```

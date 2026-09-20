@@ -318,15 +318,23 @@ ComfyUI가 7.3GB를 잡으면 **같은 카드에 자체 호스팅 STT(faster-whi
 
 | 모델 | 상태 | 막힌 이유 |
 |---|---|---|
-| **`gpt-5.6-luna`** (1순위) | **미측정** | 키는 있다. 아직 안 돌렸을 뿐 |
+| **`gpt-5.6-luna`** (1순위) | **미측정** | 실행한 사람에게 `OPENAI_API_KEY`가 없었다 |
 | `gpt-5-nano` | 미측정 | 〃 |
-| `claude-haiku-4-5` | 미측정 | `ANTHROPIC_API_KEY` 없음 |
+| `claude-haiku-4-5` | 미측정 | 팀에 `ANTHROPIC_API_KEY`가 아직 없다 |
 | `mistral-small-4` | **실행 불가** | 무료 티어 429. Tier 1 키가 있어야 함 |
 | `ministral-3-3b` | **탈락** | 위 표 |
 
 → **CLAUDE.md 모델 표는 아직 바뀌지 않는다.** 표를 바꾸는 건 측정값뿐인데, 바뀐 것은
 *대안 칸의 mistral 두 줄*이고 **1순위 `gpt-5.6-luna`는 여전히 미측정**이다.
 `ministral-3-3b`의 0.431을 보고 "작은 모델은 다 안 된다"로 일반화하지 않는다 — 3B와 luna는 체급이 다르다.
+
+**왜 1순위가 빠졌는지 — 도구 쪽 원인 (09-20 확인).** `preflight.py`의 후보 목록이
+`["mistral-small-4", "ministral-3-3b"]`로 줄어 있었다. 원래는 OpenAI 둘과 Claude를 포함한 넷이었다.
+실행한 사람에게 Mistral 키만 있어서 자기 환경에 맞춘 것인데, **preflight는 공용 점검 도구**라
+이 변경 뒤에는 **OpenAI 키를 가진 사람이 돌려도 1순위가 목록에 안 뜬다.** 그래서 출력만 보면
+*"키가 없어서 못 쟀다"*로 읽힌다. 되돌렸고, 후보 다섯을 `4_모듈_브리프.md` §F에 정본으로 박았다.
+**어댑터는 멀쩡하다** — `providers/openai_adapter.py`·`anthropic_adapter.py` 둘 다 살아 있고,
+`--models` 로 이름만 넘기면 돈다. 막힌 게 아니라 기본값에서 빠졌던 것이다.
 
 ### 다음 한 번의 실행이 가장 값싸다
 

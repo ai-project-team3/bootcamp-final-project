@@ -9,7 +9,18 @@ from eval.config import key_env_for, load_dotenv, resolve_model
 ROOT = Path(__file__).resolve().parent
 EVAL = ROOT  # scripts live inside eval/ now; there is no nested eval/
 PROJECT_ROOT = EVAL.parent
-DEFAULT_MODELS = ["mistral-small-4", "ministral-3-3b"]
+# The full candidate list, not the subset one machine happens to hold keys for.
+# preflight is a shared checklist: it has to report a missing key as missing,
+# because that absence is the finding. Narrowing this to the models a given
+# laptop can reach makes an unmeasured first choice look like it was never a
+# candidate. Source of truth: guidelines/4_모듈_브리프.md §F.
+DEFAULT_MODELS = [
+    "gpt-5.6-luna",      # 1순위
+    "gpt-5-nano",
+    "claude-haiku-4-5",
+    "mistral-small-4",
+    "ministral-3-3b",    # 측정 완료 · 탈락 (results.md 09-20)
+]
 REQUIRED_FIXTURE_KEYS = {"id", "slots", "asked", "template", "utterance"}
 
 
