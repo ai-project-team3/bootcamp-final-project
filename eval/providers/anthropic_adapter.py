@@ -12,6 +12,50 @@ ENV_KEY = "ANTHROPIC_API_KEY"
 ENV_WORKSPACE = "ANTHROPIC_WORKSPACE_ID"
 
 
+def _to_anthropic_schema(node):
+    """Rewrite judge_schema.json into the subset Anthropic's validator accepts.
+
+    Two incompatibilities, both in how the schema is *written* rather than what
+    it accepts — the set of valid outputs is identical before and after, which is
+    what keeps models comparable:
+
+    1. "name" sits at the top level because that is OpenAI's json_schema wrapper
+       field. It is not JSON Schema, and Anthropic rejects it:
+       "For 'object' type, property 'name' is not supported".
+
+    2. A nullable enum is written as type ["string", "null"] with null inside the
+       enum. Anthropic checks the enum against each declared type separately and
+       fails: "Enum value None does not match declared type '['string','null']'".
+       The anyOf spelling means exactly the same thing and is accepted.
+
+    Do not use this to relax a constraint. Only shape changes belong here.
+    """
+    if isinstance(node, list):
+        return [_to_anthropic_schema(v) for v in node]
+    if not isinstance(node, dict):
+        return node
+
+    types = node.get("type")
+    enum = node.get("enum")
+    if (
+        isinstance(types, list)
+        and "null" in types
+        and isinstance(enum, list)
+        and None in enum
+    ):
+        concrete = [t for t in types if t != "null"]
+        rest = {
+            k: _to_anthropic_schema(v)
+            for k, v in node.items()
+            if k not in ("type", "enum")
+        }
+        branch = {"type": concrete[0] if len(concrete) == 1 else concrete,
+                  "enum": [v for v in enum if v is not None]}
+        return {**rest, "anyOf": [branch, {"type": "null"}]}
+
+    return {k: _to_anthropic_schema(v) for k, v in node.items()}
+
+
 class AnthropicAdapter:
     provider_name = "anthropic"
 
@@ -44,6 +88,9 @@ class AnthropicAdapter:
         reasoning_effort: str | None = None,
     ) -> ProviderResult:
         usage = Usage()
+        # Strip the wrapper field at the root only — "name" nested anywhere else
+        # would be a real property key and must survive.
+        body = _to_anthropic_schema({k: v for k, v in schema.items() if k != "name"})
         payload = {
             "model": model,
             "max_tokens": max_output_tokens,
@@ -52,7 +99,7 @@ class AnthropicAdapter:
             "output_config": {
                 "format": {
                     "type": "json_schema",
-                    "schema": schema,
+                    "schema": body,
                 }
             },
             "stream": True,

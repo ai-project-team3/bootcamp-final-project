@@ -75,6 +75,10 @@ python -m eval.corrupt --append-results    # 실제 Android THEMES 프리셋 손
 ## 규칙
 
 - **모델마다 프롬프트를 손보지 않는다.** 고치는 순간 뭘 비교한 건지 알 수 없다
+- **스키마도 손보지 않는다.** 단, 업체마다 받는 *표기*가 달라서 어댑터가 옮겨 적는 건 있다
+  (`anthropic_adapter._to_anthropic_schema`). **허용되는 값 집합이 바뀌면 그건 옮겨 적기가 아니다.**
+  Anthropic이 거부한 두 가지 — 최상위 `name`(OpenAI 래퍼 필드라 JSON Schema가 아니다),
+  그리고 `type: ["string","null"] + enum에 null`(같은 뜻인 `anyOf` 표기로 바꾼다)
 - **TTFT는 스트리밍으로 잰다.** 논스트리밍이면 총 소요를 잰 것이다
 - `next_slot`은 **정답 하나가 아니라 `next_slot_ok` 허용 집합**으로 센다
 - `value_1`은 완전 일치가 아니라 **자모 편집거리 ≤ 0.3**으로 센다
