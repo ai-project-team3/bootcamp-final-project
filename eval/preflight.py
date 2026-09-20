@@ -109,6 +109,12 @@ def main():
         ready = bool(os.getenv(env_name)) if env_name else True
         any_ready |= ready
         print(f"{'READY' if ready else 'NO KEY':7} {alias:20} -> {cfg['api_model']} ({env_name or 'mock'})")
+        # A present key is not a usable key. An org-level Anthropic key is
+        # rejected on every call with HTTP 400 until the workspace is named,
+        # and that only shows up 100 questions in. Say it here instead.
+        if ready and cfg["provider"] == "anthropic" and not os.getenv("ANTHROPIC_WORKSPACE_ID"):
+            print("        └ 워크스페이스에 묶이지 않은 키라면 전부 HTTP 400이 난다.")
+            print("          워크스페이스 전용 키를 새로 만들거나 .env에 ANTHROPIC_WORKSPACE_ID를 넣는다.")
 
     print("\n=== 실행 판단 ===")
     required_files = all(path.exists() for path in files.values())

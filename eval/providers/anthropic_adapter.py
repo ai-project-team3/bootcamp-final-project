@@ -6,6 +6,10 @@ from .base import ProviderResult, StreamChunk, Usage
 from .http_sse import post_sse
 
 ENV_KEY = "ANTHROPIC_API_KEY"
+# An org-level key (one not tied to a single workspace) is rejected with HTTP 400
+# unless the request names the workspace. Optional: a workspace-scoped key needs
+# nothing here. Set ANTHROPIC_WORKSPACE_ID in .env to use an org-level key.
+ENV_WORKSPACE = "ANTHROPIC_WORKSPACE_ID"
 
 
 class AnthropicAdapter:
@@ -13,9 +17,21 @@ class AnthropicAdapter:
 
     def __init__(self) -> None:
         self.api_key = os.getenv(ENV_KEY)
+        self.workspace_id = (os.getenv(ENV_WORKSPACE) or "").strip()
         self.base_url = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1").rstrip("/")
         if not self.api_key:
             raise RuntimeError(f"missing {ENV_KEY}")
+
+    def _headers(self) -> dict:
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+        }
+        if self.workspace_id:
+            headers["anthropic-workspace-id"] = self.workspace_id
+        return headers
 
     def stream_judge(
         self,
@@ -45,12 +61,7 @@ class AnthropicAdapter:
         def generator():
             for event in post_sse(
                 url=f"{self.base_url}/messages",
-                headers={
-                    "x-api-key": self.api_key,
-                    "anthropic-version": "2023-06-01",
-                    "Content-Type": "application/json",
-                    "Accept": "text/event-stream",
-                },
+                headers=self._headers(),
                 payload=payload,
             ):
                 etype = event.get("type")
