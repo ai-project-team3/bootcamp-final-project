@@ -1,5 +1,10 @@
 {
-  "pricing_snapshot": "2026-09-18",
+  "pricing_snapshot": "2026-09-20",
+  "official_sources": [
+    "https://docs.mistral.ai/models/mistral-small-4-0-26-03",
+    "https://docs.mistral.ai/models/ministral-3-3b-25-12",
+    "https://docs.mistral.ai/inference/pricing"
+  ],
   "models": {
     "mock-judge-v1": {
       "provider": "mock",
@@ -38,6 +43,13 @@
       "model_env": "MISTRAL_SMALL_MODEL",
       "input_usd_per_mtok": 0.15,
       "output_usd_per_mtok": 0.60
+    },
+    "ministral-3-3b": {
+      "provider": "mistral",
+      "api_model": "ministral-3b-2512",
+      "model_env": "MINISTRAL_3B_MODEL",
+      "input_usd_per_mtok": 0.10,
+      "output_usd_per_mtok": 0.10
     }
   }
 }

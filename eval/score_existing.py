@@ -6,7 +6,7 @@ from pathlib import Path
 
 from eval.config import resolve_model, usd_krw
 from eval.score import score_judge
-from eval.run_team_eval import DEFAULT_MODELS, render_results, safe_name
+from eval.run_team_eval import DEFAULT_MODELS, append_results, render_results, safe_name
 
 ROOT = Path(__file__).resolve().parent
 EVAL = ROOT  # scripts live inside eval/ now; there is no nested eval/
@@ -45,12 +45,14 @@ def main():
         raise SystemExit("채점할 raw 파일이 없음. 먼저 실제 예측을 수집하세요.")
 
     md = render_results(scored, fx)
-    (EVAL / "results.md").write_text(md, encoding="utf-8")
+    results_path = EVAL / "results.md"
+    appended = append_results(results_path, md)
     (RAW / "comparison_summary.json").write_text(
         json.dumps(dict(scored), ensure_ascii=False, indent=2), encoding="utf-8"
     )
     print("API 호출 0건 — 기존 raw만 채점 완료")
-    print(f"저장: {EVAL / 'results.md'}")
+    action = "누적" if appended else "동일 결과 존재 — 중복 생략"
+    print(f"저장 ({action}): {results_path}")
     if missing:
         print("raw가 없어 제외된 모델:", ", ".join(missing))
 

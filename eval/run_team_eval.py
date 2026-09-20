@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from datetime import date
@@ -13,7 +14,7 @@ from eval.score import score_judge
 ROOT = Path(__file__).resolve().parent
 EVAL = ROOT  # scripts live inside eval/ now; there is no nested eval/
 RAW = EVAL / "raw"
-DEFAULT_MODELS = ["gpt-5.6-luna", "gpt-5-nano", "claude-haiku-4-5", "mistral-small-4"]
+DEFAULT_MODELS = ["mistral-small-4", "ministral-3-3b"]
 
 
 def safe_name(name: str) -> str:
@@ -41,13 +42,31 @@ def sec(v) -> str:
     return "-" if v is None else f"{v:.3f}s"
 
 
+def append_results(path: Path, markdown: str) -> bool:
+    """Append one result section without replacing or duplicating prior measurements."""
+    section = markdown.rstrip() + "\n"
+    digest = hashlib.sha256(section.encode("utf-8")).hexdigest()[:16]
+    marker = f"<!-- eval-result:{digest} -->"
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    if marker in existing:
+        return False
+
+    if existing and not existing.endswith("\n"):
+        existing += "\n"
+    if existing and not existing.endswith("\n\n"):
+        existing += "\n"
+    block = f"{marker}\n{section}<!-- /eval-result:{digest} -->\n"
+    path.write_text(existing + block, encoding="utf-8")
+    return True
+
+
 def render_results(results: list[tuple[str, dict]], fx: float) -> str:
     lines = [
-        f"# 모델 판정 비교 — {date.today().isoformat()}",
+        f"## {date.today().isoformat()} · 모델 판정 비교",
         "",
         f"> 환율 가정: 1 USD = {fx:,.0f} KRW. 가격 스냅샷은 `eval/model_catalog.json`을 확인하세요.",
         "",
-        "| 모델 | JSON | slot_1 F1 | slot_2 F1 | 필수해제 F1 | s1 F1 | s2 F1 | next_slot | value_1 | TTFT p50 | TTFT p95 | 한 권 원가 |",
+        "| 모델 | JSON | slot_1 F1 | 다중채움 F1 | 필수해제 F1 | s1 F1 | s2 F1 | next_slot | value_1 | TTFT p50 | TTFT p95 | 판정 세션 원가 |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for alias, m in results:
@@ -61,7 +80,19 @@ def render_results(results: list[tuple[str, dict]], fx: float) -> str:
         )
     lines += [
         "",
-        "## 채점 규칙",
+        "### 전체 응답시간 · 토큰",
+        "",
+        "| 모델 | total p50 | total p95 | total 평균 | 평균 입력 토큰 | 평균 출력 토큰 |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for alias, m in results:
+        lines.append(
+            f"| {alias} | {sec(m['total_p50'])} | {sec(m['total_p95'])} | "
+            f"{sec(m['total_avg'])} | {m['avg_input_tokens']:.1f} | {m['avg_output_tokens']:.1f} |"
+        )
+    lines += [
+        "",
+        "### 채점 규칙",
         "",
         "- `slot_1`, `slot_2`, `no_longer_needed`: null을 양성 클래스에서 제외한 범주형 macro F1.",
         "- `s1_reason`, `s2_addition`: 이진 Precision/Recall/F1.",
@@ -80,6 +111,8 @@ def main():
     p.add_argument("--fixtures", default=str(EVAL / "fixtures_judge.jsonl"))
     p.add_argument("--prompt", default=str(EVAL / "judge_prompt.md"))
     p.add_argument("--schema", default=str(EVAL / "judge_schema.json"))
+    p.add_argument("--request-delay", type=float, default=1.0, help="요청 사이 대기 시간(초)")
+    p.add_argument("--max-retries", type=int, default=4, help="HTTP 429 최대 재시도 횟수")
     p.add_argument("--yes-spend", action="store_true", help="실제 유료 API 호출 허용")
     args = p.parse_args()
 
@@ -128,6 +161,8 @@ def main():
             prompt_path=prompt,
             schema_path=schema,
             allow_real_api=True,
+            request_delay=args.request_delay,
+            max_retries=args.max_retries,
         )
         if gold_ready:
             metrics = score_judge(
@@ -142,10 +177,11 @@ def main():
     if scored:
         md = render_results(scored, fx)
         results_path = EVAL / "results.md"
-        results_path.write_text(md, encoding="utf-8")
+        appended = append_results(results_path, md)
         summary_path = RAW / "comparison_summary.json"
         summary_path.write_text(json.dumps(dict(scored), ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"\n채점 완료: {results_path}")
+        action = "누적" if appended else "동일 결과 존재 — 중복 생략"
+        print(f"\n채점 완료 ({action}): {results_path}")
         print(f"통합 JSON: {summary_path}")
     else:
         print("\n예측 수집 완료. 아직 gold 라벨이 없어 채점은 보류함.")

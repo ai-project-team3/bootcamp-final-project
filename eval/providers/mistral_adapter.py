@@ -50,6 +50,7 @@ class MistralAdapter:
             ],
             "response_format": {"type": "json_object"},
             "stream": True,
+            "stream_options": {"include_usage": True},
             "max_tokens": max_output_tokens,
         }
         if reasoning_effort:

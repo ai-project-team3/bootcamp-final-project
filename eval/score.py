@@ -9,8 +9,10 @@ from typing import Iterable
 
 try:
     from .corrupt import jamo_string, levenshtein
+    from .forbidden import find_forbidden_hits, load_story_policy
 except ImportError:
     from corrupt import jamo_string, levenshtein
+    from forbidden import find_forbidden_hits, load_story_policy
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -175,9 +177,14 @@ def _is_yo_style(text: str) -> bool:
     return bool(re.search(r"(?:요|어요|예요|에요)[.!?]?$", text))
 
 
+def _scene_caption(scene: dict) -> str:
+    """Use the current story schema field while retaining demo fixture compatibility."""
+    return str(scene.get("caption", scene.get("subtitle", "")))
+
+
 def score_stories(*, fixtures: Path, forbidden_words_path: Path) -> dict:
     stories = load_jsonl(fixtures)
-    forbidden = [x.strip() for x in forbidden_words_path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    policy = load_story_policy(forbidden_words_path)
     subtitles = []
     scene_ok = 0
     placeholder_ok = 0
@@ -187,15 +194,20 @@ def score_stories(*, fixtures: Path, forbidden_words_path: Path) -> dict:
         scenes = story.get("scenes", [])
         if len(scenes) == 6:
             scene_ok += 1
-        story_text = " ".join(str(s.get("subtitle", "")) for s in scenes)
+        story_text = " ".join(_scene_caption(scene) for scene in scenes)
         if "{주인공}" in story_text and "{친구1}" in story_text:
             placeholder_ok += 1
         for scene_idx, scene in enumerate(scenes, start=1):
-            subtitle = str(scene.get("subtitle", ""))
+            subtitle = _scene_caption(scene)
             subtitles.append(subtitle)
-            for word in forbidden:
-                if word in subtitle:
-                    forbidden_hits.append({"story": story.get("id"), "scene": scene_idx, "word": word})
+            for hit in find_forbidden_hits(subtitle, policy):
+                forbidden_hits.append({
+                    "story": story.get("id"),
+                    "scene": scene_idx,
+                    "word": hit.term,
+                    "matched": hit.matched,
+                    "fuzzy": hit.fuzzy,
+                })
 
     total_subs = len(subtitles)
     yo_rate = sum(_is_yo_style(s) for s in subtitles) / total_subs if total_subs else 0.0

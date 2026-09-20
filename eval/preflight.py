@@ -8,7 +8,8 @@ from eval.config import key_env_for, load_dotenv, resolve_model
 
 ROOT = Path(__file__).resolve().parent
 EVAL = ROOT  # scripts live inside eval/ now; there is no nested eval/
-DEFAULT_MODELS = ["gpt-5.6-luna", "gpt-5-nano", "claude-haiku-4-5", "mistral-small-4"]
+PROJECT_ROOT = EVAL.parent
+DEFAULT_MODELS = ["mistral-small-4", "ministral-3-3b"]
 REQUIRED_FIXTURE_KEYS = {"id", "slots", "asked", "template", "utterance"}
 
 
@@ -66,15 +67,15 @@ def main():
         "박진웅 생성 프롬프트": EVAL / "story_prompt.md",
         "박진웅 생성 스키마": EVAL / "story_schema.json",
         "안치영 생성 입력 3벌": EVAL / "fixtures_story.jsonl",
-        "공유 금지어 목록": EVAL / "forbidden_words.txt",
+        "공식 금칙어 정본": PROJECT_ROOT / "guidelines" / "8_금칙어.md",
     }
 
     print("=== 배터리/부품 preflight ===")
     for label, path in files.items():
-        print(f"{'OK' if path.exists() else 'MISSING':7} {label}: {path.relative_to(ROOT)}")
+        print(f"{'OK' if path.exists() else 'MISSING':7} {label}: {path.relative_to(PROJECT_ROOT)}")
     print("\n=== 생성 채점용 부품(없어도 판정 예측은 가능) ===")
     for label, path in optional.items():
-        print(f"{'OK' if path.exists() else 'WAIT':7} {label}: {path.relative_to(ROOT)}")
+        print(f"{'OK' if path.exists() else 'WAIT':7} {label}: {path.relative_to(PROJECT_ROOT)}")
 
     fixtures = EVAL / "fixtures_judge.jsonl"
     info = inspect_jsonl(fixtures)
