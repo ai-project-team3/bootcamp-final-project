@@ -68,9 +68,12 @@ python -m eval.corrupt --append-results    # 실제 Android THEMES 프리셋 손
 
 충전했으면 **이 표에 한 줄 추가한다.** 영수증은 각자 보관한다.
 
-**돌리기 전에 원가를 먼저 계산한다.** `model_catalog.json`의 단가 × `results.md`의 실측 토큰이면
-소수점까지 나온다. 100문항 기준 대략 — `gpt-5.6-luna` 22원 · `gpt-5-nano` 6원 · `claude-haiku-4-5` 750원.
-**모델마다 35배까지 차이 난다.** 비싼 쪽을 여러 번 돌리기 전에 한 번 더 생각한다.
+**돌리기 전에 원가를 먼저 계산한다.** `model_catalog.json`의 단가 × `results.md`의 실측 토큰.
+100문항 1회 실측 — `gpt-5-nano` 6원 · **`gpt-5.6-luna` 22원** · `ministral-3-3b` 8원 · **`claude-haiku-4-5` 157원**.
+
+⚠️ **표시 단가만 보고 계산하면 틀린다.** 같은 한국어 프롬프트인데 잡히는 입력 토큰이 다르다 —
+luna 3,987 · haiku **6,129** · ministral 3,455. haiku는 단가 5배 × 토큰 1.5배로 **7배**가 된다.
+**새 후보를 볼 때는 단가와 실측 토큰을 같이 본다.**
 
 ## 규칙
 
