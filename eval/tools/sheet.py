@@ -79,10 +79,13 @@ YES = {"y", "yes", "예", "o", "ㅇ", "true", "1"}
 NO = {"n", "no", "아니오", "아니요", "x", "ㄴ", "false", "0", ""}
 
 
-def sample_for_review(items: list[dict], n: int = 20) -> list[dict]:
-    """`label.py` 와 **같은 20문항**을 뽑는다 (같은 씨앗·같은 층별 몫)."""
+def sample_for_review(items: list[dict], n: int = 20, seed: int | None = None) -> list[dict]:
+    """`label.py` 와 **같은 20문항**을 뽑는다 (같은 씨앗·같은 층별 몫).
+
+    `seed` 를 주면 **다른 20문항**이 나온다 — 앞사람 표본을 본 사람이 블라인드로 검수할 때 쓴다.
+    """
     import label
-    return label.sample_for_review(items, n)
+    return label.sample_for_review(items, n, seed if seed is not None else label.DEFAULT_SEED)
 
 
 # ── 파일 만들기 ────────────────────────────────────────────────────
@@ -275,6 +278,8 @@ def main() -> None:
     p.add_argument("--all", action="store_true", help="100문항 전부 (기본은 검수 20문항)")
     p.add_argument("--by", default="치영", help="붙이는 사람 이름")
     p.add_argument("--sheet", default="", help="파일 이름 (기본: labels_<이름>_검수20.md)")
+    p.add_argument("--seed", type=int, default=None,
+                   help="검수 표본 씨앗. 앞사람 표본을 본 뒤 붙이면 블라인드가 아니므로 바꾼다")
     args = p.parse_args()
 
     all_items = [json.loads(l) for l in FIXTURES.read_text(encoding="utf-8").splitlines() if l.strip()]
@@ -283,7 +288,7 @@ def main() -> None:
         global FIELDS
         FIELDS = CORE + EXTRA   # 최종 정답지에는 값·마음까지 필요하다
     else:
-        items = sample_for_review(all_items, 20)
+        items = sample_for_review(all_items, 20, args.seed)
 
     tag = "전체100" if args.all else "검수20"
     stem = args.sheet or f"labels_{args.by}_{tag}"
