@@ -44,14 +44,36 @@ DONE = (63, 107, 78)
 
 
 def horizon(a):
-    """행 평균색의 위아래 차이가 가장 큰 줄. 하늘/땅 경계다.
+    """하늘이 **끝나는** 줄. 없으면 None — 그건 떠 있는 배경이다.
 
-    가장자리는 액자나 그림자라 후보에서 뺀다 — 안 빼면 맨 윗줄이 뽑힌다.
+    두 번 틀리고 세 번째에 맞았다.
+
+    ① "행 평균색이 가장 크게 바뀌는 줄"  → `bg_dino`에서 **y=547**. 하늘 경계가 아니라
+       **언덕과 들판이 갈리는 줄**이었다. 부드러운 언덕보다 들판 경계가 또렷해 최댓값이 그리로 갔다.
+    ② "위에서 내려오며 하늘색을 처음 벗어나는 줄" → **y=110**. 이번엔 **구름**에 걸렸다.
+       구름도 하늘색이 아니다.
+    ③ **아래에서 올라가며 땅이 끝나는 줄** ← 맞다. 땅은 한 번 시작하면 화면 끝까지 이어지지만
+       구름은 위에 떠 있는 얼룩이라, 밑에서 올라오면 구름을 만나기 전에 멈춘다.
+
+    우주나 바다처럼 **바닥이 없는 그림에서는 밑에서 바로 하늘색이 나온다.**
+    그때 None을 돌려주고 부르는 쪽이 「떠 있는 배치」로 넘어간다.
     """
     rows = a.reshape(a.shape[0], -1, a.shape[2]).mean(1)
-    d = np.abs(np.diff(rows, axis=0)).sum(1)
-    lo, hi = int(len(d) * 0.30), int(len(d) * 0.88)
-    return lo + int(np.argmax(d[lo:hi]))
+    top = rows[:max(4, int(len(rows) * 0.08))]
+    sky, jitter = np.median(top, axis=0), top.std(0).mean()
+    off = np.abs(rows - sky).mean(1) > max(14.0, jitter * 4)
+
+    y, gap = len(rows) - 1, 0
+    while y >= 0:
+        if off[y]:
+            gap = 0
+        else:
+            gap += 1
+            if gap > 5:                   # 땅 안의 물웅덩이 같은 하늘색 얼룩은 봐준다
+                break
+        y -= 1
+    y0 = y + gap + 1
+    return None if y0 > len(rows) * 0.92 else y0   # 바닥이 거의 없다 = 떠 있는 배경
 
 
 def flatness(a, y0):
@@ -77,7 +99,7 @@ def flatness(a, y0):
     return sd
 
 
-def pick(sd, n, y0, h, w):
+def pick(sd, n, y0, h, floating):
     """소품마다 **깊이 띠를 하나씩** 맡겨 그 안에서 제일 평평한 칸을 고른다.
 
     ⚠️ 처음엔 그냥 평평한 순서로 골랐더니 **셋이 전부 맨 아랫줄에 한 줄로 섰다.**
@@ -101,7 +123,8 @@ def pick(sd, n, y0, h, w):
         j, i = np.unravel_index(np.argmin(band), band.shape)
         j += edges[k]
         cx = int((i + 0.5) * GRID)
-        cy = int(y0 + (j + 1) * GRID)                 # 칸의 아랫변 = 소품이 서는 바닥
+        # 바닥이 있으면 칸의 아랫변(소품이 서는 곳), 떠 있으면 칸 한가운데
+        cy = int(y0 + (j + (0.5 if floating else 1)) * GRID)
         t = (cy - y0) / max(1, h - y0)
         out.append((cx, cy, FAR + (NEAR - FAR) * t, float(sd[j, i])))
         r = 6
@@ -111,49 +134,53 @@ def pick(sd, n, y0, h, w):
 
 def main():
     args = [a for a in sys.argv[1:] if a != "-o"]
-    out = args[-1]
-    bg_path, props = args[0], args[1:-1]
+    out, bg_path, props = args[-1], args[0], args[1:-1]
 
     bg = Image.open(bg_path).convert("RGB")
     w, h = bg.size
     a = np.asarray(bg).astype(float)
 
+    # 바닥이 있는 배경과 떠 있는 배경(우주·바닷속)은 배치가 다르다.
+    # 바닥이 있으면 소품이 **선다**(아랫변을 바닥에 맞춘다). 떠 있으면 **뜬다**(가운데를 맞춘다).
     y0 = horizon(a)
+    floating = y0 is None
+    if floating:
+        y0 = 0
     sd = flatness(a, y0)
-    spots = pick(sd, len(props), y0, h, w)
+    spots = pick(sd, len(props), y0, h, floating)
 
     placed = bg.copy().convert("RGBA")
     # 먼 것부터 얹는다 — 가까운 소품이 위에 와야 겹침이 자연스럽다
     for path, spot in sorted(zip(props, spots), key=lambda t: t[1][1] if t[1] else 0):
+        name = path.replace("\\", "/").split("/")[-1]
         if spot is None:
-            print("  %-12s 자리 못 찾음 — 뺀다" % path.split("/")[-1])
+            print("  %-13s 자리 못 찾음 — 뺀다" % name)
             continue
         cx, cy, frac, s = spot
         im = Image.open(path).convert("RGBA")
         im = im.crop(im.getbbox())
-        ph = int(h * frac)
+        ph = max(1, int(h * frac))
         im = im.resize((max(1, int(im.width * ph / im.height)), ph), Image.LANCZOS)
         # 가장자리 칸이 뽑히면 소품이 화면 밖으로 잘린다 — 별이 반쪽만 보였다.
         x = min(max(cx - im.width // 2, 0), w - im.width)
-        # cy는 소품이 **서는 바닥**이다. 중심에 맞추면 땅에 반쯤 묻힌다.
-        placed.alpha_composite(im, (x, cy - im.height))
-        print("  %-12s (%4d,%4d)  높이 %3d px  거친 정도 %.1f"
-              % (path.split("/")[-1], cx, cy, ph, s))
+        y = cy - im.height // 2 if floating else cy - im.height
+        placed.alpha_composite(im, (x, max(0, min(y, h - im.height))))
+        print("  %-13s (%4d,%4d)  높이 %3d px  거친 정도 %.1f" % (name, cx, cy, ph, s))
 
-    # 왼쪽엔 찾은 것을 그려 보이고, 오른쪽엔 실제로 얹은 결과를 둔다
     shown = bg.copy().convert("RGBA")
     d = ImageDraw.Draw(shown, "RGBA")
     gy, gx = sd.shape
     for j in range(gy):
         for i in range(gx):
             if sd[j, i] <= MAX_SD:
-                d.rectangle([i * GRID, y0 + j * GRID, (i + 1) * GRID - 1,
-                             y0 + (j + 1) * GRID - 1], fill=DONE + (70,))
-    d.line([(0, y0), (w, y0)], fill=CURTAIN + (255,), width=4)
+                d.rectangle([i * GRID, y0 + j * GRID,
+                             (i + 1) * GRID - 1, y0 + (j + 1) * GRID - 1], fill=DONE + (70,))
+    if not floating:
+        d.line([(0, y0), (w, y0)], fill=CURTAIN + (255,), width=4)
     for spot in spots:
         if spot:
-            cx, cy = spot[0], spot[1]
-            d.ellipse([cx - 11, cy - 11, cx + 11, cy + 11], outline=CURTAIN, width=4)
+            d.ellipse([spot[0] - 11, spot[1] - 11, spot[0] + 11, spot[1] + 11],
+                      outline=CURTAIN, width=4)
 
     try:
         f = ImageFont.truetype(r"C:\Windows\Fonts\malgun.ttf", 26)
@@ -164,12 +191,14 @@ def main():
     c.paste(shown.convert("RGB"), (0, BAR))
     c.paste(placed.convert("RGB"), (w + 26, BAR))
     dr = ImageDraw.Draw(c)
-    dr.text((4, 6), "① 배경에서 찾은 것 — 빨간 줄이 지평선, 초록이 얹을 만한 칸",
-            fill=(22, 24, 31), font=f)
+    left = ("① 떠 있는 배경 — 바닥이 없어 소품이 뜬다" if floating
+            else "① 찾은 것 — 빨간 줄이 지평선, 초록이 얹을 만한 칸")
+    dr.text((4, 6), left, fill=(22, 24, 31), font=f)
     dr.text((w + 30, 6), "② 그 자리에 얹은 결과", fill=(22, 24, 31), font=f)
     c.save(out)
-    print("\n지평선 y=%d · 얹을 만한 칸 %d/%d · %s"
-          % (y0, int((sd <= MAX_SD).sum()), sd.size, out))
+    print("\n%s · 얹을 만한 칸 %d/%d · %s"
+          % ("바닥 없음(떠 있는 배치)" if floating else "지평선 y=%d" % y0,
+             int((sd <= MAX_SD).sum()), sd.size, out))
 
 
 if __name__ == "__main__":
