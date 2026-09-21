@@ -47,6 +47,7 @@ OUT = os.path.abspath(os.path.join(HERE, "..", "assets"))
 os.makedirs(OUT, exist_ok=True)
 
 CKPT = "sd_xl_base_1.0.safetensors"
+LORA = "sdxl_lightning_8step_lora.safetensors"   # 배경용 · 09-21 채택
 
 # 인형·소품: 짧게. 이 꼬리표가 핵심이다.
 CUT = (", cut paper collage, flat torn paper shapes, children's picture book, "
@@ -128,9 +129,19 @@ def get(path):
     return json.load(urllib.request.urlopen(API + path, timeout=180))
 
 
-def workflow(prompt, w, h, prefix, seed):
-    """SDXL base 1.0 · 28 steps · cfg 6.5 · dpmpp_2m / karras"""
-    return {
+def workflow(prompt, w, h, prefix, seed, fast=None):
+    """배경은 8스텝 LoRA, 그 외는 28스텝.
+
+    09-21 측정(`eval/results.md`): 배경 한 장이 19.07초 → 3.74초로 5.1배 빨라지고
+    VRAM은 그대로다. 4스텝도 재봤는데 종이 결이 물감처럼 뭉개지고 네거티브가
+    풀려서 버렸다 — 되돌리는 손잡이는 세기가 아니라 **스텝 수**였다.
+
+    ⚠️ 인형·소품(CUT)에는 기본으로 안 켠다. 이미 만들어 둔 것들이 28스텝이라
+    섞이면 결이 달라 보인다. 배경은 세션 중에 새로 만들므로 속도가 값이 된다.
+    """
+    if fast is None:
+        fast = w > h          # 배경만 가로로 뽑는다 (1344x768)
+    wf = {
         "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": CKPT}},
         "2": {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["1", 1]}},
         "3": {"class_type": "CLIPTextEncode", "inputs": {"text": NEG, "clip": ["1", 1]}},
@@ -142,6 +153,15 @@ def workflow(prompt, w, h, prefix, seed):
         "6": {"class_type": "VAEDecode", "inputs": {"samples": ["5", 0], "vae": ["1", 2]}},
         "7": {"class_type": "SaveImage", "inputs": {"images": ["6", 0], "filename_prefix": "bdraft/" + prefix}},
     }
+    if fast:
+        wf["8"] = {"class_type": "LoraLoaderModelOnly", "inputs": {
+            "model": ["1", 0], "lora_name": LORA, "strength_model": 1.0}}
+        # Lightning은 cfg를 거의 1로 두고 sgm_uniform을 써야 한다.
+        # 28스텝 설정을 그대로 주면 그림이 하얗게 날아간다.
+        wf["5"]["inputs"].update({
+            "model": ["8", 0], "steps": 8, "cfg": 1.0,
+            "sampler_name": "euler", "scheduler": "sgm_uniform"})
+    return wf
 
 
 def run(name, w, h, prompt, seed):
