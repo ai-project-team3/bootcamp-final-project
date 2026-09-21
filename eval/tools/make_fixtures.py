@@ -265,10 +265,40 @@ def resolve_dump(arg: str | None) -> Path:
         f"  (찾아본 기본 경로: {DEFAULT_DUMP})")
 
 
+def guard_existing_gold(force: bool) -> None:
+    """⚠️ 이미 확정된 gold 를 **조용히 날리지 않는다.**
+
+    이 스크립트는 픽스처를 `gold: null` 로 다시 쓴다. 라벨 100개가 들어 있는 파일에 그냥 덮어쓰면
+    사람이 몇 시간 붙인 정답지가 사라지고, 되살릴 방법이 없다. README 의 경고만으로는 막히지 않는다.
+    """
+    if not OUT_JUDGE.exists():
+        return
+    try:
+        rows = [json.loads(l) for l in OUT_JUDGE.read_text(encoding="utf-8").splitlines() if l.strip()]
+    except (OSError, json.JSONDecodeError):
+        return   # 읽을 수 없으면 덮어쓰기를 막을 근거도 없다
+    filled = sum(1 for r in rows if r.get("gold"))
+    if not filled:
+        return
+    if force:
+        print(f"⚠️ --force — gold {filled}개를 덮어쓴다")
+        return
+    raise SystemExit(
+        f"{OUT_JUDGE.name} 에 이미 확정된 gold 가 {filled}개 있다. 다시 뽑으면 **전부 사라진다.**\n"
+        "먼저 빼내 두고, 뽑은 뒤 되돌려 넣는다:\n"
+        "  python tools/gold.py --export --by <이름>\n"
+        "  python tools/make_fixtures.py --dump <경로>\n"
+        "  python tools/gold.py --apply  --by <이름>\n"
+        "정말 버릴 생각이면 --force 를 붙인다.")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="판정 평가셋 100문항을 층화 추출한다")
     ap.add_argument("--dump", default=None, help="bank_dump.jsonl 경로 (없으면 BANK_DUMP 환경변수)")
+    ap.add_argument("--force", action="store_true",
+                    help="확정된 gold 가 있어도 덮어쓴다 (라벨이 사라진다)")
     args = ap.parse_args()
+    guard_existing_gold(args.force)
     dump = resolve_dump(args.dump)
 
     rnd = random.Random(SEED)

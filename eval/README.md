@@ -23,18 +23,33 @@
 | `sheet.py` | 라벨을 **빈칸 채우기 파일**로 붙인다. `--new` 로 만들고 `--read` 로 `.jsonl` 로 바꾼다. 잘못 적으면 저장하지 않는다 |
 | `label.py` | 같은 일을 대화형으로. 문항마다 질문에 하나씩 답한다 |
 | `kappa.py` | 두 사람 라벨의 **일치도(Cohen's κ)**. 불일치가 3개를 넘으면 경고한다 |
+| **`gold.py`** | 확정된 gold 를 **빼내고 되돌려 넣는다.** 평가셋을 다시 뽑아도 라벨이 안 사라진다 |
 | `preview.py` | 픽스처를 사람이 읽는 표로. **생성물이라 커밋하지 않는다** |
 
 ```
-python tools/make_fixtures.py --dump <app/build/bank_dump.jsonl>   # 평가셋 다시 뽑기
 python tools/sheet.py --new --all --by 진웅                        # 100문항 라벨 시트
 python tools/sheet.py --read --all --by 진웅                       # → labels_진웅_전체100.jsonl
-python tools/kappa.py labels_진웅_전체100.jsonl labels_치영_검수20.jsonl
+python tools/kappa.py fixtures_judge.jsonl labels_치영_검수20.jsonl   # 확정 gold 대비 검수
 ```
 
 - **덤프는 레포 밖**(안드로이드 빌드 산출물)이라 `--dump` 나 `BANK_DUMP` 로 준다. 경로를 안 주면 멈춘다
-- **다시 뽑으면 확정한 `gold` 가 지워진다.** 확정 뒤에는 `labels_*.jsonl` 을 따로 보관한다
 - 라벨 기준과 경계 사례는 `평가셋_라벨링_지침.md` §2. 칸 이름의 출처는 `../guidelines/2_공통_데이터_모델.md`
+- `kappa.py` 는 첫 인자에서 `gold` 를 읽으므로 **`fixtures_judge.jsonl` 을 그대로 넣어도 된다**
+
+### ⚠️ 평가셋을 다시 뽑을 때 — gold 를 먼저 빼낸다
+
+`make_fixtures.py` 는 픽스처를 **`gold: null` 로 다시 쓴다.** 확정된 라벨 100개가 들어 있는 채로 돌리면
+사람이 몇 시간 붙인 정답지가 사라진다. **그래서 gold 가 차 있으면 스크립트가 멈춘다**(`--force` 로만 뚫린다).
+
+```
+python tools/gold.py --export --by 진웅          # ① 픽스처 → labels_진웅_전체100.jsonl
+python tools/make_fixtures.py --dump <경로>      # ② 다시 뽑기 (gold 가 비워진다)
+python tools/gold.py --apply  --by 진웅          # ③ 라벨 되돌려 넣기
+```
+
+③은 **`id` 가 아니라 `asked`+`utterance`+`context`** 로 짝을 맞춘다. 다시 뽑으면 문항 순서가 바뀌어
+`id` 가 다른 내용에 붙을 수 있다. **질문 문장이 바뀐 문항은 짝이 안 맞는 것이 정상이고**, 그 목록을 찍어 준다 —
+질문이 달라졌으면 라벨도 다시 봐야 하므로 조용히 옮겨 붙이지 않는다.
 
 ## 돌리는 법
 
