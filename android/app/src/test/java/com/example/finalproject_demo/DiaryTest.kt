@@ -184,7 +184,11 @@ class DiaryTest {
 
         // 장소를 못 들었을 때와 들었을 때의 첫 질문이 달라야 한다
         val before = problem.rungs(s).first()
+        assertEquals("오늘 무슨 일이 있었어?", before)
+        s.placeLabel = "오늘 있었던 곳"; s.place = "오늘 있었던 곳"; s.slotBy["place"] = "mascot"
+        assertEquals("장소를 못 들었는데 임시 장소를 되묻는다", before, problem.rungs(s).first())
         s.placeLabel = "놀이터"; s.place = "놀이터"
+        s.slotBy["place"] = "child"
         val after = problem.rungs(s).first()
         assertNotEquals("장소를 듣고도 같은 질문을 한다", before, after)
         assertTrue("장소를 되받지 않는다: $after", "놀이터" in after)
@@ -235,6 +239,18 @@ class DiaryTest {
         s.slots["solution"] = diaryLineOf(solution)!!
         s.slotBy["solution"] = "mascot"
         assertFalse("답을 못 들은 쪽에 '마침내'가 붙었다", s.bookCaption(5).startsWith("마침내"))
+    }
+
+    @Test
+    fun aMissingReasonDoesNotTurnAnOrdinaryDayIntoAnAccident() {
+        val cause = DIARY_STEPS.first { it.slot == "cause" }
+        val ordinary = diaryState().apply { problem = "그림 그리기" }
+        val missingReason = cause.mascot!!.invoke(ordinary).value
+        assertFalse("평범한 날에 사고가 난 것처럼 적었다: $missingReason", "왜 그랬" in missingReason)
+        assertFalse("가장 좋았다고 말하지 않았는데 단정했다: $missingReason", "제일 좋" in missingReason)
+
+        val trouble = diaryState().apply { problem = "블록이 무너짐" }
+        assertTrue("실제 사고가 있었는데 까닭을 모른다는 문장이 사라졌다", "왜 그랬" in cause.mascot!!.invoke(trouble).value)
     }
 
     @Test
