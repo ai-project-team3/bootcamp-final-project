@@ -796,7 +796,11 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
         Spacer(Modifier.width(8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             PillButton("✅ 다 그렸어", Coral, Color.White, 17) { commit(); d.send(Reply.Tapped("done", "완료")) }
-            if (!forAnswer) PillButton("그리기 싫어", Color(0xFFF3E7D0), Ink, 15) { d.send(Reply.Tapped("preset", "프리셋")) }
+            // 동화 DRAW 는 "preset"(프리셋 3장으로), 일기·협업은 "skip" 을 기다린다(`diaryDrawStep`).
+            // 전에는 늘 "preset" 을 보내 일기·협업에서 눌러도 아무 일이 없었다 (09-22 박진웅 에뮬레이터 보고)
+            if (!forAnswer) PillButton("그리기 싫어", Color(0xFFF3E7D0), Ink, 15) {
+                d.send(if (d.s.isDiary) Reply.Tapped("skip", "안 그릴래") else Reply.Tapped("preset", "프리셋"))
+            }
         }
     }
 }
