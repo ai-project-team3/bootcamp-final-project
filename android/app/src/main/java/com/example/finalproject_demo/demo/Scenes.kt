@@ -751,9 +751,16 @@ private suspend fun Director.sceneEvent() {
     if (r is Reply.Spoke) log("LLM 판정: 이름을 가린 문장({주인공}: ${r.text}) → Anthropic → S1 · S2 표시 JSON → 수준은 규칙이 계산")
 
     // 질문 은행 — 그다음 (결과 · 대응 · 누가 놀랐나 중 하나)
-    val (_, r2) = askSlot("reaction")
+    val (v2, r2) = askSlot("reaction")
     (r2 as? Reply.Spoke)?.let { event("slot_filled", "slot" to "reaction", "value" to it.text, "source" to "voice") }
-    s.slots["reaction"] = valueOf(r2) ?: ""
+    // 아이가 한 말을 **책 문장으로 지어서** 넣는다 (9/22).
+    // 질문 세 변형의 값 모양이 서로 다르고(결과 절 · 대사 · 사람 이름), 틀은 3턴째에야
+    // 정해져서 책을 그릴 때는 어느 변형이었는지를 알 수 없다. 그래서 여기서 짓는다 —
+    // 바로 위 `problem` 칸도 같은 식으로 장면에서 문장을 만들어 넣는다.
+    // 판정과 이벤트에는 아이가 한 말 그대로가 간다 — 위 `event` 와 `askSlot` 안의 `judge` 는 손대지 않았다.
+    val said = valueOf(r2)
+    s.slots["reaction"] = said?.let { reactionLine(s, v2.id, it) } ?: ""
+    if (said != null) log("그다음 질문 [${v2.id}] 답 \"$said\" → 책 2쪽 문장으로 들어간다: \"${s.slots["reaction"]}\"")
     mark("event")
     pause(800)
     go(Scene.CAUSE)

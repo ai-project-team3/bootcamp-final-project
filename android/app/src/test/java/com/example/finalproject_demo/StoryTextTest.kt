@@ -32,6 +32,7 @@ import com.example.finalproject_demo.demo.pageKind
 import com.example.finalproject_demo.demo.partnerLine
 import com.example.finalproject_demo.demo.partnerQuestion
 import com.example.finalproject_demo.demo.pick
+import com.example.finalproject_demo.demo.reactionLine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -246,6 +247,12 @@ class StoryTextTest {
             for (i in 0 until maxN) {
                 s.slots.clear()
                 slotAnswers.forEach { (k, vs) -> if (k != "resolve" && vs.isNotEmpty()) s.slots[k] = vs[i % vs.size] }
+                // 「사건」 장면의 꼬리질문 답도 책에 실린다 — 세 변형을 돌려 가며 같이 검사한다 (9/22)
+                val rv = BANK.filter { it.slot == "reaction" }
+                val rq = rv[i % rv.size]
+                val ra = rq.answers(s).map { a -> a.value }.filter { a -> a.isNotEmpty() }
+                if (ra.isNotEmpty()) s.slots["reaction"] = reactionLine(s, rq.id, ra[i % ra.size])
+
                 slotAnswers["resolve"]?.getOrNull(i % (slotAnswers["resolve"]!!.size))?.split(":", limit = 3)?.let {
                     s.solutionKey = it[0]; s.solutionItem = it[1]; s.solutionLine = it[2]
                 }
@@ -464,6 +471,55 @@ class StoryTextTest {
                 s.askedThisStory.clear()
                 val v = s.pick("resolve")
                 assertTrue("${t.key} 템플릿에서 ${v.id}", v.id.startsWith(t.key.lowercase() + "_"))
+            }
+        }
+    }
+
+    /**
+     * 「사건」 장면에서 아이가 한 말이 **책 문장으로** 된다 (9/22).
+     *
+     * 질문 세 변형이 저장하는 값의 모양이 서로 다르다. 그대로 이으면
+     * 책에 "지우." 같은 토막이 남아 문장이 안 된다.
+     */
+    @Test
+    fun theChildsAnswerAtTheEventBecomesASentence() {
+        val s = DemoState()
+        val c = s.childName          // 아이 이름은 시연 인물(persona)이 정한다
+
+        // 결과 절 — 반말을 책 말투로 올린다
+        assertEquals("그러자 쾵 떨어졌어요.", reactionLine(s, "follow_next", "쾵 떨어졌어"))
+        // 대사 — 느낌표·물음표를 살려 준다
+        assertEquals("${c}는 \"으악!\" 하고 외쳤어요.", reactionLine(s, "follow_say", "으악!"))
+        assertEquals("${c}는 \"누구야?\" 하고 물었어요.", reactionLine(s, "follow_say", "누구야?"))
+        // 사람 이름 — 받침을 보고 조사를 고른다
+        assertEquals("지우가 제일 깜짝 놀랐어요.", reactionLine(s, "follow_who", "지우"))
+        assertEquals("민준이가 제일 깜짝 놀랐어요.", reactionLine(s, "follow_who", "민준이"))
+        // 안 말했으면 아무것도 짓지 않는다 — 빈 칸이 책에 점하나로 남지 않게
+        assertEquals("", reactionLine(s, "follow_next", "   "))
+    }
+
+    /**
+     * 그리고 그 문장이 **다섯 틀 모두의 책에** 실린다.
+     *
+     * 전에는 어느 틀도 `reaction` 칸을 읽지 않았다 — 물어보고 저장하기만 했다.
+     */
+    @Test
+    fun everyTemplatePutsThatSentenceInTheBook() {
+        for (t in TEMPLATES) {
+            val s = DemoState()
+            s.templateKey = t.key
+            s.level = t.level
+            s.slots["reaction"] = "그러자 쾵 떨어졌어요."
+            val book = (1..s.pageCount).joinToString(" ") { s.bookCaption(it) }
+            assertTrue("틀 ${t.code} — 아이가 한 말이 책에 없다", "쾵 떨어졌어요" in book)
+
+            // 안 말했을 때는 이상한 틈이나 점이 남지 않는다
+            val q = DemoState()
+            q.templateKey = t.key
+            q.level = t.level
+            for (i in 1..q.pageCount) {
+                val cap = q.bookCaption(i)
+                assertFalse("틀 ${t.code} ${i}쪽에 빈 칸 자국이 남았다: $cap", "  " in cap || cap.trim() != cap)
             }
         }
     }
