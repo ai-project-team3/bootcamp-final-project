@@ -41,7 +41,9 @@ def build_user_prompt(item: dict) -> str:
     """Gold label은 절대 모델에 보내지 않는다."""
     slots = json.dumps(item.get("slots", {}), ensure_ascii=False, separators=(",", ":"))
     return (
-        f"id:{item['id']}\n"
+        # id 는 **프롬프트에 넣지 않는다** (09-22). 모델이 읽지 않는 값이고, 채점은
+        # 출력 레코드의 id 로 짝을 맞춘다(`score.py:109`) — 모델이 돌려주는 값이 아니다.
+        # ⚠️ 이 줄을 뺀 것이 09-20 측정과의 유일한 프롬프트 차이다. 그래서 루나를 다시 쟀다.
         f"slots:{slots}\n"
         f"asked:{item.get('asked', '')}\n"
         f"template:{item.get('template', '')}\n"
