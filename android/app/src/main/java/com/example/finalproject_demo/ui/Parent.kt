@@ -162,7 +162,10 @@ fun ParentView(d: Director, tab: String) {
     }
 }
 
-/** 오늘의 기록 — 6축 · 말한 방식 · 본인 대비 · 누리과정 · 질문 카드 · 고지. 등급 · 비교 · 수준 이름은 없다 (16) */
+/**
+ * 오늘의 기록 — 6축 · 말한 방식 · 같은 질문에 한 답 · 누리과정 · 질문 카드 · 고지. 등급 · 비교 · 수준 이름은 없다 (16).
+ * 세 모드가 다 여기로 온다 — 문구는 그 모드가 실제로 물은 것만 쓴다 (일기 · 협업은 함께할 사람을 안 묻는다 · 9/22).
+ */
 @Composable
 private fun RecordTab(d: Director) {
     val s = d.s
@@ -182,15 +185,18 @@ private fun RecordTab(d: Director) {
             Column(Modifier.weight(1f)) {
                 Text("『${s.title ?: "만드는 중"}』", fontSize = 17.sp, color = Ink, fontWeight = FontWeight.Bold)
                 // 일기 · 협업 모드는 "누구랑 같이 만들래?"를 묻지 않는다 →
-                // 물어보지 않은 사람 이름을 지어내지 않는다. 협업은 어른이 있는 것이 확실하므로 그렇게만 적는다
+                // 물어보지 않은 사람 이름을 지어내지 않는다. 협업은 어른이 질문을 넣어 둔 것이 확실하므로 그렇게만 적는다
                 val who = when {
-                    s.isCoop -> "어른과 같이 · "
+                    s.isCoop -> "어른 질문으로 · "
                     s.isDiary -> ""
                     else -> "${s.pn}${wa(s.pn)} 함께 · "
                 }
-                Text("오늘 · 약 15분 · $who${s.placeName} · ${s.pageCount}쪽", fontSize = 12.sp, color = PSub)
+                // 걸린 시간은 잰 것만 적는다. 동화 모드는 시작 시각을 남기지 않아 쓸 수 없다 — 없는 숫자를 만들지 않는다 (9/22)
+                val minutes = if (s.isDiary && s.diaryStart > 0L) ((System.currentTimeMillis() - s.diaryStart) / 60_000L).coerceAtLeast(1L) else null
+                val took = minutes?.let { "약 ${it}분 · " } ?: ""
+                Text("오늘 · $took$who${s.placeName} · ${s.pageCount}쪽", fontSize = 12.sp, color = PSub)
                 // 일기 · 협업으로 만든 책은 부모 화면에서만 그렇게 보인다 (아이 화면에는 이 말이 없다 · 일기 §0)
-                if (s.isCoop) Text("오늘 있었던 일로 · 어른과 같이 지은 책이에요", fontSize = 12.sp, color = PAccent)
+                if (s.isCoop) Text("오늘 있었던 일로 · 어른이 넣어 둔 질문으로 지은 책이에요", fontSize = 12.sp, color = PAccent)
                 else if (s.isDiary) Text("오늘 있었던 일로 만든 책이에요", fontSize = 12.sp, color = PAccent)
             }
             Chip("${s.modeVoice}번 말했어요", PMint)
@@ -216,10 +222,10 @@ private fun RecordTab(d: Director) {
         Axis("🧩", "이야기 채우기", s2.size, if (s2.isEmpty()) "물어본 것에 답했어요" else "묻지 않은 것을 ${s2.size}번 덧붙였어요", fillQuote),
         Axis("🖍", "만들기", made.size, made.joinToString(" · ").ifEmpty { "오늘은 프리셋을 골랐어요" }, null),
         Axis(
-            "🤝", "함께하기", if (s.isCoop) s.partnerTurns else s.partnerTurns,
+            "🤝", "함께하기", s.partnerTurns,
             when {
-                // 협업 모드는 매 턴 어른이 묻는다 — 이 축이 처음으로 제대로 찬다 (협업 §4-2)
-                s.isCoop -> "어른이 ${s.partnerTurns}번 물어봐 주었어요"
+                // 협업 모드는 어른이 넣어 둔 질문으로 아이에게 묻는다 — 이 축이 처음으로 제대로 찬다 (협업 §4-2 · guidelines/9 §9-5)
+                s.isCoop -> "어른이 넣어 둔 질문 ${s.partnerTurns}개로 이야기했어요"
                 // 일기 모드는 함께할 사람을 묻지 않았다. 없는 사람 이름을 지어내지 않는다
                 s.isDiary -> if (s.companionKind.isBlank()) "오늘은 마스코트와 주고받았어요" else "오늘 ${s.companionKind}${wa(s.companionKind)} 있었던 이야기예요"
                 else -> "${s.pn}${wa(s.pn)} ${s.partnerTurns}번 주고받았어요"
@@ -282,38 +288,40 @@ private fun RecordTab(d: Director) {
             }
         }
         PCard(Modifier.weight(1f)) {
-            Text("지난번과 같은 질문", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
-            // 일기 모드의 기준 질문 ①은 "오늘 어디 갔었어?" 다 — 같은 자리, 다른 재료 (일기 설계 §0 · §4-1)
+            Text("같은 질문에 한 답", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
+            // 일기 · 협업 모드의 기준 질문 ①은 "오늘 어디 갔었어?" 다 — 같은 자리, 다른 재료 (일기 설계 §0 · §4-1)
             Text(if (s.isDiary) "\"오늘 어디 갔었어?\"" else "\"어디로 가 볼까?\"", fontSize = 13.sp, color = PSub)
             Spacer(Modifier.height(8.dp))
-            Compare("지난번", if (s.isDiary) "\"어린이집\" 한 낱말" else "\"바다\" 한 낱말", 0.35f)
+            // ⚠️ "지난번" 줄은 뺐다 (9/22). 전에는 "\"바다\" 한 낱말" 같은 **글자 상수**를 지난번 답인 것처럼 보여 줬는데,
+            //    앱은 아직 아무것도 저장하지 않는다 — 지난번 기록이 없다. 없는 숫자를 진짜인 척하지 않는다 (guidelines/9 §9-5).
+            //    저장이 붙으면 이 자리에 지난 답들이 날짜와 함께 나란히 선다 (README 「부모 리포트」 예).
+            Row {
+                Text("오늘", fontSize = 12.sp, color = PSub, modifier = Modifier.width(44.dp))
+                Text(s.quotes.firstOrNull()?.let { "\"$it\"" } ?: "\"${s.place ?: "-"}\" (카드로 고름)", fontSize = 12.sp, color = Ink, maxLines = 2)
+            }
             Spacer(Modifier.height(6.dp))
-            Compare("오늘", s.quotes.firstOrNull()?.let { "\"$it\"" } ?: "\"${s.place ?: "-"}\" (카드로 고름)", if (s.quotes.isNotEmpty()) 0.8f else 0.4f)
-            Spacer(Modifier.height(6.dp))
+            Text("지난 기록은 아직 없어요. 책이 쌓이면 같은 질문에 한 답이 날짜별로 나란히 보여요.", fontSize = 11.sp, color = PSub)
             Text("다른 아이가 아니라 ${s.childName}${ga(s.childName)} 지난번의 ${s.childName}${wa3(s.childName)}만 견줘요", fontSize = 11.sp, color = PSub)
         }
     }
 
     // 부모 협업 모드가 파는 것 — 동화책이 아니라 **질문하는 법**이다 (협업 §7).
-    // ⚠️ 점수를 보여 주지 않는다. "당신의 질문은 60점"은 앱을 지우게 만든다. 남기는 형태는 다음에 써 볼 질문 한 개다
+    // ⚠️ 점수를 보여 주지 않는다. "당신의 질문은 60점"은 앱을 지우게 만든다. 남기는 형태는 다음에 넣어 볼 질문 한 개다.
+    // 9/22 — 협업은 **부모가 질문을 미리 넣어 두는 모드**가 됐다 (guidelines/9 §9-5). 부모가 옆에서 기다린다는 전제의
+    //    문구("아이가 막히면 재촉하지 말고 기다려 주세요")는 뺐다. 넣어 둔 질문을 규칙으로 살펴 주는 일은 아직 없다 —
+    //    그래서 지금은 예시 한 개만 보여 준다.
     if (s.isCoop) {
-        Section("다음에 써 볼 질문", "부모 협업 모드에서만 · 점수가 아니라 질문 한 개예요")
+        Section("다음에 넣어 볼 질문", "부모 협업 모드에서만 · 점수가 아니라 질문 한 개예요")
         PCard(Modifier.fillMaxWidth()) {
-            // ⚠️ 없어진 버튼을 누르라고 안내하지 않는다 — [다르게 물어볼래]는 9/21에 뺐다.
-            //    이제 사다리는 아이가 말하지 않을 때 마스코트가 내린다. 누가 바꿨는지도 단정하지 않는다.
-            val tip = if (s.parentRung == 0)
-                "오늘은 한 질문으로 이야기가 이어졌어요. 아이가 막히면 재촉하지 말고 잠깐 기다려 주세요 — 더 쉬운 질문으로 바뀝니다."
-            else
-                "오늘 질문이 ${s.parentRung}번 더 쉬운 쪽으로 바뀌었어요. 아이가 답을 찾아가는 데 그게 가장 크게 돕습니다."
-            Text(tip, fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
+            Text("“오늘 제일 재밌었던 거 하나만 말해 줄래?”", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             Text(
-                "“재밌었어?” 처럼 예/아니오로 묻는 대신 “오늘 제일 재밌었던 거 하나만 말해 줄래?” 로 물어보세요. " +
+                "“재밌었어?” 처럼 예/아니오로 끝나는 질문 대신 이렇게 넣어 보세요. " +
                     "의문사는 하나만, 선택지는 질문보다 먼저.",
                 fontSize = 13.sp, color = PSub,
             )
             Spacer(Modifier.height(4.dp))
-            Text("ⓘ 부모 질문에 점수를 매기지 않습니다. 이 칸은 다음에 써 볼 질문 한 개만 알려 드려요.", fontSize = 11.sp, color = PSub)
+            Text("ⓘ 부모 질문에 점수를 매기지 않습니다. 이 칸은 다음에 넣어 볼 질문 한 개만 알려 드려요.", fontSize = 11.sp, color = PSub)
         }
     }
 
@@ -328,11 +336,12 @@ private fun RecordTab(d: Director) {
     val f = s.friendName.takeUnless { it.startsWith("{") } ?: "새 친구"
     // 일기 모드의 질문 카드는 오늘 있었던 일에서 나온다 — 공룡 · 소리 칸은 묻지 않았다 (일기 설계 §2-2).
     // ⚠️ 아이가 아무도 말하지 않은 날에는 "새 친구" 질문을 넣지 않는다 — 없는 친구를 앱이 만들어 내면 안 된다 (§3-2)
+    // ⚠️ 일기 · 협업은 "누구랑 같이 만들래?"를 묻지 않았다 — `s.pn` 은 기본값 "엄마"라 질문 카드에 쓰면 없는 사람이 생긴다 (9/22)
     val playCards = if (s.isDiary) listOfNotNull(
         s.friendName.takeUnless { it.startsWith("{") }?.let { n -> "\"${n}${eun(n)} 내일은 뭐 하고 놀까?\"" },
         "\"오늘 ${s.placeName}에서 제일 재밌었던 게 뭐였어?\"",
         "\"내일 ${s.placeName}에 가면 뭐 하고 싶어?\"",
-        "\"${s.pn}${wa(s.pn)} 오늘 있었던 일을 하나 더 이야기해 볼까?\"",
+        "\"오늘 있었던 일을 하나만 더 이야기해 줄래?\"",
     ).take(3) else listOf(
         "\"${f}${eun(f)} 오늘 뭐 하고 놀까?\"",
         "\"${s.dino.name}${ga(s.dino.name)} 또 울면 어떻게 할까?\"",
@@ -381,19 +390,6 @@ private fun Chip(text: String, color: Color) {
 private fun Dots(n: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         repeat(3) { i -> Box(Modifier.size(8.dp).clip(CircleShape).background(if (i < n) PAccent else PLine)) }
-    }
-}
-
-@Composable
-private fun Compare(label: String, text: String, frac: Float) {
-    Column {
-        Row {
-            Text(label, fontSize = 12.sp, color = PSub, modifier = Modifier.width(44.dp))
-            Text(text, fontSize = 12.sp, color = Ink, maxLines = 1)
-        }
-        Box(Modifier.padding(start = 44.dp, top = 3.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(PLine)) {
-            Box(Modifier.fillMaxWidth(frac).height(6.dp).clip(RoundedCornerShape(3.dp)).background(PMint))
-        }
     }
 }
 
