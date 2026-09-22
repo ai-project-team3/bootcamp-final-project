@@ -108,17 +108,6 @@ fun ParentBand(d: Director, modifier: Modifier = Modifier) {
                     )
                 }
             }
-            // ⚠️ 지금은 **뜨지 않는 줄**이다. [내가 답할래]를 빼면서 `author = "adult"` 인 자리가
-            //    아예 생기지 않게 됐고, `parentTooMuch` 는 그 수를 센다 (9/21).
-            //    어른이 칸을 직접 짓는 흐름이 다시 들어오면 그대로 살아난다 — 그래서 지우지 않고 둔다.
-            if (s.parentTooMuch) {
-                Spacer(Modifier.height(6.dp))
-                // 부모 자리가 절반을 넘으면 알려 준다. 채점이 아니라 귀띔이다 (§6)
-                Text(
-                    "어른이 지은 자리가 많아요. 아이 차례를 한 번 더 기다려 볼까요?",
-                    fontSize = 12.sp, color = Color(0xFFFFC9A8),
-                )
-            }
         }
     }
 }

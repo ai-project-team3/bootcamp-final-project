@@ -16,7 +16,6 @@ import com.example.finalproject_demo.demo.diarySlotOf
 import com.example.finalproject_demo.demo.isSequential
 import com.example.finalproject_demo.demo.mission1
 import com.example.finalproject_demo.demo.mission2
-import com.example.finalproject_demo.demo.pageAuthor
 import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.demo.pick
 import org.junit.Assert.assertEquals
@@ -51,18 +50,15 @@ class DiaryTest {
     /** 아이가 열한 걸음을 다 말한 하루 */
     private fun DemoState.fillAll() {
         placeLabel = "놀이터"; place = "놀이터"; slots["place"] = "놀이터에 갔어요"; slotBy["place"] = "child"
-        author["place"] = "child"
         friend = "민준이"; companionKind = "민준이"; friendName = "민준이"
         slots["companion"] = "민준이와 함께 놀았어요"; slotBy["companion"] = "child"
         problem = "블록이 무너짐"; slots["problem"] = "높이 쌓은 블록이 와르르 무너졌어요"; slotBy["problem"] = "child"
-        author["problem"] = "child"
         slots["detail"] = "큰 것을 아래에, 작은 것을 위에 차곡차곡 올렸어요"; slotBy["detail"] = "child"
         cause = "같이 놀고 싶었어"; causeLine = "같이 놀고 싶었어"
-        slots["cause"] = "같이 놀고 싶어서 그랬대요"; slotBy["cause"] = "child"; author["cause"] = "child"
+        slots["cause"] = "같이 놀고 싶어서 그랬대요"; slotBy["cause"] = "child"
         slots["said"] = "민준이가 \"미안해\" 하고 말했어요"; slotBy["said"] = "child"
         solution = "다시 쌓았어"; solutionLine = "다시 쌓은 블록은 이번엔 무너지지 않았어요"
         slots["solution"] = "다시 쌓은 블록은 이번엔 무너지지 않았어요"; slotBy["solution"] = "child"
-        author["solution"] = "child"
         slots["after"] = "집에 돌아와 저녁을 맛있게 먹었어요"
         slots["keep"] = "내일도 블록을 쌓고 싶어요"
         solutionItem = "block"
@@ -321,7 +317,6 @@ class DiaryTest {
                 s.reaction = "속상했던 마음"
                 s.slots["reaction"] = "${s.childName}는 속상했던 마음이 한참 남았어요"
             }
-            if (coop) s.author["cause"] = "adult"
             s.title = s.autoTitleFor()
 
             val pages = s.pageCount
@@ -408,33 +403,8 @@ class DiaryTest {
         // 협업 §4-1 — `by: parent` 를 새로 만들지 않는다. 스키마도 평가셋 100개도 그대로다
         val s = diaryState(coop = true)
         s.fillAll()
-        s.author["cause"] = "adult"
         s.slotBy["cause"] = "mascot"     // 부모가 지은 자리는 by: mascot 으로 들어간다
         assertTrue("출처에 parent 가 생겼다", s.slotBy.values.all { it in setOf("child", "card", "mascot") })
-    }
-
-    @Test
-    fun theBookShowsWhoWroteEachPartOnlyInCoop() {
-        val coop = diaryState(coop = true).apply { fillAll(); author["cause"] = "adult"; title = autoTitleFor() }
-        val marks = (1..coop.pageCount).mapNotNull { coop.pageAuthor(it) }
-        assertTrue("협업 책에 누가 지었는지 표시가 없다", marks.isNotEmpty())
-        assertTrue("어른이 지은 자리 표시가 없다", "adult" in marks)
-
-        // 일기 · 동화 모드 책에는 표시가 없다 — 협업 모드에서만 쓰는 것이다
-        val diary = diaryState().apply { fillAll(); title = autoTitleFor() }
-        assertTrue("일기 책에 협업 표시가 나온다", (1..diary.pageCount).all { diary.pageAuthor(it) == null })
-    }
-
-    @Test
-    fun aParentWhoWritesMostOfItGetsANudge() {
-        // 협업 §6 — 부모 자리가 절반을 넘으면 그건 부모가 짓고 아이가 들은 것이지 협업이 아니다
-        val s = diaryState(coop = true)
-        s.author["place"] = "child"; s.author["problem"] = "adult"
-        assertFalse("아직 절반인데 경고한다", s.parentTooMuch)
-        s.author["cause"] = "adult"; s.author["solution"] = "adult"
-        assertTrue("부모가 넷 중 셋을 지었는데 아무 말이 없다", s.parentTooMuch)
-        // 동화 · 일기 모드에는 이 경고가 없다
-        assertFalse(DemoState().apply { author["place"] = "adult" }.parentTooMuch)
     }
 
     // ── 6. 동화 모드가 깨지지 않았는가 ────────────────────────────
@@ -469,7 +439,7 @@ class DiaryTest {
         s.resetStory()
         assertEquals(StoryMode.STORY, s.mode)
         assertEquals(0, s.mascotPicks)
-        assertTrue(s.slotBy.isEmpty() && s.author.isEmpty())
+        assertTrue(s.slotBy.isEmpty())
         assertTrue(s.endReason == null && s.reaction == null && s.adultLine == null)
         assertTrue("부모 띠가 남았다", s.parentCard == null && s.parentRung == 0)
         assertEquals("", s.companionKind)

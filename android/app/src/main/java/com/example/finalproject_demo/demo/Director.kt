@@ -237,6 +237,9 @@ class Director(private val scope: CoroutineScope) {
         scope.launch {
             job?.cancelAndJoin()
             s.shelf.replaceAll { it.copy(fresh = false) }
+            // 부모가 넣어 둔 질문은 **여기서** 비운다 (09-22 박진웅). 이야기 시작에서 비우면
+            // 넣자마자 사라졌다 — `DemoState.parentQuestions` 주석에 경위가 있다
+            s.clearParentQuestions()
             go(Scene.ADULT)
         }
     }

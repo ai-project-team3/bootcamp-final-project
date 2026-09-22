@@ -326,7 +326,7 @@ class DiaryFlowTest {
         if (s.buttons.any { "안 그릴래" in it.label }) d.tap("안 그릴래")
         assertTrue("책 만들기로 안 넘어갔다", await(8_000) { s.scene == Scene.MAKING || s.scene == Scene.BOOK } != null)
         assertEquals(4, s.filled)
-        assertTrue("누가 지었는지 기록이 없다", s.author.isNotEmpty())
+        assertTrue("누가 채웠는지(by) 기록이 없다", s.slotBy.isNotEmpty())
         assertTrue("협업인데 어른이 읽어 준 질문이 안 남았다", s.adultLine != null)
         assertTrue("부모 띠가 책에서도 떠 있다", s.parentCard == null)
 

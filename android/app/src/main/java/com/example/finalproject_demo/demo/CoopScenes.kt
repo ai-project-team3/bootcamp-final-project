@@ -1,7 +1,8 @@
 package com.example.finalproject_demo.demo
 
 /**
- * 부모 협업 모드 — **질문하는 사람만 바꾸는 모드**다 (협업 §0).
+ * 부모 협업 모드 — **부모가 미리 적어 둔 질문을 마스코트가 아이에게 묻는 모드**다
+ * (부모협업모드_설계.md §0 9/22 개정 · 부모협업모드_구현설계.md).
  *
  * 왜 이 파일이 따로 있나 (09-22)
  *   협업은 일기 모드의 흐름을 그대로 쓴다. 그래서 처음에는 `DiaryScenes.kt` 안에
@@ -12,20 +13,101 @@ package com.example.finalproject_demo.demo
  *   ⚠️ **반대로 뽑지 않았다.** 일기가 본체이고 협업이 그 위에 얹히는 관계라,
  *   협업을 빼도 일기는 그대로 돌아간다. 일기를 빼면 협업은 돌아가지 않는다.
  *
- * 동화 · 일기와 다른 점은 둘뿐이다.
- *   1. 마스코트가 질문을 **소리 내어 읽지 않는다.** 질문은 부모 띠에 뜨고 어른이 자기 말로 묻는다 (§2-1)
- *   2. 띠 왼쪽에 마스코트가 서 있어, 아이에게는 "마스코트가 물어본다"로 보인다
+ * 두 갈래가 있다 (09-22 오후)
+ *   **부모가 질문을 넣어 뒀으면** — 새 흐름. 그 걸음의 자리에 맞는 부모 질문을 **마스코트가 소리 내어 읽는다**
+ *   (부모가 옆에 없는 것이 기본이라 소리가 없으면 아이가 질문을 못 받는다 · 구현설계 §1-①).
+ *   부모 질문이 없는 자리와 소진된 뒤는 마스코트가 그 자리에 필요한 질문을 그대로 묻는다 (§1-② —
+ *   지금은 일기 사다리가 대역이고, LLM이 붙으면 찬 칸을 보고 만든 질문이 들어온다).
  *
- * **받아주기 · 되돌려주기 · 낭독은 넘기지 않는다.** 발음이 어긋났을 때 고쳐 말해 주되
- * 지적하지 않는 것이 부모가 가장 못하는 일이다 (§2-2).
+ *   **하나도 안 넣었으면** — 9/21 옛 흐름 그대로. 질문이 소리 없이 부모 띠에 뜨고 어른이 읽는다.
+ *   조장이 홀더를 넣으며 "비어 있으면 옛 흐름으로 떨어진다"고 정한 것이고(`Model.kt` `parentQuestions`),
+ *   `DiaryFlowTest`의 협업 검사 둘이 이 흐름을 본다. 마스코트가 읽는 쪽으로 완전히 넘기는 것은
+ *   `Director.kt`의 「띠·말풍선 번갈아 띄우기」와 그 검사를 같이 고칠 때다 — 조장 · 치영과 맞춘 뒤.
+ *
+ * **받아주기 · 되돌려주기 · 낭독은 넘기지 않는다.** 질문의 저자만 부모다 (§2-2).
  */
+
+/** 부모 질문 자리 — 홀더가 `List<String>` 이라 **위치**로 정한다. 자리 필드가 생기면(조장 요청) 그쪽으로 옮긴다 */
+private val COOP_PART_SLOTS = listOf("place", "problem", "cause", "solution")
+
+/** 이 걸음의 자리(`diary_<bookKey>`). 기승전결 네 자리면 0~3, 꼬리질문이면 null */
+private fun partIndexOf(q: Question): Int? =
+    q.id.removePrefix("diary_").let { key -> COOP_PART_SLOTS.indexOf(key).takeIf { it >= 0 } }
+
+/** 부모가 실제로 넣은 질문이 하나라도 있나 — 빈 줄은 안 센다 (입력 화면이 빈 줄을 남겨 둔다) */
+val DemoState.hasCoopQuestions: Boolean get() = parentQuestions.any { it.isNotBlank() }
+
+/**
+ * 이 걸음에 쓸 부모 질문. 네 자리는 그 자리 것, 꼬리질문은 다섯째부터를 **순서대로** 하나씩 쓴다.
+ * 쓴 것은 `parentQIndex`(쓴 개수)로 센다 — 홀더의 `nextParentQuestion()` 은 순서 소비라 자리 매핑과 안 맞아 쓰지 않는다.
+ *
+ * **한 걸음에 한 번만 쓴다.** 아이가 "몰라"라고 하면 일기 흐름이 같은 걸음을 사다리 한 칸 아래 질문으로 다시 묻는데,
+ * 그때는 부모 질문을 고집하지 않고 **앱의 쉬운 질문**이 나가야 한다 (구현설계 §1-②: 못 답하면 상황에 맞춰 바꿔 묻는다).
+ */
+private fun DemoState.takeCoopQuestion(q: Question): String? {
+    val track = coopTrack
+    if (q.id in track.askedSteps) return null          // 다시 묻는 자리 — 앱 질문으로
+    val idx = partIndexOf(q)
+    val text = if (idx != null) {
+        parentQuestions.getOrNull(idx)?.takeIf { it.isNotBlank() }
+    } else {
+        // 꼬리질문 자리 — 자유 질문 중 아직 안 쓴 첫 것
+        parentQuestions.drop(COOP_PART_SLOTS.size).filter { it.isNotBlank() }.getOrNull(track.freeUsed)
+            ?.also { track.freeUsed++ }
+    }
+    track.askedSteps += q.id
+    if (text != null) parentQIndex++
+    return text
+}
+
+/** 이 이야기에서 어느 걸음에 이미 물었고 자유 질문을 몇 개 썼나 */
+private class CoopTrack {
+    val askedSteps = mutableSetOf<String>()
+    var freeUsed = 0
+}
+
+/**
+ * `Model.kt` 에 칸을 더하지 않고 상태마다 붙여 둔다(약한 참조). 이야기마다 `parentQIndex` 가 0으로 돌아가면 새로 시작한다.
+ * 자리 필드가 홀더에 들어오면(조장 요청) 이 보조 기록은 홀더 쪽으로 옮긴다.
+ */
+private val trackByState = java.util.WeakHashMap<DemoState, CoopTrack>()
+private val DemoState.coopTrack: CoopTrack
+    get() {
+        val t = trackByState[this]
+        if (t != null && parentQIndex > 0) return t
+        return CoopTrack().also { trackByState[this] = it }
+    }
+
+/**
+ * ⚠️ **임시 보관 — 조장이 `resetStory()` 의 비우는 시점을 옮기면 지운다.**
+ *
+ * 지금 `resetStory()` 가 이야기 **시작**에 `parentQuestions` 를 비운다(`Scenes.kt` 모드 고른 직후).
+ * 부모 모드에서 넣고 [같이 만들기]를 누르면 그 순간 사라진다. `Model.kt` · `Scenes.kt` 는 남의 파일이라
+ * 여기서 사본을 들고 있다가 협업 장면이 시작될 때 되돌려 넣는다. 입력 화면(`Parent.kt`)이 고칠 때마다 [stashCoopQuestions] 를 부른다.
+ * 이야기가 끝나면([coopFinishLog]) 사본도 비운다 — "이야기마다 비운다"는 조장 결정 그대로.
+ */
+private val stashByState = java.util.WeakHashMap<DemoState, List<String>>()
+
+fun DemoState.stashCoopQuestions() {
+    stashByState[this] = parentQuestions.toList()
+}
+
+private fun DemoState.restoreCoopQuestions() {
+    if (parentQuestions.isEmpty()) stashByState[this]?.let { parentQuestions += it }
+}
 
 /** 협업 모드에서만 붙는 첫 안내. 일기 모드는 이 함수를 부르지 않는다. */
 suspend fun Director.coopIntro(childName: String) {
+    s.restoreCoopQuestions()
+    if (s.hasCoopQuestions) {
+        say("${childName}${ya(childName)}, 어른이 물어보고 싶은 게 있대! 내가 대신 물어볼게.")
+        log("부모 협업 모드 — 부모가 미리 넣어 둔 질문 ${s.parentQuestions.count { it.isNotBlank() }}개를 **마스코트가 소리 내어 읽는다.** 받아주기 · 되돌려주기 · 낭독도 마스코트 (구현설계 §1-① · 설계 §2-2)")
+        log("부모 질문이 없는 자리와 소진 뒤는 마스코트가 그 자리에 필요한 질문을 그대로 묻는다 — 지금은 일기 사다리, LLM이 붙으면 찬 칸을 보고 만든 질문 (구현설계 §1-②)")
+        return
+    }
     say("오늘은 ${childName}랑 어른이 같이 만들 거야! 질문은 아래에 띄워 줄게.")
-    log("부모 협업 모드 — AI가 질문 카드를 띄우면 **부모가 읽고 자기 말로 묻는다.** 받아주기 · 되돌려주기 · 낭독은 마스코트가 그대로 한다 (협업 §2-1 · §2-2)")
+    log("부모 협업 모드 — 넣어 둔 질문이 없어 옛 흐름: AI가 질문 카드를 띄우면 **부모가 읽고 자기 말로 묻는다.** (9/21 설계 · 홀더가 비면 이쪽으로 떨어진다)")
     log("⚠️ 되돌려주기를 넘기지 않는 이유: 발음이 어긋났을 때 고쳐 말해 주되 **지적하지 않는 것**이 부모가 가장 못하는 일이다 (협업 §2-2)")
-    log("기다리는 시간(5초 · 8초)을 쓰지 않는다 — 부모가 옆에 있으므로 AI가 끼어들 이유가 없다. 60초 아무 입력이 없을 때만 한 번 말을 건다 (협업 §3-1)")
 }
 
 /**
@@ -36,10 +118,35 @@ suspend fun Director.coopIntro(childName: String) {
  * `coop:next` · `coop:adult` 값이 칸으로 새어 들어가 화면에 `coop:adult` 라는 글자가 그대로 나왔다.
  * 지금은 버튼이 없고, 사다리도 무응답도 [Director.ask] 가 동화 모드와 똑같이 처리한다.
  */
-suspend fun Director.askOrCoopAsk(q: Question): Reply =
-    if (s.isCoop) coopAsk(q) else ask(q)
+suspend fun Director.askOrCoopAsk(q: Question): Reply = when {
+    !s.isCoop -> ask(q)
+    s.hasCoopQuestions -> coopAskFromParent(q)
+    else -> coopAsk(q)
+}
 
-/** ASK′ — 질문 카드를 **소리 없이** 부모 띠에 띄우고 기다린다. */
+/**
+ * 새 흐름 — 이 자리에 부모 질문이 있으면 **그 글로, 마스코트 목소리로** 묻는다.
+ * 사다리(쉬운 질문)는 앱 것을 그대로 둔다: 아이가 답을 못 하면 부모 질문을 고집하지 않고 앱이 더 쉬운 말로 바꿔 묻는다.
+ * 없으면 앱 질문을 마스코트가 묻는다 — 소진 뒤 "필요한 질문을 만들어 묻는다"의 지금 모습이다.
+ */
+private suspend fun Director.coopAskFromParent(q: Question): Reply {
+    val mine = s.takeCoopQuestion(q)
+    mark("coop")
+    if (mine == null) {
+        log("[${q.id}] 이 자리에 부모 질문이 없다 → 마스코트가 필요한 질문을 그대로 묻는다: \"${q.text}\"")
+        return ask(q)
+    }
+    log("[${q.id}] 부모가 넣어 둔 질문 → 마스코트가 읽는다: \"$mine\" (앱 질문 \"${q.text}\" 은 사다리 뒤에 남는다)")
+    val r = ask(q.copy(text = mine, silent = false))
+    // 부모가 지은 질문이라는 것은 기록에 남는다 — payload.speaker: adult. `by` 3종은 늘리지 않는다 (협업 §4-1 · §8)
+    event("utterance", "speaker" to "adult", "mode" to "typed", "text" to mine)
+    s.partnerTurns++
+    s.adultLine = mine          // 부모 리포트의 "어른이 한 말" — 마지막으로 쓴 부모 질문
+    if (r is Reply.Spoke) coopReact(r)
+    return r
+}
+
+/** 옛 흐름 — 질문 카드를 **소리 없이** 부모 띠에 띄우고 기다린다. 넣어 둔 질문이 하나도 없을 때만. */
 private suspend fun Director.coopAsk(q: Question): Reply {
     s.parentRung = 0
     s.parentHasMore = false
@@ -66,10 +173,15 @@ private suspend fun Director.coopReact(r: Reply.Spoke) {
 fun Director.coopFinishLog() {
     if (!s.isCoop) return
     mark("coop")
+    stashByState.remove(s)          // 임시 보관도 이야기마다 비운다
+    if (s.hasCoopQuestions) {
+        log("같이 짓기 — 부모가 넣어 둔 질문 ${s.parentQuestions.count { it.isNotBlank() }}개 중 ${s.parentQIndex}개를 마스코트가 물었다. 부모 리포트 「함께하기」 축의 재료다 (협업 §4-2)")
+        return
+    }
     // ⚠️ "어른이 지은 자리"를 세지 않는다 — [내가 답할래]를 뺀 뒤로 그 수는 **언제나 0**이라
     // "어른이 아무것도 안 했다"로 읽힌다. 실제로는 어른이 **모든 질문을 읽어 주었다** (9/21).
-    val byChild = s.author.values.count { it == "child" }
-    log("같이 짓기 — 어른이 읽어 준 질문 ${s.partnerTurns}번 · 그중 아이가 자기 말로 채운 자리 $byChild. 책 자막에 작은 표시로만 남는다 (채점처럼 보이면 안 된다 · 협업 §6)")
+    val byChild = s.slotBy.values.count { it == "child" }
+    log("같이 짓기 — 어른이 읽어 준 질문 ${s.partnerTurns}번 · 그중 아이가 자기 말로 채운 자리 $byChild. 채점처럼 보이면 안 되므로 책에는 남기지 않는다 (협업 §6)")
 }
 
 /** 15분이 지나 끝날 때의 한 줄 — 협업은 부모가 질문을 고르는 시간이 들어가 더 빨리 닿는다 (협업 §9-3). */
@@ -81,18 +193,3 @@ fun DemoState.coopTimeUpNote(): String =
 fun coopBookName(s: DemoState): String =
     if (s.isCoop) "같이 지은 오늘 이야기" else "오늘 이야기"
 
-/**
- * 이 쪽을 누가 지었나 — 협업 모드에서만 책에 **작은 표시 하나**로 남는다 (협업 §6 번갈아 짓기).
- * ⚠️ 채점처럼 보이면 안 된다. 누가 지었는지 알아볼 정도이고, 숫자도 순위도 없다.
- */
-fun DemoState.pageAuthor(i: Int): String? {
-    if (!isCoop) return null
-    val slot = when (pageKind(i)) {
-        PageKind.DEPART -> "place"
-        PageKind.SHAKE -> "problem"
-        PageKind.TALK -> "cause"
-        PageKind.DRAG -> "solution"
-        else -> return null
-    }
-    return author[slot]?.takeIf { it == "child" || it == "adult" }
-}

@@ -712,6 +712,10 @@ class DemoState {
      * 코드(`CoopScenes.kt`)와 문서는 아직 옛 설계이고, 문서 정정은 원저자(안치영)와 조율한다.
      *
      * 비어 있으면 옛 흐름(AI가 띄운 질문을 부모가 읽음)으로 떨어진다 — 그래서 넣기만 해도 안전하다.
+     *
+     * ⚠️ **이야기 시작에서 비우지 않는다** (09-22 박진웅 지적). `resetStory()` 가 모드를 고른
+     * 직후(`Scenes.kt:264`)에 돌기 때문에, 거기서 비우면 부모가 넣은 질문이 [같이 만들기] 를
+     * 누르는 순간 사라졌다. 비우는 것은 **책 한 권이 끝나고 홈으로 돌아갈 때** — [Director.goHome].
      */
     val parentQuestions = mutableStateListOf<String>()
 
@@ -729,18 +733,25 @@ class DemoState {
         if (hasParentQuestion) parentQuestions[parentQIndex++] else null
 
     /**
-     * 기승전결 네 자리를 **누가 지었나** (협업 설계 §6 번갈아 짓기).
-     * 책 자막에 작은 표시 하나만 남긴다 — 채점처럼 보이면 안 된다.
+     * 부모가 넣은 질문을 비운다 — **한 권이 끝났을 때만.**
+     * 오늘 넣은 질문이 내일 또 나오면 안 된다. (계정에 남길지는 저장이 붙은 뒤의 일이다)
      */
-    val author = mutableStateMapOf<String, String>()
+    fun clearParentQuestions() {
+        parentQuestions.clear(); parentQIndex = 0
+    }
 
-    /** 부모 자리가 절반을 넘으면 경고한다 — 그건 협업이 아니라 부모가 짓고 아이가 들은 것이다 (§6) */
     /**
-     * 어른이 지은 자리가 절반을 넘었나 (협업 §6).
-     * ⚠️ 9/21에 [내가 답할래]를 빼면서 `author = "adult"` 인 자리가 생기지 않게 되어 **지금은 늘 false** 다.
-     * 어른이 칸을 직접 짓는 흐름이 다시 들어오면 그대로 살아난다.
+     * 협업 모드 아이 화면의 제목 (09-22 박진웅 요청).
+     * `Scene.DIARY` 를 협업이 그대로 쓰는데 라벨이 "오늘 있었던 일 말하기"라 협업에서도 그대로 떴다.
+     * ⚠️ 협업은 **일기가 아니다** — 부모가 넣은 질문에 답하는 모드라 "있었던 일"이 전제가 아니다.
+     * 진웅이 다른 문구를 쓰고 싶으면 [coopLabel] 만 바꾸면 된다.
      */
-    val parentTooMuch: Boolean get() = isCoop && author.values.count { it == "adult" } * 2 > author.size && author.size >= 3
+    var coopLabel by mutableStateOf("오늘 이야기 나누기")
+
+    /** 화면 제목 — 협업일 때만 갈아끼운다. 그리기는 `MainActivity` 가 이 값을 쓴다 */
+    val sceneLabel: String get() =
+        if (isCoop && scene == Scene.DIARY) coopLabel else scene.label
+
 
     /** 일기 모드가 시작된 시각 — 끝나는 조건 셋 중 "15분 경과"를 재는 데 쓴다 (guidelines/2 §1-1) */
     var diaryStart by mutableStateOf(0L)
@@ -1135,10 +1146,9 @@ class DemoState {
         companionKind = ""
         parentCard = null; parentAsk = null; parentRung = 0; parentHasMore = false; adultLine = null
         stepsDone = 0; hotspotIntroShown = false
-        // 미리 넣어 둔 질문은 **이야기마다 비운다.** 부모가 오늘 넣은 것이 내일 또 나오면 안 된다.
-        // (계정에 남겨 둘 것인지는 저장이 붙은 뒤의 일이다 — 지금은 저장이 없다)
-        parentQuestions.clear(); parentQIndex = 0
-        author.clear()
+        // ⚠️ 미리 넣어 둔 질문은 **여기서 비우지 않는다** (09-22). 이 함수는 모드를 고른 직후에
+        // 돌아서, 여기서 비우면 부모가 방금 넣은 질문이 [같이 만들기] 를 누르는 순간 사라진다.
+        // 비우는 곳은 [clearParentQuestions] 이고 부르는 곳은 `Director.goHome()` 이다.
         nextLevel?.let { level = it }
         nextLevel = null; levelAtStart = level
         templateKey = null; attribute = null; causeKind = "lonely"; notes.clear(); levelWhy = ""
@@ -1166,6 +1176,8 @@ class DemoState {
         nextLevel = null
         level = Level.CHAIN
         resetStory()
+        // 앱을 새로 켠 것이므로 부모가 넣은 질문도 지운다 — `resetStory()` 는 이제 안 지운다
+        clearParentQuestions()
         heroes.clear()
         heroes += Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9)))
         heroes += Hero("빨간 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
