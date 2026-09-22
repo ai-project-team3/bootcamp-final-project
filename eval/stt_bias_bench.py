@@ -141,7 +141,6 @@ def pick_mic(sd, rate: int) -> int:
     번호를 미리 찾아 오게 하지 않는다. 이어폰을 꽂아도 Windows 가 기본 마이크를 안 바꾸는 일이
     흔해서, 고른 뒤에 소리 크기로 확인하는 것이 번호보다 확실하다.
     """
-    import numpy as np
     mics = [(i, d["name"]) for i, d in enumerate(sd.query_devices()) if d["max_input_channels"] > 0]
     default = sd.default.device[0]
     while True:
@@ -150,20 +149,40 @@ def pick_mic(sd, rate: int) -> int:
             print(f"  {'*' if i == default else ' '} {i:3d}  {n}")
         raw = input("쓸 마이크 번호 (그냥 Enter = *): ").strip()
         dev = int(raw) if raw.isdigit() else default
-        print("2초 동안 「아~」 하고 소리 내 보세요...")
+        # ⚠️ 절대 크기로 보지 않는다. 09-22 첫 녹음은 강의실 바닥 소음만으로 peak 1,800 이 나와
+        #    "1000 미만이면 경고"가 한 번도 안 떴고, 말소리가 소음의 2~6배뿐인 녹음 59개가 쌓였다.
+        #    whisper 는 그걸 「감사합니다」「아멘」으로 받아썼다. **소음 대비 비율**로 본다
         try:
-            a = sd.rec(int(2 * rate), samplerate=rate, channels=1, dtype="int16", device=dev)
-            sd.wait()
+            input("1초 동안 **조용히** 있어 주세요 — Enter")
+            quiet = sd.rec(int(1 * rate), samplerate=rate, channels=1, dtype="int16", device=dev); sd.wait()
+            input("이제 2초 동안 「공룡나라 갈래」 하고 평소 크기로 말해 주세요 — Enter")
+            talk = sd.rec(int(2 * rate), samplerate=rate, channels=1, dtype="int16", device=dev); sd.wait()
         except Exception as e:
             print(f"  이 마이크는 열리지 않습니다 ({type(e).__name__}). 다른 번호를 고르세요.")
             continue
-        peak = int(np.abs(a).max())
-        bar = "█" * min(30, peak * 30 // 32767)
-        print(f"  소리 크기 |{bar:<30}| {peak}")
-        if peak < 1000:
-            print("  ⚠️ 거의 안 들립니다 — 이어폰 마이크가 아닐 수 있습니다.")
-        if input("이 마이크로 할까요? (Enter = 예, n = 다시 고르기): ").strip().lower() != "n":
-            return dev
+        floor = max(frame_rms(quiet, rate))
+        ratio = max(frame_rms(talk, rate)) / max(floor, 1e-6)
+        bar = "█" * min(30, int(ratio))
+        print(f"  말소리 / 소음 |{bar:<30}| {ratio:.0f}배  (기준 {SNR_MIN:.0f}배 이상)")
+        if ratio < SNR_MIN:
+            print("  ⚠️ 말소리가 소음에 묻힙니다. 이 상태로 녹음하면 엔진이 아니라 녹음 품질을 재게 됩니다.")
+            print("     → 이어폰 마이크 번호를 다시 고르거나, 마이크를 입 가까이, 더 조용한 자리로")
+            print("     → Windows 소리 설정 → 입력 장치 → 볼륨을 올려도 됩니다")
+            if input("  그래도 이 마이크로 할까요? (y = 예, Enter = 다시 고르기): ").strip().lower() != "y":
+                continue
+        elif input("이 마이크로 할까요? (Enter = 예, n = 다시 고르기): ").strip().lower() == "n":
+            continue
+        return dev, floor
+
+
+SNR_MIN = 10.0      # 말소리가 바닥 소음의 10배(20dB) 안 되면 받아쓰기가 무너진다 — 09-22 첫 녹음이 2~6배였다
+
+
+def frame_rms(audio, rate: int, win: float = 0.1) -> list[float]:
+    import numpy as np
+    a = np.asarray(audio, dtype=np.float64).ravel() / 32768.0
+    n = max(1, int(rate * win))
+    return [float(np.sqrt(np.mean(a[i:i + n] ** 2))) for i in range(0, max(1, len(a) - n + 1), n)] or [0.0]
 
 
 def record(seconds: float, rate: int = 16000, device: int | None = None, redo: list[str] | None = None) -> None:
@@ -187,19 +206,37 @@ def record(seconds: float, rate: int = 16000, device: int | None = None, redo: l
     else:
         todo = [r for r in rows if clip_path(r["clip_id"]) is None]
     if device is None:
-        device = pick_mic(sd, rate)
+        device, floor = pick_mic(sd, rate)
+    else:
+        input("바닥 소음을 잽니다. 1초 동안 조용히 — Enter")
+        q = sd.rec(int(1 * rate), samplerate=rate, channels=1, dtype="int16", device=device); sd.wait()
+        floor = max(frame_rms(q, rate))
     name = sd.query_devices(device)["name"]
-    print(f"마이크: {name}")
+    print(f"\n마이크: {name}")
     print(f"남은 클립 {len(todo)}/{len(rows)} · 한 클립 {seconds}초 · Enter 로 시작, q 로 멈춤")
-    print("⚠️ 옆 사람이 또렷하게 말하는 중이면 끝날 때까지 기다렸다가 Enter. 섞였으면 clip_id 를 적어 두고 나중에 --redo\n")
-    for n, r in enumerate(todo, 1):
-        cue = r["read"]
-        if input(f"[{n}/{len(todo)}] 「{cue}」  ▶ Enter ").strip().lower() == "q":
+    print("클립마다 바로 검사한다 — 말이 소음에 묻히거나 무음에 소리가 들어가면 그 자리에서 다시 녹음한다\n")
+    n = 0
+    while n < len(todo):
+        r = todo[n]
+        if input(f"[{n + 1}/{len(todo)}] 「{r['read']}」  ▶ Enter ").strip().lower() == "q":
             break
         audio = sd.rec(int(seconds * rate), samplerate=rate, channels=1, dtype="int16", device=device)
         sd.wait()
+        ratio = max(frame_rms(audio, rate)) / max(floor, 1e-6)
+        # ⚠️ 잘못 읽은 것은 다시 하지 않는다(그것도 실제 조건이다). **소리가 안 담긴 것**만 다시 한다 —
+        #    그건 엔진이 아니라 녹음이 틀린 것이라 채점에 넣으면 비교가 오염된다
+        problem = None
+        if r["group"] == "silence" and ratio > 3:
+            problem = f"무음이어야 하는데 소리가 들어갔다 ({ratio:.0f}배) — 옆 사람 말이나 소음"
+        elif r["group"] != "silence" and ratio < SNR_MIN:
+            problem = f"말소리가 작다 ({ratio:.0f}배 · 기준 {SNR_MIN:.0f}배) — 2.5초 안에, 조금 더 크게"
+        if problem:
+            print(f"      ⚠️ {problem}")
+            if input("      다시 녹음할까요? (Enter = 다시, k = 그대로 둔다): ").strip().lower() != "k":
+                continue
         sf.write(AUDIO / f"{r['clip_id']}.wav", audio, rate)
-        print(f"      └ {r['clip_id']}")
+        print(f"      └ {r['clip_id']}  ({ratio:.0f}배)")
+        n += 1
     print(f"\n→ {AUDIO}")
 
 
