@@ -33,8 +33,7 @@
 
     $PY -m eval.stt_bias_bench script          녹음 대본(manifest.csv)을 만든다
     $PY -m pip install sounddevice soundfile  (녹음 처음 한 번)
-    $PY -m eval.stt_bias_bench mics            마이크 목록 (이어폰을 꽂은 뒤 확인)
-    $PY -m eval.stt_bias_bench record [--device N]      대본을 한 줄씩 띄우고 녹음한다
+    $PY -m eval.stt_bias_bench record          마이크를 고르고 소리를 확인한 뒤, 대본을 한 줄씩 띄우고 녹음한다
     $PY -m eval.stt_bias_bench record --redo short_몰라_2   옆 사람 말이 섞인 클립만 다시
     ⚠️ 블루투스 마이크는 쓰지 않는다 — 켜는 순간 통화용 저음질로 떨어져 엔진 탓과 음질 탓이 안 갈린다
     $PY -m eval.stt_bias_bench run             네 칸을 돌리고 표를 낸다 (XAI_API_KEY 없으면 grok 은 건너뛴다)
@@ -136,6 +135,37 @@ def list_mics() -> None:
     print("\n* 가 지금 기본 마이크. 다른 걸 쓰려면 record --device 번호")
 
 
+def pick_mic(sd, rate: int) -> int:
+    """마이크를 고르고 **실제로 소리가 들어오는지** 2초 들어 본다.
+
+    번호를 미리 찾아 오게 하지 않는다. 이어폰을 꽂아도 Windows 가 기본 마이크를 안 바꾸는 일이
+    흔해서, 고른 뒤에 소리 크기로 확인하는 것이 번호보다 확실하다.
+    """
+    import numpy as np
+    mics = [(i, d["name"]) for i, d in enumerate(sd.query_devices()) if d["max_input_channels"] > 0]
+    default = sd.default.device[0]
+    while True:
+        print("\n마이크 목록 (* = 지금 기본)")
+        for i, n in mics:
+            print(f"  {'*' if i == default else ' '} {i:3d}  {n}")
+        raw = input("쓸 마이크 번호 (그냥 Enter = *): ").strip()
+        dev = int(raw) if raw.isdigit() else default
+        print("2초 동안 「아~」 하고 소리 내 보세요...")
+        try:
+            a = sd.rec(int(2 * rate), samplerate=rate, channels=1, dtype="int16", device=dev)
+            sd.wait()
+        except Exception as e:
+            print(f"  이 마이크는 열리지 않습니다 ({type(e).__name__}). 다른 번호를 고르세요.")
+            continue
+        peak = int(np.abs(a).max())
+        bar = "█" * min(30, peak * 30 // 32767)
+        print(f"  소리 크기 |{bar:<30}| {peak}")
+        if peak < 1000:
+            print("  ⚠️ 거의 안 들립니다 — 이어폰 마이크가 아닐 수 있습니다.")
+        if input("이 마이크로 할까요? (Enter = 예, n = 다시 고르기): ").strip().lower() != "n":
+            return dev
+
+
 def record(seconds: float, rate: int = 16000, device: int | None = None, redo: list[str] | None = None) -> None:
     try:
         import sounddevice as sd
@@ -156,7 +186,9 @@ def record(seconds: float, rate: int = 16000, device: int | None = None, redo: l
         todo = [r for r in rows if r["clip_id"] in set(redo)]
     else:
         todo = [r for r in rows if clip_path(r["clip_id"]) is None]
-    name = sd.query_devices(device if device is not None else sd.default.device[0])["name"]
+    if device is None:
+        device = pick_mic(sd, rate)
+    name = sd.query_devices(device)["name"]
     print(f"마이크: {name}")
     print(f"남은 클립 {len(todo)}/{len(rows)} · 한 클립 {seconds}초 · Enter 로 시작, q 로 멈춤")
     print("⚠️ 옆 사람이 또렷하게 말하는 중이면 끝날 때까지 기다렸다가 Enter. 섞였으면 clip_id 를 적어 두고 나중에 --redo\n")
