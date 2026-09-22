@@ -289,7 +289,7 @@ private suspend fun Director.diaryDrawStep() {
 private suspend fun Director.finishDiary() {
     buttons()
     inputs(false, false)
-    s.parentCard = null
+    s.parentCard = null; s.parentAsk = null
     if (s.endReason == null) s.endReason = "story_ready"
     val bySelf = DIARY_REQUIRED.count { s.slotBy[it.bookKey] == "child" || s.slotBy[it.bookKey] == "card" }
 

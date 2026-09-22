@@ -671,6 +671,14 @@ class DemoState {
      */
     var parentCard by mutableStateOf<String?>(null)
 
+    /**
+     * 부모에게 **마지막으로 준 질문**. 화면에서 내려가도 남는다 (9/22).
+     *
+     * [parentCard] 는 자막을 번갈아 띄우느라(마스코트가 말할 차례면 비운다) 수시로 지워진다.
+     * 사다리를 몇 칸 내려갔는지는 그 표시와 무관하게 세어야 해서 기록을 따로 둔다.
+     */
+    var parentAsk by mutableStateOf<String?>(null)
+
     /** 같은 걸음 안에서 **질문이 몇 번 바뀌었나** (사다리를 내려온 칸 수). 첫 질문은 세지 않는다 (9/21) */
     var parentRung by mutableStateOf(0)
 
@@ -1029,7 +1037,7 @@ class DemoState {
         mode = StoryMode.STORY
         diaryStart = 0L; diaryTimeUp = false; mascotPicks = 0; endReason = null
         companionKind = ""
-        parentCard = null; parentRung = 0; parentHasMore = false; adultLine = null
+        parentCard = null; parentAsk = null; parentRung = 0; parentHasMore = false; adultLine = null
         // 미리 넣어 둔 질문은 **이야기마다 비운다.** 부모가 오늘 넣은 것이 내일 또 나오면 안 된다.
         // (계정에 남겨 둘 것인지는 저장이 붙은 뒤의 일이다 — 지금은 저장이 없다)
         parentQuestions.clear(); parentQIndex = 0

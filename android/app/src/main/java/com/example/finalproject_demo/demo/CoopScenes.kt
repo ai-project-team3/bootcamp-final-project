@@ -45,7 +45,7 @@ private suspend fun Director.coopAsk(q: Question): Reply {
     s.parentHasMore = false
     mark("coop")
     val r = ask(q.copy(silent = true))
-    s.parentCard = null
+    s.parentCard = null; s.parentAsk = null
     if (r is Reply.Spoke) {
         // 부모가 읽고 물은 질문도 기록에 남는다 — payload.speaker: adult. `by` 3종은 늘리지 않는다 (협업 §4-1 · §8)
         event("utterance", "speaker" to "adult", "mode" to "voice", "text" to q.text)
