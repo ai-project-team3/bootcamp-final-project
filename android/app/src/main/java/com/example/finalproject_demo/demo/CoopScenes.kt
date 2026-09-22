@@ -137,7 +137,7 @@ private suspend fun Director.coopAskFromParent(q: Question): Reply {
     }
     s.partnerTurns++
     s.adultLine = mine          // 부모 리포트의 "어른이 한 말" — 마지막으로 쓴 부모 질문
-    if (r is Reply.Spoke) coopReact()
+    if (r is Reply.Spoke) coopReact(r)
     return r
 }
 
@@ -153,26 +153,53 @@ private suspend fun Director.coopAsk(q: Question): Reply {
         event("utterance", "speaker" to "adult", "mode" to "voice", "text" to q.text)
         s.partnerTurns++
         s.adultLine = q.text        // 부모 리포트의 "어른이 한 말" — 어른이 읽고 물어본 마지막 질문
-        coopReact()
+        coopReact(r)
     }
     return r
 }
 
 /**
- * 받아주기 — **고정 문구만** 쓴다 (09-22 진웅).
+ * 아이가 말한 뒤 마스코트가 하는 세 걸음 — **실제 파이프라인과 같은 순서**다 (09-22 진웅).
  *
- * 전에는 아이 말을 되비추었다(`"$t 했구나!"`). 그런데 그 문장은 매번 달라서 **사전 합성이 안 되고**, 가변 문장 낭독은
- * 아직 미정이다(`guidelines/5` §5-2 · 폰 TTS 탈락). 실제로는 받아쓰기 → 판정 → 첫 소리까지 6초가 걸리므로(`guidelines/9` §9-8)
- * 그 사이를 메우는 것은 **미리 합성해 둔 고정 대사**다 — 채우는 말(filler)이 필수인 이유(`guidelines/6` §6-4).
- * 데모에서 되비추기를 넣어 두면 실제보다 좋아 보이는 거짓이 된다.
+ * ```
+ * 고정 리액션   즉시.  미리 합성해 둔 대사 — 받아쓰기 → 판정 → 생성이 오는 동안 메우는 말 (guidelines/6 §6-4 filler)
+ *    ↓ [LLM 응답이 오는 자리 — 실측 약 6초 (guidelines/9 §9-8). 데모에서는 LLM_GAP 만큼만]
+ * 받아주기      아이 말을 되비춘다 (프롬프트 §3 「받아주기」). 지금은 [coopEcho] 대본, LLM이 붙으면 §3 출력이 여기 온다
+ *    ↓
+ * 다음 질문     부모가 넣은 질문이거나 사다리 질문 — askDiaryStep 이 이어서 묻는다
+ * ```
  *
- * 되비추기(설계 §2-2의 ② 되돌려주기)는 LLM·TTS가 붙은 뒤 마스코트 프롬프트 §3의 몫이다.
- * ⚠️ 질문도, "더 말해 줘" 같은 재촉도 넣지 않는다 — 다음 질문이 바로 이어지므로 겹친다.
+ * 고정 리액션에는 질문도 "더 말해 줘" 같은 재촉도 넣지 않는다 — 다음 질문이 바로 이어지므로 겹친다.
  */
 private val COOP_ACKS = listOf("그랬구나~", "우와!", "응응, 듣고 있어.", "오~ 그랬구나.")
 
-private suspend fun Director.coopReact() {
+/** 고정 리액션 뒤 받아주기가 오기까지 — 실제로는 LLM 왕복이다. 데모라 짧게 둔다 (`s.speed` 로 배속된다) */
+private const val LLM_GAP_MS = 1400L
+
+/** 받아주기·질문 없이 넘어가는 답 — "몰라"를 "몰구나"로 되비추면 안 된다 */
+private val NO_ECHO = setOf("몰라", "응", "아니", "싫어", "글쎄", "네", "어", "음", "없어")
+
+/**
+ * 받아주기 대본 — 아이 말을 **고치지 않고** 어미만 "-구나"로 바꿔 되비춘다. 8어절이 넘으면 뒤쪽 8어절만 (동사가 뒤에 온다).
+ * LLM이 붙기 전의 대역이다. 되비출 것이 아니면(짧은 대답 · 빈 말) null — 그때는 고정 리액션만 한다.
+ */
+fun coopEcho(raw: String): String? {
+    val words = raw.trim().trimEnd('!', '.', '?', '~').split(" ").filter { it.isNotBlank() }
+    if (words.isEmpty()) return null
+    val t = words.takeLast(8).joinToString(" ")
+    if (t in NO_ECHO) return null
+    return when {
+        t.endsWith("어요") || t.endsWith("아요") -> t.dropLast(2) + "구나!"
+        (t.endsWith("어") || t.endsWith("아")) && t.length > 1 -> t.dropLast(1) + "구나!"
+        else -> t + if (bat(t)) "이구나!" else "구나!"
+    }
+}
+
+private suspend fun Director.coopReact(r: Reply.Spoke) {
     say(COOP_ACKS.random())
+    val echo = coopEcho(r.text) ?: run { pause(1200); return }
+    pause(LLM_GAP_MS)
+    say(echo)
     pause(1200)
 }
 
