@@ -24,6 +24,8 @@ eval/raw/
 eval/audio/*.wav
 # 낱말 편향 비교 녹음 — 목소리다. 올리지 않는다 (eval/stt_bias_bench.py)
 eval/audio/bias/
+# AI-Hub 아동 음성 — 이용 조건상 재배포 금지. 절대 올리지 않는다
+eval/audio/aihub/
 eval/audio/*.m4a
 # 라벨 작업 시트는 중간 파일이다. 산출물은 같은 이름의 .jsonl (tools/sheet.py --read)
 eval/labels_*.md
