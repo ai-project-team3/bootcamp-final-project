@@ -55,7 +55,7 @@ fun Director.seedFor(scene: Scene) {
     if (scene in STORY_ONLY) s.mode = StoryMode.STORY
     // 부모 띠는 **질문을 하고 있는 동안에만** 떠 있어야 한다. 시연 서랍으로 장면을 건너뛰면
     // 질문이 끝나지 않은 채 화면만 바뀌어 띠가 그대로 남았다 — 책에서는 자막까지 가렸다 (9/21 에뮬레이터 확인).
-    if (scene != Scene.DIARY) { s.parentCard = null; s.parentRung = 0; s.parentHasMore = false }
+    if (scene != Scene.DIARY) { s.parentCard = null; s.parentAsk = null; s.parentRung = 0; s.parentHasMore = false }
     if (s.isDiary) { seedDiary(order); return }
 
     after(Scene.PLACE) { if (s.place == null) s.place = s.placeName }
