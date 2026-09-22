@@ -79,6 +79,7 @@ python -m eval.run_team_eval --yes-spend   # 후보 전체. 비용이 든다
 python -m eval.run_team_eval --models gpt-5.6-luna --yes-spend             # 한 종만
 python -m eval.run_team_eval --models mistral-small-4 --request-delay 1 --max-retries 4 --yes-spend
 python -m eval.score_existing     # gold가 늦게 왔을 때 API 재호출 없이 재채점
+python -m eval.score_existing --models ministral-3-3b --diagnostics-only  # 기존 표를 복제하지 않고 까닭 표지·extra 보조 지표 누적
 python -m eval.corrupt --append-results    # 실제 Android THEMES 프리셋 손상 실험
 ```
 
@@ -114,6 +115,7 @@ luna 3,987 · haiku **6,129** · ministral 3,455. haiku는 단가 5배 × 토큰
 - **TTFT는 스트리밍으로 잰다.** 논스트리밍이면 총 소요를 잰 것이다
 - `next_slot`은 **정답 하나가 아니라 `next_slot_ok` 허용 집합**으로 센다
 - `value_1`은 완전 일치가 아니라 **자모 편집거리 ≤ 0.3**으로 센다
+- `s1_reason` 전체 F1과 별도로 까닭 표지 문항 F1·함정 적중을 보고, `slot_1=extra` 클래스 F1도 분리한다. 진단용 표지 검색은 처소격 `-에서`를 제외하며 정답은 항상 `gold`다. `type`과 `asked`는 정답 라벨이 아니다
 - 생성 금칙어는 별도 복사본 없이 **`../guidelines/8_금칙어.md` §0·§1·§2를 직접 읽는다**
 - HTTP 429는 `Retry-After` 또는 지수 backoff로 재시도하고, 소진되면 실패 row를 남긴 뒤 계속한다
 - 실제 결과는 `results.md` 아래에 누적하며 동일 결과 섹션은 중복 기록하지 않는다

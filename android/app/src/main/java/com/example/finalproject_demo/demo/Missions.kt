@@ -58,6 +58,8 @@ private fun diaryMission1(s: DemoState): Mission1 {
         "나뭇잎" in said || "낙엽" in said || "나무" in said || "풀" in said -> leaf
         "물" in said || "비" in said || "웅덩이" in said || "수영" in said -> water
         "밥" in said || "간식" in said || "과자" in said || "먹었" in said -> crumb
+        // Blocks do not stain the bag; do not infer paint from the daycare setting.
+        "블록" in said || "쌓" in said -> dust
         // ② 없으면 장소
         "놀이터" in p -> sand
         "어린이집" in p || "유치원" in p || "학교" in p -> paint

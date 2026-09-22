@@ -6,7 +6,7 @@ from pathlib import Path
 
 from eval.config import resolve_model, usd_krw
 from eval.score import score_judge
-from eval.run_team_eval import DEFAULT_MODELS, append_results, render_results, safe_name
+from eval.run_team_eval import DEFAULT_MODELS, append_results, render_diagnostics, render_results, safe_name
 
 ROOT = Path(__file__).resolve().parent
 EVAL = ROOT  # scripts live inside eval/ now; there is no nested eval/
@@ -17,6 +17,7 @@ def main():
     p = argparse.ArgumentParser(description="이미 수집한 raw 예측을 gold로 채점 — API 호출 없음")
     p.add_argument("--models", nargs="+", default=DEFAULT_MODELS)
     p.add_argument("--fixtures", default=str(EVAL / "fixtures_judge.jsonl"))
+    p.add_argument("--diagnostics-only", action="store_true", help="기존 결과표를 복제하지 않고 보조 진단만 누적")
     args = p.parse_args()
 
     fixtures = Path(args.fixtures)
@@ -44,12 +45,13 @@ def main():
     if not scored:
         raise SystemExit("채점할 raw 파일이 없음. 먼저 실제 예측을 수집하세요.")
 
-    md = render_results(scored, fx)
+    md = render_diagnostics(scored) if args.diagnostics_only else render_results(scored, fx)
     results_path = EVAL / "results.md"
     appended = append_results(results_path, md)
-    (RAW / "comparison_summary.json").write_text(
-        json.dumps(dict(scored), ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    if not args.diagnostics_only:
+        (RAW / "comparison_summary.json").write_text(
+            json.dumps(dict(scored), ensure_ascii=False, indent=2), encoding="utf-8"
+        )
     print("API 호출 0건 — 기존 raw만 채점 완료")
     action = "누적" if appended else "동일 결과 존재 — 중복 생략"
     print(f"저장 ({action}): {results_path}")
