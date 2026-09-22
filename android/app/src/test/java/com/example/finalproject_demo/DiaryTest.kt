@@ -265,6 +265,16 @@ class DiaryTest {
     }
 
     @Test
+    fun missingPlaceDoesNotRepeatTodayOnTheFirstBookPage() {
+        val s = diaryState()
+        val missingPlace = DIARY_STEPS.first { it.slot == "place" }.mascot!!.invoke(s)
+        s.slots["place"] = diaryLineOf(missingPlace.value)!!
+        s.slotBy["place"] = "mascot"
+        val first = diaryTemplate(s).pages.first().text(s)
+        assertFalse("첫 쪽에 '오늘'이 중복된다: $first", "오늘 오늘" in first)
+    }
+
+    @Test
     fun sequentialAnswersAreNotCountedAsReasons() {
         // 일기 §4-4 — "가서 먹었어" 는 일이 일어난 차례를 말한 것이지 까닭이 아니다 (평가셋 '-서' 함정)
         val solution = DIARY_STEPS.first { it.slot == "solution" }.answers(diaryState())

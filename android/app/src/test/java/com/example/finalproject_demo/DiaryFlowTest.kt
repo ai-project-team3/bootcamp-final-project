@@ -261,6 +261,7 @@ class DiaryFlowTest {
         assertEquals("mascot_pick 2회 연속이 끝나는 조건이다", "mascot_pick", s.endReason)
         assertTrue(s.mascotPicks >= 2)
         assertTrue("완전 무응답 갈림길이 안 나왔다", await { s.buttons.any { "오늘은 여기까지" in it.label } } != null)
+        assertFalse("모르는 장소를 아는 것처럼 되물었다", s.log.any { "혹시 오늘 있었던 곳일까" in it })
         assertTrue("마스코트가 채운 말이 아이 인용으로 새어 나갔다", s.quotes.isEmpty())
         assertEquals("마스코트가 채운 것은 주고받기로 세지 않는다", 0, s.modeVoice)
     }
