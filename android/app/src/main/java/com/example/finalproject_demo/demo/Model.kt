@@ -575,7 +575,15 @@ sealed interface Stage {
 
     /** S10 친구 평가 — 오늘 만난 친구마다 [또 만날래 💛] [안녕 👋] */
     data class FriendRate(val friends: List<RateItem>) : Stage
-    data class Gifts(val shown: Int) : Stage
+    /**
+     * 선물 화면 — [shown] 은 불이 켜진 선물 수, [done] 은 **더 나올 선물이 없다**는 뜻이다.
+     *
+     * 둘을 나눈 까닭 (9/22 진웅 실기기 보고): 화면은 [📚 책장에 꽂기] 를 `shown >= 2` 일 때만 그렸는데,
+     * 일기·협업 모드에서 **그림을 안 그린 날**은 무지개 크레용을 건너뛰어 `Gifts(1)` 에 머문다
+     * (안 한 일에는 선물을 주지 않는다 — 조사3 §1-3). 그래서 버튼이 안 뜨고 감독은 "shelf" 를
+     * 영원히 기다려 **앱이 멎었다.** 선물 개수로 끝을 판단하던 것을 고쳐 끝을 직접 말한다.
+     */
+    data class Gifts(val shown: Int, val done: Boolean = false) : Stage
 
     /** 책장 — fromEnd = 방금 만든 책을 꽂는 중 */
     data class Shelf(val fromEnd: Boolean) : Stage
@@ -686,7 +694,7 @@ class DemoState {
      */
     val earnedCrayon: Boolean get() = !isDiary || drawing.isNotEmpty()
 
-    /** 선물 화면에 나올 선물 수 — 다 나오면 [책장에 꽂기] 가 뜬다 */
+    /** 선물 화면에 **그릴** 카드 수 — 받지 않는 선물은 흐리게도 안 그린다. [책장에 꽂기] 는 이 값이 아니라 `Stage.Gifts.done` 이 정한다 */
     val giftCount: Int get() = if (earnedCrayon) 2 else 1
 
     /** 질문을 부모가 하는가 (협업 설계 §2-2 — 세 조각 중 ③만 넘어간다) */

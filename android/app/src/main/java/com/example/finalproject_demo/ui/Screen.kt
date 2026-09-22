@@ -869,8 +869,8 @@ private fun GiftsView(d: Director, stage: Stage.Gifts) {
                 }
             }
         }
-        // 선물이 몇 개든 다 나오면 버튼 — `shown >= 2` 로 박아 두면 선물 1개인 날 멎는다 (Model.giftCount)
-        if (stage.shown >= d.s.giftCount) {
+        // 선물 수가 아니라 **다 나왔는가**로 본다 — 안 그린 날은 선물이 하나뿐이다 (9/22 · 치영 d7f6754)
+        if (stage.done) {
             Box(Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 16.dp)) {
                 PillButton("📚 책장에 꽂기", Sun, Ink, 19) { d.send(Reply.Tapped("shelf", "책장")) }
             }
