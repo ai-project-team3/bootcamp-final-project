@@ -265,6 +265,31 @@ class DiaryFlowTest {
         assertEquals("마스코트가 채운 것은 주고받기로 세지 않는다", 0, s.modeVoice)
     }
 
+    @Test
+    fun anOptionalChildAnswerStillBecomesTheSeedOfABook() = run { d ->
+        val s = d.s
+        s.mode = StoryMode.DIARY
+        // A child can answer a follow-up while the four required slots remain unanswered.
+        s.slots["detail"] = "블록을 높이높이 쌓아 올렸어요"
+        s.slotBy["detail"] = "child"
+        d.go(Scene.DIARY)
+        assertTrue(await { s.scene == Scene.DIARY } != null)
+
+        var guard = 0
+        while (s.scene == Scene.DIARY && s.endReason == null && guard++ < 30) {
+            if (await(1_500) { s.buttons.any { "대답 없음" in it.label } } == null) break
+            if (!d.push("대답 없음")) break
+        }
+
+        assertEquals("mascot_pick", s.endReason)
+        assertTrue("아이의 꼬리 답이 있는데도 씨앗이 0개라며 종료했다", await(8_000) {
+            s.scene == Scene.MAKING || s.scene == Scene.BOOK
+        } != null)
+        assertTrue("아이가 말한 꼬리 답이 책에서 사라졌다", (1..s.pageCount).any {
+            "블록을 높이높이" in s.bookCaption(it)
+        })
+    }
+
     // ── 2. 부모 협업 모드 ────────────────────────────────────────
 
     @Test
