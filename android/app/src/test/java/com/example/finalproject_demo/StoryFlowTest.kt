@@ -174,6 +174,13 @@ class StoryFlowTest {
         val blankPages = (1..s.pageCount).filter { s.bookCaption(it).isBlank() }
         assertTrue("자막이 빈 쪽이 있다: ${blankPages}", blankPages.isEmpty())
 
+        // 「사건」 장면의 꼬리질문 답이 **책에 실렸는가** (9/22).
+        // 전에는 물어보고 저장하기만 하고 어느 틀도 읽지 않았다
+        val reaction = s.slots["reaction"].orEmpty()
+        assertTrue("사건 장면의 답이 비었다", reaction.isNotBlank())
+        val book = (1..s.pageCount).joinToString(" ") { s.bookCaption(it) }
+        assertTrue("아이가 답한 \"$reaction\" 가 책 어느 쪽에도 없다", reaction in book)
+
         assertTrue("아이 말이 인용으로 하나도 안 남았다", s.quotes.isNotEmpty())
         assertTrue("아이가 고른 배경이 안 붙었다", s.bgName.isNotBlank())
     }

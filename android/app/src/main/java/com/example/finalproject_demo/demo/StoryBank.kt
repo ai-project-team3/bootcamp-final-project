@@ -631,6 +631,54 @@ class StoryTemplate(
 )
 
 private fun DemoState.partnerTail() = partnerHelpLine?.let { " $it." } ?: ""
+
+/**
+ * 「사건」 장면에서 아이가 한 말(`reaction`)을 책 문장으로 짓는다 (9/22).
+ *
+ * 물기는 하는데 **어느 틀도 읽지 않던 칸**이었다. 판정·수준 신호에는 쓰였으니
+ * 버려지진 않았지만, 아이가 대답한 말이 **책에는 안 들어갔다.**
+ * 「아이 말이 그대로 책이 된다」가 이 서비스의 첫 번째 차별점이라 넣는다.
+ *
+ * 질문 세 변형이 **저장하는 값의 모양이 다르다** — `follow_next` 는 결과 절("쾵 떨어졌어"),
+ * `follow_say` 는 대사("으악!"), `follow_who` 는 사람 이름("지우")이다. 그대로 이으면
+ * 책에 "지우." 같은 토막이 남는다. 그래서 **어느 변형이었는지**를 보고 문장을 달리 짓는다.
+ *
+ * 물은 자리(장면 4)에서 한 번 짓고 `slots["reaction"]` 에 넣는다 — 틀은 3턴째에
+ * 정해져서 책을 그릴 때는 어느 변형이었는지를 이미 알 수 없다. `problem` 칸도 같은 식으로
+ * 장면에서 문장을 지어 넣는다(`Scenes.kt` 장면 4).
+ *
+ * @param ask 물은 질문 변형의 id (`follow_next` · `follow_say` · `follow_who`)
+ * @param said 아이가 한 말
+ */
+fun reactionLine(s: DemoState, ask: String, said: String): String {
+    val t = said.trim().trimEnd('.')
+    if (t.isBlank()) return ""
+    return when (ask) {
+        // 대사 — 물음표와 느낌표를 그대로 살려 준다
+        "follow_say" -> {
+            val verb = when {
+                t.endsWith("?") -> "하고 물었어요"
+                t.endsWith("!") -> "하고 외쳤어요"
+                else -> "하고 말했어요"
+            }
+            "${s.childName}${eun(s.childName)} \"$t\" $verb."
+        }
+        // 누가 놀랐나 — 값이 이름이라 조사를 붙여 문장으로 만든다
+        "follow_who" -> "$t${ga(t)} 제일 깜짝 놀랐어요."
+        // 그다음에 어떻게 됐나 — 반말 결과 절을 책 말투로 올린다
+        else -> "그러자 ${polite(t)}."
+    }
+}
+
+/** "멈췄어" → "멈췄어요". 책은 높임말로 쓴다 */
+private fun polite(t: String): String = when {
+    t.endsWith("요") || t.endsWith("다") -> t
+    t.endsWith("어") || t.endsWith("아") || t.endsWith("여") -> t + "요"
+    else -> t
+}
+
+/** 아이가 답한 반응이 있으면 한 칸 띄워 덧붙이고, 없으면 아무것도 붙이지 않는다 */
+private fun DemoState.reactionTail(): String = slot("reaction").takeIf { it.isNotBlank() }?.let { " $it" } ?: ""
 private fun DemoState.give() = mission2().give
 private fun DemoState.stuck() = mission1().stuck
 private fun DemoState.eg(w: String) = "${w}에게"
@@ -655,7 +703,7 @@ val TEMPLATES: List<StoryTemplate> = listOf(
         shape = "길 나섬 → 여러 곳을 지나감 → 도착 · 같은 말 되풀이 · 6쪽",
         pages = listOf(
             PageSpec(PageKind.DEPART) { "${it.c}${eun(it.c)} ${it.v}${eul(it.v)} 타고 ${it.p}${ro(it.p)} 떠났어요. 출발, 출발!" },
-            PageSpec(PageKind.SHAKE) { "그런데 ${it.th.eventLine}. 창밖을 보니 ${it.nk} ${it.f}${ga(it.f)} 손을 흔들고 있었어요." },
+            PageSpec(PageKind.SHAKE) { "그런데 ${it.th.eventLine}. 창밖을 보니 ${it.nk} ${it.f}${ga(it.f)} 손을 흔들고 있었어요.${it.reactionTail()}" },
             PageSpec(PageKind.JOURNEY) { "${it.c}${wa(it.c)} ${it.f}${eun(it.f)} 함께 ${it.slot("stop", it.stops[0])}${eul(it.slot("stop", it.stops[0]))} 지나갔어요. ${it.slot("saw", "모두 반짝반짝 빛났어요")}." },
             PageSpec(PageKind.RUB) { "또 덜컹, 또 덜컹! 흔들린 ${it.v}에 ${it.stuck()}! 슥슥 치워 볼까요?" },
             PageSpec(PageKind.DRAG) { "드디어 ${it.slot("goal", it.goals[0])}에 도착했어요. ${it.c}${eun(it.c)} ${it.eg(it.f)} ${it.give()}." },
@@ -668,7 +716,7 @@ val TEMPLATES: List<StoryTemplate> = listOf(
         shape = "위협 → 배운 대로 대응 → 믿는 사람에게 알림 → 해결 · 7쪽",
         pages = listOf(
             PageSpec(PageKind.DEPART) { "${it.c}${eun(it.c)} ${it.v}${eul(it.v)} 타고 반짝이는 ${it.p}${ro(it.p)} 떠났어요." },
-            PageSpec(PageKind.SHAKE) { "그런데 갑자기 ${it.th.eventLine}. ${it.nk} ${it.f}${ga(it.f)} ${it.v}${eul(it.v)} 붙잡고 마구 흔들고 있었어요!" },
+            PageSpec(PageKind.SHAKE) { "그런데 갑자기 ${it.th.eventLine}. ${it.nk} ${it.f}${ga(it.f)} ${it.v}${eul(it.v)} 붙잡고 마구 흔들고 있었어요!${it.reactionTail()}" },
             PageSpec(PageKind.TALK) { "${it.c}${eun(it.c)} 용기를 내서 \"${it.slot("response", "그만!")}\" 하고 또박또박 말했어요." },
             PageSpec(PageKind.RUB) { "하지만 흔들린 ${it.v}에 ${it.stuck()}! ${it.c}${eun(it.c)} ${it.mission1().toolName}${ro(it.mission1().toolName)} 슥슥 치웠어요." },
             PageSpec(PageKind.TALK) { "그다음 ${it.c}${eun(it.c)} ${it.slot("helper", it.pn).let { h -> if (h == it.pn && it.partner.honor) "${h}께" else "${h}에게" }} 달려가 무슨 일이 있었는지 말했어요. ${helperLine(it)}" },
@@ -682,7 +730,7 @@ val TEMPLATES: List<StoryTemplate> = listOf(
         shape = "낯선 친구의 어려움 → 맡은 일로 도움 → 일을 해냄 · 7쪽",
         pages = listOf(
             PageSpec(PageKind.DEPART) { "${it.c}${eun(it.c)} ${it.v}${eul(it.v)} 타고 ${it.p}${ro(it.p)} 여행을 떠났어요." },
-            PageSpec(PageKind.SHAKE) { "그런데 ${it.th.eventLine}. 창밖에서 ${it.nk} ${it.f}${ga(it.f)} 울상을 짓고 있었어요." },
+            PageSpec(PageKind.SHAKE) { "그런데 ${it.th.eventLine}. 창밖에서 ${it.nk} ${it.f}${ga(it.f)} 울상을 짓고 있었어요.${it.reactionTail()}" },
             PageSpec(PageKind.TALK) { "${it.f}${eun(it.f)} \"${it.causeLine}\" 하고 말했어요. 그래서 ${it.v}${eul(it.v)} 흔들어 도움을 청한 거예요." },
             PageSpec(PageKind.TALK) { "${it.c}${eun(it.c)} 씩씩한 ${it.slot("role", "구조대원")}${ga(it.slot("role", "구조대원"))} 되기로 했어요. \"제가 도와줄게요!\"" },
             PageSpec(PageKind.RUB) { "${it.f}에게 필요한 건 ${ieoss(it.slot("need", "지도"))}. 그런데 흔들린 ${it.v}에 ${it.stuck()}! 먼저 슥슥 치워요." },
@@ -696,7 +744,7 @@ val TEMPLATES: List<StoryTemplate> = listOf(
         shape = "시도 → 실패 → 다시 시도 → 성공 · 8쪽",
         pages = listOf(
             PageSpec(PageKind.DEPART) { "${it.c}${eun(it.c)} ${it.v}${eul(it.v)} 타고 반짝이는 ${it.p}${ro(it.p)} 떠났어요." },
-            PageSpec(PageKind.SHAKE) { "그런데 갑자기 ${it.th.eventLine}. 창밖에서 ${it.nk} ${it.f}${ga(it.f)} 쳐다보고 있었어요." },
+            PageSpec(PageKind.SHAKE) { "그런데 갑자기 ${it.th.eventLine}. 창밖에서 ${it.nk} ${it.f}${ga(it.f)} 쳐다보고 있었어요.${it.reactionTail()}" },
             PageSpec(PageKind.TALK) { "${it.f}${eun(it.f)} \"${it.causeLine}\" 하고 말했어요. ${it.c}${eun(it.c)} ${it.f}${eul(it.f)} 꼭 도와주고 싶었어요." },
             PageSpec(PageKind.FAIL) { "${it.c}${eun(it.c)} 먼저 ${it.slot("try1", "손을 흔들어 인사했어요")}. 하지만 ${it.slot("fail", "${it.f}${ga(it.f)} 부끄러워서")} 잘 되지 않았어요." },
             PageSpec(PageKind.RUB) { "게다가 흔들린 ${it.v}에 ${it.stuck()}! ${it.c}${eun(it.c)} 포기하지 않고 슥슥 치웠어요." },
@@ -711,7 +759,7 @@ val TEMPLATES: List<StoryTemplate> = listOf(
         shape = "뽐냄 → 곤란 → 깨달음 → 화해 · 8쪽",
         pages = listOf(
             PageSpec(PageKind.DEPART) { "${it.c}${eun(it.c)} ${it.v}${eul(it.v)} 타고 ${it.p}${ro(it.p)} 떠났어요." },
-            PageSpec(PageKind.SHAKE) { "그때 ${it.nk} ${it.f}${ga(it.f)} ${it.v}${eul(it.v)} 붙잡고 쿵쿵 마구 흔들었어요." },
+            PageSpec(PageKind.SHAKE) { "그때 ${it.nk} ${it.f}${ga(it.f)} ${it.v}${eul(it.v)} 붙잡고 쿵쿵 마구 흔들었어요.${it.reactionTail()}" },
             PageSpec(PageKind.TALK) { "${it.f}${eun(it.f)} \"${it.causeLine}!\" 하고 더 세게 흔들었어요. ${it.c}${eun(it.c)} 조마조마했어요." },
             PageSpec(PageKind.FAIL) { "그러다 ${it.slot("consequence", "${it.f}${ga(it.f)} 휘청하고 넘어졌어요.")}" },
             PageSpec(PageKind.RUB) { "흔들린 ${it.v}에는 ${it.stuck()}! ${it.c}${eun(it.c)} ${it.mission1().toolName}${ro(it.mission1().toolName)} 슥슥 치웠어요." },
