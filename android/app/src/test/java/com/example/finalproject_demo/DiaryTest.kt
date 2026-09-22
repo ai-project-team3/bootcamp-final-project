@@ -242,6 +242,18 @@ class DiaryTest {
     }
 
     @Test
+    fun aMissingReasonDoesNotTurnAnOrdinaryDayIntoAnAccident() {
+        val cause = DIARY_STEPS.first { it.slot == "cause" }
+        val ordinary = diaryState().apply { problem = "그림 그리기" }
+        val missingReason = cause.mascot!!.invoke(ordinary).value
+        assertFalse("평범한 날에 사고가 난 것처럼 적었다: $missingReason", "왜 그랬" in missingReason)
+        assertFalse("가장 좋았다고 말하지 않았는데 단정했다: $missingReason", "제일 좋" in missingReason)
+
+        val trouble = diaryState().apply { problem = "블록이 무너짐" }
+        assertTrue("실제 사고가 있었는데 까닭을 모른다는 문장이 사라졌다", "왜 그랬" in cause.mascot!!.invoke(trouble).value)
+    }
+
+    @Test
     fun theMascotNeverInventsAPlaceOrAPerson() {
         // 일기 §3-2 — 데이터는 by 가 지켜 주지만, 아이가 가지 않은 곳이 그 아이의 하루로 적히는 것은 내용 문제다
         val place = DIARY_STEPS.first { it.slot == "place" }.mascot!!.invoke(diaryState())
