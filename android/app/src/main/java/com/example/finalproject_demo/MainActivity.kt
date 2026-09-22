@@ -91,7 +91,8 @@ fun DemoApp() {
             if (s.progressVisible && pinStage == null) ProgressTrack(s.filled, s.reqCount, Modifier.padding(bottom = 2.dp))
             // 부모 모드는 화면 안의 고정 머리에 이름이 있다 (스크롤 내용과 겹치지 않게)
             if (s.scene != Scene.PARENT || pinStage != null) TitleChip(
-                if (pinStage != null) (if (pinStage.purpose == "start") "어른 확인" else "부모 확인") else s.scene.label,
+                // s.sceneLabel — 협업 모드는 `Scene.DIARY` 를 그대로 쓰므로 제목만 갈아끼운다 (09-22)
+                if (pinStage != null) (if (pinStage.purpose == "start") "어른 확인" else "부모 확인") else s.sceneLabel,
                 dark = s.scene == Scene.BOOK,
             )
         }

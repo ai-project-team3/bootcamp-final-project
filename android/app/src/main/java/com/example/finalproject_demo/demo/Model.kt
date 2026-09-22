@@ -12,6 +12,33 @@ import com.example.finalproject_demo.ui.HeroAttr
 /**
  * 장면 — title은 시연 서랍용 긴 이름, label은 화면 맨 위 가운데에 보이는 "무엇을 하는 화면인가".
  */
+/**
+ * 부모가 넣은 질문이 **어느 자리를 겨냥하나** (09-22 박진웅 요청).
+ *
+ * ⚠️ **`String` 이 아니라 열거형인 이유** — 규칙 1: *"슬롯 이름은 고르는 것이지 만드는 것이 아니다."*
+ * `part` 를 자유 문자열로 두면 화면마다 "어디" · "place" · "장소" 가 섞여 들어오고,
+ * 그 값이 칸 이름으로 새는 순간 앱이 렌더링도 집계도 못 한다 — `coop:adult` 가 칸에 새어
+ * 화면에 그대로 찍힌 9/21 사고가 같은 종류였다 (`CoopScenes.kt` 주석).
+ *
+ * [slot] 은 `guidelines/2` §1-1 의 12개 안에서만 고른다. [FREE] 만 `null` 이고,
+ * 그 답은 칸에 넣지 않고 `extra` 로 간다.
+ */
+enum class ParentQPart(val slot: String?, val label: String) {
+    PLACE("place", "어디"),
+    PROBLEM("problem", "무슨 일"),
+    CAUSE("cause", "왜"),
+    REACTION("reaction", "어떻게 됐나"),
+    FREE(null, "자유"),
+}
+
+/**
+ * 부모가 부모 모드에서 미리 적어 둔 질문 하나.
+ *
+ * [part] 를 알면 **판정이 대본인 동안에도** 그 자리의 일기 사다리 더미 답을 빌려 데모가 돌고,
+ * 실제 LLM 이 붙으면 이 값이 그대로 `asked_slot` 이 된다 (진웅 요청 2번).
+ */
+data class ParentQuestion(val part: ParentQPart, val text: String)
+
 enum class Scene(val title: String, val label: String) {
     ADULT("장면 1 · 시작 화면", "이야기 시작하기"),
     PARTNER("장면 1↳ · 함께할 사람", "함께할 사람 정하기"),
@@ -697,8 +724,12 @@ class DemoState {
      * 코드(`CoopScenes.kt`)와 문서는 아직 옛 설계이고, 문서 정정은 원저자(안치영)와 조율한다.
      *
      * 비어 있으면 옛 흐름(AI가 띄운 질문을 부모가 읽음)으로 떨어진다 — 그래서 넣기만 해도 안전하다.
+     *
+     * ⚠️ **이야기 시작에서 비우지 않는다** (09-22 박진웅 지적). `resetStory()` 가 모드를 고른
+     * 직후(`Scenes.kt:264`)에 돌기 때문에, 거기서 비우면 부모가 넣은 질문이 [같이 만들기] 를
+     * 누르는 순간 사라졌다. 비우는 것은 **책 한 권이 끝나고 홈으로 돌아갈 때** — [Director.goHome].
      */
-    val parentQuestions = mutableStateListOf<String>()
+    val parentQuestions = mutableStateListOf<ParentQuestion>()
 
     /**
      * 미리 넣어 둔 질문 중 **몇 개를 썼나**. `parentQuestions.size` 에 닿으면 소진이다.
@@ -710,8 +741,28 @@ class DemoState {
     val hasParentQuestion: Boolean get() = parentQIndex < parentQuestions.size
 
     /** 다음 질문을 꺼내고 인덱스를 올린다. 없으면 null */
-    fun nextParentQuestion(): String? =
+    fun nextParentQuestion(): ParentQuestion? =
         if (hasParentQuestion) parentQuestions[parentQIndex++] else null
+
+    /**
+     * 부모가 넣은 질문을 비운다 — **한 권이 끝났을 때만.**
+     * 오늘 넣은 질문이 내일 또 나오면 안 된다. (계정에 남길지는 저장이 붙은 뒤의 일이다)
+     */
+    fun clearParentQuestions() {
+        parentQuestions.clear(); parentQIndex = 0
+    }
+
+    /**
+     * 협업 모드 아이 화면의 제목 (09-22 박진웅 요청).
+     * `Scene.DIARY` 를 협업이 그대로 쓰는데 라벨이 "오늘 있었던 일 말하기"라 협업에서도 그대로 떴다.
+     * ⚠️ 협업은 **일기가 아니다** — 부모가 넣은 질문에 답하는 모드라 "있었던 일"이 전제가 아니다.
+     * 진웅이 다른 문구를 쓰고 싶으면 [coopLabel] 만 바꾸면 된다.
+     */
+    var coopLabel by mutableStateOf("오늘 이야기 나누기")
+
+    /** 화면 제목 — 협업일 때만 갈아끼운다. 그리기는 `MainActivity` 가 이 값을 쓴다 */
+    val sceneLabel: String get() =
+        if (isCoop && scene == Scene.DIARY) coopLabel else scene.label
 
     /**
      * 기승전결 네 자리를 **누가 지었나** (협업 설계 §6 번갈아 짓기).
@@ -1038,9 +1089,9 @@ class DemoState {
         diaryStart = 0L; diaryTimeUp = false; mascotPicks = 0; endReason = null
         companionKind = ""
         parentCard = null; parentAsk = null; parentRung = 0; parentHasMore = false; adultLine = null
-        // 미리 넣어 둔 질문은 **이야기마다 비운다.** 부모가 오늘 넣은 것이 내일 또 나오면 안 된다.
-        // (계정에 남겨 둘 것인지는 저장이 붙은 뒤의 일이다 — 지금은 저장이 없다)
-        parentQuestions.clear(); parentQIndex = 0
+        // ⚠️ 미리 넣어 둔 질문은 **여기서 비우지 않는다** (09-22). 이 함수는 모드를 고른 직후에
+        // 돌아서, 여기서 비우면 부모가 방금 넣은 질문이 [같이 만들기] 를 누르는 순간 사라진다.
+        // 비우는 곳은 [clearParentQuestions] 이고 부르는 곳은 `Director.goHome()` 이다.
         author.clear()
         nextLevel?.let { level = it }
         nextLevel = null; levelAtStart = level
@@ -1069,6 +1120,8 @@ class DemoState {
         nextLevel = null
         level = Level.CHAIN
         resetStory()
+        // 앱을 새로 켠 것이므로 부모가 넣은 질문도 지운다 — `resetStory()` 는 이제 안 지운다
+        clearParentQuestions()
         heroes.clear()
         heroes += Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9)))
         heroes += Hero("빨간 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
