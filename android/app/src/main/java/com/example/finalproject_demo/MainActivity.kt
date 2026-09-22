@@ -37,9 +37,11 @@ import com.example.finalproject_demo.ui.Bg
 import com.example.finalproject_demo.ui.DemoDrawer
 import com.example.finalproject_demo.ui.FloatingControls
 import com.example.finalproject_demo.ui.MascotBubble
+import com.example.finalproject_demo.ui.ParentBand
 import com.example.finalproject_demo.ui.Muted
 import com.example.finalproject_demo.ui.ProgressTrack
 import com.example.finalproject_demo.ui.PuppetTypography
+import com.example.finalproject_demo.ui.SplashScreen
 import com.example.finalproject_demo.ui.StageView
 import com.example.finalproject_demo.ui.StarWallet
 import com.example.finalproject_demo.ui.TitleChip
@@ -48,6 +50,7 @@ import com.example.finalproject_demo.ui.TitleChip
  * 말로 짓는 인형극 — 데모 (가로 전용).
  * 백엔드 · 네트워크 · 권한 없음. 흐름과 화면만 보여준다.
  *
+ * 켜면 팀 이름 스플래시(CLAP) → 첫 화면.
  * 화면 구성 (v0.8): 무대가 화면 전체를 쓴다.
  *  - 맨 위 가운데: 진행 막대(끝에 별 · 화면 가장 위) · 그 아래 지금 무엇을 하는 화면인지
  *  - 아래 왼쪽: 마스코트 말풍선 (떠 있음) · 아래 오른쪽: 🎤 ➡️ (쓸 수 있을 때만)
@@ -70,6 +73,7 @@ fun DemoApp() {
     val scope = rememberCoroutineScope()
     val d = remember { Director(scope) }
     var drawerOpen by remember { mutableStateOf(false) }
+    var splash by remember { mutableStateOf(true) }
     val s = d.s
 
     LaunchedEffect(Unit) { d.go(Scene.ADULT) }
@@ -82,7 +86,8 @@ fun DemoApp() {
 
         // 맨 위 가운데 — 진행 막대(가장 위) + 그 아래 화면 이름
         Column(Modifier.align(Alignment.TopCenter).padding(top = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            if (s.progressVisible && pinStage == null) ProgressTrack(s.filled, 6, Modifier.padding(bottom = 2.dp))
+            // 필수 칸은 동화 모드 6개 · 일기 모드 기승전결 네 자리 (일기 설계 §2-1)
+            if (s.progressVisible && pinStage == null) ProgressTrack(s.filled, s.reqCount, Modifier.padding(bottom = 2.dp))
             // 부모 모드는 화면 안의 고정 머리에 이름이 있다 (스크롤 내용과 겹치지 않게)
             if (s.scene != Scene.PARENT || pinStage != null) TitleChip(
                 if (pinStage != null) (if (pinStage.purpose == "start") "어른 확인" else "부모 확인") else s.scene.label,
@@ -108,8 +113,17 @@ fun DemoApp() {
             }
         }
 
-        if (!bubbleHidden) MascotBubble(d, Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 6.dp))
-        if (pinStage == null) FloatingControls(d, Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 10.dp))
+        // 부모 협업 모드의 질문 카드 — 새로 만드는 유일한 화면이다 (부모협업모드_설계.md §3).
+        // 아이 화면 위에 덮지 않고 아래에 띠로 붙는다: 아이는 위 그림을, 부모는 아래 글자를 본다
+        if (pinStage == null) ParentBand(d, Modifier.align(Alignment.BottomCenter))
+
+        if (!bubbleHidden && s.parentCard == null) MascotBubble(d, Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 6.dp))
+        // 부모 띠가 떠 있으면 🎤 · ➡️ · [직접 그리기]를 띠 위로 올린다 — 띠는 화면 폭을 다 쓰므로 겹친다
+        if (pinStage == null) FloatingControls(
+            d,
+            Modifier.align(Alignment.BottomEnd)
+                .padding(end = 14.dp, bottom = if (s.parentCard != null) 172.dp else 10.dp),
+        )
 
         // 오른쪽 위 구석 길게 누르기 → 시연 서랍
         Box(
@@ -122,5 +136,8 @@ fun DemoApp() {
         )
 
         if (drawerOpen) DemoDrawer(d) { drawerOpen = false }
+
+        // 앱을 켜면 팀 이름(CLAP)이 먼저 — 첫 화면 위를 덮었다가 옅어진다
+        if (splash) SplashScreen { splash = false }
     }
 }

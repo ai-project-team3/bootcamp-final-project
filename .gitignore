@@ -23,6 +23,8 @@ android/local.properties
 eval/raw/
 eval/audio/*.wav
 eval/audio/*.m4a
+# 라벨 작업 시트는 중간 파일이다. 산출물은 같은 이름의 .jsonl (tools/sheet.py --read)
+eval/labels_*.md
 
 # os / editor
 .DS_Store

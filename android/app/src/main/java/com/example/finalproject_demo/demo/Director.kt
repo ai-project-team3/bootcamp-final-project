@@ -44,8 +44,22 @@ data class Question(
     val drawerHint: Boolean = false,
     /** [직접 그리기 🖍️]로 답했을 때 이 칸에 들어갈 값. null이면 그리기 버튼을 숨긴다 */
     val drawAnswer: Answer? = null,
+    /**
+     * **사다리** — 말이 없을 때 답을 고르게 하지 않고 **질문을 바꿔 다시 묻는다** (일기 설계 §4).
+     * 첫 칸이 [text]이고 여기에는 둘째 칸부터 담는다. 아래로 갈수록 기억을 덜 꺼내고 눈앞의 것에 답하게 된다.
+     * 비어 있으면 동화 모드의 기존 흐름(쉬운 질문 → 힌트 → 카드)을 그대로 쓴다.
+     */
+    val ladder: List<String> = emptyList(),
+    /** 이 질문에만 붙는 시연 버튼 (대본 버튼 뒤에 덧붙는다) */
+    val extra: List<DemoBtn> = emptyList(),
     /** 질문 은행의 변형 id (시연 서랍 · 로그) */
     val id: String = "",
+    /**
+     * 마스코트가 **소리 내어 읽지 않는** 질문 — 부모 협업 모드 (협업 §2-1 ASK′).
+     * 질문은 말풍선 대신 **부모 띠**에 뜨고, 어른이 읽고 자기 말로 묻는다.
+     * 흐름(사다리 · 무응답 · 마스코트 채우기)은 동화 모드와 **똑같다** (9/21).
+     */
+    val silent: Boolean = false,
 )
 
 class Director(private val scope: CoroutineScope) {
@@ -99,6 +113,18 @@ class Director(private val scope: CoroutineScope) {
         s.speaker = who
         s.line = text
         s.lineId++
+    }
+
+    /**
+     * 질문을 띄운다. 협업 모드([Question.silent])면 말풍선이 아니라 **부모 띠**에 올린다 —
+     * 마스코트가 읽어 주면 부모가 물을 이유가 없어진다 (협업 §2-1).
+     */
+    private fun askSay(q: Question, text: String) {
+        if (!q.silent) { say(text); return }
+        // 같은 걸음 안에서 글이 바뀌었다 = 질문을 바꿔 다시 물은 것(사다리 한 칸). 첫 질문은 세지 않는다 —
+        // 부모 리포트가 "오늘 n번 다르게 물어보셨어요" 로 쓰기 때문이다
+        if (s.parentCard != null && s.parentCard != text) s.parentRung++
+        s.parentCard = text
     }
 
     fun childSays(text: String) = say(text, s.childName)
@@ -164,6 +190,7 @@ class Director(private val scope: CoroutineScope) {
     // ── 장면 이동 ────────────────────────────────────────────────
 
     private val progressScenes = setOf(
+        Scene.DIARY,
         Scene.PLACE, Scene.EVENT, Scene.CAUSE, Scene.DRAW, Scene.PLOT, Scene.DINO,
         Scene.SOUND, Scene.CHECK, Scene.SOLUTION, Scene.MAKING,
     )
@@ -289,7 +316,7 @@ class Director(private val scope: CoroutineScope) {
      */
     suspend fun ask(q: Question): Reply {
         currentQ = q
-        say(q.text)
+        askSay(q, q.text)
         inputs(mic = true, next = true, draw = q.drawAnswer != null)
 
         val scripted = scriptButtons(q)
@@ -308,6 +335,7 @@ class Director(private val scope: CoroutineScope) {
         } else {
             log("소크라틱 열린 질문 — 선택지를 말하지 않고 아이가 떠올리게 한다 (v0.8 · 결정 30)")
         }
+        scripted += q.extra
         buttons(*scripted.toTypedArray())
 
         pause(1200) // 마스코트 말이 끝나면(TTS 종료) 아이 차례
@@ -362,7 +390,7 @@ class Director(private val scope: CoroutineScope) {
     }
 
     /** [직접 그리기 🖍️] — 말 대신 그림으로 답한다. 수준 신호로는 세지 않는다 (mode: draw) */
-    private suspend fun drawBranch(q: Question): Reply {
+    suspend fun drawBranch(q: Question): Reply {
         val a = q.drawAnswer ?: return Reply.Silent
         inputs(mic = false, next = false)
         s.stage = Stage.DrawPad(forAnswer = true)
@@ -379,7 +407,7 @@ class Director(private val scope: CoroutineScope) {
         return Reply.Tapped(a.value, a.text)
     }
 
-    private suspend fun acceptSpoken(text: String) {
+    suspend fun acceptSpoken(text: String) {
         s.micOn = false
         childSays(text)
         s.reactions++
@@ -389,7 +417,7 @@ class Director(private val scope: CoroutineScope) {
         pause(900)
     }
 
-    private suspend fun acceptTap(r: Reply.Tapped) {
+    suspend fun acceptTap(r: Reply.Tapped) {
         s.micOn = false
         s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = r.value) ?: s.stage
         s.reactions++
@@ -433,12 +461,21 @@ class Director(private val scope: CoroutineScope) {
         event("utterance", "speaker" to "unsure", "mode" to "silent", "text" to "(무응답)")
 
         // 1) 쉬운 질문 · 2) 힌트 질문 — 둘 다 선택지를 늘어놓지 않는다
-        val steps = listOfNotNull(q.easierText, if (q.noCards || q.choices.isEmpty()) q.hint else null)
+        // 일기 모드는 이 자리에 **사다리**가 들어온다: 답을 고르게 하지 않고 질문만 바꿔 다시 묻는다 (일기 설계 §4)
+        val rungs = q.ladder.isNotEmpty()
+        val steps = if (rungs) q.ladder
+        else listOfNotNull(q.easierText, if (q.noCards || q.choices.isEmpty()) q.hint else null)
         for ((i, stepText) in steps.withIndex()) {
             currentQ = q.copy(text = stepText)
-            say(stepText)
+            askSay(q, stepText)
             inputs(mic = true, next = true, draw = q.drawAnswer != null)
-            log(if (i == 0) "무응답 → 쉬운 질문: \"$stepText\"" else "또 무응답 → 생각할 거리를 주는 질문: \"$stepText\" (선택지 대신 · 소크라틱)")
+            log(
+                when {
+                    rungs -> "무응답 → 사다리 ${i + 2}번째 칸으로 질문을 바꿔 다시 묻는다: \"$stepText\" (답을 고르게 하지 않는다 · 일기 설계 §4)"
+                    i == 0 -> "무응답 → 쉬운 질문: \"$stepText\""
+                    else -> "또 무응답 → 생각할 거리를 주는 질문: \"$stepText\" (선택지 대신 · 소크라틱)"
+                }
+            )
             val b = scriptButtons(q)
             b += DemoBtn("🤐 여전히 대답 없음") { send(Reply.Silent) }
             buttons(*b.toTypedArray())
@@ -478,7 +515,7 @@ class Director(private val scope: CoroutineScope) {
             showCards(set, q.drawerHint)
             val names = set.joinToString(", ") { it.label }
             val tail = q.easierAsk ?: q.text
-            say(if (reread) "$names${ga(set.last().label)} 있어. 다시 봐, $tail" else "$names${ga(set.last().label)} 있어. $tail")
+            askSay(q, if (reread) "$names${ga(set.last().label)} 있어. 다시 봐, $tail" else "$names${ga(set.last().label)} 있어. $tail")
             log(
                 when {
                     reread -> "그림 선택지 · 다시 읽어줌 (1회)"

@@ -348,15 +348,17 @@ val BANK: List<QVariant> = listOf(
     QVariant("d_need_what", "need", ALL, Kind.EASY, "상대에게 필요한 것을 떠올리나",
         text = { "${it.f}에게 뭐가 필요할까?" }, easier = { "${it.f}${ga(it.f)} 뭘 찾고 있을까?" },
         answers = { needAnswers(it) }, fallback = { needAnswers(it).first() }),
+    // 의문사는 하나만 — 뒤에 붙었던 "왜?" 를 뗐다. 까닭은 판정기가 next_slot 으로 다음 턴에 묻는다
     QVariant("d_need_why", "need", MID_UP, Kind.HARD, "필요한 까닭까지 말하나 (S1)",
-        text = { "${it.f}${eul(it.f)} 도와주려면 뭘 챙겨 가야 할까? 왜?" }, easier = { "뭘 가져가면 좋을까?" },
+        text = { "${it.f}${eul(it.f)} 도와주려면 뭘 챙겨 가야 할까?" }, easier = { "뭘 가져가면 좋을까?" },
         answers = { needAnswers(it) }, fallback = { needAnswers(it).first() }),
     QVariant("d_role", "role", ALL, Kind.EASY, "하는 일(직업)을 떠올리나",
         text = { "${it.c}${eun(it.c)} 어떤 사람이 되어서 ${it.f}${eul(it.f)} 도와줄까?" },
         easier = { "의사 선생님? 길 안내원?" },
         answers = { roleAnswers() }, fallback = { Answer("구조대원", "구조대원") }),
+    // 의문사는 하나만 — 위 d_need_why 와 같은 이유로 "왜?" 를 뗐다
     QVariant("d_role_do", "role", MID_UP, Kind.HARD, "하는 일과 까닭을 말하나 (S1)",
-        text = { "${it.f}${eul(it.f)} 도우려면 누가 제일 잘할까? 왜?" }, easier = { "어떤 일을 하는 사람이 좋을까?" },
+        text = { "${it.f}${eul(it.f)} 도우려면 누가 제일 잘할까?" }, easier = { "어떤 일을 하는 사람이 좋을까?" },
         answers = { roleAnswers() }, fallback = { Answer("구조대원", "구조대원") }),
     QVariant("d_resolve", "resolve", ALL, Kind.HARD, "도움을 마무리하나 (S1 · S2)",
         text = { "${it.f}${ga(it.f)} 기운 나게 뭘 해 주면 좋을까?" }, easier = { "${it.f}${ga(it.f)} 좋아할 게 뭘까?" },
@@ -786,7 +788,8 @@ fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?:
         val to = s.level.down()
         if (to != s.level) moveLevel(to, "내림 신호(짧은 답 · 카드 · 무응답) 2턴 연속")
     }
-    if (s.turn == 3 && s.templateKey == null) decideTemplate("3턴째")
+    // 일기 모드는 수준별 템플릿을 고르지 않는다 — 기승전결이 곧 쪽 차례다 (일기 설계 §5)
+    if (s.turn == 3 && s.templateKey == null && !s.isDiary) decideTemplate("3턴째")
 }
 
 /** 수준 · 까닭 종류로 템플릿과 속성을 확정한다 (한 이야기에 한 번) */
@@ -830,6 +833,7 @@ fun DemoState.ruleEstimate(): Pair<Level, String> {
 
 /** 제목 — 템플릿과 대화로 지어 준다 (묻지 않는다 · 책장에서 바꿀 수 있게 할 자리) */
 fun DemoState.autoTitleFor(): String {
+    if (isDiary) return diaryTitle()
     val f = friendName.takeUnless { it.startsWith("{") } ?: newcomerKind
     val c = childName
     return when (templateKey) {

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.PuppetDemo" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.PuppetDemo" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- 켜는 순간 흰 화면 대신 스플래시와 같은 크림색 -->
+        <item name="android:windowBackground">@color/splash_bg</item>
+    </style>
 </resources>

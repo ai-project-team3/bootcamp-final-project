@@ -119,9 +119,17 @@ def label_one() -> str | dict:
     return g
 
 
-def sample_for_review(items: list[dict], n: int) -> list[dict]:
-    """검수 표본. 씨앗을 고정한다 — 다시 돌려도 같은 문항이 나온다."""
-    rnd = random.Random(20260918)
+DEFAULT_SEED = 20260918
+
+
+def sample_for_review(items: list[dict], n: int, seed: int = DEFAULT_SEED) -> list[dict]:
+    """검수 표본. 씨앗을 고정한다 — 같은 씨앗이면 다시 돌려도 같은 문항이 나온다.
+
+    ⚠️ **씨앗을 바꾸면 다른 20문항이 나온다.** 앞서 누가 붙인 표본을 본 사람은
+       그 표본으로 검수하면 블라인드가 아니다. 그때 새 씨앗으로 다른 20개를 뽑는다.
+       100문항 전부에 gold 가 있으므로 어느 20개든 대조가 된다.
+    """
+    rnd = random.Random(seed)
     quota = SAMPLE_QUOTA if n == sum(SAMPLE_QUOTA.values()) else None
     if not quota:
         return sorted(rnd.sample(items, n), key=lambda it: it["id"])
@@ -148,11 +156,13 @@ def main() -> None:
     p.add_argument("--sample", type=int, default=0, help="이 개수만 (검수용 · 20이면 층별 몫대로)")
     p.add_argument("--resume", action="store_true", help="이미 붙인 문항은 건너뛴다")
     p.add_argument("--by", default="", help="붙인 사람 이름")
+    p.add_argument("--seed", type=int, default=DEFAULT_SEED,
+                   help="표본 씨앗. 앞사람 표본을 본 뒤 검수하면 블라인드가 아니므로 바꾼다")
     args = p.parse_args()
 
     items = [json.loads(l) for l in FIXTURES.read_text(encoding="utf-8").splitlines() if l.strip()]
     if args.sample:
-        items = sample_for_review(items, args.sample)
+        items = sample_for_review(items, args.sample, args.seed)
 
     out_path = HERE / args.out
     done: dict[str, dict] = {}

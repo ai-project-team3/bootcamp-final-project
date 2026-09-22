@@ -77,6 +77,8 @@ import com.example.finalproject_demo.demo.Persona
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.Stage
+import com.example.finalproject_demo.demo.PEN_W
+import com.example.finalproject_demo.demo.dinoKind
 import com.example.finalproject_demo.demo.Stroke as DrawStroke
 import kotlin.math.roundToInt
 
@@ -96,7 +98,7 @@ private fun Modifier.dashedBorder(color: Color, radius: androidx.compose.ui.unit
 fun ArtView(art: Art, modifier: Modifier = Modifier) {
     when (art) {
         is Art.HeroArt -> HeroImage(art.attr, modifier)   // 프리셋 · 골라서 · 말로 만든 주인공 모두 같은 펠트 그림
-        is Art.DinoArt -> AssetImage("dino_${art.kind}", modifier, colorFilter = if (dinoHue(art.color) != 0f) hueRotate(dinoHue(art.color)) else null) {
+        is Art.DinoArt -> AssetImage(dinoKind(art.kind).art, modifier, colorFilter = if (dinoHue(art.color) != 0f) hueRotate(dinoHue(art.color)) else null) {
             FigureView(dino(art.color, art.kind), modifier)
         }
         is Art.Alien -> FigureView(alienPreset(art.k), modifier)
@@ -134,8 +136,17 @@ fun ChildDrawingView(strokes: List<DrawStroke>, preset: Int, modifier: Modifier 
                 if (i == 0) moveTo(x, y) else lineTo(x, y)
             }
         }
-        strokes.forEach { s -> drawPath(path(s), Color.White, style = Stroke(k * 0.11f, cap = StrokeCap.Round, join = StrokeJoin.Round)) }
-        strokes.forEach { s -> drawPath(path(s), s.color, style = Stroke(k * 0.05f, cap = StrokeCap.Round, join = StrokeJoin.Round)) }
+        // 굵기는 **그릴 때 굵기 그대로** — 그림판 폭 한 칸이 여기서 (aspect * sc) 픽셀이다.
+        // 화면 크기(k)로 다시 계산하면 작게 그린 그림일수록 선이 부풀어 뚱뚱해 보였다 (9/21).
+        val padUnit = aspect * sc
+        strokes.forEach { s ->
+            val w = (s.w * padUnit).coerceIn(k * 0.006f, k * 0.03f)
+            drawPath(path(s), Color.White, style = Stroke(w * 1.9f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
+        strokes.forEach { s ->
+            val w = (s.w * padUnit).coerceIn(k * 0.006f, k * 0.03f)
+            drawPath(path(s), s.color, style = Stroke(w, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
     }
 }
 
@@ -211,18 +222,35 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
             is Stage.Bestiary -> Centered {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     stage.heroes.forEachIndexed { i, h ->
-                        Column(
-                            Modifier
-                                .width(146.dp)
-                                .shadow(8.dp, RoundedCornerShape(R), ambientColor = Ink.copy(alpha = 0.25f), spotColor = Ink.copy(alpha = 0.25f))
-                                .clip(RoundedCornerShape(R))
-                                .background(CardWhite)
-                                .clickable { d.send(Reply.Tapped("hero:$i", h.name)) }
-                                .padding(10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            ArtView(Art.HeroArt(h.attr), Modifier.fillMaxWidth().height(130.dp))
-                            Text(h.name, fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Box {
+                            Column(
+                                Modifier
+                                    .width(146.dp)
+                                    .shadow(8.dp, RoundedCornerShape(R), ambientColor = Ink.copy(alpha = 0.25f), spotColor = Ink.copy(alpha = 0.25f))
+                                    .clip(RoundedCornerShape(R))
+                                    .background(CardWhite)
+                                    .clickable { d.send(Reply.Tapped("hero:$i", h.name)) }
+                                    .padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                ArtView(Art.HeroArt(h.attr), Modifier.fillMaxWidth().height(130.dp))
+                                Text(h.name, fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold, maxLines = 1)
+                            }
+                            // 지우기 — 네 칸이 다 차면 더 못 만들기 때문에 필요하다 (9/21 요청).
+                            // 마지막 한 명은 못 지운다 — 도감이 비면 이야기를 시작할 수 없다
+                            if (stage.heroes.size > 1) {
+                                Box(
+                                    Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(4.dp)
+                                        .size(30.dp)
+                                        .shadow(3.dp, CircleShape)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFF7E7E2))
+                                        .clickable { d.send(Reply.Tapped("del:$i", h.name)) },
+                                    contentAlignment = Alignment.Center,
+                                ) { Text("🗑", fontSize = 15.sp) }
+                            }
                         }
                     }
                     if (stage.plus) {
@@ -360,10 +388,10 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                         }
                     }
                 }
-                if (stage.world) WorldBackground(s.th.bg, s.bgName) { body() } else body()
+                if (stage.world) WorldBackground(s.worldBg, s.bgName) { body() } else body()
             }
 
-            is Stage.World -> WorldBackground(s.th.bg, s.bgName) {
+            is Stage.World -> WorldBackground(s.worldBg, s.bgName) {
                 val quake = if (stage.quake) {
                     val t = rememberInfiniteTransition(label = "quake")
                     val dy by t.animateFloat(-3f, 3f, infiniteRepeatable(tween(90), RepeatMode.Reverse), label = "dy")
@@ -447,6 +475,20 @@ private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem) {
     }
 }
 
+/** 시작 화면의 모드 버튼 — 무엇으로 짓는가를 고르는 자리 */
+@Composable
+private fun ModeButton(label: String, bg: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .shadow(6.dp, RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(999.dp))
+            .background(bg)
+            .clickable { onClick() }
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text(label, fontSize = 17.sp, color = Color.White, fontWeight = FontWeight.Bold) }
+}
+
 /** 장면 1 — 시작 화면. 아래 마스코트 말풍선은 없다. 위 왼쪽 아이/부모 전환 · 위 오른쪽 별(크롬) */
 @Composable
 private fun AdultScreen(d: Director) {
@@ -511,6 +553,18 @@ private fun AdultScreen(d: Director) {
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                     ) { Text("📚 책장", fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold) }
                 }
+                Spacer(Modifier.height(8.dp))
+                // 갈래가 갈라지는 유일한 자리 (일기 §1 · 협업 §3).
+                // ⚠️ 문구에 "일기"를 쓰지 않는다 — 아이가 옆에서 보고 숙제로 듣는다 (일기 §0)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ModeButton(
+                        "🌙 오늘 있었던 일로", Color(0xFF6E5A8C), Modifier.weight(1f),
+                    ) { d.send(Reply.Tapped("diary", "오늘 있었던 일로")) }
+                    // 부모에게 소재를 받는 모드가 아니라 **질문하는 사람을 바꾸는 모드**다 (협업 §0)
+                    ModeButton(
+                        "👪 같이 만들기", Color(0xFF3F6E63), Modifier.weight(1f),
+                    ) { d.send(Reply.Tapped("coop", "같이 만들기")) }
+                }
                 Spacer(Modifier.height(10.dp))
                 Text("어른과 함께 하는 놀이예요", fontSize = 13.sp, color = Ink, fontWeight = FontWeight.Bold)
                 Text("어른이 옆에서 함께할 때 가장 좋아요", fontSize = 12.sp, color = Muted)
@@ -553,26 +607,41 @@ private fun AdultScreen(d: Director) {
     }
 }
 
+/**
+ * 「골라서 만들기」의 줄 — 이름 · 보내는 key · (보이는 글, 값) 목록.
+ *
+ * `@Composable` 안에 두면 **화면을 띄워야만 확인할 수 있다.** 이 기기에서는 에뮬레이터를 띄우면
+ * 기계가 얼어 버려서(트러블슈팅 6-10 · 6-12) 그 길이 막혔다. 그래서 밖으로 꺼내 검사 대상으로 만들었다 (9/21).
+ *
+ * 성별(남 · 여) 줄은 **뺐다** — 성별을 먼저 묻고 옷을 정해 주는 순서가 아니라,
+ * 아이가 바지든 치마든 그냥 고르면 되는 순서로 둔다.
+ */
+val HERO_ROWS: List<Triple<String, String, List<Pair<String, String>>>> = listOf(
+    Triple("머리", "hair", listOf("짧아" to "short", "길어" to "long", "묶었어" to "tied")),
+    Triple("옷", "shirt", listOf("빨강" to "F25C4C", "파랑" to "3F7BD9", "노랑" to "F9B233")),
+    Triple("눈", "eyes", listOf("동글" to "round", "반달" to "smile", "별" to "star")),
+    Triple("안경", "glasses", listOf("없음" to "none", "동글" to "round", "네모" to "square")),
+    Triple("아래옷", "bottom", listOf("바지" to "pants", "치마" to "skirt", "반바지" to "shorts")),
+)
+
 @Composable
 private fun HeroBuilderView(d: Director, stage: Stage.HeroBuilder) {
-    val rows = listOf(
-        Triple("머리", "hair", listOf("짧아" to "short", "길어" to "long", "묶었어" to "tied")),
-        Triple("옷", "shirt", listOf("빨강" to "F25C4C", "파랑" to "3F7BD9", "노랑" to "F9B233")),
-        Triple("눈", "eyes", listOf("동글" to "round", "반달" to "smile", "별" to "star")),
-        Triple("안경", "glasses", listOf("없음" to "none", "동글" to "round", "네모" to "square")),
-    )
-    Row(Modifier.fillMaxSize().padding(start = 30.dp, end = 20.dp, top = TopChrome, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+    val rows = HERO_ROWS
+    // 줄이 여섯으로 늘면서 [이걸로 할래]가 아래 말풍선 자리까지 내려가 **가려졌다** (9/21 에뮬레이터 확인).
+    // 버튼을 토글 오른쪽 빈 자리로 옮긴다 — 아래쪽은 말풍선 · 🎤 · ➡️ 가 쓰는 자리다.
+    Row(Modifier.fillMaxSize().padding(start = 30.dp, end = 20.dp, top = TopChrome, bottom = BottomChrome), verticalAlignment = Alignment.CenterVertically) {
         HeroImage(stage.attr, Modifier.width(200.dp).fillMaxHeight())
         Spacer(Modifier.width(18.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             rows.forEach { (label, key, opts) ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(label, fontSize = 18.sp, color = Ink, modifier = Modifier.width(50.dp))
+                    Text(label, fontSize = 17.sp, color = Ink, modifier = Modifier.width(58.dp))
                     opts.forEach { (t, v) ->
                         val on = when (key) {
                             "hair" -> stage.attr.hair == v
                             "eyes" -> stage.attr.eyes == v
                             "glasses" -> stage.attr.glasses == v
+                            "bottom" -> stage.attr.bottom == v
                             else -> stage.attr.shirt == Color(v.toLong(16) or 0xFF000000)
                         }
                         Box(
@@ -581,52 +650,105 @@ private fun HeroBuilderView(d: Director, stage: Stage.HeroBuilder) {
                                 .clip(RoundedCornerShape(999.dp))
                                 .background(if (on) Sun else Color(0xFFF3E7D0))
                                 .clickable { d.send(Reply.Tapped("set:$key:$v", t)) }
-                                .padding(horizontal = 16.dp, vertical = 6.dp)
-                        ) { Text(t, fontSize = 17.sp, color = Ink) }
+                                .padding(horizontal = 14.dp, vertical = 5.dp)
+                        ) { Text(t, fontSize = 16.sp, color = Ink) }
                     }
                 }
             }
-            PillButton("🙂 이걸로 할래", Coral, Color.White, 17) { d.send(Reply.Tapped("ok", "좋아")) }
         }
+        Spacer(Modifier.width(28.dp))
+        PillButton("🙂 이걸로 할래", Coral, Color.White, 17) { d.send(Reply.Tapped("ok", "좋아")) }
     }
 }
 
-/** 그림판 — 크레용 4색 + 지우기. 완료하면 선을 0~1로 정규화해 상태에 저장한다 (원본 그대로 · 27). */
+/**
+ * 그림판 — 크레용 12색 + **지우개** + 모두 지우기.
+ *
+ * 9/21에 세 가지를 고쳤다.
+ *  1. 색이 네 개뿐이라 그릴 수 있는 게 적었다 → 12색.
+ *  2. [지우기]가 **전부** 지워서 한 획만 고칠 수가 없었다 → 지우개로 **닿은 데만** 지운다.
+ *     획을 통째로 없애지 않고 **지나간 자리에서 끊어** 준다. 긴 낙서 한 획이 통째로 사라지지 않게.
+ *  3. 붓이 화면 픽셀 고정(16f)이라 그림판에서보다 책에서 더 두껍게 나왔다 → 굵기를 그림판 폭 기준([PEN_W])으로 두고
+ *     책에도 그 값을 그대로 넘긴다.
+ */
 @Composable
 private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
+    // 한 획 = 색 + 점들. 지우개가 획을 끊기 때문에 목록을 통째로 갈아 끼운다
     val strokes = remember { mutableStateListOf<Pair<Color, MutableList<Offset>>>() }
     var color by remember { mutableStateOf(Coral) }
+    var erasing by remember { mutableStateOf(false) }
     var tick by remember { mutableStateOf(0) }
     var box by remember { mutableStateOf(IntSize(1, 1)) }
+
+    val penPx = box.width * PEN_W
+    val eraseR = box.width * 0.035f
+
+    /** 지우개가 지나간 자리에서 획을 끊는다 — 남은 토막만 다시 담는다 */
+    fun erase(at: Offset) {
+        var changed = false
+        val kept = mutableListOf<Pair<Color, MutableList<Offset>>>()
+        strokes.forEach { (c, pts) ->
+            var run = mutableListOf<Offset>()
+            pts.forEach { p ->
+                if ((p - at).getDistance() <= eraseR) {
+                    changed = true
+                    if (run.size >= 2) kept += c to run
+                    run = mutableListOf()
+                } else run.add(p)
+            }
+            if (run.size >= 2) kept += c to run
+        }
+        if (changed) {
+            strokes.clear()
+            strokes.addAll(kept)
+            tick++
+        }
+    }
 
     fun commit() {
         if (forAnswer) return
         d.s.drawing.clear()
         d.s.drawingAspect = box.width.toFloat() / box.height.toFloat()
         strokes.forEach { (c, pts) ->
-            if (pts.size >= 2) d.s.drawing += DrawStroke(c, pts.map { Offset(it.x / box.width, it.y / box.height) })
+            if (pts.size >= 2) d.s.drawing += DrawStroke(c, pts.map { Offset(it.x / box.width, it.y / box.height) }, PEN_W)
         }
     }
 
     Row(Modifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, top = TopChrome, bottom = BottomChrome), verticalAlignment = Alignment.CenterVertically) {
-        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            listOf(Coral, Green, Blue, Sun).forEach { c ->
+        // 12색을 2줄로 — 세로 한 줄로 두면 가로 화면에서 넘친다
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            CRAYONS.chunked(6).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    row.forEach { c ->
+                        Box(
+                            Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(c)
+                                .border(if (c == color && !erasing) 4.dp else 1.dp, if (c == color && !erasing) Ink else Color(0x33000000), CircleShape)
+                                .clickable { color = c; erasing = false }
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(2.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(
                     Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(c)
-                        .border(if (c == color) 4.dp else 0.dp, Ink, CircleShape)
-                        .clickable { color = c }
-                )
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (erasing) Coral else Color(0xFFF3E7D0))
+                        .border(if (erasing) 3.dp else 0.dp, Ink, RoundedCornerShape(12.dp))
+                        .clickable { erasing = !erasing }
+                        .padding(horizontal = 10.dp, vertical = 7.dp)
+                ) { Text("🧽 지우개", fontSize = 14.sp, color = if (erasing) Color.White else Ink) }
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFF3E7D0))
+                        .clickable { strokes.clear(); erasing = false; tick++ }
+                        .padding(horizontal = 10.dp, vertical = 7.dp)
+                ) { Text("모두 지우기", fontSize = 14.sp, color = Ink) }
             }
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFF3E7D0))
-                    .clickable { strokes.clear(); tick++ }
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            ) { Text("지우기", fontSize = 14.sp, color = Ink) }
         }
         Spacer(Modifier.width(12.dp))
         Box(
@@ -637,12 +759,15 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
                 .clip(RoundedCornerShape(R))
                 .background(Color.White)
                 .onSizeChanged { box = it }
-                .pointerInput(Unit) {
+                .pointerInput(erasing) {
                     detectDragGestures(
-                        onDragStart = { p -> strokes += color to mutableListOf(p); tick++ },
+                        onDragStart = { p -> if (erasing) erase(p) else { strokes += color to mutableListOf(p); tick++ } },
                         onDrag = { change, _ ->
-                            strokes.lastOrNull()?.second?.add(change.position)
-                            tick++
+                            if (erasing) erase(change.position)
+                            else {
+                                strokes.lastOrNull()?.second?.add(change.position)
+                                tick++
+                            }
                             change.consume()
                         },
                     )
@@ -653,7 +778,7 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
                 strokes.forEach { (c, pts) ->
                     val p = Path()
                     pts.forEachIndexed { i, o -> if (i == 0) p.moveTo(o.x, o.y) else p.lineTo(o.x, o.y) }
-                    drawPath(p, c, style = Stroke(16f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                    drawPath(p, c, style = Stroke(penPx, cap = StrokeCap.Round, join = StrokeJoin.Round))
                 }
             }
             if (strokes.isEmpty()) {
@@ -667,6 +792,12 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
         }
     }
 }
+
+/** 크레용 12색 — 살구 · 갈색까지 넣어 사람도 그릴 수 있게 (9/21) */
+private val CRAYONS = listOf(
+    Color(0xFFE8604C), Color(0xFFF08A3C), Color(0xFFF3C33C), Color(0xFF7FBF4D), Color(0xFF3F9E6E), Color(0xFF3F7BD9),
+    Color(0xFF6C63C9), Color(0xFFD96BA8), Color(0xFFFFC2A0), Color(0xFF8A5A3C), Color(0xFF3A2A1E), Color(0xFFA9B4BD),
+)
 
 /** 장면 13 — 친구 평가 (S10). 지우는 선택지는 없다. 고른 것을 평가하지 않는다. */
 @Composable
@@ -883,13 +1014,32 @@ private fun DrawerEvents(d: Director) {
 @Composable
 private fun DrawerState(d: Director) {
     val s = d.s
-    val slots = listOf(
-        "장소" to s.place, "문제" to s.problem, "까닭" to s.cause,
-        "등장인물" to s.newcomer, "소리" to s.sound, "해결" to s.solution,
+    // 일기 모드는 기승전결 네 자리가 필수 칸이다 (일기 설계 §2-1). 소리 · 동행은 묻지 않는다 (§2-2)
+    val slots = if (s.isDiary) listOf(
+        Triple("place", "기 · 장소", s.place), Triple("problem", "승 · 문제", s.problem),
+        Triple("cause", "전 · 까닭", s.cause), Triple("solution", "결 · 해결", s.solution),
+        Triple("reaction", "(선택) 기분", s.reaction), Triple("newcomer", "(선택) 등장인물", s.newcomer),
+    ) else listOf(
+        Triple("place", "장소", s.place), Triple("problem", "문제", s.problem), Triple("cause", "까닭", s.cause),
+        Triple("newcomer", "등장인물", s.newcomer), Triple("sound", "소리", s.sound), Triple("solution", "해결", s.solution),
     )
-    Text("이야기 칸 ${s.filled}/6 · 제목: ${s.title ?: "-"}", fontSize = 14.sp, color = Sun, fontWeight = FontWeight.Bold)
-    slots.forEach { (k, v) ->
-        Text("${if (v != null) "★" else "☆"} $k — ${v ?: "비어 있음"}", fontSize = 12.sp, color = Color(0xFFE8DCC8))
+    Text(
+        "이야기 칸 ${s.filled}/${s.reqCount} · 제목: ${s.title ?: "-"}" + if (s.isDiary) "  [일기 모드]" else "",
+        fontSize = 14.sp, color = Sun, fontWeight = FontWeight.Bold,
+    )
+    slots.forEach { (key, label, v) ->
+        // 누가 채웠나(by)를 칸마다 보여 준다 — mascot 은 책 자막에만 나오고 리포트 인용에서는 빠진다 (guidelines/2 §1-4 · §5-1)
+        val by = s.slotBy[key]
+        Text(
+            "${if (v != null) "★" else "☆"} $label — ${v ?: "비어 있음"}${if (by != null) "  [by: $by]" else ""}",
+            fontSize = 12.sp, color = if (by == "mascot") Color(0xFFD8B4A0) else Color(0xFFE8DCC8),
+        )
+    }
+    if (s.isDiary) {
+        Text(
+            "mascot_pick 연속 ${s.mascotPicks}회 (2회면 끝) · 끝난 조건 ${s.endReason ?: "-"} · by:mascot 은 주고받기 · 수준 · 리포트 인용에서 빠짐",
+            fontSize = 12.sp, color = Color(0xFFD8B4A0),
+        )
     }
     Text("곁칸 — 동행 ${s.friend ?: "-"} · 이름 ${s.friendName} · 배경 속 말한 것 ${s.mentioned.joinToString("+").ifEmpty { "-" }}", fontSize = 12.sp, color = Color(0xFFB8AC9C))
     Text("이야기 조각 — ${s.slots.entries.joinToString(" · ") { "${it.key}=${it.value}" }.ifEmpty { "-" }}", fontSize = 12.sp, color = Color(0xFFB8AC9C))

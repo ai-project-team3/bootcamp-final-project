@@ -22,6 +22,7 @@ suspend fun Director.runScene(scene: Scene) {
         Scene.PARTNER -> scenePartner()
         Scene.BESTIARY -> sceneBestiary()
         Scene.MAKEHERO -> sceneMakeHero()
+        Scene.DIARY -> sceneDiary()
         Scene.PLACE -> scenePlace()
         Scene.EVENT -> sceneEvent()
         Scene.CAUSE -> sceneCause()
@@ -47,8 +48,22 @@ fun Director.seedFor(scene: Scene) {
         if (order > Scene.entries.indexOf(target) && order <= Scene.entries.indexOf(Scene.END)) fill()
     }
     if (s.heroAttr == null && order > Scene.entries.indexOf(Scene.BESTIARY)) s.heroAttr = s.heroes.first().attr
+
+    // 시연 서랍에서 장면을 바로 열었을 때 모드가 화면과 어긋나지 않게 맞춘다.
+    // ⚠️ 이미 일기 질문을 쓰는 모드(일기 · 협업)면 건드리지 않는다 — 협업 모드가 일기 모드로 덮여 버린다
+    if (scene == Scene.DIARY && !s.isDiary) s.mode = StoryMode.DIARY
+    if (scene in STORY_ONLY) s.mode = StoryMode.STORY
+    // 부모 띠는 **질문을 하고 있는 동안에만** 떠 있어야 한다. 시연 서랍으로 장면을 건너뛰면
+    // 질문이 끝나지 않은 채 화면만 바뀌어 띠가 그대로 남았다 — 책에서는 자막까지 가렸다 (9/21 에뮬레이터 확인).
+    if (scene != Scene.DIARY) { s.parentCard = null; s.parentRung = 0; s.parentHasMore = false }
+    if (s.isDiary) { seedDiary(order); return }
+
     after(Scene.PLACE) { if (s.place == null) s.place = s.placeName }
-    after(Scene.EVENT) { if (s.problem == null) s.problem = "${s.newcomerKind}${ga(s.newcomerKind)} ${s.th.vehicle}${eul(s.th.vehicle)} 흔듦" }
+    after(Scene.EVENT) {
+        // ⚠️ 새 친구부터 맞추고 나서 문장을 만든다 — 순서가 바뀌면 "외계인이 거북이를 흔듦"이 남는다 (9/21)
+        if (s.newcomerKind !in s.th.newcomers.map { it.value }) s.newcomerKind = s.th.defaultNewcomer
+        if (s.problem == null) s.problem = "${s.newcomerKind}${ga(s.newcomerKind)} ${s.th.vehicle}${eul(s.th.vehicle)} 흔듦"
+    }
     after(Scene.CAUSE) {
         if (s.cause == null) s.cause = "심심해서 · 친구가 없어서"
         if (s.templateKey == null) {
@@ -63,11 +78,47 @@ fun Director.seedFor(scene: Scene) {
             s.newcomer = "${s.friendName} (아이 그림)"
         }
     }
-    after(Scene.DINO) { if (s.friend == null) s.friend = s.dino.name }
+    after(Scene.DINO) {
+        // 장면 7을 건너뛰었으면 **그 장소의** 친구로 채운다 — 우주에 공룡이 따라가지 않게 (9/21)
+        if (s.dinoKey !in s.buddies.map { it.key }) s.dinoKey = s.buddies.first().key
+        if (s.friend == null) s.friend = s.dino.name
+    }
     after(Scene.SOUND) { if (s.sound == null) s.sound = "${s.soundLine} (원본 녹음)" }
     after(Scene.SOLUTION) { if (s.solution == null) s.solution = solutionText() }
     after(Scene.MAKING) { if (s.title == null) s.title = s.autoTitleFor() }
     if (order >= Scene.entries.indexOf(Scene.PLACE) && s.images == 0) s.images = 2
+}
+
+/** 동화 모드에서만 나오는 장면 — 여기로 바로 들어오면 모드를 동화로 되돌린다 */
+private val STORY_ONLY = setOf(
+    Scene.PLACE, Scene.EVENT, Scene.CAUSE, Scene.DRAW, Scene.PLOT, Scene.DINO, Scene.SOUND, Scene.CHECK, Scene.SOLUTION,
+)
+
+/**
+ * 일기 모드로 뒤쪽 장면(책 · 선물 · 부모 모드)을 바로 열었을 때 기승전결 네 자리를 채워 둔다.
+ * 동화 모드의 씨앗(외계인 · 공룡 · 소리)을 쓰지 않는다 — 묻지 않는 칸이다 (일기 설계 §2-2).
+ */
+private fun Director.seedDiary(order: Int) {
+    if (order <= Scene.entries.indexOf(Scene.DIARY)) return
+    if (s.place == null) {
+        s.placeLabel = "놀이터"; s.place = "놀이터"; s.slots["place"] = "놀이터에 갔어요"
+        s.slotBy["place"] = "child"
+    }
+    if (s.problem == null) {
+        s.problem = "블록이 무너짐"; s.slots["problem"] = "높이 쌓은 블록이 와르르 무너졌어요"
+        s.slotBy["problem"] = "child"
+    }
+    if (s.cause == null) {
+        s.cause = "같이 놀고 싶었어"; s.causeLine = "같이 놀고 싶었어"
+        s.slots["cause"] = "같이 놀고 싶어서 그랬대요"; s.slotBy["cause"] = "child"
+    }
+    if (s.solution == null) {
+        s.solution = "선생님이랑 다시 쌓음"; s.solutionLine = "선생님과 함께 블록을 다시 쌓았어요"
+        s.slots["solution"] = "선생님과 함께 블록을 다시 쌓았어요"; s.slotBy["solution"] = "child"
+        s.solutionItem = "star"
+    }
+    if (order > Scene.entries.indexOf(Scene.MAKING) && s.title == null) s.title = s.autoTitleFor()
+    if (s.images == 0) s.images = 1
 }
 
 /** 배경 속 것 key → 말로 부르는 이름 */
@@ -175,17 +226,23 @@ private suspend fun Director.sceneAdult() {
     s.stage = Stage.Adult
     s.notice = null
     buttons(
-        DemoBtn("🖐 이야기 만들기 탭") { send(Reply.Tapped("start", "이야기 만들기")) },
+        DemoBtn("🖐 이야기 만들기 탭 (동화 모드)") { send(Reply.Tapped("start", "이야기 만들기")) },
+        DemoBtn("🌙 오늘 있었던 일로 탭 (일기 모드)") { send(Reply.Tapped("diary", "오늘 있었던 일로")) },
+        DemoBtn("👪 같이 만들기 탭 (부모 협업 모드)") { send(Reply.Tapped("coop", "같이 만들기")) },
         DemoBtn("📚 책장 탭") { send(Reply.Tapped("shelf", "책장")) },
         DemoBtn("👪 부모 모드 탭") { send(Reply.Tapped("parent", "부모 모드")) },
     )
-    when (awaitValue("start", "shelf", "parent", "notice:ok", "notice:shelf")) {
+    // 갈래가 갈라지는 유일한 자리 (일기 §1 · 협업 §3). 뒤의 흐름은 질문 세트와 **묻는 사람**만 다르고 나머지는 같다
+    var picked = StoryMode.STORY
+    when (awaitValue("start", "diary", "coop", "shelf", "parent", "notice:ok", "notice:shelf")) {
         "shelf", "notice:shelf" -> { go(Scene.SHELF); return }
         "parent" -> {
             if (pinGate("parent")) go(Scene.PARENT) else go(Scene.ADULT)
             return
         }
         "notice:ok" -> { go(Scene.ADULT); return }
+        "diary" -> picked = StoryMode.DIARY
+        "coop" -> picked = StoryMode.COOP
         else -> {}
     }
     // ⭐ 0이면 오늘은 여기까지 — 누를 때 한 번만 말해 준다 (결정 2)
@@ -205,43 +262,98 @@ private suspend fun Director.sceneAdult() {
         if (!pinGate("start")) { go(Scene.ADULT); return }
     }
     s.resetStory()
+    s.mode = picked
+    if (s.isDiary) {
+        s.diaryStart = System.currentTimeMillis()
+        mark("diaryentry")
+        log(
+            "일기 모드로 시작 — S3의 질문 세트와 칸 목록만 갈아끼운다. 새 화면 · 새 이벤트는 없다 (일기 설계 §1 · §8)\n" +
+                "⚠️ 화면 어디에도 \"일기\"라고 쓰지 않는다 — 아이에게 숙제처럼 들린다. 팀 안에서만 쓰는 이름이다 (§0)"
+        )
+    }
+    if (s.isCoop) {
+        mark("coopentry")
+        log("부모 협업 모드로 시작 — **부모에게 소재를 받는 모드가 아니라 질문하는 사람을 바꾸는 모드다** (협업 §0)")
+        log("질문 데이터는 새로 만들지 않았다. 일기 모드 사다리를 그대로 띄우고 내리는 주체만 AI → 부모로 바뀐다 (협업 §5)")
+    }
+    // 이벤트에 더하는 것은 story_start 의 mode 필드 **하나뿐**이다 (일기 §8 · 협업 §8)
+    val modeField = "mode" to when (picked) {
+        StoryMode.DIARY -> "diary"
+        StoryMode.COOP -> "coop"
+        StoryMode.STORY -> "story"
+    }
     if (s.limitOn) {
         val before = s.dayStars
         s.usedToday++
-        event("story_start", "star_before" to before, "star_after" to s.dayStars)
+        event("story_start", modeField, "star_before" to before, "star_after" to s.dayStars)
         log("⭐ 하나를 쓰고 이야기 시작 — 하루 별 $before → ${s.dayStars} (진행 막대와 다른 것)")
+        if (s.isDiary) log("⚠️ 일기 모드도 6~8쪽 동화책이라 원가 · 월 권수 소모가 동화 모드와 같다. 매일 쓰라고 파는 기능인데 월 2권과 부딪힌다 — 조장 · 멘토 #11과 정할 일 (§7-2)")
     } else {
-        event("story_start", "star_before" to "무제한", "star_after" to "무제한")
+        event("story_start", modeField, "star_before" to "무제한", "star_after" to "무제한")
         log("하루 한도 꺼짐(부모 설정) → 별을 쓰지 않고 시작")
     }
     mark("adult")
     pause(500)
-    go(Scene.PARTNER)
+    // 일기 · 협업 모드는 "누구랑 같이 만들래?"를 묻지 않는다 (9/21 사용자 요청).
+    // 재료가 아이의 실제 하루라 **오늘 누구와 있었는지는 이야기 안에서 묻는 것**이 자연스럽고(질문 2번),
+    // 협업 모드는 옆에 있는 사람이 곧 질문하는 사람이라 따로 고를 이유가 없다.
+    if (s.isDiary) go(if (s.firstDay) Scene.MAKEHERO else Scene.BESTIARY) else go(Scene.PARTNER)
 }
 
 // ── 장면 2 · 도감 (⭐8 주인공 4칸 + 점선 ＋ 버튼) ──────────────────
 
 private suspend fun Director.sceneBestiary() {
-    s.stage = Stage.Bestiary(s.heroes.toList(), s.heroes.size < 4)
-    val names = s.heroes.map { it.name }
-    say("오늘 이야기의 주인공은 누구로 할까?")
-    buttons(
-        DemoBtn("🖐 ${names.first()} 카드를 탭") { send(Reply.Tapped("hero:0", names.first())) },
-        DemoBtn("➕ ＋ 버튼 — 새 주인공 만들기 (⭐20)") { send(Reply.Tapped("plus", "＋")) },
-    )
-    val v = awaitValue()
-    if (v == "plus") {
-        log("＋ 버튼 → 주인공은 이때 한 번만 만든다. 이야기 중에는 고정 (⭐20)")
-        go(Scene.MAKEHERO)
+    while (true) {
+        s.stage = Stage.Bestiary(s.heroes.toList(), s.heroes.size < 4)
+        val names = s.heroes.map { it.name }
+        val full = s.heroes.size >= 4
+        say(if (full) "주인공이 다 찼어! 안 쓰는 친구를 지우면 새로 만들 수 있어." else "오늘 이야기의 주인공은 누구로 할까?")
+        val b = mutableListOf(
+            DemoBtn("🖐 ${names.first()} 카드를 탭") { send(Reply.Tapped("hero:0", names.first())) },
+        )
+        if (!full) b += DemoBtn("➕ ＋ 버튼 — 새 주인공 만들기 (⭐20)") { send(Reply.Tapped("plus", "＋")) }
+        // 네 칸이 다 차면 더 못 만든다 → 지울 수 있게 한다 (9/21 요청)
+        if (s.heroes.size > 1) b += DemoBtn("🗑 ${names.last()} 지우기") { send(Reply.Tapped("del:${s.heroes.lastIndex}", names.last())) }
+        buttons(*b.toTypedArray())
+
+        val v = awaitValue()
+        if (v == "plus") {
+            log("＋ 버튼 → 주인공은 이때 한 번만 만든다. 이야기 중에는 고정 (⭐20)")
+            go(Scene.MAKEHERO)
+            return
+        }
+        if (v.startsWith("del:")) {
+            val di = v.removePrefix("del:").toIntOrNull() ?: continue
+            if (di !in s.heroes.indices) continue
+            // 마지막 한 명은 남긴다 — 도감이 비면 이야기를 시작할 수 없다
+            if (s.heroes.size <= 1) {
+                say("마지막 한 명은 지울 수 없어. 새로 만들고 나서 지워 줘!")
+                pause(1600)
+                continue
+            }
+            val gone = s.heroes.removeAt(di)
+            if (s.heroAttr == gone.attr) s.heroAttr = null
+            s.reactions++
+            log("도감에서 \"${gone.name}\" 지움 → 빈 칸이 생겨 새로 만들 수 있다 (9/21 요청 · 네 칸이 다 차면 못 만들던 문제)")
+            say("${gone.name}${eul(gone.name)} 지웠어. 이제 새로 만들 수 있어!")
+            mark("herodelete")
+            pause(1500)
+            continue
+        }
+        onHeroPicked(v)
         return
     }
+}
+
+private suspend fun Director.onHeroPicked(v: String) {
     val idx = v.removePrefix("hero:").toIntOrNull() ?: 0
     s.heroAttr = s.heroes[idx].attr
     mark("bestiary")
     log("주인공 고름: ${s.heroes[idx].name} → 고정 스프라이트 그대로 씀 (⭐20 · ⭐26)")
     say("${s.heroes[idx].name}${ya(s.heroes[idx].name)}, 준비됐지?")
     pause(900)
-    go(Scene.PLACE)
+    // 도감은 두 모드가 함께 쓴다 — 일기 모드에서도 오늘 이야기의 주인공은 아이가 고른 인형이다
+    go(if (s.isDiary) Scene.DIARY else Scene.PLACE)
 }
 
 // ── 장면 2↳ · 주인공 만들기 (말로 / 골라서) — 둘 다 같은 펠트 그림 ──
@@ -267,7 +379,7 @@ private suspend fun Director.sceneMakeHero() {
 
     suspend fun presetBuilder() {
         s.stage = Stage.HeroBuilder(attr)
-        say("머리, 옷, 눈, 안경을 골라 봐!")
+        say("머리, 옷, 눈, 안경, 아래옷을 골라 봐!")
         mark("preset")
         buttons(DemoBtn("🖐 (시연) 긴 머리 · 노란 옷 · 별 눈 · 네모 안경 고르고 좋아") { send(Reply.Tapped("demo", "시연")) })
         while (true) {
@@ -290,6 +402,7 @@ private suspend fun Director.sceneMakeHero() {
                         "hair" -> attr.copy(hair = v)
                         "eyes" -> attr.copy(eyes = v)
                         "glasses" -> attr.copy(glasses = v)
+                        "bottom" -> attr.copy(bottom = v)
                         else -> attr.copy(shirt = Color(v.toLong(16) or 0xFF000000))
                     }
                     s.reactions++
@@ -488,6 +601,9 @@ private suspend fun Director.scenePartner() {
     if (s.firstDay) go(Scene.MAKEHERO) else go(Scene.BESTIARY)
 }
 
+// ── 장면 3′ · 오늘 있었던 일 ────────────────────────────
+// 일기 모드·부모 협업 모드의 장면과 질문 엔진은 `DiaryScenes.kt` 에 따로 있다 (이 파일이 너무 길어졌다).
+
 // ── 고정 질문 2개 (기준 질문 · 매번 같다) ──────────────────────────
 
 private val BASE_PLACE = QVariant(
@@ -544,6 +660,11 @@ private suspend fun Director.scenePlace() {
         s.placeLabel = "눈 오는 데"
         s.generatedBg = true
     }
+    // 장소가 정해지면 **그 장소의 기본값들도 같이** 맞춘다 (9/21).
+    // 장면 4 · 7을 건너뛰어도(반응 예산 초과 · 시연 서랍) 엉뚱한 것이 따라오지 않게 —
+    // 바닷속에 "외계인 뿌뿌"가 서 있고 우주에 공룡이 따라가던 것이 이것 때문이었다.
+    s.dinoKey = s.buddies.first().key
+    s.newcomerKind = s.th.defaultNewcomer
     s.place = s.placeName
     judge(BASE_PLACE, r, q.text)
     event("slot_filled", "slot" to "place", "value" to s.placeName, "source" to sourceOf(r))
@@ -650,7 +771,8 @@ private suspend fun Director.sceneCause() {
     )
     val v = s.pick("cause")
     log("질문 은행 [cause] ${v.id} — ${v.probe} · 지금 수준 ${s.level.label}")
-    val base = v.toQuestion(s).copy(drawAnswer = Answer("(그림) 이런 마음이었을 거야!", "lonely|친구가 없어서 심심했어"), easierAsk = "어떤 기분일까?")
+    // 까닭은 "마음을 말하는" 질문이지 만들어 내는 질문이 아니다 → 그리기 버튼을 달지 않는다 (9/21)
+    val base = v.toQuestion(s).copy(easierAsk = "어떤 기분일까?")
     // 함께 하는 사람이 먼저 말하는 흐름 — 2~3초 뒤 아이에게 되묻는다 (⭐5 · 구현대본 §0-2)
     say("$nc${ga(nc)} 창문에서 쳐다봐. ${base.text}")
     inputs(false, false)
@@ -731,7 +853,7 @@ private suspend fun Director.sceneDraw() {
     s.stage = Stage.Show(s.friendArt, if (s.drawing.isNotEmpty()) "${s.childName}${ga(s.childName)} 그린 $nc" else "${s.childName}${ga(s.childName)} 고른 $nc")
     partnerSays(partnerLine(s, if (s.drawing.isNotEmpty()) "drawn" else "picked"))
     pause(1300)
-    val (_, r) = askSlot("name") { it.copy(noCards = true, hint = null, drawAnswer = Answer("(그림) 이름표를 그렸어!", "별이")) }
+    val (_, r) = askSlot("name") { it.copy(noCards = true, hint = null) }   // 이름은 말로만 — 그리기 자리가 아니다 (9/21)
     if (r is Reply.Spoke) {
         s.friendName = r.value
         event("slot_filled", "slot" to "name", "value" to r.value, "source" to "voice")
@@ -815,28 +937,33 @@ private suspend fun Director.sceneDino() {
             WorldItem(hero, 0.28f, 0.30f, 0.10f),
         )
     )
-    childSays("공룡도 데려갈래!")
+    // 아이가 먼저 하는 말도 **장소에 맞춰** 바뀐다 — 우주에 가 놓고 공룡을 데려가던 것을 고쳤다 (9/21)
+    childSays(s.buddyCall)
     s.reactions++
     log("아이가 먼저 말함 — 그 말에서 되묻는다 (소크라틱의 기본형) · 뜻이 여럿인 말이라 확인 카드 3장 (구현대본 §0-1)")
     pause(1300)
+    val buds = s.buddies
     val q = Question(
-        text = listOf("공룡? 어떤 공룡이야? 어떻게 생겼어?", "공룡? 그 공룡은 뭐가 제일 멋져?", "어떤 공룡이 같이 가면 좋을까?").random(),
+        text = s.buddyAsks.random(),
         kind = Kind.CHOICE,
-        choices = DINOS.map { Card(it.label, Art.DinoArt(Color(0xFF6FC276), it.key), it.key) },
-        spoken = listOf(
-            Answer("뿔!", "horn", lv = 1), Answer("목이 길~어!", "long", lv = 1), Answer("티라노!", "trex", lv = 1),
-            Answer("뿔이 세 개 있는 공룡이야.", "horn", lv = 2), Answer("뜨리게라!", "horn", lv = 1),
-            Answer("이빨이 뾰족한 거! 크아앙 하고 무섭게 울어.", "trex", el = setOf("배경"), lv = 3),
-            Answer("목이 긴 공룡. 높은 데 있는 별을 따 줄 수 있으니까.", "long", reason = true, con = true, lv = 3),
-        ),
-        easierAsk = "어떤 공룡이야?",
+        choices = buds.map { Card(it.label, Art.DinoArt(Color(0xFF6FC276), it.key), it.key) },
+        // 생김새로 답하는 말 — 어느 것을 골랐는지는 **생김새 낱말**로 맞춘다 (조사3 §3-1)
+        spoken = buildList {
+            buds.forEach { b ->
+                add(Answer("${b.label}!", b.key, lv = 1))
+                add(Answer("${b.said} 거!", b.key, lv = 2))
+            }
+            add(Answer("${buds[0].said} 친구! ${buds[0].sound} 하고 소리 내.", buds[0].key, el = setOf("배경"), lv = 3))
+            add(Answer("${buds[1].label}. ${buds[1].said} 친구니까 나를 도와줄 수 있어.", buds[1].key, reason = true, con = true, lv = 3))
+        },
+        easierAsk = "어떤 친구야?",
         id = "dino_which",
     )
     val r = ask(q)
     s.dinoKey = when (r) {
         is Reply.Tapped -> r.value
-        is Reply.Spoke -> r.value.ifEmpty { "horn" }
-        else -> "horn"
+        is Reply.Spoke -> r.value.ifEmpty { buds.first().key }
+        else -> buds.first().key
     }
     judge(null, r, q.text)
     if (r is Reply.Spoke) log("Whisper \"${r.text}\" → 생김새 낱말을 화면 선택지와 맞춰 \"${s.dino.label}\" (조사3 §3-1 · 안치영 #11)")
@@ -865,10 +992,20 @@ private suspend fun Director.sceneSound() {
     var left = 2
     var retried = false
     var againOnce = false
+    // 소리도 친구를 따라간다 — 돌고래에게 "크아아앙!"을 시키지 않는다 (9/21)
     val sounds = when (d.key) {
         "trex" -> listOf("크아아앙!", "어흥!", "쿠오오오!", "크르릉!", "으르렁 쿵!")
         "long" -> listOf("우우웅~", "뿌우우~", "우와아~", "음머어~", "우우 우우~")
-        else -> listOf("뿌우우우웅!", "뿌뿌뿌!", "끼야아!", "뿌웅 뿌웅!", "부우우!")
+        "horn" -> listOf("뿌우우우웅!", "뿌뿌뿌!", "끼야아!", "뿌웅 뿌웅!", "부우우!")
+        "alienbud" -> listOf("삐비빅 삐뽀!", "삐용 삐용!", "뾰로롱!", "지지직 삐!", "삐뽀 삐뽀!")
+        "robot" -> listOf("위잉 위잉!", "철컥 철컥!", "삐— 삐—", "덜컹 위잉!", "탁 탁 위잉!")
+        "babystar" -> listOf("반짝 반짝!", "쨍—", "또롱 또롱!", "사르르 반짝!", "빤짝!")
+        "dolphin" -> listOf("끼익 끼익!", "뽀글 끼익!", "휘이익!", "끼끼끼!", "첨벙 끼익!")
+        "seahorse" -> listOf("또르르르~", "또록 또록!", "뽀글 또르르~", "쪼르르~", "또옥 또옥!")
+        "starfish" -> listOf("살랑 살랑~", "스르륵~", "찰싹 살랑!", "사락 사락~", "말랑 말랑!")
+        "snowman" -> listOf("뽀드득 뽀드득!", "사르르~", "뽀도독!", "푹 푹!", "사각 사각!")
+        "polarbear" -> listOf("어흐응~", "크응~", "푸우우~", "어흥!", "쿠우웅~")
+        else -> listOf("꽥 꽥!", "뒤뚱 뒤뚱!", "끽 끽!", "꽤액!", "첨벙 꽥!")
     }
     fun soundStage(retry: Int) = world(
         listOf(
@@ -941,7 +1078,7 @@ private suspend fun Director.sceneCheck() {
         if (s.redraws >= s.redrawMax) {
             say("여태 만든 것 중에 어떤 게 제일 좋아?")
             log("다시 그리기 상한 ${s.redrawMax}회 도달 → 새로 만들지 않고, 만든 것 3장 중에서 고르게 한다 (24 · 결정 29)")
-            val kinds = (listOf(s.dinoKey) + DINOS.map { it.key }).distinct().take(3)
+            val kinds = (listOf(s.dinoKey) + s.buddies.map { it.key }).distinct().take(3)
             s.stage = Stage.CardsRow(kinds.map { k -> Card(dinoKind(k).label, Art.DinoArt(s.dinoColor, k), k) })
             buttons(*kinds.map { k -> DemoBtn("🖐 ${dinoKind(k).label} 고름") { send(Reply.Tapped(k, dinoKind(k).label)) } }.toTypedArray())
             s.dinoKey = awaitValue(*kinds.toTypedArray())
@@ -1009,8 +1146,9 @@ private suspend fun Director.sceneCheck() {
                             Answer("빨강!", "color", lv = 1),
                             Answer("더 크게 해 줘.", "size", lv = 2),
                             Answer("웃는 얼굴로!", "face", lv = 1),
-                            Answer("뿔이 더 커야 돼! 싸우는 공룡이니까!", "kind", reason = true, lv = 3),
-                            Answer("다른 공룡 할래. 이건 너무 작아서.", "kind", reason = true, lv = 3),
+                            // 더미 답도 장소에 맞춰야 한다 — 우주에 가 놓고 "다른 공룡 할래"가 나오면 안 된다 (9/21)
+                            Answer("${d.look} 그래서 제일 멋있어!", "kind", reason = true, lv = 3),
+                            Answer("다른 ${d.label} 할래. 이건 너무 작아서.", "kind", reason = true, lv = 3),
                             Answer("색을 바꾸고 싶어.", "color", lv = 2),
                         ),
                         easierText = "${d.name}${eul(d.name)} 잘 봐. 어디가 마음에 안 들어?",
@@ -1084,7 +1222,7 @@ private suspend fun Director.sceneSolution() {
             continue
         }
         val (_, r) = askSlot(slot) {
-            if (slot == "resolve") it.copy(drawAnswer = Answer("(그림) 이렇게 놀 거야!", "play:balloon:풍선을 들고 같이 뛰어놀았어요"), easierAsk = "어떻게 할까?") else it
+            if (slot == "resolve") it.copy(easierAsk = "어떻게 할까?") else it   // 그리기 버튼 없음 (9/21)
         }
         val value = valueOf(r)
         if (slot == "resolve") {
@@ -1152,6 +1290,15 @@ private suspend fun Director.sceneMaking() {
         "템플릿 ${t.code} ${t.name}(${t.pages.size}쪽) + 모은 칸들(이름은 가림) → Anthropic → 쪽마다 자막(−어요체) · 제목 JSON → " +
             "폰에서 {주인공} → ${s.childName}, {친구1} → ${s.friendName} 복원 · 확정 그림은 다시 그리지 않음 (⭐26)"
     )
+    if (s.isDiary) {
+        val mascot = listOf("place", "problem", "cause", "solution").filter { s.slotBy[it] == "mascot" }
+        log(
+            "일기 모드 — 결과물은 동화 모드와 똑같은 ${t.pages.size}쪽 동화책이다 (§0 · §7-1 ①). " +
+                if (mascot.isEmpty()) "네 자리를 아이 말로 다 채웠다"
+                else "빈 자리 [${mascot.joinToString(" · ")}] 는 LLM이 이야기로 메웠다 → by: mascot (§5)"
+        )
+        log("아이 말은 씨앗이고 나머지는 원래 이야기다. 메운 문장은 책에만 나오고 부모 리포트 인용에는 안 들어간다 (§5 · §5-1)")
+    }
     val filled = s.slots.filterValues { it.isNotEmpty() }.keys
     log("이번 책에 들어가는 이야기 조각: ${filled.joinToString(" · ").ifEmpty { "기본 문장" }} · 까닭 \"${s.causeLine}\" · 해결 \"${s.solutionLine}\"")
     var p = 0f
@@ -1174,7 +1321,6 @@ private suspend fun Director.sceneMaking() {
 
 private suspend fun Director.sceneBook() {
     inputs(false, false)
-    val f = s.friendName
     val d = s.dino.name
     val m1 = s.mission1()
     val m2 = s.mission2()
@@ -1194,14 +1340,20 @@ private suspend fun Director.sceneBook() {
             i == 0 -> "▶ 를 눌러 펼쳐 봐!"
             i == rubPage -> if (s.m1Result == null) s.m1Line() else s.m1Done()
             i == dragPage -> if (s.m2Result == null) s.m2Line(s.m1Result == "helped") else s.m2Done()
+            // 일기 모드에는 공룡 소리 칸이 없다 — 묻지 않는 칸이다 (§2-2)
+            i == last && s.isDiary -> "인형을 눌러 봐! 오늘 이야기가 여기서 끝나."
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
         }
         say(if (i == 0) "『${s.title}』" else s.bookCaption(i))
         when {
             i == 0 -> {}
-            i == rubPage && s.m1Result == null -> log("${i}쪽 미션 1 (쉬움 · 문지르기) — 장면 4의 \"${s.newcomerKind}\"에서 나온 ${m1.blobName} · 도구 ${m1.toolName}")
-            i == dragPage && s.m2Result == null -> log("${i}쪽 미션 2 (${if (s.m1Result == "helped") "쉬움 · 탭" else "보통 · 끌어다 놓기"}) — 장면 10에서 말한 ${m2.itemName}${eul(m2.itemName)} ${f}에게")
+            i == rubPage && s.m1Result == null -> log(
+                if (s.isDiary) "${i}쪽 미션 1 (쉬움 · 문지르기) — 뼈대는 그대로, 소품만 하루에서 나온 것으로 (${m1.blobName} · 도구 ${m1.toolName} · §7-1 ②)"
+                else "${i}쪽 미션 1 (쉬움 · 문지르기) — 장면 4의 \"${s.newcomerKind}\"에서 나온 ${m1.blobName} · 도구 ${m1.toolName}"
+            )
+            i == dragPage && s.m2Result == null -> log("${i}쪽 미션 2 (${if (s.m1Result == "helped") "쉬움 · 탭" else "보통 · 끌어다 놓기"}) — ${if (s.isDiary) "4턴째에 말한" else "장면 10에서 말한"} ${m2.itemName}${eul(m2.itemName)} ${s.friendCallName}에게")
+            i == last && s.isDiary -> log("${i}쪽(마지막): 일기 모드도 미션 난이도 신호가 그대로 나온다 (§7-1 ②) · 공룡 소리 칸은 묻지 않았다 (§2-2)")
             i == last -> log("${i}쪽(마지막): ${if (s.partnerHelpLine != null) "${s.pn} 참여 한 줄 들어감" else "${s.pn}${ga(s.pn)} 답하지 않아 그 줄 없음"} · ${d}${eul(d)} 누르면 녹음한 소리")
             else -> log("${i}쪽 [${s.pageKind(i)}] — 템플릿 ${s.template?.code} 칸으로 만든 자막")
         }
@@ -1216,7 +1368,7 @@ private suspend fun Director.sceneBook() {
             b += DemoBtn("🖐 (시연) ${m1.blobName} 3개를 문질러 없앰") { send(Reply.Tapped("mission", "미션1")) }
             b += DemoBtn("😶 (시연) 가만히 있음 → 시연 2번 → 도와주기") { send(Reply.Tapped("helped", "도움")) }
         }
-        if (s.bookPage == dragPage && s.m2Result == null) b += DemoBtn("🖐 (시연) ${m2.itemName}${eul(m2.itemName)} ${f}에게 놓음") { send(Reply.Tapped("mission", "미션2")) }
+        if (s.bookPage == dragPage && s.m2Result == null) b += DemoBtn("🖐 (시연) ${m2.itemName}${eul(m2.itemName)} ${s.friendCallName}에게 놓음") { send(Reply.Tapped("mission", "미션2")) }
         buttons(*b.toTypedArray())
     }
 
@@ -1254,7 +1406,7 @@ private suspend fun Director.sceneBook() {
                 s.achievements += "${m2.itemName} 건넨 손"
                 show(); announce(); refreshButtons()
                 event("mission", "id" to 2, "motion" to "drag", "result" to s.m2Result)
-                log("미션 2 완료 — ${f}에게 ${m2.itemName} · 하트가 퐁 (연출은 공통)")
+                log("미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (연출은 공통)")
                 mark("book")
             }
             vv == "dino" -> log("${d}${eul(d)} 누르면 아이가 녹음한 소리 재생 (폰 안에서만)")
@@ -1272,10 +1424,20 @@ private suspend fun Director.sceneBook() {
  */
 private suspend fun Director.sceneFriends() {
     inputs(false, false)
-    val items = mutableListOf(
-        RateItem("friend", s.friendName, s.friendArt),
-        RateItem("dino", s.dino.name, Art.DinoArt(s.dinoColor, s.dinoKey)),
-    )
+    // 일기 모드에는 공룡(동행 칸)이 없다. 아이가 아무도 그리지 않았으면 평가할 친구도 없다 (§2-2)
+    val items = if (s.isDiary) {
+        if (s.newcomer == null) {
+            log("일기 모드 · 오늘 그린 친구가 없다 → 친구 평가를 건너뛴다 (동행 · 소리 칸은 묻지 않는다 · §2-2)")
+            go(Scene.END)
+            return
+        }
+        mutableListOf(RateItem("friend", s.friendCallName, s.friendArt))
+    } else {
+        mutableListOf(
+            RateItem("friend", s.friendName, s.friendArt),
+            RateItem("dino", s.dino.name, Art.DinoArt(s.dinoColor, s.dinoKey)),
+        )
+    }
     say("오늘 만난 친구들이야. 누구를 또 만나고 싶어?")
     log("친구 평가 — 고르지 않아도 넘어갈 수 있다. 지우는 선택지는 없다")
     fun refresh() {
@@ -1331,11 +1493,16 @@ private suspend fun Director.sceneEnd() {
     if ("해결 방법 도감 · 친구와 함께" !in s.achievements) s.achievements += "해결 방법 도감 · 친구와 함께"
     log("선물 1 — 해결 방법 도감 첫 칸 \"친구와 함께\" (업적 5 · ⭐9). 한 번에 하나씩 (조사3 §1-2)")
     pause(2600)
-    s.stage = Stage.Gifts(2)
-    say("무지개 크레용이 생겼어! 다음에 그려 보자.")
-    if ("무지개 크레용" !in s.achievements) s.achievements += "무지개 크레용"
-    log("선물 2 — 무지개 크레용 (업적 7: 그림판 그림을 책에 처음 넣음)")
-    pause(2600)
+    // 업적 7은 "그림판 그림을 책에 처음 넣음"이다. 일기 모드에서 아무것도 안 그린 날에는 주지 않는다
+    if (!s.isDiary || s.drawing.isNotEmpty()) {
+        s.stage = Stage.Gifts(2)
+        say("무지개 크레용이 생겼어! 다음에 그려 보자.")
+        if ("무지개 크레용" !in s.achievements) s.achievements += "무지개 크레용"
+        log("선물 2 — 무지개 크레용 (업적 7: 그림판 그림을 책에 처음 넣음)")
+        pause(2600)
+    } else {
+        log("오늘은 그림을 안 그려서 무지개 크레용은 없다 — 안 한 일에 선물을 주지 않는다 (조사3 §1-3)")
+    }
     say("책 다 만들었다! 고생했어~~")
     buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
     awaitValue("shelf")
