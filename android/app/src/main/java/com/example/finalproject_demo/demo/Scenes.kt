@@ -751,9 +751,16 @@ private suspend fun Director.sceneEvent() {
     if (r is Reply.Spoke) log("LLM 판정: 이름을 가린 문장({주인공}: ${r.text}) → Anthropic → S1 · S2 표시 JSON → 수준은 규칙이 계산")
 
     // 질문 은행 — 그다음 (결과 · 대응 · 누가 놀랐나 중 하나)
-    val (_, r2) = askSlot("reaction")
+    val (v2, r2) = askSlot("reaction")
     (r2 as? Reply.Spoke)?.let { event("slot_filled", "slot" to "reaction", "value" to it.text, "source" to "voice") }
-    s.slots["reaction"] = valueOf(r2) ?: ""
+    // 아이가 한 말을 **책 문장으로 지어서** 넣는다 (9/22).
+    // 질문 세 변형의 값 모양이 서로 다르고(결과 절 · 대사 · 사람 이름), 틀은 3턴째에야
+    // 정해져서 책을 그릴 때는 어느 변형이었는지를 알 수 없다. 그래서 여기서 짓는다 —
+    // 바로 위 `problem` 칸도 같은 식으로 장면에서 문장을 만들어 넣는다.
+    // 판정과 이벤트에는 아이가 한 말 그대로가 간다 — 위 `event` 와 `askSlot` 안의 `judge` 는 손대지 않았다.
+    val said = valueOf(r2)
+    s.slots["reaction"] = said?.let { reactionLine(s, v2.id, it) } ?: ""
+    if (said != null) log("그다음 질문 [${v2.id}] 답 \"$said\" → 책 2쪽 문장으로 들어간다: \"${s.slots["reaction"]}\"")
     mark("event")
     pause(800)
     go(Scene.CAUSE)
@@ -1498,7 +1505,7 @@ private suspend fun Director.sceneEnd() {
     log("선물 1 — 해결 방법 도감 첫 칸 \"친구와 함께\" (업적 5 · ⭐9). 한 번에 하나씩 (조사3 §1-2)")
     pause(2600)
     // 업적 7은 "그림판 그림을 책에 처음 넣음"이다. 일기 모드에서 아무것도 안 그린 날에는 주지 않는다
-    if (!s.isDiary || s.drawing.isNotEmpty()) {
+    if (s.earnedCrayon) {       // 조건은 Model.earnedCrayon 한 곳 — 화면(GiftsView)도 같은 값을 본다
         s.stage = Stage.Gifts(2)
         say("무지개 크레용이 생겼어! 다음에 그려 보자.")
         if ("무지개 크레용" !in s.achievements) s.achievements += "무지개 크레용"

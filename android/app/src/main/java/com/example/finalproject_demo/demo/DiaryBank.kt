@@ -160,7 +160,7 @@ val DIARY_STEPS: List<DiaryStep> = listOf(
             )
         },
         // ⚠️ 구체적인 곳을 지어내지 않는다 — 아이가 가지 않은 곳이 그 아이의 하루로 적히면 안 된다 (일기 §3-2)
-        mascot = { Answer("오늘 있었던 곳", "오늘 있었던 곳|오늘 하루를 보냈어요") },
+        mascot = { Answer("오늘 있었던 곳", "오늘 있었던 곳|하루를 보냈어요") },
     ),
 
     DiaryStep(
@@ -194,11 +194,12 @@ val DIARY_STEPS: List<DiaryStep> = listOf(
         probe = "기준 질문 ② · 오늘 있었던 일",
         rungs = {
             val p = it.placeName
+            val heardPlace = p != "오늘 있었던 곳"
             listOf(
-                "${p}에서 무슨 일이 있었어?",          // 앞 답(장소)을 되받아 잇는다
-                "거기서 뭐 하고 놀았어?",
-                "오늘 제일 재밌었던 거 하나만 말해 줄래?",
-                listOf("속상한 일도 있었어?", "다 재밌었어?").shuffled().joinToString(" 아니면 "),
+                if (heardPlace) "${p}에서 무슨 일이 있었어?" else "오늘 무슨 일이 있었어?",
+                if (heardPlace) "거기서 뭐 했어?" else "오늘은 뭐 하고 지냈어?",
+                "오늘 기억나는 일 하나만 말해 줄래?",
+                "오늘 마음에 남은 일이 있어?",
             )
         },
         answers = {
@@ -297,7 +298,10 @@ val DIARY_STEPS: List<DiaryStep> = listOf(
                 Answer("화났나 봐. 내가 장난감 안 빌려줘서.", "화가 났어|장난감을 빌려주지 않아서 화가 났대요", reason = true, el = setOf("계기"), con = true, lv = 3),
             )
         },
-        mascot = { Answer("그냥 그런 날", "잘 모르겠어|왜 그랬는지는 아직 아무도 몰라요") },
+        mascot = { st ->
+            if (st.hadTrouble()) Answer("그냥 그런 날", "잘 모르겠어|왜 그랬는지는 아직 아무도 몰라요")
+            else Answer("아직 못 들은 이유", "아직 못 들은 이유|그때의 이유는 아직 듣지 못했어요")
+        },
     ),
 
     DiaryStep(
@@ -513,7 +517,7 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
                 val lead = if (st.hadTrouble()) "알고 보니" else ""
                 // 9/22 — 빈 칸을 메우는 문장도 그날에 맞춰야 한다. 아무 일도 없던 날에
                 // "왜 그랬는지는 아직 아무도 몰라요" 가 붙으면 없던 사고가 있었던 것처럼 읽힌다
-                val noCause = if (st.hadTrouble()) "왜 그랬는지는 아직 아무도 몰라요." else "오늘은 그게 제일 좋았어요."
+                val noCause = if (st.hadTrouble()) "왜 그랬는지는 아직 아무도 몰라요." else "그때의 이유는 아직 듣지 못했어요."
                 joinWith(lead, line(st, "cause", noCause)) + tail(st, "said")
             }
         )

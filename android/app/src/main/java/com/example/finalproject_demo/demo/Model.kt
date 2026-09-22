@@ -676,6 +676,19 @@ class DemoState {
     /** 오늘 있었던 일을 재료로 쓰는가 — 일기 모드와 협업 모드가 같은 질문 세트를 쓴다 */
     val isDiary: Boolean get() = mode.usesDiaryQuestions
 
+    /**
+     * 무지개 크레용(업적 7 · 그림판 그림을 책에 처음 넣음)을 받는가. 일기·협업에서 안 그린 날은 없다 —
+     * 안 한 일에 선물을 주지 않는다 (조사3 §1-3).
+     *
+     * ⚠️ **이 조건은 여기 한 곳에만 둔다** (09-22). 전에는 `sceneEnd` 에만 있었고 `GiftsView` 는
+     * 선물이 늘 2개라고 믿어 `shown >= 2` 에서만 [책장에 꽂기]를 그렸다. 그림 없는 일기·협업은
+     * `Gifts(1)` 에 멈춰 **아이 화면에 버튼이 없고 앱이 멎었다** (박진웅 실기기 보고 · `CoopFlowTest`).
+     */
+    val earnedCrayon: Boolean get() = !isDiary || drawing.isNotEmpty()
+
+    /** 선물 화면에 나올 선물 수 — 다 나오면 [책장에 꽂기] 가 뜬다 */
+    val giftCount: Int get() = if (earnedCrayon) 2 else 1
+
     /** 질문을 부모가 하는가 (협업 설계 §2-2 — 세 조각 중 ③만 넘어간다) */
     val isCoop: Boolean get() = mode == StoryMode.COOP
 

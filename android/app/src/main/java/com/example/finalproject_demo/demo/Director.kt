@@ -514,8 +514,13 @@ class Director(private val scope: CoroutineScope) {
                 pause(1200)
                 return Reply.Silent
             }
-            say("혹시 ${fb.text}일까? 그렇게 해 볼게!")
-            log("끝까지 말이 없음 → 마스코트가 \"혹시 ${fb.text}일까?\" 하고 채움 (카드 없음 · source=mascot)")
+            if (s.mode == StoryMode.DIARY && q.id.startsWith("diary_")) {
+                say("괜찮아. 지금은 생각나지 않아도 돼. 다음 이야기를 들어 볼게.")
+                log("끝까지 말이 없음 → 모르는 부분만 책에 표시하고 다음 질문으로 (카드 없음 · source=mascot)")
+            } else {
+                say("혹시 ${fb.text}일까? 그렇게 해 볼게!")
+                log("끝까지 말이 없음 → 마스코트가 \"혹시 ${fb.text}일까?\" 하고 채움 (카드 없음 · source=mascot)")
+            }
             pause(1600)
             return Reply.Tapped(fb.value, fb.text, byMascot = true)
         }
