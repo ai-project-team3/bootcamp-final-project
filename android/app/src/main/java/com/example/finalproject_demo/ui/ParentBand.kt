@@ -64,6 +64,9 @@ private val END_RESERVE = 168.dp
  *
  * ⚠️ 이 카드는 **소리가 없다.** 마스코트가 읽어 주면 부모가 물을 이유가 없어진다.
  * 부모가 읽고 **자기 말로** 묻는 것이 이 모드의 전부다 (§2-1 ASK′).
+ *
+ * 9/22 — 말풍선과 **번갈아** 뜬다. 띄우고 비우는 것은 [com.example.finalproject_demo.demo.Director]
+ * 의 `say` · `askSay` 가 맡는다.
  */
 @Composable
 fun ParentBand(d: Director, modifier: Modifier = Modifier) {

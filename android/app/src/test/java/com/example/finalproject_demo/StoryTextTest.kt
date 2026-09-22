@@ -1,6 +1,9 @@
 package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.BANK
+import com.example.finalproject_demo.demo.DIARY_PLACES
+import com.example.finalproject_demo.demo.DIARY_BG_FALLBACK
+import com.example.finalproject_demo.demo.HOTSPOTS
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.Level
 import com.example.finalproject_demo.demo.PARTNERS
@@ -10,12 +13,22 @@ import com.example.finalproject_demo.demo.THEMES
 import com.example.finalproject_demo.ui.HERO_ROWS
 import com.example.finalproject_demo.ui.HeroAttr
 import com.example.finalproject_demo.demo.heroImageName
+import com.example.finalproject_demo.ui.effectFrom
+import com.example.finalproject_demo.ui.Motion
+import com.example.finalproject_demo.ui.motionFrom
+import com.example.finalproject_demo.ui.quakeFrom
 import com.example.finalproject_demo.ui.ridingFrom
 import com.example.finalproject_demo.ui.wavingFrom
 import com.example.finalproject_demo.demo.dinoKind
 import com.example.finalproject_demo.demo.autoTitleFor
+import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.bookCaption
 import com.example.finalproject_demo.demo.chooseTemplate
+import com.example.finalproject_demo.demo.diaryGiveItem
+import com.example.finalproject_demo.demo.diaryTemplate
+import com.example.finalproject_demo.demo.diaryTitle
+import com.example.finalproject_demo.demo.pageCount
+import com.example.finalproject_demo.demo.pageKind
 import com.example.finalproject_demo.demo.partnerLine
 import com.example.finalproject_demo.demo.partnerQuestion
 import com.example.finalproject_demo.demo.pick
@@ -119,6 +132,41 @@ class StoryTextTest {
                 val line = pg.text(s)
                 ridingFrom(line); wavingFrom(line)
                 assertTrue("빈 쪽 문장: ${tpl.code}", line.isNotBlank())
+            }
+        }
+    }
+
+    /**
+     * 소리말은 **쪽 종류가 아니라 적힌 내용**이 정한다 (9/22).
+     *
+     * 전에는 SHAKE 쪽이면 늘 "쿵!" 이 떴다. 동화 모드에서는 탈것을 흔드는 쪽이라 맞았지만
+     * 일기·협업에서 같은 자리는 "오늘 있었던 일" 쪽이어서, **그림 그린 날에도 "쿵!" 이 올라갔다.**
+     */
+    @Test
+    fun theSoundWordComesFromTheCaptionNotThePageKind() {
+        assertEquals("와르르!", effectFrom("높이 쌓은 블록이 와르르 무너졌어요."))
+        assertEquals("쿵!", effectFrom("달리다가 넘어졌어요."))
+        assertEquals("훌쩍…", effectFrom("너무 아파서 울었어요."))
+        assertEquals("까르르!", effectFrom("친구랑 신나게 웃었어요."))
+        // 맞는 것이 없으면 **아무것도 띄우지 않는다** — 없는 소리를 지어내지 않는다
+        assertEquals(null, effectFrom("물감으로 그림을 그렸어요."))
+        assertEquals(null, effectFrom("어린이집에 갔어요."))
+
+        // 흔드는 것은 무너지거나 부딪힌 쪽뿐이다. 웃거나 우는 쪽에 화면이 흔들리면 아이가 무서워한다
+        assertTrue(quakeFrom("블록이 와르르 무너졌어요."))
+        assertTrue(quakeFrom("달리다가 넘어졌어요."))
+        assertFalse("웃는 쪽을 흔들었다", quakeFrom("친구랑 신나게 웃었어요."))
+        assertFalse("우는 쪽을 흔들었다", quakeFrom("너무 아파서 울었어요."))
+        assertFalse("아무 일 없는 쪽을 흔들었다", quakeFrom("어린이집에 갔어요."))
+
+        // ⚠️ 동화 모드가 잃은 것이 없어야 한다 — 다섯 템플릿의 SHAKE 쪽은 **전부** 소리말이 나오고 흔들려야 한다.
+        // 전에는 무조건 "쿵!" 이었으니, 여기서 null 이 나오면 이번 변경이 동화 모드를 망가뜨린 것이다
+        val s = DemoState()
+        TEMPLATES.forEach { tpl ->
+            tpl.pages.filter { it.kind == com.example.finalproject_demo.demo.PageKind.SHAKE }.forEach { pg ->
+                val line = pg.text(s)
+                assertTrue("${tpl.code} 흔들리는 쪽에 소리말이 없다: $line", effectFrom(line) != null)
+                assertTrue("${tpl.code} 흔들리는 쪽이 안 흔들린다: $line", quakeFrom(line))
             }
         }
     }
@@ -269,6 +317,141 @@ class StoryTextTest {
         s.askedThisStory.clear()
         val second = s.pick("cause").id
         assertTrue("같은 질문이 연달아 나옴: $first", first != second)
+    }
+
+    /**
+     * 일기 · 협업 책이 **한 이야기로 읽히는가** (9/22).
+     *
+     * *"페이지마다 안 이어지고 중구난방"* 이라는 지적에서 나온 검사다. 동화 모드에는
+     * [allTemplatePagesReadCleanly] 가 있었는데 일기·협업 책은 아무도 글로 읽어 보지 않고 있었다.
+     *
+     * 하루를 네 가지로 만들어 쪽을 전부 뽑고, 사람이 읽게 build/diary_samples.txt 에 남긴다.
+     * 기계가 잡을 수 있는 것만 여기서 막는다:
+     *  - 한 쪽에 아이 이름이 두 번 — 미션 문장이 따로 놀던 자국이다
+     *  - 아무도 없었던 날에 **"그 친구"** 가 나오는 것 — 앱이 없는 친구를 만들어 내는 것이다 (일기 §3-2)
+     *  - 잇는 말이 겹치는 것 ("그래서 그래서")
+     */
+    /**
+     * 자세도 **자막에서 읽는다** (9/22) — 그림을 새로 만들지 않고 몸짓으로 보여 준다.
+     *
+     * *"그네를 탔어요"* 라고 적혀 있는데 주인공이 가만히 서 있으면 글과 그림이 따로 논다.
+     * 반대로 **일이 어긋난 쪽에서 움직이면 더 나쁘다** — "달리다가 넘어졌어요" 에서 통통 뛰면
+     * 넘어진 이야기가 신나는 그림이 된다.
+     */
+    @Test
+    fun theMotionComesFromTheCaptionAndStopsWhenSomethingWentWrong() {
+        assertEquals(Motion.SWING, motionFrom("그네를 신나게 탔어요."))
+        assertEquals(Motion.SLIDE, motionFrom("미끄럼틀을 타고 쌩 내려왔어요."))
+        assertEquals(Motion.RUN, motionFrom("친구랑 운동장을 달렸어요."))
+        assertEquals(Motion.NONE, motionFrom("어린이집에 갔어요."))
+
+        // ⚠️ 어긋난 쪽은 움직이지 않는다 — '달리'가 들어 있어도 넘어진 것이 이야기다
+        assertEquals(Motion.NONE, motionFrom("달리다가 넘어졌어요."))
+        assertEquals(Motion.NONE, motionFrom("그네를 타다가 떨어졌어요."))
+        assertEquals(Motion.NONE, motionFrom("미끄럼틀에서 내려오다 부딪혔어요."))
+
+        // 탈것에 타는 것(`ridingFrom`)과는 다른 축이다 — 그쪽은 자리를, 이쪽은 몸짓을 정한다
+        assertEquals(Motion.NONE, motionFrom("지호는 로켓을 타고 우주로 떠났어요."))
+    }
+
+    /**
+     * 코드가 찾는 **배경 그림이 실제로 있는가** (9/22).
+     *
+     * *"갑자기 배경이 없을 때가 있다"* 는 지적에서 나왔다. 원인은 `diaryPlaceBg` 의 대체 배경이
+     * `bg_today` 였는데 **그 파일이 없었던 것**이다. 아이가 말한 곳이 등록된 열 곳에 안 걸리면
+     * (예: "축구장 갔어") 이름만 있고 그림이 없어 배경이 통째로 비었다.
+     *
+     * 그림이 없으면 화면은 조용히 색 배경으로 떨어져서 **에뮬레이터로 봐도 놓치기 쉽다.**
+     * 그래서 파일 존재를 여기서 본다.
+     */
+    @Test
+    fun everyBackgroundTheCodeAsksForActuallyExists() {
+        val drawable = File("src/main/res/drawable")
+        assertTrue("drawable 폴더를 못 찾았다: ${drawable.absolutePath}", drawable.isDirectory)
+
+        val wanted = buildSet {
+            addAll(DIARY_PLACES.map { it.second })   // 아이가 말한 곳 → 배경
+            add(DIARY_BG_FALLBACK)                   // 못 찾았을 때 떨어지는 곳
+            addAll(THEMES.map { "bg_${it.key}" })    // 동화 모드 세계
+            add("bg_snow")                           // 생성 배경(눈 오는 데)
+            addAll(HOTSPOTS.keys)                    // 누를 자리를 등록해 둔 배경
+        }
+        val missing = wanted.filterNot { File(drawable, "$it.png").exists() }
+        assertTrue("코드가 찾는데 그림이 없는 배경: $missing", missing.isEmpty())
+    }
+
+    @Test
+    fun diaryBookReadsAsOneStory() {
+        val days = listOf(
+            Triple("블록이 무너진 날", "놀이터" to "민준이", mapOf(
+                "place" to "놀이터에 갔어요", "companion" to "민준이랑 같이 놀았어요",
+                "detail" to "블록을 높이 쌓았어요", "problem" to "블록이 와르르 무너졌어요",
+                "cause" to "너무 높이 쌓아서 그랬대요", "try" to "다시 천천히 쌓아 봤어요",
+                "solution" to "이번엔 무너지지 않았어요", "after" to "집에 와서 손을 씻었어요",
+            )),
+            Triple("그림만 그린 날", "어린이집" to "", mapOf(
+                "place" to "어린이집에 갔어요", "detail" to "물감으로 그림을 그렸어요",
+                "problem" to "옷에 물감이 묻었어요", "cause" to "붓을 세게 흔들어서 그랬어요",
+                "solution" to "선생님이 닦아 주셨어요",
+            )),
+            Triple("혼자였던 날", "공원" to "", mapOf(
+                "place" to "공원에 갔어요", "problem" to "낙엽을 잔뜩 주웠어요",
+            )),
+            // ⚠️ 아이 답이 **서로 안 이어지는** 날. 9/22에 지적받은 그대로다 —
+            //    "조심조심했지만 손이 흔들리고 말았어요. 그런데 그림책을 함께 읽었어요."
+            //    답이 따로 놀아도 책은 한 줄기로 읽혀야 한다
+            Triple("답이 따로 노는 날", "어린이집" to "하윤이", mapOf(
+                "place" to "어린이집에 갔어요", "companion" to "하윤이랑 있었어요",
+                "detail" to "조심조심했지만 손이 흔들리고 말았어요",
+                "problem" to "그림책을 함께 읽었어요",
+                "cause" to "그냥 그러고 싶었어요",
+                "solution" to "블록을 정리했어요",
+                "after" to "집에 와서 손을 씻었어요",
+            )),
+            Triple("넘어진 날", "놀이터" to "민서", mapOf(
+                "place" to "놀이터에 갔어요", "companion" to "민서랑 같이 갔어요",
+                "problem" to "달리다가 넘어졌어요", "reaction" to "너무 아파서 울었어요",
+                "cause" to "돌을 못 봐서 그랬어요", "solution" to "반창고를 붙이고 다시 놀았어요",
+            )),
+        )
+
+        val out = StringBuilder()
+        val problems = mutableListOf<String>()
+        for ((name, where, slotMap) in days) {
+            val (place, friend) = where
+            val s = DemoState().apply {
+                mode = StoryMode.DIARY
+                placeLabel = place
+                this.place = place
+                if (friend.isNotBlank()) { friendName = friend; companionKind = friend }
+                slotMap.forEach { (k, v) -> slots[k] = v }
+                problem = slotMap["problem"]
+                cause = slotMap["cause"]
+                solution = slotMap["solution"]
+                reaction = slotMap["reaction"]
+                solutionLine = slotMap["solution"].orEmpty()
+                solutionItem = diaryGiveItem(slotMap["solution"].orEmpty(), this)
+            }
+            // `template` 은 일기 모드면 알아서 diaryTemplate 을 계산해 준다 (Model.kt) — 넣어 줄 것이 없다
+            s.title = s.diaryTitle()
+
+            out.append("\n## $name · 『${s.title}』 · ${s.pageCount}쪽\n")
+            for (i in 1..s.pageCount) {
+                val line = s.bookCaption(i)
+                out.append("  $i. [${s.pageKind(i)}] $line\n")
+
+                bad.filter { it in line }.forEach { problems += "[$name] '$it' in: $line" }
+                if (line.split(s.childName).size - 1 > 1) problems += "[$name] 한 쪽에 아이 이름이 두 번: $line"
+                if (!s.hasCompanion && "그 친구" in line) problems += "[$name] 아무도 없었는데 '그 친구': $line"
+                listOf("그래서 그래서", "그런데 그런데", "그리고 그리고", "마침내 마침내").forEach {
+                    if (it in line) problems += "[$name] 잇는 말이 겹침: $line"
+                }
+                if (line.isBlank()) problems += "[$name] ${i}쪽이 비어 있음"
+            }
+        }
+        File("build").mkdirs()
+        File("build/diary_samples.txt").writeText(out.toString() + "\n\n# problems\n" + problems.joinToString("\n"))
+        assertTrue(problems.joinToString("\n"), problems.isEmpty())
     }
 
     @Test

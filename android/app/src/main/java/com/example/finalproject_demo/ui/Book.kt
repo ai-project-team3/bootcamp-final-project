@@ -173,17 +173,57 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
     val caption = if (page > 0) s.bookCaption(page) else ""
     val riding = ridingFrom(caption)
     val waving = wavingFrom(caption)
+    // 소리말과 흔들림도 자막에서 읽는다 (9/22) — 쪽 종류가 아니라 **적힌 내용**이 정한다
+    val effect = if (kind == PageKind.SHAKE) effectFrom(caption) else null
+    val quaking = kind == PageKind.SHAKE && quakeFrom(caption)
     // 인사 — 몸을 좌우로 기울인다. 손 그림이 따로 없으니 몸짓으로 보여 준다
     val waveMod = if (waving) Modifier.graphicsLayer {
         rotationZ = wobble * 1.6f
         transformOrigin = TransformOrigin(0.5f, 1f)
     } else Modifier
 
+    /**
+     * **움직임도 자막에서 읽는다** (9/22).
+     *
+     * "그네를 탔어요" 라고 적혀 있는데 주인공이 가만히 서 있으면 아이가 글과 그림을 잇지 못한다.
+     * 그림을 새로 만들지 않고 **몸짓으로** 보여 준다 — 그네는 좌우로 크게 흔들리고,
+     * 미끄럼틀은 비스듬히 기울어 미끄러지고, 뛰는 장면은 위아래로 통통 튄다.
+     */
+    val motion = motionFrom(caption)
+    val motionMod = when (motion) {
+        Motion.SWING -> Modifier.graphicsLayer {
+            // 그네 — 위쪽 줄에 매달린 것처럼 **머리 위를 축으로** 크게 흔들린다
+            rotationZ = wobble * 2.6f
+            transformOrigin = TransformOrigin(0.5f, -0.8f)
+        }
+        Motion.SLIDE -> Modifier.graphicsLayer {
+            // 미끄럼틀 — 비스듬히 기울고 살짝 내려앉는다
+            rotationZ = 16f
+            translationY = bob * 1.4f
+        }
+        Motion.RUN -> Modifier.graphicsLayer {
+            // 뛰기 — 통통 튄다
+            translationY = -abs(wobble) * 1.3f
+            rotationZ = wobble * 0.5f
+        }
+        Motion.NONE -> Modifier
+    }
+    // 인사와 움직임이 같이 있으면 움직임이 이긴다 — 그네를 타면서 손을 흔드는 그림은 읽기 어렵다
+    val poseMod = if (motion != Motion.NONE) motionMod else waveMod
+
+    // ⚠️ 소개 시간은 여기서 재지 않는다 (9/22). 여기서 재면 **표지를 보는 동안 시간이 가 버린다** —
+    //    표지(0쪽)에는 배경 자리가 없어서 원이 뜨기도 전에 안내가 끝났다.
+    //    이제 `HotspotLayer` 가 원을 실제로 그리는 순간부터 세고, 다 보여 주면 알려 준다.
+
     @Composable
     fun Scenery(quake: Boolean = false, glow: Set<String> = if (s.isDiary) s.diaryGlow else s.mentioned.toSet()) {
         // 배경 그림 속 것들 — 새로 얹지 않고 그 자리가 반응한다 (9/17)
         HotspotLayer(
             s.bgName, glow, pulse = page, quake = quake,
+            // 안내는 **책에서만** 한다. 소개가 끝나면 조용해진다 — 계속 반짝이면 그림 읽기를 방해한다
+            introducing = !s.hotspotIntroShown,
+            glowMentioned = false,
+            onIntroShown = { s.hotspotIntroShown = true },
             text = { h -> if (tool == "glass") h.name else if (tool == "feather") "간질간질~" else h.tap },
             onTap = { react("bg") },
         )
@@ -193,9 +233,13 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
         AssetImage(s.bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(s.worldBg)))
         }
-        if (kind == PageKind.SHAKE) {
-            Text("쿵!", fontSize = 44.sp, color = Color.White, fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 80.dp).offset { IntOffset(shake.roundToInt(), 0) })
+        // 소리말은 **자막에서 읽어 온다** (9/22). 맞는 것이 없으면 아무것도 띄우지 않는다.
+        // 전에는 이 자리에서 늘 "쿵!" 이 떴다 — 일기 모드의 같은 쪽은 "오늘 있었던 일" 쪽이라
+        // 그림 그린 날에도 "쿵!" 이 올라갔다. `effectFrom` 의 주석에 자세히 적었다
+        effect?.let { word ->
+            Text(word, fontSize = 44.sp, color = Color.White, fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 80.dp)
+                    .offset { IntOffset(if (quaking) shake.roundToInt() else 0, 0) })
         }
 
         // 일기 모드에는 탈것(로켓 · 거북이 · 기차)도 동행 공룡도 없다 — 묻지 않는 칸이다 (일기 설계 §2-2).
@@ -214,22 +258,25 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                 if (showRide && riding) {
                     // 탈것 위 — 탈것과 같은 흔들림으로 함께 움직여야 "타고 있다"로 보인다.
                     // 발이 탈것 몸통에 **겹쳐야** 올라탄 것으로 보인다. 띄우면 위에 떠 있는 것처럼 보였다 (9/21)
-                    Char("hero", heroArt, 0.445f, 0.120f, 0.075f, mod = Modifier.offset { IntOffset(0, wobble.roundToInt()) }.then(waveMod))
+                    Char("hero", heroArt, 0.445f, 0.120f, 0.075f, mod = Modifier.offset { IntOffset(0, wobble.roundToInt()) }.then(poseMod))
                 } else {
-                    Char("hero", heroArt, 0.22f, 0.30f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(waveMod))
+                    Char("hero", heroArt, 0.22f, 0.30f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod))
                 }
             }
             PageKind.SHAKE -> {
-                Scenery(quake = true)
-                if (showRide) Char("vehicle", s.rideArt, 0.34f, 0.16f, 0.17f, 0.62f, Modifier.offset { IntOffset(shake.roundToInt(), 0) })
-                Char("hero", heroArt, 0.16f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset((shake / 2).roundToInt(), 0) })
+                // 무너지거나 부딪힌 쪽에서만 흔든다. "까르르 웃었어요" 에 화면이 흔들리면 아이가 무서워한다
+                Scenery(quake = quaking)
+                // 흔들리는 쪽이 아니면 주인공도 탈것도 가만히 있는다 — 숨쉬듯 까딱이기만 한다
+                val jolt = if (quaking) shake else bob
+                if (showRide) Char("vehicle", s.rideArt, 0.34f, 0.16f, 0.17f, 0.62f, Modifier.offset { IntOffset(if (quaking) jolt.roundToInt() else 0, if (quaking) 0 else jolt.roundToInt()) })
+                Char("hero", heroArt, 0.16f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(if (quaking) (jolt / 2).roundToInt() else 0, if (quaking) 0 else jolt.roundToInt()) }.then(poseMod))
                 // "창밖에서 손을 흔들고 있었어요" — 적혀 있으면 정말 흔든다
                 if (friendShown != null) FadeIn { Char("friend", friendShown, 0.60f, 0.20f, 0.18f, 1f, waveMod) }
             }
             PageKind.MEET, PageKind.TALK -> {
                 Scenery()
                 if (showRide) Char("vehicle", s.rideArt, 0.40f, 0.14f, 0.15f, 0.62f)
-                Char("hero", heroArt, 0.18f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(waveMod))
+                Char("hero", heroArt, 0.18f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod))
                 // 인사하는 쪽에서는 친구도 같이 손을 흔든다 — 한쪽만 흔들면 어색하다
                 if (friendShown != null) Char("friend", friendShown, 0.58f, 0.24f, 0.18f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }.then(waveMod))
                 if (s.partnerHelpLine != null && page == last - 1) {
@@ -240,8 +287,8 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                 Scenery(glow = if (s.isDiary) s.diaryGlow else s.hotspots.map { it.key }.toSet())
                 if (showRide) Char("vehicle", s.rideArt, 0.36f, 0.14f, 0.17f, 0.62f, Modifier.offset { IntOffset((wobble * 3).roundToInt(), wobble.roundToInt()) })
                 // 여정 쪽은 늘 "타고 가는 중" 이다 — 옆에 세워 두면 걸어가는 것처럼 보인다
-                if (showRide) Char("hero", heroArt, 0.405f, 0.100f, 0.075f, mod = Modifier.offset { IntOffset((wobble * 3).roundToInt(), wobble.roundToInt()) }.then(waveMod))
-                else Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(waveMod))
+                if (showRide) Char("hero", heroArt, 0.405f, 0.100f, 0.075f, mod = Modifier.offset { IntOffset((wobble * 3).roundToInt(), wobble.roundToInt()) }.then(poseMod))
+                else Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod))
                 if (friendShown != null) Char("friend", friendShown, 0.60f, 0.26f, 0.16f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) })
             }
             PageKind.FAIL -> {
@@ -257,7 +304,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
             PageKind.TOGETHER -> {
                 Scenery(glow = if (s.isDiary) s.diaryGlow else s.hotspots.map { it.key }.toSet())
                 Box(Modifier.align(Alignment.TopCenter).padding(top = 76.dp).size(110.dp, 50.dp).alpha(twinkle)) { ArtView(Art.Img("prop_sparkle", Art.Emoji("⭐✨⭐")), Modifier.fillMaxSize()) }
-                Char("hero", heroArt, 0.10f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(waveMod))
+                Char("hero", heroArt, 0.10f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod))
                 if (friendShown != null) Char("friend", friendShown, 0.28f, 0.26f, 0.17f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) })
                 if (showDino) Char("dino", dinoArt, 0.50f, 0.20f, 0.28f, 1.35f, Modifier.offset { IntOffset(0, bob.roundToInt()) }, onHand = { d.send(Reply.Tapped("dino", s.dino.label)) })
                 if (s.partnerHelpLine != null) {
@@ -382,7 +429,10 @@ private fun Cover(d: Director, heroArt: Art) {
             if (!s.isDiary) ArtView(Art.DinoArt(s.dinoColor, s.dinoKey), Modifier.size(130.dp, 110.dp))
         }
         Spacer(Modifier.height(6.dp))
-        Text("글 · 그림 ${s.childName} · 함께 ${s.pn}", fontSize = 13.sp, color = Color.White)
+        // 지은이는 **아이 이름만** 쓴다 (9/22).
+        // 전에는 "· 함께 {어른}" 이 늘 붙었다. 어른이 지은 자리가 하나도 없는 날에도 붙어서
+        // 아이가 혼자 지은 책에 어른 이름이 올라갔다. 이 책의 지은이는 아이다.
+        Text("글 · 그림 ${s.childName}", fontSize = 13.sp, color = Color.White)
         s.template?.let { t -> Text("${t.name} · ${t.pages.size}쪽", fontSize = 11.sp, color = Color.White.copy(alpha = 0.75f)) }
     }
 }
@@ -413,9 +463,15 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
         val vwPx = vw * wpx; val vhPx = vwPx / va
         // 흔적이 붙는 자리 (탈것 그림 안의 비율): 로켓은 아래 엔진 · 거북이 등 · 기차 지붕
         // 일기 모드는 탈것 대신 하루를 메고 다닌 가방에 흙이 묻는다 — 뼈대는 그대로, 소품만 바꾼다 (§7-1 ②)
-        val fy = if (s.isDiary) 0.45f else when (s.themeKey) { "space" -> 0.72f; "sea" -> 0.36f; else -> 0.30f }
-        val blobs = listOf(0.22f to fy, 0.50f to fy + 0.08f, 0.78f to fy).map { (bx, by) -> Offset(vx * wpx + bx * vwPx, vy * hpx + by * vhPx) }
-        Layer(vx, vy, vw, va, Modifier.offset { IntOffset(0, lift.roundToInt()) }) { ArtView(s.rideArt, Modifier.fillMaxSize()) }
+        val fy = when (s.themeKey) { "space" -> 0.72f; "sea" -> 0.36f; else -> 0.30f }
+        // 일기·협업에는 탈것이 없다 (§2-2). 전에는 **가방**을 띄워 놓고 거기에 흙을 묻혔는데,
+        // 아이가 가방 이야기를 한 적이 없어서 "놀이터에 남은 모래를 치웠어요" 자막 옆에
+        // 뜬금없는 가방이 떠 있었다 (9/22). 이제 흔적은 **놀던 자리(바닥)** 에 흩어진다.
+        val blobs = if (s.isDiary)
+            listOf(0.30f to 0.66f, 0.46f to 0.73f, 0.63f to 0.65f).map { (bx, by) -> Offset(bx * wpx, by * hpx) }
+        else
+            listOf(0.22f to fy, 0.50f to fy + 0.08f, 0.78f to fy).map { (bx, by) -> Offset(vx * wpx + bx * vwPx, vy * hpx + by * vhPx) }
+        if (!s.isDiary) Layer(vx, vy, vw, va, Modifier.offset { IntOffset(0, lift.roundToInt()) }) { ArtView(s.rideArt, Modifier.fillMaxSize()) }
         Layer(0.08f, 0.36f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
         val rubFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
         if (rubFriend != null) Layer(0.58f, 0.30f, 0.11f, 1f) { ArtView(rubFriend, Modifier.fillMaxSize()) }
@@ -514,7 +570,10 @@ private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
         val hL = 0.10f * wpx; val hT = 0.36f * hpx; val hW = 0.11f * wpx
 
         Layer(0.10f, 0.36f, 0.11f) { Tappable({ reactionFor(s, tool, "hero") }, Modifier.fillMaxSize()) { ArtView(heroArt, Modifier.fillMaxSize()) } }
-        Layer(fx, fy, fw, 1f, Modifier.scale(if (given) beat else 1f)) {
+        // 일기·협업에서 받는 쪽은 **또래 아이**다. 동화 모드의 공룡·외계인과 같은 크기로 그리면
+        // 주인공보다 두 배 커서 어른처럼 보였다 (9/22). 가운데를 축으로 줄이므로 놓는 자리는 그대로다
+        val targetScale = if (s.isDiary) 0.62f else 1f
+        Layer(fx, fy, fw, 1f, Modifier.scale((if (given) beat else 1f) * targetScale)) {
             Box(Modifier.fillMaxSize()) {
                 // 미션 2는 건넬 상대가 있어야 한다. 아이가 그린 것 → 아이가 말한 사람 →
                 // 둘 다 없으면 마스코트가 받는다. **없는 친구를 앱이 만들어 내지 않는다** (일기 §3-2)
@@ -588,6 +647,34 @@ private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
  * 쪽 자막에서 **탈것에 탔는지** 읽는다 (9/21).
  * `BookPageView` 안에 두면 화면 없이 검사할 수 없어서 밖으로 꺼냈다.
  */
+/**
+ * 상호작용 원을 **소개하는 시간** (9/22). 이 뒤로는 둘레가 조용해진다.
+ * 짧으면 못 보고, 길면 그림을 읽는 것을 방해한다.
+ */
+const val HOTSPOT_INTRO_MS = 4500L
+
+/** 쪽 자막이 말하는 움직임 — 그림을 새로 만들지 않고 몸짓으로 보여 준다 (9/22) */
+enum class Motion { NONE, SWING, SLIDE, RUN }
+
+/**
+ * 쪽 자막에서 **움직임**을 읽는다 (9/22).
+ *
+ * *"그네를 타고 있다" · "미끄럼틀을 타고 있다"* 처럼 역동적인 내용이 적혀 있는데 주인공이
+ * 가만히 서 있으면 글과 그림이 따로 논다. 자막에 나온 낱말로 자세를 정한다.
+ *
+ * ⚠️ `ridingFrom`(탈것에 올라탐)과는 다른 축이다. 그쪽은 **자리**를 정하고 이쪽은 **몸짓**을 정한다.
+ * 그래서 "로켓을 타고" 는 여기서 걸리지 않아야 한다 — 탈것은 이미 그림에 있다.
+ */
+fun motionFrom(caption: String): Motion = when {
+    // ⚠️ 일이 어긋난 쪽에서는 움직이지 않는다 (9/22). "달리다가 넘어졌어요" 는 **넘어진 것**이
+    //    이야기인데, '달리'만 보고 통통 뛰게 하면 글과 그림이 반대로 간다
+    listOf("넘어", "무너", "떨어", "부딪", "울었", "다쳤", "아팠").any { it in caption } -> Motion.NONE
+    "그네" in caption -> Motion.SWING
+    "미끄럼" in caption || "미끄러" in caption -> Motion.SLIDE
+    listOf("뛰어", "달렸", "달려", "뛰었", "쫓아").any { it in caption } -> Motion.RUN
+    else -> Motion.NONE
+}
+
 fun ridingFrom(caption: String): Boolean =
     listOf("올라탔", "타고", "탔어", "탔습", "태우").any { it in caption }
 
@@ -600,3 +687,39 @@ fun ridingFrom(caption: String): Boolean =
 fun wavingFrom(caption: String): Boolean =
     ("흔들" in caption && ("손" in caption || "인사" in caption)) ||
         "안녕" in caption || "인사했" in caption
+
+/**
+ * 쪽 자막에서 **소리말**을 읽는다 (9/22).
+ *
+ * 전에는 `PageKind.SHAKE` 쪽이면 내용과 상관없이 **늘 "쿵!"** 이 떴다.
+ * 동화 모드에서는 누가 탈것을 흔드는 쪽이라 맞았지만, 일기·협업 모드에서는 같은 자리가
+ * *"오늘 있었던 일"* 쪽이다. **"친구랑 그림을 그렸어요" 위에 "쿵!" 이 떠 있었다.**
+ *
+ * 이제 자막에 적힌 것에서 고른다. 맞는 것이 없으면 **아무것도 띄우지 않는다** —
+ * 없는 소리를 지어내지 않는 쪽이 낫다 (일기 설계 §3-2와 같은 판단).
+ *
+ * 차례가 중요하다. "넘어져서 울었어요" 는 넘어진 쪽이 먼저다.
+ */
+fun effectFrom(caption: String): String? = when {
+    listOf("무너", "와르르", "쏟아져", "쓰러").any { it in caption } -> "와르르!"
+    // "쿵" 은 자막이 직접 그렇게 적은 경우다 ("땅이 쿵쿵 울리고…") — 동화 모드가 쓰던 말을 지킨다
+    listOf("넘어", "떨어", "부딪", "박았", "구르", "쿵").any { it in caption } -> "쿵!"
+    listOf("빙글", "소용돌이", "휘몰").any { it in caption } -> "빙글빙글!"
+    listOf("쏟", "엎질", "튀었", "splash", "물장구").any { it in caption } -> "촤악!"
+    listOf("울었", "눈물", "훌쩍", "속상").any { it in caption } -> "훌쩍…"
+    listOf("달렸", "뛰어", "달려", "쫓").any { it in caption } -> "다다닥!"
+    listOf("싸웠", "다퉜", "뺏", "티격").any { it in caption } -> "티격태격!"
+    listOf("웃었", "까르르", "신났", "재밌", "깔깔").any { it in caption } -> "까르르!"
+    listOf("흔들", "덜컹", "기우뚱").any { it in caption } -> "덜컹!"
+    listOf("놀랐", "깜짝", "헉").any { it in caption } -> "깜짝!"
+    else -> null
+}
+
+/**
+ * 이 쪽이 **정말 흔들리는** 쪽인가 — 배경을 지진처럼 떨지 결정한다 (9/22).
+ *
+ * 소리말이 있다고 다 흔드는 것이 아니다. *"까르르!"* 나 *"훌쩍…"* 에 화면이 흔들리면
+ * 아이가 무서워한다. 무너지거나 부딪히거나 덜컹거린 쪽에서만 흔든다.
+ */
+fun quakeFrom(caption: String): Boolean =
+    effectFrom(caption) in setOf("와르르!", "쿵!", "덜컹!", "빙글빙글!")

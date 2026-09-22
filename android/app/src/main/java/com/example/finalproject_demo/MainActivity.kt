@@ -88,7 +88,9 @@ fun DemoApp() {
         // 맨 위 가운데 — 진행 막대(가장 위) + 그 아래 화면 이름
         Column(Modifier.align(Alignment.TopCenter).padding(top = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             // 필수 칸은 동화 모드 6개 · 일기 모드 기승전결 네 자리 (일기 설계 §2-1)
-            if (s.progressVisible && pinStage == null) ProgressTrack(s.filled, s.reqCount, Modifier.padding(bottom = 2.dp))
+            // 막대는 **물은 질문 수**로 찬다 (9/22). 필수 칸(4·6)으로 세면 질문을 여러 개 답해도
+            // 안 움직이다가 한 번에 뛴다. 끝나는 조건은 여전히 filled/reqCount 가 정한다 (Model.askTotal)
+            if (s.progressVisible && pinStage == null) ProgressTrack(s.askDone, s.askTotal, Modifier.padding(bottom = 2.dp))
             // 부모 모드는 화면 안의 고정 머리에 이름이 있다 (스크롤 내용과 겹치지 않게)
             if (s.scene != Scene.PARENT || pinStage != null) TitleChip(
                 // s.sceneLabel — 협업 모드는 `Scene.DIARY` 를 그대로 쓰므로 제목만 갈아끼운다 (09-22)
@@ -115,8 +117,6 @@ fun DemoApp() {
             }
         }
 
-        // 부모 협업 모드의 질문 카드 — 새로 만드는 유일한 화면이다 (부모협업모드_설계.md §3).
-        //
         // 화면 아래는 **겹치지 않게 쌓는다** (9/22).
         //
         // 전에는 말풍선과 부모 띠가 둘 다 화면 맨 아래에 놓여 서로 겹쳤다. 그걸 피하려고

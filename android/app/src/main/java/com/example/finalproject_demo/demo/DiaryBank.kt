@@ -79,6 +79,37 @@ class DiaryStep(
 
 private fun who(s: DemoState) = s.friendCallName
 
+/**
+ * **한 문장**이 일이 어긋난 문장인가 (9/22). 잇는 말을 고르는 데 쓴다.
+ *
+ * [hadTrouble] 은 하루 전체를 보지만, 두 문장을 이을 때는 **그 두 문장의 결**을 따로 봐야 한다.
+ */
+private fun isMishap(line: String): Boolean = listOf(
+    "무너", "다툼", "싸", "넘어", "속상", "아팠", "울", "뺏", "못 ",
+    "흔들리고", "쏟", "떨어뜨", "부딪", "잃", "안 됐", "말았", "깨졌", "찢",
+).any { it in line }
+
+/**
+ * 두 문장을 잇는 말을 **둘의 결을 보고** 고른다 (9/22).
+ *
+ * 아이 답은 서로 이어지지 않을 수 있다. 앞이 이미 사고인데 반전("그런데")으로 이으면
+ * *"손이 흔들리고 말았어요. **그런데** 그림책을 함께 읽었어요."* 처럼 읽다가 멈칫한다.
+ * 답이 따로 놀아도 책은 한 줄기로 읽혀야 하므로, **잇는 말이 다리를 놓는다.**
+ *
+ * | 앞 → 뒤 | 잇는 말 |
+ * |---|---|
+ * | 사고 → 사고 | 게다가 |
+ * | 평온 → 사고 | 그런데 (반전) |
+ * | 사고 → 평온 | 그래도 (회복) |
+ * | 평온 → 평온 | 그러고 나서 (시간) |
+ */
+private fun linkFor(prev: String, next: String): String = when {
+    isMishap(prev) && isMishap(next) -> "게다가"
+    !isMishap(prev) && isMishap(next) -> "그런데"
+    isMishap(prev) && !isMishap(next) -> "그래도"
+    else -> "그러고 나서"
+}
+
 /** 아이 말에 일이 어긋난 낌새가 있나 — 있으면 "왜 그랬을까?", 없으면 "왜 제일 좋았어?" */
 private fun DemoState.hadTrouble(): Boolean {
     val p = problem.orEmpty() + slots["detail"].orEmpty()
@@ -467,7 +498,9 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
                 val did = st.slots["detail"]?.takeIf { it.isNotBlank() }
                 val what = line(st, "problem", "이런저런 일이 있었어요.")
                 if (did == null) what
-                else sentence(did) + " " + joinWith(if (st.hadTrouble()) "그런데" else "그리고", what)
+                // 9/22 — 잇는 말을 **두 문장의 결**로 고른다. 전에는 하루 전체가 사고면 무조건 "그런데" 라,
+                //         앞이 이미 사고인데 또 반전으로 이어 붙어 문장이 따로 놀았다 (linkFor)
+                else sentence(did) + " " + joinWith(linkFor(did, what), what)
             }
         )
         if (s.reaction != null) {
@@ -478,28 +511,54 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
             PageSpec(PageKind.TALK) { st ->
                 // 까닭 쪽 — 일이 어긋난 날에만 "알고 보니"로 연다. 그냥 즐거웠던 날엔 붙이지 않는다
                 val lead = if (st.hadTrouble()) "알고 보니" else ""
-                joinWith(lead, line(st, "cause", "왜 그랬는지는 아직 아무도 몰라요.")) + tail(st, "said")
+                // 9/22 — 빈 칸을 메우는 문장도 그날에 맞춰야 한다. 아무 일도 없던 날에
+                // "왜 그랬는지는 아직 아무도 몰라요" 가 붙으면 없던 사고가 있었던 것처럼 읽힌다
+                val noCause = if (st.hadTrouble()) "왜 그랬는지는 아직 아무도 몰라요." else "오늘은 그게 제일 좋았어요."
+                joinWith(lead, line(st, "cause", noCause)) + tail(st, "said")
             }
         )
+        // 전(2) · 그래서 나는 이렇게 해 봤다 — **미션 1이 곧 이 자리의 행동이다** (9/22).
+        //
+        // 전에는 아이 말 뒤에 미션 자막을 통째로 붙여서 한 쪽에 아이 이름이 두 번 나오고
+        // 문장 둘이 따로 놀았다 ("그래서 지호는 다시 쌓았어요. 지호는 모래를 치웠어요.").
+        // 이제 아이가 한 말이 있으면 **주어를 빼고 이어 붙인다** — 한 사람이 이어서 한 일로 읽힌다.
         add(
             PageSpec(PageKind.RUB) { st ->
                 val tried = st.slots["try"]?.takeIf { it.isNotBlank() }
-                if (tried == null) st.m1Caption() else joinWith("그래서", sentence(tried)) + " " + st.m1Caption()
+                if (tried == null) st.m1Caption()
+                else joinWith("그래서", sentence(tried)) + " 그러고는 " + st.m1Caption(withSubject = false)
             }
         )
         // ── 결 · 그래서 어떻게 됐나 ─────────────────────────────
+        // 미션 2도 같은 방식이다. "마침내 …" 한 문장에 절로 이어 붙어 결(結) 한 쪽이 갈라지지 않는다
         add(
             PageSpec(PageKind.DRAG) { st ->
-                val ending = line(st, "solution", "그 뒤의 이야기는 아직 듣지 못했어요.")
-                (if (st.slotBy["solution"] == "mascot") ending else joinWith("마침내", ending)) + " " + st.m2Caption()
+                // 9/22 — 두 갈래를 합쳤다.
+                //
+                //  ① 결말 칸이 비었으면 "하루가 저물었어요" 를 쓰지 않는다 — **맺음 쪽과 겹쳐**
+                //     하루가 두 번 저물었다. 비면 이 쪽은 건네주는 장면 하나로만 둔다
+                //  ② 마스코트가 메운 결말에는 **"마침내" 를 붙이지 않는다** (main · 최민우).
+                //     아이가 지어낸 결말이 아닌데 "마침내" 를 붙이면 책이 아이 말인 척한다
+                val sol = st.slots["solution"]?.takeIf { it.isNotBlank() }
+                val give = st.m2Clause()
+                if (sol == null) "${st.childName}${eun(st.childName)} $give"
+                else {
+                    val head = sentence(sol)
+                    val lead = if (st.slotBy["solution"] == "mascot") head else joinWith("마침내", head)
+                    "$lead 그리고 $give"
+                }
             }
         )
         // ── 맺음 · 하루의 끝과 내일 ─────────────────────────────
         add(
             PageSpec(PageKind.TOGETHER) { st ->
-                val after = st.slots["after"]?.let { " ${sentence(it)}" }.orEmpty()
-                val keep = st.slots["keep"]?.let { " ${sentence(it)}" }.orEmpty()
-                "그렇게 ${st.childName}의 하루가 저물었어요.$after$keep".trim()
+                // 9/22 — **차례를 바로잡았다.** 전에는 "그렇게 하루가 저물었어요. 집에 와서 손을 씻었어요."
+                // 처럼 하루가 끝난 **뒤에** 집에 온 일이 적혔다. 집에 와서 한 일(`after`)이 먼저고,
+                // 맺는 문장이 그 뒤다. 내일 이야기(`keep`)만 맺음 뒤에 온다.
+                val after = st.slots["after"]?.takeIf { it.isNotBlank() }?.let { "${sentence(it)} " }.orEmpty()
+                val keep = st.slots["keep"]?.takeIf { it.isNotBlank() }?.let { " ${sentence(it)}" }.orEmpty()
+                // ⚠️ `$after그렇게` 로 쓰면 Kotlin이 한 변수 이름으로 읽는다 (한글도 식별자 문자다)
+                "${after}그렇게 ${st.childName}의 하루가 저물었어요.$keep".trim()
             }
         )
     }

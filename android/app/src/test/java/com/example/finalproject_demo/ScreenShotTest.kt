@@ -22,6 +22,10 @@ import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.ui.Bg
 import com.example.finalproject_demo.ui.HeroAttr
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import com.example.finalproject_demo.ui.FloatingControls
+import com.example.finalproject_demo.ui.MascotBubble
 import com.example.finalproject_demo.ui.ParentBand
 import com.example.finalproject_demo.ui.StageView
 import com.github.takahirom.roborazzi.RoborazziOptions
@@ -144,6 +148,46 @@ class ScreenShotTest {
         }
     }
 
+    /**
+     * 협업 모드 화면 **아래쪽 전체** — 말풍선 · 부모 띠 · 🎤 ➡️ 가 서로 겹치지 않는가 (9/22).
+     *
+     * 전에는 말풍선과 띠가 둘 다 화면 맨 아래에 놓여 겹쳤고, 그걸 피하려고 띠가 떠 있는 동안
+     * 말풍선을 통째로 숨겼다. 그 바람에 **아이가 답한 뒤 마스코트가 받아주는 말이 사라졌다.**
+     * 버튼도 띠를 피해 172dp 위로 올라가 화면 중간에 붕 떠 있었다.
+     *
+     * [parentBand] 는 띠 하나만 찍어서 이 배치를 지켜 주지 못한다(띠 글이 짧으면 픽셀이 같다).
+     * 여기는 `MainActivity` 의 아래쪽 배치를 그대로 옮긴 것이다 — 거기를 바꾸면 여기도 바꾼다.
+     */
+    @Test
+    fun coopBottomArea() {
+        val d = director {
+            s.mode = StoryMode.COOP
+            s.scene = Scene.DIARY
+            // 9/22부터 실제로는 둘이 **번갈아** 뜬다 (Director.say / askSay 가 서로를 비운다).
+            // 여기서는 일부러 둘 다 켜 **가장 나쁜 경우**를 찍는다 — 그래도 겹치지 않아야 배치가 안전하다
+            // 아이가 답한 직후를 가정한다 — 마스코트가 받아주고, 띠에는 다음 질문이 올라와 있다
+            s.line = "우와, 블록을 그렇게 높이 쌓았구나!"
+            s.parentCard = "그런데 블록이 왜 무너졌을까?"
+            s.micEnabled = true
+            s.nextEnabled = true
+        }
+        shot("coop_bottom") {
+            Box(Modifier.fillMaxSize()) {
+                Column(
+                    Modifier.align(androidx.compose.ui.Alignment.BottomCenter).fillMaxWidth()
+                ) {
+                    MascotBubble(d, Modifier.padding(start = 8.dp, bottom = 6.dp))
+                    ParentBand(d)
+                }
+                FloatingControls(
+                    d,
+                    Modifier.align(androidx.compose.ui.Alignment.BottomEnd)
+                        .padding(end = 14.dp, bottom = 10.dp),
+                )
+            }
+        }
+    }
+
     /** 그림판 — 크레용 12색 · 지우개 · 모두 지우기가 다 보이는가 */
     @Test
     fun drawPad() {
@@ -253,14 +297,16 @@ class TouchTest {
         compose.mainClock.advanceTimeBy(600)
         snap("build/touch/rub_before.png")
 
-        // 흔적 세 개가 붙은 띠를 가로로 여러 번 문지른다
+        // 흔적 세 개가 흩어진 **바닥**을 가로로 여러 번 문지른다.
+        // 9/22에 높이를 0.50 → 0.68로 내렸다. 일기·협업에는 탈것이 없어서 흔적이 가방이 아니라
+        // 놀던 자리에 떨어지도록 바꿨기 때문이다 (Book.kt RubPage). 판정은 |dy| < 0.14h 다
         repeat(14) {
             compose.onRoot().performTouchInput {
-                val y = height * 0.50f
-                down(androidx.compose.ui.geometry.Offset(width * 0.34f, y))
-                moveTo(androidx.compose.ui.geometry.Offset(width * 0.44f, y))
-                moveTo(androidx.compose.ui.geometry.Offset(width * 0.54f, y))
-                moveTo(androidx.compose.ui.geometry.Offset(width * 0.34f, y))
+                val y = height * 0.68f
+                down(androidx.compose.ui.geometry.Offset(width * 0.28f, y))
+                moveTo(androidx.compose.ui.geometry.Offset(width * 0.46f, y))
+                moveTo(androidx.compose.ui.geometry.Offset(width * 0.64f, y))
+                moveTo(androidx.compose.ui.geometry.Offset(width * 0.28f, y))
                 up()
             }
             compose.mainClock.advanceTimeBy(80)

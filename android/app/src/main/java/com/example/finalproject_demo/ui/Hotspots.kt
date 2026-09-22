@@ -63,6 +63,8 @@ private const val BG_H = 768f
  * @param pulse  바뀔 때마다 glow 것들이 한 번 통 튄다
  * @param quake  흔들리는 중 (사건 장면)
  * @param text   누르면 뜨는 글자 — null 이면 hotspot.tap
+ * @param introducing **누를 수 있는 자리를 전부** 반짝여 소개하는 중인가 (책을 편 처음 몇 초)
+ * @param glowMentioned 소개가 아닐 때 **아이가 말한 자리**를 계속 반짝일 것인가
  */
 @Composable
 fun HotspotLayer(
@@ -70,11 +72,38 @@ fun HotspotLayer(
     glow: Set<String>,
     pulse: Int,
     quake: Boolean = false,
+    /**
+     * **책을 편 처음 몇 초** 동안만 켠다. "여기 눌러 볼 수 있어" 를 알려 주는 안내다.
+     *
+     * ⚠️ 기본값이 `false` 인 이유 — 9/22에 기본값을 `true` 로 두었다가 **질문 화면(S3)에서도
+     * 전부 반짝였다.** 안내는 책에서만 한다. 부르는 쪽이 일부러 켜야 켜진다.
+     */
+    introducing: Boolean = false,
+    /**
+     * 소개가 아닐 때의 동작. 질문 화면은 아이가 말한 것을 되비쳐 주므로 `true`,
+     * 책은 소개가 끝나면 조용해져야 하므로 `false` 다 — 계속 반짝이면 그림을 읽는 것을 방해한다.
+     */
+    glowMentioned: Boolean = true,
+    /**
+     * 소개를 **다 보여 줬을 때** 부른다 (9/22).
+     *
+     * ⚠️ 시간을 여기서 재는 이유 — 부르는 쪽에서 재면 **원이 화면에 뜨기도 전에 시간이 간다.**
+     * 책 표지에는 배경 자리가 없어서, 아이가 표지를 몇 초 보는 사이 안내가 끝나 버렸다.
+     * 여기서 재면 원이 실제로 그려지는 순간부터 센다.
+     */
+    onIntroShown: () -> Unit = {},
     text: ((Hotspot) -> String)? = null,
     onTap: (Hotspot) -> Unit = {},
 ) {
     val spots = HOTSPOTS[bgName].orEmpty()
     if (spots.isEmpty()) return
+    // 원이 그려지는 이 자리에서부터 소개 시간을 센다
+    LaunchedEffect(introducing) {
+        if (introducing) {
+            delay(HOTSPOT_INTRO_MS)
+            onIntroShown()
+        }
+    }
     val id = assetId(bgName)
     val density = LocalDensity.current.density
     val inf = rememberInfiniteTransition(label = "hot")
@@ -96,9 +125,15 @@ fun HotspotLayer(
                 var popKey by remember { mutableIntStateOf(0) }
                 var popText by remember { mutableStateOf("") }
                 val rise = remember { Animatable(1f) }
-                val lit = sp.key in glow
-                LaunchedEffect(pulse, lit) {
-                    if (lit && pulse > 0) {
+                // 아이가 말한 자리인가 — 쪽이 바뀔 때 통 튀는 것은 이것이 정한다 (소개가 끝나도 그대로)
+                val mentioned = sp.key in glow
+                // 소개 중이면 **누를 수 있는 자리를 전부** 보여 주고, 아니면 아이가 말한 자리만 (9/22).
+                //
+                // 전에는 소개할 때도 `glow`(아이가 말한 것)에 든 자리만 켰다. 그런데 일기·협업의 `glow` 는
+                // 아이 말과 겹치는 낱말만 담아서 **비어 있는 날이 많았고, 안내가 아예 안 떴다.**
+                val lit = if (introducing) true else (mentioned && glowMentioned)
+                LaunchedEffect(pulse, mentioned) {
+                    if (mentioned && pulse > 0) {
                         delay(i * 90L)
                         bounce.snapTo(1f)
                         bounce.animateTo(1f, spring(dampingRatio = 0.3f, stiffness = 500f), initialVelocity = 2.2f)

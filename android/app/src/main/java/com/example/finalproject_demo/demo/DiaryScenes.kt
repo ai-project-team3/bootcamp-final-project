@@ -139,6 +139,9 @@ suspend fun Director.sceneDiary() {
             continue
         }
         askDiaryStep(step)
+        // 진행 막대는 **지나온 걸음 수**로 찬다 (9/22). 칸이 찼는지로 세면, 아이가 답하지 않은
+        // 선택 질문이 하나라도 있으면 마지막 질문까지 가도 막대가 끝까지 가지 않는다
+        s.stepsDone++
     }
     if (s.endReason == null && diaryReadyNow()) {
         s.endReason = "story_ready"

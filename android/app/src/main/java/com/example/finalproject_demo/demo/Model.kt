@@ -496,9 +496,24 @@ val DIARY_PLACES: List<Pair<List<String>, String>> = listOf(
     listOf("집", "방", "거실") to "bg_home",          // 마지막 — "할머니 집"이 먼저 걸리게
 )
 
+/**
+ * 아이가 말한 곳 → 배경 그림.
+ *
+ * ⚠️ 9/22 — 못 찾았을 때 `bg_today` 로 떨어뜨리고 있었는데 **그 그림이 없었다.**
+ * 그래서 등록된 열 곳에 안 걸리는 날("축구장 갔어")에는 **배경이 통째로 비어 보였다.**
+ * 이름은 그대로 두고 **그림을 만들어 채웠다.** 공원 같은 실제 장소로 떨어뜨리면
+ * *"모르는 곳은 엉뚱한 배경을 보여 주지 않는다"* 는 원래 뜻이 깨지기 때문이다 —
+ * 농장에 갔다는 아이에게 공원을 보여 주는 셈이 된다. `bg_today` 는 **어디라고 말하지 않는**
+ * 노을빛 저녁 들판이다. 다른 배경과 같은 규약으로 ComfyUI에서 뽑았다 —
+ * 다시 뽑으려면 `python tools/gen_assets.py bg_today` (그 목록에 프롬프트가 있다).
+ *
+ * 이 이름이 실제 파일로 있는지는 `StoryTextTest.everyBackgroundTheCodeAsksForActuallyExists` 가 지킨다.
+ */
+const val DIARY_BG_FALLBACK = "bg_today"
+
 fun diaryPlaceBg(place: String?): String {
-    val p = place ?: return "bg_today"
-    return DIARY_PLACES.firstOrNull { (words, _) -> words.any { it in p } }?.second ?: "bg_today"
+    val p = place ?: return DIARY_BG_FALLBACK
+    return DIARY_PLACES.firstOrNull { (words, _) -> words.any { it in p } }?.second ?: DIARY_BG_FALLBACK
 }
 
 
@@ -811,6 +826,66 @@ class DemoState {
     val reqCount: Int get() = if (isDiary) 4 else 6
     val filled: Int get() = reqSlots.count { it != null }
 
+    /**
+     * 진행 막대가 세는 것 — **물어볼 질문 수**다 (9/22).
+     *
+     * 전에는 [reqCount](일기 4 · 동화 6)를 썼다. 그런데 실제로 묻는 질문은 일기가 열 걸음 남짓,
+     * 동화가 필수 여섯에 템플릿 질문 서넛이다. 그래서 **질문을 여러 개 답해도 막대가 안 움직이다가
+     * 한 번에 껑충 뛰었다.** 세 모드 다 같은 증상이었다.
+     *
+     * 끝나는 조건([diaryReady] · `story_ready`)은 여전히 [filled] · [reqCount] 가 정한다.
+     * 여기서 바꾸는 것은 **보이는 막대뿐**이다 — 기승전결 네 자리라는 규격은 그대로다 (일기 §3).
+     */
+    val askTotal: Int
+        get() = (
+            if (isDiary) DIARY_STEPS.count { it.ask(this) }.coerceAtLeast(reqCount)
+            // 템플릿은 3턴째에 정해진다. 그전에는 **가장 많은 경우(3)로 잡아 둔다** —
+            // 0으로 두면 3턴째에 분모가 6 → 9로 늘면서 막대가 **뒤로 물러난다** (9/22)
+            else reqCount + (if (templateKey == null) 3 else extraAskSlots.size)
+            )
+            // 분모가 줄어도 막대가 뒤로 가지 않게 한다. 일기의 걸음 수는 앞의 답에 따라 바뀐다
+            .coerceAtLeast(stepsDone)
+
+    /**
+     * 동화 모드에서 **필수 칸 말고 더 묻는 것** (템플릿 질문).
+     *
+     * `resolve` 는 뺀다 — 그 답은 `slots` 가 아니라 필수 칸인 `solution` 으로 들어가서(Scenes §해결),
+     * 넣어 두면 **절대 안 차는 칸**이 하나 생겨 막대가 끝까지 가지 못한다.
+     */
+    private val extraAskSlots: List<String>
+        get() = template?.let { t -> (t.plot + t.ending).filter { it != "resolve" } }.orEmpty()
+
+    /**
+     * 지금까지 **답이 찬 질문 수**.
+     *
+     * ⚠️ 처음에는 `turn` 으로 셌는데 **마지막 질문에 답해도 막대가 끝까지 안 찼다** (9/22).
+     * 둘의 기준이 달랐기 때문이다:
+     *  - 꼬리질문(`extra`)은 `counts = false` 라 `turn` 을 올리지 않는데 [askTotal] 은 센다
+     *  - 동화 모드의 `resolve` 는 `slots` 가 아니라 `solution` 으로 들어간다
+     *
+     * 그래서 양쪽을 **같은 기준(칸이 찼는가)** 으로 맞췄다.
+     */
+    val askDone: Int
+        get() = when {
+            // 이야기가 끝났으면 막대도 끝까지 찬다. 기승전결이 일찍 차면 남은 질문을 안 묻고 끝나는데
+            // (`story_ready`), 그때 9/10에서 멈춰 있으면 아이는 **덜 한 것처럼** 본다 (9/22)
+            endReason != null -> askTotal
+            isDiary -> maxOf(
+                stepsDone,
+                DIARY_STEPS.count { it.ask(this) && !slots[it.bookKey].isNullOrBlank() },
+            ).coerceAtMost(askTotal)
+            else -> reqSlots.count { it != null } + extraAskSlots.count { !slots[it].isNullOrBlank() }
+        }
+
+    /**
+     * 일기·협업에서 **지나온 걸음 수** (9/22).
+     *
+     * 칸이 찼는지로만 세면, 아이가 답하지 않고 넘어간 선택 질문이 하나라도 있으면
+     * **마지막 질문까지 가도 막대가 끝까지 가지 않는다.** 물어본 것은 지나온 것으로 센다.
+     * 칸이 찬 수와 둘 중 큰 값을 쓰므로, 마스코트가 나중에 메운 칸도 막대에서 사라지지 않는다.
+     */
+    var stepsDone by mutableStateOf(0)
+
     /** 기승전결 네 자리가 다 찼는가 = `story_ready` (일기 설계 §3) */
     val diaryReady: Boolean get() = isDiary && filled >= reqCount
 
@@ -963,6 +1038,21 @@ class DemoState {
             ?: companionKind.takeUnless { it.isBlank() || "혼자" in it }
             ?: if (isDiary) "그 친구" else newcomerKind
 
+    /**
+     * 오늘 이야기에 **정말 누가 있었나** (9/22).
+     *
+     * 일기·협업 모드에서 아이가 아무도 말하지 않은 날이 있다. 그런 날 [friendCallName] 은
+     * *"그 친구"* 를 내주는데, 그 이름으로 책을 쓰면 **앱이 없는 친구를 만들어 낸 것**이 된다
+     * (일기 설계 §3-2). 미션과 자막은 이 값을 먼저 보고 문장을 고른다.
+     */
+    val hasCompanion: Boolean
+        get() = !isDiary ||
+            !friendName.startsWith("{") ||
+            (companionKind.isNotBlank() && "혼자" !in companionKind)
+
+    /** 미션 2에서 건넬 상대의 이름 — 아무도 없었던 날에는 마스코트가 받는다 (그림도 마스코트다) */
+    val giveTargetName: String get() = if (hasCompanion) friendCallName else "마스코트"
+
     // ── 수준 신호 (역할 1)
     var turn by mutableStateOf(0)
     var s1streak by mutableStateOf(0)
@@ -1006,6 +1096,12 @@ class DemoState {
 
     /** 진행 막대를 보여 주는가 */
     var progressVisible by mutableStateOf(false)
+
+    /**
+     * 상호작용 원을 **이미 소개했는가** (9/22).
+     * 책을 편 처음 몇 초만 둘레가 반짝이고, 그 뒤로는 조용해진다 (ui/Hotspots.kt `introducing`).
+     */
+    var hotspotIntroShown by mutableStateOf(false)
     val buttons = mutableStateListOf<DemoBtn>()
 
     // ── 부모 설정 (앱을 끄기 전까지 유지 · "처음으로"에도 남는다)
@@ -1062,6 +1158,7 @@ class DemoState {
         diaryStart = 0L; diaryTimeUp = false; mascotPicks = 0; endReason = null
         companionKind = ""
         parentCard = null; parentAsk = null; parentRung = 0; parentHasMore = false; adultLine = null
+        stepsDone = 0; hotspotIntroShown = false
         // ⚠️ 미리 넣어 둔 질문은 **여기서 비우지 않는다** (09-22). 이 함수는 모드를 고른 직후에
         // 돌아서, 여기서 비우면 부모가 방금 넣은 질문이 [같이 만들기] 를 누르는 순간 사라진다.
         // 비우는 곳은 [clearParentQuestions] 이고 부르는 곳은 `Director.goHome()` 이다.
