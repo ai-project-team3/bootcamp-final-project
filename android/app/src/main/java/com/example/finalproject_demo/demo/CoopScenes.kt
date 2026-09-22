@@ -78,8 +78,27 @@ private val DemoState.coopTrack: CoopTrack
         return CoopTrack().also { trackByState[this] = it }
     }
 
+/**
+ * ⚠️ **임시 보관 — 조장이 `resetStory()` 의 비우는 시점을 옮기면 지운다.**
+ *
+ * 지금 `resetStory()` 가 이야기 **시작**에 `parentQuestions` 를 비운다(`Scenes.kt` 모드 고른 직후).
+ * 부모 모드에서 넣고 [같이 만들기]를 누르면 그 순간 사라진다. `Model.kt` · `Scenes.kt` 는 남의 파일이라
+ * 여기서 사본을 들고 있다가 협업 장면이 시작될 때 되돌려 넣는다. 입력 화면(`Parent.kt`)이 고칠 때마다 [stashCoopQuestions] 를 부른다.
+ * 이야기가 끝나면([coopFinishLog]) 사본도 비운다 — "이야기마다 비운다"는 조장 결정 그대로.
+ */
+private val stashByState = java.util.WeakHashMap<DemoState, List<String>>()
+
+fun DemoState.stashCoopQuestions() {
+    stashByState[this] = parentQuestions.toList()
+}
+
+private fun DemoState.restoreCoopQuestions() {
+    if (parentQuestions.isEmpty()) stashByState[this]?.let { parentQuestions += it }
+}
+
 /** 협업 모드에서만 붙는 첫 안내. 일기 모드는 이 함수를 부르지 않는다. */
 suspend fun Director.coopIntro(childName: String) {
+    s.restoreCoopQuestions()
     if (s.hasCoopQuestions) {
         say("${childName}${ya(childName)}, 어른이 물어보고 싶은 게 있대! 내가 대신 물어볼게.")
         log("부모 협업 모드 — 부모가 미리 넣어 둔 질문 ${s.parentQuestions.count { it.isNotBlank() }}개를 **마스코트가 소리 내어 읽는다.** 받아주기 · 되돌려주기 · 낭독도 마스코트 (구현설계 §1-① · 설계 §2-2)")
@@ -154,6 +173,7 @@ private suspend fun Director.coopReact(r: Reply.Spoke) {
 fun Director.coopFinishLog() {
     if (!s.isCoop) return
     mark("coop")
+    stashByState.remove(s)          // 임시 보관도 이야기마다 비운다
     if (s.hasCoopQuestions) {
         log("같이 짓기 — 부모가 넣어 둔 질문 ${s.parentQuestions.count { it.isNotBlank() }}개 중 ${s.parentQIndex}개를 마스코트가 물었다. 부모 리포트 「함께하기」 축의 재료다 (협업 §4-2)")
         return

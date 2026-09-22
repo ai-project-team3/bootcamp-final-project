@@ -3,6 +3,7 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.demo.stashCoopQuestions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -130,6 +131,27 @@ class CoopFlowTest {
         assertTrue("자유 질문을 안 물었다: $askedTexts", free >= 0)
         assertTrue("자유 질문이 「어디」보다 먼저 나왔다", free > where)
         assertTrue("다섯 개를 다 쓰지 못했다: ${s.parentQIndex}", s.parentQIndex == 5)
+    }
+
+    /**
+     * 부모 모드에서 넣은 질문이 [같이 만들기]를 지나 살아남는가.
+     * `resetStory()` 가 이야기 시작에 홀더를 비우므로 지금은 임시 보관(CoopScenes.kt)이 되돌려 넣는다.
+     * 조장이 비우는 시점을 옮기면 임시 보관을 지우고도 이 검사가 그대로 통과해야 한다.
+     */
+    @Test
+    fun questionsEnteredInParentModeSurviveTheStoryStart() = run { d ->
+        val s = d.s
+        // 부모 모드 입력 화면이 하는 일 그대로
+        s.parentQuestions += listOf("오늘 어디 갔었어?", "거기서 뭐가 제일 재밌었어?")
+        s.stashCoopQuestions()
+
+        d.go(Scene.ADULT)
+        assertTrue(d.tap("같이 만들기"))
+        assertTrue(await { s.scene == Scene.BESTIARY } != null)
+        assertTrue(d.tap("카드를 탭"))
+        assertTrue(await { s.scene == Scene.DIARY } != null)
+        assertTrue("넣어 둔 질문이 시작 때 사라졌다", await(8_000) { d.asked() == "오늘 어디 갔었어?" } != null)
+        assertEquals(2, s.parentQuestions.size)
     }
 
     @Test
