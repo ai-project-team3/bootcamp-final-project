@@ -17,13 +17,21 @@ enum class Scene(val title: String, val label: String) {
     PARTNER("장면 1↳ · 함께할 사람", "함께할 사람 정하기"),
     BESTIARY("장면 2 · 도감 (주인공 고르기)", "주인공 고르기"),
     MAKEHERO("장면 2↳ · 주인공 만들기", "캐릭터 생성하기"),
+
+    /**
+     * 일기 모드의 **유일한 새 장면** — 동화 모드의 질문 자리(장면 3~10)를 이 하나가 대신한다.
+     * 화면을 새로 만든 것이 아니라 질문 세트와 칸 목록만 갈아끼운 것이다 (일기 설계 §1).
+     * ⚠️ 화면에 "일기"라고 쓰지 않는다 — 아이에게 숙제처럼 들린다 (§0). 팀 안에서만 쓰는 이름이다.
+     */
+    DIARY("장면 3′ · 오늘 있었던 일 (일기 모드)", "오늘 있었던 일 말하기"),
     PLACE("장면 3 · 어디로 갈까", "어디로 갈지 정하기"),
     EVENT("장면 4 · 누가 흔들었을까", "무슨 일이 생겼는지 알아보기"),
     CAUSE("장면 5 · 왜 그랬을까", "까닭 생각하기"),
     DRAW("장면 6 · 새 친구 그리기", "새 친구 그리기"),
     PLOT("장면 6↳ · 이야기 잇기", "이야기 이어 가기"),
-    DINO("장면 7 · 공룡도 데려갈래", "함께 갈 공룡 정하기"),
-    SOUND("장면 8 · 공룡 소리", "공룡 소리 내기"),
+    // 이름에 "공룡"을 박아 두지 않는다 — 장소마다 데려가는 친구가 다르다 (9/21)
+    DINO("장면 7 · 친구도 데려갈래", "함께 갈 친구 정하기"),
+    SOUND("장면 8 · 친구 소리", "친구 소리 내기"),
     CHECK("장면 9 · 중간 확인", "그림 확인하기"),
     SOLUTION("장면 10 · 이야기 매듭짓기", "이야기 매듭짓기"),
     MAKING("장면 11 · 책 만드는 중", "동화책 만드는 중"),
@@ -32,6 +40,39 @@ enum class Scene(val title: String, val label: String) {
     END("장면 14 · 선물", "선물 받기"),
     SHELF("장면 15 · 책장", "우리 책장"),
     PARENT("장면 16 · 부모 모드", "부모 모드"),
+}
+
+/**
+ * 이야기를 무엇으로 짓는가 (일기 설계 §0).
+ *
+ * - [STORY] 동화 모드 — 재료는 상상. "오늘은 어디로 **가 볼까**?"
+ * - [DIARY] 일기 모드 — 재료는 **아이의 실제 하루**. "오늘 어디 **갔었어**?"
+ *
+ * **일기 모드도 일기를 만들지 않는다. 결과물은 동화 모드와 똑같은 6~8쪽 동화책이다.**
+ * 끝나는 조건 · 칸 이름 · 판정 · 리포트는 전부 같은 것을 쓴다. 다른 것은 질문 세트와 칸 목록뿐이다.
+ */
+enum class StoryMode {
+    STORY,
+    DIARY,
+
+    /**
+     * **부모 협업 모드** (부모협업모드_설계.md §0) — 부모에게 소재를 받는 모드가 아니라 **질문하는 사람을 바꾸는 모드**다.
+     *
+     * ```
+     * 동화 모드   마스코트 ──질문──→ 아이 ──답──→ 판정
+     * 협업 모드   AI ──귀띔──→ 부모 ──질문──→ 아이 ──답──→ 판정
+     * ```
+     *
+     * 마스코트는 입을 다무는 게 아니라 역할을 반씩 나눈다 — **질문만 부모에게 넘기고
+     * 받아주기 · 되돌려주기 · 낭독은 그대로 한다**(§2-2). 넘기면 안 되는 이유는 부모가 지적하기 때문이다.
+     *
+     * 질문 데이터는 새로 만들지 않는다. 일기 모드의 사다리를 그대로 띄우고
+     * **내리는 주체만 AI → 부모**로 바뀐다(§5). 재료도 아이의 실제 하루라 취침 루틴에 같이 놓인다.
+     */
+    COOP;
+
+    /** 오늘 있었던 일을 재료로 쓰는가 — 일기 · 협업이 같은 질문 세트를 쓴다 (협업 설계 §5) */
+    val usesDiaryQuestions: Boolean get() = this == DIARY || this == COOP
 }
 
 enum class Persona(val childName: String, val label: String) {
@@ -79,7 +120,16 @@ val PARTNERS = listOf(
 fun partner(key: String) = PARTNERS.firstOrNull { it.key == key } ?: PARTNERS.first()
 
 /** 아이가 그림판에 그린 선 하나. 좌표는 0~1로 정규화. */
-data class Stroke(val color: Color, val pts: List<Offset>)
+/**
+ * 아이가 그린 선 하나. [pts]는 그림판 크기로 나눈 0~1 좌표, [w]는 **그림판 폭에 대한 붓 굵기**다.
+ *
+ * 굵기를 같이 들고 다니는 이유 — 전에는 책에 다시 그릴 때 굵기를 화면 크기로 다시 계산해서,
+ * 작게 그린 그림일수록 선이 통통하게 부풀어 "실제로 그린 것보다 뚱뚱하다"는 말이 나왔다 (9/21).
+ */
+data class Stroke(val color: Color, val pts: List<Offset>, val w: Float = PEN_W)
+
+/** 붓 굵기 — 그림판 폭의 몇 배인가. 그림판에서도 책에서도 이 값 하나만 쓴다 */
+const val PEN_W = 0.014f
 
 /** 화면에 올라가는 그림 한 장. 실제 앱에서는 ComfyUI 생성 이미지가 들어갈 자리. */
 sealed interface Art {
@@ -158,6 +208,91 @@ val HOTSPOTS: Map<String, List<Hotspot>> = mapOf(
         h("tree", "먼 나무", 0.965f, 0.400f, 0.040f, "사각사각!"),
         h("snowflake", "눈송이", 0.421f, 0.277f, 0.028f, "사르르~"),
     ),
+
+    // ── 일기 모드의 일상 장소 (9/21) ────────────────────────────
+    //
+    // 전에는 일기 책의 배경에 누를 것이 하나도 없었다. 동화 모드 책에서는 배경 속 것이 통 튀는데
+    // 일기 책만 가만히 있었다. 좌표는 `tools/gen_diary.py` 가 만든 그림을 보고 손으로 잡았다.
+    "bg_playground" to listOf(
+        h("tree", "나무", 0.075f, 0.170f, 0.070f, "사각사각~"),
+        h("slide", "미끄럼틀", 0.330f, 0.580f, 0.075f, "쌩~!"),
+        h("swing", "그네", 0.430f, 0.520f, 0.050f, "흔들흔들~"),
+        h("ladder", "오르는 사다리", 0.760f, 0.500f, 0.060f, "영차 영차!"),
+        h("sand", "모래밭", 0.715f, 0.760f, 0.085f, "사르르~"),
+        h("ball", "공", 0.145f, 0.755f, 0.028f, "통통!"),
+    ),
+    "bg_daycare" to listOf(
+        h("picture", "벽에 붙인 그림", 0.290f, 0.290f, 0.075f, "내가 그렸어!"),
+        h("picture", "집 그림", 0.405f, 0.310f, 0.060f, "우리 집이야!"),
+        h("book", "책꽂이", 0.800f, 0.400f, 0.080f, "사락사락~"),
+        h("block", "블록", 0.410f, 0.790f, 0.090f, "차곡차곡!"),
+        h("chair", "작은 의자", 0.078f, 0.680f, 0.055f, "끼익~"),
+        h("plant", "화분", 0.135f, 0.500f, 0.035f, "쑥쑥!"),
+    ),
+    "bg_park" to listOf(
+        h("tree", "커다란 나무", 0.170f, 0.230f, 0.100f, "사각사각~"),
+        h("tree", "건너편 나무", 0.920f, 0.220f, 0.075f, "사각사각~"),
+        h("bench", "긴 의자", 0.355f, 0.630f, 0.075f, "폭신!"),
+        h("pond", "연못", 0.560f, 0.545f, 0.070f, "찰랑찰랑~"),
+        h("flower", "꽃밭", 0.105f, 0.730f, 0.070f, "향긋~"),
+        h("flower", "분홍 꽃", 0.880f, 0.720f, 0.060f, "향긋~"),
+    ),
+    "bg_grandma" to listOf(
+        h("window", "창문", 0.175f, 0.230f, 0.085f, "해가 넘어가네~"),
+        h("plant", "화분", 0.085f, 0.430f, 0.060f, "쑥쑥!"),
+        h("cabinet", "찬장", 0.490f, 0.360f, 0.080f, "달그락!"),
+        h("teapot", "주전자", 0.580f, 0.585f, 0.045f, "쪼르르~"),
+        h("cushion", "방석", 0.780f, 0.560f, 0.080f, "폭신!"),
+        h("picture", "액자", 0.785f, 0.130f, 0.050f, "예쁘다!"),
+    ),
+    "bg_home" to listOf(
+        h("window", "창문", 0.240f, 0.270f, 0.085f, "해가 넘어가네~"),
+        h("lamp", "전등", 0.475f, 0.390f, 0.045f, "반짝!"),
+        h("sofa", "소파", 0.730f, 0.545f, 0.100f, "폭신!"),
+        h("basket", "장난감 바구니", 0.110f, 0.650f, 0.070f, "덜그럭!"),
+        h("picture", "액자", 0.765f, 0.190f, 0.060f, "우리 집 그림!"),
+        h("rug", "동그란 깔개", 0.480f, 0.830f, 0.090f, "폭신폭신~"),
+    ),
+    "bg_mart" to listOf(
+        h("fruit", "과일 칸", 0.400f, 0.300f, 0.080f, "달콤해!"),
+        h("fruit", "아래 과일 칸", 0.360f, 0.620f, 0.080f, "싱싱해!"),
+        h("cart", "카트", 0.690f, 0.630f, 0.070f, "드르륵~"),
+        h("shelf", "선반", 0.090f, 0.440f, 0.075f, "가득가득!"),
+        h("shelf", "건너편 선반", 0.800f, 0.410f, 0.070f, "가득가득!"),
+        h("window", "창문", 0.620f, 0.180f, 0.070f, "해가 넘어가네~"),
+    ),
+    "bg_kidscafe" to listOf(
+        h("ball", "볼풀", 0.170f, 0.760f, 0.100f, "우수수~"),
+        h("slide", "미끄럼틀", 0.760f, 0.630f, 0.080f, "쌩~!"),
+        h("slide", "작은 미끄럼틀", 0.165f, 0.560f, 0.060f, "쌩!"),
+        h("block", "말랑 블록", 0.520f, 0.650f, 0.070f, "폭신!"),
+        h("ladder", "오르는 사다리", 0.890f, 0.560f, 0.045f, "영차 영차!"),
+        h("picture", "벽 그림", 0.450f, 0.290f, 0.100f, "예쁘다!"),
+    ),
+    "bg_hospital" to listOf(
+        h("bell", "접수대 종", 0.265f, 0.585f, 0.030f, "땡!"),
+        h("ruler", "키 재는 자", 0.205f, 0.290f, 0.055f, "얼마나 컸을까?"),
+        h("aidbox", "구급상자", 0.435f, 0.570f, 0.042f, "달칵!"),
+        h("plant", "화분", 0.325f, 0.445f, 0.050f, "쑥쑥!"),
+        h("chair", "기다리는 의자", 0.700f, 0.685f, 0.095f, "폭신!"),
+        h("window", "창밖 그림", 0.760f, 0.300f, 0.100f, "밖에 나가고 싶다!"),
+    ),
+    "bg_pool" to listOf(
+        h("pond", "물", 0.520f, 0.660f, 0.100f, "첨벙!"),
+        h("ring", "튜브", 0.330f, 0.585f, 0.070f, "둥실~"),
+        h("ring", "작은 튜브", 0.345f, 0.690f, 0.070f, "둥실둥실~"),
+        h("ball", "공", 0.695f, 0.575f, 0.055f, "통통!"),
+        h("umbrella", "파라솔", 0.785f, 0.180f, 0.070f, "그늘이 시원해!"),
+        h("chair", "누울 의자", 0.905f, 0.420f, 0.060f, "폭신!"),
+    ),
+    "bg_zoo" to listOf(
+        h("giraffe", "기린", 0.285f, 0.400f, 0.085f, "높다 높아!"),
+        h("elephant", "코끼리", 0.680f, 0.500f, 0.090f, "뿌우우~"),
+        h("tree", "나무", 0.095f, 0.180f, 0.090f, "사각사각~"),
+        h("tree", "건너편 나무", 0.855f, 0.160f, 0.090f, "사각사각~"),
+        h("fence", "울타리", 0.185f, 0.700f, 0.080f, "덜컹!"),
+        h("path", "길", 0.520f, 0.850f, 0.070f, "터벅터벅~"),
+    ),
 )
 
 /** 장소 한 곳 — 아이가 고른 장소가 세계 · 탈것 · 사건 · 책 자막까지 정한다. */
@@ -181,7 +316,68 @@ data class Theme(
     /** 여정형(E)에서 지나가는 곳 후보 · 목적지 후보 */
     val stops: List<String>,
     val goals: List<String>,
+    /** 장면 7 — 이 장소에 있을 법한 **같이 갈 친구** 셋 (9/21: 어디를 가든 공룡이 나오던 것을 고쳤다) */
+    val buddies: List<DinoKind>,
+    /** 아이가 먼저 하는 말 — 그 말에서 되묻는다 (소크라틱의 기본형 · 구현대본 §0-1) */
+    val buddyCall: String,
+    /** 되묻는 질문 셋 — 아이가 말한 것의 **생김새**를 묻는다 */
+    val buddyAsks: List<String>,
 )
+
+/**
+ * **같이 갈 친구** 한 종류 (장면 7).
+ *
+ * 처음에는 공룡 셋뿐이었다. 그래서 우주에 가도 바닷속에 가도 아이가 "공룡도 데려갈래!" 하고
+ * 공룡이 로켓에 타는 장면이 나왔다 — 아이가 고른 곳과 아무 상관이 없었다 (9/21 지적).
+ * 지금은 **장소마다 그곳에 있을 법한 친구 셋**을 고른다 ([Theme.buddies]).
+ *
+ * [art]는 그림 파일 이름이다. [DemoState.dinoColor]로 색을 바꿀 수 있는 것은 전과 같다.
+ */
+data class DinoKind(
+    val key: String,
+    val label: String,
+    val name: String,
+    val sound: String,
+    val art: String,
+    /** 책 자막에 쓰는 생김새 — 종결형 ("목이 길어요") */
+    val look: String,
+    /**
+     * 아이가 생김새로 답할 때 쓰는 **관형형** ("목이 긴") — "~ 거!" 앞에 붙는다.
+     *
+     * [look]에서 규칙으로 만들지 않고 따로 적는다. 한국어 어미는 규칙으로 바꾸면 깨진다 —
+     * "혼자서 빛나요" 에 "거!"를 붙여 **"혼자서 빛나요 거!"** 가 나온 적이 있다 (9/21).
+     */
+    val said: String,
+)
+
+/** 공룡 나라 · "눈 오는 데"의 뼈대도 여기서 가져온다 */
+val DINOS = listOf(
+    DinoKind("trex", "티라노", "티라노", "크아아앙!", "dino_trex", "이빨이 커요", "이빨이 큰"),
+    DinoKind("long", "긴목공룡", "긴목공룡", "우우웅~", "dino_long", "목이 길어요", "목이 긴"),
+    DinoKind("horn", "뿔공룡", "트리케라톱스", "뿌우우우웅!", "dino_horn", "뿔이 세 개", "뿔이 세 개인"),
+)
+
+val SPACE_BUDDIES = listOf(
+    DinoKind("alienbud", "외계인 친구", "삐뽀", "삐비빅 삐뽀!", "bud_alien", "눈이 세 개", "눈이 세 개인"),
+    DinoKind("robot", "로봇", "또각이", "위잉 위잉!", "bud_robot", "몸이 네모", "몸이 네모난"),
+    DinoKind("babystar", "아기 별", "반짝이", "반짝 반짝!", "bud_star", "혼자서 빛나요", "혼자 빛나는"),
+)
+
+val SEA_BUDDIES = listOf(
+    DinoKind("dolphin", "돌고래", "뽀뽀", "끼익 끼익!", "bud_dolphin", "헤엄이 빨라요", "헤엄이 빠른"),
+    DinoKind("seahorse", "해마", "또르", "또르르르~", "bud_seahorse", "꼬리가 돌돌", "꼬리가 돌돌 말린"),
+    DinoKind("starfish", "불가사리", "다섯이", "살랑 살랑~", "bud_starfish", "팔이 다섯 개", "팔이 다섯 개인"),
+)
+
+val SNOW_BUDDIES = listOf(
+    DinoKind("snowman", "눈사람", "뽀드득", "뽀드득 뽀드득!", "bud_snowman", "당근 코가 있어요", "당근 코가 있는"),
+    DinoKind("polarbear", "북극곰", "하양이", "어흐응~", "bud_bear", "털이 폭신해요", "털이 폭신한"),
+    DinoKind("penguin", "펭귄", "뒤뚱이", "꽥 꽥!", "bud_penguin", "뒤뚱뒤뚱 걸어요", "뒤뚱뒤뚱 걷는"),
+)
+
+val ALL_BUDDIES = DINOS + SPACE_BUDDIES + SEA_BUDDIES + SNOW_BUDDIES
+
+fun dinoKind(key: String) = ALL_BUDDIES.firstOrNull { it.key == key } ?: DINOS.last()
 
 val THEMES = listOf(
     Theme(
@@ -205,6 +401,9 @@ val THEMES = listOf(
         ),
         stops = listOf("반짝이는 별 다리", "달님 마을", "빙글빙글 행성 놀이터"),
         goals = listOf("무지개 별", "별빛 호수"),
+        buddies = SPACE_BUDDIES,
+        buddyCall = "우주 친구도 데려갈래!",
+        buddyAsks = listOf("우주 친구? 어떤 친구야? 어떻게 생겼어?", "우주 친구? 그 친구는 뭐가 제일 멋져?", "어떤 우주 친구가 같이 가면 좋을까?"),
     ),
     Theme(
         key = "sea", label = "바닷속", emoji = "🐙", vehicle = "거북이", vehicleArt = Art.Img("turtle", Art.Emoji("🐢")), cardArt = Art.Img("nc_octopus", Art.Emoji("🐙")),
@@ -227,6 +426,9 @@ val THEMES = listOf(
         ),
         stops = listOf("알록달록 산호 숲", "뽀글뽀글 거품 길", "반짝 진주 동굴"),
         goals = listOf("인어 궁전", "보물 조개 마을"),
+        buddies = SEA_BUDDIES,
+        buddyCall = "바다 친구도 데려갈래!",
+        buddyAsks = listOf("바다 친구? 어떤 친구야? 어떻게 생겼어?", "바다 친구? 그 친구는 뭐가 제일 멋져?", "어떤 바다 친구가 같이 가면 좋을까?"),
     ),
     Theme(
         key = "dino", label = "공룡 나라", emoji = "🦕", vehicle = "기차", vehicleArt = Art.Img("train", Art.Emoji("🚂")), cardArt = Art.Img("dino_long", Art.Emoji("🦕")),
@@ -249,6 +451,9 @@ val THEMES = listOf(
         ),
         stops = listOf("쿵쿵 발자국 길", "커다란 야자나무 숲", "부글부글 화산 옆길"),
         goals = listOf("공룡 알 둥지", "무지개 폭포"),
+        buddies = DINOS,
+        buddyCall = "공룡도 데려갈래!",
+        buddyAsks = listOf("공룡? 어떤 공룡이야? 어떻게 생겼어?", "공룡? 그 공룡은 뭐가 제일 멋져?", "어떤 공룡이 같이 가면 좋을까?"),
     ),
 )
 
@@ -264,16 +469,38 @@ val SNOW_SIGHTS = listOf(
 
 fun theme(key: String) = THEMES.first { it.key == key }
 
-/** 공룡 프리셋 3장 — 티라노 · 긴목공룡 · 뿔공룡 (초안 장면 7) */
-data class DinoKind(val key: String, val label: String, val name: String, val sound: String)
+/**
+ * 일기 모드의 배경 색 — 해 질 녘. 취침 루틴에 쓰는 기능이라 밤으로 기울여 둔다.
+ * 장소 프리셋(우주 · 바닷속 · 공룡 나라)에 **넣지 않는다** — 넣으면 동화 모드 장소 카드에 "오늘"이 끼어든다.
+ */
+val DIARY_BG = listOf(Color(0xFF3B2C4A), Color(0xFF7A5A6E), Color(0xFFE9A46B))
 
-val DINOS = listOf(
-    DinoKind("trex", "티라노", "티라노", "크아아앙!"),
-    DinoKind("long", "긴목공룡", "긴목공룡", "우우웅~"),
-    DinoKind("horn", "뿔공룡", "트리케라톱스", "뿌우우우웅!"),
+/**
+ * 일기 모드의 장소 그림 — 아이가 말한 곳을 낱말로 맞춰 고른다.
+ *
+ * 실제 앱은 아이가 말한 장소로 배경을 **세션 중에 만든다**(CLAUDE.md 규칙 8 · 구현대본 §6).
+ * 데모는 그럴 수 없으므로 흔한 여섯 곳을 `tools/gen_diary.py`로 미리 만들어 두고 고른다.
+ * 맞는 것이 없으면 그림 없이 [DIARY_BG] 색으로 떨어진다 — **엉뚱한 장소를 보여 주지 않는다.**
+ */
+val DIARY_PLACES: List<Pair<List<String>, String>> = listOf(
+    listOf("놀이터", "미끄럼틀", "그네", "모래") to "bg_playground",
+    listOf("어린이집", "유치원", "학교", "교실") to "bg_daycare",
+    listOf("할머니", "할아버지", "외갓집") to "bg_grandma",
+    listOf("공원", "산책", "나무", "숲") to "bg_park",
+    listOf("마트", "시장", "가게", "슈퍼") to "bg_mart",
+    // 9/21에 더한 네 곳 — 아이가 자주 말하는데 그림이 없어 색 배경으로 떨어지던 곳들
+    listOf("키즈카페", "카페", "놀이방", "볼풀") to "bg_kidscafe",
+    listOf("병원", "치과", "주사", "의사") to "bg_hospital",
+    listOf("수영장", "바다", "물놀이", "계곡") to "bg_pool",
+    listOf("동물원", "동물", "기린", "코끼리") to "bg_zoo",
+    listOf("집", "방", "거실") to "bg_home",          // 마지막 — "할머니 집"이 먼저 걸리게
 )
 
-fun dinoKind(key: String) = DINOS.first { it.key == key }
+fun diaryPlaceBg(place: String?): String {
+    val p = place ?: return "bg_today"
+    return DIARY_PLACES.firstOrNull { (words, _) -> words.any { it in p } }?.second ?: "bg_today"
+}
+
 
 /** 책장에 꽂힌 책 한 권 (책장에서 다시 읽기는 아직 없다 — 꽂히는 것까지) */
 data class ShelfBook(val title: String, val themeKey: String, val bgName: String, val pages: Int = 6, val fresh: Boolean = false)
@@ -356,11 +583,26 @@ fun shirtKey(c: Color): String = when (c) {
     else -> "blue"
 }
 
-/** 주인공 속성 → res/drawable 이름. 도감 프리셋 2명은 따로 만든 그림, 나머지는 머리×옷×안경 27장 중 하나 */
-fun heroImageName(a: HeroAttr): String = when {
-    a.glasses == "round" && a.shirt == Color(0xFF5DADE2) && a.hair == "short" -> "hero_glasses"
-    a.glasses == "none" && a.shirt == Color(0xFF3F7BD9) && a.hair == "short" && a.eyes == "round" -> "hero_blue"
-    else -> "hero_${a.hair}_${shirtKey(a.shirt)}_${a.glasses}"
+/**
+ * 주인공 속성 → res/drawable 이름.
+ * 도감 프리셋 2명은 따로 만든 그림, 나머지는 **머리 × 옷 × 안경 × 하의**.
+ * 긴바지는 접미사가 없다 — 먼저 만든 27장(전부 긴바지)을 그대로 쓰기 위해서다.
+ */
+/**
+ * 주인공 **몸 그림** 이름 — `body_{옷색}_{하의}` 또는 `body_{옷색}_{하의}_{머리}`.
+ *
+ * 9/21에 구조를 바꿨다. 전에는 머리 × 옷 × 안경 × 하의 = **완성본 81장**을 갈아 끼웠는데,
+ * 81장이 각각 따로 생성된 그림이라 **토글 하나를 바꾸면 캐릭터가 통째로 다른 아이가 됐다** —
+ * 머리를 길게 하면 얼굴이 바뀌고, 옷 색을 바꾸면 하의가 바뀌었다.
+ *
+ * 지금은 **27장**이다(옷 3 × 하의 3 × 머리 3). 옷 색 · 하의 9장을 같은 아이로 뽑고,
+ * 그 9장에서 img2img 로 머리만 바꿔 18장을 더 만들었다(`tools/gen_hero_hair.py`).
+ * **안경은 그림에 넣지 않는다** — 얼굴이 27장 모두 같으므로 [HeroImage]가 위에 얹는다.
+ * 눈(반달 · 별)도 전부터 그렇게 얹어 왔다.
+ */
+fun heroImageName(a: HeroAttr): String {
+    val base = "body_${shirtKey(a.shirt)}_${a.bottom}"
+    return if (a.hair == "short") base else "${base}_${a.hair}"
 }
 
 data class DemoBtn(val label: String, val onClick: () -> Unit)
@@ -412,6 +654,92 @@ class DemoState {
     var timerOn by mutableStateOf(false)
     var scene by mutableStateOf(Scene.ADULT)
 
+    // ── 무엇으로 짓는가 (일기 설계 §0) ─────────────────────────────
+    /** 동화 / 일기 / 부모 협업. 첫 화면에서 갈린다. 아이 화면에는 이 이름들이 나오지 않는다 */
+    var mode by mutableStateOf(StoryMode.STORY)
+
+    /** 오늘 있었던 일을 재료로 쓰는가 — 일기 모드와 협업 모드가 같은 질문 세트를 쓴다 */
+    val isDiary: Boolean get() = mode.usesDiaryQuestions
+
+    /** 질문을 부모가 하는가 (협업 설계 §2-2 — 세 조각 중 ③만 넘어간다) */
+    val isCoop: Boolean get() = mode == StoryMode.COOP
+
+    // ── 부모 협업 모드 (부모협업모드_설계.md) ───────────────────────
+    /**
+     * 부모 띠에 떠 있는 질문 카드. **소리 없이** 뜬다 — 부모가 읽고 자기 말로 묻는다 (§2-1 ASK′).
+     * 4~5세는 글을 못 읽으므로 아이 화면에 같이 띄워도 된다: 아이는 위 그림을, 부모는 아래 글자를 본다 (§3).
+     */
+    var parentCard by mutableStateOf<String?>(null)
+
+    /** 같은 걸음 안에서 **질문이 몇 번 바뀌었나** (사다리를 내려온 칸 수). 첫 질문은 세지 않는다 (9/21) */
+    var parentRung by mutableStateOf(0)
+
+    /** 사다리에 아직 남은 칸이 있는가. ⚠️ 띠에서 버튼을 뺀 뒤로 화면에 쓰이지 않는다 (9/21) */
+    var parentHasMore by mutableStateOf(false)
+
+    /** 부모 리포트의 "어른이 한 말" — 협업 모드에서 어른이 읽고 물어본 **마지막 질문** (9/21) */
+    var adultLine by mutableStateOf<String?>(null)
+
+    /**
+     * **부모가 부모 모드에서 미리 넣어 둔 질문들** (09-22 박진웅 요청).
+     *
+     * ⚠️ **설계가 바뀐 자리다.** `부모협업모드_설계.md` §0은 *"AI가 귀띔하고 부모가 읽어 묻는다"*로
+     * 적혀 있는데, 9/21 조장 확인으로 **부모가 부모 모드에서 질문을 미리 커스텀해 두고 아이가
+     * 답하는 단순한 모드**가 정본이 됐다. LLM은 **질문을 추천하는 정도**로만 쓴다.
+     * 코드(`CoopScenes.kt`)와 문서는 아직 옛 설계이고, 문서 정정은 원저자(안치영)와 조율한다.
+     *
+     * 비어 있으면 옛 흐름(AI가 띄운 질문을 부모가 읽음)으로 떨어진다 — 그래서 넣기만 해도 안전하다.
+     */
+    val parentQuestions = mutableStateListOf<String>()
+
+    /**
+     * 미리 넣어 둔 질문 중 **몇 개를 썼나**. `parentQuestions.size` 에 닿으면 소진이다.
+     * 소진 뒤에 무엇을 하는지는 진웅이 정한다 — AI 추천으로 넘어가나, 마스코트가 이어받나.
+     */
+    var parentQIndex by mutableStateOf(0)
+
+    /** 미리 넣어 둔 질문이 남았나 */
+    val hasParentQuestion: Boolean get() = parentQIndex < parentQuestions.size
+
+    /** 다음 질문을 꺼내고 인덱스를 올린다. 없으면 null */
+    fun nextParentQuestion(): String? =
+        if (hasParentQuestion) parentQuestions[parentQIndex++] else null
+
+    /**
+     * 기승전결 네 자리를 **누가 지었나** (협업 설계 §6 번갈아 짓기).
+     * 책 자막에 작은 표시 하나만 남긴다 — 채점처럼 보이면 안 된다.
+     */
+    val author = mutableStateMapOf<String, String>()
+
+    /** 부모 자리가 절반을 넘으면 경고한다 — 그건 협업이 아니라 부모가 짓고 아이가 들은 것이다 (§6) */
+    /**
+     * 어른이 지은 자리가 절반을 넘었나 (협업 §6).
+     * ⚠️ 9/21에 [내가 답할래]를 빼면서 `author = "adult"` 인 자리가 생기지 않게 되어 **지금은 늘 false** 다.
+     * 어른이 칸을 직접 짓는 흐름이 다시 들어오면 그대로 살아난다.
+     */
+    val parentTooMuch: Boolean get() = isCoop && author.values.count { it == "adult" } * 2 > author.size && author.size >= 3
+
+    /** 일기 모드가 시작된 시각 — 끝나는 조건 셋 중 "15분 경과"를 재는 데 쓴다 (guidelines/2 §1-1) */
+    var diaryStart by mutableStateOf(0L)
+
+    /** 시연 서랍 · 대본에서 "15분 지난 것으로" 하고 볼 때 (§7-5는 아직 열린 항목) */
+    var diaryTimeUp by mutableStateOf(false)
+
+    /** 마스코트가 대신 채운 것이 **연속으로** 몇 번인가. 2회 연속이 끝나는 조건이다 (§3) */
+    var mascotPicks by mutableStateOf(0)
+
+    /** 무엇으로 끝났나 — story_ready · mascot_pick · timeout (§3) */
+    var endReason by mutableStateOf<String?>(null)
+
+    /**
+     * 칸마다 **누가 채웠나** — `child` · `card` · `mascot` (guidelines/2 §1-4 · 일기 설계 §5-1).
+     *
+     * ⚠️ 이것을 빼먹으면 일기 설계가 무너진다. §5가 "빈 자리를 이야기로 메워도 된다"고 말할 수 있는
+     * 근거가 `by: mascot` 하나다. 안 남기면 메운 문장이 아이가 한 말과 섞여 부모 리포트가 거짓말을 시작한다.
+     * `mascot`은 주고받기 횟수 · 수준 신호 · 리포트 원문 인용 · 「말한 방식」 원그래프에서 전부 빠진다.
+     */
+    val slotBy = mutableStateMapOf<String, String>()
+
     // ── 함께 하는 사람
     var partnerKey by mutableStateOf("mom")
     val partner: Partner get() = partner(partnerKey)
@@ -427,6 +755,9 @@ class DemoState {
     var solution by mutableStateOf<String?>(null)
     var title by mutableStateOf<String?>(null)
 
+    /** 선택 칸 — "그래서 어떻게 됐어 · 기분". 차면 일기 책의 전이 한 쪽 늘어난다 (일기 설계 §2-2) */
+    var reaction by mutableStateOf<String?>(null)
+
     /** 템플릿마다 다른 이야기 조각 — 대응 · 도움 · 시도 · 실패 까닭 · 역할 · 지나간 곳 … (StoryBank의 slot key) */
     val slots = mutableStateMapOf<String, String>()
 
@@ -434,9 +765,22 @@ class DemoState {
     var partnerHelp by mutableStateOf<String?>(null)
     var partnerHelpLine by mutableStateOf<String?>(null)
 
-    /** 필수 칸 6개 = 장소 · 문제 · 까닭 · 등장인물 · 소리 · 해결 (구현대본 §2) */
-    val filled: Int
-        get() = listOf(place, problem, cause, newcomer, sound, solution).count { it != null }
+    /**
+     * 필수 칸 — 동화 모드는 6개(장소 · 문제 · 까닭 · 등장인물 · 소리 · 해결, 구현대본 §2),
+     * 일기 모드는 **기승전결 네 자리**(장소 · 문제 · 까닭 · 해결, 일기 설계 §2-1).
+     *
+     * 일기 모드가 묻지 않는 칸: `sound`(공룡 소리는 상상 세계의 것) · `adult` · `companion` (§2-2).
+     * 새 칸 이름은 만들지 않는다 — 판정 스키마의 슬롯 12종 안에서 끝낸다 (guidelines/2 §1-1).
+     */
+    val reqSlots: List<String?>
+        get() = if (isDiary) listOf(place, problem, cause, solution)
+        else listOf(place, problem, cause, newcomer, sound, solution)
+
+    val reqCount: Int get() = if (isDiary) 4 else 6
+    val filled: Int get() = reqSlots.count { it != null }
+
+    /** 기승전결 네 자리가 다 찼는가 = `story_ready` (일기 설계 §3) */
+    val diaryReady: Boolean get() = isDiary && filled >= reqCount
 
     // ── 수준 · 템플릿
     var level by mutableStateOf(Level.CHAIN)          // 지난 세션 종료 단계에서 시작
@@ -445,7 +789,8 @@ class DemoState {
     var templateKey by mutableStateOf<String?>(null)   // 3턴째 확정
     var attribute by mutableStateOf<String?>(null)
     var causeKind by mutableStateOf("lonely")
-    val template: StoryTemplate? get() = templateKey?.let { templateOf(it) }
+    /** 일기 모드는 수준별 템플릿(E·C·D·A·G) 대신 기승전결 한 장짜리를 쓴다 (일기 설계 §5) */
+    val template: StoryTemplate? get() = if (isDiary) diaryTemplate(this) else templateKey?.let { templateOf(it) }
     val notes = mutableStateListOf<TurnNote>()
     var levelWhy by mutableStateOf("")
 
@@ -459,12 +804,53 @@ class DemoState {
     /** 아이가 말한 장소 그대로. 프리셋 유형에 없으면 배경을 새로 만든다 (구현대본 §6) */
     var placeLabel by mutableStateOf<String?>(null)
     var generatedBg by mutableStateOf(false)
-    val placeName: String get() = placeLabel ?: th.label
+    // 일기 모드의 장소는 아이가 말한 실제 장소다. 아직 못 들었으면 상상 세계 이름("우주")이 새어 나오지 않게 막는다
+    val placeName: String get() = placeLabel ?: if (isDiary) "오늘 있었던 곳" else th.label
 
-    /** 배경 그림 이름 — 프리셋에 없는 장소는 이번에 새로 만든 배경을 쓴다 (구현대본 §6) */
-    val bgName: String get() = if (generatedBg) "bg_snow" else "bg_$themeKey"
+    /**
+     * 배경 그림 이름 — 프리셋에 없는 장소는 이번에 새로 만든 배경을 쓴다 (구현대본 §6).
+     * 일기 모드의 장소는 아이의 실제 하루(어린이집 · 놀이터 …)라 프리셋이 없다.
+     * 실제 앱은 아이가 말한 장소로 배경을 한 장 만든다(규칙 8). 데모는 아이가 말한 곳에 맞는
+     * 일상 장소 그림 6장을 미리 만들어 두고 고른다([DIARY_PLACES] · `tools/gen_diary.py`).
+     * 어디에도 안 맞으면 [worldBg] 그라데이션으로 떨어진다.
+     */
+    val bgName: String
+        get() = when {
+            isDiary -> diaryPlaceBg(placeLabel)
+            generatedBg -> "bg_snow"
+            else -> "bg_$themeKey"
+        }
+
+    /** 배경 그림이 없을 때 깔리는 색 — 일기 모드는 해 질 녘 색 (취침 루틴) */
+    val worldBg: List<Color> get() = if (isDiary) DIARY_BG else th.bg
     val hotspots: List<Hotspot> get() = HOTSPOTS[bgName].orEmpty()
+
+    /**
+     * 일기 책에서 **아이가 말한 것**과 겹치는 배경 속 것 (9/21).
+     *
+     * 동화 모드는 "거기엔 뭐가 있을까?" 라고 물어 [mentioned]를 채우지만, 일기 모드는 그렇게 묻지 않는다.
+     * 대신 아이가 하루를 말하며 이미 꺼낸 낱말("미끄럼틀 탔어" · "블록 쌓았어")을 배경 속 것과 맞춰,
+     * 그 자리가 반짝이게 한다. 앱이 없는 것을 만들어 내는 게 아니라 **아이 말에 있던 것만** 켠다.
+     */
+    val diaryGlow: Set<String>
+        get() {
+            if (!isDiary) return emptySet()
+            val said = slots.values.joinToString(" ") + " " + placeLabel.orEmpty()
+            return hotspots.filter { sp ->
+                said.contains(sp.name) || (sp.name.length >= 3 && said.contains(sp.name.take(2)))
+            }.map { it.key }.toSet()
+        }
     val sightAnswers: List<Answer> get() = if (generatedBg) SNOW_SIGHTS else th.sightAnswers
+
+    /**
+     * 같이 갈 친구 후보 — 아이가 고른 **장소**가 정한다 (9/21).
+     * "눈 오는 데"는 뼈대만 공룡 나라에서 가져오므로 친구는 눈나라 친구로 갈아 끼운다.
+     */
+    val buddies: List<DinoKind> get() = if (generatedBg) SNOW_BUDDIES else th.buddies
+    val buddyCall: String get() = if (generatedBg) "눈나라 친구도 데려갈래!" else th.buddyCall
+    val buddyAsks: List<String> get() = if (generatedBg)
+        listOf("눈나라 친구? 어떤 친구야? 어떻게 생겼어?", "눈나라 친구? 그 친구는 뭐가 제일 멋져?", "어떤 눈나라 친구가 같이 가면 좋을까?")
+    else th.buddyAsks
 
     /** 아이가 "뭐가 있을까?"에 말한 배경 속 것들 (핫스팟 key) */
     val mentioned = mutableStateListOf<String>()
@@ -474,6 +860,7 @@ class DemoState {
 
     var newcomerKind by mutableStateOf("외계인")
     var newcomerEmoji by mutableStateOf("👽")
+    /** 같이 갈 친구 — 장면 7에서 장소에 맞는 후보로 정해진다 */
     var dinoKey by mutableStateOf("horn")
     var solutionKey by mutableStateOf("play")
 
@@ -501,6 +888,49 @@ class DemoState {
     val dino: DinoKind get() = dinoKind(dinoKey)
     val friendArt: Art get() = Art.ChildDrawing(drawing.toList(), drawnPreset, drawingAspect)
 
+    // ── 일기 모드의 소품 · 호칭 ─────────────────────────────────
+    // 뼈대(문지르기 · 끌어다 놓기 · 쪽 구성)는 그대로 두고 **소품 그림과 말만 바꾼다** (일기 설계 §7-1 ②).
+
+    /** 책에 나오는 탈것 — 일기 모드에는 로켓 · 거북이 · 기차가 없다. 메고 다닌 가방을 쓴다 */
+    val rideArt: Art get() = if (isDiary) Art.Img("prop_bag", Art.Emoji("🎒")) else th.vehicleArt
+    val rideName: String get() = if (isDiary) "가방" else th.vehicle
+
+    /** 아이가 그리거나 고른 것이 있을 때만 "아이 그림"이다 (일기 모드는 선택 칸이라 없을 수 있다) */
+    val hasChildArt: Boolean get() = drawing.isNotEmpty() || !isDiary
+
+    /**
+     * 일기 모드에서 아이가 *"거기 누구랑 있었어?"* 에 말한 사람 — 동행 칸(`companion`)에 들어간다.
+     * 이 한 칸이 뒤의 질문을 살린다: 사람이 없으면 *"그 친구는 왜 그랬을까?"* 가 물을 데가 없다 (질문 흐름).
+     */
+    var companionKind by mutableStateOf("")
+
+    /** 아이가 말한 사람의 그림 — 프리셋에서 고른다. 없으면 아무도 그리지 않는다 */
+    val companionArt: Art?
+        get() = when {
+            "선생님" in companionKind -> Art.Img("dp_teacher", Art.Emoji("🧑‍🏫"))
+            "할머니" in companionKind -> Art.Img("ic_p_grandma", Art.Emoji("👵"))
+            "할아버지" in companionKind -> Art.Img("ic_p_grandpa", Art.Emoji("👴"))
+            "엄마" in companionKind -> Art.Img("ic_p_mom", Art.Emoji("👩"))
+            "아빠" in companionKind -> Art.Img("ic_p_dad", Art.Emoji("👨"))
+            "언니" in companionKind || "누나" in companionKind || "동생" in companionKind -> Art.Img("dp_friend_g", Art.Emoji("👧"))
+            companionKind.isBlank() || "혼자" in companionKind -> null
+            else -> Art.Img("dp_friend_b", Art.Emoji("🧒"))
+        }
+
+    /**
+     * 책과 미션 2의 상대.
+     * 아이가 그린 것 → 아이가 말한 사람 → (둘 다 없으면) 아무도 세우지 않는다.
+     * ⚠️ 앱이 아이의 하루를 추측해 **없는 친구를 그려 넣지 않는다** (일기 설계 §3-2).
+     */
+    val friendOrPartnerArt: Art?
+        get() = if (hasChildArt) friendArt else companionArt
+
+    /** 말로 부를 이름 — 이름 → 아이가 말한 사람 → 동화 모드의 종류 이름 */
+    val friendCallName: String
+        get() = friendName.takeUnless { it.startsWith("{") }
+            ?: companionKind.takeUnless { it.isBlank() || "혼자" in it }
+            ?: if (isDiary) "그 친구" else newcomerKind
+
     // ── 수준 신호 (역할 1)
     var turn by mutableStateOf(0)
     var s1streak by mutableStateOf(0)
@@ -519,8 +949,9 @@ class DemoState {
     var heroAttr by mutableStateOf<HeroAttr?>(null)
 
     val heroes = mutableStateListOf(
-        Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF5DADE2))),
-        Hero("파란 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFF3F7BD9))),
+        // 둘이 한눈에 달라 보여야 한다 — 안경만 다르면 도감에서 같은 아이로 보인다 (9/21)
+        Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9))),
+        Hero("빨간 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts")),
     )
 
     val achievements = mutableStateListOf<String>()
@@ -592,8 +1023,17 @@ class DemoState {
     /** 이야기 한 권 분량만 지운다. 책장 · 부모 설정 · 하루 별 · 도감 · 수준(다음 세션 시작점) · 쓴 질문은 남긴다 */
     fun resetStory() {
         place = null; problem = null; cause = null; newcomer = null
-        friend = null; sound = null; solution = null; title = null
-        slots.clear(); partnerHelp = null; partnerHelpLine = null
+        friend = null; sound = null; solution = null; title = null; reaction = null
+        slots.clear(); slotBy.clear(); partnerHelp = null; partnerHelpLine = null
+        // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
+        mode = StoryMode.STORY
+        diaryStart = 0L; diaryTimeUp = false; mascotPicks = 0; endReason = null
+        companionKind = ""
+        parentCard = null; parentRung = 0; parentHasMore = false; adultLine = null
+        // 미리 넣어 둔 질문은 **이야기마다 비운다.** 부모가 오늘 넣은 것이 내일 또 나오면 안 된다.
+        // (계정에 남겨 둘 것인지는 저장이 붙은 뒤의 일이다 — 지금은 저장이 없다)
+        parentQuestions.clear(); parentQIndex = 0
+        author.clear()
         nextLevel?.let { level = it }
         nextLevel = null; levelAtStart = level
         templateKey = null; attribute = null; causeKind = "lonely"; notes.clear(); levelWhy = ""
@@ -622,8 +1062,8 @@ class DemoState {
         level = Level.CHAIN
         resetStory()
         heroes.clear()
-        heroes += Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF5DADE2)))
-        heroes += Hero("파란 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFF3F7BD9)))
+        heroes += Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9)))
+        heroes += Hero("빨간 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
         shelf.clear()
         shelf += ShelfBook("문어랑 바닷속 숨바꼭질", "sea", "bg_sea", 7)
         shelf += ShelfBook("기차 타고 공룡 나라", "dino", "bg_dino", 6)
@@ -645,5 +1085,8 @@ fun eun(w: String) = if (bat(w)) "은" else "는"
 fun wa(w: String) = if (bat(w)) "과" else "와"
 fun eul(w: String) = if (bat(w)) "을" else "를"
 fun ro(w: String) = if (bat(w) && (w.last().code - 0xAC00) % 28 != 8) "으로" else "로"
+
+/** ~에게 · ~한테 — 사람 이름 뒤 (받침과 무관하지만 한 곳에서 쓰려고 함수로 둔다) */
+fun ege(w: String) = "에게"
 fun ya(w: String) = if (bat(w)) "아" else "야"
 fun rang(w: String) = if (bat(w)) "이랑" else "랑"

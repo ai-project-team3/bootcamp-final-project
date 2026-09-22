@@ -4,6 +4,7 @@ from .anthropic_adapter import AnthropicAdapter
 from .mistral_adapter import MistralAdapter
 from .mock import MockProvider
 from .openai_adapter import OpenAIAdapter
+from .typesafe_adapter import TypeSafeAdapter
 
 
 def create_provider(name: str):
@@ -15,7 +16,9 @@ def create_provider(name: str):
         return AnthropicAdapter()
     if name == "mistral":
         return MistralAdapter()
+    if name == "typesafe":
+        return TypeSafeAdapter()
     raise ValueError(f"unknown provider: {name}")
 
 
-__all__ = ["MockProvider", "OpenAIAdapter", "AnthropicAdapter", "MistralAdapter", "create_provider"]
+__all__ = ["MockProvider", "OpenAIAdapter", "AnthropicAdapter", "MistralAdapter", "TypeSafeAdapter", "create_provider"]

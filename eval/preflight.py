@@ -20,6 +20,9 @@ DEFAULT_MODELS = [
     "claude-haiku-4-5",
     "mistral-small-4",
     "ministral-3-3b",    # 측정 완료 · 탈락 (results.md 09-20)
+    # ⚠️ 판정만 하는 모델이라 다른 후보와 나란히 채점되지 않는다 — 16필드 중 9개만 답한다.
+    #    빠뜨리면 "후보가 아니었다"로 읽히므로 목록에는 둔다 (docs/조사_Jev_판정모델_검토.md).
+    "jev-latest",
 ]
 REQUIRED_FIXTURE_KEYS = {"id", "slots", "asked", "template", "utterance"}
 
