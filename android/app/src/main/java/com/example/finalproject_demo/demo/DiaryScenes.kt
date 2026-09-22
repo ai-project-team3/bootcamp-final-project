@@ -342,5 +342,6 @@ private suspend fun Director.finishDiary() {
     go(Scene.MAKING)
 }
 
+// 부모 협업 모드의 코드는 `CoopScenes.kt` 로 옮겼다 (09-22) —
 // 일기와 협업을 다른 사람이 맡기로 해서 한 파일을 둘이 고치지 않게 갈랐다.
 // 이 파일에 남은 갈고리는 셋뿐이다: coopIntro · askOrCoopAsk · coopFinishLog
