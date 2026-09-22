@@ -84,6 +84,17 @@ class ParentViewTest {
         return n
     }
 
+    /**
+     * 일기 · 협업 질문을 끝까지 답하고 책까지 간다.
+     * 민우님의 「🎬 오늘 이야기 시연 답」(한 아이의 하루로 이어지는 결정적 대본)이 있으면 그것을, 없으면 무작위 답을 쓴다.
+     */
+    private suspend fun Director.diaryToBook() {
+        val demo = "🎬 오늘 이야기 시연 답"
+        if (await(2_000) { s.buttons.any { demo in it.label } } != null) answerAll(demo) else answerAll()
+        if (await(3_000) { s.buttons.any { "안 그릴래" in it.label } } != null) tap("안 그릴래")
+        assertTrue("책까지 못 갔다 scene=${s.scene} end=${s.endReason}", await(20_000) { s.scene == Scene.BOOK } != null)
+    }
+
     /** 감독을 띄워 흐름을 돌리고, 끝난 상태를 그대로 돌려준다. 그 뒤 화면을 그린다. */
     private fun drive(block: suspend (Director) -> Unit): Director {
         val sup = SupervisorJob()
@@ -108,7 +119,7 @@ class ParentViewTest {
         compose.setContent {
             Box(Modifier.fillMaxSize().background(Bg)) { ParentView(d, tab) }
         }
-        listOf("rec", "ach", "set").forEach { t ->
+        listOf("rec", "coop", "ach", "set").forEach { t ->
             tab = t
             compose.waitForIdle()
             compose.onRoot().captureRoboImage(
@@ -154,6 +165,23 @@ class ParentViewTest {
         shotAll(d, "story")
     }
 
+    /**
+     * 협업 질문 탭 — 부모가 질문을 넣어 둔 상태. 좋은 질문 하나, 귀띔이 붙는 질문 셋, 빈 자리 하나.
+     * 귀띔 셋이 다 보이는지, 빈 줄에 귀띔이 없는지 눈으로 본다.
+     */
+    @Test
+    fun coopQuestionTabShowsHintsButNoScores() {
+        val d = drive { d ->
+            d.s.parentQuestions += listOf(
+                "오늘 어디 갔었어?",          // 좋은 질문
+                "재밌었어?",                 // 예/아니오
+                "누구랑 뭐 하고 놀았어?",     // 의문사 둘
+                "언제 갔어?",                // 언제
+            )
+        }
+        shotAll(d, "coop_questions")
+    }
+
     /** 일기 모드를 한 바퀴 돌고 온 뒤 */
     @Test
     fun parentModeDrawsAfterDiary() {
@@ -164,9 +192,7 @@ class ParentViewTest {
             assertTrue(await { s.scene == Scene.BESTIARY } != null)
             assertTrue(d.tap("카드를 탭"))
             assertTrue(await { s.scene == Scene.DIARY } != null)
-            d.answerAll()
-            if (s.buttons.any { "안 그릴래" in it.label }) d.tap("안 그릴래")
-            assertTrue(await(12_000) { s.scene == Scene.BOOK } != null)
+            d.diaryToBook()
         }
         assertEquals(StoryMode.DIARY, d.s.mode)
         shotAll(d, "diary")
@@ -182,9 +208,7 @@ class ParentViewTest {
             assertTrue(await { s.scene == Scene.BESTIARY } != null)
             assertTrue(d.tap("카드를 탭"))
             assertTrue(await { s.scene == Scene.DIARY } != null)
-            d.answerAll("🗣")
-            if (s.buttons.any { "안 그릴래" in it.label }) d.tap("안 그릴래")
-            assertTrue(await(12_000) { s.scene == Scene.BOOK } != null)
+            d.diaryToBook()
         }
         assertEquals(StoryMode.COOP, d.s.mode)
         shotAll(d, "coop")

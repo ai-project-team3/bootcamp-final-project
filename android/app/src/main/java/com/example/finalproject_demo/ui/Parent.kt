@@ -24,6 +24,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,7 +103,7 @@ fun ParentView(d: Director, tab: String) {
                 }
             }
             Spacer(Modifier.height(16.dp))
-            listOf(Triple("rec", "📋", "오늘의 기록"), Triple("ach", "🏅", "업적"), Triple("set", "⚙️", "설정")).forEach { (k, e, t) ->
+            listOf(Triple("rec", "📋", "오늘의 기록"), Triple("coop", "🤝", "협업 질문"), Triple("ach", "🏅", "업적"), Triple("set", "⚙️", "설정")).forEach { (k, e, t) ->
                 val on = tab == k
                 Row(
                     Modifier
@@ -142,7 +144,7 @@ fun ParentView(d: Director, tab: String) {
             ) {
                 Text("부모 모드", fontSize = 13.sp, color = PSub)
                 Text("  ›  ", fontSize = 13.sp, color = PSub)
-                Text(when (tab) { "ach" -> "업적"; "set" -> "설정"; else -> "오늘의 기록" }, fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold)
+                Text(when (tab) { "coop" -> "협업 질문"; "ach" -> "업적"; "set" -> "설정"; else -> "오늘의 기록" }, fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold)
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(PLine))
             Column(
@@ -153,6 +155,7 @@ fun ParentView(d: Director, tab: String) {
                     .padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 18.dp)
             ) {
                 when (tab) {
+                    "coop" -> CoopQuestionsTab(d)
                     "ach" -> AchievementsTab(d)
                     "set" -> SettingsTab(d)
                     else -> RecordTab(d)
@@ -390,6 +393,123 @@ private fun Chip(text: String, color: Color) {
 private fun Dots(n: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         repeat(3) { i -> Box(Modifier.size(8.dp).clip(CircleShape).background(if (i < n) PAccent else PLine)) }
+    }
+}
+
+/** 질문 자리 — 앞 네 줄은 기승전결(일기 §2-1), 그 뒤는 자유. 부모에게는 「기승전결」 대신 묻는 말로 보여 준다 */
+private val COOP_PARTS = listOf("어디", "무슨 일", "왜", "어떻게 됐나")
+private const val COOP_MAX = 6          // 6쪽 책에 장면이 6개다 (구현설계 §1-③)
+
+/** 추천 — 지금은 대본이다. 나중에 LLM이 "찬 칸을 보고" 추천한다 (guidelines/9 §9-5 "추천하는 정도로만") */
+private val COOP_SUGGESTIONS = listOf(
+    "오늘 어디 갔었어?",
+    "거기서 무슨 일이 있었어?",
+    "왜 그랬을까?",
+    "그래서 어떻게 됐어?",
+    "오늘 제일 재밌었던 게 뭐였어?",
+    "누구랑 같이 있었어?",
+)
+
+/**
+ * 협업 질문 — **부모가 이야기 전에 질문을 적어 두는 곳** (구현설계 §2-1 · 부모협업모드_설계 §0 9/22 개정).
+ * 이 화면이 협업 모드의 절반이다 — 나머지 절반은 마스코트가 이 질문을 아이에게 읽어 주는 것(CoopScenes).
+ *
+ * - 자리는 지금 **위치**로 정한다 (0~3 = 어디·무슨 일·왜·어떻게, 4~ = 자유). 홀더가 `List<String>` 이라서다.
+ *   `ParentQuestion(part, text)` 로 바뀌면(조장 요청) 이 위치 규칙은 필드로 옮긴다
+ * - 글자만 받는다. 음성 입력은 안 한다 (구현설계 §1-⑤)
+ * - 귀띔은 [questionHint] — 막지도 점수를 매기지도 않는다 (§1-⑥ · 설계 §7)
+ * - 빈 줄은 그대로 둔다. 읽는 쪽(CoopScenes)이 빈 줄을 건너뛴다
+ */
+@Composable
+private fun CoopQuestionsTab(d: Director) {
+    val s = d.s
+    val qs = s.parentQuestions
+
+    fun set(i: Int, text: String) {
+        while (qs.size <= i) qs.add("")
+        qs[i] = text
+    }
+
+    PCard(Modifier.fillMaxWidth()) {
+        Text("오늘 아이에게 물어볼 것을 적어 두세요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
+        Text("[같이 만들기]를 시작하면 마스코트가 이 순서대로 대신 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
+    }
+
+    Section("질문", "네 자리를 먼저 채우고, 더 있으면 [＋]")
+    val rows = maxOf(COOP_PARTS.size, qs.size)
+    for (i in 0 until rows) {
+        val text = qs.getOrNull(i) ?: ""
+        val label = COOP_PARTS.getOrNull(i) ?: "자유"
+        PCard(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, fontSize = 13.sp, color = PSub, modifier = Modifier.width(72.dp))
+                TextField(
+                    value = text,
+                    onValueChange = { set(i, it) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    placeholder = { Text("예: ${COOP_SUGGESTIONS.getOrElse(i) { COOP_SUGGESTIONS.last() }}", fontSize = 14.sp, color = PSub.copy(alpha = 0.6f)) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = PBg, unfocusedContainerColor = PBg,
+                        focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
+                    ),
+                )
+                if (text.isNotEmpty()) {
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        Modifier.clip(RoundedCornerShape(10.dp)).clickable { if (i < qs.size) qs.removeAt(i) }.padding(8.dp),
+                    ) { Text("🗑", fontSize = 16.sp) }
+                }
+            }
+            questionHint(text)?.let { h ->
+                Spacer(Modifier.height(4.dp))
+                Text("💡 ${h.why}", fontSize = 12.sp, color = PAccent)
+                Text(h.example, fontSize = 12.sp, color = PSub)
+            }
+        }
+    }
+    if (rows < COOP_MAX) {
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFFF3EDE3))
+                .clickable { set(rows, "") }
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+        ) { Text("＋ 하나 더", fontSize = 13.sp, color = Ink) }
+    }
+
+    Section("이런 질문은 어때요", "탭하면 빈 자리에 들어가요")
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.weight(1f)) {
+            COOP_SUGGESTIONS.forEach { q ->
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White)
+                        .clickable {
+                            val empty = (0 until maxOf(rows, qs.size)).firstOrNull { (qs.getOrNull(it) ?: "").isBlank() }
+                            when {
+                                empty != null -> set(empty, q)
+                                qs.size < COOP_MAX -> qs.add(q)
+                            }
+                        }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) { Text("“$q”", fontSize = 13.sp, color = Ink) }
+            }
+        }
+    }
+
+    Spacer(Modifier.height(10.dp))
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF3EDE3)).padding(12.dp)) {
+        Column {
+            listOf(
+                "ⓘ 넣은 질문에 점수를 매기지 않아요. 아이가 더 길게 답할 만한 방법만 귀띔해요.",
+                "ⓘ 질문이 모자라면 마스코트가 이야기에 맞춰 이어서 물어봐요.",
+                "ⓘ 아이 말은 마이크로 받고, 이름은 가린 뒤에야 밖으로 나가요.",
+            ).forEach { Text(it, fontSize = 11.sp, color = PSub) }
+        }
     }
 }
 
