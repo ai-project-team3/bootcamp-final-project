@@ -8,8 +8,8 @@
 
 ⚠️ **다른 후보와 총점을 나란히 두지 않는다.** Jev는 16필드 중 9개만 답한다 —
    나머지 7은 자유 문장이고 한계 문서가 "글을 만들도록 학습되지 않았다"고 적었다.
-   **그래서 9필드만 물는다.** 7필드의 0점은 "틀렸다"가 아니라 "안 하는 일"이다.
-   그 9개 중 `next_slot` 은 다시 버린다 — 평가셋에 gold 가 없다(아래 UNLABELLED).
+   **그래서 9필드만 묻는다.** 7필드의 0점은 "틀렸다"가 아니라 "안 하는 일"이다.
+   `next_slot` 은 gold 가 허용 목록이라 **집합 소속으로** 채점한다 (아래 SET_FIELDS).
 
 값: 100만 입력 토큰당 $0.042 · 출력 무료. 100문항이면 1원 남짓이다.
 
@@ -30,13 +30,14 @@ from .config import load_dotenv, resolve_model
 from .providers import create_provider
 
 EVAL = Path(__file__).parent
-# Jev가 답할 수 있는 9개. 나머지 7은 애초에 묻지 않는다.
-# ⚠️ `next_slot` 은 **채점에서 뺀다.** 평가셋 gold 100개가 전부 null 이다 —
-#    라벨링이 안 된 필드이고(`guidelines/6` §6-4가 "일부러 비어 있는 게 아니라 아직 못 정한 것"이라
-#    적어 뒀다), 넣어 두면 **어느 모델이든 0%가 나와 모델 실패로 오독된다.**
-#    09-22에 실제로 한 번 그렇게 읽었다. 물기는 하되 채점하지 않는다.
-UNLABELLED = ["next_slot"]
-FIELDS = ["slot_1", "slot_2", "no_longer_needed",
+# Jev가 답할 수 있는 9개. 나머지 7은 자유 문장이라 애초에 묻지 않는다.
+#
+# ⚠️ `next_slot` 은 gold 가 **하나가 아니라 허용 목록**이다 — `next_slot_ok: ["problem","cause",…]`.
+# 직접 비교하면 항상 틀리며 0%가 나온다 (09-22에 두 번 속았다:
+# 한 번은 `next_slot` 키가 없어서, 한 번은 집합 판정을 안 해서).
+# 지금은 **목록 소속으로** 본다. 75문항에만 목록이 있다.
+SET_FIELDS = {"next_slot": "next_slot_ok"}
+FIELDS = ["slot_1", "slot_2", "next_slot", "no_longer_needed",
           "s1_reason", "s2_addition", "contradiction", "unclear", "story_ready"]
 BINS = [(0.0, 0.5), (0.5, 0.7), (0.7, 0.9), (0.9, 1.01)]
 
@@ -65,8 +66,8 @@ def main() -> None:
     schema = json.load(io.open(EVAL / "judge_schema.json", encoding="utf-8"))
 
     data = rows(args.n)
-    print("%d문항 · %s · %d필드 채점 (gold 없는 %s 는 제외)\n"
-          % (len(data), cfg["api_model"], len(FIELDS), ", ".join(UNLABELLED)), flush=True)
+    print("%d문항 · %s · %d필드 채점 (%s 는 허용 목록으로 채점)\n"
+          % (len(data), cfg["api_model"], len(FIELDS), ", ".join(SET_FIELDS)), flush=True)
 
     # hits[field] = [(맞았나, 확신도), ...]
     hits: dict[str, list] = {f: [] for f in FIELDS}
@@ -101,7 +102,13 @@ def main() -> None:
                              ensure_ascii=False) + "\n")
         g = r["gold"]
         for f in FIELDS:
-            hits[f].append((out.get(f) == g.get(f), conf.get(f)))
+            if f in SET_FIELDS:
+                allow = g.get(SET_FIELDS[f])
+                if not allow:          # 목록이 없는 문항은 채점하지 않는다
+                    continue
+                hits[f].append((out.get(f) in allow, conf.get(f)))
+            else:
+                hits[f].append((out.get(f) == g.get(f), conf.get(f)))
         if i % 20 == 0:
             print("  %d/%d" % (i, len(data)), flush=True)
     raw.close()
