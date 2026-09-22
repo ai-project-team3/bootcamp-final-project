@@ -73,11 +73,15 @@ private fun diaryMission1(s: DemoState): Mission1 {
  */
 fun diaryGiveItem(solution: String, s: DemoState): String {
     val all = solution + " " + s.problem.orEmpty() + " " + s.slots["detail"].orEmpty()
+    // 9/22 — 결말에 이미 나온 물건은 고르지 않는다. "반창고를 붙이고 다시 놀았어요.
+    // 그리고 민서에게 반창고를 붙여 주었어요." 처럼 같은 물건이 한 쪽에 두 번 나왔다
+    fun pickAvoidingSolution(first: String, fallback: String, word: String) =
+        if (word in solution) fallback else first
     return when {
         "블록" in all || "쌓" in all -> "block"
-        "넘어" in all || "아팠" in all || "다쳤" in all -> "bandaid"
-        "책" in all || "그림" in all -> "picturebook"
-        "밥" in all || "먹" in all || "간식" in all -> "strawberry"
+        "넘어" in all || "아팠" in all || "다쳤" in all -> pickAvoidingSolution("bandaid", "star", "반창고")
+        "책" in all || "그림" in all -> pickAvoidingSolution("picturebook", "star", "그림책")
+        "밥" in all || "먹" in all || "간식" in all -> pickAvoidingSolution("strawberry", "star", "딸기")
         "노래" in all || "춤" in all -> "note"
         else -> "star"
     }
@@ -115,35 +119,56 @@ fun reported(line: String): String = if (line.endsWith("어")) line.dropLast(1) 
 fun DemoState.m1Line(): String {
     val m = mission1(); val v = rideName
     if (isDiary) {
-        val where = placeLabel?.let { "${it}에서 놀고 왔더니" } ?: "하루를 다 보내고 나니"
-        return "$where ${v}에 ${m.blobName}${ga(m.blobName)} 잔뜩! ${m.toolName}${ro(m.toolName)} 슥슥 털어 줄래?"
+        // 9/22 — 전에는 **가방**에 묻은 것을 털게 했다. 가방은 아이가 말한 적 없는 물건이라
+        // "블록이 무너졌어" 라고 말한 날에도 뜬금없이 가방이 나왔다. 이제 **그 일이 일어난 자리**를 치운다
+        val where = placeLabel?.let { "${it}에는" } ?: "놀던 자리에는"
+        return "$where ${m.blobName}${ga(m.blobName)} 아직 잔뜩 남아 있어. ${m.toolName}${ro(m.toolName)} 슥슥 치워 줄래?"
     }
     return "큰일이야! $newcomerKind${ga(newcomerKind)} 흔들어서 $v${eul(v)} 보니 ${m.blobName}${ga(m.blobName)} 잔뜩! ${m.toolName}${ro(m.toolName)} 슥슥 치워 줄래?"
 }
 
-fun DemoState.m1Caption(): String {
+/**
+ * 미션 1이 책에 남는 문장.
+ *
+ * [withSubject] 가 false면 **주어를 빼고 절로만** 돌려준다. 앞 문장이 이미 아이 이야기일 때
+ * "지호는 다시 쌓아 봤어요. 지호는 모래를 치웠어요." 처럼 이름이 두 번 나오지 않게 하려는 것이다 (9/22).
+ */
+fun DemoState.m1Caption(withSubject: Boolean = true): String {
     val m = mission1(); val v = rideName; val f = friendCallName
     if (isDiary) {
-        val where = placeLabel?.let { "${it}에서 돌아온 " } ?: ""
-        return "$where${childName}의 ${v}에 ${m.stuck}!"
+        // 자막은 **아이가 한 일**로 쓴다. 미션이 이야기 옆에 붙은 딴 이야기가 아니라
+        // "그래서 나는 이렇게 했어" 자리에 들어가야 흐름이 끊기지 않는다 (9/22)
+        val where = placeLabel?.let { "${it}에 " } ?: ""
+        // ⚠️ `$where남은` 으로 쓰면 안 된다 — 한글도 식별자 문자라서 Kotlin이 `where남은` 을
+        //    변수 하나로 읽는다. 한글이 바로 뒤에 붙는 자리는 **반드시 중괄호**로 끊는다
+        val clause = "${where}남은 ${m.blobName}${eul(m.blobName)} ${m.toolName}${ro(m.toolName)} 슥슥 치웠어요."
+        return if (withSubject) "$childName${eun(childName)} $clause" else clause
     }
     return "$f${ga(f)} 너무 세게 흔드는 바람에 ${v}에 ${m.stuck}!"
 }
 
-fun DemoState.m1Done(): String = "${mission1().done} $childName 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
+/**
+ * 미션 2가 책에 남는 절 — 주어 없이. 앞의 "마침내 …" 문장에 이어 붙는다 (9/22).
+ * 결(結) 한 쪽이 두 문장으로 갈라지지 않게 하려는 것이다.
+ */
+fun DemoState.m2Clause(): String =
+    // 아무도 없었던 날엔 마스코트가 받는다. 그런데 마스코트는 앞쪽에 한 번도 안 나온 인물이라
+    // 그냥 "마스코트에게 건네주었어요" 라고 하면 뜬금없다. 한 마디로 자리를 만들어 준다 (9/22)
+    if (hasCompanion) "${giveTargetName}에게 ${mission2().give}."
+    else "오늘 이야기를 들어준 마스코트에게 ${mission2().give}."
+
+fun DemoState.m1Done(): String =
+    if (isDiary) "${mission1().done} 자리가 다시 깨끗해졌어!"
+    else "${mission1().done} $childName 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
 
 fun DemoState.m2Line(easy: Boolean): String {
-    val m = mission2(); val f = friendCallName
+    val m = mission2()
+    // 9/22 — 아무도 없었던 날에는 "그 친구" 를 지어내지 않는다. 마스코트가 받는다 (그림도 이미 마스코트다)
+    val f = giveTargetName
     if (easy) return "${m.itemName}${eul(m.itemName)} 톡톡 누르면 ${f}에게 날아가!"
     // 일기 모드는 "미안해"를 앞세우지 않는다 — 아이가 그렇게 말하지 않았을 수 있다 (일기 설계 §3-2)
     if (isDiary) return "${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
     return "${f}${ga(f)} ${reported(causeLine)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
 }
 
-fun DemoState.m2Caption(): String {
-    val f = friendCallName
-    if (isDiary) return "${childName}${eun(childName)} ${f}에게 ${mission2().give}."
-    return "$f${eun(f)} \"$causeLine. 미안해\" 하고 말했어요. $childName${eun(childName)} ${f}에게 ${mission2().give}."
-}
-
-fun DemoState.m2Done(): String = "${friendCallName}${ga(friendCallName)} ${mission2().done}"
+fun DemoState.m2Done(): String = "${giveTargetName}${ga(giveTargetName)} ${mission2().done}"

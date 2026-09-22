@@ -90,6 +90,79 @@ class DiaryFlowTest {
         }
     }
 
+    /**
+     * 책을 한 권 만들고 **두 번째 이야기로 들어갈 수 있는가** (9/22).
+     *
+     * *"동화책을 만들고 도감 부분에서 이후로 안 넘어간다"* 는 지적에서 나왔다.
+     * 한 권을 끝내고 처음 화면으로 돌아와 다시 시작하면 도감이 뜨는데, 거기서 주인공을
+     * 골라도 다음 장면으로 가지 않는다는 것이다. 한 바퀴를 두 번 돌아 본다.
+     */
+    @Test
+    fun aSecondStoryStillGetsPastTheBestiary() = run { d ->
+        val s = d.s
+
+        // ── 첫 번째 이야기 — 책까지
+        d.go(Scene.ADULT)
+        assertTrue("시작 화면이 안 떴다", d.tap("오늘 있었던 일로"))
+        assertTrue("도감이 안 떴다", await { s.scene == Scene.BESTIARY } != null)
+        assertTrue("첫 이야기에서 주인공을 못 골랐다", d.tap("카드를 탭"))
+        assertTrue("질문으로 안 왔다", await { s.scene == Scene.DIARY } != null)
+        d.answerAll("🗣", max = 30)
+        if (s.buttons.any { "안 그릴래" in it.label }) d.tap("안 그릴래")
+        assertTrue(
+            "책으로 안 넘어갔다 (장면=${s.scene})",
+            await(10_000) { s.scene == Scene.MAKING || s.scene == Scene.BOOK } != null,
+        )
+
+        // ── 책을 **끝까지 넘겨** 시작 화면으로 돌아간다.
+        //    goHome() 으로 건너뛰면 책 뒤의 장면들(친구 평가 · 끝내기 · 책장)을 지나치게 된다 —
+        //    지적받은 증상이 그 구간에서 나올 수 있으므로 실제로 밟는다 (9/22)
+        var steps = 0
+        while (s.scene != Scene.ADULT && steps < 80) {
+            val b = s.buttons.firstOrNull() ?: run { delay(30); null }
+            if (b != null) { b.onClick(); steps++ }
+            delay(30)
+        }
+        assertTrue(
+            "책 뒤에서 시작 화면으로 못 돌아왔다 (장면=${s.scene} · 버튼=${s.buttons.map { it.label }})",
+            s.scene == Scene.ADULT,
+        )
+        assertTrue("도감이 비었다 — 주인공이 하나도 없으면 고를 수가 없다", s.heroes.isNotEmpty())
+
+        assertTrue("두 번째 이야기를 못 시작했다", d.tap("오늘 있었던 일로"))
+        assertTrue("두 번째 이야기에서 도감이 안 떴다", await { s.scene == Scene.BESTIARY } != null)
+        assertTrue("도감에 카드 버튼이 없다 (버튼=${s.buttons.map { it.label }})", d.tap("카드를 탭"))
+        assertTrue(
+            "⚠️ 도감에서 안 넘어간다 — 주인공을 골랐는데 장면이 ${s.scene} 그대로다",
+            await(8_000) { s.scene == Scene.DIARY } != null,
+        )
+    }
+
+    /**
+     * **동화 모드**로 한 권 만들고 두 번째 이야기의 도감을 지나갈 수 있는가 (9/22).
+     *
+     * 동화 모드는 도감 앞에 「함께할 사람」 화면이 하나 더 있다. 지적받은 *"동화책"* 은 이쪽이다.
+     */
+    @Test
+    fun aSecondStoryModeRunStillGetsPastTheBestiary() = run { d ->
+        val s = d.s
+
+        d.go(Scene.ADULT)
+        assertTrue("시작 화면이 안 떴다", d.tap("이야기 만들기 탭"))
+        assertTrue("함께할 사람 화면이 안 떴다", await { s.scene == Scene.PARTNER } != null)
+        // 함께할 사람은 **말로** 답한다 (탭 카드가 아니다)
+        assertTrue("함께할 사람을 못 골랐다 (버튼=${s.buttons.map { it.label }})", d.push("🗣"))
+        assertTrue(
+            "동화 모드에서 도감이 안 떴다 (장면=${s.scene})",
+            await(8_000) { s.scene == Scene.BESTIARY } != null,
+        )
+        assertTrue("도감에 카드 버튼이 없다 (버튼=${s.buttons.map { it.label }})", d.tap("카드를 탭"))
+        assertTrue(
+            "⚠️ 동화 모드 도감에서 안 넘어간다 — 장면이 ${s.scene} 그대로다",
+            await(8_000) { s.scene == Scene.PLACE } != null,
+        )
+    }
+
     // ── 1. 일기 모드 ─────────────────────────────────────────────
 
     @Test
@@ -186,6 +259,14 @@ class DiaryFlowTest {
 
         // 아이가 말하지 않으면(➡️) 질문이 바뀐다 — 동화 모드의 무응답 흐름 그대로다.
         //
+        // ⚠️ **순간값을 보면 안 된다** (9/22). 검사에서는 `speed = 0.0` 이라 기다리는 시간이 0이고,
+        //    사다리가 한 순간에 끝까지 내려간 뒤 다음 걸음으로 넘어간다. 그때 `parentCard` 는 이미
+        //    다음 질문이고 `parentRung` 은 걸음이 바뀌며 0으로 되돌아가 있다.
+        //    그래서 **쌓이는 기록(로그)** 으로 본다 — 사다리를 내려갈 때마다 한 줄씩 남는다.
+        assertTrue("띠에 [내가 답할래] 버튼이 남아 있다", s.buttons.none { "내가 답할래" in it.label })
+
+        // 아이가 말하지 않으면(➡️) 질문이 바뀐다 — 동화 모드의 무응답 흐름 그대로다.
+        //
         // ⚠️ **순간값을 보면 안 된다** (9/22). 검사에서는 기다리는 시간을 거의 0으로 줄여 두어
         //    사다리가 한 순간에 끝까지 내려간 뒤 다음 걸음으로 넘어간다. 그때 `parentCard` 는 이미
         //    다음 질문이고, `parentRung` 은 걸음이 바뀌며(`coopAsk` 가 0으로 되돌린다) 0이다.
@@ -220,6 +301,14 @@ class DiaryFlowTest {
         assertTrue("누가 지었는지 기록이 없다", s.author.isNotEmpty())
         assertTrue("협업인데 어른이 읽어 준 질문이 안 남았다", s.adultLine != null)
         assertTrue("부모 띠가 책에서도 떠 있다", s.parentCard == null)
+
+        // 진행 막대는 **마지막 질문까지 가면 끝까지 차야 한다** (9/22 지적).
+        // 전에는 필수 칸(4개)만 세어 질문 열둘을 다 물어도 막대가 3분의 1에서 멈췄고,
+        // 그다음에는 "칸이 찼는가" 로 세다가 아이가 답하지 않은 선택 질문 때문에 끝까지 못 갔다
+        assertEquals(
+            "질문을 다 했는데 진행 막대가 안 찼다 (${s.askDone}/${s.askTotal})",
+            s.askTotal, s.askDone,
+        )
     }
 
     // ── 3. 동화 모드가 그대로인가 ─────────────────────────────────

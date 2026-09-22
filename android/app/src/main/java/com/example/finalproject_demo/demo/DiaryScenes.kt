@@ -139,6 +139,9 @@ suspend fun Director.sceneDiary() {
             continue
         }
         askDiaryStep(step)
+        // 진행 막대는 **지나온 걸음 수**로 찬다 (9/22). 칸이 찼는지로 세면, 아이가 답하지 않은
+        // 선택 질문이 하나라도 있으면 마지막 질문까지 가도 막대가 끝까지 가지 않는다
+        s.stepsDone++
     }
     if (s.endReason == null && diaryReadyNow()) {
         s.endReason = "story_ready"
@@ -339,6 +342,5 @@ private suspend fun Director.finishDiary() {
     go(Scene.MAKING)
 }
 
-// 부모 협업 모드의 코드는 `CoopScenes.kt` 로 옮겼다 (09-22) —
 // 일기와 협업을 다른 사람이 맡기로 해서 한 파일을 둘이 고치지 않게 갈랐다.
 // 이 파일에 남은 갈고리는 셋뿐이다: coopIntro · askOrCoopAsk · coopFinishLog

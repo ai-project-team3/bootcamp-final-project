@@ -714,8 +714,16 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
         }
     }
 
-    Row(Modifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, top = TopChrome, bottom = BottomChrome), verticalAlignment = Alignment.CenterVertically) {
-        // 12색을 2줄로 — 세로 한 줄로 두면 가로 화면에서 넘친다
+    // 도화지를 넓힌다 (9/22) — 가장자리 여백과 위아래 자리를 줄여 그릴 자리로 돌린다.
+    // 위는 진행 막대·화면 이름이, 아래는 마스코트 말풍선이 있는 자리라 **겹치지 않을 만큼만** 줄였다
+    Row(
+        Modifier.fillMaxSize().padding(start = 8.dp, end = 8.dp, top = TopChrome - 16.dp, bottom = BottomChrome - 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 12색을 2줄로 — 세로 한 줄로 두면 가로 화면에서 넘친다.
+        //
+        // 크레용은 **30dp 그대로 둔다** (9/22). 한 번 46dp로 키웠다가 되돌렸다 —
+        // 팔레트가 커진 만큼 도화지가 좁아져서, 정작 그릴 자리가 줄었다. 그릴 자리가 먼저다.
         Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             CRAYONS.chunked(6).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -750,7 +758,7 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
                 ) { Text("모두 지우기", fontSize = 14.sp, color = Ink) }
             }
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(8.dp))
         Box(
             Modifier
                 .weight(1f)
@@ -785,7 +793,7 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
                 Text("여기에 손가락으로 그려 보세요", fontSize = 16.sp, color = Muted, modifier = Modifier.align(Alignment.Center))
             }
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             PillButton("✅ 다 그렸어", Coral, Color.White, 17) { commit(); d.send(Reply.Tapped("done", "완료")) }
             if (!forAnswer) PillButton("그리기 싫어", Color(0xFFF3E7D0), Ink, 15) { d.send(Reply.Tapped("preset", "프리셋")) }
