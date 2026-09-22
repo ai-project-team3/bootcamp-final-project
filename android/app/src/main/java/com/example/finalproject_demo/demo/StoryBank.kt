@@ -402,6 +402,46 @@ val BANK: List<QVariant> = listOf(
         text = { "${it.f}${rang(it.f)} 다시 친해지려면 어떻게 하면 좋을까?" }, easier = { "${it.f}${ga(it.f)} 뭘 하면 좋을까?" },
         answers = { solutionPool(it).shuffledKeepSpread() }, cards = SOLUTION_CARDS),
 
+    // ══ B 오해-화해형 (까닭 짓기) ══
+    QVariant("b_upset", "upset", ALL, Kind.HARD, "자기 마음을 말하나 (S1)",
+        text = { "${it.c}${eun(it.c)} 그때 마음이 어땠어?" }, easier = { "화가 났을까, 속상했을까?" },
+        answers = { upsetAnswers(it) }, fallback = { upsetAnswers(it).first() }),
+    QVariant("b_upset_do", "upset", ALL, Kind.HARD, "마음을 행동으로 잇나 (S1 · S2 시도)",
+        text = { "화가 난 ${it.c}${eun(it.c)} 어떻게 했을까?" }, easier = { "${it.f}${eul(it.f)} 쳐다봤을까?" },
+        answers = { upsetAnswers(it) }, fallback = { upsetAnswers(it).first() }),
+    QVariant("b_truth", "truth", ALL, Kind.HARD, "상대 마음을 헤아리나 (S1 · 관점 바꾸기)",
+        text = { "그런데 ${it.f}${eun(it.f)} 왜 그랬을까? ${it.f} 마음도 들어 볼까?" }, easier = { "${it.f}${ga(it.f)} 나쁜 마음이었을까?" },
+        answers = { truthAnswers(it) }, fallback = { truthAnswers(it).first() }),
+    QVariant("b_truth_ask", "truth", ALL, Kind.HARD, "상대 마음을 헤아리나 (S1 · 관점 바꾸기)",
+        text = { "${it.f}${eul(it.f)} 붙잡고 물어봤어. ${it.f}${eun(it.f)} 뭐라고 했을까?" }, easier = { "\"사실은…\" 하고 무슨 말을 했을까?" },
+        answers = { truthAnswers(it) }, fallback = { truthAnswers(it).first() }),
+    QVariant("b_resolve", "resolve", ALL, Kind.HARD, "화해하는 방법을 찾나 (S1 · S2)",
+        text = { "오해가 풀렸어! 이제 ${it.f}${rang(it.f)} 뭘 하면 좋을까?" }, easier = { "${it.f}${ga(it.f)} 뭘 하면 좋아할까?" },
+        answers = { solutionPool(it).shuffledKeepSpread() }, cards = SOLUTION_CARDS),
+    QVariant("b_resolve_sorry", "resolve", ALL, Kind.HARD, "관계를 회복하는 방법 (S1 · S2)",
+        text = { "서로 미안하다고 했어. 그다음엔 뭘 하고 놀까?" }, easier = { "둘이 같이 뭐 할까?" },
+        answers = { solutionPool(it).shuffledKeepSpread() }, cards = SOLUTION_CARDS),
+
+    // ══ F 전통 민담형 (고르기) ══
+    QVariant("f_contest", "contest", ALL, Kind.EASY, "겨룰 것을 고르나",
+        text = { "${it.f}${ga(it.f)} \"누가 이기나 보자!\" 했어. 뭘로 겨룰까?" }, easier = { "달리기 할까, 노래 할까?" },
+        answers = { contestAnswers(it) }, fallback = { contestAnswers(it).first() }),
+    QVariant("f_contest_pick", "contest", ALL, Kind.EASY, "겨룰 것을 고르나",
+        text = { "둘이 겨루기로 했어! 뭘 제일 잘할 것 같아?" }, easier = { "${it.c}${eun(it.c)} 뭘 잘해?" },
+        answers = { contestAnswers(it) }, fallback = { contestAnswers(it).first() }),
+    QVariant("f_cheer", "cheer", ALL, Kind.EASY, "장면에 맞는 말을 넣나 (S2 시도)",
+        text = { "겨루는 동안 뭐라고 외쳤을까?" }, easier = { "\"영차!\" 했을까?" },
+        answers = { cheerAnswers(it) }, fallback = { cheerAnswers(it).first() }),
+    QVariant("f_cheer_who", "cheer", MID_UP, Kind.EASY, "장면에 맞는 말을 넣나 (S2 시도)",
+        text = { "구경하던 친구들이 뭐라고 했을까?" }, easier = { "\"잘한다!\" 했을까?" },
+        answers = { cheerAnswers(it) }, fallback = { cheerAnswers(it).first() }),
+    QVariant("f_resolve", "resolve", ALL, Kind.EASY, "겨루기 뒤에 무엇을 하나 (S2)",
+        text = { "비겼어! 둘 다 잘하네. 이제 뭘 하고 놀까?" }, easier = { "같이 뭐 할까?" },
+        answers = { solutionPool(it).shuffledKeepSpread() }, cards = SOLUTION_CARDS),
+    QVariant("f_resolve_feast", "resolve", ALL, Kind.EASY, "겨루기 뒤에 무엇을 하나 (S2)",
+        text = { "둘 다 웃음이 터졌어. 이제 같이 뭘 할까?" }, easier = { "${it.f}${rang(it.f)} 뭐 하고 놀까?" },
+        answers = { solutionPool(it).shuffledKeepSpread() }, cards = SOLUTION_CARDS),
+
     // ── 공통 끝 질문 ──
     QVariant("feel_how", "feel", ALL, Kind.EASY, "마음 말하기 (신호 아님 · 기록 재료)", counts = false, emotion = true,
         text = { "그러면 ${it.f} 기분은 어떨까?" }, easier = { "${it.f} 얼굴을 떠올려 봐. 어떤 표정일까?" },
@@ -509,6 +549,53 @@ private fun lessonAnswers(s: DemoState) = listOf(
     Answer("친구한테 물어봐야 돼.", "먼저 물어봐야 한다는 걸 알았어요", reason = true, lv = 2),
     Answer("힘이 세도 친구를 다치게 하면 안 돼. 친구가 아프니까.", "힘이 세도 친구를 아프게 하면 안 된다는 걸 알았어요", reason = true, con = true, lv = 3),
     Answer("같이 놀고 싶으면 말로 하면 돼. 흔들면 무서우니까.", "같이 놀고 싶으면 말로 하면 된다는 걸 알았어요", reason = true, con = true, lv = 3),
+)
+
+/*
+ * B 오해-화해형 · F 전통 민담형의 답 모음 (9/22).
+ *
+ * 일곱 뼈대 중 둘이 비어 있었다(역할2 조사정리 §표 — A~G 일곱 가지 중 B·F).
+ * `text` 는 아이가 말하는 그대로(반말·짧게), `value` 는 책에 들어갈 높임체 문장이다.
+ */
+
+/** B — 오해했을 때 아이의 마음 ("너랑 안 놀아") */
+private fun upsetAnswers(s: DemoState) = listOf(
+    Answer("화났어!", "화가 났어요", emo = "화났", lv = 1),
+    Answer("안 놀아!", "\"너랑 안 놀아!\" 하고 등을 돌렸어요", emo = "화났", lv = 1),
+    Answer("${s.c}${ga(s.c)} 깜짝 놀랐어.", "깜짝 놀라 그 자리에 굳어 버렸어요", emo = "놀랐", lv = 2),
+    Answer("속상해서 울 뻔했어.", "속상해서 눈물이 핑 돌았어요", emo = "속상했", lv = 2),
+    Answer("일부러 그런 줄 알고 화가 났어. 물어보지도 않고.", "일부러 그런 줄로만 알고 화가 나서, 물어보지도 않고 등을 돌렸어요", reason = true, el = setOf("계기"), con = true, emo = "화났", lv = 3),
+    Answer("${s.f}${ga(s.f)} 미워서 저쪽으로 갔어. 말도 안 걸었어.", "${s.f}${ga(s.f)} 미워져서 저만치 떨어져 앉았어요", reason = true, el = setOf("결과"), con = true, emo = "화났", lv = 3),
+)
+
+/** B — 알고 보니 사실은 ("사실은…") */
+private fun truthAnswers(s: DemoState) = listOf(
+    Answer("몰라.", "${s.f}에게도 말 못 할 까닭이 있었어요", lv = 1),
+    Answer("인사하려고!", "사실은 인사를 하고 싶었던 거예요", reason = true, lv = 1),
+    Answer("같이 놀고 싶어서.", "사실은 같이 놀고 싶었던 거예요", reason = true, lv = 2),
+    Answer("${s.f}${ga(s.f)} 무서웠대.", "사실은 ${s.f}${ga(s.f)} 혼자라 무서웠던 거예요", reason = true, lv = 2),
+    Answer("말을 걸고 싶은데 부끄러워서 ${s.v}${eul(s.v)} 톡톡 친 거래.", "사실은 말을 걸고 싶은데 부끄러워서 ${s.v}${eul(s.v)} 톡톡 두드린 거였어요", reason = true, el = setOf("계기"), con = true, lv = 3),
+    Answer("친구가 되고 싶었는데 방법을 몰랐대. 그래서 흔든 거야.", "사실은 친구가 되고 싶었는데 어떻게 하는지 몰랐던 거예요", reason = true, el = setOf("계기"), con = true, lv = 3),
+)
+
+/** F — 무엇으로 겨룰까. **힘으로 겨루는 것은 넣지 않는다** (비폭력 — 역할2 조사 미결 ④) */
+private fun contestAnswers(s: DemoState) = listOf(
+    Answer("달리기!", "누가 더 빠른지 달리기로 겨루기로 했어요", lv = 1),
+    Answer("노래!", "누가 더 신나게 부르는지 노래로 겨루기로 했어요", lv = 1),
+    Answer("숨기!", "누가 더 꼭꼭 숨는지 숨바꼭질로 겨루기로 했어요", lv = 2),
+    Answer("춤추기!", "누가 더 멋지게 추는지 춤으로 겨루기로 했어요", lv = 2),
+    Answer("누가 더 높이 뛰나 해 보자! 둘 다 잘하니까.", "누가 더 높이 뛰는지 겨루기로 했어요. 둘 다 자신이 있었거든요", reason = true, el = setOf("계기"), con = true, lv = 3),
+    Answer("누가 더 웃긴 표정 짓나! 그럼 안 다치니까.", "누가 더 우스운 표정을 짓는지 겨루기로 했어요. 그러면 아무도 다치지 않으니까요", reason = true, el = setOf("계기"), con = true, lv = 3),
+)
+
+/** F — 겨루는 동안 뭐라고 외쳤을까 ("누가 이기나 보자") */
+private fun cheerAnswers(s: DemoState) = listOf(
+    Answer("영차!", "\"영차! 영차!\"", lv = 1),
+    Answer("내가 이긴다!", "\"누가 이기나 보자!\"", lv = 1),
+    Answer("잘한다!", "\"우와, 잘한다!\"", lv = 2),
+    Answer("${s.f}${ga(s.f)} \"안 질 거야!\" 했어.", "\"나도 안 질 거야!\"", lv = 2),
+    Answer("둘 다 \"힘내!\" 하고 서로 응원했어.", "\"힘내! 힘내!\" 둘은 서로를 응원했어요", el = setOf("결과"), con = true, lv = 3),
+    Answer("웃겨서 둘 다 깔깔 웃었어. 겨루는 걸 잊어버렸어.", "\"하하, 너무 웃겨!\" 둘은 겨루는 것도 잊고 깔깔 웃었어요", el = setOf("결과"), reason = true, con = true, lv = 3),
 )
 
 private fun reflectAnswers() = listOf(
@@ -768,6 +855,33 @@ val TEMPLATES: List<StoryTemplate> = listOf(
             PageSpec(PageKind.TOGETHER) { "${it.c}${wa(it.c)} ${it.f}${eun(it.f)} ${it.solutionLine}.${it.partnerTail()} ${it.c}${eun(it.c)} ${it.slot("reflect", "친구를 아끼는 마음이 제일 힘세다는 걸 알았어요")}." },
         ),
     ),
+    StoryTemplate(
+        "B", "B", "오해-화해형", Level.REASON,
+        plot = listOf("upset", "truth"), ending = listOf("resolve", "reflect"),
+        shape = "낯선 친구를 만남 → 오해로 토라짐 → 마음을 들어 봄 → 화해 · 7쪽",
+        pages = listOf(
+            PageSpec(PageKind.DEPART) { "${it.c}${eun(it.c)} ${it.v}${eul(it.v)} 타고 ${it.p}${ro(it.p)} 떠났어요." },
+            PageSpec(PageKind.SHAKE) { "그런데 ${it.th.eventLine}. 창밖에서 ${it.nk} ${it.f}${ga(it.f)} ${it.v}${eul(it.v)} 톡톡 두드리고 있었어요.${it.reactionTail()}" },
+            PageSpec(PageKind.TALK) { "${it.c}${eun(it.c)} ${it.slot("upset", "화가 났어요")}. 그러고는 창문 쪽을 보지 않았어요." },
+            PageSpec(PageKind.RUB) { "흔들린 ${it.v}에는 ${it.stuck()}! ${it.c}${eun(it.c)} 말없이 ${it.mission1().toolName}${ro(it.mission1().toolName)} 슥슥 치웠어요." },
+            PageSpec(PageKind.MEET) { "그때 ${it.f}${ga(it.f)} 조그맣게 말했어요. \"${it.causeLine}.\" ${it.slot("truth", "${it.f}에게도 말 못 할 까닭이 있었어요")}." },
+            PageSpec(PageKind.DRAG) { "\"그런 줄 몰랐어. 미안해!\" ${it.c}${eun(it.c)} ${it.eg(it.f)} ${it.give()}." },
+            PageSpec(PageKind.TOGETHER) { "${it.c}${wa(it.c)} ${it.f}${eun(it.f)} ${it.solutionLine}.${it.partnerTail()} ${it.c}${eun(it.c)} ${it.slot("reflect", "먼저 물어보면 오해가 풀린다는 걸 알았어요")}." },
+        ),
+    ),
+    StoryTemplate(
+        "F", "F", "전통 민담형", Level.PICK,
+        plot = listOf("contest", "cheer"), ending = listOf("resolve"),
+        shape = "옛날 옛날에 → 겨루기 → 비기고 함께 놀기 · 6쪽 · 힘으로 이기는 결말은 없다",
+        pages = listOf(
+            PageSpec(PageKind.DEPART) { "옛날 옛날에, ${it.c}${eun(it.c)} ${it.v}${eul(it.v)} 타고 ${it.p}${ro(it.p)} 떠났어요." },
+            PageSpec(PageKind.SHAKE) { "그때 ${it.nk} ${it.f}${ga(it.f)} 나타나 ${it.v}${eul(it.v)} 쿵쿵 흔들었어요. \"누가 이기나 보자!\"${it.reactionTail()}" },
+            PageSpec(PageKind.JOURNEY) { "${it.slot("contest", "누가 더 빠른지 달리기로 겨루기로 했어요")}. ${it.slot("cheer", "\"영차! 영차!\"")}" },
+            PageSpec(PageKind.RUB) { "겨루다 보니 ${it.v}에 ${it.stuck()}! 둘이 같이 슥슥 치웠어요." },
+            PageSpec(PageKind.DRAG) { "\"비겼다!\" 둘 다 웃음이 터졌어요. ${it.c}${eun(it.c)} ${it.eg(it.f)} ${it.give()}." },
+            PageSpec(PageKind.TOGETHER) { "${it.c}${wa(it.c)} ${it.f}${eun(it.f)} ${it.solutionLine}.${it.partnerTail()} 이기고 지는 것보다 같이 노는 게 훨씬 재밌었어요." },
+        ),
+    ),
 )
 
 fun templateOf(key: String) = TEMPLATES.first { it.key == key }
@@ -775,9 +889,15 @@ fun templateOf(key: String) = TEMPLATES.first { it.key == key }
 /** 3턴째 — 수준과 까닭 종류로 템플릿 · 속성을 고른다 */
 fun chooseTemplate(level: Level, causeKind: String): Pair<String, String> {
     val tpl = when (level) {
-        Level.PICK -> "E"
+        // 뽐내는 까닭은 민담의 겨루기와 같은 뿌리다 — 고르기 수준에서는 F, 까닭 수준에서는 G로 간다
+        Level.PICK -> if (causeKind in setOf("prank", "strong")) "F" else "E"
         Level.CHAIN -> if (causeKind in setOf("lost", "hungry", "hurt")) "D" else "C"
-        Level.REASON -> if (causeKind in setOf("prank", "strong")) "G" else "A"
+        // 인사 · 심심함은 **오해가 생기는 자리**다 — 친구는 인사하려던 건데 아이는 흔든 줄 안다
+        Level.REASON -> when {
+            causeKind in setOf("prank", "strong") -> "G"
+            causeKind in setOf("hello", "lonely") -> "B"
+            else -> "A"
+        }
     }
     val attr = when (causeKind) {
         "lonely", "play", "hello" -> "상황 이해"
@@ -785,7 +905,12 @@ fun chooseTemplate(level: Level, causeKind: String): Pair<String, String> {
         "lost", "hungry", "hurt" -> if (tpl == "D") "직업 체험" else "상황 이해"
         else -> "체험"
     }
-    return tpl to (if (tpl == "E") "체험" else attr)
+    return tpl to when (tpl) {
+        "E" -> "체험"
+        "F" -> "체험"          // 겨루고 함께 노는 몸 놀이다 — 교훈을 말로 가르치지 않는다
+        "B" -> "상황 이해"      // 남의 마음을 헤아려 보는 틀이다
+        else -> attr
+    }
 }
 
 // ── 발달 판단 ─────────────────────────────────────────────────
