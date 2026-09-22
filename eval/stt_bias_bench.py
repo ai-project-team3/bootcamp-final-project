@@ -141,26 +141,52 @@ def pick_mic(sd, rate: int) -> int:
     번호를 미리 찾아 오게 하지 않는다. 이어폰을 꽂아도 Windows 가 기본 마이크를 안 바꾸는 일이
     흔해서, 고른 뒤에 소리 크기로 확인하는 것이 번호보다 확실하다.
     """
-    mics = [(i, d["name"]) for i, d in enumerate(sd.query_devices()) if d["max_input_channels"] > 0]
+    import numpy as np
+    apis = sd.query_hostapis()
+    # MME 쪽만 보인다 — 같은 마이크가 MME · DirectSound · WASAPI · WDM-KS 로 네 번씩 나와 목록이 헷갈린다
+    mics = [(i, d["name"]) for i, d in enumerate(sd.query_devices())
+            if d["max_input_channels"] > 0 and apis[d["hostapi"]]["name"] == "MME" and "Mapper" not in d["name"]]
     default = sd.default.device[0]
     while True:
-        print("\n마이크 목록 (* = 지금 기본)")
+        print("\n마이크 목록 (* = 지금 Windows 기본)")
         for i, n in mics:
             print(f"  {'*' if i == default else ' '} {i:3d}  {n}")
-        raw = input("쓸 마이크 번호 (그냥 Enter = *): ").strip()
+        print("  ⚠️ 이어폰 단자에 꽂은 마이크는 보통 「High Definition Audio」 쪽이다. 기본(*)이 이어폰이 아닐 수 있다")
+        raw = input("쓸 마이크 번호 (a = 전부 비교해서 골라 주기, 그냥 Enter = *): ").strip().lower()
+        if raw == "a":
+            print("\n마이크마다 조용히 1초 → 말하기 2초를 잰다. 안내가 뜨면 「공룡나라 갈래」를 계속 반복해 주세요")
+            scores = []
+            for i, n in mics:
+                try:
+                    input(f"  [{n}] 1초 조용히 — Enter")
+                    q = sd.rec(int(rate), samplerate=rate, channels=1, dtype="int16", device=i); sd.wait()
+                    input(f"  [{n}] 2초 말하기 — Enter")
+                    t = sd.rec(int(2 * rate), samplerate=rate, channels=1, dtype="int16", device=i); sd.wait()
+                except Exception as e:
+                    print(f"    열리지 않음 ({type(e).__name__})")
+                    continue
+                ratio = max(frame_rms(t, rate)) / max(float(np.median(frame_rms(q, rate))), 1e-6)
+                scores.append((ratio, i, n))
+                print(f"    → {ratio:.0f}배")
+            if not scores:
+                continue
+            best = max(scores)
+            print(f"\n  가장 잘 들리는 마이크: {best[2]} ({best[0]:.0f}배)")
+            raw = str(best[1])
         dev = int(raw) if raw.isdigit() else default
         # ⚠️ 절대 크기로 보지 않는다. 09-22 첫 녹음은 강의실 바닥 소음만으로 peak 1,800 이 나와
         #    "1000 미만이면 경고"가 한 번도 안 떴고, 말소리가 소음의 2~6배뿐인 녹음 59개가 쌓였다.
         #    whisper 는 그걸 「감사합니다」「아멘」으로 받아썼다. **소음 대비 비율**로 본다
         try:
-            input("1초 동안 **조용히** 있어 주세요 — Enter")
+            input("1초 동안 조용히 있어 주세요 — Enter")
             quiet = sd.rec(int(1 * rate), samplerate=rate, channels=1, dtype="int16", device=dev); sd.wait()
             input("이제 2초 동안 「공룡나라 갈래」 하고 평소 크기로 말해 주세요 — Enter")
             talk = sd.rec(int(2 * rate), samplerate=rate, channels=1, dtype="int16", device=dev); sd.wait()
         except Exception as e:
             print(f"  이 마이크는 열리지 않습니다 ({type(e).__name__}). 다른 번호를 고르세요.")
             continue
-        floor = max(frame_rms(quiet, rate))
+        # 중앙값 — 최댓값으로 재면 딸깍 한 번에 바닥이 올라가 비율이 실제보다 낮게 나온다
+        floor = float(np.median(frame_rms(quiet, rate)))
         ratio = max(frame_rms(talk, rate)) / max(floor, 1e-6)
         bar = "█" * min(30, int(ratio))
         print(f"  말소리 / 소음 |{bar:<30}| {ratio:.0f}배  (기준 {SNR_MIN:.0f}배 이상)")
@@ -210,7 +236,8 @@ def record(seconds: float, rate: int = 16000, device: int | None = None, redo: l
     else:
         input("바닥 소음을 잽니다. 1초 동안 조용히 — Enter")
         q = sd.rec(int(1 * rate), samplerate=rate, channels=1, dtype="int16", device=device); sd.wait()
-        floor = max(frame_rms(q, rate))
+        import numpy as np
+        floor = float(np.median(frame_rms(q, rate)))
     name = sd.query_devices(device)["name"]
     print(f"\n마이크: {name}")
     print(f"남은 클립 {len(todo)}/{len(rows)} · 한 클립 {seconds}초 · Enter 로 시작, q 로 멈춤")
