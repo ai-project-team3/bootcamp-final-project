@@ -1,55 +1,64 @@
 {
-  "pricing_snapshot": "2026-09-20",
-  "official_sources": [
-    "https://docs.mistral.ai/models/mistral-small-4-0-26-03",
-    "https://docs.mistral.ai/models/ministral-3-3b-25-12",
-    "https://docs.mistral.ai/inference/pricing"
-  ],
-  "models": {
-    "mock-judge-v1": {
-      "provider": "mock",
-      "api_model": "mock-judge-v1",
-      "input_usd_per_mtok": 0.0,
-      "output_usd_per_mtok": 0.0
-    },
-    "gpt-5.6-luna": {
-      "provider": "openai",
-      "api_model": "gpt-5.6-luna",
-      "model_env": "OPENAI_LUNA_MODEL",
-      "reasoning_effort": "none",
-      "reasoning_effort_env": "OPENAI_LUNA_REASONING_EFFORT",
-      "input_usd_per_mtok": 0.20,
-      "output_usd_per_mtok": 1.20
-    },
-    "gpt-5-nano": {
-      "provider": "openai",
-      "api_model": "gpt-5-nano",
-      "model_env": "OPENAI_NANO_MODEL",
-      "reasoning_effort": "minimal",
-      "reasoning_effort_env": "OPENAI_NANO_REASONING_EFFORT",
-      "input_usd_per_mtok": 0.05,
-      "output_usd_per_mtok": 0.40
-    },
-    "claude-haiku-4-5": {
-      "provider": "anthropic",
-      "api_model": "claude-haiku-4-5-20251001",
-      "model_env": "ANTHROPIC_HAIKU_MODEL",
-      "input_usd_per_mtok": 1.0,
-      "output_usd_per_mtok": 5.0
-    },
-    "mistral-small-4": {
-      "provider": "mistral",
-      "api_model": "mistral-small-2603",
-      "model_env": "MISTRAL_SMALL_MODEL",
-      "input_usd_per_mtok": 0.15,
-      "output_usd_per_mtok": 0.60
-    },
-    "ministral-3-3b": {
-      "provider": "mistral",
-      "api_model": "ministral-3b-2512",
-      "model_env": "MINISTRAL_3B_MODEL",
-      "input_usd_per_mtok": 0.10,
-      "output_usd_per_mtok": 0.10
-    }
+ "pricing_snapshot": "2026-09-20",
+ "official_sources": [
+  "https://docs.mistral.ai/models/mistral-small-4-0-26-03",
+  "https://docs.mistral.ai/models/ministral-3-3b-25-12",
+  "https://docs.mistral.ai/inference/pricing",
+  "https://docs.typesafe.ai/api.md"
+ ],
+ "models": {
+  "mock-judge-v1": {
+   "provider": "mock",
+   "api_model": "mock-judge-v1",
+   "input_usd_per_mtok": 0.0,
+   "output_usd_per_mtok": 0.0
+  },
+  "gpt-5.6-luna": {
+   "provider": "openai",
+   "api_model": "gpt-5.6-luna",
+   "model_env": "OPENAI_LUNA_MODEL",
+   "reasoning_effort": "none",
+   "reasoning_effort_env": "OPENAI_LUNA_REASONING_EFFORT",
+   "input_usd_per_mtok": 0.2,
+   "output_usd_per_mtok": 1.2
+  },
+  "gpt-5-nano": {
+   "provider": "openai",
+   "api_model": "gpt-5-nano",
+   "model_env": "OPENAI_NANO_MODEL",
+   "reasoning_effort": "minimal",
+   "reasoning_effort_env": "OPENAI_NANO_REASONING_EFFORT",
+   "input_usd_per_mtok": 0.05,
+   "output_usd_per_mtok": 0.4
+  },
+  "claude-haiku-4-5": {
+   "provider": "anthropic",
+   "api_model": "claude-haiku-4-5-20251001",
+   "model_env": "ANTHROPIC_HAIKU_MODEL",
+   "input_usd_per_mtok": 1.0,
+   "output_usd_per_mtok": 5.0
+  },
+  "mistral-small-4": {
+   "provider": "mistral",
+   "api_model": "mistral-small-2603",
+   "model_env": "MISTRAL_SMALL_MODEL",
+   "input_usd_per_mtok": 0.15,
+   "output_usd_per_mtok": 0.6
+  },
+  "ministral-3-3b": {
+   "provider": "mistral",
+   "api_model": "ministral-3b-2512",
+   "model_env": "MINISTRAL_3B_MODEL",
+   "input_usd_per_mtok": 0.1,
+   "output_usd_per_mtok": 0.1
+  },
+  "jev-latest": {
+   "provider": "typesafe",
+   "api_model": "jev-latest",
+   "model_env": "TYPESAFE_MODEL",
+   "input_usd_per_mtok": 0.042,
+   "output_usd_per_mtok": 0.0,
+   "note": "System One 모델 — 글을 만들지 않는다. 16필드 중 9개만 답한다(providers/typesafe_adapter.py 머리말). 값은 2026-09-22 홈페이지 기준이고 재확인 안 했다"
   }
+ }
 }
