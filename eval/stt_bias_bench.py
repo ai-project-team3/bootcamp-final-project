@@ -433,8 +433,13 @@ def run(engines: list[str]) -> Path:
     presets = load_android_theme_labels()
     rows = read_manifest()
     missing = [r["clip_id"] for r in rows if clip_path(r["clip_id"]) is None]
-    if missing:
+    if len(missing) > len(rows) // 10:
         sys.exit(f"녹음이 없는 클립 {len(missing)}개 — 예: {missing[:3]}. `record` 를 먼저 돌리세요.")
+    if missing:
+        # 한 파일로 이어 녹음하면 줄을 건너뛰는 일이 생긴다 (09-22 폰 녹음 — 54줄 중 2줄). 1할까지는 빼고 잰다.
+        # ⚠️ 표 밑에 몇 개를 뺐는지 반드시 남긴다 — 분모가 바뀐 것을 모르고 읽으면 안 된다
+        print(f"⚠️ 녹음이 없는 클립 {len(missing)}개를 빼고 잰다: {missing}")
+        rows = [r for r in rows if r["clip_id"] not in set(missing)]
 
     runners = {}
     if any(e.startswith("whisper") for e in engines):
