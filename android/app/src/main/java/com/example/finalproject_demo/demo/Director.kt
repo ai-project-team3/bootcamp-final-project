@@ -109,7 +109,18 @@ class Director(private val scope: CoroutineScope) {
 
     suspend fun pause(ms: Long) = delay((ms * s.speed).toLong())
 
+    /**
+     * 말풍선에 한 줄 띄운다.
+     *
+     * 협업 모드에는 자막이 둘이다 — 어른에게 주는 **질문 카드**(아래 띠)와 **마스코트 말풍선**.
+     * 둘이 같이 떠 있으면 어른이 어느 쪽을 읽어야 할지 헷갈린다. 그래서 **번갈아 뜬다** (9/22):
+     * 여기서 말풍선을 띄울 때 띠를 비우고, [askSay] 가 띠에 질문을 올릴 때 말풍선을 비운다.
+     *
+     * 역할 나눔은 그대로다 — **질문은 띠**(어른이 읽고 묻는다), **받아주는 반응은 말풍선**
+     * (부모협업모드_설계.md §2-2).
+     */
     fun say(text: String, who: String = "마스코트") {
+        s.parentCard = null
         s.speaker = who
         s.line = text
         s.lineId++
@@ -123,8 +134,13 @@ class Director(private val scope: CoroutineScope) {
         if (!q.silent) { say(text); return }
         // 같은 걸음 안에서 글이 바뀌었다 = 질문을 바꿔 다시 물은 것(사다리 한 칸). 첫 질문은 세지 않는다 —
         // 부모 리포트가 "오늘 n번 다르게 물어보셨어요" 로 쓰기 때문이다
-        if (s.parentCard != null && s.parentCard != text) s.parentRung++
+        // ⚠️ 세는 기준은 `parentAsk` 다. `parentCard` 는 자막을 번갈아 띄우느라 수시로 비워져서
+        //    그것으로 세면 사다리를 내려가도 칸이 안 세어진다 (9/22에 실제로 깨졌다)
+        if (s.parentAsk != null && s.parentAsk != text) s.parentRung++
+        s.parentAsk = text
         s.parentCard = text
+        // 띠에 질문이 올라오면 말풍선은 비운다 — 자막 둘이 같이 뜨지 않는다 (9/22)
+        s.line = ""
     }
 
     fun childSays(text: String) = say(text, s.childName)

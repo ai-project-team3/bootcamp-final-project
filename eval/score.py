@@ -51,6 +51,21 @@ def score_binary(pairs: list[tuple[bool, bool]]) -> dict:
     return out
 
 
+_LOCATION_ENDINGS = re.compile(r"(에서|거기서|여기서|어디서)")
+_SEO_ENDING = re.compile(r"[가-힣]서[ ,.!?]|[가-힣]서$")
+_REASON_MARKERS = ("니까", "때문에", "왜냐하면", "그래서", "그러면", "거든")
+
+
+def has_reason_marker(utterance: str) -> bool:
+    """Match the frozen fixture audit's surface markers, excluding locative -에서.
+
+    This is a diagnostic subset selector, not a replacement for the gold label.
+    """
+    if _SEO_ENDING.search(utterance) and _SEO_ENDING.search(_LOCATION_ENDINGS.sub("", utterance)):
+        return True
+    return any(marker in utterance for marker in _REASON_MARKERS)
+
+
 def score_categorical_macro(pairs: list[tuple[object, object]]) -> dict:
     """null은 '양성 클래스'에서 제외하고 각 실제 슬롯명을 one-vs-rest로 macro F1.
 
@@ -132,6 +147,31 @@ def score_judge(
         "s2_addition": score_binary([(bool(g), bool(p)) for g, p in pairs_for("s2_addition")]),
     }
 
+    attempted_ids = {row["id"] for row in pred_rows}
+    attempted_gold = {row_id: row for row_id, row in gold_rows.items() if row_id in attempted_ids}
+    marked_gold = {row_id: row for row_id, row in attempted_gold.items() if has_reason_marker(row.get("utterance", ""))}
+    marked_successes = [row for row in successes if row["id"] in marked_gold]
+    marked_pairs = [
+        (bool(marked_gold[row["id"]]["gold"]["s1_reason"]), bool(row["pred"]["s1_reason"]))
+        for row in marked_successes
+    ]
+    marker_score = score_binary(marked_pairs)
+    trap_pairs = [(gold, pred) for gold, pred in marked_pairs if not gold]
+    marker_score.update(
+        fixture_count=len(marked_gold),
+        json_success_rate=len(marked_successes) / len(marked_gold) if marked_gold else 0.0,
+        trap_count=sum(not bool(row["gold"]["s1_reason"]) for row in marked_gold.values()),
+        trap_scored_count=len(trap_pairs),
+        trap_correct_count=sum(not pred for _, pred in trap_pairs),
+    )
+    extra_score = categorical["slot_1"]["labels"].get("extra", score_binary([]))
+    extra_score = {
+        **extra_score,
+        "asked_count": sum(row.get("asked") == "extra" for row in attempted_gold.values()),
+        "gold_count": sum(row["gold"].get("slot_1") == "extra" for row in attempted_gold.values()),
+        "scored_gold_count": extra_score["tp"] + extra_score["fn"],
+    }
+
     next_hits = []
     for row in successes:
         gold = gold_rows[row["id"]]["gold"]
@@ -157,6 +197,7 @@ def score_judge(
         "json_success_rate": len(successes) / len(pred_rows) if pred_rows else 0.0,
         "categorical": categorical,
         "binary": binary,
+        "diagnostics": {"s1_reason_marked": marker_score, "slot_1_extra": extra_score},
         "next_slot": next_slot,
         "value_1": value1,
         "ttft_p50": percentile([r.get("ttft") for r in pred_rows], 0.50),

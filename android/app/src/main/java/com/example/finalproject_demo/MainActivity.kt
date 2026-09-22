@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -114,15 +115,28 @@ fun DemoApp() {
         }
 
         // 부모 협업 모드의 질문 카드 — 새로 만드는 유일한 화면이다 (부모협업모드_설계.md §3).
-        // 아이 화면 위에 덮지 않고 아래에 띠로 붙는다: 아이는 위 그림을, 부모는 아래 글자를 본다
-        if (pinStage == null) ParentBand(d, Modifier.align(Alignment.BottomCenter))
+        //
+        // 화면 아래는 **겹치지 않게 쌓는다** (9/22).
+        //
+        // 전에는 말풍선과 부모 띠가 둘 다 화면 맨 아래에 놓여 서로 겹쳤다. 그걸 피하려고
+        // 띠가 떠 있는 동안 말풍선을 통째로 숨겼는데(`parentCard == null`), 그 바람에
+        // **아이가 답한 뒤 마스코트가 받아주는 말이 화면에서 사라졌다.**
+        // 협업 모드에서 부모에게 넘긴 것은 ③ 다음 질문 하나뿐이고, ① 받아주기와 ② 되돌려주기는
+        // 마스코트가 그대로 한다 (부모협업모드_설계.md §2-2). 그러니 반응은 보여야 한다.
+        //
+        // 이제 Column으로 쌓는다 — 위가 마스코트 말풍선, 아래가 부모 띠. 겹칠 수가 없다.
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+            if (!bubbleHidden) MascotBubble(d, Modifier.padding(start = 8.dp, bottom = 6.dp))
+            // 아이 화면 위에 덮지 않고 아래에 띠로 붙는다: 아이는 위 그림을, 부모는 아래 글자를 본다
+            if (pinStage == null) ParentBand(d)
+        }
 
-        if (!bubbleHidden && s.parentCard == null) MascotBubble(d, Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 6.dp))
-        // 부모 띠가 떠 있으면 🎤 · ➡️ · [직접 그리기]를 띠 위로 올린다 — 띠는 화면 폭을 다 쓰므로 겹친다
+        // 🎤 · ➡️ 는 **늘 오른쪽 아래**다 (9/22). 전에는 띠가 떠 있으면 172dp 위로 올려
+        //  화면 중간에 붕 떠 있었다. 지금은 자리를 지키고, 대신 띠가 글자를 버튼 앞에서 끊는다
+        //  (ParentBand.kt 의 END_RESERVE). 버튼 크기를 바꾸면 그 값도 같이 바꾼다.
         if (pinStage == null) FloatingControls(
             d,
-            Modifier.align(Alignment.BottomEnd)
-                .padding(end = 14.dp, bottom = if (s.parentCard != null) 172.dp else 10.dp),
+            Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 10.dp),
         )
 
         // 오른쪽 위 구석 길게 누르기 → 시연 서랍

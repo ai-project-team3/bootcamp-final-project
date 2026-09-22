@@ -3,6 +3,7 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.demo.bookCaption
 import com.example.finalproject_demo.demo.pageCount
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -140,6 +141,33 @@ class DiaryFlowTest {
     }
 
     @Test
+    fun diaryDemoAnswersTellOneConsistentDayThroughTheBook() = run { d ->
+        val s = d.s
+        s.mode = StoryMode.DIARY
+        d.go(Scene.DIARY)
+        assertTrue(await { s.buttons.any { "🎬 오늘 이야기 시연 답" in it.label } } != null)
+
+        val turns = d.answerAll("🎬 오늘 이야기 시연 답")
+        assertEquals("시연 답이 모든 질문을 끝까지 잇지 못했다", 11, turns)
+        assertTrue(await { s.buttons.any { "안 그릴래" in it.label } } != null)
+        assertTrue(d.tap("안 그릴래"))
+        assertTrue(await(8_000) { s.scene == Scene.MAKING || s.scene == Scene.BOOK } != null)
+
+        assertEquals("어린이집", s.place)
+        assertEquals("민준이", s.companionKind)
+        assertEquals("블록이 무너짐", s.problem)
+        assertEquals("너무 높이 쌓아서", s.cause)
+        assertEquals("다시 쌓았어", s.solution)
+        assertEquals("story_ready", s.endReason)
+        assertTrue(listOf("place", "problem", "cause", "solution").all { s.slotBy[it] == "child" })
+
+        val book = (1..s.pageCount).joinToString(" ") { s.bookCaption(it) }
+        assertTrue("아이의 블록 이야기가 책에 없다", "블록" in book && "무너" in book)
+        assertTrue("친구가 책에 없다", "민준이" in book)
+        assertTrue("해결 장면이 책에 없다", "다시 쌓" in book)
+    }
+
+    @Test
     fun silenceWalksTheLadderThenEndsOnTwoMascotPicks() = run { d ->
         val s = d.s
         s.mode = StoryMode.DIARY
@@ -184,11 +212,19 @@ class DiaryFlowTest {
         assertTrue("띠에 [다르게 물어볼래] 버튼이 남아 있다", s.buttons.none { "다르게 물어볼래" in it.label })
         assertTrue("띠에 [내가 답할래] 버튼이 남아 있다", s.buttons.none { "내가 답할래" in it.label })
 
-        // 아이가 말하지 않으면(➡️) 질문이 바뀐다 — 동화 모드의 무응답 흐름 그대로다
+        // 아이가 말하지 않으면(➡️) 질문이 바뀐다 — 동화 모드의 무응답 흐름 그대로다.
+        //
+        // ⚠️ **순간값을 보면 안 된다** (9/22). 검사에서는 기다리는 시간을 거의 0으로 줄여 두어
+        //    사다리가 한 순간에 끝까지 내려간 뒤 다음 걸음으로 넘어간다. 그때 `parentCard` 는 이미
+        //    다음 질문이고, `parentRung` 은 걸음이 바뀌며(`coopAsk` 가 0으로 되돌린다) 0이다.
+        //    띠를 마스코트 말풍선과 번갈아 띄우기 시작한 뒤로(9/22) 이 창이 더 좁아져 실제로 깨졌다.
+        //    그래서 **쌓이는 기록(로그)** 으로 본다 — 사다리를 내려갈 때마다 한 줄씩 남는다.
         val first = s.parentCard
         assertTrue("대답 없음 버튼이 없다", d.push("대답 없음"))
-        assertTrue("사다리가 안 내려갔다", await(8_000) { s.parentCard != null && s.parentCard != first } != null)
-        assertTrue("사다리 칸이 안 세어졌다", s.parentRung >= 1)
+        assertTrue(
+            "사다리가 안 내려갔다 (처음=\"$first\")",
+            await(8_000) { s.log.any { "사다리" in it && "질문을 바꿔 다시" in it } } != null,
+        )
 
         // `by: parent` 를 새로 만들지 않는다 (협업 §4-1)
         assertTrue("출처에 parent 가 생겼다", s.slotBy.values.all { it in setOf("child", "card", "mascot") })

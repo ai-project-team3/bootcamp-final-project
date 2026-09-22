@@ -38,6 +38,12 @@ import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
 
 /**
+ * 띠 오른쪽에 비워 두는 폭 — 🎤(약 78dp) + ➡️(48+10dp) + 바깥 여백(14dp).
+ * [com.example.finalproject_demo.ui.FloatingControls] 가 여기 앉는다. 버튼을 키우면 이 값도 같이 키운다.
+ */
+private val END_RESERVE = 168.dp
+
+/**
  * 부모 띠 — 부모 협업 모드에서 **새로 만드는 유일한 화면**이다 (부모협업모드_설계.md §3).
  *
  * ```
@@ -77,7 +83,9 @@ fun ParentBand(d: Director, modifier: Modifier = Modifier) {
                 .shadow(14.dp, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
                 .clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
                 .background(Color(0xFF3C3340))
-                .padding(horizontal = 18.dp, vertical = 10.dp),
+                // 오른쪽 아래 🎤 · ➡️ 자리를 비워 둔다 — 글자가 버튼 밑으로 들어가지 않게 (9/22).
+                // 버튼을 위로 올리는 대신 띠가 양보한다. 버튼은 늘 오른쪽 아래에 있어야 손이 간다
+                .padding(start = 18.dp, end = END_RESERVE, top = 10.dp, bottom = 10.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 마스코트가 띠 왼쪽에서 물어보는 것처럼 — 숨 쉬듯 살짝 커졌다 작아진다 (9/21)
