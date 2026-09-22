@@ -58,13 +58,12 @@ class CoopFlowTest {
         }
     }
 
-    /** 첫 화면에서 [같이 만들기] → (resetStory 가 홀더를 비운 뒤) 질문을 넣고 → 주인공 → S3′ */
+    /** 첫 화면에서 [같이 만들기] → 질문을 넣고 → 주인공 → S3′ (부모 모드를 거치지 않는 지름길 — 그 경로는 아래 별도 검사) */
     private suspend fun Director.startCoopWith(vararg questions: String) {
         go(Scene.ADULT)
         assertTrue(tap("같이 만들기"))
         assertTrue(await { s.scene == Scene.BESTIARY } != null)
         assertEquals(StoryMode.COOP, s.mode)
-        // ⚠️ 시작 뒤에 넣는다 — `resetStory()` 가 이야기 시작에 홀더를 비운다 (조장에게 시점 이동 요청함 · 구현설계 §5)
         s.parentQuestions += questions
         assertTrue(tap("카드를 탭"))
         assertTrue(await { s.scene == Scene.DIARY } != null)
@@ -103,7 +102,6 @@ class CoopFlowTest {
         assertTrue("「어디」 자리에서 부모 질문을 안 물었다: $askedTexts", "오늘 어디 갔었어?" in askedTexts)
         assertTrue("「왜」 자리에서 부모 질문을 안 물었다: $askedTexts", "왜 그랬을까, 지호 생각엔?" in askedTexts)
         assertFalse("빈 자리를 빈 문장으로 물었다", askedTexts.any { it.isBlank() })
-        assertEquals("부모 질문 둘을 썼다", 2, s.parentQIndex)
         assertEquals("함께하기 축 = 물어본 부모 질문 수", 2, s.partnerTurns)
         assertEquals("마지막으로 쓴 부모 질문", "왜 그랬을까, 지호 생각엔?", s.adultLine)
 
@@ -111,6 +109,9 @@ class CoopFlowTest {
         assertTrue("부모 질문이 speaker=adult 로 안 남았다", s.events.any { it.startsWith("utterance") && "speaker=adult" in it && "오늘 어디 갔었어?" in it })
         assertTrue("출처에 parent 가 생겼다", s.slotBy.values.all { it in setOf("child", "card", "mascot") })
         assertTrue("책까지 못 갔다 scene=${s.scene} end=${s.endReason}", await(20_000) { s.scene == Scene.BOOK } != null)
+        // 이야기가 끝나면 홀더를 비운다 — 오늘 넣은 질문이 다음 이야기에 또 나오면 안 된다. 리포트 재료는 남는다
+        assertTrue("이야기가 끝났는데 부모 질문이 남아 있다", s.parentQuestions.isEmpty())
+        assertEquals(2, s.partnerTurns)
     }
 
     @Test
@@ -130,20 +131,26 @@ class CoopFlowTest {
         val where = askedTexts.indexOf("오늘 어디 갔었어?")
         assertTrue("자유 질문을 안 물었다: $askedTexts", free >= 0)
         assertTrue("자유 질문이 「어디」보다 먼저 나왔다", free > where)
-        assertTrue("다섯 개를 다 쓰지 못했다: ${s.parentQIndex}", s.parentQIndex == 5)
+        // 이야기가 끝나면 홀더(parentQIndex 포함)는 비워지므로 리포트 재료인 partnerTurns 로 센다
+        assertEquals("다섯 개를 다 쓰지 못했다", 5, s.partnerTurns)
     }
 
     /**
-     * 부모 모드에서 넣은 질문이 [같이 만들기]를 지나 살아남는가.
-     * `resetStory()` 가 이야기 시작에 홀더를 비우므로 지금은 임시 보관(CoopScenes.kt)이 되돌려 넣는다.
-     * 조장이 비우는 시점을 옮기면 임시 보관을 지우고도 이 검사가 그대로 통과해야 한다.
+     * 부모 모드에서 넣은 질문이 **[아이 모드로] → [같이 만들기]** 를 지나 살아남는가.
+     *
+     * 실제 경로 그대로다: 부모 모드를 나가는 버튼이 `goHome()` 이고, 그다음 첫 화면에서 모드를 고른다.
+     * 9/22 조장 수정으로 `resetStory()` 는 안 비우지만 `goHome()` 이 비운다 — 그러면 나가는 순간 사라진다.
+     * 지금은 임시 보관(CoopScenes.kt)이 되돌려 넣어 통과한다. 비우는 자리가 이야기 끝으로 옮겨지면 임시 보관 없이도 통과해야 한다.
      */
     @Test
-    fun questionsEnteredInParentModeSurviveTheStoryStart() = run { d ->
+    fun questionsEnteredInParentModeSurviveLeavingParentModeAndStartingTheStory() = run { d ->
         val s = d.s
         // 부모 모드 입력 화면이 하는 일 그대로
         s.parentQuestions += listOf("오늘 어디 갔었어?", "거기서 뭐가 제일 재밌었어?")
         s.stashCoopQuestions()
+        // [아이 모드로]
+        d.goHome()
+        assertTrue(await { s.scene == Scene.ADULT } != null)
 
         d.go(Scene.ADULT)
         assertTrue(d.tap("같이 만들기"))

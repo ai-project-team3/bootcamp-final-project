@@ -79,12 +79,14 @@ private val DemoState.coopTrack: CoopTrack
     }
 
 /**
- * ⚠️ **임시 보관 — 조장이 `resetStory()` 의 비우는 시점을 옮기면 지운다.**
+ * ⚠️ **임시 보관 — 비우는 자리가 이야기 끝으로 옮겨지면 지운다.**
  *
- * 지금 `resetStory()` 가 이야기 **시작**에 `parentQuestions` 를 비운다(`Scenes.kt` 모드 고른 직후).
- * 부모 모드에서 넣고 [같이 만들기]를 누르면 그 순간 사라진다. `Model.kt` · `Scenes.kt` 는 남의 파일이라
- * 여기서 사본을 들고 있다가 협업 장면이 시작될 때 되돌려 넣는다. 입력 화면(`Parent.kt`)이 고칠 때마다 [stashCoopQuestions] 를 부른다.
- * 이야기가 끝나면([coopFinishLog]) 사본도 비운다 — "이야기마다 비운다"는 조장 결정 그대로.
+ * 9/22 조장 수정으로 `resetStory()` 는 이제 `parentQuestions` 를 안 비운다. 대신 `Director.goHome()` 이 비우는데,
+ * **부모 모드를 나가는 [아이 모드로] 버튼이 바로 `goHome()`** 이다(`Scenes.kt` `sceneParent` 의 "home").
+ * 그래서 넣고 나오는 순간 사라진다 — 실제 경로가 「부모 모드에서 넣기 → 아이 모드로 → 같이 만들기」다.
+ * `Director.kt` 는 조장 파일이라, 여기서 사본을 들고 있다가 협업 장면이 시작될 때 되돌려 넣는다.
+ * 입력 화면(`Parent.kt`)이 고칠 때마다 [stashCoopQuestions] 를 부르고, 이야기가 끝나면([coopFinishLog]) 사본과 홀더를 같이 비운다.
+ * 조장이 `goHome()` 의 비우기를 빼면 이 사본은 필요 없어진다 — 그때 지운다.
  */
 private val stashByState = java.util.WeakHashMap<DemoState, List<String>>()
 
@@ -173,9 +175,12 @@ private suspend fun Director.coopReact(r: Reply.Spoke) {
 fun Director.coopFinishLog() {
     if (!s.isCoop) return
     mark("coop")
-    stashByState.remove(s)          // 임시 보관도 이야기마다 비운다
+    stashByState.remove(s)
     if (s.hasCoopQuestions) {
         log("같이 짓기 — 부모가 넣어 둔 질문 ${s.parentQuestions.count { it.isNotBlank() }}개 중 ${s.parentQIndex}개를 마스코트가 물었다. 부모 리포트 「함께하기」 축의 재료다 (협업 §4-2)")
+        // 이야기마다 비운다 — 오늘 넣은 질문이 내일 또 나오면 안 된다(조장). 비우는 자리는 **이야기가 끝난 여기**다.
+        // 리포트에 남는 것은 `partnerTurns` · `adultLine` · `utterance speaker=adult` 이벤트라 홀더가 비어도 된다.
+        s.clearParentQuestions()
         return
     }
     // ⚠️ "어른이 지은 자리"를 세지 않는다 — [내가 답할래]를 뺀 뒤로 그 수는 **언제나 0**이라
