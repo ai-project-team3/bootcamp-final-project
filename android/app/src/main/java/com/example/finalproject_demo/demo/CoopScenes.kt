@@ -60,23 +60,31 @@ private fun DemoState.takeCoopQuestion(q: Question): String? {
     return text
 }
 
-/** 이 이야기에서 어느 걸음에 이미 물었고 자유 질문을 몇 개 썼나 */
+/**
+ * 부모가 넣은 질문 하나에 아이가 뭐라고 했나 — 부모 리포트 「어른이 넣어 둔 질문에 한 답」의 재료.
+ * `by` 는 출처 3종 그대로(`child` · `card` · `mascot`), 답이 없으면 null (구현설계 §2-3).
+ */
+data class CoopAsked(val question: String, val answer: String?, val by: String?)
+
+/** 이 이야기에서 어느 걸음에 이미 물었고, 자유 질문을 몇 개 썼고, 질문마다 아이가 뭐라고 했나 */
 private class CoopTrack {
     val askedSteps = mutableSetOf<String>()
     var freeUsed = 0
+    val asked = mutableListOf<CoopAsked>()
 }
 
 /**
- * `Model.kt` 에 칸을 더하지 않고 상태마다 붙여 둔다(약한 참조). 이야기마다 `parentQIndex` 가 0으로 돌아가면 새로 시작한다.
- * 자리 필드가 홀더에 들어오면(조장 요청) 이 보조 기록은 홀더 쪽으로 옮긴다.
+ * `Model.kt` 에 칸을 더하지 않고 상태마다 붙여 둔다(약한 참조). 이야기가 시작될 때([coopIntro]) 새로 만든다.
+ * 홀더에 자리·답 칸이 들어오면(조장) 이 보조 기록은 홀더 쪽으로 옮긴다.
  */
 private val trackByState = java.util.WeakHashMap<DemoState, CoopTrack>()
 private val DemoState.coopTrack: CoopTrack
-    get() {
-        val t = trackByState[this]
-        if (t != null && parentQIndex > 0) return t
-        return CoopTrack().also { trackByState[this] = it }
-    }
+    get() = trackByState[this] ?: CoopTrack().also { trackByState[this] = it }
+
+private fun DemoState.newCoopTrack() { trackByState[this] = CoopTrack() }
+
+/** 이 이야기에서 부모 질문에 아이가 한 답들 — 부모 리포트가 읽는다. 이야기가 끝나도 남는다(다음 이야기가 시작되면 새로) */
+val DemoState.coopAsked: List<CoopAsked> get() = trackByState[this]?.asked.orEmpty()
 
 /**
  * ⚠️ **임시 보관 — 비우는 자리가 이야기 끝으로 옮겨지면 지운다.**
@@ -101,6 +109,7 @@ private fun DemoState.restoreCoopQuestions() {
 /** 협업 모드에서만 붙는 첫 안내. 일기 모드는 이 함수를 부르지 않는다. */
 suspend fun Director.coopIntro(childName: String) {
     s.restoreCoopQuestions()
+    s.newCoopTrack()
     if (s.hasCoopQuestions) {
         say("${childName}${ya(childName)}, 어른이 물어보고 싶은 게 있대! 내가 대신 물어볼게.")
         log("부모 협업 모드 — 부모가 미리 넣어 둔 질문 ${s.parentQuestions.count { it.isNotBlank() }}개를 **마스코트가 소리 내어 읽는다.** 받아주기 · 되돌려주기 · 낭독도 마스코트 (구현설계 §1-① · 설계 §2-2)")
@@ -142,6 +151,11 @@ private suspend fun Director.coopAskFromParent(q: Question): Reply {
     val r = ask(q.copy(text = mine, silent = false))
     // 부모가 지은 질문이라는 것은 기록에 남는다 — payload.speaker: adult. `by` 3종은 늘리지 않는다 (협업 §4-1 · §8)
     event("utterance", "speaker" to "adult", "mode" to "typed", "text" to mine)
+    s.coopTrack.asked += when (r) {
+        is Reply.Spoke -> CoopAsked(mine, r.text, "child")
+        is Reply.Tapped -> CoopAsked(mine, r.label, if (r.byMascot) "mascot" else "card")
+        else -> CoopAsked(mine, null, null)
+    }
     s.partnerTurns++
     s.adultLine = mine          // 부모 리포트의 "어른이 한 말" — 마지막으로 쓴 부모 질문
     if (r is Reply.Spoke) coopReact(r)

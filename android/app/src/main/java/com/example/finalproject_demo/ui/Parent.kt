@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.stashCoopQuestions
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Stage
@@ -306,6 +307,27 @@ private fun RecordTab(d: Director) {
             Spacer(Modifier.height(6.dp))
             Text("지난 기록은 아직 없어요. 책이 쌓이면 같은 질문에 한 답이 날짜별로 나란히 보여요.", fontSize = 11.sp, color = PSub)
             Text("다른 아이가 아니라 ${s.childName}${ga(s.childName)} 지난번의 ${s.childName}${wa3(s.childName)}만 견줘요", fontSize = 11.sp, color = PSub)
+        }
+    }
+
+    // 협업 모드의 결과물 — **부모가 궁금해한 것에 아이가 뭐라고 했나** (부모협업모드_설계 §0 · 구현설계 §2-3).
+    // 인용은 아이가 말한 것(`by: child`)만 따옴표로. 카드 · 마스코트가 채운 것은 그렇다고 적는다 (guidelines/2 §1-4)
+    if (s.isCoop && s.coopAsked.isNotEmpty()) {
+        Section("어른이 넣어 둔 질문에 한 답", "넣은 순서대로 · 아이가 말한 것만 따옴표")
+        PCard(Modifier.fillMaxWidth()) {
+            s.coopAsked.forEachIndexed { i, qa ->
+                if (i > 0) Spacer(Modifier.height(8.dp))
+                Text("“${qa.question}”", fontSize = 12.sp, color = PSub)
+                Text(
+                    when (qa.by) {
+                        "child" -> "\"${qa.answer}\""
+                        "card" -> "${qa.answer} (카드로 골랐어요)"
+                        "mascot" -> "${qa.answer} (마스코트가 대신 정했어요)"
+                        else -> "답하지 않았어요"
+                    },
+                    fontSize = 14.sp, color = Ink, fontWeight = if (qa.by == "child") FontWeight.Bold else FontWeight.Normal,
+                )
+            }
         }
     }
 
