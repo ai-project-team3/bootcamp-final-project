@@ -33,7 +33,10 @@
 
     $PY -m eval.stt_bias_bench script          녹음 대본(manifest.csv)을 만든다
     $PY -m pip install sounddevice soundfile  (녹음 처음 한 번)
-    $PY -m eval.stt_bias_bench record          대본을 한 줄씩 띄우고 PC 마이크로 녹음한다
+    $PY -m eval.stt_bias_bench mics            마이크 목록 (이어폰을 꽂은 뒤 확인)
+    $PY -m eval.stt_bias_bench record [--device N]      대본을 한 줄씩 띄우고 녹음한다
+    $PY -m eval.stt_bias_bench record --redo short_몰라_2   옆 사람 말이 섞인 클립만 다시
+    ⚠️ 블루투스 마이크는 쓰지 않는다 — 켜는 순간 통화용 저음질로 떨어져 엔진 탓과 음질 탓이 안 갈린다
     $PY -m eval.stt_bias_bench run             네 칸을 돌리고 표를 낸다 (XAI_API_KEY 없으면 grok 은 건너뛴다)
     $PY -m eval.stt_bias_bench score RAW.csv   이미 돌린 결과로 표만 다시 낸다
 
@@ -124,7 +127,16 @@ def clip_path(clip_id: str) -> Path | None:
 
 # ── 녹음 ────────────────────────────────────────────────────────────
 
-def record(seconds: float, rate: int = 16000) -> None:
+def list_mics() -> None:
+    import sounddevice as sd
+    default = sd.default.device[0]
+    for i, d in enumerate(sd.query_devices()):
+        if d["max_input_channels"] > 0:
+            print(f"{'*' if i == default else ' '} {i:3d}  {d['name']}")
+    print("\n* 가 지금 기본 마이크. 다른 걸 쓰려면 record --device 번호")
+
+
+def record(seconds: float, rate: int = 16000, device: int | None = None, redo: list[str] | None = None) -> None:
     try:
         import sounddevice as sd
         import soundfile as sf
@@ -132,15 +144,30 @@ def record(seconds: float, rate: int = 16000) -> None:
         sys.exit("녹음에는 `pip install sounddevice soundfile` 이 필요합니다.\n"
                  "폰으로 녹음했다면 이 단계는 건너뛰고 파일 이름만 clip_id 로 맞추세요.")
     rows = read_manifest()
-    todo = [r for r in rows if clip_path(r["clip_id"]) is None]
-    print(f"남은 클립 {len(todo)}/{len(rows)} · 한 클립 {seconds}초 · Enter 로 시작, q 로 멈춤\n")
+    if redo:
+        # 옆 사람 말이 섞인 클립만 다시 — 잘못 읽은 것은 다시 하지 않는다 (그것도 실제 조건이다)
+        unknown = set(redo) - {r["clip_id"] for r in rows}
+        if unknown:
+            sys.exit(f"대본에 없는 clip_id: {sorted(unknown)}")
+        for cid in redo:
+            p = clip_path(cid)
+            if p:
+                p.unlink()
+        todo = [r for r in rows if r["clip_id"] in set(redo)]
+    else:
+        todo = [r for r in rows if clip_path(r["clip_id"]) is None]
+    name = sd.query_devices(device if device is not None else sd.default.device[0])["name"]
+    print(f"마이크: {name}")
+    print(f"남은 클립 {len(todo)}/{len(rows)} · 한 클립 {seconds}초 · Enter 로 시작, q 로 멈춤")
+    print("⚠️ 옆 사람이 또렷하게 말하는 중이면 끝날 때까지 기다렸다가 Enter. 섞였으면 clip_id 를 적어 두고 나중에 --redo\n")
     for n, r in enumerate(todo, 1):
         cue = r["read"]
         if input(f"[{n}/{len(todo)}] 「{cue}」  ▶ Enter ").strip().lower() == "q":
             break
-        audio = sd.rec(int(seconds * rate), samplerate=rate, channels=1, dtype="int16")
+        audio = sd.rec(int(seconds * rate), samplerate=rate, channels=1, dtype="int16", device=device)
         sd.wait()
         sf.write(AUDIO / f"{r['clip_id']}.wav", audio, rate)
+        print(f"      └ {r['clip_id']}")
     print(f"\n→ {AUDIO}")
 
 
@@ -368,6 +395,9 @@ def main() -> None:
     sub.add_parser("script")
     rp = sub.add_parser("record")
     rp.add_argument("--seconds", type=float, default=2.5)
+    rp.add_argument("--device", type=int, default=None, help="마이크 번호 (mics 로 확인)")
+    rp.add_argument("--redo", nargs="+", default=None, help="다시 녹음할 clip_id 들")
+    sub.add_parser("mics")
     up = sub.add_parser("run")
     up.add_argument("--engines", default=",".join(ENGINES))
     sp = sub.add_parser("score")
@@ -382,8 +412,10 @@ def main() -> None:
         counts = {g: sum(r["group"] == g for r in rows) for g in GROUP_ORDER}
         print(f"대본 {len(rows)}줄 → {MANIFEST}\n  " + " · ".join(f"{g} {n}" for g, n in counts.items()))
         print("  ⚠️ 09-19 과 같은 조건으로 — 성인 · 조용한 방 · 평소 말투. 한 번 읽고 다음으로 (다시 읽지 않는다)")
+    elif a.cmd == "mics":
+        list_mics()
     elif a.cmd == "record":
-        record(a.seconds)
+        record(a.seconds, device=a.device, redo=a.redo)
     elif a.cmd == "run":
         engines = [e.strip() for e in a.engines.split(",") if e.strip()]
         bad = set(engines) - set(ENGINES)
