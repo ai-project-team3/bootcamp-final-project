@@ -481,7 +481,7 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
         )
     }
     return StoryTemplate(
-        key = "N", code = "N", name = if (s.isCoop) "같이 지은 오늘 이야기" else "오늘 이야기", level = s.level,
+        key = "N", code = "N", name = coopBookName(s), level = s.level,
         plot = emptyList(), ending = emptyList(),
         pages = pages,
         shape = "기(어디·누구랑) → 승(뭐 하다가 무슨 일) → 전(왜·뭐라고·그래서 나는) → 결(어떻게 됐어) → 맺음 · ${pages.size}쪽",
@@ -519,21 +519,7 @@ private fun tail(s: DemoState, key: String): String {
     return " " + if (v.last() in ".!?") v else "$v."
 }
 
-/**
- * 이 쪽을 누가 지었나 — 협업 모드에서만 책에 **작은 표시 하나**로 남는다 (협업 §6 번갈아 짓기).
- * ⚠️ 채점처럼 보이면 안 된다. 누가 지었는지 알아볼 정도이고, 숫자도 순위도 없다.
- */
-fun DemoState.pageAuthor(i: Int): String? {
-    if (!isCoop) return null
-    val slot = when (pageKind(i)) {
-        PageKind.DEPART -> "place"
-        PageKind.SHAKE -> "problem"
-        PageKind.TALK -> "cause"
-        PageKind.DRAG -> "solution"
-        else -> return null
-    }
-    return author[slot]?.takeIf { it == "child" || it == "adult" }
-}
+// pageAuthor() 는 `CoopScenes.kt` 로 옮겼다 (09-22)
 
 /** 제목 — 아이에게 묻지 않고 지어 준다 (동화 모드와 같다) */
 fun DemoState.diaryTitle(): String {

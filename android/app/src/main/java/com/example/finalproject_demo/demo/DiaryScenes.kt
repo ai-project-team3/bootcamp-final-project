@@ -26,8 +26,7 @@ fun Director.diaryEnded(): Boolean {
     if (over15) {
         s.endReason = "timeout"
         log(
-            if (s.isCoop) "15분 경과 → 끝. ⚠️ 협업 모드는 부모가 질문을 고르는 시간이 들어가 15분에 더 빨리 닿는다 (협업 §9-3)"
-            else "15분 경과 → 끝. ⚠️ 15분은 동화 모드 기준이라 취침 루틴에는 길 수 있다 (일기 §7-5)"
+            s.coopTimeUpNote()
         )
         return true
     }
@@ -123,11 +122,7 @@ suspend fun Director.sceneDiary() {
     s.stage = diaryStage()
 
     if (s.isCoop) {
-        // 협업 모드 — 마스코트는 질문을 넘기고 받아주기 · 되돌려주기만 한다 (협업 §2-2)
-        say("오늘은 ${c}랑 어른이 같이 만들 거야! 질문은 아래에 띄워 줄게.")
-        log("부모 협업 모드 — AI가 질문 카드를 띄우면 **부모가 읽고 자기 말로 묻는다.** 받아주기 · 되돌려주기 · 낭독은 마스코트가 그대로 한다 (협업 §2-1 · §2-2)")
-        log("⚠️ 되돌려주기를 넘기지 않는 이유: 발음이 어긋났을 때 고쳐 말해 주되 **지적하지 않는 것**이 부모가 가장 못하는 일이다 (협업 §2-2)")
-        log("기다리는 시간(5초 · 8초)을 쓰지 않는다 — 부모가 옆에 있으므로 AI가 끼어들 이유가 없다. 60초 아무 입력이 없을 때만 한 번 말을 건다 (협업 §3-1)")
+        coopIntro(c)                            // 협업 쪽은 CoopScenes.kt (진웅)
     } else {
         // 마스코트 첫 대사 — 아이 화면에 "일기"라는 말을 쓰지 않는다 (일기 §0)
         say("$c${ya(c)}, 오늘 뭐 했어? 나한테 들려줄래?")
@@ -189,7 +184,7 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
             ),
             id = v.id,
         )
-        val r = if (s.isCoop) coopAsk(q) else ask(q)
+        val r = askOrCoopAsk(q)                 // 협업이면 소리 없이 부모 띠에 띄운다 (CoopScenes.kt)
         judge(v, r, q.text)
 
         if (r is Reply.Tapped && r.byMascot) {
@@ -331,7 +326,6 @@ private suspend fun Director.finishDiary() {
         }
     }
     mark("diary")
-    if (s.isCoop) mark("coop")
     val why = when (s.endReason) {
         "mascot_pick" -> "mascot_pick 2회 연속"
         "timeout" -> "15분 경과"
@@ -339,58 +333,12 @@ private suspend fun Director.finishDiary() {
     }
     val tails = listOf("companion", "detail", "reaction", "said", "after", "keep").count { s.slots[it] != null }
     log("일기 모드 끝 — 끝난 조건: $why · 아이 · 카드가 채운 필수 칸 $bySelf/4 · 꼬리질문으로 더 모은 문장 ${tails}개 (이만큼 마스코트가 메울 자리가 줄었다)")
-    if (s.isCoop) {
-        // ⚠️ "어른이 지은 자리"를 세지 않는다 — [내가 답할래]를 뺀 뒤로 그 수는 **언제나 0**이라
-        // "어른이 아무것도 안 했다"로 읽힌다. 실제로는 어른이 **모든 질문을 읽어 주었다** (9/21).
-        val byChild = s.author.values.count { it == "child" }
-        log("같이 짓기 — 어른이 읽어 준 질문 ${s.partnerTurns}번 · 그중 아이가 자기 말로 채운 자리 $byChild. 책 자막에 작은 표시로만 남는다 (채점처럼 보이면 안 된다 · 협업 §6)")
-    }
+    coopFinishLog()                             // 협업 쪽은 CoopScenes.kt (진웅)
     say("오늘 이야기가 다 모였어! 이제 동화책으로 만들어 줄게.")
     pause(2000)
     go(Scene.MAKING)
 }
 
-// ── 부모 협업 모드 — 질문 한 조각만 넘긴다 (협업 §2-2) ──────────────
-
-/**
- * ASK′ — 질문 카드를 **소리 없이** 부모 띠에 띄우고 기다린다.
- *
- * 동화 · 일기 모드와 다른 점은 셋뿐이다.
- *  1. 마스코트가 질문을 말하지 않는다. 부모가 읽고 **자기 말로** 묻는다 (§2-1)
- *  2. 기다리는 시간(5초 · 8초)을 쓰지 않는다 — 부모가 옆에 있으므로 AI가 끼어들 이유가 없다 (§3-1)
- *  3. 사다리를 **부모가 손으로 내린다** — [다르게 물어볼래] (§5)
- *
- * 받아주기 · 되돌려주기는 그대로 마스코트가 한다. 넘기지 않는다.
- */
-/**
- * 협업 모드의 질문 — **동화 모드와 같은 흐름**이다. 다른 것은 두 가지뿐이다 (9/21 요청으로 이렇게 바뀌었다).
- *
- *  1. 마스코트가 질문을 **소리 내어 읽지 않는다.** 질문은 부모 띠에 뜨고 어른이 읽고 자기 말로 묻는다 (협업 §2-1).
- *  2. 띠 왼쪽에 마스코트가 서 있어, 아이에게는 "마스코트가 물어본다"로 보인다.
- *
- * 전에는 띠에 [다르게 물어볼래] · [내가 답할래] 두 버튼을 달아 부모가 사다리를 손으로 내리게 했다.
- * 그런데 버튼을 고르는 것이 일이 되어 아이와 이야기하는 흐름이 끊겼고, 무엇보다 그 버튼이 보내는
- * `coop:next` · `coop:adult` 값이 칸으로 새어 들어가 화면에 `coop:adult` 라는 글자가 그대로 나왔다.
- * 지금은 버튼이 없고, 사다리도 무응답도 [Director.ask] 가 동화 모드와 똑같이 처리한다.
- */
-private suspend fun Director.coopAsk(q: Question): Reply {
-    s.parentRung = 0
-    s.parentHasMore = false
-    mark("coop")
-    val r = ask(q.copy(silent = true))
-    s.parentCard = null
-    if (r is Reply.Spoke) {
-        // 부모가 읽고 물은 질문도 기록에 남는다 — payload.speaker: adult. `by` 3종은 늘리지 않는다 (협업 §4-1 · §8)
-        event("utterance", "speaker" to "adult", "mode" to "voice", "text" to q.text)
-        s.partnerTurns++
-        s.adultLine = q.text        // 부모 리포트의 "어른이 한 말" — 어른이 읽고 물어본 마지막 질문
-        coopReact(r)
-    }
-    return r
-}
-
-private suspend fun Director.coopReact(r: Reply.Spoke) {
-    val t = r.text.trimEnd('!', '.', '?')
-    say(listOf("$t! 그랬구나~", "우와, $t!", "$t 했구나! 더 들려줘.").random())
-    pause(1200)
-}
+// 부모 협업 모드의 코드는 `CoopScenes.kt` 로 옮겼다 (09-22) —
+// 일기와 협업을 다른 사람이 맡기로 해서 한 파일을 둘이 고치지 않게 갈랐다.
+// 이 파일에 남은 갈고리는 셋뿐이다: coopIntro · askOrCoopAsk · coopFinishLog
