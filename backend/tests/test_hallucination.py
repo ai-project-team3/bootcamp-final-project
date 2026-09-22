@@ -32,6 +32,13 @@ class HallucinationTest(unittest.TestCase):
         self.assertTrue(check_transcript("감사합니다 하고 인사했어").keep)
         self.assertTrue(check_transcript("아멘 하고 기도했어").keep)
 
+    def test_no_hangul_output_is_dropped(self):
+        # AI-Hub 아동 4,000클립 중 4건 — 한국어를 강제해도 이런 게 나온다
+        self.assertEqual(check_transcript("Eru þín að naf sér síða keug?").reason, "no_hangul")
+        self.assertEqual(check_transcript("2, 3, 2, 3").reason, "no_hangul")
+        # 숫자가 섞여도 한글이 있으면 아이 말이다
+        self.assertTrue(check_transcript("3개 먹었어").keep)
+
     def test_empty(self):
         self.assertEqual(check_transcript("  ").reason, "empty")
         self.assertEqual(check_transcript("...").reason, "empty")

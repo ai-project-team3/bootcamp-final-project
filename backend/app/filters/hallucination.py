@@ -28,6 +28,7 @@ really says them, so they stay out of the list.
 """
 from __future__ import annotations
 
+import re
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -61,7 +62,10 @@ EXACT, PREFIX = _load("stt_hallucination.txt")
 @dataclass(frozen=True)
 class Verdict:
     keep: bool
-    reason: str | None = None     # "empty" | "hallucination" | None
+    reason: str | None = None     # "empty" | "no_hangul" | "hallucination" | None
+
+
+_HANGUL = re.compile(r"[가-힣]")
 
 
 def check_transcript(text: str) -> Verdict:
@@ -69,6 +73,11 @@ def check_transcript(text: str) -> Verdict:
     t = _norm(text)
     if not t:
         return Verdict(False, "empty")
+    # language="ko" is forced, yet on 4 of 4,000 AI-Hub child clips turbo emitted
+    # Icelandic-looking Latin text or bare digits ("2, 3, 2, 3" for 토스트 해 주세요).
+    # A Korean child's answer with no Hangul at all is not an answer we can use.
+    if not _HANGUL.search(text):
+        return Verdict(False, "no_hangul")
     if t in EXACT or any(t.startswith(p) for p in PREFIX):
         return Verdict(False, "hallucination")
     return Verdict(True)
