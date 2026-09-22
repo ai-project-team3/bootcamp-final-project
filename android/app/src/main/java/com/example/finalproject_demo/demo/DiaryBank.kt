@@ -194,11 +194,12 @@ val DIARY_STEPS: List<DiaryStep> = listOf(
         probe = "기준 질문 ② · 오늘 있었던 일",
         rungs = {
             val p = it.placeName
+            val heardPlace = p != "오늘 있었던 곳"
             listOf(
-                "${p}에서 무슨 일이 있었어?",          // 앞 답(장소)을 되받아 잇는다
-                "거기서 뭐 하고 놀았어?",
-                "오늘 제일 재밌었던 거 하나만 말해 줄래?",
-                listOf("속상한 일도 있었어?", "다 재밌었어?").shuffled().joinToString(" 아니면 "),
+                if (heardPlace) "${p}에서 무슨 일이 있었어?" else "오늘 무슨 일이 있었어?",
+                if (heardPlace) "거기서 뭐 했어?" else "오늘은 뭐 하고 지냈어?",
+                "오늘 기억나는 일 하나만 말해 줄래?",
+                "오늘 마음에 남은 일이 있어?",
             )
         },
         answers = {

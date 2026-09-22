@@ -184,7 +184,11 @@ class DiaryTest {
 
         // 장소를 못 들었을 때와 들었을 때의 첫 질문이 달라야 한다
         val before = problem.rungs(s).first()
+        assertEquals("오늘 무슨 일이 있었어?", before)
+        s.placeLabel = "오늘 있었던 곳"; s.place = "오늘 있었던 곳"; s.slotBy["place"] = "mascot"
+        assertEquals("장소를 못 들었는데 임시 장소를 되묻는다", before, problem.rungs(s).first())
         s.placeLabel = "놀이터"; s.place = "놀이터"
+        s.slotBy["place"] = "child"
         val after = problem.rungs(s).first()
         assertNotEquals("장소를 듣고도 같은 질문을 한다", before, after)
         assertTrue("장소를 되받지 않는다: $after", "놀이터" in after)
