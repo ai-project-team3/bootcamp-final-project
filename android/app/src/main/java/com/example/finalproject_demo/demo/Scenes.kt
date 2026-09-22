@@ -707,7 +707,9 @@ private suspend fun Director.scenePlace() {
         say("${s.placeName}에는 이런 것들이 있네! 눌러 볼래?")
         log("무응답 → 배경 속 것들을 모두 한 번 반짝여 보여 준다 (카드 없음 · 새 그림 없음)")
     }
-    event("slot_filled", "slot" to "sight", "value" to said2.joinToString("+").ifEmpty { "(없음)" }, "source" to sourceOf(r2))
+    // `sight`("배경에서 무엇을 봤나")는 12종 밖이다. 규칙 1에 따라 **밖으로는 `extra`로** 나간다 —
+    // 부모 리포트가 slot_filled 를 집계할 때 12종과 틀 빈칸이 섞이면 숫자가 거짓이 된다 (guidelines/2 §1-1)
+    event("slot_filled", "slot" to "extra", "of" to "sight", "value" to said2.joinToString("+").ifEmpty { "(없음)" }, "source" to sourceOf(r2))
     buttons(DemoBtn("➡️ 다음으로") { send(Reply.Tapped("go", "다음")) })
     log("배경 속 것(${s.hotspots.map { it.name }.distinct().joinToString(" · ")})은 눌러 볼 수 있다 — 그 부분이 통 튀고 \"반짝!\" 같은 글자가 뜬다 (저장 안 함)")
     mark("place")
@@ -749,9 +751,9 @@ private suspend fun Director.sceneEvent() {
     if (r is Reply.Spoke) log("LLM 판정: 이름을 가린 문장({주인공}: ${r.text}) → Anthropic → S1 · S2 표시 JSON → 수준은 규칙이 계산")
 
     // 질문 은행 — 그다음 (결과 · 대응 · 누가 놀랐나 중 하나)
-    val (_, r2) = askSlot("follow")
-    (r2 as? Reply.Spoke)?.let { event("slot_filled", "slot" to "follow", "value" to it.text, "source" to "voice") }
-    s.slots["follow"] = valueOf(r2) ?: ""
+    val (_, r2) = askSlot("reaction")
+    (r2 as? Reply.Spoke)?.let { event("slot_filled", "slot" to "reaction", "value" to it.text, "source" to "voice") }
+    s.slots["reaction"] = valueOf(r2) ?: ""
     mark("event")
     pause(800)
     go(Scene.CAUSE)
@@ -1259,7 +1261,9 @@ private suspend fun Director.sceneSolution() {
     if (help != null) {
         s.partnerHelp = help.text
         s.partnerHelpLine = help.value
-        event("slot_filled", "slot" to "partner", "who" to pn, "value" to help.value, "source" to "voice")
+        // 문서의 12종 이름은 `adult`("어른의 한마디")다. 앱 변수명은 partnerHelp 이지만
+        // **밖으로 나가는 이름은 문서 쪽을 따른다** — 부모 리포트가 이 이름으로 집계한다 (guidelines/2 §1-1)
+        event("slot_filled", "slot" to "adult", "who" to pn, "value" to help.value, "source" to "voice")
         log("${pn} 참여 칸 = \"${help.value}\" → 마지막 쪽에 한 줄 · 함께하기 기록 재료 (칸 진행 · 수준 판단에는 안 씀)")
         say(if (s.partner.honor) "좋아요! ${pn}도 함께예요!" else "좋아! ${pn}도 함께야!")
     } else {

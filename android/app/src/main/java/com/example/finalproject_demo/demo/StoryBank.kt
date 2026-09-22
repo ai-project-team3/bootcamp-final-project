@@ -148,7 +148,7 @@ val BANK: List<QVariant> = listOf(
         answers = { it.sightAnswers }),
 
     // ── 장면 4 · 그다음 (결과 · 대응) ──
-    QVariant("follow_next", "follow", MID_UP, Kind.EASY, "결과를 스스로 잇나 (S2 결과 · A1)",
+    QVariant("follow_next", "reaction", MID_UP, Kind.EASY, "결과를 스스로 잇나 (S2 결과 · A1)",
         text = { "${it.nk}${ga(it.nk)} 흔들었구나! 그다음엔 어떻게 됐을 것 같아?" },
         easier = { "${it.v} 안에 있던 ${it.c}${eun(it.c)} 어땠을까?" },
         answers = {
@@ -160,7 +160,7 @@ val BANK: List<QVariant> = listOf(
                 Answer("${it.c}${ga(it.c)} 손잡이를 꽉 잡았어. 그다음에 흔들림이 멈췄어.", "손잡이를 꽉 잡았어", el = setOf("시도", "결과"), con = true, lv = 3),
             )
         }),
-    QVariant("follow_say", "follow", MID_UP, Kind.EASY, "인물의 대응을 떠올리나 (S2 시도)",
+    QVariant("follow_say", "reaction", MID_UP, Kind.EASY, "인물의 대응을 떠올리나 (S2 시도)",
         text = { "그때 ${it.c}${eun(it.c)} 뭐라고 말했을까?" },
         easier = { "${it.c}${ga(it.c)} 소리쳤을까, 조용히 있었을까?" },
         answers = {
@@ -172,7 +172,7 @@ val BANK: List<QVariant> = listOf(
                 Answer("안녕? 같이 놀래? 하고 말했어. 심심해 보여서.", "안녕? 같이 놀래?", el = setOf("시도"), reason = true, con = true, lv = 3),
             )
         }),
-    QVariant("follow_who", "follow", LOW_MID, Kind.EASY, "누구 · 무엇 질문에 답하나",
+    QVariant("follow_who", "reaction", LOW_MID, Kind.EASY, "누구 · 무엇 질문에 답하나",
         text = { "누가 제일 깜짝 놀랐을까?" }, easier = { "${it.c}${ga(it.c)} 놀랐을까?" },
         answers = {
             listOf(
