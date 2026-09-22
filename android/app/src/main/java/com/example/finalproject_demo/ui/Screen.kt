@@ -846,7 +846,9 @@ private fun GiftsView(d: Director, stage: Stage.Gifts) {
     Box(Modifier.fillMaxSize()) {
         Centered {
             Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                listOf(Triple("gift_book", "🧩", "해결 방법 도감\n친구와 함께"), Triple("gift_crayon", "🌈", "무지개 크레용")).forEachIndexed { i, (img, e, t) ->
+                listOf(Triple("gift_book", "🧩", "해결 방법 도감\n친구와 함께"), Triple("gift_crayon", "🌈", "무지개 크레용"))
+                    // 받지 않는 선물은 흐리게도 그리지 않는다 — 흐린 카드는 "못 받았다"로 읽힌다
+                    .take(d.s.giftCount).forEachIndexed { i, (img, e, t) ->
                     val on = i < stage.shown
                     val pop by animateFloatAsState(if (on) 1f else 0.85f, spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "gift$i")
                     Column(
@@ -867,7 +869,8 @@ private fun GiftsView(d: Director, stage: Stage.Gifts) {
                 }
             }
         }
-        if (stage.shown >= 2) {
+        // 선물이 몇 개든 다 나오면 버튼 — `shown >= 2` 로 박아 두면 선물 1개인 날 멎는다 (Model.giftCount)
+        if (stage.shown >= d.s.giftCount) {
             Box(Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 16.dp)) {
                 PillButton("📚 책장에 꽂기", Sun, Ink, 19) { d.send(Reply.Tapped("shelf", "책장")) }
             }

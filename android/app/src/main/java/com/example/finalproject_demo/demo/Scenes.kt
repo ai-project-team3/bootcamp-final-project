@@ -1505,7 +1505,7 @@ private suspend fun Director.sceneEnd() {
     log("선물 1 — 해결 방법 도감 첫 칸 \"친구와 함께\" (업적 5 · ⭐9). 한 번에 하나씩 (조사3 §1-2)")
     pause(2600)
     // 업적 7은 "그림판 그림을 책에 처음 넣음"이다. 일기 모드에서 아무것도 안 그린 날에는 주지 않는다
-    if (!s.isDiary || s.drawing.isNotEmpty()) {
+    if (s.earnedCrayon) {       // 조건은 Model.earnedCrayon 한 곳 — 화면(GiftsView)도 같은 값을 본다
         s.stage = Stage.Gifts(2)
         say("무지개 크레용이 생겼어! 다음에 그려 보자.")
         if ("무지개 크레용" !in s.achievements) s.achievements += "무지개 크레용"
