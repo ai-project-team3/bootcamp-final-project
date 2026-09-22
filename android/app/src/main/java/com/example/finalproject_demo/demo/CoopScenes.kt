@@ -137,7 +137,7 @@ private suspend fun Director.coopAskFromParent(q: Question): Reply {
     }
     s.partnerTurns++
     s.adultLine = mine          // 부모 리포트의 "어른이 한 말" — 마지막으로 쓴 부모 질문
-    if (r is Reply.Spoke) coopReact(r)
+    if (r is Reply.Spoke) coopReact()
     return r
 }
 
@@ -153,14 +153,26 @@ private suspend fun Director.coopAsk(q: Question): Reply {
         event("utterance", "speaker" to "adult", "mode" to "voice", "text" to q.text)
         s.partnerTurns++
         s.adultLine = q.text        // 부모 리포트의 "어른이 한 말" — 어른이 읽고 물어본 마지막 질문
-        coopReact(r)
+        coopReact()
     }
     return r
 }
 
-private suspend fun Director.coopReact(r: Reply.Spoke) {
-    val t = r.text.trimEnd('!', '.', '?')
-    say(listOf("$t! 그랬구나~", "우와, $t!", "$t 했구나! 더 들려줘.").random())
+/**
+ * 받아주기 — **고정 문구만** 쓴다 (09-22 진웅).
+ *
+ * 전에는 아이 말을 되비추었다(`"$t 했구나!"`). 그런데 그 문장은 매번 달라서 **사전 합성이 안 되고**, 가변 문장 낭독은
+ * 아직 미정이다(`guidelines/5` §5-2 · 폰 TTS 탈락). 실제로는 받아쓰기 → 판정 → 첫 소리까지 6초가 걸리므로(`guidelines/9` §9-8)
+ * 그 사이를 메우는 것은 **미리 합성해 둔 고정 대사**다 — 채우는 말(filler)이 필수인 이유(`guidelines/6` §6-4).
+ * 데모에서 되비추기를 넣어 두면 실제보다 좋아 보이는 거짓이 된다.
+ *
+ * 되비추기(설계 §2-2의 ② 되돌려주기)는 LLM·TTS가 붙은 뒤 마스코트 프롬프트 §3의 몫이다.
+ * ⚠️ 질문도, "더 말해 줘" 같은 재촉도 넣지 않는다 — 다음 질문이 바로 이어지므로 겹친다.
+ */
+private val COOP_ACKS = listOf("그랬구나~", "우와!", "응응, 듣고 있어.", "오~ 그랬구나.")
+
+private suspend fun Director.coopReact() {
+    say(COOP_ACKS.random())
     pause(1200)
 }
 
