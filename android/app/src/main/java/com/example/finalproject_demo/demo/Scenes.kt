@@ -1352,7 +1352,7 @@ private suspend fun Director.sceneBook() {
             i == rubPage -> if (s.m1Result == null) s.m1Line() else s.m1Done()
             i == dragPage -> if (s.m2Result == null) s.m2Line(s.m1Result == "helped") else s.m2Done()
             // 일기 모드에는 공룡 소리 칸이 없다 — 묻지 않는 칸이다 (§2-2)
-            i == last && s.isDiary -> "인형을 눌러 봐! 오늘 이야기가 여기서 끝나."
+            i == last && s.isDiary -> "오른쪽 책 버튼을 눌러 봐! 오늘 이야기가 여기서 끝나."
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
         }
