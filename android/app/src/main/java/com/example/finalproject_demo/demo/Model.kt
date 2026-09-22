@@ -715,7 +715,8 @@ class DemoState {
      *
      * ⚠️ **이야기 시작에서 비우지 않는다** (09-22 박진웅 지적). `resetStory()` 가 모드를 고른
      * 직후(`Scenes.kt:264`)에 돌기 때문에, 거기서 비우면 부모가 넣은 질문이 [같이 만들기] 를
-     * 누르는 순간 사라졌다. 비우는 것은 **책 한 권이 끝나고 홈으로 돌아갈 때** — [Director.goHome].
+     * 누르는 순간 사라졌다. 비우는 것은 **협업 이야기가 끝날 때**(`coopFinishLog`)다.
+     * ⚠️ `goHome()` 도 아니다 — 부모 모드를 나올 때도 그 길을 타서 입력하자마자 지워졌다 (09-22 박진웅).
      */
     val parentQuestions = mutableStateListOf<String>()
 
@@ -1148,7 +1149,7 @@ class DemoState {
         stepsDone = 0; hotspotIntroShown = false
         // ⚠️ 미리 넣어 둔 질문은 **여기서 비우지 않는다** (09-22). 이 함수는 모드를 고른 직후에
         // 돌아서, 여기서 비우면 부모가 방금 넣은 질문이 [같이 만들기] 를 누르는 순간 사라진다.
-        // 비우는 곳은 [clearParentQuestions] 이고 부르는 곳은 `Director.goHome()` 이다.
+        // 비우는 곳은 [clearParentQuestions] 이고 부르는 곳은 `coopFinishLog()` 와 `reset()` 이다.
         nextLevel?.let { level = it }
         nextLevel = null; levelAtStart = level
         templateKey = null; attribute = null; causeKind = "lonely"; notes.clear(); levelWhy = ""
