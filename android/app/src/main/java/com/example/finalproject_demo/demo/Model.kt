@@ -12,33 +12,6 @@ import com.example.finalproject_demo.ui.HeroAttr
 /**
  * 장면 — title은 시연 서랍용 긴 이름, label은 화면 맨 위 가운데에 보이는 "무엇을 하는 화면인가".
  */
-/**
- * 부모가 넣은 질문이 **어느 자리를 겨냥하나** (09-22 박진웅 요청).
- *
- * ⚠️ **`String` 이 아니라 열거형인 이유** — 규칙 1: *"슬롯 이름은 고르는 것이지 만드는 것이 아니다."*
- * `part` 를 자유 문자열로 두면 화면마다 "어디" · "place" · "장소" 가 섞여 들어오고,
- * 그 값이 칸 이름으로 새는 순간 앱이 렌더링도 집계도 못 한다 — `coop:adult` 가 칸에 새어
- * 화면에 그대로 찍힌 9/21 사고가 같은 종류였다 (`CoopScenes.kt` 주석).
- *
- * [slot] 은 `guidelines/2` §1-1 의 12개 안에서만 고른다. [FREE] 만 `null` 이고,
- * 그 답은 칸에 넣지 않고 `extra` 로 간다.
- */
-enum class ParentQPart(val slot: String?, val label: String) {
-    PLACE("place", "어디"),
-    PROBLEM("problem", "무슨 일"),
-    CAUSE("cause", "왜"),
-    REACTION("reaction", "어떻게 됐나"),
-    FREE(null, "자유"),
-}
-
-/**
- * 부모가 부모 모드에서 미리 적어 둔 질문 하나.
- *
- * [part] 를 알면 **판정이 대본인 동안에도** 그 자리의 일기 사다리 더미 답을 빌려 데모가 돌고,
- * 실제 LLM 이 붙으면 이 값이 그대로 `asked_slot` 이 된다 (진웅 요청 2번).
- */
-data class ParentQuestion(val part: ParentQPart, val text: String)
-
 enum class Scene(val title: String, val label: String) {
     ADULT("장면 1 · 시작 화면", "이야기 시작하기"),
     PARTNER("장면 1↳ · 함께할 사람", "함께할 사람 정하기"),
@@ -729,7 +702,7 @@ class DemoState {
      * 직후(`Scenes.kt:264`)에 돌기 때문에, 거기서 비우면 부모가 넣은 질문이 [같이 만들기] 를
      * 누르는 순간 사라졌다. 비우는 것은 **책 한 권이 끝나고 홈으로 돌아갈 때** — [Director.goHome].
      */
-    val parentQuestions = mutableStateListOf<ParentQuestion>()
+    val parentQuestions = mutableStateListOf<String>()
 
     /**
      * 미리 넣어 둔 질문 중 **몇 개를 썼나**. `parentQuestions.size` 에 닿으면 소진이다.
@@ -741,7 +714,7 @@ class DemoState {
     val hasParentQuestion: Boolean get() = parentQIndex < parentQuestions.size
 
     /** 다음 질문을 꺼내고 인덱스를 올린다. 없으면 null */
-    fun nextParentQuestion(): ParentQuestion? =
+    fun nextParentQuestion(): String? =
         if (hasParentQuestion) parentQuestions[parentQIndex++] else null
 
     /**
