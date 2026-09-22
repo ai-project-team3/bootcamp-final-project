@@ -752,19 +752,6 @@ class DemoState {
     val sceneLabel: String get() =
         if (isCoop && scene == Scene.DIARY) coopLabel else scene.label
 
-    /**
-     * 기승전결 네 자리를 **누가 지었나** (협업 설계 §6 번갈아 짓기).
-     * 책 자막에 작은 표시 하나만 남긴다 — 채점처럼 보이면 안 된다.
-     */
-    val author = mutableStateMapOf<String, String>()
-
-    /** 부모 자리가 절반을 넘으면 경고한다 — 그건 협업이 아니라 부모가 짓고 아이가 들은 것이다 (§6) */
-    /**
-     * 어른이 지은 자리가 절반을 넘었나 (협업 §6).
-     * ⚠️ 9/21에 [내가 답할래]를 빼면서 `author = "adult"` 인 자리가 생기지 않게 되어 **지금은 늘 false** 다.
-     * 어른이 칸을 직접 짓는 흐름이 다시 들어오면 그대로 살아난다.
-     */
-    val parentTooMuch: Boolean get() = isCoop && author.values.count { it == "adult" } * 2 > author.size && author.size >= 3
 
     /** 일기 모드가 시작된 시각 — 끝나는 조건 셋 중 "15분 경과"를 재는 데 쓴다 (guidelines/2 §1-1) */
     var diaryStart by mutableStateOf(0L)
@@ -1162,7 +1149,6 @@ class DemoState {
         // ⚠️ 미리 넣어 둔 질문은 **여기서 비우지 않는다** (09-22). 이 함수는 모드를 고른 직후에
         // 돌아서, 여기서 비우면 부모가 방금 넣은 질문이 [같이 만들기] 를 누르는 순간 사라진다.
         // 비우는 곳은 [clearParentQuestions] 이고 부르는 곳은 `Director.goHome()` 이다.
-        author.clear()
         nextLevel?.let { level = it }
         nextLevel = null; levelAtStart = level
         templateKey = null; attribute = null; causeKind = "lonely"; notes.clear(); levelWhy = ""

@@ -601,7 +601,7 @@ private fun tail(s: DemoState, key: String): String {
     return " " + if (v.last() in ".!?") v else "$v."
 }
 
-// pageAuthor() 는 `CoopScenes.kt` 로 옮겼다 (09-22)
+// pageAuthor() 는 지웠다 — 새 협업에서 모든 쪽이 🧒 로 같아져 표시가 뜻을 잃었다 (09-22)
 
 /** 제목 — 아이에게 묻지 않고 지어 준다 (동화 모드와 같다) */
 fun DemoState.diaryTitle(): String {

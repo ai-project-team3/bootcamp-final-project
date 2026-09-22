@@ -180,8 +180,8 @@ fun Director.coopFinishLog() {
     }
     // ⚠️ "어른이 지은 자리"를 세지 않는다 — [내가 답할래]를 뺀 뒤로 그 수는 **언제나 0**이라
     // "어른이 아무것도 안 했다"로 읽힌다. 실제로는 어른이 **모든 질문을 읽어 주었다** (9/21).
-    val byChild = s.author.values.count { it == "child" }
-    log("같이 짓기 — 어른이 읽어 준 질문 ${s.partnerTurns}번 · 그중 아이가 자기 말로 채운 자리 $byChild. 책 자막에 작은 표시로만 남는다 (채점처럼 보이면 안 된다 · 협업 §6)")
+    val byChild = s.slotBy.values.count { it == "child" }
+    log("같이 짓기 — 어른이 읽어 준 질문 ${s.partnerTurns}번 · 그중 아이가 자기 말로 채운 자리 $byChild. 채점처럼 보이면 안 되므로 책에는 남기지 않는다 (협업 §6)")
 }
 
 /** 15분이 지나 끝날 때의 한 줄 — 협업은 부모가 질문을 고르는 시간이 들어가 더 빨리 닿는다 (협업 §9-3). */
@@ -193,19 +193,3 @@ fun DemoState.coopTimeUpNote(): String =
 fun coopBookName(s: DemoState): String =
     if (s.isCoop) "같이 지은 오늘 이야기" else "오늘 이야기"
 
-/**
- * 이 쪽을 누가 지었나 — 협업 모드에서만 책에 **작은 표시 하나**로 남는다 (협업 §6 번갈아 짓기).
- * ⚠️ 채점처럼 보이면 안 된다. 누가 지었는지 알아볼 정도이고, 숫자도 순위도 없다.
- * ⚠️ [내가 답할래]가 빠진 뒤로 `author == "adult"` 는 생기지 않는다 — 새 흐름에도 부모가 칸을 채우는 자리는 없다. 정리 대상 (조장).
- */
-fun DemoState.pageAuthor(i: Int): String? {
-    if (!isCoop) return null
-    val slot = when (pageKind(i)) {
-        PageKind.DEPART -> "place"
-        PageKind.SHAKE -> "problem"
-        PageKind.TALK -> "cause"
-        PageKind.DRAG -> "solution"
-        else -> return null
-    }
-    return author[slot]?.takeIf { it == "child" || it == "adult" }
-}

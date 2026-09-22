@@ -63,10 +63,12 @@ fun Director.diaryFilled(slot: String): Boolean = when (slot) {
  * 근거가 `by: mascot` 하나다. 안 남기면 메운 문장이 아이가 한 말과 섞여 부모 리포트가 거짓말을 시작한다.
  *
  * 협업 모드에서 **부모가 지은 자리**도 `by: mascot` 이다 — 아이가 한 말이 아니므로 수준 신호와
- * 리포트 원문 인용에서 빠져야 한다. 누가 지었는지는 [DemoState.author] 에 따로 남겨 책의 작은 표시가 된다
- * (협업 §4-1 · §6). **`by: parent` 를 새로 만들지 않는다** — 스키마도 평가셋도 그대로다.
+ * 리포트 원문 인용에서 빠져야 한다 (협업 §4-1). **`by: parent` 를 새로 만들지 않는다** — 스키마도 평가셋도 그대로다.
+ *
+ * 전에는 `author` 를 따로 남겨 책에 🧒/🧑 표시를 붙였다. 새 협업에서 부모는 질문만 넣고 칸을 채우지 않아
+ * 표시가 모든 쪽에 🧒 로 같아졌다 — 구분하려고 만든 것이 상수가 되어 지웠다 (09-22 박진웅 결정).
  */
-fun Director.setDiarySlot(slot: String, bookKey: String, value: String, line: String?, by: String, author: String = by) {
+fun Director.setDiarySlot(slot: String, bookKey: String, value: String, line: String?, by: String) {
     when (slot) {
         "place" -> { s.place = value; s.placeLabel = value }
         "problem" -> s.problem = value
@@ -82,11 +84,9 @@ fun Director.setDiarySlot(slot: String, bookKey: String, value: String, line: St
     }
     line?.let { s.slots[bookKey] = it }
     s.slotBy[bookKey] = by
-    if (slot in setOf("place", "problem", "cause", "solution")) s.author[slot] = author
     event("slot_filled", "slot" to slot, "value" to value, "source" to by)
     log(
         "칸 [$slot${if (bookKey != slot) "/$bookKey" else ""}] = \"$value\"  [by: $by]" + when {
-            author == "adult" -> " — 부모가 지은 자리다. 책에 작은 표시로 남고 수준 신호 · 리포트 인용에는 안 들어간다 (협업 §4-1 · §6)"
             by == "mascot" -> " — 책 자막에는 나오지만 주고받기 횟수 · 수준 신호 · 리포트 원문 인용에서는 빠진다 (일기 §5-1)"
             else -> ""
         }
@@ -300,7 +300,7 @@ private suspend fun Director.finishDiary() {
     val bySelf = DIARY_REQUIRED.count { s.slotBy[it.bookKey] == "child" || s.slotBy[it.bookKey] == "card" }
 
     // 일기 §7-4 — 칸이 하나도 안 찼을 때(완전 무응답)만 남는 문제. 어느 쪽인지는 아직 정하지 않았다
-    if (bySelf == 0 && s.author.values.none { it == "adult" }) {
+    if (bySelf == 0) {
         say("오늘은 여기까지 하고 잘까? 아니면 우리 이야기를 하나 지어 볼까?")
         log("⚠️ 씨앗이 0개다 — §5(모인 답변으로 만들기)를 쓸 수 없는 유일한 경우. 끝낼지 동화 모드로 넘길지는 **아직 안 정했다** (일기 §7-4 · 남은 일 §9-4)")
         buttons(
@@ -313,7 +313,7 @@ private suspend fun Director.finishDiary() {
             s.place = null; s.problem = null; s.cause = null; s.solution = null; s.reaction = null; s.friend = null
             listOf("place", "problem", "cause", "solution", "reaction", "companion", "detail", "said", "after", "keep")
                 .forEach { s.slots.remove(it); s.slotBy.remove(it) }
-            s.placeLabel = null; s.mascotPicks = 0; s.companionKind = ""; s.author.clear()
+            s.placeLabel = null; s.mascotPicks = 0; s.companionKind = ""
             log("동화 모드로 넘어간다 — 같은 세션 안에서 재료만 상상으로 바꾼다")
             go(Scene.PLACE)
         } else {

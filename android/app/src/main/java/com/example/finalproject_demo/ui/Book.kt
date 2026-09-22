@@ -59,7 +59,6 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.PageKind
-import com.example.finalproject_demo.demo.pageAuthor
 import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.demo.pageKind
 import com.example.finalproject_demo.demo.Director
@@ -339,17 +338,6 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // 번갈아 짓기 — 이 쪽을 누가 지었는지 작은 표시 하나 (협업 §6). 채점처럼 보이면 안 되므로 숫자도 순위도 없다
-                val author = s.pageAuthor(page)
-                if (author != null) {
-                    Box(Modifier.size(24.dp)) {
-                        ArtView(
-                            if (author == "adult") Art.Img("mk_parent", Art.Emoji("🧑")) else Art.Img("mk_child", Art.Emoji("🧒")),
-                            Modifier.fillMaxSize(),
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                }
                 Text(s.bookCaption(page), fontSize = 17.sp, lineHeight = 23.sp, color = Ink, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                 Spacer(Modifier.width(8.dp))
                 Box(Modifier.size(32.dp).noRippleClickable { d.send(Reply.Tapped("speak", "낭독")) }) { ArtView(Art.Img("ic_speaker", Art.Emoji("🔊")), Modifier.fillMaxSize()) }
