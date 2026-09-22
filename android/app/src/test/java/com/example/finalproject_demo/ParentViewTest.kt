@@ -206,6 +206,8 @@ class ParentViewTest {
             d.go(Scene.ADULT)
             assertTrue(d.tap("같이 만들기"))
             assertTrue(await { s.scene == Scene.BESTIARY } != null)
+            // 부모가 넣어 둔 질문 — 「오늘의 기록」에 질문별 답이 나오는지 본다
+            s.parentQuestions += listOf("오늘 어디 갔었어?", "거기서 무슨 일이 있었어?", "", "그래서 어떻게 됐어?")
             assertTrue(d.tap("카드를 탭"))
             assertTrue(await { s.scene == Scene.DIARY } != null)
             d.diaryToBook()

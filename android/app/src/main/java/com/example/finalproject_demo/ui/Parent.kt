@@ -43,7 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
-import com.example.finalproject_demo.demo.stashCoopQuestions
+import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.bat
@@ -309,6 +309,27 @@ private fun RecordTab(d: Director) {
         }
     }
 
+    // 협업 모드의 결과물 — **부모가 궁금해한 것에 아이가 뭐라고 했나** (부모협업모드_설계 §0 · 구현설계 §2-3).
+    // 인용은 아이가 말한 것(`by: child`)만 따옴표로. 카드 · 마스코트가 채운 것은 그렇다고 적는다 (guidelines/2 §1-4)
+    if (s.isCoop && s.coopAsked.isNotEmpty()) {
+        Section("어른이 넣어 둔 질문에 한 답", "넣은 순서대로 · 아이가 말한 것만 따옴표")
+        PCard(Modifier.fillMaxWidth()) {
+            s.coopAsked.forEachIndexed { i, qa ->
+                if (i > 0) Spacer(Modifier.height(8.dp))
+                Text("“${qa.question}”", fontSize = 12.sp, color = PSub)
+                Text(
+                    when (qa.by) {
+                        "child" -> "\"${qa.answer}\""
+                        "card" -> "${qa.answer} (카드로 골랐어요)"
+                        "mascot" -> "${qa.answer} (마스코트가 대신 정했어요)"
+                        else -> "답하지 않았어요"
+                    },
+                    fontSize = 14.sp, color = Ink, fontWeight = if (qa.by == "child") FontWeight.Bold else FontWeight.Normal,
+                )
+            }
+        }
+    }
+
     // 부모 협업 모드가 파는 것 — 동화책이 아니라 **질문하는 법**이다 (협업 §7).
     // ⚠️ 점수를 보여 주지 않는다. "당신의 질문은 60점"은 앱을 지우게 만든다. 남기는 형태는 다음에 넣어 볼 질문 한 개다.
     // 9/22 — 협업은 **부모가 질문을 미리 넣어 두는 모드**가 됐다 (guidelines/9 §9-5). 부모가 옆에서 기다린다는 전제의
@@ -429,7 +450,6 @@ private fun CoopQuestionsTab(d: Director) {
     fun set(i: Int, text: String) {
         while (qs.size <= i) qs.add("")
         qs[i] = text
-        s.stashCoopQuestions()   // 임시 — resetStory 가 시작 때 비우는 동안만 (CoopScenes.kt)
     }
 
     PCard(Modifier.fillMaxWidth()) {
@@ -459,7 +479,7 @@ private fun CoopQuestionsTab(d: Director) {
                 if (text.isNotEmpty()) {
                     Spacer(Modifier.width(8.dp))
                     Box(
-                        Modifier.clip(RoundedCornerShape(10.dp)).clickable { if (i < qs.size) { qs.removeAt(i); s.stashCoopQuestions() } }.padding(8.dp),
+                        Modifier.clip(RoundedCornerShape(10.dp)).clickable { if (i < qs.size) qs.removeAt(i) }.padding(8.dp),
                     ) { Text("🗑", fontSize = 16.sp) }
                 }
             }
@@ -494,7 +514,7 @@ private fun CoopQuestionsTab(d: Director) {
                             val empty = (0 until maxOf(rows, qs.size)).firstOrNull { (qs.getOrNull(it) ?: "").isBlank() }
                             when {
                                 empty != null -> set(empty, q)
-                                qs.size < COOP_MAX -> { qs.add(q); s.stashCoopQuestions() }
+                                qs.size < COOP_MAX -> qs.add(q)
                             }
                         }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -627,6 +647,67 @@ private fun SettingsTab(d: Director) {
                 Spacer(Modifier.height(6.dp))
                 Text(st.name, fontSize = 12.sp, color = Ink, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2)
                 if (!st.ready) Text("데모 그림 준비 중", fontSize = 10.sp, color = PSub)
+            }
+        }
+    }
+
+    // ── 아래 넷은 9/22 멘토 검토가 찾은 공백이다 (guidelines/9 §9-5 박진웅). **스케치다** — 자리와 문구만 있고
+    //    눌러도 동작하지 않는다. 저장이 없으므로(§9-8) 열람·정정·삭제도 실제로 할 것이 없다. 붙을 때 이 카드들이 진짜가 된다.
+    Section("내 아이의 기록", "보호자가 보고 · 고치고 · 지울 수 있어야 해요")
+    PCard(Modifier.fillMaxWidth()) {
+        listOf(
+            Triple("보기", "오늘 아이가 한 말과 만든 책을 그대로 봐요", "「오늘의 기록」 · 「책장」"),
+            Triple("고치기", "이름을 잘못 가렸거나 잘못 알아들은 말이 있으면 고쳐요", "준비 중"),
+            Triple("지우기", "책 한 권 · 오늘 기록 · 전부, 골라서 지워요", "준비 중"),
+        ).forEach { (t, desc, state) ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(t, fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
+                    Text(desc, fontSize = 12.sp, color = PSub)
+                }
+                Chip(state, if (state == "준비 중") PLine else PMint)
+            }
+        }
+    }
+
+    Section("무엇이 언제 생기고 언제 지워지나")
+    PCard(Modifier.fillMaxWidth()) {
+        listOf(
+            "아이가 녹음한 소리(울음소리 등)" to "이 폰에만 · 폰 밖으로 안 나가요 · 책을 지우면 같이 지워져요",
+            "아이가 말한 음성" to "글자로 바꾸려고 우리 서버까지만 가요 · 글자가 되면 바로 지워요 · 다른 회사에는 안 보내요",
+            "글자로 바뀐 말" to "이름은 폰에서 가린 뒤에야 서버로 가요 · 이 폰에 기록으로 남아요",
+            "아이 그림" to "이 폰에만 · AI가 다시 그리지 않아요",
+            "어른이 넣어 둔 질문" to "그 이야기 한 번에만 쓰고 지워요",
+        ).forEach { (what, how) ->
+            Text(what, fontSize = 13.sp, color = Ink, fontWeight = FontWeight.Bold)
+            Text(how, fontSize = 12.sp, color = PSub, modifier = Modifier.padding(bottom = 6.dp))
+        }
+        Text("ⓘ 지금 데모는 아무것도 저장하지 않아요. 앱을 끄면 다 사라져요.", fontSize = 11.sp, color = PSub)
+    }
+
+    Section("AI 목소리 알림")
+    PCard(Modifier.fillMaxWidth()) {
+        Text("마스코트 목소리는 사람이 아니라 AI가 만든 소리예요", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        Text("보호자에게: 처음 켤 때 한 번, 그리고 여기서 언제든 다시 볼 수 있어요.", fontSize = 12.sp, color = PSub)
+        Text("아이에게: 첫 이야기에서 마스코트가 스스로 말해요 — \"나는 진짜 병아리가 아니라 이야기 친구야.\"", fontSize = 12.sp, color = PSub)
+        Text("ⓘ 문구와 시점은 아직 정하는 중이에요.", fontSize = 11.sp, color = PSub)
+    }
+
+    Section("누가 한 말인지 구분해서 보여 줘요")
+    PCard(Modifier.fillMaxWidth()) {
+        listOf(
+            Triple("🧒", "아이가 한 말", "따옴표 · 굵게 — 기록과 책에 인용되는 건 이것뿐"),
+            Triple("🧑", "어른이 넣은 질문", "「어른이 넣어 둔 질문에 한 답」에 작은 글씨로"),
+            Triple("🐥", "마스코트가 대신 정한 것", "\"(마스코트가 대신 정했어요)\" 라고 적고, 횟수·인용에서는 빼요"),
+        ).forEach { (e, who, how) ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 3.dp)) {
+                Text(e, fontSize = 16.sp)
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text(who, fontSize = 13.sp, color = Ink, fontWeight = FontWeight.Bold)
+                    Text(how, fontSize = 12.sp, color = PSub)
+                }
             }
         }
     }

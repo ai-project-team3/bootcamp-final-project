@@ -60,45 +60,35 @@ private fun DemoState.takeCoopQuestion(q: Question): String? {
     return text
 }
 
-/** 이 이야기에서 어느 걸음에 이미 물었고 자유 질문을 몇 개 썼나 */
+/**
+ * 부모가 넣은 질문 하나에 아이가 뭐라고 했나 — 부모 리포트 「어른이 넣어 둔 질문에 한 답」의 재료.
+ * `by` 는 출처 3종 그대로(`child` · `card` · `mascot`), 답이 없으면 null (구현설계 §2-3).
+ */
+data class CoopAsked(val question: String, val answer: String?, val by: String?)
+
+/** 이 이야기에서 어느 걸음에 이미 물었고, 자유 질문을 몇 개 썼고, 질문마다 아이가 뭐라고 했나 */
 private class CoopTrack {
     val askedSteps = mutableSetOf<String>()
     var freeUsed = 0
+    val asked = mutableListOf<CoopAsked>()
 }
 
 /**
- * `Model.kt` 에 칸을 더하지 않고 상태마다 붙여 둔다(약한 참조). 이야기마다 `parentQIndex` 가 0으로 돌아가면 새로 시작한다.
- * 자리 필드가 홀더에 들어오면(조장 요청) 이 보조 기록은 홀더 쪽으로 옮긴다.
+ * `Model.kt` 에 칸을 더하지 않고 상태마다 붙여 둔다(약한 참조). 이야기가 시작될 때([coopIntro]) 새로 만든다.
+ * 홀더에 자리·답 칸이 들어오면(조장) 이 보조 기록은 홀더 쪽으로 옮긴다.
  */
 private val trackByState = java.util.WeakHashMap<DemoState, CoopTrack>()
 private val DemoState.coopTrack: CoopTrack
-    get() {
-        val t = trackByState[this]
-        if (t != null && parentQIndex > 0) return t
-        return CoopTrack().also { trackByState[this] = it }
-    }
+    get() = trackByState[this] ?: CoopTrack().also { trackByState[this] = it }
 
-/**
- * ⚠️ **임시 보관 — 조장이 `resetStory()` 의 비우는 시점을 옮기면 지운다.**
- *
- * 지금 `resetStory()` 가 이야기 **시작**에 `parentQuestions` 를 비운다(`Scenes.kt` 모드 고른 직후).
- * 부모 모드에서 넣고 [같이 만들기]를 누르면 그 순간 사라진다. `Model.kt` · `Scenes.kt` 는 남의 파일이라
- * 여기서 사본을 들고 있다가 협업 장면이 시작될 때 되돌려 넣는다. 입력 화면(`Parent.kt`)이 고칠 때마다 [stashCoopQuestions] 를 부른다.
- * 이야기가 끝나면([coopFinishLog]) 사본도 비운다 — "이야기마다 비운다"는 조장 결정 그대로.
- */
-private val stashByState = java.util.WeakHashMap<DemoState, List<String>>()
+private fun DemoState.newCoopTrack() { trackByState[this] = CoopTrack() }
 
-fun DemoState.stashCoopQuestions() {
-    stashByState[this] = parentQuestions.toList()
-}
-
-private fun DemoState.restoreCoopQuestions() {
-    if (parentQuestions.isEmpty()) stashByState[this]?.let { parentQuestions += it }
-}
+/** 이 이야기에서 부모 질문에 아이가 한 답들 — 부모 리포트가 읽는다. 이야기가 끝나도 남는다(다음 이야기가 시작되면 새로) */
+val DemoState.coopAsked: List<CoopAsked> get() = trackByState[this]?.asked.orEmpty()
 
 /** 협업 모드에서만 붙는 첫 안내. 일기 모드는 이 함수를 부르지 않는다. */
 suspend fun Director.coopIntro(childName: String) {
-    s.restoreCoopQuestions()
+    s.newCoopTrack()
     if (s.hasCoopQuestions) {
         say("${childName}${ya(childName)}, 어른이 물어보고 싶은 게 있대! 내가 대신 물어볼게.")
         log("부모 협업 모드 — 부모가 미리 넣어 둔 질문 ${s.parentQuestions.count { it.isNotBlank() }}개를 **마스코트가 소리 내어 읽는다.** 받아주기 · 되돌려주기 · 낭독도 마스코트 (구현설계 §1-① · 설계 §2-2)")
@@ -140,6 +130,11 @@ private suspend fun Director.coopAskFromParent(q: Question): Reply {
     val r = ask(q.copy(text = mine, silent = false))
     // 부모가 지은 질문이라는 것은 기록에 남는다 — payload.speaker: adult. `by` 3종은 늘리지 않는다 (협업 §4-1 · §8)
     event("utterance", "speaker" to "adult", "mode" to "typed", "text" to mine)
+    s.coopTrack.asked += when (r) {
+        is Reply.Spoke -> CoopAsked(mine, r.text, "child")
+        is Reply.Tapped -> CoopAsked(mine, r.label, if (r.byMascot) "mascot" else "card")
+        else -> CoopAsked(mine, null, null)
+    }
     s.partnerTurns++
     s.adultLine = mine          // 부모 리포트의 "어른이 한 말" — 마지막으로 쓴 부모 질문
     if (r is Reply.Spoke) coopReact(r)
@@ -173,9 +168,11 @@ private suspend fun Director.coopReact(r: Reply.Spoke) {
 fun Director.coopFinishLog() {
     if (!s.isCoop) return
     mark("coop")
-    stashByState.remove(s)          // 임시 보관도 이야기마다 비운다
     if (s.hasCoopQuestions) {
         log("같이 짓기 — 부모가 넣어 둔 질문 ${s.parentQuestions.count { it.isNotBlank() }}개 중 ${s.parentQIndex}개를 마스코트가 물었다. 부모 리포트 「함께하기」 축의 재료다 (협업 §4-2)")
+        // 이야기마다 비운다 — 오늘 넣은 질문이 내일 또 나오면 안 된다(조장). 비우는 자리는 **이야기가 끝난 여기**다.
+        // 리포트에 남는 것은 `partnerTurns` · `adultLine` · `utterance speaker=adult` 이벤트라 홀더가 비어도 된다.
+        s.clearParentQuestions()
         return
     }
     // ⚠️ "어른이 지은 자리"를 세지 않는다 — [내가 답할래]를 뺀 뒤로 그 수는 **언제나 0**이라

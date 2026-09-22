@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.hasCoopQuestions
 
 /**
  * 띠 오른쪽에 비워 두는 폭 — 🎤(약 78dp) + ➡️(48+10dp) + 바깥 여백(14dp).
@@ -62,8 +63,11 @@ private val END_RESERVE = 168.dp
  * 왜 아이 화면에 같이 띄워도 되나 — **4~5세는 글을 못 읽는다.**
  * 아이는 위쪽 그림을 보고 부모는 아래쪽 글자를 읽는다 (§3).
  *
- * ⚠️ 이 카드는 **소리가 없다.** 마스코트가 읽어 주면 부모가 물을 이유가 없어진다.
- * 부모가 읽고 **자기 말로** 묻는 것이 이 모드의 전부다 (§2-1 ASK′).
+ * 두 가지 뜻으로 쓰인다 (9/22 오후, 구현설계 §2-2)
+ *   **부모가 질문을 넣어 뒀으면** — "어른이 넣어 둔 질문이에요" 표시. 마스코트가 소리 내어 읽는 질문을 부모가
+ *   옆에서 따라 읽을 수 있게 같은 글을 띄운다. 채우는 것은 `Director.askSay` 인데, 지금은 `silent = true` 일 때만
+ *   채우고 `say()` 가 비운다 — 이 경로에서 띄우는 것은 치영님이 `Director.kt` 를 손보면 살아난다.
+ *   **하나도 안 넣었으면** — 9/21 옛 흐름. 이 카드는 **소리가 없고**, 부모가 읽고 자기 말로 묻는다 (§2-1 ASK′).
  *
  * 9/22 — 말풍선과 **번갈아** 뜬다. 띄우고 비우는 것은 [com.example.finalproject_demo.demo.Director]
  * 의 `say` · `askSay` 가 맡는다.
@@ -97,9 +101,10 @@ fun ParentBand(d: Director, modifier: Modifier = Modifier) {
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    // 어른에게 하는 말이라 작게 — 아이는 이 줄을 읽지 않는다
+                    // 어른에게 하는 말이라 작게 — 아이는 이 줄을 읽지 않는다.
+                    // 협업 모드는 함께할 사람을 안 묻는다 → "엄마"라고 쓰지 않는다
                     Text(
-                        "어른이 읽고 물어봐 주세요",
+                        if (s.hasCoopQuestions) "어른이 넣어 둔 질문이에요" else "어른이 읽고 물어봐 주세요",
                         fontSize = 11.sp, color = Color.White.copy(alpha = 0.55f),
                     )
                     Text(
