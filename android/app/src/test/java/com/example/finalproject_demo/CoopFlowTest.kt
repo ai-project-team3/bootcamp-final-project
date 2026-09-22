@@ -11,7 +11,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Test
 
 /**
@@ -168,7 +167,6 @@ class CoopFlowTest {
      * `sceneEnd`(Scenes.kt)가 무지개 크레용을 건너뛰어 `Gifts(1)` 에 머문다 → 버튼 없음 → 감독은 "shelf" 를 영원히 기다린다.
      * 시연 서랍의 [📚 책장에 꽂기] 버튼은 뜨므로 서랍으로 미는 검사는 이걸 못 본다 — 그래서 **화면 조건**을 본다.
      */
-    @Ignore("Scenes.kt sceneEnd(치영) · Screen.kt GiftsView(조장) 가 맞춰지면 켠다 — 지금은 재현되는 빨간 검사")
     @Test
     fun theShelfButtonAppearsOnTheChildScreenAfterTheGifts() = run { d ->
         val s = d.s
@@ -203,9 +201,10 @@ class CoopFlowTest {
         assertTrue(await(10_000) { s.buttons.any { "책장에 꽂기" in it.label } } != null)
         val gifts = s.stage as? com.example.finalproject_demo.demo.Stage.Gifts
         assertTrue("선물 화면이 아니다: ${s.stage}", gifts != null)
+        // 고친 뒤에는 **선물 수가 아니라 `done`** 이 버튼을 그린다 — 안 그린 날은 선물이 하나뿐이다 (9/22)
         assertTrue(
-            "아이 화면에 [책장에 꽂기]가 없다 — Gifts.shown=${gifts!!.shown} (GiftsView 는 shown >= 2 에서만 그린다). 여기서 앱이 멎는다",
-            gifts.shown >= 2,
+            "아이 화면에 [책장에 꽂기]가 없다 — Gifts(shown=${gifts!!.shown}, done=${gifts.done}). 여기서 앱이 멎는다",
+            gifts.done,
         )
     }
 

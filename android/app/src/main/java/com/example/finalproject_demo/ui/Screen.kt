@@ -867,7 +867,8 @@ private fun GiftsView(d: Director, stage: Stage.Gifts) {
                 }
             }
         }
-        if (stage.shown >= 2) {
+        // 선물 수가 아니라 **다 나왔는가**로 본다 — 안 그린 날은 선물이 하나뿐이다 (9/22)
+        if (stage.done) {
             Box(Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 16.dp)) {
                 PillButton("📚 책장에 꽂기", Sun, Ink, 19) { d.send(Reply.Tapped("shelf", "책장")) }
             }
