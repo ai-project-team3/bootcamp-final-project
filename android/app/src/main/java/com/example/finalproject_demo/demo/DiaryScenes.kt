@@ -33,7 +33,7 @@ fun Director.diaryEnded(): Boolean {
     return false
 }
 
-/** 기승전결 네 자리가 다 찼나 — 열 걸음을 다 물은 뒤에만 본다 */
+/** 기승전결 네 자리가 다 찼나 — 모든 질문을 다 물은 뒤에만 본다 */
 private fun Director.diaryReadyNow(): Boolean = DIARY_REQUIRED.all { diaryFilled(it.slot) }
 
 /** 답에서 칸 값 꺼내기. "몰라"처럼 값이 없는 답은 빈 문자열이다 */
@@ -128,7 +128,7 @@ suspend fun Director.sceneDiary() {
         say("$c${ya(c)}, 오늘 뭐 했어? 나한테 들려줄래?")
         log("일기 모드 S3′ — 같은 러너 · 같은 판정 · 같은 무응답 흐름을 쓴다. 다른 것은 질문 세트와 칸 목록뿐이다 (일기 §1)")
     }
-    log("열 걸음 — 기승전결 네 자리(필수)와 꼬리질문 여섯. 꼬리질문 답은 슬롯 12종의 `extra` 에 원문으로 쌓여 책의 재료가 된다")
+    log("${DIARY_STEPS.size}걸음 — 기승전결 네 자리(필수)와 꼬리질문 ${DIARY_STEPS.size - DIARY_REQUIRED.size}. 꼬리질문 답은 기존 슬롯의 `extra` 등에 쌓여 책의 재료가 된다")
     log("⚠️ 일기 질문은 동화 모드보다 어렵다 — 상상이 아니라 기억을 꺼내야 한다. 같은 아이가 낮은 수준으로 나올 수 있다 (일기 §4-5 · 수준 공유 여부는 §7-3 열린 항목)")
     pause(1700)
 
@@ -179,9 +179,12 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
             fallback = step.mascot?.invoke(s),
             spoken = v.answers(s),
             drawAnswer = diaryDrawAnswer(step),
-            extra = listOf(
-                DemoBtn("⏱ (시연) 15분 지난 것으로 — 끝나는 조건 셋째") { s.diaryTimeUp = true; send(Reply.Silent) },
-            ),
+            extra = buildList {
+                if (!s.isCoop) step.demoAnswer(s)?.let { a ->
+                    add(DemoBtn("🎬 오늘 이야기 시연 답 — \"${a.text}\"") { send(Reply.Spoke(a.text, a.value, a)) })
+                }
+                add(DemoBtn("⏱ (시연) 15분 지난 것으로 — 끝나는 조건 셋째") { s.diaryTimeUp = true; send(Reply.Silent) })
+            },
             id = v.id,
         )
         val r = askOrCoopAsk(q)                 // 협업이면 소리 없이 부모 띠에 띄운다 (CoopScenes.kt)
@@ -331,7 +334,7 @@ private suspend fun Director.finishDiary() {
         "timeout" -> "15분 경과"
         else -> "story_ready (기승전결 네 자리)"
     }
-    val tails = listOf("companion", "detail", "reaction", "said", "after", "keep").count { s.slots[it] != null }
+    val tails = DIARY_STEPS.filterNot { it.required }.count { s.slots[it.bookKey] != null }
     log("일기 모드 끝 — 끝난 조건: $why · 아이 · 카드가 채운 필수 칸 $bySelf/4 · 꼬리질문으로 더 모은 문장 ${tails}개 (이만큼 마스코트가 메울 자리가 줄었다)")
     coopFinishLog()                             // 협업 쪽은 CoopScenes.kt (진웅)
     say("오늘 이야기가 다 모였어! 이제 동화책으로 만들어 줄게.")
