@@ -11,6 +11,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Ignore
 import org.junit.Test
 
 /**
@@ -157,6 +158,55 @@ class CoopFlowTest {
         assertTrue(await { s.scene == Scene.DIARY } != null)
         assertTrue("넣어 둔 질문이 시작 때 사라졌다", await(8_000) { d.asked() == "오늘 어디 갔었어?" } != null)
         assertEquals(2, s.parentQuestions.size)
+    }
+
+    /**
+     * 책을 다 읽고 선물 화면에서 **아이 화면에 [책장에 꽂기] 버튼이 뜨는가.**
+     *
+     * 9/22 진웅 실기기 보고: 협업 모드에서 "친구와 함께" 선물 뒤 화면이 멎는다.
+     * `GiftsView`(Screen.kt)는 `Stage.Gifts.shown >= 2` 일 때만 버튼을 그리는데, 일기·협업 모드에서 그림을 안 그린 날은
+     * `sceneEnd`(Scenes.kt)가 무지개 크레용을 건너뛰어 `Gifts(1)` 에 머문다 → 버튼 없음 → 감독은 "shelf" 를 영원히 기다린다.
+     * 시연 서랍의 [📚 책장에 꽂기] 버튼은 뜨므로 서랍으로 미는 검사는 이걸 못 본다 — 그래서 **화면 조건**을 본다.
+     */
+    @Ignore("Scenes.kt sceneEnd(치영) · Screen.kt GiftsView(조장) 가 맞춰지면 켠다 — 지금은 재현되는 빨간 검사")
+    @Test
+    fun theShelfButtonAppearsOnTheChildScreenAfterTheGifts() = run { d ->
+        val s = d.s
+        d.startCoopWith("오늘 어디 갔었어?", "무슨 일이 있었어?")
+        // 책까지
+        var guard = 0
+        while (s.scene == Scene.DIARY && guard++ < 40) {
+            if (await(2_000) { s.buttons.any { "🎲" in it.label } } == null) break
+            if (!d.push("🎲")) break
+            delay(40)
+        }
+        if (await(3_000) { s.buttons.any { "안 그릴래" in it.label } } != null) d.tap("안 그릴래")
+        assertTrue("책까지 못 갔다", await(20_000) { s.scene == Scene.BOOK } != null)
+
+        // 책 → 친구 평가 → 선물: 시연 서랍 버튼 중 대답 없는 것을 빼고 하나씩 민다 (치영 StoryFlowTest 방식)
+        fun pick() = s.buttons.firstOrNull { "🖐" in it.label }
+            ?: s.buttons.firstOrNull { "✅" in it.label }
+            ?: s.buttons.firstOrNull { "▶" in it.label }
+            ?: s.buttons.firstOrNull { "책장에 꽂기" !in it.label && "🤐" !in it.label && "😶" !in it.label }
+        guard = 0
+        while (s.scene != Scene.END && guard++ < 60) {
+            if (await(4_000) { pick() != null } == null) break
+            val b = pick()!!
+            val before = s.lineId
+            b.onClick()
+            await(600) { s.lineId != before || pick()?.label != b.label }
+            delay(20)
+        }
+        assertTrue("선물 화면까지 못 갔다: scene=${s.scene}", s.scene == Scene.END)
+
+        // 감독이 "shelf" 를 기다리기 시작하는 순간(서랍에 [책장에 꽂기]가 뜬 뒤) 아이 화면에도 버튼이 있어야 한다
+        assertTrue(await(10_000) { s.buttons.any { "책장에 꽂기" in it.label } } != null)
+        val gifts = s.stage as? com.example.finalproject_demo.demo.Stage.Gifts
+        assertTrue("선물 화면이 아니다: ${s.stage}", gifts != null)
+        assertTrue(
+            "아이 화면에 [책장에 꽂기]가 없다 — Gifts.shown=${gifts!!.shown} (GiftsView 는 shown >= 2 에서만 그린다). 여기서 앱이 멎는다",
+            gifts.shown >= 2,
+        )
     }
 
     @Test
