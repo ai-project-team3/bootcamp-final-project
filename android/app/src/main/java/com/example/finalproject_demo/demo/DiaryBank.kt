@@ -160,7 +160,7 @@ val DIARY_STEPS: List<DiaryStep> = listOf(
             )
         },
         // ⚠️ 구체적인 곳을 지어내지 않는다 — 아이가 가지 않은 곳이 그 아이의 하루로 적히면 안 된다 (일기 §3-2)
-        mascot = { Answer("오늘 있었던 곳", "오늘 있었던 곳|오늘 하루를 보냈어요") },
+        mascot = { Answer("오늘 있었던 곳", "오늘 있었던 곳|하루를 보냈어요") },
     ),
 
     DiaryStep(

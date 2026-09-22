@@ -298,9 +298,10 @@ private suspend fun Director.finishDiary() {
     s.parentCard = null; s.parentAsk = null
     if (s.endReason == null) s.endReason = "story_ready"
     val bySelf = DIARY_REQUIRED.count { s.slotBy[it.bookKey] == "child" || s.slotBy[it.bookKey] == "card" }
+    val hasChildSeed = s.slotBy.values.any { it == "child" || it == "card" }
 
-    // 일기 §7-4 — 칸이 하나도 안 찼을 때(완전 무응답)만 남는 문제. 어느 쪽인지는 아직 정하지 않았다
-    if (bySelf == 0) {
+    // 필수 네 칸을 못 채워도 꼬리질문에 아이의 답이 있으면 그 말을 재료로 책을 만든다 (일기 §5 · §7-4).
+    if (!hasChildSeed) {
         say("오늘은 여기까지 하고 잘까? 아니면 우리 이야기를 하나 지어 볼까?")
         log("⚠️ 씨앗이 0개다 — §5(모인 답변으로 만들기)를 쓸 수 없는 유일한 경우. 끝낼지 동화 모드로 넘길지는 **아직 안 정했다** (일기 §7-4 · 남은 일 §9-4)")
         buttons(
