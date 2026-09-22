@@ -86,29 +86,8 @@ private fun DemoState.newCoopTrack() { trackByState[this] = CoopTrack() }
 /** 이 이야기에서 부모 질문에 아이가 한 답들 — 부모 리포트가 읽는다. 이야기가 끝나도 남는다(다음 이야기가 시작되면 새로) */
 val DemoState.coopAsked: List<CoopAsked> get() = trackByState[this]?.asked.orEmpty()
 
-/**
- * ⚠️ **임시 보관 — 비우는 자리가 이야기 끝으로 옮겨지면 지운다.**
- *
- * 9/22 조장 수정으로 `resetStory()` 는 이제 `parentQuestions` 를 안 비운다. 대신 `Director.goHome()` 이 비우는데,
- * **부모 모드를 나가는 [아이 모드로] 버튼이 바로 `goHome()`** 이다(`Scenes.kt` `sceneParent` 의 "home").
- * 그래서 넣고 나오는 순간 사라진다 — 실제 경로가 「부모 모드에서 넣기 → 아이 모드로 → 같이 만들기」다.
- * `Director.kt` 는 조장 파일이라, 여기서 사본을 들고 있다가 협업 장면이 시작될 때 되돌려 넣는다.
- * 입력 화면(`Parent.kt`)이 고칠 때마다 [stashCoopQuestions] 를 부르고, 이야기가 끝나면([coopFinishLog]) 사본과 홀더를 같이 비운다.
- * 조장이 `goHome()` 의 비우기를 빼면 이 사본은 필요 없어진다 — 그때 지운다.
- */
-private val stashByState = java.util.WeakHashMap<DemoState, List<String>>()
-
-fun DemoState.stashCoopQuestions() {
-    stashByState[this] = parentQuestions.toList()
-}
-
-private fun DemoState.restoreCoopQuestions() {
-    if (parentQuestions.isEmpty()) stashByState[this]?.let { parentQuestions += it }
-}
-
 /** 협업 모드에서만 붙는 첫 안내. 일기 모드는 이 함수를 부르지 않는다. */
 suspend fun Director.coopIntro(childName: String) {
-    s.restoreCoopQuestions()
     s.newCoopTrack()
     if (s.hasCoopQuestions) {
         say("${childName}${ya(childName)}, 어른이 물어보고 싶은 게 있대! 내가 대신 물어볼게.")
@@ -189,7 +168,6 @@ private suspend fun Director.coopReact(r: Reply.Spoke) {
 fun Director.coopFinishLog() {
     if (!s.isCoop) return
     mark("coop")
-    stashByState.remove(s)
     if (s.hasCoopQuestions) {
         log("같이 짓기 — 부모가 넣어 둔 질문 ${s.parentQuestions.count { it.isNotBlank() }}개 중 ${s.parentQIndex}개를 마스코트가 물었다. 부모 리포트 「함께하기」 축의 재료다 (협업 §4-2)")
         // 이야기마다 비운다 — 오늘 넣은 질문이 내일 또 나오면 안 된다(조장). 비우는 자리는 **이야기가 끝난 여기**다.

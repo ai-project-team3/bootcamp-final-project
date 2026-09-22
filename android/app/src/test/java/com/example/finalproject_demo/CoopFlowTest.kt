@@ -3,7 +3,6 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
-import com.example.finalproject_demo.demo.stashCoopQuestions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -139,15 +138,14 @@ class CoopFlowTest {
      * 부모 모드에서 넣은 질문이 **[아이 모드로] → [같이 만들기]** 를 지나 살아남는가.
      *
      * 실제 경로 그대로다: 부모 모드를 나가는 버튼이 `goHome()` 이고, 그다음 첫 화면에서 모드를 고른다.
-     * 9/22 조장 수정으로 `resetStory()` 는 안 비우지만 `goHome()` 이 비운다 — 그러면 나가는 순간 사라진다.
-     * 지금은 임시 보관(CoopScenes.kt)이 되돌려 넣어 통과한다. 비우는 자리가 이야기 끝으로 옮겨지면 임시 보관 없이도 통과해야 한다.
+     * 9/22에 `resetStory()`(시작) → `goHome()`(부모 모드를 나갈 때) 순으로 잘못된 자리에서 비워졌다.
+     * 지금은 이야기 끝(`coopFinishLog`)에서만 비운다(조장 `07289a3`). 이 검사가 그 자리를 지킨다.
      */
     @Test
     fun questionsEnteredInParentModeSurviveLeavingParentModeAndStartingTheStory() = run { d ->
         val s = d.s
         // 부모 모드 입력 화면이 하는 일 그대로
         s.parentQuestions += listOf("오늘 어디 갔었어?", "거기서 뭐가 제일 재밌었어?")
-        s.stashCoopQuestions()
         // [아이 모드로]
         d.goHome()
         assertTrue(await { s.scene == Scene.ADULT } != null)

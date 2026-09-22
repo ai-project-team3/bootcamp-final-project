@@ -44,7 +44,6 @@ import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.coopAsked
-import com.example.finalproject_demo.demo.stashCoopQuestions
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.bat
@@ -451,7 +450,6 @@ private fun CoopQuestionsTab(d: Director) {
     fun set(i: Int, text: String) {
         while (qs.size <= i) qs.add("")
         qs[i] = text
-        s.stashCoopQuestions()   // 임시 — resetStory 가 시작 때 비우는 동안만 (CoopScenes.kt)
     }
 
     PCard(Modifier.fillMaxWidth()) {
@@ -481,7 +479,7 @@ private fun CoopQuestionsTab(d: Director) {
                 if (text.isNotEmpty()) {
                     Spacer(Modifier.width(8.dp))
                     Box(
-                        Modifier.clip(RoundedCornerShape(10.dp)).clickable { if (i < qs.size) { qs.removeAt(i); s.stashCoopQuestions() } }.padding(8.dp),
+                        Modifier.clip(RoundedCornerShape(10.dp)).clickable { if (i < qs.size) qs.removeAt(i) }.padding(8.dp),
                     ) { Text("🗑", fontSize = 16.sp) }
                 }
             }
@@ -516,7 +514,7 @@ private fun CoopQuestionsTab(d: Director) {
                             val empty = (0 until maxOf(rows, qs.size)).firstOrNull { (qs.getOrNull(it) ?: "").isBlank() }
                             when {
                                 empty != null -> set(empty, q)
-                                qs.size < COOP_MAX -> { qs.add(q); s.stashCoopQuestions() }
+                                qs.size < COOP_MAX -> qs.add(q)
                             }
                         }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
