@@ -287,10 +287,77 @@ class StoryTextTest {
         assertEquals("E", chooseTemplate(Level.PICK, "lonely").first)
         assertEquals("C", chooseTemplate(Level.CHAIN, "play").first)
         assertEquals("D", chooseTemplate(Level.CHAIN, "lost").first)
-        assertEquals("A", chooseTemplate(Level.REASON, "lonely").first)
+        assertEquals("A", chooseTemplate(Level.REASON, "play").first)
         assertEquals("G", chooseTemplate(Level.REASON, "prank").first)
+        // 9/22 새로 — 뽐내는 까닭은 민담의 겨루기와 같은 뿌리다(고르기 수준에서는 F),
+        // 인사·심심함은 오해가 생기는 자리다(까닭 수준에서는 B)
+        assertEquals("F", chooseTemplate(Level.PICK, "strong").first)
+        assertEquals("B", chooseTemplate(Level.REASON, "hello").first)
+        assertEquals("B", chooseTemplate(Level.REASON, "lonely").first)
         assertEquals("직업 체험", chooseTemplate(Level.CHAIN, "hurt").second)
         assertEquals("교훈", chooseTemplate(Level.REASON, "strong").second)
+        assertEquals("체험", chooseTemplate(Level.PICK, "strong").second)
+        assertEquals("상황 이해", chooseTemplate(Level.REASON, "hello").second)
+    }
+
+    /**
+     * **일곱 뼈대가 다 있고, 아이마다 다른 틀이 나오는가** (9/22).
+     *
+     * 역할2 조사가 동화 21권을 분석해 뼈대 7개로 묶었는데 앱에는 **다섯뿐이었다**(B·F 없음).
+     * 틀이 있기만 하고 아무에게도 안 가면 없는 것과 같으므로, 수준 × 까닭을 다 돌려
+     * **일곱이 전부 뽑히는지** 본다.
+     */
+    @Test
+    fun allSevenSkeletonsExistAndEachOneIsReachable() {
+        assertEquals("일곱 뼈대가 다 있지 않다: ${TEMPLATES.map { it.code }}", 7, TEMPLATES.size)
+        assertEquals(listOf("A", "B", "C", "D", "E", "F", "G"), TEMPLATES.map { it.code }.sorted())
+
+        val causes = listOf("lonely", "hello", "play", "prank", "strong", "lost", "hungry", "hurt")
+        val picked = Level.entries.flatMap { lv -> causes.map { c -> chooseTemplate(lv, c).first } }.toSet()
+        assertEquals("아무에게도 안 가는 틀이 있다", TEMPLATES.map { it.key }.toSet(), picked)
+
+        // 새 틀도 자기 빈칸을 묻는 질문을 가지고 있어야 한다 — 없으면 책이 기본 문장으로 떨어진다
+        for (t in TEMPLATES) for (slot in t.plot + t.ending) {
+            val own = BANK.filter { it.slot == slot }
+            assertTrue("틀 ${t.code} 의 빈칸 [$slot] 을 묻는 질문이 없다", own.isNotEmpty())
+        }
+    }
+
+    /**
+     * **F 전통 민담형은 이기거나 물리치는 결말로 끝나지 않는다** (9/22).
+     *
+     * 역할2 조사가 F를 *"물리침 또는 화합"* 으로 적으면서 *"「물리침」은 비폭력 표현으로 풀어야 한다"* 를
+     * 미결로 남겨 두었다. **겨루다 비기고 함께 노는 쪽**으로 정했고, 그 결정을 여기에 묶어 둔다.
+     */
+    @Test
+    fun theFolkTaleEndsInPlayNotInBeatingAnyone() {
+        val f = TEMPLATES.first { it.code == "F" }
+        val s = state("space", "mom")
+        s.templateKey = "F"
+        s.level = Level.PICK
+        val book = (1..f.pages.size).map { s.bookCaption(it) }
+
+        // 누군가를 해치거나 내쫓는 말이 없어야 한다.
+        //
+        // ⚠️ "이기다 · 지다" 를 통째로 막지는 않는다 — F 는 "누가 이기나 보자!" 로 시작해
+        //    "이기고 지는 것보다 같이 노는 게 재밌다" 로 끝나는 틀이라 그 말이 **있어야** 한다.
+        //    막는 것은 **결말이 물리침이 되는 것**이다. (한글 부분일치도 조심 — "터졌어요" 가 "졌어" 에 걸린다)
+        val violent = listOf("물리쳤", "물리치", "쫓아냈", "쫓아내", "때렸", "때리", "혼냈", "혼내", "무찔", "싸워 이겼")
+        for ((i, cap) in book.withIndex()) {
+            val hit = violent.filter { it in cap }
+            assertTrue("F ${i + 1}쪽에 ${hit}: $cap", hit.isEmpty())
+        }
+
+        // 마지막 쪽은 **함께 노는 것**으로 끝난다 — 이게 "화합" 쪽으로 푼 결과다
+        assertTrue("F 마지막 쪽이 함께 노는 것으로 끝나지 않는다: ${book.last()}", "같이 노는" in book.last())
+
+        // 겨룰 것을 고르는 답에도 힘으로 겨루는 것이 없어야 한다
+        val contests = BANK.filter { it.slot == "contest" }.flatMap { it.answers(s) }
+        assertTrue("겨루기 답이 없다", contests.isNotEmpty())
+        for (a in contests) {
+            val hit = listOf("힘겨루기", "때리", "싸움", "싸우", "밀치").filter { it in a.text || it in a.value }
+            assertTrue("겨루기 답에 ${hit}: ${a.text}", hit.isEmpty())
+        }
     }
 
     @Test
