@@ -11,7 +11,7 @@ package com.example.finalproject_demo.demo
  * 질문을 왜 늘렸나 (9/21 사용자 요청)
  *   처음 설계는 기승전결 네 질문뿐이었다. 네 문장으로는 책 여섯 쪽을 채울 재료가 안 되고,
  *   빈 자리를 마스코트가 메우는 만큼 **아이의 하루가 아니라 LLM의 문장이 책을 차지한다**.
- *   그래서 **네 자리는 그대로 두고 자리마다 꼬리질문을 붙였다** — 총 열 걸음, 8~12턴.
+ *   그래서 **네 자리는 그대로 두고 자리마다 꼬리질문을 붙였다** — 총 열한 걸음, 8~12턴.
  *   꼬리질문의 답은 슬롯 12종의 `extra`("위 어디에도 안 맞는 것 · 원문 그대로")에 쌓인다.
  *   **새 칸 이름을 만들지 않았다.** 판정 스키마도 평가셋 100개도 그대로다.
  *
@@ -118,7 +118,7 @@ private fun DemoState.hadTrouble(): Boolean {
 }
 
 /**
- * 열 걸음 — 기승전결 네 자리(필수)와 그 사이의 꼬리질문 여섯.
+ * 열한 걸음 — 기승전결 네 자리(필수)와 그 사이의 꼬리질문 일곱.
  *
  * | | 칸 | 묻는 것 | 필수 |
  * |---|---|---|---|
@@ -129,6 +129,7 @@ private fun DemoState.hadTrouble(): Boolean {
  * | 승 | `reaction` | 기분이 어땠어 | |
  * | 전 | `cause` | 왜 그랬을까 (**S1**) | ✅ |
  * | 전 | `extra`(said) | 그 사람이 뭐라고 했어 | |
+ * | 전 | `extra`(try) | 나는 어떻게 해 봤어 | |
  * | 결 | `solution` | 그래서 어떻게 됐어 (S2) | ✅ |
  * | 결 | `extra`(after) | 다 끝나고 뭐 했어 | |
  * | 맺음 | `extra`(keep) | 내일 또 하고 싶은 거 | |
@@ -211,7 +212,7 @@ val DIARY_STEPS: List<DiaryStep> = listOf(
                 Answer("달리다가 넘어져서 무릎 아팠어.", "넘어짐|달리다가 넘어져 무릎이 아팠어요", el = setOf("결과"), emo = "아팠", con = true, lv = 3),
             )
         },
-        mascot = { Answer("재미있게 논 날", "재미있게 놀았어|재미있게 놀았어요") },
+        mascot = { Answer("아직 못 들은 오늘 이야기", "아직 못 들은 일|오늘 있었던 일은 아직 다 듣지 못했어요") },
     ),
 
     DiaryStep(
@@ -273,8 +274,10 @@ val DIARY_STEPS: List<DiaryStep> = listOf(
             // 일이 어긋났을 때만 "왜 그랬을까?" — 그냥 즐거웠던 날에 물으면 물을 데가 없다
             if (it.hadTrouble()) listOf(
                 "왜 그렇게 됐을까?",
-                "$w${eun(w)} 왜 그랬을 것 같아?",
-                "그래서 $c${eun(c)} 어떻게 했어?",
+                if (it.companionKind.isNotBlank() && "혼자" !in it.companionKind)
+                    "$w${eun(w)} 왜 그랬을 것 같아?"
+                else "무엇 때문에 그런 일이 생겼을까?",
+                "그 일이 생기기 전에 무슨 일이 있었어?",
             ) else listOf(
                 "그게 왜 제일 좋았어?",
                 "$c${eun(c)} 그거 할 때 왜 신났을까?",
@@ -287,6 +290,7 @@ val DIARY_STEPS: List<DiaryStep> = listOf(
                 Answer("몰라.", "", lv = 1),
                 Answer("그냥.", "", lv = 1),
                 Answer("실수로 그런 거야.", "실수였어|실수였다고 했어요", reason = true, lv = 2),
+                Answer("블록을 너무 높이 쌓아서 무너졌어.", "너무 높이 쌓아서|블록을 너무 높이 쌓아 무너졌어요", reason = true, el = setOf("계기"), con = true, lv = 3),
                 Answer("나 울었어. 그래서 선생님이 왔어.", "울어서 선생님이 왔어|$c${ga(c)} 울자 선생님이 다가왔어요", el = setOf("시도", "결과"), con = true, lv = 2),
                 Answer("재밌으니까! 빠르니까 좋아.", "빨라서 재밌었어|빠르게 내려가는 게 신나서 좋았어요", reason = true, con = true, lv = 2),
                 Answer("나랑 놀고 싶어서 그랬나 봐.", "같이 놀고 싶었어|같이 놀고 싶어서 그랬대요", reason = true, con = true, lv = 3),
@@ -379,7 +383,7 @@ val DIARY_STEPS: List<DiaryStep> = listOf(
                 Answer("${w}랑 같이 하기로 했어. 그래서 또 놀았어.", "같이 하기로 했어|$w${wa(w)} 같이 하기로 하고 다시 즐겁게 놀았어요", el = setOf("시도", "결과"), con = true, lv = 3),
             )
         },
-        mascot = { Answer("집에 온 것", "그러고 집에 왔어|그러고 나서 집으로 돌아왔어요") },
+        mascot = { Answer("아직 못 들은 뒷이야기", "아직 못 들은 뒷이야기|그 뒤에 어떻게 되었는지는 아직 듣지 못했어요") },
     ),
 
     DiaryStep(
@@ -431,6 +435,24 @@ val DIARY_STEPS: List<DiaryStep> = listOf(
 
 /** 기승전결 네 자리 — 진행 막대와 `story_ready` 가 이것만 센다 */
 val DIARY_REQUIRED = DIARY_STEPS.filter { it.required }
+
+/** One coherent demo day. Each reply also exists in the normal scripted answers. */
+private val DIARY_DEMO_REPLY = mapOf(
+    "place" to "어린이집!",
+    "companion" to "민준이랑 놀았어.",
+    "problem" to "블록 쌓았는데 무너졌어.",
+    "detail" to "높이높이 쌓았어.",
+    "reaction" to "속상했어.",
+    "cause" to "블록을 너무 높이 쌓아서 무너졌어.",
+    "said" to "괜찮냐고 물어봤어.",
+    "try" to "다시 해 봤어.",
+    "solution" to "다시 쌓았어! 이번엔 안 무너졌어.",
+    "after" to "목욕하고 책 읽었어.",
+    "keep" to "내일은 안 무너지게 쌓을 거야. 밑을 튼튼하게 하면 돼.",
+)
+
+fun DiaryStep.demoAnswer(s: DemoState): Answer? =
+    DIARY_DEMO_REPLY[bookKey]?.let { text -> answers(s).firstOrNull { it.text == text } }
 
 /** 순차 답인가 — 잇는 말은 있는데 까닭이 없다. 여기서 S1로 세면 안 된다 (일기 §4-4) */
 fun Answer.isSequential(): Boolean = con && !reason && el.isEmpty()
@@ -511,11 +533,20 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
         // 미션 2도 같은 방식이다. "마침내 …" 한 문장에 절로 이어 붙어 결(結) 한 쪽이 갈라지지 않는다
         add(
             PageSpec(PageKind.DRAG) { st ->
-                // 9/22 — 결말 칸이 비었을 때 "하루가 저물었어요" 를 쓰면 **맺음 쪽과 겹친다.**
-                // 하루가 두 번 저물었다. 비었으면 이 쪽은 건네주는 장면 하나로만 둔다
+                // 9/22 — 두 갈래를 합쳤다.
+                //
+                //  ① 결말 칸이 비었으면 "하루가 저물었어요" 를 쓰지 않는다 — **맺음 쪽과 겹쳐**
+                //     하루가 두 번 저물었다. 비면 이 쪽은 건네주는 장면 하나로만 둔다
+                //  ② 마스코트가 메운 결말에는 **"마침내" 를 붙이지 않는다** (main · 최민우).
+                //     아이가 지어낸 결말이 아닌데 "마침내" 를 붙이면 책이 아이 말인 척한다
                 val sol = st.slots["solution"]?.takeIf { it.isNotBlank() }
-                if (sol == null) "${st.childName}${eun(st.childName)} ${st.m2Clause()}"
-                else joinWith("마침내", sentence(sol)) + " 그리고 ${st.m2Clause()}"
+                val give = st.m2Clause()
+                if (sol == null) "${st.childName}${eun(st.childName)} $give"
+                else {
+                    val head = sentence(sol)
+                    val lead = if (st.slotBy["solution"] == "mascot") head else joinWith("마침내", head)
+                    "$lead 그리고 $give"
+                }
             }
         )
         // ── 맺음 · 하루의 끝과 내일 ─────────────────────────────

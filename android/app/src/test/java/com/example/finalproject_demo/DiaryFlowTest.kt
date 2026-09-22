@@ -3,6 +3,7 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.demo.bookCaption
 import com.example.finalproject_demo.demo.pageCount
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -210,6 +211,33 @@ class DiaryFlowTest {
         assertTrue("아이 말이 인용으로 남지 않았다", s.quotes.isNotEmpty())
         // 배경이 아이가 말한 곳을 따라갔는가
         assertNotEquals("배경이 상상 세계 그대로다", "bg_space", s.bgName)
+    }
+
+    @Test
+    fun diaryDemoAnswersTellOneConsistentDayThroughTheBook() = run { d ->
+        val s = d.s
+        s.mode = StoryMode.DIARY
+        d.go(Scene.DIARY)
+        assertTrue(await { s.buttons.any { "🎬 오늘 이야기 시연 답" in it.label } } != null)
+
+        val turns = d.answerAll("🎬 오늘 이야기 시연 답")
+        assertEquals("시연 답이 모든 질문을 끝까지 잇지 못했다", 11, turns)
+        assertTrue(await { s.buttons.any { "안 그릴래" in it.label } } != null)
+        assertTrue(d.tap("안 그릴래"))
+        assertTrue(await(8_000) { s.scene == Scene.MAKING || s.scene == Scene.BOOK } != null)
+
+        assertEquals("어린이집", s.place)
+        assertEquals("민준이", s.companionKind)
+        assertEquals("블록이 무너짐", s.problem)
+        assertEquals("너무 높이 쌓아서", s.cause)
+        assertEquals("다시 쌓았어", s.solution)
+        assertEquals("story_ready", s.endReason)
+        assertTrue(listOf("place", "problem", "cause", "solution").all { s.slotBy[it] == "child" })
+
+        val book = (1..s.pageCount).joinToString(" ") { s.bookCaption(it) }
+        assertTrue("아이의 블록 이야기가 책에 없다", "블록" in book && "무너" in book)
+        assertTrue("친구가 책에 없다", "민준이" in book)
+        assertTrue("해결 장면이 책에 없다", "다시 쌓" in book)
     }
 
     @Test

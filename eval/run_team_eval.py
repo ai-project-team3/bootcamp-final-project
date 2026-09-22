@@ -60,6 +60,38 @@ def append_results(path: Path, markdown: str) -> bool:
     return True
 
 
+def render_diagnostic_table(results: list[tuple[str, dict]]) -> list[str]:
+    lines = [
+        "### 표지·`extra` 보조 진단",
+        "",
+        "| 모델 | 까닭 표지 유효/전체 | `s1_reason` F1 전체/표지 | 표지 함정 적중 | `slot_1=extra` F1 | extra gold 유효/전체 |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for alias, metrics in results:
+        marked = metrics["diagnostics"]["s1_reason_marked"]
+        extra = metrics["diagnostics"]["slot_1_extra"]
+        lines.append(
+            f"| {alias} | {marked['count']}/{marked['fixture_count']} | "
+            f"{metrics['binary']['s1_reason']['f1']:.3f}/{marked['f1']:.3f} | "
+            f"{marked['trap_correct_count']}/{marked['trap_scored_count']} "
+            f"(gold 함정 {marked['trap_count']}) | {extra['f1']:.3f} | "
+            f"{extra['scored_gold_count']}/{extra['gold_count']} |"
+        )
+    lines += [
+        "",
+        "> 표지 문항은 발화의 `-서`·`-니까`·`그래서`·`그러면`·`-거든`·`때문에`·`왜냐하면`을 대상으로 하며 처소격 `-에서`는 제외한다. 표지 여부는 부분집합 선택용이고 정답은 항상 gold의 `s1_reason`이다.",
+        "> F1은 스키마 검증에 성공한 응답만 대상으로 한다. 참음성(TN)은 F1에 들어가지 않으므로 표지 없는 false 문항이 전체 F1을 부풀린다고 해석하지 않는다.",
+        "> `slot_1=extra`는 전체 macro F1에 포함된 클래스를 별도로 표시한 것이다. `asked=extra`는 표본 추출 정보이며 정답 라벨로 쓰지 않는다. `type`도 채점에 쓰지 않는다.",
+    ]
+    return lines
+
+
+def render_diagnostics(results: list[tuple[str, dict]]) -> str:
+    lines = [f"## {date.today().isoformat()} · 판정 보조 진단", ""]
+    lines += render_diagnostic_table(results)
+    return "\n".join(lines) + "\n"
+
+
 def render_results(results: list[tuple[str, dict]], fx: float) -> str:
     lines = [
         f"## {date.today().isoformat()} · 모델 판정 비교",
@@ -90,6 +122,7 @@ def render_results(results: list[tuple[str, dict]], fx: float) -> str:
             f"| {alias} | {sec(m['total_p50'])} | {sec(m['total_p95'])} | "
             f"{sec(m['total_avg'])} | {m['avg_input_tokens']:.1f} | {m['avg_output_tokens']:.1f} |"
         )
+    lines += [""] + render_diagnostic_table(results)
     lines += [
         "",
         "### 채점 규칙",

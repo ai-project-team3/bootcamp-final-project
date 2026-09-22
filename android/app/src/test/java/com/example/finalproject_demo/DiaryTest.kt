@@ -48,7 +48,7 @@ class DiaryTest {
         partnerKey = partner
     }
 
-    /** 아이가 열 걸음을 다 말한 하루 */
+    /** 아이가 열한 걸음을 다 말한 하루 */
     private fun DemoState.fillAll() {
         placeLabel = "놀이터"; place = "놀이터"; slots["place"] = "놀이터에 갔어요"; slotBy["place"] = "child"
         author["place"] = "child"
@@ -220,6 +220,28 @@ class DiaryTest {
     }
 
     @Test
+    fun whyLadderDoesNotAskAboutAnUnknownFriendOrTheNextAction() {
+        val cause = DIARY_STEPS.first { it.slot == "cause" }
+        val alone = diaryState().apply { problem = "블록이 무너짐"; companionKind = "혼자" }
+        val rungs = cause.rungs(alone)
+        assertTrue("혼자인데 친구의 마음을 묻는다", rungs.none { "그 친구" in it })
+        assertTrue("까닭 질문에서 다음 행동을 묻는다", rungs.none { "어떻게 했어" in it })
+    }
+
+    @Test
+    fun silenceFallbacksDoNotRecordUnreportedActivitiesAsFacts() {
+        val s = diaryState()
+        val problem = DIARY_STEPS.first { it.slot == "problem" }.mascot!!.invoke(s).value
+        val solution = DIARY_STEPS.first { it.slot == "solution" }.mascot!!.invoke(s).value
+        assertFalse("놀았다는 말을 듣지 않았는데 기록했다", "놀았" in problem)
+        assertFalse("집에 왔다는 말을 듣지 않았는데 기록했다", "집에 왔" in solution)
+        s.solution = diarySlotOf(solution)
+        s.slots["solution"] = diaryLineOf(solution)!!
+        s.slotBy["solution"] = "mascot"
+        assertFalse("답을 못 들은 쪽에 '마침내'가 붙었다", s.bookCaption(5).startsWith("마침내"))
+    }
+
+    @Test
     fun theMascotNeverInventsAPlaceOrAPerson() {
         // 일기 §3-2 — 데이터는 by 가 지켜 주지만, 아이가 가지 않은 곳이 그 아이의 하루로 적히는 것은 내용 문제다
         val place = DIARY_STEPS.first { it.slot == "place" }.mascot!!.invoke(diaryState())
@@ -265,6 +287,7 @@ class DiaryTest {
         // 미션 1 — ① 아이가 말한 일이 먼저다 (9/21: 장소만 보다가 엉뚱한 미션이 나왔다)
         assertEquals("물감", diaryState().apply { placeLabel = "놀이터"; problem = "그림 그리기" }.mission1().blobName)
         assertEquals("모래", diaryState().apply { placeLabel = "어린이집"; problem = "모래놀이" }.mission1().blobName)
+        assertEquals("블록 놀이를 물감 놀이로 바꿨다", "먼지", diaryState().apply { placeLabel = "어린이집"; problem = "블록이 무너짐" }.mission1().blobName)
         // ② 말한 일에서 못 찾으면 장소에서
         assertEquals("모래", diaryState().apply { placeLabel = "놀이터" }.mission1().blobName)
         assertEquals("물감", diaryState().apply { placeLabel = "어린이집" }.mission1().blobName)
