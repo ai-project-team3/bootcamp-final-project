@@ -237,9 +237,9 @@ class Director(private val scope: CoroutineScope) {
         scope.launch {
             job?.cancelAndJoin()
             s.shelf.replaceAll { it.copy(fresh = false) }
-            // 부모가 넣어 둔 질문은 **여기서** 비운다 (09-22 박진웅). 이야기 시작에서 비우면
-            // 넣자마자 사라졌다 — `DemoState.parentQuestions` 주석에 경위가 있다
-            s.clearParentQuestions()
+            // ⚠️ 부모가 넣어 둔 질문은 **여기서 비우지 않는다.** 부모 모드를 나올 때도 이 길을 타서,
+            // 방금 입력한 질문이 [같이 만들기] 전에 사라졌다 (90de2d6 의 실수 · 박진웅 4549b88 지적).
+            // 비우는 곳은 협업 이야기가 끝날 때(`coopFinishLog`)와 `reset()` 둘이다
             go(Scene.ADULT)
         }
     }
