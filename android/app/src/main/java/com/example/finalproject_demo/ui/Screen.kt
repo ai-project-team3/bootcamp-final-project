@@ -867,7 +867,7 @@ private fun GiftsView(d: Director, stage: Stage.Gifts) {
                 }
             }
         }
-        if (stage.shown >= 2) {
+        if (d.s.buttons.any { it.label == "📚 책장에 꽂기" }) {
             Box(Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 16.dp)) {
                 PillButton("📚 책장에 꽂기", Sun, Ink, 19) { d.send(Reply.Tapped("shelf", "책장")) }
             }
