@@ -1352,7 +1352,7 @@ private suspend fun Director.sceneBook() {
             i == rubPage -> if (s.m1Result == null) s.m1Line() else s.m1Done()
             i == dragPage -> if (s.m2Result == null) s.m2Line(s.m1Result == "helped") else s.m2Done()
             // 일기 모드에는 공룡 소리 칸이 없다 — 묻지 않는 칸이다 (§2-2)
-            i == last && s.isDiary -> "인형을 눌러 봐! 오늘 이야기가 여기서 끝나."
+            i == last && s.isDiary -> "오른쪽 책 버튼을 눌러 봐! 오늘 이야기가 여기서 끝나."
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
         }
@@ -1505,13 +1505,17 @@ private suspend fun Director.sceneEnd() {
     log("선물 1 — 해결 방법 도감 첫 칸 \"친구와 함께\" (업적 5 · ⭐9). 한 번에 하나씩 (조사3 §1-2)")
     pause(2600)
     // 업적 7은 "그림판 그림을 책에 처음 넣음"이다. 일기 모드에서 아무것도 안 그린 날에는 주지 않는다
-    if (s.earnedCrayon) {       // 조건은 Model.earnedCrayon 한 곳 — 화면(GiftsView)도 같은 값을 본다
-        s.stage = Stage.Gifts(2)
+    if (s.earnedCrayon) {       // 조건은 Model.earnedCrayon 한 곳 · 끝은 done 으로 직접 말한다 (치영 d7f6754)
+        s.stage = Stage.Gifts(2, done = true)
         say("무지개 크레용이 생겼어! 다음에 그려 보자.")
         if ("무지개 크레용" !in s.achievements) s.achievements += "무지개 크레용"
         log("선물 2 — 무지개 크레용 (업적 7: 그림판 그림을 책에 처음 넣음)")
         pause(2600)
     } else {
+        // 크레용은 건너뛰되 **선물은 여기서 끝**이라고 말해 준다 (9/22).
+        // 전에는 Gifts(1) 그대로여서 아이 화면에 [책장에 꽂기]가 안 떴고, 아래 awaitValue("shelf")가
+        // 영원히 기다렸다 — 시연 서랍에는 버튼이 떠서 서랍으로 미는 검사로는 안 잡혔다
+        s.stage = Stage.Gifts(1, done = true)
         log("오늘은 그림을 안 그려서 무지개 크레용은 없다 — 안 한 일에 선물을 주지 않는다 (조사3 §1-3)")
     }
     say("책 다 만들었다! 고생했어~~")

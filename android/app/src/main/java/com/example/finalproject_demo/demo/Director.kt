@@ -514,7 +514,9 @@ class Director(private val scope: CoroutineScope) {
                 pause(1200)
                 return Reply.Silent
             }
-            if (s.mode == StoryMode.DIARY && q.id.startsWith("diary_")) {
+            // `isDiary` — 협업도 일기 질문을 쓴다. `mode == DIARY` 로 보면 협업에서만 「혹시 ○○일까?」가 남아
+            // 부모 앞에서 아이가 안 간 곳을 간 것처럼 말한다 (09-22 민우 f6ec7ff 검토)
+            if (s.isDiary && q.id.startsWith("diary_")) {
                 say("괜찮아. 지금은 생각나지 않아도 돼. 다음 이야기를 들어 볼게.")
                 log("끝까지 말이 없음 → 모르는 부분만 책에 표시하고 다음 질문으로 (카드 없음 · source=mascot)")
             } else {

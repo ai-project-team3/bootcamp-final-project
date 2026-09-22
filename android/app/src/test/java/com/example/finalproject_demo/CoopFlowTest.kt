@@ -201,9 +201,10 @@ class CoopFlowTest {
         assertTrue(await(10_000) { s.buttons.any { "책장에 꽂기" in it.label } } != null)
         val gifts = s.stage as? com.example.finalproject_demo.demo.Stage.Gifts
         assertTrue("선물 화면이 아니다: ${s.stage}", gifts != null)
+        // 고친 뒤에는 **선물 수가 아니라 `done`** 이 버튼을 그린다 — 안 그린 날은 선물이 하나뿐이다 (9/22)
         assertTrue(
-            "아이 화면에 [책장에 꽂기]가 없다 — Gifts.shown=${gifts!!.shown} · giftCount=${s.giftCount}. 여기서 앱이 멎는다",
-            gifts.shown >= s.giftCount,
+            "아이 화면에 [책장에 꽂기]가 없다 — Gifts(shown=${gifts!!.shown}, done=${gifts.done}). 여기서 앱이 멎는다",
+            gifts.done,
         )
     }
 
