@@ -54,6 +54,7 @@ def key_env_for(provider: str) -> str | None:
         "openai": "OPENAI_API_KEY",
         "anthropic": "ANTHROPIC_API_KEY",
         "mistral": "MISTRAL_API_KEY",
+        "typesafe": "TYPESAFE_API_KEY",
         "mock": None,
     }.get(provider)
 

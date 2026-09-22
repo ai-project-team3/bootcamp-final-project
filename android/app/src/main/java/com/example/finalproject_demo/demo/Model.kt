@@ -681,6 +681,31 @@ class DemoState {
     var adultLine by mutableStateOf<String?>(null)
 
     /**
+     * **부모가 부모 모드에서 미리 넣어 둔 질문들** (09-22 박진웅 요청).
+     *
+     * ⚠️ **설계가 바뀐 자리다.** `부모협업모드_설계.md` §0은 *"AI가 귀띔하고 부모가 읽어 묻는다"*로
+     * 적혀 있는데, 9/21 조장 확인으로 **부모가 부모 모드에서 질문을 미리 커스텀해 두고 아이가
+     * 답하는 단순한 모드**가 정본이 됐다. LLM은 **질문을 추천하는 정도**로만 쓴다.
+     * 코드(`CoopScenes.kt`)와 문서는 아직 옛 설계이고, 문서 정정은 원저자(안치영)와 조율한다.
+     *
+     * 비어 있으면 옛 흐름(AI가 띄운 질문을 부모가 읽음)으로 떨어진다 — 그래서 넣기만 해도 안전하다.
+     */
+    val parentQuestions = mutableStateListOf<String>()
+
+    /**
+     * 미리 넣어 둔 질문 중 **몇 개를 썼나**. `parentQuestions.size` 에 닿으면 소진이다.
+     * 소진 뒤에 무엇을 하는지는 진웅이 정한다 — AI 추천으로 넘어가나, 마스코트가 이어받나.
+     */
+    var parentQIndex by mutableStateOf(0)
+
+    /** 미리 넣어 둔 질문이 남았나 */
+    val hasParentQuestion: Boolean get() = parentQIndex < parentQuestions.size
+
+    /** 다음 질문을 꺼내고 인덱스를 올린다. 없으면 null */
+    fun nextParentQuestion(): String? =
+        if (hasParentQuestion) parentQuestions[parentQIndex++] else null
+
+    /**
      * 기승전결 네 자리를 **누가 지었나** (협업 설계 §6 번갈아 짓기).
      * 책 자막에 작은 표시 하나만 남긴다 — 채점처럼 보이면 안 된다.
      */
@@ -1005,6 +1030,9 @@ class DemoState {
         diaryStart = 0L; diaryTimeUp = false; mascotPicks = 0; endReason = null
         companionKind = ""
         parentCard = null; parentRung = 0; parentHasMore = false; adultLine = null
+        // 미리 넣어 둔 질문은 **이야기마다 비운다.** 부모가 오늘 넣은 것이 내일 또 나오면 안 된다.
+        // (계정에 남겨 둘 것인지는 저장이 붙은 뒤의 일이다 — 지금은 저장이 없다)
+        parentQuestions.clear(); parentQIndex = 0
         author.clear()
         nextLevel?.let { level = it }
         nextLevel = null; levelAtStart = level
