@@ -788,7 +788,8 @@ fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?:
         val to = s.level.down()
         if (to != s.level) moveLevel(to, "내림 신호(짧은 답 · 카드 · 무응답) 2턴 연속")
     }
-    if (s.turn == 3 && s.templateKey == null) decideTemplate("3턴째")
+    // 일기 모드는 수준별 템플릿을 고르지 않는다 — 기승전결이 곧 쪽 차례다 (일기 설계 §5)
+    if (s.turn == 3 && s.templateKey == null && !s.isDiary) decideTemplate("3턴째")
 }
 
 /** 수준 · 까닭 종류로 템플릿과 속성을 확정한다 (한 이야기에 한 번) */
@@ -832,6 +833,7 @@ fun DemoState.ruleEstimate(): Pair<Level, String> {
 
 /** 제목 — 템플릿과 대화로 지어 준다 (묻지 않는다 · 책장에서 바꿀 수 있게 할 자리) */
 fun DemoState.autoTitleFor(): String {
+    if (isDiary) return diaryTitle()
     val f = friendName.takeUnless { it.startsWith("{") } ?: newcomerKind
     val c = childName
     return when (templateKey) {

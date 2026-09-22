@@ -186,10 +186,19 @@ val Mascot = Figure(
 
 data class HeroAttr(
     val hair: String = "short",
-    val shirt: Color = Color(0xFF5DADE2),
+    // 실제로 있는 세 색 중 하나여야 한다 — 전에는 `0xFF5DADE2`(연한 파랑)였는데
+    // 그 색의 그림이 없어서 그냥 파랑으로 떨어졌다 (9/21 그림 구조 변경)
+    val shirt: Color = Color(0xFF3F7BD9),
     val eyes: String = "round",
     val glasses: String = "none",
     val likes: String = "dino",
+    /**
+     * 하의 — `pants`(긴바지) · `skirt`(치마) · `shorts`(반바지).
+     *
+     * 한때 성별(남 · 여)을 먼저 고르게 하고 여기 기본값을 정해 주었는데, **성별 선택은 뺐다** (9/21).
+     * 아이는 바지든 치마든 그냥 고르면 된다 — 성별을 먼저 묻고 옷을 정해 주는 순서가 아니다.
+     */
+    val bottom: String = "pants",
 )
 
 fun hero(a: HeroAttr): Figure {

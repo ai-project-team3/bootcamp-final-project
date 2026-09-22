@@ -45,6 +45,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -57,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.PageKind
+import com.example.finalproject_demo.demo.pageAuthor
 import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.demo.pageKind
 import com.example.finalproject_demo.demo.Director
@@ -105,10 +108,10 @@ private fun reactionFor(s: DemoState, tool: String, target: String, objName: Str
         "hammer" -> "간지러워!"
         "feather" -> "깔깔깔!"
         "glass" -> when (target) {
-            "hero" -> "${s.childName}${eun(s.childName)} ${s.th.vehicle} 선장!"
-            "dino" -> "${s.dino.label} · " + when (s.dino.key) { "horn" -> "뿔이 세 개"; "long" -> "목이 길어요"; else -> "이빨이 커요" }
-            "friend" -> "$f · ${s.newcomerKind} 친구"
-            "vehicle" -> "${s.th.vehicle}예요"
+            "hero" -> if (s.isDiary) "${s.childName}의 오늘 이야기!" else "${s.childName}${eun(s.childName)} ${s.th.vehicle} 선장!"
+            "dino" -> "${s.dino.label} · ${s.dino.look}"
+            "friend" -> if (s.isDiary) "${s.friendCallName} · 오늘 만난 사람" else "$f · ${s.newcomerKind} 친구"
+            "vehicle" -> "${s.rideName}예요"
             "obj" -> objName ?: "?"
             else -> "?"
         }
@@ -158,8 +161,26 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
     val kind = s.pageKind(page)
     val last = s.pageCount
 
+    /**
+     * **쪽에 적힌 대로 움직인다** (9/21).
+     *
+     * "로켓에 올라탔어요" 라고 적혀 있는데 주인공이 탈것 **옆에** 서 있거나,
+     * "손을 흔들었어요" 라고 적혀 있는데 가만히 서 있으면 아이가 글과 그림을 잇지 못한다.
+     * 자막에 나온 낱말을 보고 자리와 몸짓을 정한다.
+     *
+     * "기차가 흔들렸어요"처럼 사람이 흔든 것이 아닌 문장은 인사로 읽지 않는다 — `손`·`인사`·`안녕`이 같이 있어야 한다.
+     */
+    val caption = if (page > 0) s.bookCaption(page) else ""
+    val riding = ridingFrom(caption)
+    val waving = wavingFrom(caption)
+    // 인사 — 몸을 좌우로 기울인다. 손 그림이 따로 없으니 몸짓으로 보여 준다
+    val waveMod = if (waving) Modifier.graphicsLayer {
+        rotationZ = wobble * 1.6f
+        transformOrigin = TransformOrigin(0.5f, 1f)
+    } else Modifier
+
     @Composable
-    fun Scenery(quake: Boolean = false, glow: Set<String> = s.mentioned.toSet()) {
+    fun Scenery(quake: Boolean = false, glow: Set<String> = if (s.isDiary) s.diaryGlow else s.mentioned.toSet()) {
         // 배경 그림 속 것들 — 새로 얹지 않고 그 자리가 반응한다 (9/17)
         HotspotLayer(
             s.bgName, glow, pulse = page, quake = quake,
@@ -170,57 +191,75 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
 
     Box(Modifier.fillMaxSize().background(Color(0xFF2E2A26))) {
         AssetImage(s.bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(s.th.bg)))
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(s.worldBg)))
         }
         if (kind == PageKind.SHAKE) {
             Text("쿵!", fontSize = 44.sp, color = Color.White, fontWeight = FontWeight.Bold,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 80.dp).offset { IntOffset(shake.roundToInt(), 0) })
         }
 
+        // 일기 모드에는 탈것(로켓 · 거북이 · 기차)도 동행 공룡도 없다 — 묻지 않는 칸이다 (일기 설계 §2-2).
+        // 아이가 아무도 그리지 않은 날에는 친구 자리도 비워 둔다 — 앱이 없는 친구를 만들어 내지 않는다 (§3-2).
+        val showRide = !s.isDiary
+        val showDino = !s.isDiary
+        // 일기 · 협업은 아이가 그린 것 → 아이가 말한 사람 순으로 세우고, 둘 다 없으면 아무도 안 세운다 (일기 §3-2)
+        val friendShown: Art? = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
+        val showFriend = friendShown != null
+
         when (kind) {
             PageKind.COVER -> Cover(d, heroArt)
             PageKind.DEPART -> {
                 Scenery()
-                Char("vehicle", s.th.vehicleArt, 0.40f, 0.16f, 0.17f, 0.62f, Modifier.offset { IntOffset(0, wobble.roundToInt()) })
-                Char("hero", heroArt, 0.22f, 0.30f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) })
+                if (showRide) Char("vehicle", s.rideArt, 0.40f, 0.16f, 0.17f, 0.62f, Modifier.offset { IntOffset(0, wobble.roundToInt()) })
+                if (showRide && riding) {
+                    // 탈것 위 — 탈것과 같은 흔들림으로 함께 움직여야 "타고 있다"로 보인다.
+                    // 발이 탈것 몸통에 **겹쳐야** 올라탄 것으로 보인다. 띄우면 위에 떠 있는 것처럼 보였다 (9/21)
+                    Char("hero", heroArt, 0.445f, 0.120f, 0.075f, mod = Modifier.offset { IntOffset(0, wobble.roundToInt()) }.then(waveMod))
+                } else {
+                    Char("hero", heroArt, 0.22f, 0.30f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(waveMod))
+                }
             }
             PageKind.SHAKE -> {
                 Scenery(quake = true)
-                Char("vehicle", s.th.vehicleArt, 0.34f, 0.16f, 0.17f, 0.62f, Modifier.offset { IntOffset(shake.roundToInt(), 0) })
+                if (showRide) Char("vehicle", s.rideArt, 0.34f, 0.16f, 0.17f, 0.62f, Modifier.offset { IntOffset(shake.roundToInt(), 0) })
                 Char("hero", heroArt, 0.16f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset((shake / 2).roundToInt(), 0) })
-                FadeIn { Char("friend", s.friendArt, 0.60f, 0.20f, 0.18f, 1f) }
+                // "창밖에서 손을 흔들고 있었어요" — 적혀 있으면 정말 흔든다
+                if (friendShown != null) FadeIn { Char("friend", friendShown, 0.60f, 0.20f, 0.18f, 1f, waveMod) }
             }
             PageKind.MEET, PageKind.TALK -> {
                 Scenery()
-                Char("vehicle", s.th.vehicleArt, 0.40f, 0.14f, 0.15f, 0.62f)
-                Char("hero", heroArt, 0.18f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) })
-                Char("friend", s.friendArt, 0.58f, 0.24f, 0.18f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) })
+                if (showRide) Char("vehicle", s.rideArt, 0.40f, 0.14f, 0.15f, 0.62f)
+                Char("hero", heroArt, 0.18f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(waveMod))
+                // 인사하는 쪽에서는 친구도 같이 손을 흔든다 — 한쪽만 흔들면 어색하다
+                if (friendShown != null) Char("friend", friendShown, 0.58f, 0.24f, 0.18f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }.then(waveMod))
                 if (s.partnerHelpLine != null && page == last - 1) {
                     Layer(0.04f, 0.40f, 0.09f) { ArtView(Art.Img(s.partner.img, Art.Emoji(s.partner.emoji)), Modifier.fillMaxSize()) }
                 }
             }
             PageKind.JOURNEY -> {
-                Scenery(glow = s.hotspots.map { it.key }.toSet())
-                Char("vehicle", s.th.vehicleArt, 0.36f, 0.14f, 0.17f, 0.62f, Modifier.offset { IntOffset((wobble * 3).roundToInt(), wobble.roundToInt()) })
-                Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) })
-                Char("friend", s.friendArt, 0.60f, 0.26f, 0.16f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) })
+                Scenery(glow = if (s.isDiary) s.diaryGlow else s.hotspots.map { it.key }.toSet())
+                if (showRide) Char("vehicle", s.rideArt, 0.36f, 0.14f, 0.17f, 0.62f, Modifier.offset { IntOffset((wobble * 3).roundToInt(), wobble.roundToInt()) })
+                // 여정 쪽은 늘 "타고 가는 중" 이다 — 옆에 세워 두면 걸어가는 것처럼 보인다
+                if (showRide) Char("hero", heroArt, 0.405f, 0.100f, 0.075f, mod = Modifier.offset { IntOffset((wobble * 3).roundToInt(), wobble.roundToInt()) }.then(waveMod))
+                else Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(waveMod))
+                if (friendShown != null) Char("friend", friendShown, 0.60f, 0.26f, 0.16f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) })
             }
             PageKind.FAIL -> {
                 Scenery()
                 Char("hero", heroArt, 0.22f, 0.32f, 0.11f)
                 // 풀이 죽은 친구 — 살짝 기울고 아래로
-                Char("friend", s.friendArt, 0.56f, 0.34f, 0.15f, 1f, Modifier.offset { IntOffset(0, 10) }.alpha(0.85f))
+                if (friendShown != null) Char("friend", friendShown, 0.56f, 0.34f, 0.15f, 1f, Modifier.offset { IntOffset(0, 10) }.alpha(0.85f))
                 Text("…", fontSize = 40.sp, color = Color.White, fontWeight = FontWeight.Bold,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 96.dp, start = 170.dp).alpha(twinkle))
             }
             PageKind.RUB -> RubPage(d, stage.m1Done, heroArt, dinoArt, tool)
             PageKind.DRAG -> DragPage(d, stage.m2Done, heroArt, tool)
             PageKind.TOGETHER -> {
-                Scenery(glow = s.hotspots.map { it.key }.toSet())
+                Scenery(glow = if (s.isDiary) s.diaryGlow else s.hotspots.map { it.key }.toSet())
                 Box(Modifier.align(Alignment.TopCenter).padding(top = 76.dp).size(110.dp, 50.dp).alpha(twinkle)) { ArtView(Art.Img("prop_sparkle", Art.Emoji("⭐✨⭐")), Modifier.fillMaxSize()) }
-                Char("hero", heroArt, 0.10f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) })
-                Char("friend", s.friendArt, 0.28f, 0.26f, 0.17f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) })
-                Char("dino", dinoArt, 0.50f, 0.20f, 0.28f, 1.35f, Modifier.offset { IntOffset(0, bob.roundToInt()) }, onHand = { d.send(Reply.Tapped("dino", "공룡")) })
+                Char("hero", heroArt, 0.10f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(waveMod))
+                if (friendShown != null) Char("friend", friendShown, 0.28f, 0.26f, 0.17f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) })
+                if (showDino) Char("dino", dinoArt, 0.50f, 0.20f, 0.28f, 1.35f, Modifier.offset { IntOffset(0, bob.roundToInt()) }, onHand = { d.send(Reply.Tapped("dino", s.dino.label)) })
                 if (s.partnerHelpLine != null) {
                     Layer(0.80f, 0.34f, 0.10f) { ArtView(Art.Img(s.partner.img, Art.Emoji(s.partner.emoji)), Modifier.fillMaxSize()) }
                 }
@@ -253,6 +292,17 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // 번갈아 짓기 — 이 쪽을 누가 지었는지 작은 표시 하나 (협업 §6). 채점처럼 보이면 안 되므로 숫자도 순위도 없다
+                val author = s.pageAuthor(page)
+                if (author != null) {
+                    Box(Modifier.size(24.dp)) {
+                        ArtView(
+                            if (author == "adult") Art.Img("mk_parent", Art.Emoji("🧑")) else Art.Img("mk_child", Art.Emoji("🧒")),
+                            Modifier.fillMaxSize(),
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                }
                 Text(s.bookCaption(page), fontSize = 17.sp, lineHeight = 23.sp, color = Ink, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                 Spacer(Modifier.width(8.dp))
                 Box(Modifier.size(32.dp).noRippleClickable { d.send(Reply.Tapped("speak", "낭독")) }) { ArtView(Art.Img("ic_speaker", Art.Emoji("🔊")), Modifier.fillMaxSize()) }
@@ -326,8 +376,10 @@ private fun Cover(d: Director, heroArt: Art) {
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(26.dp)) {
             ArtView(heroArt, Modifier.size(96.dp, 134.dp))
-            ArtView(s.friendArt, Modifier.size(120.dp))
-            ArtView(Art.DinoArt(s.dinoColor, s.dinoKey), Modifier.size(130.dp, 110.dp))
+            // 일기 모드 표지에는 아이가 그린 것만 선다 — 안 그렸으면 주인공만 (§2-2 · §3-2)
+            val coverFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
+            if (coverFriend != null) ArtView(coverFriend, Modifier.size(120.dp))
+            if (!s.isDiary) ArtView(Art.DinoArt(s.dinoColor, s.dinoKey), Modifier.size(130.dp, 110.dp))
         }
         Spacer(Modifier.height(6.dp))
         Text("글 · 그림 ${s.childName} · 함께 ${s.pn}", fontSize = 13.sp, color = Color.White)
@@ -360,12 +412,14 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
         val vx = 0.33f; val vy = 0.22f; val vw = 0.20f; val va = 0.7f
         val vwPx = vw * wpx; val vhPx = vwPx / va
         // 흔적이 붙는 자리 (탈것 그림 안의 비율): 로켓은 아래 엔진 · 거북이 등 · 기차 지붕
-        val fy = when (s.themeKey) { "space" -> 0.72f; "sea" -> 0.36f; else -> 0.30f }
+        // 일기 모드는 탈것 대신 하루를 메고 다닌 가방에 흙이 묻는다 — 뼈대는 그대로, 소품만 바꾼다 (§7-1 ②)
+        val fy = if (s.isDiary) 0.45f else when (s.themeKey) { "space" -> 0.72f; "sea" -> 0.36f; else -> 0.30f }
         val blobs = listOf(0.22f to fy, 0.50f to fy + 0.08f, 0.78f to fy).map { (bx, by) -> Offset(vx * wpx + bx * vwPx, vy * hpx + by * vhPx) }
-        Layer(vx, vy, vw, va, Modifier.offset { IntOffset(0, lift.roundToInt()) }) { ArtView(s.th.vehicleArt, Modifier.fillMaxSize()) }
+        Layer(vx, vy, vw, va, Modifier.offset { IntOffset(0, lift.roundToInt()) }) { ArtView(s.rideArt, Modifier.fillMaxSize()) }
         Layer(0.08f, 0.36f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
-        Layer(0.58f, 0.30f, 0.11f, 1f) { ArtView(s.friendArt, Modifier.fillMaxSize()) }
-        Layer(0.70f, 0.36f, 0.19f, 1.35f) { ArtView(dinoArt, Modifier.fillMaxSize()) }
+        val rubFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
+        if (rubFriend != null) Layer(0.58f, 0.30f, 0.11f, 1f) { ArtView(rubFriend, Modifier.fillMaxSize()) }
+        if (!s.isDiary) Layer(0.70f, 0.36f, 0.19f, 1.35f) { ArtView(dinoArt, Modifier.fillMaxSize()) }
 
         Box(
             Modifier
@@ -387,7 +441,8 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
                             }
                         }
                         if (hit) drops += p to System.currentTimeMillis()
-                        else if (p.x > wpx * 0.70f && p.y > hpx * 0.36f && gag == null) { gag = "부르르! ${s.soundLine}"; d.send(Reply.Tapped("gag", "장난")) }
+                        // 목표 밖 장난 반응 — 일기 모드에는 공룡이 없으니 그 자리도 없다 (§2-2)
+                        else if (!s.isDiary && p.x > wpx * 0.70f && p.y > hpx * 0.36f && gag == null) { gag = "부르르! ${s.soundLine}"; d.send(Reply.Tapped("gag", "장난")) }
                         change.consume()
                     }
                 }
@@ -461,7 +516,10 @@ private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
         Layer(0.10f, 0.36f, 0.11f) { Tappable({ reactionFor(s, tool, "hero") }, Modifier.fillMaxSize()) { ArtView(heroArt, Modifier.fillMaxSize()) } }
         Layer(fx, fy, fw, 1f, Modifier.scale(if (given) beat else 1f)) {
             Box(Modifier.fillMaxSize()) {
-                Tappable({ reactionFor(s, tool, "friend") }, Modifier.fillMaxSize()) { ArtView(s.friendArt, Modifier.fillMaxSize()) }
+                // 미션 2는 건넬 상대가 있어야 한다. 아이가 그린 것 → 아이가 말한 사람 →
+                // 둘 다 없으면 마스코트가 받는다. **없는 친구를 앱이 만들어 내지 않는다** (일기 §3-2)
+                val target = s.friendOrPartnerArt ?: Art.Mascot
+                Tappable({ reactionFor(s, tool, "friend") }, Modifier.fillMaxSize()) { ArtView(target, Modifier.fillMaxSize()) }
                 if (!given) Box(Modifier.fillMaxSize().border(3.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(24.dp)))
             }
         }
@@ -525,3 +583,20 @@ private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
         }
     }
 }
+
+/**
+ * 쪽 자막에서 **탈것에 탔는지** 읽는다 (9/21).
+ * `BookPageView` 안에 두면 화면 없이 검사할 수 없어서 밖으로 꺼냈다.
+ */
+fun ridingFrom(caption: String): Boolean =
+    listOf("올라탔", "타고", "탔어", "탔습", "태우").any { it in caption }
+
+/**
+ * 쪽 자막에서 **손을 흔드는지** 읽는다.
+ *
+ * ⚠️ "기차가 흔들렸어요" · "거북이를 붙잡고 마구 흔들고 있었어요" 는 인사가 아니다 —
+ * `손` · `인사` 가 같이 있어야 한다. 이 오탐이 없는지는 에뮬레이터에서도 확인했다 (9/21).
+ */
+fun wavingFrom(caption: String): Boolean =
+    ("흔들" in caption && ("손" in caption || "인사" in caption)) ||
+        "안녕" in caption || "인사했" in caption

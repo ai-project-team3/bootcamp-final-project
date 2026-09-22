@@ -26,7 +26,64 @@ data class Mission2(
     val done: String,
 )
 
-fun DemoState.mission1(): Mission1 = when (newcomerKind) {
+/**
+ * 일기 모드의 미션 1 — 뼈대(문지르기)는 그대로, **소품만 하루에서 나온 것으로** 바꾼다 (일기 설계 §7-1 ②).
+ *
+ * 9/21에 고친 것: 전에는 **장소만** 보고 골라서, 아이가 "블록이 무너졌어" 라고 말한 날에도
+ * 장소를 못 알아들으면 "진흙이 가방에 묻었어요" 가 나왔다. 하지 않은 일이 책에 적힌 셈이다.
+ *
+ * 지금은 순서가 셋이다.
+ *  1. **아이가 말한 일**에서 찾는다 — 물감 · 블록 · 모래 · 나뭇잎 · 물 … 이야기에 이미 나온 것.
+ *  2. 없으면 **장소**에서 찾는다 (놀이터 → 모래, 어린이집 → 물감 …).
+ *  3. 둘 다 없으면 **무엇이 묻었다고 지어내지 않는다.** 하루 동안 쌓인 먼지를 턴다 —
+ *     어느 하루에나 맞는 말이라, 아이가 하지 않은 일을 적지 않는다.
+ */
+private fun diaryMission1(s: DemoState): Mission1 {
+    // ⚠️ `after`(집에 와서 한 일)는 보지 않는다 — "저녁을 먹었어요" 때문에 간식 미션이 나왔다 (9/21)
+    val said = listOf(s.problem, s.slots["detail"], s.solution, s.cause, s.slots["try"])
+        .joinToString(" ") { it.orEmpty() }
+    val p = s.placeLabel.orEmpty()
+
+    val sand = Mission1("prop_sand", "🟡", "모래", "prop_sparkle", "✨", "ic_hand", "✋", "손", "모래가 잔뜩 묻었어요", "모래를 탈탈 다 털어 냈어!")
+    val paint = Mission1("prop_paint", "🎨", "물감", "prop_splash", "💦", "prop_sponge", "🧽", "스펀지", "물감이 잔뜩 묻었어요", "물감을 깨끗이 다 닦았어!")
+    val leaf = Mission1("prop_leaf", "🍂", "나뭇잎", "prop_sparkle", "✨", "prop_broom", "🧹", "빗자루", "나뭇잎이 잔뜩 붙었어요", "나뭇잎을 다 쓸어 냈어!")
+    val water = Mission1("prop_splash", "💦", "물방울", "prop_sparkle", "✨", "prop_sponge", "🧽", "수건", "물이 잔뜩 튀었어요", "물기를 뽀송하게 다 닦았어!")
+    val crumb = Mission1("prop_strawberry", "🍓", "부스러기", "prop_sparkle", "✨", "ic_hand", "✋", "손", "간식 부스러기가 묻었어요", "부스러기를 탈탈 다 털어 냈어!")
+    val dust = Mission1("prop_cloud", "🌫", "먼지", "prop_sparkle", "✨", "ic_hand", "✋", "손", "하루 먼지가 뽀얗게 앉았어요", "먼지를 탈탈 다 털어 냈어!")
+
+    return when {
+        // ① 아이가 말한 일 — 장소보다 먼저다
+        "물감" in said || "색칠" in said || "그리" in said -> paint
+        "모래" in said || "미끄럼" in said || "그네" in said || "흙" in said -> sand
+        "나뭇잎" in said || "낙엽" in said || "나무" in said || "풀" in said -> leaf
+        "물" in said || "비" in said || "웅덩이" in said || "수영" in said -> water
+        "밥" in said || "간식" in said || "과자" in said || "먹었" in said -> crumb
+        // ② 없으면 장소
+        "놀이터" in p -> sand
+        "어린이집" in p || "유치원" in p || "학교" in p -> paint
+        "공원" in p || "산책" in p -> leaf
+        // ③ 아무것도 못 찾으면 묻은 것을 지어내지 않는다
+        else -> dust
+    }
+}
+
+/**
+ * 미션 2에서 건넬 것 — **아이가 말한 것에서 나온다** (⭐7 · 구현대본 §6).
+ * 블록을 쌓은 날엔 블록을, 넘어진 날엔 반창고를, 책을 읽은 날엔 그림책을 건넨다.
+ */
+fun diaryGiveItem(solution: String, s: DemoState): String {
+    val all = solution + " " + s.problem.orEmpty() + " " + s.slots["detail"].orEmpty()
+    return when {
+        "블록" in all || "쌓" in all -> "block"
+        "넘어" in all || "아팠" in all || "다쳤" in all -> "bandaid"
+        "책" in all || "그림" in all -> "picturebook"
+        "밥" in all || "먹" in all || "간식" in all -> "strawberry"
+        "노래" in all || "춤" in all -> "note"
+        else -> "star"
+    }
+}
+
+fun DemoState.mission1(): Mission1 = if (isDiary) diaryMission1(this) else when (newcomerKind) {
     "운석" -> Mission1("obj_rock", "🪨", "돌멩이", "prop_smoke", "💨", "prop_broom", "🧹", "빗자루", "돌멩이가 잔뜩 박혔어요", "돌멩이를 다 쓸어 냈어!")
     "바람" -> Mission1("prop_leaf", "🍂", "나뭇잎", "prop_sparkle", "✨", "prop_broom", "🧹", "빗자루", "나뭇잎이 잔뜩 붙었어요", "나뭇잎을 다 쓸어 냈어!")
     "문어" -> Mission1("prop_ink", "🟣", "먹물", "prop_splash", "💦", "prop_sponge", "🧽", "스펀지", "먹물이 잔뜩 묻었어요", "먹물을 깨끗이 닦았어!")
@@ -44,6 +101,10 @@ fun DemoState.mission2(): Mission2 = when (solutionItem) {
     "strawberry" -> Mission2("prop_strawberry", "🍓", "딸기", "딸기를 나눠 주었어요", "딸기를 냠냠, 활짝 웃어!")
     "invite" -> Mission2("ic_invite", "💌", "초대장", "초대장을 건네주었어요", "초대장을 받고 신이 났어!")
     "balloon" -> Mission2("ic_play", "🎈", "풍선", "풍선을 건네주었어요", "풍선을 받고 방긋 웃어!")
+    // 일기 모드 — 아이가 말한 하루에서 나온 것들
+    "block" -> Mission2("prop_block", "🧱", "블록", "블록 하나를 건네주었어요", "블록을 받고 같이 쌓기 시작했어!")
+    "picturebook" -> Mission2("prop_picturebook", "📗", "그림책", "그림책을 건네주었어요", "그림책을 받고 눈이 반짝!")
+    "bandaid" -> Mission2("prop_bandaid", "🩹", "반창고", "반창고를 붙여 주었어요", "반창고를 붙이고 씩 웃어!")
     else -> Mission2("obj_star", "⭐", "별", "반짝이는 별을 건네주었어요", "별을 받고 활짝 웃어!")
 }
 
@@ -52,26 +113,37 @@ fun reported(line: String): String = if (line.endsWith("어")) line.dropLast(1) 
 
 /** 미션 안내 · 완료 · 자막 문장 — 이름 · 탈것 · 대화에서 나온 말로 채운다 */
 fun DemoState.m1Line(): String {
-    val m = mission1(); val v = th.vehicle
+    val m = mission1(); val v = rideName
+    if (isDiary) {
+        val where = placeLabel?.let { "${it}에서 놀고 왔더니" } ?: "하루를 다 보내고 나니"
+        return "$where ${v}에 ${m.blobName}${ga(m.blobName)} 잔뜩! ${m.toolName}${ro(m.toolName)} 슥슥 털어 줄래?"
+    }
     return "큰일이야! $newcomerKind${ga(newcomerKind)} 흔들어서 $v${eul(v)} 보니 ${m.blobName}${ga(m.blobName)} 잔뜩! ${m.toolName}${ro(m.toolName)} 슥슥 치워 줄래?"
 }
 
 fun DemoState.m1Caption(): String {
-    val m = mission1(); val v = th.vehicle; val f = friendName
+    val m = mission1(); val v = rideName; val f = friendCallName
+    if (isDiary) {
+        val where = placeLabel?.let { "${it}에서 돌아온 " } ?: ""
+        return "$where${childName}의 ${v}에 ${m.stuck}!"
+    }
     return "$f${ga(f)} 너무 세게 흔드는 바람에 ${v}에 ${m.stuck}!"
 }
 
-fun DemoState.m1Done(): String = "${mission1().done} $childName 덕분에 ${th.vehicle}${ga(th.vehicle)} 다시 반짝반짝!"
+fun DemoState.m1Done(): String = "${mission1().done} $childName 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
 
 fun DemoState.m2Line(easy: Boolean): String {
-    val m = mission2(); val f = friendName
-    return if (easy) "${m.itemName}${eul(m.itemName)} 톡톡 누르면 ${f}에게 날아가!"
-    else "${f}${ga(f)} ${reported(causeLine)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
+    val m = mission2(); val f = friendCallName
+    if (easy) return "${m.itemName}${eul(m.itemName)} 톡톡 누르면 ${f}에게 날아가!"
+    // 일기 모드는 "미안해"를 앞세우지 않는다 — 아이가 그렇게 말하지 않았을 수 있다 (일기 설계 §3-2)
+    if (isDiary) return "${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
+    return "${f}${ga(f)} ${reported(causeLine)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
 }
 
 fun DemoState.m2Caption(): String {
-    val f = friendName
+    val f = friendCallName
+    if (isDiary) return "${childName}${eun(childName)} ${f}에게 ${mission2().give}."
     return "$f${eun(f)} \"$causeLine. 미안해\" 하고 말했어요. $childName${eun(childName)} ${f}에게 ${mission2().give}."
 }
 
-fun DemoState.m2Done(): String = "$friendName${ga(friendName)} ${mission2().done}"
+fun DemoState.m2Done(): String = "${friendCallName}${ga(friendCallName)} ${mission2().done}"
