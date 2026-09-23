@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -10,11 +12,12 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.finalproject_demo"
+        // Play 는 com.example.* 를 받지 않는다. 첫 업로드 뒤에는 영영 못 바꾼다 (09-23 조장)
+        applicationId = "kr.clap.otto"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0"
+        versionName = "0.1-demo"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -26,8 +29,25 @@ android {
         }
     }
 
+    // 업로드 키는 레포 밖 ~/otto-release/keystore.properties 에서 읽는다. 없으면 서명 없이 빌드된다(팀원 빌드용)
+    val keystoreProps = Properties().apply {
+        val f = File(System.getProperty("user.home"), "otto-release/keystore.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    signingConfigs {
+        if (keystoreProps.containsKey("storeFile")) {
+            create("upload") {
+                storeFile = File(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (keystoreProps.containsKey("storeFile")) signingConfig = signingConfigs.getByName("upload")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

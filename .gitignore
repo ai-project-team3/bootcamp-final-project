@@ -54,3 +54,8 @@ assets/assets/mouth_open_5*.png
 assets/assets/mouth_open_7*.png
 assets/assets/obj_cloud.png
 assets/assets/charbench_*.png
+
+# Play 업로드 키 — 레포 밖(~/otto-release)에 둔다. 절대 올리지 않는다
+*.jks
+*.keystore
+keystore.properties
