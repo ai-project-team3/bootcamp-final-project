@@ -59,3 +59,7 @@ assets/assets/charbench_*.png
 *.jks
 *.keystore
 keystore.properties
+
+# 스토어 이미지 — 콘솔에 올리는 큰 파일. 아이콘·그래픽만 남기고 스크린샷은 제외
+store/shot_*.png
+store/_*.jpg
