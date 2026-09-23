@@ -149,12 +149,33 @@ sealed interface Art {
 
 data class Card(val label: String, val art: Art, val value: String)
 
+/**
+ * 무대 위에 세우는 인물 · 탈것 한 장.
+ *
+ * ## 왜 [depth] 가 생겼나 (2026-09-23)
+ *
+ * 조장이 실기기에서 *"원근감도 없는 배경에 캐릭터가 중앙에 붕 떠 있다"* 고 짚었다.
+ * 배경은 잘못이 없었다 — **얹는 규칙이 없었다.** 전에는 [yf] 가 위 모서리 높이, [wf] 가 폭이었는데,
+ * 그 값들(`yf 0.18~0.34` · `wf 0.10~0.15`)이 인물의 발을 화면 **50~60%** 높이에 두었다.
+ * 배경 속 물체들의 발은 **78~90%** 에 있으니 인물만 공중에 뜬 것이다.
+ *
+ * 이제는 **깊이 한 칸이 높이와 크기를 같이 정한다** — 앞줄 1.0, 지평선 0.0.
+ * 뒤로 갈수록 발이 올라가고 작아진다. 규칙과 숫자는 `docs/무대_배치_규칙.md`.
+ *
+ * @param xf 가로 **가운데** 자리 (0~1). 위 모서리가 아니다 — 크기가 깊이에 따라 변하므로
+ *   왼쪽 모서리로 두면 인물이 커질 때마다 옆으로 밀린다
+ * @param yf **더 이상 발 높이가 아니다.** 옛 호출부를 그대로 두려고 남겨 놓았을 뿐이고,
+ *   실제 높이는 [depth] 가 정한다
+ * @param wf 같은 이유로 더 이상 크기를 정하지 않는다
+ * @param depth 1.0 = 앞줄(가장 크고 가장 아래) · 0.0 = 지평선(가장 작고 가장 위)
+ */
 data class WorldItem(
     val art: Art,
     val xf: Float,
     val yf: Float,
     val wf: Float,
     val shake: Boolean = false,
+    val depth: Float = 1f,
 )
 
 /**
@@ -862,7 +883,18 @@ class DemoState {
      * 넣어 두면 **절대 안 차는 칸**이 하나 생겨 막대가 끝까지 가지 못한다.
      */
     private val extraAskSlots: List<String>
-        get() = template?.let { t -> (t.plot + t.ending).filter { it != "resolve" } }.orEmpty()
+        get() = template?.let { t ->
+            (t.plot + t.ending).filter {
+                // `resolve` 는 `slots` 가 아니라 `solution` 으로 들어간다 (위 주석)
+                it != "resolve" &&
+                    // ⚠️ `reflect` 는 **까닭 짓기 수준일 때만 묻는다** (`Scenes.kt` 매듭 장면).
+                    //    분모가 그 조건을 같이 보지 않으면 **막대가 영영 안 찬다** (9/23).
+                    //    틀은 3턴째에 정해지는데 **수준은 그 뒤에도 내려갈 수 있어서** 실제로 일어난다 —
+                    //    까닭 수준으로 틀이 잡힌 뒤 수준이 한 칸 내려가면 reflect 를 안 묻고,
+                    //    그러면 8/9 에서 멈춘다. 묻지 않는 질문은 세지 않는다
+                    !(it == "reflect" && level != Level.REASON)
+            }
+        }.orEmpty()
 
     /**
      * 지금까지 **답이 찬 질문 수**.

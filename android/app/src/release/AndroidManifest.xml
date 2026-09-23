@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  릴리스 빌드에서만 덮어씌우는 매니페스트 (2026-09-23)
+
+  「기기 점검」(DiagnosticsActivity) 은 실기기에서 음성 인식·TTS 엔진을 확인하려고 넣은 화면이다.
+  런처 아이콘을 하나 더 만들기 때문에, 그대로 올리면 **아이 홈 화면에 「기기 점검」이 같이 깔린다.**
+  릴리스 번들의 병합 매니페스트에서 LAUNCHER 가 둘인 것을 확인하고 넣었다.
+
+  코드(DiagnosticsActivity.kt · 진웅) 는 그대로 둔다 — 디버그 빌드에서는 여전히 쓴다.
+  여기서는 **릴리스 매니페스트에서만 지운다.** 난독화(R8)가 켜져 있으면 클래스도 같이 떨어져 나간다.
+
+  근거: docs/스토어_출시_체크리스트.md · Play 가족 정책(아이가 볼 화면만 남긴다)
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <activity
+            android:name=".DiagnosticsActivity"
+            tools:node="remove" />
+    </application>
+
+</manifest>

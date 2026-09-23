@@ -55,7 +55,17 @@ fun HeroImage(attr: HeroAttr, modifier: Modifier = Modifier) {
         return
     }
     val eyes = HERO_EYES[name] ?: DEFAULT_EYES
-    Box(modifier) {
+
+    // 살색 — 눈 스티커와 **눈 감기** 둘 다 쓴다. 그래서 갈래 안이 아니라 밖에서 한 번만 뽑는다 (9/23).
+    // ⚠️ remember 는 그대로 지킨다. `toPixelMap()` 은 41만 화소를 읽는다 (도감 멈춤 — 트러블슈팅 6-16)
+    val bodyBitmap = ImageBitmap.imageResource(id)
+    val skin = remember(name) { skinNear(bodyBitmap, eyes) }
+
+    // 눈 깜빡임 — 2~6초 사이 아무 때나. 일정한 간격이면 기계처럼 보인다 (9/23)
+    val blinking = rememberBlink(name)
+
+    // 숨쉬기 — 발이 뜨지 않게 아래쪽을 축으로 아주 조금만. 정지 그림을 살아 보이게 하는 가장 싼 방법
+    Box(modifier.breathing(seed = name.hashCode())) {
         Image(painterResource(id), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
 
         // ⚠️ **눈을 먼저, 안경을 나중에** 그린다 (9/22). 전에는 거꾸로라 살색 패치가 안경테를 덮었다.
@@ -70,8 +80,6 @@ fun HeroImage(attr: HeroAttr, modifier: Modifier = Modifier) {
             // ⚠️ **반드시 remember 로 감싼다.** `toPixelMap()` 은 640×640 = 41만 화소를 통째로 읽는다.
             //    9/22에 이걸 그냥 두었더니 **도감(주인공 카드 네 장)에서 화면이 멎었다** —
             //    다시 그릴 때마다 네 번씩 41만 화소를 읽었기 때문이다. 그림 이름이 같으면 색도 같다.
-            val bodyBitmap = ImageBitmap.imageResource(id)
-            val skin = remember(name) { skinNear(bodyBitmap, eyes) }
             Canvas(Modifier.fillMaxSize()) {
                 val k = min(size.width, size.height)
                 val ox = (size.width - k) / 2f
@@ -112,6 +120,38 @@ fun HeroImage(attr: HeroAttr, modifier: Modifier = Modifier) {
                             drawPath(p, Color(0xFF3A2A1E))
                         }
                     }
+                }
+            }
+        }
+
+        // 눈 감기 (9/23) — 원래 눈을 살색으로 덮고 그 위에 감은 눈시울을 한 줄 긋는다.
+        // 눈 스티커(반달 · 별)와 같은 방법이라, 세 가지 눈 어느 것을 골라도 똑같이 감긴다.
+        if (blinking) {
+            Canvas(Modifier.fillMaxSize()) {
+                val k = min(size.width, size.height)
+                val ox = (size.width - k) / 2f
+                val oy = (size.height - k) / 2f
+                val unit = maxOf(eyes.r, 0.016f) * k
+                val patchR = unit * 1.9f
+                val r = unit * 1.3f
+                listOf(eyes.lx to eyes.ly, eyes.rx to eyes.ry).forEach { (ex, ey) ->
+                    val c = Offset(ox + ex * k, oy + ey * k)
+                    drawOval(
+                        Brush.radialGradient(
+                            0.62f to skin,
+                            1f to skin.copy(alpha = 0f),
+                            center = c,
+                            radius = patchR * 1.45f,
+                        ),
+                        topLeft = Offset(c.x - patchR * 1.2f, c.y - patchR * 1.5f),
+                        size = Size(patchR * 2.4f, patchR * 2 * 1.5f),
+                    )
+                    // 감은 눈 — 아래로 살짝 휜 선. 반달 눈(웃는 눈)과 반대로 휘어야 감은 것으로 보인다
+                    val p = Path().apply {
+                        moveTo(c.x - r, c.y - r * 0.1f)
+                        quadraticBezierTo(c.x, c.y + r * 0.7f, c.x + r, c.y - r * 0.1f)
+                    }
+                    drawPath(p, Color(0xFF3A2A1E), style = Stroke(r * 0.40f, cap = StrokeCap.Round))
                 }
             }
         }

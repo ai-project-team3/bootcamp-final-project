@@ -48,7 +48,11 @@ android {
     buildTypes {
         release {
             if (keystoreProps.containsKey("storeFile")) signingConfig = signingConfigs.getByName("upload")
-            isMinifyEnabled = false
+            // 난독화·축소를 켠다 (9/23). 크기가 줄고, 안 쓰는 코드가 떨어져 나간다.
+            // ⚠️ **출시 직전에 켜지 않는다** — R8 이 리플렉션·JNI 로 부르는 것을 «안 쓴다»고 보고 지운다.
+            //    미리 켜서 한 번 돌려 봐야 한다. 지킬 것은 `proguard-rules.pro` 에 적었다
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

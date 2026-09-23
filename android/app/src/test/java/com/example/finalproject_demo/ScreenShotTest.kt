@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.example.finalproject_demo.ui.HeroImage
@@ -17,6 +18,7 @@ import com.example.finalproject_demo.demo.pageKind
 import org.junit.Assert.assertTrue
 import androidx.compose.ui.unit.dp
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.Level
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.StoryMode
@@ -204,6 +206,90 @@ class ScreenShotTest {
         }
         shot("bestiary_full") { StageView(d) }
     }
+    /**
+     * **4등분 퍼즐이 실제로 그려지는가** (9/23 · 미션 구상 A3).
+     *
+     * 미션 2가 틀에 따라 갈라진다 — 「맞추다 · 되돌리다」로 푸는 A(도전-성취) · G(우화-교훈) 틀은
+     * 건네주기 대신 퍼즐이다. 쪽 종류(DRAG)와 감독에게 보내는 신호는 그대로라 책 흐름은 안 바뀐다.
+     *
+     * 조각은 **아이 이야기로 만든 그 배경**을 오려 쓴다 — 새 그림을 가져오지 않는다.
+     */
+    @Test
+    fun theFourPiecePuzzleDraws() {
+        val d = director {
+            s.themeKey = "dino"
+            s.templateKey = "A"
+            s.level = Level.REASON
+            s.heroAttr = HeroAttr(hair = "short", glasses = "none", eyes = "round", bottom = "pants")
+            s.friendName = "뭉치"
+            s.causeLine = "친구가 없어서 심심했어"
+            s.solutionLine = "같이 별을 땄어요"
+            s.solutionItem = "star"
+        }
+        val dragPage = (1..d.s.pageCount).first { d.s.pageKind(it) == PageKind.DRAG }
+        d.s.stage = Stage.BookPage(dragPage)
+        compose.setContent { Box(Modifier.fillMaxSize().background(Bg)) { StageView(d) } }
+        compose.onRoot().captureRoboImage(
+            File("screens/puzzle.png").path,
+            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+        )
+    }
+
+    /**
+     * **건네주기 틀은 퍼즐로 바뀌지 않는다** — 갈라지는 규칙이 맞게 걸렸는가.
+     *
+     * 퍼즐이 모든 틀을 덮어 버리면 「아이가 말한 해결 방법을 손으로 해낸다」가 사라진다.
+     */
+    @Test
+    fun theOtherTemplatesKeepHandingTheGift() {
+        val d = director {
+            s.themeKey = "dino"
+            s.templateKey = "E"
+            s.level = Level.PICK
+            s.heroAttr = HeroAttr(hair = "short", glasses = "none", eyes = "round", bottom = "pants")
+            s.friendName = "뭉치"
+            s.causeLine = "친구가 없어서 심심했어"
+            s.solutionLine = "같이 별을 땄어요"
+            s.solutionItem = "star"
+        }
+        val dragPage = (1..d.s.pageCount).first { d.s.pageKind(it) == PageKind.DRAG }
+        d.s.stage = Stage.BookPage(dragPage)
+        compose.setContent { Box(Modifier.fillMaxSize().background(Bg)) { StageView(d) } }
+        compose.onRoot().captureRoboImage(
+            File("screens/gift.png").path,
+            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+        )
+    }
+
+    /**
+     * **보호자 동의 화면이 그려지는가** (9/23 · 출시 체크리스트 §2).
+     *
+     * 부모 모드는 동의를 받은 뒤에 열린다. 대본(`sceneParent`)은 그대로고 화면만 앞에 한 장 얹었다.
+     * 문구는 **초안**이라 화면에 그렇게 표시된다.
+     */
+    @Test
+    fun guardianConsentDraws() {
+        shot("consent_guardian") {
+            com.example.finalproject_demo.ui.GuardianConsentScreen(onAgree = {}, onBack = {})
+        }
+    }
+
+    /** 부모 설정의 **신고 · AI 음성 고지 · 동의 철회** 세 자리 */
+    @Test
+    fun parentNoticeSectionsDraw() {
+        shot("consent_settings") {
+            androidx.compose.foundation.layout.Column(
+                Modifier.fillMaxSize().padding(20.dp),
+            ) {
+                com.example.finalproject_demo.ui.ReportSection()
+                androidx.compose.foundation.layout.Spacer(Modifier.height(10.dp))
+                com.example.finalproject_demo.ui.AiVoiceNotice()
+                androidx.compose.foundation.layout.Spacer(Modifier.height(10.dp))
+                com.example.finalproject_demo.ui.ConsentWithdrawSection()
+            }
+        }
+    }
+
 }
 
 /**
@@ -373,4 +459,5 @@ class TouchTest {
         val moved = diff("build/touch/anim_t0.png", "build/touch/anim_t1.png")
         assertTrue("시간을 밀었는데 아무것도 안 움직였다 (다른 화소 ${"%.2f".format(moved * 100)}%)", moved > 0.0005)
     }
+
 }

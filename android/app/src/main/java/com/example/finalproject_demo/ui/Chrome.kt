@@ -274,6 +274,8 @@ fun FloatingControls(d: Director, modifier: Modifier = Modifier) {
                 contentAlignment = Alignment.Center,
             ) { ArtView(Art.Img("ic_next", Art.Emoji("➡️")), Modifier.size(30.dp)) }
         }
+        var askMic by remember { mutableStateOf(false) }
+        var askMicPermission by remember { mutableStateOf(false) }
         if (s.micEnabled) {
             val inf = rememberInfiniteTransition(label = "mic")
             val pulse by inf.animateFloat(1f, 1.14f, infiniteRepeatable(tween(420), RepeatMode.Reverse), label = "pulse")
@@ -285,9 +287,23 @@ fun FloatingControls(d: Director, modifier: Modifier = Modifier) {
                         .shadow(10.dp, CircleShape, ambientColor = Coral.copy(alpha = 0.6f), spotColor = Coral.copy(alpha = 0.6f))
                         .clip(CircleShape)
                         .background(Brush.verticalGradient(listOf(Coral2, Coral)))
-                        .clickable { d.toggleMic() },
+                        // 처음 누를 때는 **왜 마이크를 쓰는지 먼저 알린다** (출시 체크리스트 §2 · 9/23).
+                        // 한 번 보면 다시 안 뜬다
+                        .clickable { if (ConsentStore.micNoticeShown) d.toggleMic() else askMic = true },
                     contentAlignment = Alignment.Center,
                 ) { if (s.micOn) Text("⏹", fontSize = 26.sp, color = Color.White) else ArtView(Art.Img("ic_mic", Art.Emoji("🎤")), Modifier.size(38.dp)) }
+            }
+            // 고지가 **먼저**, 그다음 시스템 권한 요청 (스토어 출시 체크리스트 §4 ③).
+            // 권한을 거절해도 마이크 자리는 그대로 둔다 — 대본 앱이라 대본 버튼으로 답할 수 있다
+            if (askMic) {
+                MicNoticeSheet {
+                    askMic = false
+                    askMicPermission = true
+                    d.toggleMic()
+                }
+            }
+            if (askMicPermission) {
+                MicPermissionRequest { askMicPermission = false }
             }
         }
     }
