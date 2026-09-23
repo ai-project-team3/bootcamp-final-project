@@ -275,7 +275,7 @@ def bias_prompt(presets: list[str]) -> str:
 
 
 class Whisper:
-    def __init__(self):
+    def __init__(self, model: str | None = None):
         # ⚠️ `.venv-diar` 로 돌린다 (기본 파이썬 3.14 에는 CUDA 휠이 없다). 그 안에서도 cuBLAS 를
         #    PATH 에 올려야 한다 — 안 하면 "cublas64_12.dll is not found" (`bench_coresident.py:29`)
         try:
@@ -293,7 +293,8 @@ class Whisper:
                 os.environ["PATH"] = lib + os.pathsep + os.environ.get("PATH", "")
         from faster_whisper import WhisperModel
         # 다른 벤치와 같은 설정이다 (`bench_concurrent.py:113`)
-        self.m = WhisperModel(WHISPER_MODEL, device="cuda", compute_type="int8_float16")
+        self.name = model or WHISPER_MODEL
+        self.m = WhisperModel(self.name, device="cuda", compute_type="int8_float16")
 
     def __call__(self, path: Path, prompt: str | None) -> dict:
         t0 = time.perf_counter()
