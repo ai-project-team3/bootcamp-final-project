@@ -595,6 +595,14 @@ private fun SettingRow(title: String, desc: String, checked: Boolean, onToggle: 
 @Composable
 private fun SettingsTab(d: Director) {
     val s = d.s
+    // 정책이 요구하는 세 자리 — 내용은 `ui/Consent.kt` 에 있다 (치영 · 9/23).
+    // 여기는 부르는 줄만 둔다: 신고 · AI 음성 고지 · 보호자 동의 철회
+    ReportSection { d.log(it) }
+    Spacer(Modifier.height(10.dp))
+    AiVoiceNotice()
+    Spacer(Modifier.height(10.dp))
+    ConsentWithdrawSection()
+    Spacer(Modifier.height(10.dp))
     PCard(Modifier.fillMaxWidth()) {
         SettingRow("하루 한도", "하루에 만들 수 있는 이야기 수를 정해요 · 끄면 별을 쓰지 않아요", s.limitOn) { d.send(Reply.Tapped("set:limit", "한도")) }
         if (s.limitOn) {

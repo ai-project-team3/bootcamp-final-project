@@ -590,4 +590,27 @@ class StoryTextTest {
             }
         }
     }
+
+    /**
+     * **묻지 않는 질문은 진행 막대가 세지 않는다** (9/23).
+     *
+     * 매듭 장면은 `reflect` 를 **까닭 짓기 수준일 때만** 묻는다. 그런데 막대의 분모가 그 조건을
+     * 같이 보지 않아서, 까닭 수준으로 틀이 잡힌 뒤 **수준이 한 칸 내려가면 막대가 8/9 에서 멈췄다.**
+     * 틀은 3턴째에 정해지는데 수준은 그 뒤에도 움직이므로 실제로 일어나는 일이다.
+     */
+    @Test
+    fun theProgressBarDoesNotCountQuestionsItNeverAsks() {
+        for (t in TEMPLATES.filter { "reflect" in it.ending }) {
+            val high = DemoState().apply { templateKey = t.key; level = Level.REASON }
+            val low = DemoState().apply { templateKey = t.key; level = Level.CHAIN }
+            assertTrue(
+                "틀 ${t.code} — 까닭 수준에서는 reflect 를 묻는다",
+                high.askTotal > low.askTotal,
+            )
+            assertEquals(
+                "틀 ${t.code} — 수준이 내려가면 안 묻는 질문 하나만큼 분모가 줄어야 한다",
+                high.askTotal - 1, low.askTotal,
+            )
+        }
+    }
 }

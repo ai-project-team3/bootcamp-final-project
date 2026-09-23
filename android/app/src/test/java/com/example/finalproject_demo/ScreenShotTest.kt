@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.example.finalproject_demo.ui.HeroImage
@@ -259,6 +260,36 @@ class ScreenShotTest {
             roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
         )
     }
+
+    /**
+     * **보호자 동의 화면이 그려지는가** (9/23 · 출시 체크리스트 §2).
+     *
+     * 부모 모드는 동의를 받은 뒤에 열린다. 대본(`sceneParent`)은 그대로고 화면만 앞에 한 장 얹었다.
+     * 문구는 **초안**이라 화면에 그렇게 표시된다.
+     */
+    @Test
+    fun guardianConsentDraws() {
+        shot("consent_guardian") {
+            com.example.finalproject_demo.ui.GuardianConsentScreen(onAgree = {}, onBack = {})
+        }
+    }
+
+    /** 부모 설정의 **신고 · AI 음성 고지 · 동의 철회** 세 자리 */
+    @Test
+    fun parentNoticeSectionsDraw() {
+        shot("consent_settings") {
+            androidx.compose.foundation.layout.Column(
+                Modifier.fillMaxSize().padding(20.dp),
+            ) {
+                com.example.finalproject_demo.ui.ReportSection()
+                androidx.compose.foundation.layout.Spacer(Modifier.height(10.dp))
+                com.example.finalproject_demo.ui.AiVoiceNotice()
+                androidx.compose.foundation.layout.Spacer(Modifier.height(10.dp))
+                com.example.finalproject_demo.ui.ConsentWithdrawSection()
+            }
+        }
+    }
+
 }
 
 /**

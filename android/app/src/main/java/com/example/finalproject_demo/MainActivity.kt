@@ -42,6 +42,8 @@ import com.example.finalproject_demo.ui.ParentBand
 import com.example.finalproject_demo.ui.Muted
 import com.example.finalproject_demo.ui.ProgressTrack
 import com.example.finalproject_demo.ui.PuppetTypography
+import com.example.finalproject_demo.ui.ConsentStore
+import com.example.finalproject_demo.ui.GuardianConsentScreen
 import com.example.finalproject_demo.ui.SplashScreen
 import com.example.finalproject_demo.ui.StageView
 import com.example.finalproject_demo.ui.StarWallet
@@ -154,5 +156,18 @@ fun DemoApp() {
 
         // 앱을 켜면 팀 이름(CLAP)이 먼저 — 첫 화면 위를 덮었다가 옅어진다
         if (splash) SplashScreen { splash = false }
+
+        // 스플래시가 끝나면 **보호자 동의**가 먼저다 (9/23).
+        //
+        // 계정이 없는 앱이라 「회원가입 → 약관 동의 → 메인」의 가입 자리가 없다.
+        // 그 자리를 **첫 실행**이 대신한다 — 아이용 앱의 표준 모양이다.
+        //
+        // ⚠️ 처음에는 **부모 모드 진입**에만 걸어 두었는데 그건 약했다.
+        //    부모 모드는 아이가 가지 않는 곳이라, 아이가 **동의 없이 말하고 그리고 책까지 만들 수 있었다.**
+        //    개인정보보호법 제22조의2 는 만 14세 미만 아동의 개인정보를 **처리하기 전에**
+        //    법정대리인 동의를 받으라고 한다. 처리가 시작되는 순간은 아이가 말하는 순간이다.
+        if (!splash && !ConsentStore.guardianAgreed) {
+            GuardianConsentScreen(onAgree = { }, onBack = { })
+        }
     }
 }

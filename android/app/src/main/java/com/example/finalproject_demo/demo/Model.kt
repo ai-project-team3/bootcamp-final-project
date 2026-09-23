@@ -883,7 +883,18 @@ class DemoState {
      * 넣어 두면 **절대 안 차는 칸**이 하나 생겨 막대가 끝까지 가지 못한다.
      */
     private val extraAskSlots: List<String>
-        get() = template?.let { t -> (t.plot + t.ending).filter { it != "resolve" } }.orEmpty()
+        get() = template?.let { t ->
+            (t.plot + t.ending).filter {
+                // `resolve` 는 `slots` 가 아니라 `solution` 으로 들어간다 (위 주석)
+                it != "resolve" &&
+                    // ⚠️ `reflect` 는 **까닭 짓기 수준일 때만 묻는다** (`Scenes.kt` 매듭 장면).
+                    //    분모가 그 조건을 같이 보지 않으면 **막대가 영영 안 찬다** (9/23).
+                    //    틀은 3턴째에 정해지는데 **수준은 그 뒤에도 내려갈 수 있어서** 실제로 일어난다 —
+                    //    까닭 수준으로 틀이 잡힌 뒤 수준이 한 칸 내려가면 reflect 를 안 묻고,
+                    //    그러면 8/9 에서 멈춘다. 묻지 않는 질문은 세지 않는다
+                    !(it == "reflect" && level != Level.REASON)
+            }
+        }.orEmpty()
 
     /**
      * 지금까지 **답이 찬 질문 수**.
