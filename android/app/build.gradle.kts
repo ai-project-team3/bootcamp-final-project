@@ -9,14 +9,14 @@ plugins {
 
 android {
     namespace = "com.example.finalproject_demo"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         // Play 는 com.example.* 를 받지 않는다. 첫 업로드 뒤에는 영영 못 바꾼다 (09-23 조장)
         applicationId = "kr.clap.otto"
         minSdk = 24
-        targetSdk = 35
-        versionCode = 1
+        targetSdk = 36
+        versionCode = 2
         versionName = "0.1-demo"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
