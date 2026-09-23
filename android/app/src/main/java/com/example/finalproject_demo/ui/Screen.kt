@@ -562,8 +562,12 @@ private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem) {
         // 「누가 더 큰가」를 담고 있었다. 그 뜻만 살리고 배율은 눌러서 쓴다.
         // 그대로 곱하면 공룡이 화면보다 커진다(2.1배) — 제곱근으로 눌러 1.45배쯤으로 만든다.
         val bulk = kotlin.math.sqrt((item.wf / WF_HERO).coerceIn(0.5f, 4f))
+        // ⚠️ 폭도 화면 안에 들어와야 한다 (09-23). 키를 **화면 높이**로만 잡으면 태블릿 세로처럼
+        //    긴 화면에서 폭이 화면보다 넓어지고, 그러면 아래 `left` 가 음수가 되어
+        //    「Padding must be non-negative」로 앱이 죽는다 — `TabletPortraitShotTest` 가 잡았다
         val tall = (maxHeight * (TALL_FAR + (TALL_NEAR - TALL_FAR) * d) * bulk)
             .coerceAtMost(maxHeight * TALL_CAP)
+            .coerceAtMost(maxWidth * TALL_CAP / FIGURE_ASPECT)
         val wide = tall * FIGURE_ASPECT
         // 발은 **말풍선 위에** 선다 (9/23).
         //
@@ -575,8 +579,9 @@ private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem) {
         val feetFar = maxHeight * FEET_FAR
         val feet = feetFar + (feetNear - feetFar) * d
         // xf 는 **가운데**다 (Model.WorldItem 주석). 깊이에 따라 커져도 좌우로 안 밀린다
-        val left = maxWidth * item.xf - wide / 2
-        val top = feet - tall * FEET_IN_ART
+        // 화면 밖으로 밀리지 않게 가둔다 — 여백은 음수가 될 수 없다
+        val left = (maxWidth * item.xf - wide / 2).coerceIn(0.dp, (maxWidth - wide).coerceAtLeast(0.dp))
+        val top = (feet - tall * FEET_IN_ART).coerceIn(0.dp, (maxHeight - tall).coerceAtLeast(0.dp))
 
         val shakeMod = if (item.shake) {
             val t = rememberInfiniteTransition(label = "shake")
@@ -591,7 +596,10 @@ private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem) {
         val shadowH = wide * 0.13f
         Box(
             Modifier
-                .padding(start = left + (wide - shadowW) / 2, top = feet - shadowH * 0.35f)
+                .padding(
+                    start = (left + (wide - shadowW) / 2).coerceAtLeast(0.dp),
+                    top = (feet - shadowH * 0.35f).coerceIn(0.dp, (maxHeight - shadowH).coerceAtLeast(0.dp)),
+                )
                 .width(shadowW)
                 .height(shadowH)
                 .then(shakeMod)
