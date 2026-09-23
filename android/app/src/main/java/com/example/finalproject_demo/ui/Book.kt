@@ -1,17 +1,21 @@
 package com.example.finalproject_demo.ui
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -36,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -45,6 +50,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -54,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Art
@@ -84,6 +94,209 @@ private fun Layer(xf: Float, yf: Float, wf: Float, aspect: Float = 0.75f, modifi
                 .width(w)
                 .height(w / aspect)
         ) { content() }
+    }
+}
+
+/*
+ * ── 책 쪽에도 무대 배치 규칙을 적용한다 (9/23) ──────────────────────────
+ *
+ * `docs/무대_배치_규칙.md` 는 무대 화면(`Screen.kt` `WorldItemView`)까지만 다뤘고,
+ * 책 쪽은 *"이 문서는 안 봤다"* 로 남겨 두었다. 그런데 **시연에서 가장 오래 보이는 화면이 책**이다.
+ * 실기기로 확인해 보니 무대 화면만 고쳐 놓고 책은 그대로 인물이 하늘에 떠 있었다.
+ *
+ * 규칙은 같다 — 발을 바닥에 내리고, 키를 키우고, 발밑에 그림자를 깐다.
+ * 다만 책 쪽은 **일부러 띄워 놓은 구성**이 섞여 있어(로켓 위에 올라탄 주인공 · 날아가는 탈것)
+ * 서 있어야 할 것만 골라 [Stand] 로 바꾼다. 나머지는 [Layer] 그대로 둔다.
+ */
+
+/** 책 쪽에서 인물이 서는 바닥 — 아래 자막 띠 위다 */
+private const val BOOK_FEET_NEAR = 0.80f
+private const val BOOK_FEET_FAR = 0.60f
+
+/** 책 쪽 인물의 키 (쪽 높이 기준). 무대 화면보다 조금 작다 — 한 쪽에 서넛이 함께 선다 */
+private const val BOOK_TALL_NEAR = 0.46f
+private const val BOOK_TALL_FAR = 0.26f
+
+private const val BOOK_WF_HERO = 0.11f
+
+/** 바닥이 없는 배경 — 우주와 바닷속에서는 그림자를 깔지 않는다 */
+private fun hasFloor(bgName: String) = bgName != "bg_space" && bgName != "bg_sea"
+
+/**
+ * 인물을 **바닥에 세운다.** [Layer] 와 달리 [xf] 는 가운데이고, 높이·크기는 [depth] 가 정한다.
+ *
+ * @param xf 가로 **가운데** (0~1)
+ * @param wf 크기 견줌 — 기존 값을 그대로 넘기면 「누가 더 큰가」가 유지된다 (주인공 0.11 · 공룡 0.28)
+ * @param depth 1 = 앞줄 · 0 = 지평선
+ * @param floor 발밑 그림자를 깔 것인가 (우주 · 바닷속은 false)
+ */
+@Composable
+private fun Stand(
+    xf: Float,
+    wf: Float,
+    depth: Float = 1f,
+    floor: Boolean = true,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val d = depth.coerceIn(0f, 1f)
+        val bulk = kotlin.math.sqrt((wf / BOOK_WF_HERO).coerceIn(0.5f, 4f))
+        val tall = (maxHeight * (BOOK_TALL_FAR + (BOOK_TALL_NEAR - BOOK_TALL_FAR) * d) * bulk)
+            .coerceAtMost(maxHeight * 0.72f)
+        val wide = tall
+        val feet = maxHeight * (BOOK_FEET_FAR + (BOOK_FEET_NEAR - BOOK_FEET_FAR) * d)
+        val left = maxWidth * xf - wide / 2
+        val top = feet - tall * 0.93f
+
+        if (floor) {
+            val shW = wide * 0.56f
+            val shH = wide * 0.13f
+            Box(
+                Modifier
+                    .padding(start = left + (wide - shW) / 2, top = feet - shH * 0.35f)
+                    .width(shW)
+                    .height(shH)
+                    .then(modifier)
+            ) {
+                Canvas(Modifier.fillMaxSize()) {
+                    drawOval(
+                        Brush.radialGradient(
+                            0f to Color(0x8C191005),
+                            0.5f to Color(0x59191005),
+                            1f to Color(0x00191005),
+                            center = Offset(size.width / 2, size.height / 2),
+                            radius = size.width / 2,
+                        ),
+                        alpha = 0.40f + 0.45f * d,
+                    )
+                }
+            }
+        }
+        Box(modifier.padding(start = left, top = top).width(wide).height(tall)) { content() }
+    }
+}
+
+/**
+ * 미션 2 — **4등분 퍼즐** (미션 구상 A3).
+ *
+ * 아이가 맞추는 그림은 **아이 이야기로 만든 그 배경**이다. 새 그림을 가져오지 않는다 —
+ * *"자기 이야기를 손으로 완성한다"* 가 이 미션의 뜻이다. 다 맞추면 그림이 살아 움직인다.
+ *
+ * 실패가 없다 — 틀린 자리에 놓으면 **말없이 제자리로 돌아간다.** 틀렸다는 표시도 소리도 없다.
+ * 미션 1을 도움받아 끝낸 아이(`m1Result == "helped"`)에게는 **두 조각**만 준다 (§2 · 3~4세 완화).
+ */
+@Composable
+private fun PuzzlePage(d: Director, done: Boolean) {
+    val s = d.s
+    val density = LocalDensity.current.density
+    val picId = assetId(s.bgName)
+    // 그림이 없으면 퍼즐을 낼 수 없다 — 건네주기로 물러난다 (없는 것을 만들어 내지 않는다)
+    if (picId == 0) {
+        DragPage(d, done, Art.HeroArt(s.heroAttr ?: HeroAttr()), "hand")
+        return
+    }
+    val pic = ImageBitmap.imageResource(picId)
+    val cols = if (s.m1Result == "helped") 2 else 2
+    val rows = if (s.m1Result == "helped") 1 else 2
+    val count = cols * rows
+
+    val placed = remember { mutableStateListOf(*Array(count) { done }) }
+    val drag = remember { List(count) { Animatable(Offset.Zero, Offset.VectorConverter) } }
+    var sent by remember { mutableStateOf(done) }
+    val allIn = done || placed.all { it }
+    val puffs = rememberParticleField()
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(allIn) {
+        if (!allIn || sent) return@LaunchedEffect
+        sent = true
+        Sfx.play(Sound.SPARKLE, 0L)
+        d.send(Reply.Tapped("mission", "미션2"))
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wpx = constraints.maxWidth.toFloat()
+        val hpx = constraints.maxHeight.toFloat()
+        // 판 — 화면 오른쪽에 놓는다. 왼쪽 아래는 조각을 늘어놓는 자리다
+        val boardH = hpx * 0.44f
+        val boardW = boardH * (cols.toFloat() / rows)
+        val boardX = wpx * 0.60f
+        val boardY = hpx * 0.20f
+        val pw = boardW / cols
+        val ph = boardH / rows
+
+        fun slot(i: Int) = Offset(boardX + (i % cols) * pw, boardY + (i / cols) * ph)
+        // 흩어 놓는 자리 — 왼쪽 아래에 **겹치지 않게** 나란히. 겹쳐 두면 아이가 집을 수가 없다
+        fun home(i: Int) = Offset(wpx * 0.05f + i * (pw * 1.06f), hpx * 0.56f)
+
+        // 맞출 자리 — **완성된 그림을 흐리게** 깔아 어디에 뭘 놓는지 보여 준다.
+        // 실패 없는 설계의 절반은 안내다 — 어디에 놓을지 모르면 그건 어려운 게 아니라 막막한 것이다
+        Canvas(Modifier.fillMaxSize()) {
+            drawImage(
+                pic,
+                dstOffset = IntOffset(boardX.roundToInt(), boardY.roundToInt()),
+                dstSize = IntSize(boardW.roundToInt(), boardH.roundToInt()),
+                alpha = 0.28f,
+            )
+            for (i in 0 until count) {
+                val p = slot(i)
+                drawRect(Color.White.copy(alpha = 0.75f), topLeft = p, size = Size(pw, ph), style = Stroke(4f))
+            }
+        }
+
+        for (i in 0 until count) {
+            val target = slot(i)
+            val start = home(i)
+            val at = if (placed[i]) target else start + drag[i].value
+            Box(
+                Modifier
+                    .offset { IntOffset(at.x.roundToInt(), at.y.roundToInt()) }
+                    .size((pw / density).dp, (ph / density).dp)
+                    .pointerInput(placed[i], done) {
+                        if (placed[i] || done) return@pointerInput
+                        detectDragGestures(
+                            onDragEnd = {
+                                val now = start + drag[i].value
+                                val near = kotlin.math.hypot(now.x - target.x, now.y - target.y) < pw * 0.45f
+                                if (near) {
+                                    placed[i] = true
+                                    Sfx.play(Sound.THUD, 0L)
+                                    puffs.burst(target.x + pw / 2, target.y + ph / 2, wpx * 0.018f, 10)
+                                } else {
+                                    // 틀렸다고 말하지 않는다 — 조용히 제자리로
+                                    scope.launch {
+                                        drag[i].animateTo(Offset.Zero, spring(dampingRatio = 0.7f, stiffness = 260f))
+                                    }
+                                }
+                            },
+                        ) { change, d2 ->
+                            scope.launch { drag[i].snapTo(drag[i].value + d2) }
+                            change.consume()
+                        }
+                    },
+            ) {
+                Canvas(Modifier.fillMaxSize()) {
+                    // 배경 그림에서 이 조각에 해당하는 네모만 오려 그린다
+                    val sx = (pic.width.toFloat() / cols * (i % cols)).roundToInt()
+                    val sy = (pic.height.toFloat() / rows * (i / cols)).roundToInt()
+                    drawImage(
+                        pic,
+                        srcOffset = IntOffset(sx, sy),
+                        srcSize = IntSize(pic.width / cols, pic.height / rows),
+                        dstOffset = IntOffset(0, 0),
+                        dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                    )
+                    // 오려낸 흰 테두리 — 아이 그림과 같은 결 (⭐27)
+                    drawRect(Color.White.copy(alpha = 0.9f), style = Stroke(6f))
+                }
+            }
+        }
+
+        Canvas(Modifier.fillMaxSize()) {
+            puffs.tick
+            puffs.draw(this)
+        }
     }
 }
 
@@ -146,15 +359,33 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
     val bob by inf.animateFloat(-4f, 4f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "bob")
     val twinkle by inf.animateFloat(0.5f, 1f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "tw")
 
+    /**
+     * 책 쪽의 인물 한 장.
+     *
+     * @param stand 바닥에 **서는** 인물이면 깊이(1 = 앞줄). null 이면 예전처럼 좌표 그대로 띄운다 —
+     *   로켓에 올라탄 주인공 · 날아가는 탈것처럼 **일부러 띄운 구성**이 있다 (9/23)
+     */
     @Composable
-    fun Char(target: String, art: Art, xf: Float, yf: Float, wf: Float, aspect: Float = 0.75f, mod: Modifier = Modifier, onHand: (() -> Unit)? = null) {
-        Layer(xf, yf, wf, aspect, mod) {
+    fun Char(
+        target: String,
+        art: Art,
+        xf: Float,
+        yf: Float,
+        wf: Float,
+        aspect: Float = 0.75f,
+        mod: Modifier = Modifier,
+        onHand: (() -> Unit)? = null,
+        stand: Float? = null,
+    ) {
+        val body: @Composable () -> Unit = {
             Tappable(
                 text = { reactionFor(s, tool, target) },
                 modifier = Modifier.fillMaxSize(),
                 onTap = { if (tool == "hand" && onHand != null) onHand() else react(target) },
             ) { ArtView(art, Modifier.fillMaxSize()) }
         }
+        if (stand != null) Stand(xf, wf, stand, floor = hasFloor(s.bgName), modifier = mod, content = body)
+        else Layer(xf, yf, wf, aspect, mod, content = body)
     }
 
     val kind = s.pageKind(page)
@@ -259,7 +490,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                     // 발이 탈것 몸통에 **겹쳐야** 올라탄 것으로 보인다. 띄우면 위에 떠 있는 것처럼 보였다 (9/21)
                     Char("hero", heroArt, 0.445f, 0.120f, 0.075f, mod = Modifier.offset { IntOffset(0, wobble.roundToInt()) }.then(poseMod))
                 } else {
-                    Char("hero", heroArt, 0.22f, 0.30f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod))
+                    Char("hero", heroArt, 0.20f, 0.30f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod), stand = 1f)
                 }
             }
             PageKind.SHAKE -> {
@@ -268,16 +499,16 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                 // 흔들리는 쪽이 아니면 주인공도 탈것도 가만히 있는다 — 숨쉬듯 까딱이기만 한다
                 val jolt = if (quaking) shake else bob
                 if (showRide) Char("vehicle", s.rideArt, 0.34f, 0.16f, 0.17f, 0.62f, Modifier.offset { IntOffset(if (quaking) jolt.roundToInt() else 0, if (quaking) 0 else jolt.roundToInt()) })
-                Char("hero", heroArt, 0.16f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(if (quaking) (jolt / 2).roundToInt() else 0, if (quaking) 0 else jolt.roundToInt()) }.then(poseMod))
+                Char("hero", heroArt, 0.18f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(if (quaking) (jolt / 2).roundToInt() else 0, if (quaking) 0 else jolt.roundToInt()) }.then(poseMod), stand = 1f)
                 // "창밖에서 손을 흔들고 있었어요" — 적혀 있으면 정말 흔든다
-                if (friendShown != null) FadeIn { Char("friend", friendShown, 0.60f, 0.20f, 0.18f, 1f, waveMod) }
+                if (friendShown != null) FadeIn { Char("friend", friendShown, 0.76f, 0.20f, 0.18f, 1f, waveMod, stand = 0.85f) }
             }
             PageKind.MEET, PageKind.TALK -> {
                 Scenery()
                 if (showRide) Char("vehicle", s.rideArt, 0.40f, 0.14f, 0.15f, 0.62f)
-                Char("hero", heroArt, 0.18f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod))
+                Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod), stand = 1f)
                 // 인사하는 쪽에서는 친구도 같이 손을 흔든다 — 한쪽만 흔들면 어색하다
-                if (friendShown != null) Char("friend", friendShown, 0.58f, 0.24f, 0.18f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }.then(waveMod))
+                if (friendShown != null) Char("friend", friendShown, 0.74f, 0.24f, 0.18f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }.then(waveMod), stand = 0.85f)
                 if (s.partnerHelpLine != null && page == last - 1) {
                     Layer(0.04f, 0.40f, 0.09f) { ArtView(Art.Img(s.partner.img, Art.Emoji(s.partner.emoji)), Modifier.fillMaxSize()) }
                 }
@@ -287,25 +518,31 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                 if (showRide) Char("vehicle", s.rideArt, 0.36f, 0.14f, 0.17f, 0.62f, Modifier.offset { IntOffset((wobble * 3).roundToInt(), wobble.roundToInt()) })
                 // 여정 쪽은 늘 "타고 가는 중" 이다 — 옆에 세워 두면 걸어가는 것처럼 보인다
                 if (showRide) Char("hero", heroArt, 0.405f, 0.100f, 0.075f, mod = Modifier.offset { IntOffset((wobble * 3).roundToInt(), wobble.roundToInt()) }.then(poseMod))
-                else Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod))
-                if (friendShown != null) Char("friend", friendShown, 0.60f, 0.26f, 0.16f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) })
+                else Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod), stand = 1f)
+                if (friendShown != null) Char("friend", friendShown, 0.76f, 0.26f, 0.16f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }, stand = 0.85f)
             }
             PageKind.FAIL -> {
                 Scenery()
-                Char("hero", heroArt, 0.22f, 0.32f, 0.11f)
+                Char("hero", heroArt, 0.20f, 0.32f, 0.11f, stand = 1f)
                 // 풀이 죽은 친구 — 살짝 기울고 아래로
-                if (friendShown != null) Char("friend", friendShown, 0.56f, 0.34f, 0.15f, 1f, Modifier.offset { IntOffset(0, 10) }.alpha(0.85f))
+                if (friendShown != null) Char("friend", friendShown, 0.72f, 0.34f, 0.15f, 1f, Modifier.offset { IntOffset(0, 10) }.alpha(0.85f), stand = 0.85f)
                 Text("…", fontSize = 40.sp, color = Color.White, fontWeight = FontWeight.Bold,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 96.dp, start = 170.dp).alpha(twinkle))
             }
             PageKind.RUB -> RubPage(d, stage.m1Done, heroArt, dinoArt, tool)
-            PageKind.DRAG -> DragPage(d, stage.m2Done, heroArt, tool)
+            // 미션 2가 **틀에 따라 갈라진다** (9/23 · 미션 구상 §4).
+            // 「다시 쌓다 · 맞추다 · 되돌리다」로 푸는 틀(A 도전-성취 · G 우화-교훈)은 퍼즐이,
+            // 「건네다 · 나누다」로 푸는 나머지 틀은 지금까지의 건네주기가 맞다.
+            // 쪽 종류(DRAG)와 감독에게 보내는 신호는 그대로라 책 흐름은 안 바뀐다
+            PageKind.DRAG ->
+                if (s.templateKey == "A" || s.templateKey == "G") PuzzlePage(d, stage.m2Done)
+                else DragPage(d, stage.m2Done, heroArt, tool)
             PageKind.TOGETHER -> {
                 Scenery(glow = if (s.isDiary) s.diaryGlow else s.hotspots.map { it.key }.toSet())
                 Box(Modifier.align(Alignment.TopCenter).padding(top = 76.dp).size(110.dp, 50.dp).alpha(twinkle)) { ArtView(Art.Img("prop_sparkle", Art.Emoji("⭐✨⭐")), Modifier.fillMaxSize()) }
-                Char("hero", heroArt, 0.10f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod))
-                if (friendShown != null) Char("friend", friendShown, 0.28f, 0.26f, 0.17f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) })
-                if (showDino) Char("dino", dinoArt, 0.50f, 0.20f, 0.28f, 1.35f, Modifier.offset { IntOffset(0, bob.roundToInt()) }, onHand = { d.send(Reply.Tapped("dino", s.dino.label)) })
+                Char("hero", heroArt, 0.17f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod), stand = 1f)
+                if (friendShown != null) Char("friend", friendShown, 0.42f, 0.26f, 0.17f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }, stand = 0.85f)
+                if (showDino) Char("dino", dinoArt, 0.72f, 0.20f, 0.28f, 1.35f, Modifier.offset { IntOffset(0, bob.roundToInt()) }, onHand = { d.send(Reply.Tapped("dino", s.dino.label)) }, stand = 0.92f)
                 if (s.partnerHelpLine != null) {
                     Layer(0.80f, 0.34f, 0.10f) { ArtView(Art.Img(s.partner.img, Art.Emoji(s.partner.emoji)), Modifier.fillMaxSize()) }
                 }
@@ -435,14 +672,34 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
     val m = s.mission1()
     val density = LocalDensity.current.density
     val rub = remember { mutableStateListOf(0f, 0f, 0f) }
-    val drops = remember { mutableStateListOf<Pair<Offset, Long>>() }
+    // 불·물·김은 **그림이 아니라 계산**이다 (9/23). 흔적 그림은 그대로 두고 그 위에 입자를 얹는다 —
+    // 미션 성공 판정은 전과 똑같이 `rub` 이 정하므로 화면 없이 도는 검사가 그대로 돈다
+    val puffs = rememberParticleField()
     var finger by remember { mutableStateOf<Offset?>(null) }
+    // 손가락을 대고 있는 동안은 **가만히 있어도** 물이 나온다 — 소방 호스는 그래야 한다 (9/23)
+    var spraying by remember { mutableStateOf(false) }
     var fired by remember { mutableStateOf(done) }
     var gag by remember { mutableStateOf<String?>(null) }
     val allOut = done || rub.all { it >= 3f }
+    // 8초 동안 아무 진전이 없으면 **마스코트가 첫 걸음을 보여 준다** (미션 구상 §5).
+    // 말로 설명하지 않는다 — 손이 한 번 지나가는 것을 보여 줄 뿐이다
+    val progress = rub.sum()
+
+    // 후~ 불어서 날리기 (미션 구상 C1 · 9/23).
+    //
+    // **날아갈 수 있는 것에만** 붙인다 — 먼지 · 모래는 불면 날아가지만 먹물 · 진흙은 아니다.
+    // 손으로 문지르는 길은 **그대로 남는다.** 불기는 덤이지 대신이 아니다 (실패 없는 설계).
+    val blowable = m.blobName.contains("먼지") || m.blobName.contains("모래") || m.blobName.contains("가루")
+    val blow = rememberBlowLevel(blowable && !allOut)
+    var showHint by remember { mutableStateOf(false) }
+    LaunchedEffect(progress, allOut) {
+        showHint = false
+        if (allOut || motionFrozen) return@LaunchedEffect
+        delay(8_000)
+        showHint = true
+    }
     val lift by animateFloatAsState(if (allOut) -30f else 0f, tween(900), label = "lift")
-    LaunchedEffect(allOut) { if (allOut && !fired) { fired = true; d.send(Reply.Tapped("mission", "미션1")) } }
-    LaunchedEffect(drops.size) { if (drops.isNotEmpty()) { delay(500); val now = System.currentTimeMillis(); drops.removeAll { now - it.second > 450 } } }
+    LaunchedEffect(allOut) { if (allOut && !fired) { fired = true; Sfx.play(Sound.SPARKLE, 0L); d.send(Reply.Tapped("mission", "미션1")) } }
     LaunchedEffect(gag) { if (gag != null) { delay(1400); gag = null } }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -460,20 +717,77 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
         else
             listOf(0.22f to fy, 0.50f to fy + 0.08f, 0.78f to fy).map { (bx, by) -> Offset(vx * wpx + bx * vwPx, vy * hpx + by * vhPx) }
         if (!s.isDiary) Layer(vx, vy, vw, va, Modifier.offset { IntOffset(0, lift.roundToInt()) }) { ArtView(s.rideArt, Modifier.fillMaxSize()) }
-        Layer(0.08f, 0.36f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
+        Stand(0.14f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
         val rubFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
-        if (rubFriend != null) Layer(0.58f, 0.30f, 0.11f, 1f) { ArtView(rubFriend, Modifier.fillMaxSize()) }
-        if (!s.isDiary) Layer(0.70f, 0.36f, 0.19f, 1.35f) { ArtView(dinoArt, Modifier.fillMaxSize()) }
+        if (rubFriend != null) Stand(0.66f, 0.11f, 0.85f) { ArtView(rubFriend, Modifier.fillMaxSize()) }
+        if (!s.isDiary) Stand(0.86f, 0.19f, 0.92f) { ArtView(dinoArt, Modifier.fillMaxSize()) }
 
+        // 불을 계속 피운다. 문지를수록 기운이 줄어 **입자 수가** 사그라든다.
+        //
+        // ⚠️ `LaunchedEffect(puffs.tick)` 으로 쓰면 안 된다 — 프레임마다 코루틴을 접었다 다시 띄운다.
+        //    한 번만 띄우고 그 안에서 프레임을 기다린다 (9/23)
+        val burns = m.blobName.contains("불") || m.blobName.contains("용암")
+        LaunchedEffect(done, wpx, hpx, s.isDiary) {
+            if (done || motionFrozen) return@LaunchedEffect
+            while (true) {
+                withFrameNanos { }
+                // 후~ 부는 세기만큼 흔적이 날아간다. 세게 불수록 빨리 사라진다
+                if (blowable && blow > 0.22f) {
+                    blobs.forEachIndexed { i, b ->
+                        if (rub[i] < 3f) {
+                            val before = rub[i]
+                            rub[i] = minOf(3f, rub[i] + blow * 0.09f)
+                            // 날아가는 것이 보이게 — 바람을 타고 옆으로 흩어진다
+                            puffs.water(b.x, b.y, blow * wpx * 0.02f, -blow * wpx * 0.004f, wpx * 0.03f)
+                            if (before < 3f && rub[i] >= 3f) Sfx.play(Sound.SPARKLE, 0L)
+                        }
+                    }
+                }
+
+                // 호스에서 한 줄기로 뿜는다.
+                //
+                // ⚠️ **노즐은 한자리에 고정한다** (9/23). 처음에는 호스 그림이 손가락을 따라다니게 두었는데,
+                //    그러면 노즐과 겨눈 곳 사이에 거리가 없어 물이 찌끔하고 말았다.
+                //    소방차는 노즐이 제자리에 있고 **겨누는 곳이 움직인다** — 그래야 줄기가 길게 끈는다
+                val fp = finger
+                val nozzleX = 108f * density
+                val nozzleY = hpx - 108f * density
+                if (spraying && fp != null) {
+                    puffs.jet(nozzleX, nozzleY, fp.x, fp.y, wpx * 0.055f)
+                }
+                blobs.forEachIndexed { i, b ->
+                    val alive = (1f - rub[i] / 3f).coerceIn(0f, 1f)
+                    if (alive > 0f) {
+                        // 「불」일 때만 타오른다 — 먹물 · 모래 · 진흙은 타는 것이 아니다
+                        // ⚠️ 반지름을 쪽 전체 폭(0.075)으로 잡았더니 불꿃 수십 개가 겹쳐
+                        // **녹색 구름 한 덩어리**가 되어 탈것을 덮었다 (9/23 실기기 확인).
+                        // 불은 흔적 하나 크기면 된다
+                        if (burns) puffs.flame(b.x, b.y, wpx * 0.032f, alive)
+                        puffs.quench(b.x, b.y, wpx * 0.085f, wpx * 0.06f)
+                        // 물이 겨눠져 있는 동안 치익 — 간격을 두어 뭉개지지 않게
+                        if (spraying) Sfx.play(Sound.HISS, minGapMs = 260L)
+                        // 겨누고 **가만히 있어도** 꺼진다 — 호스를 들고 버티는 것도 끄는 것이다
+                        if (spraying && fp != null &&
+                            abs(fp.x - b.x) < wpx * 0.07f && abs(fp.y - b.y) < hpx * 0.14f
+                        ) {
+                            rub[i] = minOf(3f, rub[i] + 0.05f)
+                            if (rub[i] >= 3f) puffs.steam(b.x, b.y, wpx * 0.075f, 8)
+                        }
+                    } else if (Math.random() < 0.04) {
+                        puffs.smoke(b.x, b.y - wpx * 0.01f, wpx * 0.05f)   // 다 끈 자리에서 잔연기
+                    }
+                }
+            }
+        }
         Box(
             Modifier
                 .fillMaxSize()
                 .pointerInput(done) {
                     if (done) return@pointerInput
                     detectDragGestures(
-                        onDragStart = { finger = it },
-                        onDragEnd = { finger = null },
-                        onDragCancel = { finger = null },
+                        onDragStart = { finger = it; spraying = true },
+                        onDragEnd = { finger = null; spraying = false },
+                        onDragCancel = { finger = null; spraying = false },
                     ) { change, drag ->
                         val p = change.position
                         finger = p
@@ -481,16 +795,26 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
                         var hit = false
                         blobs.forEachIndexed { i, b ->
                             if (abs(p.x - b.x) < wpx * 0.07f && abs(p.y - b.y) < hpx * 0.14f && rub[i] < 3f) {
+                                val before = rub[i]
                                 rub[i] = minOf(3f, rub[i] + amount / 200f); hit = true
+                                // 마지막 한 방울이 꺼진 순간 — 김이 확 피어오른다
+                                if (before < 3f && rub[i] >= 3f) {
+                                    puffs.steam(b.x, b.y, wpx * 0.075f, 10)
+                                    Sfx.play(Sound.SPARKLE, minGapMs = 0L)
+                                }
                             }
                         }
-                        if (hit) drops += p to System.currentTimeMillis()
                         // 목표 밖 장난 반응 — 일기 모드에는 공룡이 없으니 그 자리도 없다 (§2-2)
-                        else if (!s.isDiary && p.x > wpx * 0.70f && p.y > hpx * 0.36f && gag == null) { gag = "부르르! ${s.soundLine}"; d.send(Reply.Tapped("gag", "장난")) }
+                        if (!hit && !s.isDiary && p.x > wpx * 0.70f && p.y > hpx * 0.36f && gag == null) { gag = "부르르! ${s.soundLine}"; d.send(Reply.Tapped("gag", "장난")) }
                         change.consume()
                     }
                 }
         ) {
+            // 불과 연기는 흔적 그림 **뒤**에 — 그림이 또렷하게 남는다
+            Canvas(Modifier.fillMaxSize()) {
+                puffs.tick          // 프레임마다 다시 그리게 하는 한 줄
+                puffs.draw(this, setOf(Puff.FIRE, Puff.SMOKE))
+            }
             blobs.forEachIndexed { i, b ->
                 val st = if (done) 3f else rub[i]
                 val sz = (0.085f - 0.025f * minOf(st, 2f)) * wpx
@@ -499,17 +823,68 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
                         .offset { IntOffset((b.x - sz / 2).roundToInt(), (b.y - sz / 2).roundToInt()) }
                         .size((sz / density).dp)
                 ) {
-                    if (st >= 3f) ArtView(Art.Img(m.gone, Art.Emoji(m.goneEmoji)), Modifier.fillMaxSize().alpha(0.8f))
+                    // 불은 **그림을 쓰지 않는다** (9/23 요청). 정지한 🔥 한 장이 타오르는 파티클 위에
+                    // 겹쳐 있으면 그 장만 멈춰 보여 오히려 어색했다. 먹물 · 모래 · 진흙은 타는 것이
+                    // 아니라 파티클로 대신할 수 없으므로 그림을 그대로 둔다
+                    if (burns) Unit
+                    else if (st >= 3f) ArtView(Art.Img(m.gone, Art.Emoji(m.goneEmoji)), Modifier.fillMaxSize().alpha(0.8f))
                     else ArtView(Art.Img(m.blob, Art.Emoji(m.blobEmoji)), Modifier.fillMaxSize())
                 }
             }
-            drops.forEach { (p, _) ->
-                Box(Modifier.offset { IntOffset((p.x - 30).roundToInt(), (p.y - 70).roundToInt()) }.size(40.dp)) { ArtView(Art.Img("prop_splash", Art.Emoji("💦")), Modifier.fillMaxSize()) }
+            // 불기를 받는 쪽이면 마이크가 듣고 있다는 것을 **보이게** 둔다 —
+            // 부모가 "마이크가 켜져 있다"를 알 수 있어야 한다 (문서 §같이 생각해 볼 질문)
+            if (blowable && !allOut) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 58.dp)
+                        .shadow(4.dp, RoundedCornerShape(999.dp))
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color.White.copy(alpha = 0.92f))
+                        .padding(horizontal = 14.dp, vertical = 5.dp),
+                ) {
+                    Text(
+                        if (blow > 0.22f) "후~~~ 잘한다!" else "🎤 후~ 불어 봐! (손으로 쓸어도 돼)",
+                        fontSize = 15.sp,
+                        color = if (blow > 0.22f) Coral else Ink,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
-            val fp = finger
-            val toolMod = if (fp != null) Modifier.offset { IntOffset((fp.x - 40).roundToInt(), (fp.y - 110).roundToInt()) }
-            else Modifier.align(Alignment.BottomStart).padding(start = 70.dp, bottom = 70.dp)
-            if (!allOut) Box(toolMod.size(76.dp)) { ArtView(Art.Img(m.tool, Art.Emoji(m.toolEmoji)), Modifier.fillMaxSize()) }
+
+            // 8초 힌트 — 첫 흔적 위를 손이 슥 지나간다
+            if (showHint && !allOut) {
+                val hintT = rememberInfiniteTransition(label = "hint1")
+                val sweep by hintT.animateFloat(
+                    -1f, 1f,
+                    infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                    label = "sweep",
+                )
+                val b0 = blobs.firstOrNull { rub[blobs.indexOf(it)] < 3f } ?: blobs[0]
+                Box(
+                    Modifier
+                        .offset {
+                            IntOffset(
+                                (b0.x + sweep * wpx * 0.045f - wpx * 0.022f).roundToInt(),
+                                (b0.y - hpx * 0.02f).roundToInt(),
+                            )
+                        }
+                        .size((wpx * 0.044f / density).dp)
+                        .alpha(0.75f)
+                ) { ArtView(Art.Img("ic_hand", Art.Emoji("👆")), Modifier.fillMaxSize()) }
+            }
+
+            // 물 · 김 · 반짝임은 **앞**에 — 뒤에 그리면 물이 불 뒤로 숨어 뿌리는 느낌이 안 난다
+            Canvas(Modifier.fillMaxSize()) {
+                puffs.tick
+                puffs.draw(this, setOf(Puff.WATER, Puff.STEAM, Puff.SPARK))
+            }
+            // 호스는 **제자리에 서 있다.** 손가락을 따라다니면 물줄기가 나올 거리가 없다 (9/23)
+            if (!allOut) {
+                Box(
+                    Modifier.align(Alignment.BottomStart).padding(start = 70.dp, bottom = 70.dp).size(76.dp)
+                ) { ArtView(Art.Img(m.tool, Art.Emoji(m.toolEmoji)), Modifier.fillMaxSize()) }
+            }
             gag?.let { g ->
                 Box(
                     Modifier.offset { IntOffset((wpx * 0.68f).roundToInt(), (hpx * 0.30f).roundToInt()) }
@@ -539,10 +914,23 @@ private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
     var given by remember { mutableStateOf(done) }
     var sent by remember { mutableStateOf(done) }
     var gag by remember { mutableStateOf<String?>(null) }
+    // 손가락이 마지막으로 움직인 속도 — 손을 뗄 때 물건이 그 기세로 계속 간다 (9/23)
+    var fling by remember { mutableStateOf(Offset.Zero) }
+    // 받는 순간 친구가 폴짝 뛰고 반짝임이 터진다 (미션 구상 E1 반응 보강 · 9/23)
+    val puffs = rememberParticleField()
+    val hop = remember { Animatable(0f) }
+    // 8초 동안 안 건네면 마스코트가 첫 걸음을 보여 준다
+    var showHint by remember { mutableStateOf(false) }
     val inf = rememberInfiniteTransition(label = "give")
     val beat by inf.animateFloat(0.94f, 1.06f, infiniteRepeatable(tween(420), RepeatMode.Reverse), label = "beat")
     val rise by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(1400)), label = "rise")
     LaunchedEffect(given) { if (given && !sent) { sent = true; delay(1200); d.send(Reply.Tapped("mission", "미션2")) } }
+    LaunchedEffect(given) {
+        showHint = false
+        if (given || motionFrozen) return@LaunchedEffect
+        delay(8_000)
+        showHint = true
+    }
     LaunchedEffect(gag) { if (gag != null) { delay(1500); gag = null } }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -557,11 +945,18 @@ private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
         val fCx = fL + fS / 2; val fCy = fT + fS / 2
         val hL = 0.10f * wpx; val hT = 0.36f * hpx; val hW = 0.11f * wpx
 
-        Layer(0.10f, 0.36f, 0.11f) { Tappable({ reactionFor(s, tool, "hero") }, Modifier.fillMaxSize()) { ArtView(heroArt, Modifier.fillMaxSize()) } }
+        // ⚠️ 받는 쪽(친구)는 **그대로 둔다** — 그 자리·크기가 물건을 놓았는지 판정과 묶여 있어
+        //    옮기면 미션이 안 끝난다 (fL · fT · fS)
+        Stand(0.16f, 0.11f) { Tappable({ reactionFor(s, tool, "hero") }, Modifier.fillMaxSize()) { ArtView(heroArt, Modifier.fillMaxSize()) } }
         // 일기·협업에서 받는 쪽은 **또래 아이**다. 동화 모드의 공룡·외계인과 같은 크기로 그리면
         // 주인공보다 두 배 커서 어른처럼 보였다 (9/22). 가운데를 축으로 줄이므로 놓는 자리는 그대로다
         val targetScale = if (s.isDiary) 0.62f else 1f
-        Layer(fx, fy, fw, 1f, Modifier.scale((if (given) beat else 1f) * targetScale)) {
+        Layer(
+            fx, fy, fw, 1f,
+            Modifier
+                .offset { IntOffset(0, (-hop.value * hpx * 0.045f).roundToInt()) }
+                .scale((if (given) beat else 1f) * targetScale),
+        ) {
             Box(Modifier.fillMaxSize()) {
                 // 미션 2는 건넬 상대가 있어야 한다. 아이가 그린 것 → 아이가 말한 사람 →
                 // 둘 다 없으면 마스코트가 받는다. **없는 친구를 앱이 만들어 내지 않는다** (일기 §3-2)
@@ -581,6 +976,22 @@ private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
                 ) { ArtView(Art.Img("prop_heart", Art.Emoji("💗")), Modifier.fillMaxSize()) }
             }
         }
+        // 받는 순간 — 친구가 폴짝 뛰고 반짝임이 터진다.
+        // 전에는 하트만 올라가서 "받았다"는 느낌이 약했다 (미션 구상 E1)
+        LaunchedEffect(given) {
+            // 검사에서는 멈춘다 — 안 그러면 찍는 순간 친구가 뛰어오른 중이라 기준 그림이 매번 달라진다
+            if (!given || motionFrozen) return@LaunchedEffect
+            Sfx.play(Sound.THUD, 0L)
+            puffs.burst(fCx, fCy, wpx * 0.03f, 22)
+            Sfx.play(Sound.SPARKLE, 0L)
+            hop.snapTo(0f)
+            hop.animateTo(1f, spring(dampingRatio = 0.32f, stiffness = 420f), initialVelocity = 7f)
+        }
+        Canvas(Modifier.fillMaxSize()) {
+            puffs.tick
+            puffs.draw(this)
+        }
+
         // 건넬 물건
         val atX = if (given) fCx - itemPx * 0.35f else startX + ox.value
         val atY = if (given) fCy + fS * 0.2f - itemPx * 0.35f else startY + oy.value
@@ -607,12 +1018,18 @@ private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
                                     gag = "헤헤, ${s.friendName}한테 줘야지!"
                                     d.send(Reply.Tapped("gag", "장난"))
                                 }
-                                scope.launch { ox.animateTo(0f, tween(400)) }
-                                scope.launch { oy.animateTo(0f, tween(400)) }
+                                // 손을 뗀 기세로 잠깐 더 날아갔다 스프링으로 제자리에 안착한다.
+                                // 딱 멈춰 되돌아가면 죽은 물건 같고, 기세가 이어지면 손에 잡혔던 느낌이 남는다
+                                val back = spring<Float>(dampingRatio = 0.62f, stiffness = 210f)
+                                scope.launch { ox.animateTo(0f, back, initialVelocity = fling.x) }
+                                scope.launch { oy.animateTo(0f, back, initialVelocity = fling.y) }
+                                fling = Offset.Zero
                             }
                         }) { change, drag ->
                             scope.launch { ox.snapTo(ox.value + drag.x) }
                             scope.launch { oy.snapTo(oy.value + drag.y) }
+                            // 최근 움직임을 섞어 둔다 — 한 프레임만 보면 튀는 값이 들어온다
+                            fling = Offset(fling.x * 0.6f + drag.x * 24f, fling.y * 0.6f + drag.y * 24f)
                             change.consume()
                         }
                     }
@@ -620,6 +1037,26 @@ private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
         ) {
             ArtView(Art.Img(m.item, Art.Emoji(m.itemEmoji)), Modifier.fillMaxSize())
             if (easy && !given) Text("톡!", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.BottomCenter))
+        }
+        if (showHint && !given) {
+            val hintT = rememberInfiniteTransition(label = "hint2")
+            val go by hintT.animateFloat(
+                0f, 1f,
+                infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Restart),
+                label = "go",
+            )
+            // 시작 자리 → 친구 자리. 말로 설명하지 않고 **길을 보여 준다**
+            Box(
+                Modifier
+                    .offset {
+                        IntOffset(
+                            (startX + (fCx - itemPx / 2 - startX) * go).roundToInt(),
+                            (startY + (fCy - itemPx / 2 - startY) * go).roundToInt(),
+                        )
+                    }
+                    .size(itemSize)
+                    .alpha((1f - go) * 0.5f)
+            ) { ArtView(Art.Img(m.item, Art.Emoji(m.itemEmoji)), Modifier.fillMaxSize()) }
         }
         gag?.let { g ->
             Box(

@@ -48,6 +48,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -200,6 +204,53 @@ private fun WorldBackground(bg: List<Color>, bgName: String, content: @Composabl
             }
         }
         content()
+    }
+}
+
+/**
+ * **앞 레이어** — 인물의 발끝을 바닥 띠가 살짝 덮는다 (`docs/무대_배치_규칙.md` §2).
+ *
+ * 크기와 그림자만으로도 서 있어 보이지만, 발끝이 **풀에 묻히면** 마지막 한 겹이 채워진다.
+ * 배경을 새로 그리지 않고 **같은 배경을 한 번 더** 깔되 발 높이 아래 띠만 남긴다.
+ * 위쪽 45%는 투명 → 불투명으로 풀어 이음매가 안 보이게 한다.
+ *
+ * 하늘만 있는 배경(우주 · 바닷속)에는 바닥이 없으므로 걸지 않는다.
+ */
+@Composable
+private fun FrontGround(bgName: String) {
+    if (assetId(bgName) == 0) return
+    if (bgName == "bg_space" || bgName == "bg_sea") return
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val full = maxHeight
+        val feetNear = minOf(full * FEET_NEAR, full - BottomChrome)
+        val bandH = full * 0.13f
+        // 띄를 **발보다 위에서** 시작해야 한다 — 발 높이에서 시작하면 그자리가 아직 투명해서
+        // 아무것도 안 덤는다 (9/23 첫 시도). 불투명해지는 지점이 발끔 조금 위로 오게 맞춘다
+        val bandTop = feetNear - full * 0.09f
+        Box(
+            Modifier
+                .padding(top = bandTop)
+                .fillMaxWidth()
+                .height(bandH)
+                .clipToBounds()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    // 띠 위쪽을 투명하게 깎아 낸다 — 자른 자국이 가로줄로 보이지 않게
+                    drawRect(
+                        Brush.verticalGradient(0f to Color.Transparent, 0.45f to Color.Black),
+                        blendMode = BlendMode.DstIn,
+                    )
+                },
+        ) {
+            // 배경을 **같은 방식(Crop)으로 전체 크기로** 깔고 위로 밀어, 이 띠에 원래 그 자리가 오게 한다
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(full)
+                    .offset(y = -bandTop),
+            ) { AssetImage(bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        }
     }
 }
 
@@ -400,6 +451,8 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                 HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake)
                 Box(Modifier.fillMaxSize().offset { IntOffset(0, quake.roundToInt()) }) {
                     stage.items.forEach { item -> WorldItemView(item) }
+                    // 인물 **뒤에** 깔면 아무 소용이 없다 — 발끝을 덮어야 묻힌 것으로 보인다
+                    FrontGround(s.bgName)
                 }
                 if (stage.brush) {
                     val t = rememberInfiniteTransition(label = "brush2")
@@ -455,21 +508,113 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
     }
 }
 
-/** 무대 위 인물 · 탈것 한 장 — 톡 튀어나온다 (배경 속 것은 HotspotLayer가 맡는다) */
+/*
+ * ── 무대 배치 규칙 (2026-09-23 · docs/무대_배치_규칙.md) ──────────────────
+ *
+ * 배경 그림에서 물체가 **서는 바닥면**은 화면 높이의 78~90% 에 있다(배경 6장 육안 확인).
+ * 지평선(하늘이 끝나는 줄)이 아니다 — 거기에 발을 두면 더 작아지고 여전히 뜬다.
+ */
+
+/** 앞줄(depth 1) 인물의 발 높이 · 지평선(depth 0)의 발 높이 */
+private const val FEET_NEAR = 0.84f
+private const val FEET_FAR = 0.62f
+
+/** 앞줄 인물의 키 · 지평선 인물의 키 (화면 높이 기준) */
+private const val TALL_NEAR = 0.58f
+private const val TALL_FAR = 0.30f
+
+/**
+ * 그림 **안에서** 발이 닿는 자리 (0~1).
+ *
+ * ⚠️ 처음에 0.96 으로 잡았다가 **그림자가 발에서 떨어져** 딱이 아니라 땅에 드리운 구먍처럼 보였다.
+ *    주인공 그림은 640×640 정사각이고 그 안에서 발이 아래쪽 7% 위에 있다.
+ */
+private const val FEET_IN_ART = 0.93f
+
+/** 그림 상자의 가로:세로 — **1 이어야 한다.** 다르면 `ContentScale.Fit` 이 위아래를 비워 발 자리가 어긋난다 */
+/** 사람 그림의 가로:세로 — **1 이어야 한다.** 다르면 `ContentScale.Fit` 이 위아래를 비워 발 자리가 어긋난다 */
+private const val FIGURE_ASPECT = 1f
+
+/** 주인공의 `wf` — 다른 것들의 크기를 이것에 견준다 */
+private const val WF_HERO = 0.105f
+
+/** 인물 키의 상한. 공룡이 화면을 통째로 가리지 않게 */
+private const val TALL_CAP = 0.80f
+
+/**
+ * 무대 위 인물 · 탈것 한 장 — **바닥에 서 있게** 놓는다.
+ *
+ * 전에는 [WorldItem.yf] 를 위 모서리 높이로, [WorldItem.wf] 를 폭으로 그대로 썼다.
+ * 그 값들이 인물을 하늘 한가운데 작게 띄워 놓았다 — 조장 지적 *"배경 위에 아무렇게나 올려놓은 느낌"*.
+ *
+ * 이제 [WorldItem.depth] 하나가 **발 높이와 키를 같이** 정하고, 발밑에 접지 그림자를 깐다.
+ * 그림자가 없으면 크기를 맞춰도 여전히 떠 보인다 — 바닥과 닿았다는 증거가 그림자뿐이다.
+ */
 @Composable
 private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val w = maxWidth * item.wf
+        val d = item.depth.coerceIn(0f, 1f)
+        // 깊이가 기본 키를 정하고, 거기에 **인물마다의 크기 차이**를 곱한다.
+        //
+        // 문서(`무대_배치_규칙.md`)는 `wf` 를 더 이상 안 쓴다고 했지만, 그대로 버리면
+        // **공룡이 아이와 같은 키가 된다** — 기존 `wf` 값(주인공 0.10 · 탈것 0.13 · 공룡 0.22)이
+        // 「누가 더 큰가」를 담고 있었다. 그 뜻만 살리고 배율은 눌러서 쓴다.
+        // 그대로 곱하면 공룡이 화면보다 커진다(2.1배) — 제곱근으로 눌러 1.45배쯤으로 만든다.
+        val bulk = kotlin.math.sqrt((item.wf / WF_HERO).coerceIn(0.5f, 4f))
+        val tall = (maxHeight * (TALL_FAR + (TALL_NEAR - TALL_FAR) * d) * bulk)
+            .coerceAtMost(maxHeight * TALL_CAP)
+        val wide = tall * FIGURE_ASPECT
+        // 발은 **말풍선 위에** 선다 (9/23).
+        //
+        // 문서가 남긴 질문이 그대로 맞았다 — *"발 높이 0.86 이 크롬 위인지 실기기로 봐야 합니다"*.
+        // 화면 아래 [BottomChrome](76dp)을 말풍선·버튼이 쓴다. 가로 화면 393dp 기준으로 **19%** 라
+        // 0.84 는 그 안으로 들어간다. 비율로 넣지 않고 **크롬 높이를 직접 뺀다** —
+        // 그래야 세로가 짧은 기기에서도 발이 말풍선 밑으로 안 들어간다
+        val feetNear = minOf(maxHeight * FEET_NEAR, maxHeight - BottomChrome)
+        val feetFar = maxHeight * FEET_FAR
+        val feet = feetFar + (feetNear - feetFar) * d
+        // xf 는 **가운데**다 (Model.WorldItem 주석). 깊이에 따라 커져도 좌우로 안 밀린다
+        val left = maxWidth * item.xf - wide / 2
+        val top = feet - tall * FEET_IN_ART
+
         val shakeMod = if (item.shake) {
             val t = rememberInfiniteTransition(label = "shake")
             val dx by t.animateFloat(-7f, 7f, infiniteRepeatable(tween(140), RepeatMode.Reverse), label = "dx")
             Modifier.offset { IntOffset(dx.roundToInt(), 0) }
         } else Modifier
+
+        // 접지 그림자 — 발밑 납작 타원. 멀수록 옅다.
+        // 상자 폭이 아니라 **몸통 폭**에 맞춘다 — 상자 기준으로 잡으면 인물 두 배짜리 웅덩이가 생긴다
+        // 몸통보다 조금 넓어야 발 옆으로 샐여 나온다 — 딱 맞추면 다리에 가려 보이지 않는다
+        val shadowW = wide * 0.56f
+        val shadowH = wide * 0.13f
         Box(
             Modifier
-                .padding(start = maxWidth * item.xf, top = maxHeight * item.yf)
-                .width(w)
-                .height(w / 0.75f)
+                .padding(start = left + (wide - shadowW) / 2, top = feet - shadowH * 0.35f)
+                .width(shadowW)
+                .height(shadowH)
+                .then(shakeMod)
+        ) {
+            Canvas(Modifier.fillMaxSize()) {
+                // 가장자리를 풀어 준다 — 또렷한 타원은 바닥에 붙인 스티커처럼 보인다
+                drawOval(
+                    Brush.radialGradient(
+                        0f to Color(0x8C191005),
+                        0.5f to Color(0x59191005),
+                        1f to Color(0x00191005),
+                        center = Offset(size.width / 2, size.height / 2),
+                        radius = size.width / 2,
+                    ),
+                    alpha = 0.40f + 0.45f * d,
+                )
+            }
+        }
+
+        Box(
+            Modifier
+                .padding(start = left, top = top)
+                .width(wide)
+                .height(tall)
                 .then(shakeMod)
         ) { ArtView(item.art, Modifier.fillMaxSize()) }
     }

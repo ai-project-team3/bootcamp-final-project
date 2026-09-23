@@ -682,8 +682,8 @@ private suspend fun Director.scenePlace() {
         log("${s.th.label} 배경은 프리셋 — 대기 0초 (⭐26)")
     }
     val base = listOf(
-        WorldItem(s.th.vehicleArt, 0.46f, 0.22f, 0.13f),
-        WorldItem(hero, 0.30f, 0.30f, 0.11f),
+        WorldItem(s.th.vehicleArt, 0.58f, 0.22f, 0.13f, depth = 0.90f),
+        WorldItem(hero, 0.30f, 0.30f, 0.11f, depth = 1f),
     )
     s.stage = world(base, glow = emptySet())
     say(if (s.generatedBg) "$c${ga(c)} 하얀 ${s.placeName}에 왔어!" else "$c${ga(c)} ${s.th.arrival}")
@@ -723,8 +723,8 @@ private suspend fun Director.scenePlace() {
 private suspend fun Director.sceneEvent() {
     val v = s.th.vehicle
     val base = listOf(
-        WorldItem(s.th.vehicleArt, 0.44f, 0.20f, 0.15f, shake = true),
-        WorldItem(hero, 0.26f, 0.30f, 0.11f),
+        WorldItem(s.th.vehicleArt, 0.58f, 0.20f, 0.15f, shake = true, depth = 0.90f),
+        WorldItem(hero, 0.28f, 0.30f, 0.11f, depth = 1f),
     )
     s.stage = world(base, quake = true, bump = true)
     say("어? ${s.th.eventAsk}!")
@@ -746,7 +746,7 @@ private suspend fun Director.sceneEvent() {
     judge(BASE_WHO, r, q.text)
     event("slot_filled", "slot" to "problem", "value" to s.problem, "source" to sourceOf(r))
     // 창문에 새 친구가 나타난다
-    val shown = base.map { it.copy(shake = false) } + WorldItem(s.newcomerArt, 0.62f, 0.18f, 0.12f)
+    val shown = base.map { it.copy(shake = false) } + WorldItem(s.newcomerArt, 0.82f, 0.18f, 0.12f, depth = 0.85f)
     s.stage = world(shown)
     if (r is Reply.Spoke) log("LLM 판정: 이름을 가린 문장({주인공}: ${r.text}) → Anthropic → S1 · S2 표시 JSON → 수준은 규칙이 계산")
 
@@ -773,9 +773,9 @@ private suspend fun Director.sceneCause() {
     val c = s.childName
     s.stage = world(
         listOf(
-            WorldItem(s.newcomerArt, 0.54f, 0.20f, 0.14f),
-            WorldItem(s.th.vehicleArt, 0.36f, 0.30f, 0.11f),
-            WorldItem(hero, 0.20f, 0.34f, 0.10f),
+            WorldItem(s.newcomerArt, 0.80f, 0.20f, 0.14f, depth = 0.85f),
+            WorldItem(s.th.vehicleArt, 0.55f, 0.30f, 0.11f, depth = 0.90f),
+            WorldItem(hero, 0.26f, 0.34f, 0.10f, depth = 1f),
         )
     )
     val v = s.pick("cause")
@@ -895,9 +895,9 @@ private suspend fun Director.scenePlot() {
     val f = s.friendName
     s.stage = world(
         listOf(
-            WorldItem(s.th.vehicleArt, 0.46f, 0.22f, 0.13f),
-            WorldItem(s.friendArt, 0.64f, 0.26f, 0.11f),
-            WorldItem(hero, 0.28f, 0.30f, 0.10f),
+            WorldItem(s.th.vehicleArt, 0.54f, 0.22f, 0.13f, depth = 0.90f),
+            WorldItem(s.friendArt, 0.80f, 0.26f, 0.11f, depth = 0.85f),
+            WorldItem(hero, 0.26f, 0.30f, 0.10f, depth = 1f),
         )
     )
     say(
@@ -941,9 +941,9 @@ private suspend fun Director.sceneDino() {
     if (budgetOver()) return
     s.stage = world(
         listOf(
-            WorldItem(s.th.vehicleArt, 0.46f, 0.22f, 0.13f),
-            WorldItem(s.friendArt, 0.62f, 0.26f, 0.11f),
-            WorldItem(hero, 0.28f, 0.30f, 0.10f),
+            WorldItem(s.th.vehicleArt, 0.54f, 0.22f, 0.13f, depth = 0.90f),
+            WorldItem(s.friendArt, 0.80f, 0.26f, 0.11f, depth = 0.85f),
+            WorldItem(hero, 0.26f, 0.30f, 0.10f, depth = 1f),
         )
     )
     // 아이가 먼저 하는 말도 **장소에 맞춰** 바뀐다 — 우주에 가 놓고 공룡을 데려가던 것을 고쳤다 (9/21)
@@ -980,9 +980,9 @@ private suspend fun Director.sceneDino() {
     s.images++
     s.stage = world(
         listOf(
-            WorldItem(s.th.vehicleArt, 0.52f, 0.20f, 0.13f),
-            WorldItem(Art.DinoArt(s.dinoColor, s.dinoKey), 0.28f, 0.34f, 0.22f),
-            WorldItem(hero, 0.14f, 0.32f, 0.10f),
+            WorldItem(s.th.vehicleArt, 0.82f, 0.20f, 0.13f, depth = 0.88f),
+            WorldItem(Art.DinoArt(s.dinoColor, s.dinoKey), 0.55f, 0.34f, 0.22f, depth = 0.92f),
+            WorldItem(hero, 0.22f, 0.32f, 0.10f, depth = 1f),
         ),
         brush = true,
     )
@@ -1018,8 +1018,8 @@ private suspend fun Director.sceneSound() {
     }
     fun soundStage(retry: Int) = world(
         listOf(
-            WorldItem(Art.DinoArt(s.dinoColor, s.dinoKey), 0.36f, 0.30f, 0.26f),
-            WorldItem(hero, 0.14f, 0.34f, 0.10f),
+            WorldItem(Art.DinoArt(s.dinoColor, s.dinoKey), 0.60f, 0.30f, 0.26f, depth = 0.92f),
+            WorldItem(hero, 0.24f, 0.34f, 0.10f, depth = 1f),
         ),
         retry = retry,
     )
@@ -1207,9 +1207,9 @@ private suspend fun Director.sceneSolution() {
     val t = s.template ?: templateOf("C")
     s.stage = world(
         listOf(
-            WorldItem(s.friendArt, 0.56f, 0.24f, 0.14f),
-            WorldItem(Art.DinoArt(s.dinoColor, s.dinoKey), 0.28f, 0.36f, 0.22f),
-            WorldItem(hero, 0.10f, 0.32f, 0.10f),
+            WorldItem(s.friendArt, 0.84f, 0.24f, 0.14f, depth = 0.85f),
+            WorldItem(Art.DinoArt(s.dinoColor, s.dinoKey), 0.56f, 0.36f, 0.22f, depth = 0.92f),
+            WorldItem(hero, 0.22f, 0.32f, 0.10f, depth = 1f),
         )
     )
     // 템플릿마다 앞 이야기에서 이어지는 한 마디

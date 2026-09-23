@@ -151,7 +151,9 @@ fun HotspotLayer(
                     Modifier
                         .offset { IntOffset((cx - r + shakeX).roundToInt(), (cy - r).roundToInt()) }
                         .size(sizeDp)
-                        .noRippleClickable {
+                        // 누르는 **그 순간** 납작해졌다 손을 떼면 통 튀어 오른다 (9/23).
+                        // 전에는 누르고 난 뒤에야 튀어서, 만지는 동안은 아무 반응이 없었다
+                        .pressPop {
                             popText = text?.invoke(sp) ?: sp.tap
                             popKey++
                             onTap(sp)
