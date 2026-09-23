@@ -73,7 +73,7 @@ EXTS = (".wav", ".m4a", ".mp3", ".flac", ".ogg")
 
 GROK_URL = "https://api.x.ai/v1/stt"
 GROK_MODEL = os.getenv("XAI_STT_MODEL", "grok-voice-transcribe-2.0")
-WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3-turbo")
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3")   # 09-23 확정 — 3~6세에서 turbo 대비 CER 절반 (results.md)
 
 # 09-19 에 폰으로 읽은 문장과 같다 — 같은 문장이어야 65%와 견줄 수 있다 (`results.md` §2)
 PRESET_LINES = {"우주": "우주로 가자", "바닷속": "바닷속 갈래", "공룡 나라": "공룡나라 갈래"}

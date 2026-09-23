@@ -69,7 +69,7 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=None, help="화자당 클립 수")
-    ap.add_argument("--models", default="large-v3-turbo", help="쉼표로 여러 개 — 예: large-v3-turbo,large-v3")
+    ap.add_argument("--models", default="large-v3", help="쉼표로 여러 개 — 예: large-v3-turbo,large-v3")
     a = ap.parse_args()
     if not DATA.exists():
         sys.exit(f"데이터가 없습니다: {DATA} — New_Sample.zip 을 풀어 두거나 AIHUB_CHILD 로 경로를 준다")
