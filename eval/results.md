@@ -1917,12 +1917,12 @@ TypeCast 의 `smart` 감정(앞뒤 문장을 보고 강약을 정함)을 주면 
 
 | 칸 | 목소리 · 설정 | voice_id |
 |---|---|---|
-| ① 다정한 친구 | **후보 다섯 (09-26 조장)** — 다듬기 8 Toby·smart · 15 Siwoo·밝게 · 19 Gunwoo·밝게 · 20 Ruri·밝게 · 23 Ruri·smart | Toby `tc_6080369d3211aa112ab131db` · Siwoo `tc_6699eb3849dfac016c29444c` · Gunwoo `tc_624cccbcadcd568510764d65` · Ruri `tc_65a8c82a7e7bded32947497e` |
+| ① 다정한 친구 | **후보 넷 (09-26 조장)** — 다듬기 15 Siwoo·밝게 · 19 Gunwoo·밝게 · 20 Ruri·밝게 · 23 Ruri·smart | Siwoo `tc_6699eb3849dfac016c29444c` · Gunwoo `tc_624cccbcadcd568510764d65` · Ruri `tc_65a8c82a7e7bded32947497e` |
 | ② 씩씩한 친구 | Taeji · smart | `tc_660645fb8db3e2c06ff7070b` |
-| ③ 장난꾸러기 | Toby · 밝게 | `tc_6080369d3211aa112ab131db` |
+| ③ 장난꾸러기 | **Toby — 후보 둘 (09-26 조장)**: 다듬기 22 밝게 · 8 smart | `tc_6080369d3211aa112ab131db` |
 | ④ 언니·형 | Millie · smart | `tc_6359e7f6467f9e240b68292c` |
 
-⚠️ ① 후보 중 **8(Toby)은 ③ 장난꾸러기와 같은 목소리**다. ①을 8로 고르면 ③을 다른 목소리로 바꿔야 한다 — 네 칸은 서로 다른 목소리여야 한다.
+8(Toby·smart)은 처음에 ① 후보였는데 ③ 과 같은 목소리라 **③ 후보로 옮겼다**(09-26 조장). 네 칸은 서로 다른 목소리여야 한다 — 이제 겹치는 목소리가 없다.
 
 ### 아직 아닌 것
 
