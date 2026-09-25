@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -27,6 +28,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -457,6 +462,8 @@ private fun CoopQuestionsTab(d: Director) {
         Text("[같이 만들기]를 시작하면 마스코트가 이 순서대로 대신 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
     }
 
+    CoopTemplateCards(qs)
+
     Section("질문", "네 자리를 먼저 채우고, 더 있으면 [＋]")
     val rows = maxOf(COOP_PARTS.size, qs.size)
     for (i in 0 until rows) {
@@ -531,6 +538,86 @@ private fun CoopQuestionsTab(d: Director) {
                 "ⓘ 질문이 모자라면 마스코트가 이야기에 맞춰 이어서 물어봐요.",
                 "ⓘ 아이 말은 마이크로 받고, 이름은 가린 뒤에야 밖으로 나가요.",
             ).forEach { Text(it, fontSize = 11.sp, color = PSub) }
+        }
+    }
+}
+
+/**
+ * 템플릿 카드 넷 — 탭하면 네 자리가 한 번에 채워지고, 빈칸(장소·호칭) 하나만 고친다 ([COOP_TEMPLATES]).
+ * 채우기만 한다 — 홀더(`parentQuestions`)와 마스코트가 읽는 흐름(CoopScenes)은 그대로다.
+ * 채운 뒤에도 아래 입력 줄은 그대로 열려 있어 줄 단위로 고칠 수 있다.
+ */
+@Composable
+private fun CoopTemplateCards(qs: MutableList<String>) {
+    var picked by remember { mutableStateOf<CoopTemplate?>(null) }
+    var value by remember { mutableStateOf("") }
+
+    fun replace(lines: List<String>) {
+        qs.clear(); qs.addAll(lines)
+    }
+
+    fun change(t: CoopTemplate, v: String) {
+        replace(refillBlank(qs.toList(), t.questions(value), t.questions(v)))
+        value = v
+    }
+
+    Section("템플릿으로 시작하기", "탭하면 네 자리가 한 번에 채워져요")
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        COOP_TEMPLATES.forEach { t ->
+            val on = picked?.key == t.key
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (on) Color(0xFFFFF1CC) else Color.White)
+                    .border(1.dp, if (on) PAccent else PLine, RoundedCornerShape(14.dp))
+                    .clickable {
+                        picked = t
+                        value = t.blank?.default ?: ""
+                        replace(fillFromTemplate(qs.toList(), t.questions()))
+                    }
+                    .padding(10.dp),
+            ) {
+                Text(t.emoji, fontSize = 20.sp)
+                Text(t.label(if (on) value else null), fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
+                Text(t.questions(if (on) value else null).first(), fontSize = 11.sp, color = PSub, maxLines = 2)
+            }
+        }
+    }
+
+    val t = picked
+    val b = t?.blank
+    if (t != null && b != null) {
+        Spacer(Modifier.height(8.dp))
+        PCard(Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("${b.label} 바꾸기", fontSize = 13.sp, color = PSub, modifier = Modifier.width(72.dp))
+                b.choices.forEach { c ->
+                    val on = value.trim() == c
+                    Box(
+                        Modifier
+                            .padding(end = 6.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(if (on) PAccent else Color(0xFFF3EDE3))
+                            .clickable { change(t, c) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) { Text(c, fontSize = 13.sp, color = if (on) Color.White else Ink) }
+                }
+                if (b.free) {
+                    TextField(
+                        value = value,
+                        onValueChange = { change(t, it) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        placeholder = { Text("직접 쓰기", fontSize = 13.sp, color = PSub.copy(alpha = 0.6f)) },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = PBg, unfocusedContainerColor = PBg,
+                            focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
+                        ),
+                    )
+                }
+            }
         }
     }
 }
