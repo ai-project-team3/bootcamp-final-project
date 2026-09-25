@@ -10,7 +10,14 @@
            추리면 추측이 된다 — 그래서 다 굽고 귀로 거른다. 약 1,900자(무료 월 3만 자).
   tune     거르기에서 남은 목소리 몇 개 × 설정 변형 × 마스코트 문장 3개. 역시 블라인드.
 
+  group    거르기 결과를 **페르소나 칸**으로 묶는다. 성별이 아니라 소리의 성질로 —
+           마스코트는 캐릭터라 남녀가 기준이 아니다(09-25 조장). 같은 문장을 읽었으므로
+           말한 시간 = 빠르기, 거기에 음높이 중앙값과 음높이 폭(반음)을 파형에서 잰다.
+           ⚠️ 귀를 대신하지 않는다 — 칸마다 후보를 좁혀 줄 뿐이다.
+           numpy·torchaudio 가 필요해서 .venv-diar 로 돌린다.
+
     python -m eval.bench_tts_voices screen
+    .venv-diar\\Scripts\\python -m eval.bench_tts_voices group --drop 26
     python -m eval.bench_tts_voices tune tc_xxx tc_yyy tc_zzz
 """
 from __future__ import annotations
@@ -150,10 +157,118 @@ def tune(voice_ids: list[str]) -> None:
     print(f"\n듣기 {out / 'listen.html'}")
 
 
+# Persona slots (09-25 draft, confirmed by the team lead). Each score is a weighted sum of
+# z-scores across the screened voices: speed (shorter speech = faster), pitch height,
+# and liveliness (pitch range in semitones).
+PERSONAS = [
+    ("①", "다정한 친구", "차분하고 따뜻하게, 천천히 — 말이 느린 3~4세 · 수줍은 아이",
+     {"speed": -1.0, "lively": -1.0}),
+    ("②", "씩씩한 친구", "밝고 힘차게 — 에너지 많은 아이",
+     {"speed": 0.6, "lively": 1.0, "high": 0.3}),
+    ("③", "장난꾸러기", "톤이 높고 빠르게 — 웃기는 걸 좋아하는 아이",
+     {"speed": 1.0, "high": 1.0, "lively": 0.6}),
+    ("④", "언니·형 같은 친구", "조금 더 차분하고 믿음직하게 — 6~7세",
+     {"high": -1.0, "lively": -0.4}),
+]
+TOP_PER_SLOT = 8
+
+
+def _traits(path: Path) -> dict:
+    """Speech duration, median F0 and F0 spread from one mp3 — plain autocorrelation."""
+    import numpy as np
+    import torchaudio
+    import torchaudio.functional as AF
+
+    w, sr = torchaudio.load(str(path))
+    x = AF.resample(w.mean(0), sr, 16000).numpy()
+    sr = 16000
+    n, h = int(0.04 * sr), int(0.01 * sr)
+    lo, hi = sr // 600, sr // 150                      # 150-600 Hz covers child voices
+    win = np.hanning(n)
+    rms, f0 = [], []
+    for i in range(0, len(x) - n, h):
+        fr = x[i:i + n] * win
+        rms.append(float(np.sqrt(np.mean(fr ** 2)) + 1e-9))
+        ac = np.correlate(fr, fr, "full")[n - 1:]
+        if ac[0] <= 0:
+            f0.append(np.nan)
+            continue
+        k = int(np.argmax(ac[lo:hi])) + lo
+        f0.append(sr / k if ac[k] / ac[0] > 0.45 else np.nan)
+    rms_db = 20 * np.log10(np.array(rms))
+    loud = rms_db > rms_db.max() - 35                  # speech frames, relative to the loudest
+    idx = np.flatnonzero(loud)
+    dur = (idx[-1] - idx[0]) * h / sr if len(idx) else float("nan")
+    f = np.array(f0)[loud]
+    f = f[~np.isnan(f)]
+    med = float(np.median(f)) if len(f) else float("nan")
+    st = 12 * np.log2(f / med) if len(f) else np.array([0.0])
+    return {"dur": round(float(dur), 2), "f0": round(med, 1),
+            "range_st": round(float(np.percentile(st, 90) - np.percentile(st, 10)), 2)}
+
+
+def group(drop: set[int]) -> None:
+    import statistics as st
+
+    src = OUT / "screen"
+    key = json.loads((src / "_key.json").read_text(encoding="utf-8"))
+    nums = sorted(int(k) for k in key if int(k) not in drop)
+    traits = {n: _traits(src / f"{n:02d}.mp3") for n in nums}
+
+    def z(field, sign=1.0):
+        vals = [traits[n][field] for n in nums]
+        m, s = st.mean(vals), st.pstdev(vals) or 1.0
+        return {n: sign * (traits[n][field] - m) / s for n in nums}
+
+    zs = {"speed": z("dur", -1.0), "high": z("f0"), "lively": z("range_st")}
+
+    def word(field, n, words):
+        vals = sorted(traits[m][field] for m in nums)
+        t1, t2 = vals[len(vals) // 3], vals[2 * len(vals) // 3]
+        v = traits[n][field]
+        return words[0] if v <= t1 else words[2] if v >= t2 else words[1]
+
+    def desc(n):
+        t = traits[n]
+        return (f"{word('dur', n, ('빠름', '보통', '느림'))} · "
+                f"{word('f0', n, ('낮음', '중간', '높음'))} · "
+                f"{word('range_st', n, ('잔잔', '보통', '출렁'))}"
+                f"<div style='color:#777;font-size:12px'>{t['dur']}초 · {t['f0']:.0f}Hz · {t['range_st']}반음</div>")
+
+    sections, picked = [], {}
+    for mark, name, who, weights in PERSONAS:
+        score = {n: sum(wt * zs[f][n] for f, wt in weights.items()) for n in nums}
+        top = sorted(nums, key=lambda n: -score[n])[:TOP_PER_SLOT]
+        picked[f"{mark} {name}"] = top
+        cards = "".join(
+            f'<div class="c"><div class="n">{n}</div>'
+            f'<audio controls preload="none" src="../screen/{n:02d}.mp3"></audio>{desc(n)}</div>'
+            for n in top)
+        sections.append(f"<h2>{mark} {name}</h2><p>{who}</p><div class='grid'>{cards}</div>")
+
+    intro = ("<b>칸마다 후보 두 개씩</b> 골라 주세요. 번호는 거르기 페이지와 같습니다 — "
+             "같은 번호가 두 칸에 나오면 같은 목소리입니다.<br>"
+             "카드 아래 글자는 <b>소리에서 잰 값</b>(빠르기 · 음높이 · 억양 폭)이고, "
+             "칸에 넣은 근거일 뿐 판정이 아닙니다. 판정은 귀로 합니다.")
+    key_html = "<ol>" + "".join(f"<li value='{n}'>{key[str(n)]}</li>" for n in nums) + "</ol>"
+    out = OUT / "group"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "listen.html").write_text(page("마스코트 페르소나 칸", intro, "".join(sections), key_html),
+                                     encoding="utf-8")
+    (out / "traits.json").write_text(json.dumps({"traits": traits, "slots": picked},
+                                                ensure_ascii=False, indent=2), encoding="utf-8")
+    for slot, top in picked.items():
+        print(f"  {slot}: {top}")
+    print(f"\n듣기 {out / 'listen.html'}")
+
+
 if __name__ == "__main__":
     load_dotenv()
     if len(sys.argv) >= 2 and sys.argv[1] == "screen":
         screen()
+    elif len(sys.argv) >= 2 and sys.argv[1] == "group":
+        drop = {int(a) for a in sys.argv[3:]} if len(sys.argv) >= 4 and sys.argv[2] == "--drop" else set()
+        group(drop)
     elif len(sys.argv) >= 3 and sys.argv[1] == "tune":
         tune(sys.argv[2:])
     else:
