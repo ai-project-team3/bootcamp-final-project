@@ -1917,12 +1917,12 @@ TypeCast 의 `smart` 감정(앞뒤 문장을 보고 강약을 정함)을 주면 
 
 | 칸 | 목소리 · 설정 | voice_id |
 |---|---|---|
-| ① 다정한 친구 | Ruri · smart (또는 밝게) | `tc_65a8c82a7e7bded32947497e` |
+| ① 다정한 친구 | **후보 다섯 (09-26 조장)** — 다듬기 8 Toby·smart · 15 Siwoo·밝게 · 19 Gunwoo·밝게 · 20 Ruri·밝게 · 23 Ruri·smart | Toby `tc_6080369d3211aa112ab131db` · Siwoo `tc_6699eb3849dfac016c29444c` · Gunwoo `tc_624cccbcadcd568510764d65` · Ruri `tc_65a8c82a7e7bded32947497e` |
 | ② 씩씩한 친구 | Taeji · smart | `tc_660645fb8db3e2c06ff7070b` |
 | ③ 장난꾸러기 | Toby · 밝게 | `tc_6080369d3211aa112ab131db` |
 | ④ 언니·형 | Millie · smart | `tc_6359e7f6467f9e240b68292c` |
 
-①②④ 가 smart 면 설정이 셋 같고 ③ 만 다르다 — 구현이 단순하다.
+⚠️ ① 후보 중 **8(Toby)은 ③ 장난꾸러기와 같은 목소리**다. ①을 8로 고르면 ③을 다른 목소리로 바꿔야 한다 — 네 칸은 서로 다른 목소리여야 한다.
 
 ### 아직 아닌 것
 
