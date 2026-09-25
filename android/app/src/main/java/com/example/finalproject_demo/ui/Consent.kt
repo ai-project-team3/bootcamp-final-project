@@ -19,7 +19,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.TextStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -73,14 +81,23 @@ import androidx.compose.ui.window.DialogProperties
  * 진짜 제품에서는 [ConsentStore] 안쪽을 저장소(DataStore 등)로 바꾸면 된다 — 부르는 쪽은 그대로다.
  */
 
-/** 문구가 아직 초안임을 화면에 알리는 표시. 최종 문구가 들어오면 이 상수를 false 로 */
-private const val DRAFT = true
+/**
+ * 문구가 아직 초안임을 화면에 알리는 표시.
+ *
+ * **09-25 에 껐다.** 심사자가 「초안입니다 — 법무 확인이 필요합니다」 배지를 보면 미완성 앱으로 읽는다.
+ * 문구는 `docs/스토어_출시_체크리스트.md` §4 를 그대로 옮긴 것이고, 처리방침은 이미 공개했다
+ * (`PRIVACY_URL`). ⚠️ **법무 검토를 받은 것은 아니다** — 배지를 끈 것이지 검토가 끝난 것이 아니다.
+ */
+private const val DRAFT = false
+
+/** 공개한 개인정보처리방침. 방침을 고치면 레포 `docs/공개용_개인정보처리방침.md` 와 이 저장소를 **같이** 고친다 */
+const val PRIVACY_URL = "https://leejonghoona.github.io/otto-privacy/"
 
 /**
  * 동의 · 고지 · 신고를 기억하는 곳.
  *
- * ⚠️ **지금은 메모리뿐이다.** 앱을 껐다 켜면 처음으로 돌아간다.
- * 제품에서는 여기만 저장소로 바꾼다 — 화면 쪽은 손대지 않아도 된다.
+ * 동의와 마이크 고지는 **기기에 저장한다**(09-25, `attach`). 앱을 껐다 켜도 다시 묻지 않는다.
+ * 저장 방식을 바꿀 때는 여기만 고친다 — 화면 쪽은 손대지 않아도 된다.
  */
 object ConsentStore {
     /** 보호자 동의를 받았는가 */
@@ -91,20 +108,40 @@ object ConsentStore {
     var micNoticeShown by mutableStateOf(false)
         private set
 
-    /** 들어온 신고 — 저장만 하고 아무 데도 보내지 않는다 */
+    /** 이 기기에서 신고 화면을 연 기록 — 실제 전달은 메일 앱이 한다(`ReportSection`) */
     val reports = mutableStateListOf<Report>()
+
+    // ⚠️ **기기에 저장한다 (09-25).** 전에는 메모리뿐이라 앱을 켤 때마다 동의 화면이 다시 떴다.
+    //    `SharedPreferences` 를 쓴다 — 값 둘(참/거짓)이라 DataStore 의존성을 들일 까닭이 없다.
+    //    `allowBackup="false"` 라 이 파일은 구글 드라이브로 나가지 않는다(AndroidManifest).
+    //    `attach` 를 안 부르면 메모리로만 동작한다 — 화면 검사가 그 모드로 돈다.
+    private var prefs: SharedPreferences? = null
+    private const val PREFS = "consent"
+    private const val KEY_AGREED = "guardian_agreed"
+    private const val KEY_MIC = "mic_notice_shown"
+
+    /** `MainActivity.onCreate` 에서 한 번. 저장된 값을 읽어 온다 */
+    fun attach(context: Context) {
+        val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs = p
+        guardianAgreed = p.getBoolean(KEY_AGREED, false)
+        micNoticeShown = p.getBoolean(KEY_MIC, false)
+    }
 
     fun agree() {
         guardianAgreed = true
+        prefs?.edit()?.putBoolean(KEY_AGREED, true)?.apply()
     }
 
-    /** 동의 철회 — 정책상 **언제든 물릴 수 있어야** 한다 */
+    /** 동의 철회 — 정책상 **언제든 물릴 수 있어야** 한다. 물리면 다음 화면부터 동의를 다시 받는다 */
     fun withdraw() {
         guardianAgreed = false
+        prefs?.edit()?.putBoolean(KEY_AGREED, false)?.apply()
     }
 
     fun markMicNoticeShown() {
         micNoticeShown = true
+        prefs?.edit()?.putBoolean(KEY_MIC, true)?.apply()
     }
 
     fun report(reason: String, note: String) {
@@ -114,6 +151,59 @@ object ConsentStore {
 
 /** 신고 한 건. 언제인지는 더미라 순번으로만 둔다 */
 data class Report(val reason: String, val note: String)
+
+/**
+ * 신고를 받는 주소. **처리방침·스토어 등록정보와 같은 주소여야 한다** —
+ * `docs/공개용_개인정보처리방침.md` · `docs/스토어_등록정보.md` 가 이 주소를 연락처로 적었다.
+ */
+const val REPORT_TO = "ljh11442@gmail.com"
+
+/** 부모가 적는 칸의 길이 상한 — 메일 한 통에 들어갈 만큼 */
+private const val REPORT_NOTE_MAX = 1000
+
+/**
+ * 신고를 **메일 앱으로 넘긴다** (09-25). 열었으면 true.
+ *
+ * ## 왜 메일인가
+ * 전에는 메모리 리스트에 쌓기만 했다 — Play 가 요구하는 「앱 내 신고」가 **아무 데도 안 갔다.**
+ * 서버(`/report`)가 아직 없으므로 지금 쓸 수 있는 실제 전달 경로는 메일뿐이다.
+ * 부모가 보내기를 눌러야 가므로 **보냈는지는 앱이 모른다** — 화면도 그렇게 말한다.
+ *
+ * ## 무엇을 싣나 — 최소한만
+ * 사유 · 부모가 적은 글 · 앱 버전. **아이가 한 말 · 그림 · 기기 식별키는 싣지 않는다.**
+ * 싣고 싶어지는 날이 오면 그건 새 수집 항목이라 처리방침부터 고친다.
+ *
+ * ## 서버가 생기면
+ * 이 함수만 바꾼다. 화면(`ReportSection`)은 그대로 둔다.
+ */
+private fun sendReportMail(ctx: Context, reason: String, note: String): Boolean {
+    val version = runCatching {
+        ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName
+    }.getOrNull() ?: "?"
+    val subject = "[오또 신고] $reason"
+    val body = buildString {
+        appendLine("사유: $reason")
+        appendLine()
+        appendLine(note.ifBlank { "(적은 내용 없음)" })
+        appendLine()
+        append("앱 버전: $version")
+    }
+    val intent = Intent(Intent.ACTION_SENDTO).apply {
+        // 일부 메일 앱은 EXTRA_* 를 무시하고 mailto 주소의 질의만 읽는다 — 둘 다 싣는다
+        data = Uri.parse(
+            "mailto:$REPORT_TO?subject=${Uri.encode(subject)}&body=${Uri.encode(body)}",
+        )
+        putExtra(Intent.EXTRA_EMAIL, arrayOf(REPORT_TO))
+        putExtra(Intent.EXTRA_SUBJECT, subject)
+        putExtra(Intent.EXTRA_TEXT, body)
+    }
+    return try {
+        ctx.startActivity(intent)
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
+    }
+}
 
 /** 신고 사유 — 아이용 앱에서 부모가 고를 만한 것들 (초안) */
 private val REPORT_REASONS = listOf(
@@ -136,6 +226,8 @@ fun ReportSection(onLog: (String) -> Unit = {}) {
     var picked by remember { mutableStateOf<String?>(null) }
     var note by remember { mutableStateOf("") }
     var done by remember { mutableStateOf(false) }
+    var mailOpened by remember { mutableStateOf(false) }
+    val ctx = LocalContext.current
 
     NoticeCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -149,8 +241,12 @@ fun ReportSection(onLog: (String) -> Unit = {}) {
         if (open) {
             Spacer(Modifier.height(12.dp))
             if (done) {
-                Body("접수했어요. 알려 주셔서 고맙습니다.")
-                if (DRAFT) DraftMark("실제로는 어디로 보낼지 · 언제 지울지 정해야 합니다")
+                // 메일 앱을 열었을 뿐 **보냈는지는 모른다** — 그래서 「접수했어요」라고 하지 않는다
+                if (mailOpened) {
+                    Body("메일 앱이 열렸어요. 거기서 보내기를 누르시면 저희에게 전달돼요.")
+                } else {
+                    Body("메일 앱을 찾지 못했어요. $REPORT_TO 로 직접 보내 주시면 확인할게요.")
+                }
             } else {
                 REPORT_REASONS.forEach { r ->
                     Row(
@@ -169,19 +265,22 @@ fun ReportSection(onLog: (String) -> Unit = {}) {
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                // 더미라 글자를 직접 받지 않는다 — 한 줄 적는 자리가 있다는 것만 보여 준다
+                // 진짜 입력칸이다 (09-25). 전에는 누르면 「(부모가 적은 내용)」이 박히는 가짜였다
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .background(Color(0x0D000000))
-                        .clickable { note = "(부모가 적은 내용)" }
                         .padding(horizontal = 12.dp, vertical = 12.dp),
                 ) {
-                    Text(
-                        note.ifBlank { "여기를 눌러 더 적어 주세요 (선택)" },
-                        fontSize = 14.sp,
-                        color = if (note.isBlank()) Ink.copy(alpha = 0.45f) else Ink,
+                    if (note.isEmpty()) {
+                        Text("더 적어 주실 내용 (선택)", fontSize = 14.sp, color = Ink.copy(alpha = 0.45f))
+                    }
+                    BasicTextField(
+                        value = note,
+                        onValueChange = { note = it.take(REPORT_NOTE_MAX) },
+                        textStyle = TextStyle(fontSize = 14.sp, color = Ink),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 Spacer(Modifier.height(10.dp))
@@ -189,15 +288,15 @@ fun ReportSection(onLog: (String) -> Unit = {}) {
                     Pill("보내기", if (picked == null) Color(0x22000000) else Sun) {
                         picked?.let {
                             ConsentStore.report(it, note)
+                            val opened = sendReportMail(ctx, it, note)
                             // 시연 서랍 「기록」에 한 줄. **새 이벤트 종류는 만들지 않는다** (문서 §4 「하지 말 것」)
-                            onLog("신고 접수 — 사유 \"$it\"${if (note.isBlank()) "" else " · 적은 내용 있음"} · 저장만 하고 보내지 않음")
+                            onLog("신고 — 사유 \"$it\"${if (note.isBlank()) "" else " · 적은 내용 있음"} · " +
+                                if (opened) "메일 앱으로 넘김" else "메일 앱 없음")
+                            mailOpened = opened
                             done = true
                             picked = null
                             note = ""
                         }
-                    }
-                    if (ConsentStore.reports.isNotEmpty()) {
-                        Body("지금까지 ${ConsentStore.reports.size}건")
                     }
                 }
             }
@@ -213,7 +312,7 @@ fun ReportSection(onLog: (String) -> Unit = {}) {
  * 만 14세 미만 아이의 법정대리인 동의를 받는 자리다. 동의하기 전에는 앞으로 못 간다.
  *
  * @param onAgree 동의함
- * @param onBack  안 함 — 아이 화면으로 돌아간다
+ * @param onBack  동의하지 않음 — 앱을 닫는다 (`MainActivity` 가 `finish()`)
  */
 @Composable
 fun GuardianConsentScreen(onAgree: () -> Unit, onBack: () -> Unit) {
@@ -221,6 +320,22 @@ fun GuardianConsentScreen(onAgree: () -> Unit, onBack: () -> Unit) {
     var agreed by remember { mutableStateOf(false) }
     val ready = agreed
 
+    // ⚠️ **Dialog 로 감싼다 (9/25).** 전에는 `MainActivity` 의 같은 Box 안 마지막 자식으로
+    //    그렸는데, 이 루트가 `background` 만 갖고 있어 **터치를 소비하지 않았다.**
+    //    카드가 화면의 78%×92% 라 좌우 11% · 상하 4% 가 비고, 그 빈 자리 아래에는 **먼저 그려진**
+    //    🎤 `FloatingControls`(우하단 64dp)와 시연 서랍 롱프레스 핫스팟(우상단 48dp)이 그대로 있었다.
+    //    그래서 **동의 화면이 떠 있는데 아이가 오른쪽 아래를 누르면 마이크가 켜지고,
+    //    오른쪽 위를 길게 누르면 디버그 서랍이 동의 화면 위로 열렸다.**
+    //    9/23 에 「부모 모드 진입에만 걸어 둔 것은 약하다」고 고친 그 문제가 다른 경로로 남아 있었다.
+    //    `MicNoticeSheet` 가 쓰는 것과 같은 방패다 — 뒤로가기·바깥 탭으로도 닫히지 않는다.
+    Dialog(
+        onDismissRequest = { },
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+        ),
+    ) {
     Box(Modifier.fillMaxSize().background(Bg), contentAlignment = Alignment.Center) {
         // 가로 화면은 세로가 짧다(393dp). 스크롤을 **가운데에만** 두고 버튼은 아래에 붙박아
         // 두지 않으면 「동의하고 들어가기」가 화면 밖으로 밀린다 (9/23)
@@ -247,17 +362,28 @@ fun GuardianConsentScreen(onAgree: () -> Unit, onBack: () -> Unit) {
             ) { agreed = !agreed }
 
             Spacer(Modifier.height(12.dp))
-            // 계정이 있는 앱이면 회원가입 뒤에 서는 두 줄이다. 계정이 없으니 여기 선다
-            DocLink("이용약관", ready = false)
-            Spacer(Modifier.height(6.dp))
-            DocLink("개인정보처리방침", ready = false)
+            // 계정이 있는 앱이면 회원가입 뒤에 서는 줄이다. 계정이 없으니 여기 선다.
+            // ⚠️ 「이용약관」 줄은 뺐다 (09-25) — 약관 문서가 없어 누르면 아무 일도 없는 줄이었다.
+            //    눌러도 안 열리는 링크는 심사에서 「준비 중」 표시보다 나쁘다. 계정·결제가 없는
+            //    무료 앱이라 약관이 필수는 아니다. 약관을 쓰면 PRIVACY_URL 처럼 주소를 두고 여기 한 줄 더한다
+            DocLink("개인정보처리방침", PRIVACY_URL)
             Spacer(Modifier.height(10.dp))
             Body("• 동의는 부모 모드 설정에서 언제든 철회할 수 있습니다.")
+            Body("• 동의하지 않으시면 앱을 닫습니다. 아이 목소리로 이야기를 만드는 앱이라 동의 없이 쓸 수 있는 부분이 없어요.")
 
           }
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                // ⚠️ **거절할 길이 있어야 동의다 (09-25).** 전에는 이 줄에 버튼이 하나뿐이었고
+                //    `onBack` 을 부르는 곳이 없었다. 뒤로가기도 Dialog 가 막으므로, 동의하지 않는
+                //    보호자는 **나갈 방법이 없었다** — 「자유로운 동의」가 아니다.
+                //    거절하면 앱을 닫는다. 아이 목소리로 이야기를 만드는 앱이라 동의 없이 쓸 수 있는
+                //    부분이 없고, 반쯤 되는 모드를 만들면 그 모드가 무엇을 처리하는지 다시 고지해야 한다.
+                Pill("동의하지 않음", Color(0x14000000)) { onBack() }
+                Spacer(Modifier.weight(1f))
                 Pill("동의하고 시작", if (ready) Sun else Color(0x22000000)) {
                     if (ready) {
                         ConsentStore.agree()
@@ -266,6 +392,7 @@ fun GuardianConsentScreen(onAgree: () -> Unit, onBack: () -> Unit) {
                 }
             }
         }
+    }
     }
 }
 
@@ -276,21 +403,20 @@ fun GuardianConsentScreen(onAgree: () -> Unit, onBack: () -> Unit) {
  * 심사에는 **웹에 올라간 URL** 이 필요하다. 주소가 생기면 여기서 열면 된다.
  */
 @Composable
-private fun DocLink(title: String, ready: Boolean) {
+private fun DocLink(title: String, url: String) {
+    // 브라우저로 연다. 브라우저가 없는 기기(키즈 전용 태블릿 등)면 조용히 아무 일도 없다 —
+    // 주소는 스토어 등록정보에도 적혀 있다
+    val uri = LocalUriHandler.current
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0x0D000000))
-            .clickable { /* 주소가 생기면 여기서 연다 */ }
+            .clickable { runCatching { uri.openUri(url) } }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.width(8.dp))
-        if (!ready && DRAFT) {
-            Text("준비 중", fontSize = 12.sp, color = Coral, fontWeight = FontWeight.Bold)
-        }
         Spacer(Modifier.weight(1f))
         Text("›", fontSize = 16.sp, color = Ink.copy(alpha = 0.5f))
     }

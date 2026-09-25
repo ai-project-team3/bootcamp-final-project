@@ -43,6 +43,7 @@ import com.example.finalproject_demo.ui.Muted
 import com.example.finalproject_demo.ui.ProgressTrack
 import com.example.finalproject_demo.ui.PuppetTypography
 import com.example.finalproject_demo.ui.ConsentStore
+import androidx.compose.ui.platform.LocalContext
 import com.example.finalproject_demo.ui.GuardianConsentScreen
 import com.example.finalproject_demo.ui.SplashScreen
 import com.example.finalproject_demo.ui.StageView
@@ -62,6 +63,8 @@ import com.example.finalproject_demo.ui.TitleChip
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 동의를 기기에서 읽어 온다 — 없으면 켤 때마다 동의 화면이 다시 뜬다 (09-25)
+        ConsentStore.attach(this)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -167,7 +170,9 @@ fun DemoApp() {
         //    개인정보보호법 제22조의2 는 만 14세 미만 아동의 개인정보를 **처리하기 전에**
         //    법정대리인 동의를 받으라고 한다. 처리가 시작되는 순간은 아이가 말하는 순간이다.
         if (!splash && !ConsentStore.guardianAgreed) {
-            GuardianConsentScreen(onAgree = { }, onBack = { })
+            // 거절하면 앱을 닫는다 — 다음에 켜면 동의를 다시 묻는다 (09-25)
+            val activity = LocalContext.current as? android.app.Activity
+            GuardianConsentScreen(onAgree = { }, onBack = { activity?.finish() })
         }
     }
 }

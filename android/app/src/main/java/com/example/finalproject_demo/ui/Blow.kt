@@ -5,11 +5,8 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -47,16 +44,15 @@ fun rememberBlowLevel(active: Boolean): Float {
             ) 1f else 0f,
         )
     }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
-        granted = if (ok) 1f else 0f
-    }
-
-    // 화면에 들어오면 한 번만 묻는다. 거절해도 미션은 손으로 끝낼 수 있다
-    LaunchedEffect(active) {
-        if (active && granted == 0f && !motionFrozen) {
-            runCatching { ask.launch(Manifest.permission.RECORD_AUDIO) }
-        }
-    }
+    // ⚠️ **여기서는 권한을 묻지 않는다 (09-25).** 전에는 미션 화면에 들어오는 것만으로
+    //    시스템 권한 창을 띄웠다 — **마이크 고지(`MicNoticeSheet`) 없이.** 🎤 버튼 경로는
+    //    고지 → 권한 순서를 지키는데 이 경로만 건너뛰었다. 고지 없는 마이크 요청은
+    //    Play 가족 정책의 「권한 요청 전에 이유를 알린다」에 걸린다.
+    //
+    //    그래서 **이미 받은 권한만 쓴다.** 🎤 에서 고지를 보고 허락했으면 불기가 되고,
+    //    아니면 조용히 0 — 불기는 **덤이지 대신이 아니다**(위 머리말). 손으로 문질러도 똑같이 끝난다.
+    //    불기 때문에 고지 화면을 한 번 더 띄우는 것은 미션 한가운데서 아이에게 어른용 글을
+    //    들이미는 일이라 하지 않는다.
 
     DisposableEffect(active, granted) {
         if (!active || granted == 0f || motionFrozen) return@DisposableEffect onDispose { }

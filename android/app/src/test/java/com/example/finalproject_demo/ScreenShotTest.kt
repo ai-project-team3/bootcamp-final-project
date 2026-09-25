@@ -33,6 +33,7 @@ import com.example.finalproject_demo.ui.StageView
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.RoborazziTaskType
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.github.takahirom.roborazzi.captureScreenRoboImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import org.junit.Rule
@@ -77,6 +78,21 @@ class ScreenShotTest {
         }
         // 기준 그림은 `app/screens` 에 둔다 (build/ 는 clean 하면 날아간다)
         compose.onRoot().captureRoboImage(File("screens/$name.png").path)
+    }
+
+    /**
+     * **대화창(`Dialog`)을 띄우는 화면**용. `onRoot()` 대신 **화면 전체**를 찍는다.
+     *
+     * 왜 따로 있나 — `Dialog` 는 안드로이드 창을 하나 더 만든다. 그래서 컴포즈 루트가 둘이 되고
+     * `onRoot()` 가 *"Expected exactly '1' node but found '2'"* 로 실패한다 (09-25).
+     * 루트 둘 중 하나만 찍으면 앱 창만 나오거나 대화창만 나온다 — **겹쳐 보이는 모습**을 봐야 하므로
+     * 기기 화면을 통째로 찍는다.
+     */
+    private fun shotScreen(name: String, content: @androidx.compose.runtime.Composable () -> Unit) {
+        compose.setContent {
+            Box(Modifier.fillMaxSize().background(Bg)) { content() }
+        }
+        captureScreenRoboImage(File("screens/$name.png").path)
     }
 
     private fun director(block: Director.() -> Unit): Director {
@@ -269,7 +285,7 @@ class ScreenShotTest {
      */
     @Test
     fun guardianConsentDraws() {
-        shot("consent_guardian") {
+        shotScreen("consent_guardian") {
             com.example.finalproject_demo.ui.GuardianConsentScreen(onAgree = {}, onBack = {})
         }
     }
