@@ -40,16 +40,20 @@ MODEL = "ssfm-v30"
 
 SCREEN_LINE = LIVE[0]    # 감탄 + 되비추기 + 질문이 다 있는 줄 — 마스코트 성격이 가장 잘 드러난다
 
-# tune variants: (label, prompt, output) — only knobs the TTS docs list for ssfm-v30
-VARIANTS = [
-    ("기본",          {"emotion_type": "preset", "emotion_preset": "normal", "emotion_intensity": 1.0}, {}),
-    ("밝게",          {"emotion_type": "preset", "emotion_preset": "happy", "emotion_intensity": 1.0}, {}),
-    ("밝게·약하게",    {"emotion_type": "preset", "emotion_preset": "happy", "emotion_intensity": 0.6}, {}),
-    ("톤 업",         {"emotion_type": "preset", "emotion_preset": "toneup", "emotion_intensity": 1.0}, {}),
-    ("문맥 따라(smart)", {"emotion_type": "smart"}, {}),
-    ("밝게·조금 빠르게", {"emotion_type": "preset", "emotion_preset": "happy", "emotion_intensity": 1.0},
-     {"audio_tempo": 1.1}),
-]
+# tune variants: key -> (label, prompt, output) — only knobs the TTS docs list for ssfm-v30
+VARIANTS = {
+    "base":       ("기본", {"emotion_type": "preset", "emotion_preset": "normal", "emotion_intensity": 1.0}, {}),
+    "happy":      ("밝게", {"emotion_type": "preset", "emotion_preset": "happy", "emotion_intensity": 1.0}, {}),
+    "happy_soft": ("밝게·약하게", {"emotion_type": "preset", "emotion_preset": "happy", "emotion_intensity": 0.6}, {}),
+    "toneup":     ("톤 업", {"emotion_type": "preset", "emotion_preset": "toneup", "emotion_intensity": 1.0}, {}),
+    "smart":      ("문맥 따라(smart)", {"emotion_type": "smart"}, {}),
+    "happy_fast": ("밝게·조금 빠르게", {"emotion_type": "preset", "emotion_preset": "happy",
+                                     "emotion_intensity": 1.0}, {"audio_tempo": 1.1}),
+}
+
+# The two moments where a mascot must sound most different: excited echo + question,
+# and comforting a child who is stuck.
+TUNE_LINES = [LIVE[0], LIVE[2]]
 
 
 def voices() -> list[dict]:
@@ -122,18 +126,36 @@ def screen() -> None:
     print(f"\n{len(cells)}개 구움 · 실패 {len(fails)} · 듣기 {out / 'listen.html'}")
 
 
-def tune(voice_ids: list[str]) -> None:
+def _plan(args: list[str]) -> list[tuple[str, str, str]]:
+    """Parse `34=base,smart` or `tc_xxx=happy` (no `=` means every variant) into
+    (voice_id, variant_key, screen_number_or_id). Numbers refer to the screening page."""
+    key = json.loads((OUT / "screen" / "_key.json").read_text(encoding="utf-8"))
+    plan = []
+    for a in args:
+        who, _, vs = a.partition("=")
+        vid = key[who].split(" · ")[-1] if who.isdigit() else who
+        for k in (vs.split(",") if vs else list(VARIANTS)):
+            if k not in VARIANTS:
+                sys.exit(f"unknown variant {k!r} — one of {', '.join(VARIANTS)}")
+            plan.append((vid, k, who))
+    return plan
+
+
+def tune(args: list[str]) -> None:
     names = {v["voice_id"]: v["voice_name"] for v in voices()}
-    combos = [(vid, var) for vid in voice_ids for var in VARIANTS]
+    combos = _plan(args)
     rng = random.Random(926)
     rng.shuffle(combos)
     out = OUT / "tune"
     out.mkdir(parents=True, exist_ok=True)
-    lines = LIVE                                   # the three mascot lines
+    for old in out.glob("*.mp3"):                  # a new plan must not show last round's clips
+        old.unlink()
+    lines = TUNE_LINES
     head = "".join(f"<th>문장 {i}<div style='font-weight:400;font-size:13px'>{t}</div></th>"
                    for i, t in enumerate(lines, 1))
     trs, key = [], {}
-    for n, (vid, (label, prompt, output)) in enumerate(combos, 1):
+    for n, (vid, vkey, who) in enumerate(combos, 1):
+        label, prompt, output = VARIANTS[vkey]
         tds = []
         for i, text in enumerate(lines):
             prev = lines[i - 1] if i > 0 else None
@@ -144,11 +166,13 @@ def tune(voice_ids: list[str]) -> None:
                 tds.append(f'<td><audio controls preload="none" src="{n:02d}_s{i + 1}.mp3"></audio></td>')
             except urllib.error.HTTPError as e:
                 tds.append(f"<td>✗ HTTP {e.code}</td>")
-        key[n] = f"{names.get(vid, vid)} · {label}"
+        key[n] = f"거르기 {who}번 · {names.get(vid, vid)} · {label}"
         trs.append(f"<tr><th>{n}</th>{''.join(tds)}</tr>")
         print(f"  {n:2d} done")
-    intro = ("<b>남은 목소리 × 설정 변형 · 마스코트 문장 3개.</b> 번호마다 목소리·설정이 섞여 있습니다. "
-             "가장 마스코트 같은 번호를 순서대로 골라 주세요.")
+    intro = ("<b>고른 목소리 × 설정 변형 · 문장 2개(신날 때 · 달랠 때).</b> "
+             "번호마다 목소리와 설정이 섞여 있고, <b>번호는 거르기 페이지와 다릅니다.</b><br>"
+             "페르소나(다정한 · 씩씩한 · 장난꾸러기 · 언니·형)마다 맞는 번호를 골라 주세요. "
+             "같은 목소리가 설정에 따라 다른 칸에 들어가도 됩니다.")
     key_html = "<ol>" + "".join(f"<li value='{n}'>{t}</li>" for n, t in key.items()) + "</ol>"
     (out / "listen.html").write_text(page("마스코트 목소리 다듬기", intro,
                                           f"<table><tr><th></th>{head}</tr>{''.join(trs)}</table>",
