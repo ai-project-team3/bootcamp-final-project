@@ -17,6 +17,27 @@ class ScoreDiagnosticsTest(unittest.TestCase):
         self.assertEqual(len(marked), 28)
         self.assertEqual(sum(row["gold"]["s1_reason"] is False for row in marked), 10)
 
+    def test_next_slot_skips_empty_allow_lists(self) -> None:
+        # 25 of the 100 gold rows carry next_slot_ok: []. Counting those as misses made
+        # every luna next_slot figure 25% too low while bench_jev skipped them, so the
+        # 09-22 "luna 53% vs Jev 73%" compared different denominators (09-26).
+        fixtures = [
+            {"id": "a", "utterance": "u", "asked": "place", "gold": {"slot_1": None, "next_slot_ok": ["problem"]}},
+            {"id": "b", "utterance": "u", "asked": "place", "gold": {"slot_1": None, "next_slot_ok": []}},
+        ]
+        raw = [
+            {"id": "a", "ok": True, "pred": {"slot_1": None, "next_slot": "problem"}},
+            {"id": "b", "ok": True, "pred": {"slot_1": None, "next_slot": None}},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            fixtures_path = Path(tmp) / "fixtures.jsonl"
+            raw_path = Path(tmp) / "raw.jsonl"
+            fixtures_path.write_text("\n".join(json.dumps(r) for r in fixtures) + "\n", encoding="utf-8")
+            raw_path.write_text("\n".join(json.dumps(r) for r in raw) + "\n", encoding="utf-8")
+            metrics = score_judge(fixtures=fixtures_path, raw=raw_path)
+        self.assertEqual(metrics["next_slot"]["count"], 1)
+        self.assertEqual(metrics["next_slot"]["accuracy"], 1.0)
+
     def test_reason_marker_excludes_location_but_keeps_sequence_traps(self) -> None:
         self.assertFalse(has_reason_marker("거기서 친구들이 기다릴 거야."))
         self.assertFalse(has_reason_marker("어린이집에서 블록 쌓았어."))

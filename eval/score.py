@@ -176,7 +176,9 @@ def score_judge(
     for row in successes:
         gold = gold_rows[row["id"]]["gold"]
         allowed = gold.get("next_slot_ok")
-        if isinstance(allowed, list):
+        # An empty list means the row has no next_slot label (25 of 100) - skip it, as
+        # bench_jev does. Counting it as a miss understated every luna next_slot by 25%.
+        if isinstance(allowed, list) and allowed:
             pred = row["pred"].get("next_slot")
             next_hits.append({"id": row["id"], "pred": pred, "allowed": allowed, "ok": pred in allowed})
     next_slot = {
