@@ -69,6 +69,9 @@ class DiaryFlowTest {
 
     /** 일기 질문을 끝까지 무작위 대본 답으로 밀어 본다 */
     private suspend fun Director.answerAll(button: String = "🎲", max: Int = 24): Int {
+        if (s.mode == StoryMode.DIARY && await(2_000) { s.buttons.any { "그림 없이 이야기할래" in it.label } } != null) {
+            push("그림 없이 이야기할래")
+        }
         var n = 0
         while (s.scene == Scene.DIARY && n < max) {
             if (await(2_000) { s.buttons.any { button in it.label } } == null) break
@@ -218,6 +221,7 @@ class DiaryFlowTest {
         val s = d.s
         s.mode = StoryMode.DIARY
         d.go(Scene.DIARY)
+        assertTrue(d.tap("그림 없이 이야기할래"))
         assertTrue(await { s.buttons.any { "🎬 오늘 이야기 시연 답" in it.label } } != null)
 
         val turns = d.answerAll("🎬 오늘 이야기 시연 답")
@@ -246,6 +250,7 @@ class DiaryFlowTest {
         s.mode = StoryMode.DIARY
         d.go(Scene.DIARY)
         assertTrue(await { s.scene == Scene.DIARY } != null)
+        assertTrue(d.tap("그림 없이 이야기할래"))
 
         val asked = mutableSetOf<String>()
         var guard = 0
@@ -275,6 +280,7 @@ class DiaryFlowTest {
         s.slotBy["detail"] = "child"
         d.go(Scene.DIARY)
         assertTrue(await { s.scene == Scene.DIARY } != null)
+        assertTrue(d.tap("그림 없이 이야기할래"))
 
         var guard = 0
         while (s.scene == Scene.DIARY && s.endReason == null && guard++ < 30) {

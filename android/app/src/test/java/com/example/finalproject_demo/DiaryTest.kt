@@ -242,6 +242,36 @@ class DiaryTest {
     }
 
     @Test
+    fun ordinaryDaySolutionLadderDoesNotAssumeHelpWasNeeded() {
+        val solution = DIARY_STEPS.first { it.slot == "solution" }
+        val ordinary = diaryState(coop = true).apply { problem = "할머니 집에서 즐겁게 놀았어" }
+        val trouble = diaryState().apply { problem = "블록이 무너졌어" }
+
+        assertEquals("그다음엔 뭐 했어?", solution.rungs(ordinary).first())
+        assertTrue("즐거웠던 날에 도움을 묻는다", solution.rungs(ordinary).none { "도와" in it })
+        assertTrue("문제가 있던 날의 도움 질문이 사라졌다", solution.rungs(trouble).any { "도와" in it })
+    }
+
+    @Test
+    fun ordinaryDaySolutionCaptionUsesTimeLinkInsteadOfResolutionLink() {
+        val ordinary = diaryState(coop = true).apply {
+            problem = "할머니 집에서 즐겁게 놀았어"
+            slots["solution"] = "집에 돌아왔어요"
+            slotBy["solution"] = "child"
+        }
+        val trouble = diaryState().apply {
+            problem = "블록이 무너졌어"
+            slots["solution"] = "다시 쌓은 블록은 무너지지 않았어요"
+            slotBy["solution"] = "child"
+        }
+
+        assertTrue("즐거웠던 날에 결말을 극적으로 쓴다: ${ordinary.bookCaption(5)}",
+            ordinary.bookCaption(5).startsWith("그러고 나서 집에 돌아왔어요."))
+        assertTrue("문제를 해결한 결말의 흐름이 바뀌었다: ${trouble.bookCaption(5)}",
+            trouble.bookCaption(5).startsWith("마침내 다시 쌓은 블록은 무너지지 않았어요."))
+    }
+
+    @Test
     fun aMissingReasonDoesNotTurnAnOrdinaryDayIntoAnAccident() {
         val cause = DIARY_STEPS.first { it.slot == "cause" }
         val ordinary = diaryState().apply { problem = "그림 그리기" }
