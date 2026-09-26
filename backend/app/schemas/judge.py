@@ -18,6 +18,10 @@ SLOT_NAMES: tuple[str, ...] = SlotName.__args__
 
 
 class JudgeRequest(BaseModel):
+    # Same slot names in every mode; the mode changes what a slot means
+    # (a diary "solution" is how the day ended, not always a fix).
+    # Defaults to story so older callers and eval fixtures stay valid.
+    mode: Literal["story", "diary", "coop"] = "story"
     slots: dict[str, Optional[str]]      # whole state, not one slot
     asked_slot: Optional[str] = None     # context only; the answer may fill others
     template: Optional[str] = None       # which story beats are still missing

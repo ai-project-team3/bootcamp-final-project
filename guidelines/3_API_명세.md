@@ -40,7 +40,8 @@
 
 **요청**
 ```json
-{ "slots": { "place": "공룡나라", "problem": null, "reaction": null,
+{ "mode": "story",
+  "slots": { "place": "공룡나라", "problem": null, "reaction": null,
              "cause": null, "newcomer": null, "name": null,
              "companion": null, "sound": null, "adult": null,
              "solution": null, "title": null, "extra": null },
@@ -54,6 +55,7 @@
 
 | 필드 | 주의 |
 |---|---|
+| `mode` | `story` · `diary` · `coop` (앱 `StoryMode` 이름의 소문자). 생략하면 `story`. **슬롯 이름은 모드와 상관없이 같은 12개**다 — 모드는 같은 칸의 뜻을 바꿀 뿐이다(예: 일기의 `solution` 은 「어떻게 됐나」, 늘 「어떻게 풀었나」가 아니다). 모드별 판정·자막 차이는 `7_프롬프트.md` 에서 이 값으로 가른다 (09-26 추가) |
 | `slots` | **12개 전부** 보낸다. 빈 칸은 `null` |
 | `asked_slot` | **맥락용.** 답이 이 칸만 채운다고 가정하지 않는다 |
 | `template` | 어떤 장면이 남았는지 판단하는 기준. 3턴째 전이면 `null` |
