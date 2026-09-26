@@ -33,6 +33,17 @@ class CoopTemplateTest {
     }
 
     @Test
+    fun theFourthLineAsksHowItEndedNotWhatTheChildWishes() {
+        // 4번 줄은 solution 칸이다. 바람을 물으면 판정이 칸을 못 채우고, 책이 바람을 있었던 일로 쓴다
+        COOP_TEMPLATES.forEach { t ->
+            t.blank?.choices.orEmpty().ifEmpty { listOf(null) }.forEach { v ->
+                val q = t.questions(v)[3]
+                assertTrue("${t.title}: $q", "싶" !in q)
+            }
+        }
+    }
+
+    @Test
     fun noTemplateQuestionTripsOurOwnHint() {
         // 우리가 내놓은 예시가 귀띔에 걸리면 부모에게 모순을 보여 준다
         COOP_TEMPLATES.forEach { t ->
