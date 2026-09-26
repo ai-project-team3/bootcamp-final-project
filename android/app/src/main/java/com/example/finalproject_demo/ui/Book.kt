@@ -484,6 +484,18 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
             PageKind.COVER -> Cover(d, heroArt)
             PageKind.DEPART -> {
                 Scenery()
+                // 일기 화이트보드는 배경이나 친구 그림으로 바꾸지 않고 첫 쪽에 원본 획을 붙인다.
+                if (s.isDiary && s.sceneDrawing.isNotEmpty()) {
+                    Layer(0.52f, 0.14f, 0.36f, aspect = 1.5f) {
+                        Box(
+                            Modifier.fillMaxSize()
+                                .shadow(5.dp, RoundedCornerShape(10.dp))
+                                .background(Color.White, RoundedCornerShape(10.dp))
+                                .border(2.dp, Color(0xFFE8DCC8), RoundedCornerShape(10.dp))
+                                .padding(8.dp)
+                        ) { ArtView(s.sceneArt, Modifier.fillMaxSize()) }
+                    }
+                }
                 if (showRide) Char("vehicle", s.rideArt, 0.40f, 0.16f, 0.17f, 0.62f, Modifier.offset { IntOffset(0, wobble.roundToInt()) })
                 if (showRide && riding) {
                     // 탈것 위 — 탈것과 같은 흔들림으로 함께 움직여야 "타고 있다"로 보인다.

@@ -480,7 +480,7 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
         add(
             PageSpec(PageKind.DEPART) { st ->
                 line(st, "place", "${st.childName}${eun(st.childName)} 오늘 밖에 나갔어요.", "${st.childName}${eun(st.childName)} 오늘 ") +
-                    if (hasMeetPage) "" else tail(st, "companion")
+                    (if (hasMeetPage) "" else tail(st, "companion")) + tail(st, "whiteboard")
             }
         )
         if (hasMeetPage) {
