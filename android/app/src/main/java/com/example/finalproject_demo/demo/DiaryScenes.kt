@@ -5,8 +5,8 @@ import com.example.finalproject_demo.ui.HeroAttr
 /*
  * 장면 3′ — 오늘 있었던 일 (일기 모드 · 부모 협업 모드).
  *
- * 동화 모드의 질문 자리(장면 3~10)를 이 하나가 대신한다. **새 화면은 없다** —
- * 질문 세트와 칸 목록만 갈아끼웠다 (일기 §1). 협업 모드는 여기에 **부모 띠** 하나를 더 붙인다 (협업 §3).
+ * 동화 모드의 질문 자리(장면 3~10)를 이 하나가 대신한다. 일기는 화이트보드 뒤에
+ * 질문 세트가 이어진다. 협업 모드는 기존 질문 흐름에 **부모 띠**를 붙인다 (협업 §3).
  *
  * 묻지 않는 칸: `sound`(공룡 소리는 상상 세계의 것) · `adult`(협업 모드에서만 찬다).
  */
@@ -121,12 +121,11 @@ suspend fun Director.sceneDiary() {
     }
     s.stage = diaryStage()
 
-    if (s.isCoop) {
+    val whiteboardSubject = if (s.isCoop) {
         coopIntro(c)                            // 협업 쪽은 CoopScenes.kt (진웅)
+        null
     } else {
-        // 마스코트 첫 대사 — 아이 화면에 "일기"라는 말을 쓰지 않는다 (일기 §0)
-        say("$c${ya(c)}, 오늘 뭐 했어? 나한테 들려줄래?")
-        log("일기 모드 S3′ — 같은 러너 · 같은 판정 · 같은 무응답 흐름을 쓴다. 다른 것은 질문 세트와 칸 목록뿐이다 (일기 §1)")
+        diaryWhiteboardStep(c)
     }
     log("${DIARY_STEPS.size}걸음 — 기승전결 네 자리(필수)와 꼬리질문 ${DIARY_STEPS.size - DIARY_REQUIRED.size}. 꼬리질문 답은 기존 슬롯의 `extra` 등에 쌓여 책의 재료가 된다")
     log("⚠️ 일기 질문은 동화 모드보다 어렵다 — 상상이 아니라 기억을 꺼내야 한다. 같은 아이가 낮은 수준으로 나올 수 있다 (일기 §4-5 · 수준 공유 여부는 §7-3 열린 항목)")
@@ -138,7 +137,7 @@ suspend fun Director.sceneDiary() {
             log("[${step.part} · ${step.bookKey}] 건너뜀 — 앞의 답에 물을 데가 없다 (소크라틱: 아이가 한 말에서 다음 질문이 나온다)")
             continue
         }
-        askDiaryStep(step)
+        askDiaryStep(step, if (step.slot == "place") whiteboardSubject else null)
         // 진행 막대는 **지나온 걸음 수**로 찬다 (9/22). 칸이 찼는지로 세면, 아이가 답하지 않은
         // 선택 질문이 하나라도 있으면 마지막 질문까지 가도 막대가 끝까지 가지 않는다
         s.stepsDone++
@@ -150,6 +149,90 @@ suspend fun Director.sceneDiary() {
     diaryEnded()
     if (s.endReason == "story_ready") diaryDrawStep()
     finishDiary()
+}
+
+/**
+ * 한 장을 먼저 그리고 짧게 묻는다. 인식 낱말은 이 함수 안에서만 쓰며 슬롯이나
+ * 출처 기록에는 넣지 않는다. `extra` 에 남는 것은 아이가 직접 말한 답이다.
+ */
+private suspend fun Director.diaryWhiteboardStep(child: String): String? {
+    s.stage = Stage.DrawPad()
+    say("$child${ya(child)}, 오늘 있었던 일 하나를 그려 볼래? 생각나는 것부터 그려 줘.")
+    inputs(false, false)
+    buttons(
+        DemoBtn("🔎 (시연) 공룡으로 알아봄") { send(Reply.Tapped("dinosaur", "공룡")) },
+        DemoBtn("🔎 (시연) 블록으로 알아봄") { send(Reply.Tapped("blocks", "블록")) },
+        DemoBtn("🔎 (시연) 알아보지 못함") { send(Reply.Tapped("unknown", "모름")) },
+        DemoBtn("🙅 그림 없이 이야기할래") { send(Reply.Tapped("skip", "안 그림")) },
+    )
+    val cue = awaitValue("dinosaur", "blocks", "unknown", "done", "skip")
+    if (cue == "skip") {
+        s.drawing.clear()
+        s.stage = diaryStage()
+        log("화이트보드를 건너뜀 → 그림 없이 오늘의 일을 말로 듣는다")
+        return null
+    }
+    if (cue == "done" && s.drawing.isEmpty()) {
+        s.stage = diaryStage()
+        log("빈 화이트보드 → 그림 없이 오늘의 일을 말로 듣는다")
+        return null
+    }
+    val recognized = when (cue) {
+        "dinosaur" -> "공룡"
+        "blocks" -> "블록"
+        else -> null
+    }
+    log("화이트보드 시연 인식: ${recognized ?: "알아보지 못함"} — 질문에만 쓰고 칸에는 쓰지 않는다")
+    // 그림을 먼저 끝내면 완성된 그림을 보며 묻고, 시연 인식을 먼저 누르면 그리는 중에 묻는다.
+    if (cue == "done" && s.drawing.isNotEmpty()) {
+        s.keepSceneDrawing()
+        s.stage = Stage.Show(s.sceneArt, "오늘 그린 그림")
+    }
+    val answer = askWhiteboardSubject(recognized)
+    val completed = if (cue == "done" || (answer is Reply.Tapped && answer.value == "done")) true else {
+        buttons(DemoBtn("🙅 그림 없이 이야기할래") { send(Reply.Tapped("skip", "안 그림")) })
+        awaitValue("done", "skip") == "done"
+    }
+    if (completed && s.drawing.isNotEmpty()) s.keepSceneDrawing()
+    if (s.sceneDrawing.isNotEmpty()) {
+        s.reactions++
+        event("make", "kind" to "draw")
+        s.stage = Stage.Show(s.sceneArt, "오늘 그린 그림")
+        log("화이트보드 한 장을 sceneDrawing 에 보존 — 이후 친구 그림과 섞이지 않는다")
+    } else {
+        s.drawing.clear()
+        s.stage = diaryStage()
+    }
+    if (answer !is Reply.Spoke || answer.text.isBlank()) return null
+    setDiarySlot("extra", "whiteboard", answer.text, answer.text, "child")
+    quote(answer.text)
+    return answer.value.takeIf { it.isNotBlank() }
+}
+
+private suspend fun Director.askWhiteboardSubject(recognized: String?): Reply {
+    val q = Question(
+        text = recognized?.let { "${it}처럼 보이네. 무엇을 그렸어?" } ?: "무엇을 그렸어?",
+        kind = Kind.EASY,
+        noCards = true,
+        spoken = listOf(
+            Answer("공룡을 그렸어.", "공룡"),
+            Answer("블록을 쌓은 걸 그렸어.", "블록"),
+        ),
+        id = "diary_whiteboard",
+    )
+    setListening(q)
+    say(q.text)
+    inputs(mic = true, next = true)
+    buttons(
+        *q.spoken.map { a -> DemoBtn("🗣 \"${a.text}\"") { send(Reply.Spoke(a.text, a.value, a)) } }.toTypedArray(),
+        DemoBtn("🤐 아직 말하지 않을래") { send(Reply.Silent) },
+    )
+    pause(1200)
+    val answer = awaitReply()
+    setListening(null)
+    inputs(mic = false, next = false)
+    if (answer is Reply.Spoke) acceptSpoken(answer.text)
+    return answer
 }
 
 /**
@@ -168,9 +251,12 @@ private fun diaryDrawAnswer(@Suppress("UNUSED_PARAMETER") step: DiaryStep): Answ
  * 말이 없으면 **답을 고르게 하지 않고 질문을 바꾼다** (일기 §4). 사다리가 다 떨어진 자리가 `mascot_pick` 이다.
  * 말은 했는데 칸이 안 차면("몰라") 그것도 사다리를 한 칸 내려갈 이유다 — 아이가 답할 수 있는 질문이 아직 남았다.
  */
-private suspend fun Director.askDiaryStep(step: DiaryStep) {
+private suspend fun Director.askDiaryStep(step: DiaryStep, whiteboardSubject: String? = null) {
     val v = step.variant
     var rungs = step.rungs(s)
+    if (whiteboardSubject != null) {
+        rungs = listOf("$whiteboardSubject 그림을 그렸구나. 오늘은 어디에 있었어?") + rungs.drop(1)
+    }
     log("일기 질문 [${step.part} · ${step.bookKey}] 사다리 ${rungs.size}칸 — ${step.probe} · 지금 수준 ${s.level.label}")
     while (true) {
         val q = Question(

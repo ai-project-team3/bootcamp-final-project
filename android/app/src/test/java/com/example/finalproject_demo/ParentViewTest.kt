@@ -89,6 +89,9 @@ class ParentViewTest {
      * 민우님의 「🎬 오늘 이야기 시연 답」(한 아이의 하루로 이어지는 결정적 대본)이 있으면 그것을, 없으면 무작위 답을 쓴다.
      */
     private suspend fun Director.diaryToBook() {
+        if (s.mode == StoryMode.DIARY && await(2_000) { s.buttons.any { "그림 없이 이야기할래" in it.label } } != null) {
+            tap("그림 없이 이야기할래")
+        }
         val demo = "🎬 오늘 이야기 시연 답"
         if (await(2_000) { s.buttons.any { demo in it.label } } != null) answerAll(demo) else answerAll()
         if (await(3_000) { s.buttons.any { "안 그릴래" in it.label } } != null) tap("안 그릴래")
