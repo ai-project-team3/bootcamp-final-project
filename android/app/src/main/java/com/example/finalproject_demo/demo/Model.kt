@@ -713,7 +713,8 @@ class DemoState {
      * 선물이 늘 2개라고 믿어 `shown >= 2` 에서만 [책장에 꽂기]를 그렸다. 그림 없는 일기·협업은
      * `Gifts(1)` 에 멈춰 **아이 화면에 버튼이 없고 앱이 멎었다** (박진웅 실기기 보고 · `CoopFlowTest`).
      */
-    val earnedCrayon: Boolean get() = !isDiary || drawing.isNotEmpty()
+    // 화이트보드 그림(`sceneDrawing`, 09-26)도 「그린 날」이다 — 옮기고 나면 `drawing` 은 비어 있다
+    val earnedCrayon: Boolean get() = !isDiary || drawing.isNotEmpty() || sceneDrawing.isNotEmpty()
 
     /** 선물 화면에 **그릴** 카드 수 — 받지 않는 선물은 흐리게도 안 그린다. [책장에 꽂기] 는 이 값이 아니라 `Stage.Gifts.done` 이 정한다 */
     val giftCount: Int get() = if (earnedCrayon) 2 else 1
@@ -1017,6 +1018,28 @@ class DemoState {
     val drawing = mutableStateListOf<Stroke>()
     var drawnPreset by mutableStateOf(0)
     var drawingAspect by mutableStateOf(1f)
+
+    /**
+     * 일기 화이트보드에 아이가 그린 **「오늘 있었던 일」** — `drawing`(오늘 만난 사람)과 **따로** 둔다 (09-26).
+     *
+     * 그리기 화면(`DrawPadView`)은 언제나 `drawing` 에 쓴다. 화이트보드 걸음이 끝나면
+     * [keepSceneDrawing] 으로 여기로 옮기고 `drawing` 을 비운다 — 뒤에 오는 「오늘 만난 사람」 그리기와 섞이지 않는다.
+     * ⚠️ `drawing` 에 그대로 두면 책의 「오늘 만난 사람」 쪽(`friendArt`)과 부모 리포트의
+     *    「친구를 직접 그렸어요」가 이 그림을 **친구 그림이라고 말한다** — 리포트가 거짓말을 시작한다(규칙 5).
+     */
+    val sceneDrawing = mutableStateListOf<Stroke>()
+    var sceneDrawingAspect by mutableStateOf(1f)
+
+    /** 화이트보드 그림 — 책에 원본 그대로 넣을 때 쓴다. `sceneDrawing` 이 비어 있으면 쓰지 않는다 */
+    val sceneArt: Art get() = Art.ChildDrawing(sceneDrawing.toList(), 0, sceneDrawingAspect)
+
+    /** 방금 그린 획(`drawing`)을 화이트보드 그림으로 옮기고 `drawing` 을 비운다 */
+    fun keepSceneDrawing() {
+        sceneDrawing.clear()
+        sceneDrawing.addAll(drawing)
+        sceneDrawingAspect = drawingAspect
+        drawing.clear()
+    }
     var mouth by mutableStateOf<Offset?>(null)
     var friendName by mutableStateOf("{친구1}")
     var causeLine by mutableStateOf("친구가 없어서 심심했어")
@@ -1212,6 +1235,7 @@ class DemoState {
         newcomerKind = "외계인"; newcomerEmoji = "👽"
         dinoKey = "horn"; solutionKey = "play"; solutionItem = "star"
         drawing.clear(); drawnPreset = 0; mouth = null
+        sceneDrawing.clear(); sceneDrawingAspect = 1f
         friendName = "{친구1}"; causeLine = "친구가 없어서 심심했어"; soundLine = "뿌우우우웅!"
         solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; bookPage = 0; bookNote = ""
         turn = 0; s1streak = 0; s1count = 0; noAnswerStreak = 0
