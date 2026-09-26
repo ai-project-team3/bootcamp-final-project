@@ -368,11 +368,15 @@ val DIARY_STEPS: List<DiaryStep> = listOf(
         slot = "solution", part = "결", required = true, kind = Kind.HARD,
         probe = "결과 · 시도를 스스로 잇나 (S2)",
         rungs = {
-            listOf(
+            if (it.hadTrouble()) listOf(
                 "그래서 어떻게 됐어?",
                 "그다음에 뭐 했어?",      // ⚠️ 순차 답을 유도하는 자리 — 판정이 가장 많이 틀린다 (일기 §4-4)
                 "누가 도와줬어?",
                 "다 끝나고 뭐 했어?",
+            ) else listOf(
+                "그다음엔 뭐 했어?",
+                "제일 마지막에 뭐 했어?",
+                "그날은 어떻게 끝났어?",
             )
         },
         answers = {
@@ -534,21 +538,22 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
             }
         )
         // ── 결 · 그래서 어떻게 됐나 ─────────────────────────────
-        // 미션 2도 같은 방식이다. "마침내 …" 한 문장에 절로 이어 붙어 결(結) 한 쪽이 갈라지지 않는다
+        // 미션 2도 같은 방식이다. 결말과 건네주기를 한 쪽에 이어 붙인다
         add(
             PageSpec(PageKind.DRAG) { st ->
                 // 9/22 — 두 갈래를 합쳤다.
                 //
                 //  ① 결말 칸이 비었으면 "하루가 저물었어요" 를 쓰지 않는다 — **맺음 쪽과 겹쳐**
                 //     하루가 두 번 저물었다. 비면 이 쪽은 건네주는 장면 하나로만 둔다
-                //  ② 마스코트가 메운 결말에는 **"마침내" 를 붙이지 않는다** (main · 최민우).
-                //     아이가 지어낸 결말이 아닌데 "마침내" 를 붙이면 책이 아이 말인 척한다
+                //  ② 마스코트가 메운 결말에는 잇는 말을 붙이지 않는다 (main · 최민우).
+                //     아이가 지어낸 결말이 아닌데 잇는 말을 붙이면 책이 아이 말인 척한다
                 val sol = st.slots["solution"]?.takeIf { it.isNotBlank() }
                 val give = st.m2Clause()
                 if (sol == null) "${st.childName}${eun(st.childName)} $give"
                 else {
                     val head = sentence(sol)
-                    val lead = if (st.slotBy["solution"] == "mascot") head else joinWith("마침내", head)
+                    val lead = if (st.slotBy["solution"] == "mascot") head
+                    else joinWith(if (st.hadTrouble()) "마침내" else "그러고 나서", head)
                     "$lead 그리고 $give"
                 }
             }
