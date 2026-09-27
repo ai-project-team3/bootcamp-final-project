@@ -153,6 +153,26 @@ class StoryFlowTest {
     }
 
     /**
+     * 틀 빈칸(`stop` · `try1` · `helper` …)이 **슬롯 이름으로 새어 나가지 않는가** (09-27 · guidelines/2 §1-1 규칙 1).
+     *
+     * 슬롯은 12종 **닫힌 목록**이다. 목록 밖은 `slot=extra` 에 `of=<빈칸>` 으로 붙여 내보낸다.
+     * 전에는 틀 빈칸 16개가 `slot=stop` 처럼 그대로 나가, 부모 리포트가 12종을 셀 때 숫자가 섞였다.
+     */
+    @Test
+    fun templateBlanksLeaveAsExtraNotAsNewSlotNames() = run { d ->
+        d.toBook()
+        val core = setOf("place", "problem", "reaction", "cause", "newcomer", "name", "companion", "sound", "adult", "solution", "title", "extra")
+        val filled = d.s.events.filter { it.startsWith("slot_filled") }
+        val slotOf = { e: String -> Regex("""slot=([^,]+)""").find(e)?.groupValues?.get(1) }
+        val leaked = filled.mapNotNull(slotOf).filter { it !in core }.distinct()
+        assertTrue("12종 밖 이름이 slot 으로 나갔다: $leaked\n  ${filled.joinToString("\n  ")}", leaked.isEmpty())
+        assertTrue(
+            "틀 빈칸이 extra + of 로 하나도 안 나갔다 — 한 바퀴에 적어도 한 칸은 묻는다\n  ${filled.joinToString("\n  ")}",
+            filled.any { "slot=extra" in it && "of=" in it && "of=sight" !in it },
+        )
+    }
+
+    /**
      * 한 바퀴 돌고 나면 **아이가 말한 것으로 책이 차 있는가.**
      *
      * 끝까지 가기만 하고 책이 비어 있으면 시연으로 쓸 수 없다.

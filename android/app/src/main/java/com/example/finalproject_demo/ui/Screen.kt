@@ -35,11 +35,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -193,8 +195,8 @@ fun PillButton(text: String, bg: Color, fg: Color, fontSize: Int = 19, onClick: 
 }
 
 @Composable
-private fun WorldBackground(bg: List<Color>, bgName: String, content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(bg))) {
+private fun WorldBackground(bg: List<Color>, bgName: String, framed: Boolean = false, content: @Composable () -> Unit) {
+    val image: @Composable () -> Unit = {
         AssetImage(bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
             Canvas(Modifier.fillMaxSize()) {
                 val rnd = java.util.Random(7)
@@ -203,9 +205,51 @@ private fun WorldBackground(bg: List<Color>, bgName: String, content: @Composabl
                 }
             }
         }
-        content()
+    }
+    BoxWithConstraints(Modifier.fillMaxSize().background(Brush.verticalGradient(bg))) {
+        // 태블릿 **세로** (`docs/무대_배치_규칙.md` §3-1 · 09-27).
+        //
+        // 배경은 가로 그림(1344×768)이다. 세로 화면에 Crop 으로 채우면 **좌우가 2/3 넘게 잘려** 장면이 사라지고,
+        // 키를 화면 높이로 잡는 인물은 화면 폭의 절반을 차지한다(`tablet_portrait_world.png` 09-23).
+        // 그래서 세로일 때는 **무대를 가로 틀 하나로** 가운데 두고, 위아래는 같은 배경을 어둡게 깔아 채운다.
+        // 틀 안에서는 인물 · 핫스팟 · 앞 레이어가 가로 화면과 **똑같은 비율**로 놓인다 — 규칙을 둘로 나누지 않는다.
+        val portrait = framed && maxWidth < maxHeight
+        if (!portrait) {
+            image()
+            CompositionLocalProvider(LocalStageBottomInset provides BottomChrome) { content() }
+        } else {
+            Box(Modifier.fillMaxSize()) {
+                image()
+                Box(Modifier.fillMaxSize().background(Ink.copy(alpha = 0.45f)))
+            }
+            val frameH = maxWidth * (STAGE_ART_H / STAGE_ART_W)
+            // 위 제목 · 아래 말풍선 사이의 가운데
+            val room = maxHeight - TopChrome - BottomChrome
+            val top = TopChrome + ((room - frameH) / 2).coerceAtLeast(0.dp)
+            Box(
+                Modifier
+                    .padding(top = top)
+                    .fillMaxWidth()
+                    .height(frameH)
+                    .clipToBounds(),
+            ) {
+                image()
+                // 틀이 말풍선 **위**에 있으니 발 높이에서 말풍선 몫을 빼지 않는다
+                CompositionLocalProvider(LocalStageBottomInset provides 0.dp) { content() }
+            }
+        }
     }
 }
+
+/** 배경 그림의 크기 — 세로 화면에서 무대 틀의 비율을 이것에 맞춘다 */
+private const val STAGE_ART_W = 1344f
+private const val STAGE_ART_H = 768f
+
+/**
+ * 무대 아래를 말풍선 · 버튼(크롬)이 얼마나 가리나 — 발 높이가 그 위에 오게 뺀다.
+ * 가로 화면은 [BottomChrome] 그대로, 세로 화면의 무대 틀 안은 0 (틀이 크롬 위에 있다).
+ */
+private val LocalStageBottomInset = staticCompositionLocalOf { BottomChrome }
 
 /**
  * **앞 레이어** — 인물의 발끝을 바닥 띠가 살짝 덮는다 (`docs/무대_배치_규칙.md` §2).
@@ -222,7 +266,7 @@ private fun FrontGround(bgName: String) {
     if (bgName == "bg_space" || bgName == "bg_sea") return
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val full = maxHeight
-        val feetNear = minOf(full * FEET_NEAR, full - BottomChrome)
+        val feetNear = minOf(full * FEET_NEAR, full - LocalStageBottomInset.current)
         val bandH = full * 0.13f
         // 띄를 **발보다 위에서** 시작해야 한다 — 발 높이에서 시작하면 그자리가 아직 투명해서
         // 아무것도 안 덤는다 (9/23 첫 시도). 불투명해지는 지점이 발끔 조금 위로 오게 맞춘다
@@ -442,18 +486,29 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                 if (stage.world) WorldBackground(s.worldBg, s.bgName) { body() } else body()
             }
 
-            is Stage.World -> WorldBackground(s.worldBg, s.bgName) {
+            // ── 장소 장면은 **세 층**으로 그린다 (09-27 · `docs/무대_배치_규칙.md` §2 「그리는 순서」) ──
+            //   ① 배경 층      배경 그림 · 핫스팟에서 떼어 낸 조각(배경의 일부)
+            //   ② 인물 층      **먼 것부터** 그림자+인물 → 앞 레이어(발끝을 덮는 바닥 띠)
+            //   ③ 상호작용 층  핫스팟 테두리 · 반짝임 · 누르는 자리 — 맨 위라 인물에 가려 못 누르는 일이 없다
+            // 전에는 핫스팟이 통째로 ① 에 있어서 커진 인물이 누를 자리를 덮었고,
+            // 인물은 목록 순서대로 그려져 먼 것이 가까운 것을 덮을 수 있었다.
+            is Stage.World -> WorldBackground(s.worldBg, s.bgName, framed = true) {
                 val quake = if (stage.quake) {
                     val t = rememberInfiniteTransition(label = "quake")
                     val dy by t.animateFloat(-3f, 3f, infiniteRepeatable(tween(90), RepeatMode.Reverse), label = "dy")
                     dy
                 } else 0f
-                HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake)
+                val hot = rememberHotspotState(s.bgName)
+                // ① 배경 층
+                HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake, state = hot, part = HotspotPart.Pieces)
+                // ② 인물 층
                 Box(Modifier.fillMaxSize().offset { IntOffset(0, quake.roundToInt()) }) {
-                    stage.items.forEach { item -> WorldItemView(item) }
+                    stage.items.sortedBy { it.depth }.forEach { item -> WorldItemView(item) }
                     // 인물 **뒤에** 깔면 아무 소용이 없다 — 발끝을 덮어야 묻힌 것으로 보인다
                     FrontGround(s.bgName)
                 }
+                // ③ 상호작용 층
+                HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake, state = hot, part = HotspotPart.Marks)
                 if (stage.brush) {
                     val t = rememberInfiniteTransition(label = "brush2")
                     val a by t.animateFloat(0.4f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "a2")
@@ -575,7 +630,7 @@ private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem) {
         // 화면 아래 [BottomChrome](76dp)을 말풍선·버튼이 쓴다. 가로 화면 393dp 기준으로 **19%** 라
         // 0.84 는 그 안으로 들어간다. 비율로 넣지 않고 **크롬 높이를 직접 뺀다** —
         // 그래야 세로가 짧은 기기에서도 발이 말풍선 밑으로 안 들어간다
-        val feetNear = minOf(maxHeight * FEET_NEAR, maxHeight - BottomChrome)
+        val feetNear = minOf(maxHeight * FEET_NEAR, maxHeight - LocalStageBottomInset.current)
         val feetFar = maxHeight * FEET_FAR
         val feet = feetFar + (feetNear - feetFar) * d
         // xf 는 **가운데**다 (Model.WorldItem 주석). 깊이에 따라 커져도 좌우로 안 밀린다
@@ -673,7 +728,10 @@ private fun AdultScreen(d: Director) {
                 val t = rememberInfiniteTransition(label = "hi")
                 val bob by t.animateFloat(-5f, 5f, infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "bob")
                 ArtView(Art.Mascot, Modifier.size(190.dp).offset { IntOffset(0, bob.roundToInt()) })
-                Text("말로 짓는 인형극", fontSize = 28.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                // 앱 이름 로고 — 주아 글꼴로 쓴 「오또」에 ComfyUI 로 양모 펠트 질감을 입혔다 (09-26 · 원본 art/drawable/logo_otto.png)
+                AssetImage("logo_otto", Modifier.width(220.dp)) {
+                    Text("오또", fontSize = 40.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                }
             }
             Column(
                 Modifier
