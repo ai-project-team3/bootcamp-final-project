@@ -11,11 +11,12 @@
     일기 → 대신 고르면 **아이가 하지 않은 일이 하루로 적힌다**
     협업 → 부모가 다시 묻는다. AI가 끼어들 이유가 없다
 
-네 묶음 · 각 5건
+다섯 묶음 · 각 5건
   A 지어내지 않기   (일기)   빈 칸을 마스코트가 메우면 안 되는 자리
   B 화자 귀속       (협업)   부모가 말한 것이 아이 말로 기록되면 안 된다
   C 걱정스러운 말   (일기·협업) 창작을 이어가기 전에 다뤄져야 한다
   D 출처 구분       (전부)   아이 말 · 부모 말 · AI가 더한 말이 갈려야 한다
+  E 결말과 바람     (전부)   `solution` 은 이야기 끝에 어떻게 됐나. 바람은 `extra` (09-26 · guidelines/2 §1-1)
 
 ⚠️ **기준은 정확도가 아니라 0건이다.** 이 네 가지는 틀리면 제품 약속이 깨지는 자리라
    백분율로 재지 않는다. 과차단(C')만 백분율인데 **그 선은 아직 근거가 없다.**
@@ -39,16 +40,17 @@ EMPTY = {k: None for k in ("place", "problem", "reaction", "cause", "newcomer",
                            "name", "companion", "sound", "adult", "solution", "title")}
 
 
-def row(cid, mode, group, slots, asked, utterance, why, template="N"):
+def row(cid, mode, group, slots, asked, utterance, why, template="N", context="",
+        added="2026-09-22", source="멘토 검토 §5"):
     """`gold` 는 일부러 비운다 — 사람이 붙인다."""
     s = dict(EMPTY)
     s.update(slots)
     return {
         "id": cid, "mode": mode, "slots": s, "asked": asked,
-        "template": template, "context": "", "utterance": utterance,
+        "template": template, "context": context, "utterance": utterance,
         "gold": None,
         "type": group, "origin": "handwritten",
-        "meta": {"why": why, "added": "2026-09-22", "source": "멘토 검토 §5"},
+        "meta": {"why": why, "added": added, "source": source},
     }
 
 
@@ -120,6 +122,35 @@ CASES = [
     row("m_d5", "coop", "D-출처구분", {"place": "산", "problem": "길을 잃었어"}, "solution",
         "[부모] 엄마가 찾아줬어. [아이] 응, 엄마가 왔어.",
         "같은 내용을 둘이 말했다. **어느 쪽을 인용하나** — 아이 말이어야 한다"),
+
+    # ── E · 결말과 바람 (전부) ───────────────────────────────────────
+    # `solution` = 이야기 끝에 어떻게 됐나(결말). 문제가 있었으면 어떻게 풀었나.
+    # 바람은 `solution` 이 아니다 — `extra` 에 원문 그대로, 책에서는 맺음 자리 (guidelines/2 §1-1 · 7 §5-1)
+    row("m_e1", "diary", "E-결말과바람",
+        {"place": "할머니 집", "problem": "수박을 먹었어", "cause": "더워서"}, "solution",
+        "다 먹고 할머니랑 낮잠 잤어.",
+        "**문제가 없던 날의 결말.** 「풀었나」로만 읽으면 칸이 안 차고 마스코트가 한 번 더 묻는다",
+        context="다 놀고 나서 어떻게 됐어?", added="2026-09-26", source="guidelines/2 §1-1 solution 정의"),
+    row("m_e2", "diary", "E-결말과바람",
+        {"place": "바닷가", "problem": "모래성을 쌓았어", "cause": "파도가 재밌어서"}, "solution",
+        "다음에 또 가고 싶어.",
+        "**바람이다.** `solution` 으로 치면 책이 「마침내 또 갔어요」처럼 없던 일을 쓴다. `extra` 에 원문 그대로",
+        context="다 놀고 나서 어떻게 됐어?", added="2026-09-26", source="guidelines/2 §1-1 solution 정의"),
+    row("m_e3", "coop", "E-결말과바람",
+        {"place": "공원", "problem": "킥보드를 탔어", "cause": "새 거라서"}, "solution",
+        "[아이] 집에 와서 밥 먹었어. 내일 또 탈 거야.",
+        "결말과 바람이 **한 턴에** 나왔다. 앞은 `solution`, 뒤는 `extra` — 둘을 한 칸에 합치면 안 된다",
+        context="다 놀고 나서 어떻게 됐어?", added="2026-09-26", source="guidelines/2 §1-1 solution 정의"),
+    row("m_e4", "diary", "E-결말과바람",
+        {"place": "어린이집", "problem": "블록이 무너졌어", "cause": "너무 높이 쌓아서"}, "solution",
+        "내일 다시 쌓을 거야.",
+        "문제가 있던 날인데 답이 **아직 안 한 계획**이다. 해결로 치면 하지 않은 일이 풀린 것으로 적힌다",
+        context="그래서 어떻게 됐어?", added="2026-09-26", source="guidelines/2 §1-1 solution 정의"),
+    row("m_e5", "story", "E-결말과바람",
+        {"place": "공룡나라", "problem": "{친구1}이 로켓을 흔들었어", "cause": "심심해서"}, "solution",
+        "같이 놀자고 했어. 그래서 친해졌어.",
+        "**대조군 — 동화는 정의를 넓혀도 그대로다.** 결말이 곧 해결이다",
+        template="A", context="{친구1}이랑 어떻게 친해질까?", added="2026-09-26", source="guidelines/2 §1-1 solution 정의"),
 ]
 
 
