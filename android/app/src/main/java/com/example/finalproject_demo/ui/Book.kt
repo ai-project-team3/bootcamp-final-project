@@ -253,6 +253,8 @@ private fun PuzzlePage(d: Director, done: Boolean) {
                 Modifier
                     .offset { IntOffset(at.x.roundToInt(), at.y.roundToInt()) }
                     .size((pw / density).dp, (ph / density).dp)
+                    // 만질 수 있는 것에는 두꺼운 테두리 (09-27 · Interactive.kt) — 맞춘 조각은 이제 못 만지니 끈다
+                    .touchOutline(!placed[i] && !done)
                     .pointerInput(placed[i], done) {
                         if (placed[i] || done) return@pointerInput
                         detectDragGestures(
@@ -840,7 +842,9 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
                     // 아니라 파티클로 대신할 수 없으므로 그림을 그대로 둔다
                     if (burns) Unit
                     else if (st >= 3f) ArtView(Art.Img(m.gone, Art.Emoji(m.goneEmoji)), Modifier.fillMaxSize().alpha(0.8f))
-                    else ArtView(Art.Img(m.blob, Art.Emoji(m.blobEmoji)), Modifier.fillMaxSize())
+                    // 아직 지울 흔적은 두꺼운 테두리 (09-27) — 불은 그림이 아니라 파티클이라 두를 모양이 없다
+                    // ⚠️ 테두리는 그림 **바깥 상자**에 단다 — `Image` 는 제 크기로 잘라서(clipToBounds) 바깥으로 번진 테두리가 사라진다
+                    else Box(Modifier.fillMaxSize().touchOutline()) { ArtView(Art.Img(m.blob, Art.Emoji(m.blobEmoji)), Modifier.fillMaxSize()) }
                 }
             }
             // 불기를 받는 쪽이면 마이크가 듣고 있다는 것을 **보이게** 둔다 —
@@ -1047,7 +1051,8 @@ private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
                     }
                 }
         ) {
-            ArtView(Art.Img(m.item, Art.Emoji(m.itemEmoji)), Modifier.fillMaxSize())
+            // 테두리는 그림 바깥 상자에 (Image 는 제 크기로 잘라 버린다)
+            Box(Modifier.fillMaxSize().touchOutline(!given)) { ArtView(Art.Img(m.item, Art.Emoji(m.itemEmoji)), Modifier.fillMaxSize()) }
             if (easy && !given) Text("톡!", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.BottomCenter))
         }
         if (showHint && !given) {

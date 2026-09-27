@@ -53,6 +53,35 @@ private const val BG_W = 1344f
 private const val BG_H = 768f
 
 /**
+ * 핫스팟을 **어느 층에** 그리나 (09-27 · `docs/무대_배치_규칙.md` §2 「그리는 순서」).
+ *
+ * 장소 장면은 배경 → 인물 → 앞 레이어 → **핫스팟** 순서로 그린다. 그런데 핫스팟에는 성격이 다른 둘이 섞여 있다.
+ *  - [Pieces] 배경에서 떼어 낸 조각이 통 튀는 것 — **배경의 일부**다. 인물 앞에 오면 인물을 덮는다
+ *  - [Marks]  테두리 · 반짝임 · 누르면 뜨는 글자 · 누르는 자리 — **상호작용 층**이다. 인물 뒤에 오면 가려서 못 누른다
+ * 그래서 둘로 나눠 [Pieces] 는 인물 뒤, [Marks] 는 맨 위에 그린다. 한 번에 다 그리려면 [All] (책 쪽).
+ */
+enum class HotspotPart { All, Pieces, Marks }
+
+/** 한 자리의 움직임 — 두 층이 **같은 것**을 봐야 누르면 뒤의 조각이 튄다 */
+class HotspotSpot {
+    val bounce = Animatable(1f)
+    val rise = Animatable(1f)
+    var popKey by mutableIntStateOf(0)
+    var popText by mutableStateOf("")
+}
+
+/** 배경 하나의 핫스팟 상태. 두 층으로 나눠 그릴 때 한 번 만들어 둘 다에 넘긴다 */
+class HotspotState internal constructor(n: Int) {
+    val spots: List<HotspotSpot> = List(n) { HotspotSpot() }
+}
+
+@Composable
+fun rememberHotspotState(bgName: String): HotspotState {
+    val n = HOTSPOTS[bgName].orEmpty().size
+    return remember(bgName, n) { HotspotState(n) }
+}
+
+/**
  * 배경 그림 **안에 이미 그려진 것**을 살아 움직이게 하는 층 (9/17).
  * 새 그림을 얹지 않는다 — 그 자리의 배경을 동그랗게 떼어 낸 조각을 통 튀게 하고, 둘레를 반짝이게 한다.
  *
@@ -94,11 +123,17 @@ fun HotspotLayer(
     onIntroShown: () -> Unit = {},
     text: ((Hotspot) -> String)? = null,
     onTap: (Hotspot) -> Unit = {},
+    /** 두 층으로 나눠 그릴 때 둘이 같이 쓰는 상태 ([rememberHotspotState]). 한 층이면 넘기지 않아도 된다 */
+    state: HotspotState = rememberHotspotState(bgName),
+    /** 어느 층인가 — [HotspotPart] */
+    part: HotspotPart = HotspotPart.All,
 ) {
     val spots = HOTSPOTS[bgName].orEmpty()
     if (spots.isEmpty()) return
     // 원이 그려지는 이 자리에서부터 소개 시간을 센다
-    LaunchedEffect(introducing) {
+    val marks = part != HotspotPart.Pieces
+    val pieces = part != HotspotPart.Marks
+    if (marks) LaunchedEffect(introducing) {
         if (introducing) {
             delay(HOTSPOT_INTRO_MS)
             onIntroShown()
@@ -121,10 +156,9 @@ fun HotspotLayer(
             val cy = sp.cy * BG_H * sc - offY
             val r = sp.r * BG_W * sc
             if (cy + r > 0 && cy - r < h) key(i, bgName) {
-                val bounce = remember { Animatable(1f) }
-                var popKey by remember { mutableIntStateOf(0) }
-                var popText by remember { mutableStateOf("") }
-                val rise = remember { Animatable(1f) }
+                val st = state.spots[i]
+                val bounce = st.bounce
+                val rise = st.rise
                 // 아이가 말한 자리인가 — 쪽이 바뀔 때 통 튀는 것은 이것이 정한다 (소개가 끝나도 그대로)
                 val mentioned = sp.key in glow
                 // 소개 중이면 **누를 수 있는 자리를 전부** 보여 주고, 아니면 아이가 말한 자리만 (9/22).
@@ -132,15 +166,15 @@ fun HotspotLayer(
                 // 전에는 소개할 때도 `glow`(아이가 말한 것)에 든 자리만 켰다. 그런데 일기·협업의 `glow` 는
                 // 아이 말과 겹치는 낱말만 담아서 **비어 있는 날이 많았고, 안내가 아예 안 떴다.**
                 val lit = if (introducing) true else (mentioned && glowMentioned)
-                LaunchedEffect(pulse, mentioned) {
+                if (marks) LaunchedEffect(pulse, mentioned) {
                     if (mentioned && pulse > 0) {
                         delay(i * 90L)
                         bounce.snapTo(1f)
                         bounce.animateTo(1f, spring(dampingRatio = 0.3f, stiffness = 500f), initialVelocity = 2.2f)
                     }
                 }
-                LaunchedEffect(popKey) {
-                    if (popKey == 0) return@LaunchedEffect
+                if (marks) LaunchedEffect(st.popKey) {
+                    if (st.popKey == 0) return@LaunchedEffect
                     launch { rise.snapTo(0f); rise.animateTo(1f, tween(1100)) }
                     bounce.snapTo(1f)
                     bounce.animateTo(1f, spring(dampingRatio = 0.25f, stiffness = 520f), initialVelocity = 3f)
@@ -153,15 +187,19 @@ fun HotspotLayer(
                         .size(sizeDp)
                         // 누르는 **그 순간** 납작해졌다 손을 떼면 통 튀어 오른다 (9/23).
                         // 전에는 누르고 난 뒤에야 튀어서, 만지는 동안은 아무 반응이 없었다
-                        .pressPop {
-                            popText = text?.invoke(sp) ?: sp.tap
-                            popKey++
-                            onTap(sp)
-                        }
+                        .then(
+                            if (marks) Modifier.pressPop {
+                                st.popText = text?.invoke(sp) ?: sp.tap
+                                st.popKey++
+                                onTap(sp)
+                            } else Modifier,
+                        )
                 ) {
+                    // 만질 수 있다는 표시 — 반짝이지 않을 때도 늘 보인다 (09-27 · 멘토 요청 · `Interactive.kt`)
+                    if (marks) TouchRing(Modifier.matchParentSize())
                     // 반짝이는 둘레 (말한 것만 계속 · 누른 것은 잠깐)
-                    val ring = if (lit) shine else if (popKey > 0 && rise.value < 1f) (1f - rise.value) * 0.8f else 0f
-                    if (ring > 0f) {
+                    val ring = if (lit) shine else if (st.popKey > 0 && rise.value < 1f) (1f - rise.value) * 0.8f else 0f
+                    if (marks && ring > 0f) {
                         Box(
                             Modifier
                                 .align(Alignment.Center)
@@ -182,7 +220,7 @@ fun HotspotLayer(
                     }
                     // 배경의 그 자리를 떼어 낸 조각 — 통 튀거나 흔들린다 (그때만 보인다 · 가만히 있을 때는 배경 그대로)
                     val sc2 = bounce.value
-                    if (id != 0 && (quake || sc2 != 1f || bounce.isRunning)) {
+                    if (pieces && id != 0 && (quake || sc2 != 1f || bounce.isRunning)) {
                         Box(
                             Modifier
                                 .fillMaxSize()
@@ -199,7 +237,7 @@ fun HotspotLayer(
                             )
                         }
                     }
-                    if (popKey > 0 && rise.value < 1f) {
+                    if (marks && st.popKey > 0 && rise.value < 1f) {
                         Box(
                             Modifier
                                 .align(Alignment.TopCenter)
@@ -210,7 +248,7 @@ fun HotspotLayer(
                                 .clip(RoundedCornerShape(999.dp))
                                 .background(Color.White)
                                 .padding(horizontal = 10.dp, vertical = 3.dp)
-                        ) { Text(popText, fontSize = 15.sp, color = Coral, fontWeight = FontWeight.Bold) }
+                        ) { Text(st.popText, fontSize = 15.sp, color = Coral, fontWeight = FontWeight.Bold) }
                     }
                 }
             }

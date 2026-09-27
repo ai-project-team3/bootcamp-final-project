@@ -718,6 +718,26 @@ private suspend fun Director.scenePlace() {
     go(Scene.EVENT)
 }
 
+/**
+ * 슬롯 12종 — **닫힌 목록** (guidelines/2 §1-1). 규격을 그대로 옮겨 적었다. 새 이름을 더하지 않는다.
+ */
+private val SLOTS_12 = setOf(
+    "place", "problem", "reaction", "cause", "newcomer", "name",
+    "companion", "sound", "adult", "solution", "title", "extra",
+)
+
+/**
+ * 틀 빈칸을 채웠다고 알린다 (09-27).
+ *
+ * 틀 빈칸(`stop` · `try1` · `helper` · `response` … 16개)은 12종에 없다. 규칙 1 — *"목록 밖은 전부 `extra` 에 원문 그대로"* —
+ * 에 따라 **`slot=extra` 로 내보내고 어느 칸이었는지는 `of` 에 붙인다.** 위 `sight` 와 같은 모양이다.
+ * 전에는 `slot=helper` 처럼 그대로 나가서, 부모 리포트가 12종을 셀 때 틀 빈칸이 섞여 숫자가 거짓이 됐다.
+ */
+private fun Director.slotFilled(slot: String, value: String, source: String) {
+    if (slot in SLOTS_12) event("slot_filled", "slot" to slot, "value" to value, "source" to source)
+    else event("slot_filled", "slot" to "extra", "of" to slot, "value" to value, "source" to source)
+}
+
 // ── 장면 4 · 누가 흔들었을까 (고정 2턴 · 카드 없음) → 그다음 (질문 은행) ──
 
 private suspend fun Director.sceneEvent() {
@@ -918,7 +938,7 @@ private suspend fun Director.scenePlot() {
         val value = valueOf(r)
         if (value != null) {
             s.slots[slot] = value
-            event("slot_filled", "slot" to slot, "value" to value, "source" to sourceOf(r))
+            slotFilled(slot, value, sourceOf(r))
             if (slot == "stop" && s.hotspots.isNotEmpty()) {
                 s.stage = world((s.stage as? Stage.World)?.items.orEmpty(), bump = true)
             }
@@ -1246,7 +1266,7 @@ private suspend fun Director.sceneSolution() {
             log("해결 방법 → 마지막 쪽 문장 · 미션 2에서 건넬 물건(${s.mission2().itemName})이 여기서 정해진다")
         } else if (value != null) {
             s.slots[slot] = value
-            event("slot_filled", "slot" to slot, "value" to value, "source" to sourceOf(r))
+            slotFilled(slot, value, sourceOf(r))
         }
     }
     if (!solved) s.solution = solutionText()

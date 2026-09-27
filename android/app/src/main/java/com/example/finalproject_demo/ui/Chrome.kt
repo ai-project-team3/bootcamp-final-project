@@ -339,6 +339,8 @@ fun Tappable(
             Modifier
                 .fillMaxSize()
                 .rotate(wiggle.value)
+                // 누를 수 있는 그림이면 두꺼운 테두리 (09-27 · Interactive.kt)
+                .touchOutline(text != null)
                 .then(
                     if (text != null) Modifier.noRippleClickable {
                         val t = text()
