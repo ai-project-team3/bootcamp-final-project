@@ -1,0 +1,413 @@
+{
+  "version": "2.8",
+  "variables": {
+    "--bg": {
+      "type": "color",
+      "value": "#FFF4E1"
+    },
+    "--sun": {
+      "type": "color",
+      "value": "#F9B233"
+    },
+    "--sun2": {
+      "type": "color",
+      "value": "#FFC857"
+    },
+    "--orange": {
+      "type": "color",
+      "value": "#F58220"
+    },
+    "--coral": {
+      "type": "color",
+      "value": "#F25C4C"
+    },
+    "--coral2": {
+      "type": "color",
+      "value": "#FF7A6B"
+    },
+    "--ink": {
+      "type": "color",
+      "value": "#3F3126"
+    },
+    "--muted": {
+      "type": "color",
+      "value": "#8A7A6A"
+    },
+    "--card": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "--green": {
+      "type": "color",
+      "value": "#86C77D"
+    },
+    "--blue": {
+      "type": "color",
+      "value": "#63B3ED"
+    },
+    "--purple": {
+      "type": "color",
+      "value": "#B39DDB"
+    },
+    "--pink": {
+      "type": "color",
+      "value": "#F8A5C2"
+    },
+    "--radius": {
+      "type": "number",
+      "value": 26
+    }
+  },
+  "children": [
+    {
+      "type": "frame",
+      "id": "tokens",
+      "name": "엔드픽처 · 색과 글꼴 (Theme.kt 기준)",
+      "x": 0,
+      "y": 0,
+      "width": 800,
+      "height": 660,
+      "fill": "$--bg",
+      "clip": true,
+      "layout": "none",
+      "children": [
+        {
+          "type": "text",
+          "id": "title",
+          "name": "title",
+          "x": 40,
+          "y": 40,
+          "content": "엔드픽처 색·글꼴 — 바꾸면 Theme.kt도 같이",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 32
+        },
+        {
+          "type": "frame",
+          "id": "sw_bg",
+          "name": "swatch/bg",
+          "x": 40,
+          "y": 120,
+          "width": 120,
+          "height": 100,
+          "fill": "$--bg",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_bg",
+          "name": "label/bg",
+          "x": 40,
+          "y": 228,
+          "content": "--bg  #FFF4E1",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        },
+        {
+          "type": "frame",
+          "id": "sw_sun",
+          "name": "swatch/sun",
+          "x": 190,
+          "y": 120,
+          "width": 120,
+          "height": 100,
+          "fill": "$--sun",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_sun",
+          "name": "label/sun",
+          "x": 190,
+          "y": 228,
+          "content": "--sun  #F9B233",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        },
+        {
+          "type": "frame",
+          "id": "sw_sun2",
+          "name": "swatch/sun2",
+          "x": 340,
+          "y": 120,
+          "width": 120,
+          "height": 100,
+          "fill": "$--sun2",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_sun2",
+          "name": "label/sun2",
+          "x": 340,
+          "y": 228,
+          "content": "--sun2  #FFC857",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        },
+        {
+          "type": "frame",
+          "id": "sw_orange",
+          "name": "swatch/orange",
+          "x": 490,
+          "y": 120,
+          "width": 120,
+          "height": 100,
+          "fill": "$--orange",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_orange",
+          "name": "label/orange",
+          "x": 490,
+          "y": 228,
+          "content": "--orange  #F58220",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        },
+        {
+          "type": "frame",
+          "id": "sw_coral",
+          "name": "swatch/coral",
+          "x": 640,
+          "y": 120,
+          "width": 120,
+          "height": 100,
+          "fill": "$--coral",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_coral",
+          "name": "label/coral",
+          "x": 640,
+          "y": 228,
+          "content": "--coral  #F25C4C",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        },
+        {
+          "type": "frame",
+          "id": "sw_coral2",
+          "name": "swatch/coral2",
+          "x": 40,
+          "y": 290,
+          "width": 120,
+          "height": 100,
+          "fill": "$--coral2",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_coral2",
+          "name": "label/coral2",
+          "x": 40,
+          "y": 398,
+          "content": "--coral2  #FF7A6B",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        },
+        {
+          "type": "frame",
+          "id": "sw_ink",
+          "name": "swatch/ink",
+          "x": 190,
+          "y": 290,
+          "width": 120,
+          "height": 100,
+          "fill": "$--ink",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_ink",
+          "name": "label/ink",
+          "x": 190,
+          "y": 398,
+          "content": "--ink  #3F3126",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        },
+        {
+          "type": "frame",
+          "id": "sw_muted",
+          "name": "swatch/muted",
+          "x": 340,
+          "y": 290,
+          "width": 120,
+          "height": 100,
+          "fill": "$--muted",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_muted",
+          "name": "label/muted",
+          "x": 340,
+          "y": 398,
+          "content": "--muted  #8A7A6A",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        },
+        {
+          "type": "frame",
+          "id": "sw_card",
+          "name": "swatch/card",
+          "x": 490,
+          "y": 290,
+          "width": 120,
+          "height": 100,
+          "fill": "$--card",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_card",
+          "name": "label/card",
+          "x": 490,
+          "y": 398,
+          "content": "--card  #FFFFFF",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        },
+        {
+          "type": "frame",
+          "id": "sw_green",
+          "name": "swatch/green",
+          "x": 640,
+          "y": 290,
+          "width": 120,
+          "height": 100,
+          "fill": "$--green",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_green",
+          "name": "label/green",
+          "x": 640,
+          "y": 398,
+          "content": "--green  #86C77D",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        },
+        {
+          "type": "frame",
+          "id": "sw_blue",
+          "name": "swatch/blue",
+          "x": 40,
+          "y": 460,
+          "width": 120,
+          "height": 100,
+          "fill": "$--blue",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_blue",
+          "name": "label/blue",
+          "x": 40,
+          "y": 568,
+          "content": "--blue  #63B3ED",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        },
+        {
+          "type": "frame",
+          "id": "sw_purple",
+          "name": "swatch/purple",
+          "x": 190,
+          "y": 460,
+          "width": 120,
+          "height": 100,
+          "fill": "$--purple",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_purple",
+          "name": "label/purple",
+          "x": 190,
+          "y": 568,
+          "content": "--purple  #B39DDB",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        },
+        {
+          "type": "frame",
+          "id": "sw_pink",
+          "name": "swatch/pink",
+          "x": 340,
+          "y": 460,
+          "width": 120,
+          "height": 100,
+          "fill": "$--pink",
+          "cornerRadius": "$--radius",
+          "stroke": "#E3D6BF",
+          "layout": "none"
+        },
+        {
+          "type": "text",
+          "id": "lb_pink",
+          "name": "label/pink",
+          "x": 340,
+          "y": 568,
+          "content": "--pink  #F8A5C2",
+          "fill": "$--ink",
+          "fontFamily": "Jua",
+          "fontSize": 14
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "phone",
+      "name": "폰 화면 틀 (412×915) — 복사해서 쓰기",
+      "x": 880,
+      "y": 0,
+      "width": 412,
+      "height": 915,
+      "fill": "$--bg",
+      "clip": true,
+      "layout": "none",
+      "children": []
+    }
+  ]
+}

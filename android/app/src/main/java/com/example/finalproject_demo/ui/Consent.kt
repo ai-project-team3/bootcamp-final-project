@@ -75,10 +75,10 @@ import androidx.compose.ui.window.DialogProperties
  * 보여 주는 자리 표시이고, 최종 문구는 사람이 채워야 한다. 화면에도 초안임을 띄워 둔다.
  * 문구가 정해지면 [DRAFT] 를 지우고 이 주석도 지운다.
  *
- * ## ⚠️ 저장은 앱이 켜져 있는 동안만이다
+ * ## 동의는 기기에 남는다 (09-25)
  *
- * 더미 화면이라 메모리에만 남는다. 껐다 켜면 동의 화면이 다시 뜬다.
- * 진짜 제품에서는 [ConsentStore] 안쪽을 저장소(DataStore 등)로 바꾸면 된다 — 부르는 쪽은 그대로다.
+ * 처음에는 메모리뿐이라 **껐다 켤 때마다 동의 화면이 다시 떴다.** 지금은 [ConsentStore.attach] 가
+ * 기기(SharedPreferences)에서 읽고 쓴다. 신고는 메일 앱으로 넘긴다(`ReportSection`).
  */
 
 /**
@@ -518,6 +518,20 @@ fun AiVoiceNotice() {
         Label("AI 음성 안내")
         Body("마스코트가 내는 목소리는 사람이 녹음한 것이 아니라 AI가 만든 소리입니다.")
         if (DRAFT) DraftMark("쓰는 음성 서비스 이름을 함께 적을지 정해야 합니다")
+    }
+}
+
+// ── 5. 소리와 진동 ────────────────────────────────────────────
+
+/** 설정에 들어가는 **효과음 · 진동** 스위치 (09-25). 저장은 [FeelPrefs] 가 한다 */
+@Composable
+fun SoundSettingsSection() {
+    NoticeCard {
+        Label("소리와 진동")
+        Spacer(Modifier.height(8.dp))
+        CheckLine(FeelPrefs.soundOn, "효과음") { FeelPrefs.setSound(!FeelPrefs.soundOn) }
+        Spacer(Modifier.height(6.dp))
+        CheckLine(FeelPrefs.buzzOn, "진동 — 누르거나 해냈을 때 살짝 떨려요") { FeelPrefs.setBuzz(!FeelPrefs.buzzOn) }
     }
 }
 

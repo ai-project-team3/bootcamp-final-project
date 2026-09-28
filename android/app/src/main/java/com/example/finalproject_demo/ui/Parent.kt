@@ -683,7 +683,9 @@ private fun SettingRow(title: String, desc: String, checked: Boolean, onToggle: 
 private fun SettingsTab(d: Director) {
     val s = d.s
     // 정책이 요구하는 세 자리 — 내용은 `ui/Consent.kt` 에 있다 (치영 · 9/23).
-    // 여기는 부르는 줄만 둔다: 신고 · AI 음성 고지 · 보호자 동의 철회
+    // 여기는 부르는 줄만 둔다: 소리와 진동(09-25) · 신고 · AI 음성 고지 · 보호자 동의 철회
+    SoundSettingsSection()
+    Spacer(Modifier.height(10.dp))
     ReportSection { d.log(it) }
     Spacer(Modifier.height(10.dp))
     AiVoiceNotice()

@@ -1,8 +1,16 @@
 package com.example.finalproject_demo.ui
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.os.Build
+import android.view.HapticFeedbackConstants
+import android.view.View
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import java.util.concurrent.Executors
 import kotlin.math.PI
 import kotlin.math.exp
@@ -20,6 +28,14 @@ import kotlin.random.Random
  *
  * ⚠️ 아이용이라 **짧고 작게.** 0.3초를 넘기지 않고, 음량도 절반 아래로 둔다.
  *    귀에 거슬리는 소리는 아이가 화면을 안 만지게 만든다.
+ *
+ * ## 진동도 같이 (9/25)
+ *
+ * 소리가 나는 순간이 곧 **손끝에 느낌이 필요한 순간**이다 — 눌렀다 · 놓였다 · 해냈다.
+ * 그래서 진동을 따로 흩어 넣지 않고 [Sfx.play] 에 화면(`View`)을 넘기면 같이 울린다.
+ * 권한이 필요 없는 `performHapticFeedback` 을 쓴다 — **폰 설정에서 진동을 끈 부모의 선택도 그대로 따른다.**
+ *
+ * 둘 다 부모 설정에서 끌 수 있다 ([FeelPrefs]). 카페 · 버스 · 잠들기 전 — 아이 앱이면 다 있는 스위치다.
  */
 
 /** 낼 수 있는 소리 */
@@ -37,6 +53,47 @@ enum class Sound {
     THUD,
 }
 
+/**
+ * 부모 설정 — 효과음 · 진동. 폰에 적어 둔다.
+ *
+ * 앱이 켜질 때 [load] 가 한 번 읽는다 (`MainActivity.onCreate`). [load] 전에는 둘 다 켜진 채 메모리로만 돈다.
+ */
+object FeelPrefs {
+    private var prefs: SharedPreferences? = null
+
+    /** 효과음을 낼까 */
+    var soundOn by mutableStateOf(true)
+        private set
+
+    /** 진동을 낼까 */
+    var buzzOn by mutableStateOf(true)
+        private set
+
+    fun load(context: Context) {
+        val p = context.applicationContext.getSharedPreferences("feel", Context.MODE_PRIVATE)
+        prefs = p
+        soundOn = p.getBoolean("sound", true)
+        buzzOn = p.getBoolean("buzz", true)
+    }
+
+    fun setSound(on: Boolean) {
+        soundOn = on
+        prefs?.edit()?.putBoolean("sound", on)?.apply()
+    }
+
+    fun setBuzz(on: Boolean) {
+        buzzOn = on
+        prefs?.edit()?.putBoolean("buzz", on)?.apply()
+    }
+
+    /** 검사용 — 저장소를 놓고 처음(둘 다 켬)으로 (폰에 적힌 것은 그대로) */
+    internal fun unload() {
+        prefs = null
+        soundOn = true
+        buzzOn = true
+    }
+}
+
 object Sfx {
     private const val RATE = 22050
     private val pool = Executors.newSingleThreadExecutor { r -> Thread(r, "sfx").apply { isDaemon = true } }
@@ -45,11 +102,12 @@ object Sfx {
     private val lastAt = HashMap<Sound, Long>()
 
     /**
-     * 소리를 낸다.
+     * 소리를 낸다. [view] 를 넘기면 진동도 같이 울린다.
      *
      * @param minGapMs 이 소리를 다시 내기까지 최소 간격. 연속 입력에서 소리가 뭉개지는 것을 막는다
+     * @param view 진동을 낼 화면 (`LocalView.current`). 없으면 소리만
      */
-    fun play(kind: Sound, minGapMs: Long = 90L) {
+    fun play(kind: Sound, minGapMs: Long = 90L, view: View? = null) {
         // 검사에서는 소리를 내지 않는다 — Robolectric 에는 오디오 장치가 없다
         if (motionFrozen) return
         val now = System.currentTimeMillis()
@@ -57,12 +115,25 @@ object Sfx {
             if (now - (lastAt[kind] ?: 0L) < minGapMs) return
             lastAt[kind] = now
         }
+        if (view != null && FeelPrefs.buzzOn) buzz(kind)?.let { runCatching { view.performHapticFeedback(it) } }
+        if (!FeelPrefs.soundOn) return
         pool.execute {
             runCatching { blast(render(kind)) }   // 기기에 따라 오디오가 막혀 있을 수 있다 — 소리 때문에 앱이 죽으면 안 된다
         }
     }
 
     /** 소리 한 조각을 계산해서 만든다 */
+    /**
+     * 소리마다 어떤 떨림인가. 치익은 **뿌리는 동안 계속** 나므로 떨지 않는다 — 계속 울리면 거슬린다.
+     */
+    internal fun buzz(kind: Sound): Int? = when (kind) {
+        Sound.POP -> HapticFeedbackConstants.VIRTUAL_KEY          // 톡 — 가볍게
+        Sound.THUD -> HapticFeedbackConstants.CONTEXT_CLICK       // 툭 — 조금 무겁게
+        Sound.SPARKLE ->                                          // 반짝 — 해냈다
+            if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.LONG_PRESS
+        Sound.HISS -> null
+    }
+
     private fun render(kind: Sound): ShortArray = when (kind) {
         // 톡 — 높은 음에서 살짝 내려오며 빠르게 사그라진다
         Sound.POP -> tone(0.09f) { t, n ->
