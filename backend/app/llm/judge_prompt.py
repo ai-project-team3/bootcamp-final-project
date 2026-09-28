@@ -5,6 +5,7 @@ battery measured; 박진웅 owns it and writes the canonical version (09-30).
 If the server kept its own copy, the measured prompt and the served prompt
 would drift apart without anyone noticing.
 """
+import importlib.util
 import json
 from functools import lru_cache
 
@@ -12,6 +13,19 @@ from ..config import REPO
 from ..schemas.judge import JudgeRequest
 
 EVAL = REPO / "eval"
+
+
+def _load_block_fn():
+    """eval/prompt_block.py by path: the measurement and the server must cut the file the same way."""
+    spec = importlib.util.spec_from_file_location("prompt_block", EVAL / "prompt_block.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_blocks = _load_block_fn()
+system_block = _blocks.system_block      # the story's cut
+judge_system = _blocks.judge_system      # the judge's cut (whole file — 09-28 measurement)
 
 
 @lru_cache(maxsize=1)
@@ -23,7 +37,7 @@ def schema() -> dict:
 
 @lru_cache(maxsize=1)
 def system() -> str:
-    base = (EVAL / "judge_prompt.md").read_text(encoding="utf-8").strip()
+    base = judge_system(EVAL / "judge_prompt.md")
     return f"{base}\n\n[공통 JSON 스키마]\n{json.dumps(schema(), ensure_ascii=False, separators=(',', ':'))}\n"
 
 

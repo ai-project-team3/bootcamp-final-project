@@ -1,0 +1,193 @@
+package com.example.finalproject_demo.net
+
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+
+/**
+ * The one network client. Every entry point talks to the server through here (guidelines/3 §3).
+ *
+ * **It never throws.** A failure returns null and the caller goes on with its script —
+ * spec §3-0: *the app does not stop on an error.* A dead server must feel like a quiet
+ * mascot, not a crash.
+ *
+ * **Off until an address is set** ([base] = null). The demo, the tests and every screenshot
+ * run without a server exactly as before. Turn it on:
+ * - emulator: `adb shell am start -n kr.clap.otto/com.example.finalproject_demo.MainActivity -e server http://10.0.2.2:8010`
+ * - phone on USB: `adb reverse tcp:8010 tcp:8010`, then `-e server http://127.0.0.1:8010`
+ *
+ * Owners of what goes through it: input `/stt` (조장 — 09-28 · was 민우), judge `/judge` (치영 · 민우 for the diary),
+ * voice `/tts` (진웅), book `/story` (조장). This file is 조장's: ask before changing its shape.
+ */
+object Server {
+    @Volatile var base: String? = null
+    val on: Boolean get() = base != null
+
+    /** Slot names, closed list (guidelines/2 §1-1). The server gets all twelve, empty ones as null. */
+    val SLOTS = listOf(
+        "place", "problem", "reaction", "cause", "newcomer", "name",
+        "companion", "sound", "adult", "solution", "title", "extra",
+    )
+
+    private const val TAG = "Server"
+
+    // ── /judge ─────────────────────────────────────────────────────
+
+    /** One turn. [utterance] must already be name-masked (rule 6). */
+    data class Turn(
+        val mode: String,                       // story · diary · coop
+        val slots: Map<String, String?>,
+        val askedSlot: String?,
+        val question: String,
+        val utterance: String,
+        val turn: Int = 0,
+        val template: String? = null,
+        val level: String? = null,
+    )
+
+    /** The 16-field verdict (guidelines/2 §2). Slot names are already checked against the 12 by the server. */
+    data class Verdict(
+        val reason: String,
+        val fills: List<Pair<String, String>>,   // (slot, value) — slot_1 · slot_2, the empty ones dropped
+        val nextSlot: String?,
+        val noLongerNeeded: String?,
+        val storyReady: Boolean,
+        val unclear: Boolean,
+        val unclearOf: String?,
+        val contradiction: Boolean,
+        val s1Reason: Boolean,
+        val s2Addition: Boolean,
+        val emotion: String?,
+    )
+
+    suspend fun judge(t: Turn): Verdict? {
+        val body = JSONObject()
+            .put("mode", t.mode)
+            .put("slots", slotsJson(t.slots))
+            .put("asked_slot", t.askedSlot ?: JSONObject.NULL)
+            .put("template", t.template ?: JSONObject.NULL)
+            .put("level", t.level ?: JSONObject.NULL)
+            .put("turn", t.turn)
+            .put("question", t.question)
+            .put("utterance", t.utterance)
+        val j = postJson("/judge", body) ?: return null
+        return try { parseVerdict(j) } catch (e: Exception) { warn("/judge parse", e); null }
+    }
+
+    internal fun parseVerdict(j: JSONObject) = Verdict(
+        reason = j.optString("reason"),
+        fills = (1..2).mapNotNull { i -> str(j, "slot_$i")?.let { s -> str(j, "value_$i")?.let { v -> s to v } } },
+        nextSlot = str(j, "next_slot"),
+        noLongerNeeded = str(j, "no_longer_needed"),
+        storyReady = j.optBoolean("story_ready"),
+        unclear = j.optBoolean("unclear"),
+        unclearOf = str(j, "unclear_of"),
+        contradiction = j.optBoolean("contradiction"),
+        s1Reason = j.optBoolean("s1_reason"),
+        s2Addition = j.optBoolean("s2_addition"),
+        emotion = str(j, "emotion"),
+    )
+
+    // ── /story ─────────────────────────────────────────────────────
+
+    /** Book text. Null = keep the app's own template book. Captions still carry `{주인공}` · `{친구n}` — unmask on the phone. */
+    suspend fun story(
+        mode: String, slots: Map<String, String?>, slotBy: Map<String, String> = emptyMap(),
+        keep: String? = null, template: String? = null, level: String? = null,
+    ): List<String>? {
+        val body = JSONObject()
+            .put("mode", mode)
+            .put("slots", slotsJson(slots))
+            .put("slot_by", JSONObject().apply { slotBy.filterKeys { it in SLOTS }.forEach { (k, v) -> put(k, v) } })
+            .put("keep", keep ?: JSONObject.NULL)
+            .put("template", template ?: JSONObject.NULL)
+            .put("level", level ?: JSONObject.NULL)
+        val j = postJson("/story", body, readMs = 60_000) ?: return null
+        return try {
+            val a = j.getJSONArray("scenes")
+            List(a.length()) { a.getJSONObject(it).getString("caption") }
+        } catch (e: Exception) { warn("/story parse", e); null }
+    }
+
+    // ── /stt ───────────────────────────────────────────────────────
+
+    /**
+     * Speech segment → text. "" means the server heard nothing usable (silence, a whisper
+     * hallucination) — treat it as no answer. Null means the call failed.
+     * ⚠️ The text still holds real names. Mask before it goes anywhere else (rule 6).
+     */
+    suspend fun stt(audio: ByteArray, fileName: String = "turn.wav", mime: String = "audio/wav"): String? {
+        val boundary = "otto${System.nanoTime()}"
+        val out = ByteArrayOutputStream().apply {
+            write("--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"$fileName\"\r\nContent-Type: $mime\r\n\r\n".toByteArray())
+            write(audio)
+            write("\r\n--$boundary--\r\n".toByteArray())
+        }.toByteArray()
+        val (code, bytes) = post("/stt", out, "multipart/form-data; boundary=$boundary", readMs = 30_000) ?: return null
+        if (code != 200) { Log.w(TAG, "/stt $code ${bytes.decodeToString()}"); return null }
+        return try { JSONObject(bytes.decodeToString()).getString("text") } catch (e: Exception) { warn("/stt parse", e); null }
+    }
+
+    // ── /tts ───────────────────────────────────────────────────────
+
+    /** The mascot's line as audio bytes (mp3; wav in mock mode). Never send a real name (it leaves for TypeCast). */
+    suspend fun tts(text: String, voiceId: String? = null, previous: String? = null, next: String? = null): ByteArray? {
+        val body = JSONObject().put("text", text)
+            .put("voice_id", voiceId ?: JSONObject.NULL)
+            .put("previous_text", previous ?: JSONObject.NULL)
+            .put("next_text", next ?: JSONObject.NULL)
+        val (code, bytes) = post("/tts", body.toString().toByteArray(), JSON) ?: return null
+        if (code != 200) { Log.w(TAG, "/tts $code ${bytes.decodeToString()}"); return null }
+        return bytes
+    }
+
+    /** Is the server there, and is it the mock? Null = unreachable. */
+    suspend fun health(): Boolean? = withContext(Dispatchers.IO) {
+        val b = base ?: return@withContext null
+        try {
+            val c = URL("$b/health").openConnection() as HttpURLConnection
+            c.connectTimeout = 3_000; c.readTimeout = 3_000
+            if (c.responseCode != 200) null
+            else JSONObject(c.inputStream.use { it.readBytes() }.decodeToString()).optBoolean("mock")
+        } catch (e: Exception) { warn("/health", e); null }
+    }
+
+    // ── plumbing ───────────────────────────────────────────────────
+
+    private const val JSON = "application/json; charset=utf-8"
+
+    private fun slotsJson(slots: Map<String, String?>) =
+        JSONObject().apply { SLOTS.forEach { put(it, slots[it] ?: JSONObject.NULL) } }
+
+    private fun str(j: JSONObject, key: String): String? =
+        if (j.isNull(key)) null else j.optString(key).takeIf { it.isNotEmpty() }
+
+    private suspend fun postJson(path: String, body: JSONObject, readMs: Int = 15_000): JSONObject? {
+        val (code, bytes) = post(path, body.toString().toByteArray(), JSON, readMs) ?: return null
+        if (code != 200) { Log.w(TAG, "$path $code ${bytes.decodeToString()}"); return null }
+        return try { JSONObject(bytes.decodeToString()) } catch (e: Exception) { warn("$path json", e); null }
+    }
+
+    private suspend fun post(path: String, body: ByteArray, type: String, readMs: Int = 15_000): Pair<Int, ByteArray>? =
+        withContext(Dispatchers.IO) {
+            val b = base ?: return@withContext null
+            try {
+                val c = URL(b + path).openConnection() as HttpURLConnection
+                c.connectTimeout = 4_000
+                c.readTimeout = readMs
+                c.requestMethod = "POST"
+                c.doOutput = true
+                c.setRequestProperty("Content-Type", type)
+                c.outputStream.use { it.write(body) }
+                val code = c.responseCode
+                val bytes = (if (code in 200..299) c.inputStream else c.errorStream)?.use { it.readBytes() } ?: ByteArray(0)
+                code to bytes
+            } catch (e: Exception) { warn(path, e); null }
+        }
+
+    private fun warn(what: String, e: Exception) = Log.w(TAG, "$what failed: ${e.javaClass.simpleName} ${e.message}")
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: the dev server is plain http on the LAN or through `adb reverse`
+     (10.0.2.2 from the emulator, 127.0.0.1 on a USB phone). Release never allows
+     cleartext; it talks to the server over https. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application
+        android:usesCleartextTraffic="true"
+        tools:ignore="UnusedAttribute" />
+</manifest>
