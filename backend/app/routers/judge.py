@@ -3,10 +3,19 @@
 The model reads the whole slot state and decides what to ask next; the rules
 here keep the story from wandering. Spec: guidelines/7_프롬프트.md §2.
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+
+from ..config import settings
+from ..filters.blocklist import is_blocked
+from ..llm import judge_prompt
+from ..llm.client import LLMError, complete
 from ..schemas.judge import JudgeRequest, JudgeResult, SLOT_NAMES
 
 router = APIRouter()
+
+# Order the mock walks when it picks the next slot. Only for MOCK=1 — the real
+# order is the model's call (rule 2: required slots are not fixed).
+_MOCK_ORDER = ("place", "problem", "reaction", "cause", "solution")
 
 
 def enforce(result: JudgeResult, req: JudgeRequest) -> JudgeResult:
@@ -24,6 +33,31 @@ def enforce(result: JudgeResult, req: JudgeRequest) -> JudgeResult:
     return result
 
 
+def blocked() -> JudgeResult:
+    """Guardrail 3: a blocked utterance never reaches the LLM. Nothing is filled."""
+    return JudgeResult(reason="blocked_by_filter", unclear=True)
+
+
+def mock(req: JudgeRequest) -> JudgeResult:
+    """Fixed, spec-shaped answer: the utterance fills the asked slot, then the next empty one."""
+    slot = req.asked_slot if req.asked_slot in SLOT_NAMES else "extra"
+    filled = {**req.slots, slot: req.utterance}
+    nxt = next((s for s in _MOCK_ORDER if not filled.get(s)), None)
+    return JudgeResult(
+        reason="mock", slot_1=slot, value_1=req.utterance,
+        next_slot=nxt, next_reason="mock order", story_ready=nxt is None,
+    )
+
+
 @router.post("/judge", response_model=JudgeResult)
 async def judge(req: JudgeRequest) -> JudgeResult:
-    raise NotImplementedError("W1: implement after the model is chosen")
+    if is_blocked(req.utterance):
+        return blocked()
+    if settings.mock:
+        return enforce(mock(req), req)
+    try:
+        raw = await complete(judge_prompt.system(), judge_prompt.user(req), judge_prompt.schema(),
+                             effort=settings.llm_effort_judge)
+    except LLMError as e:
+        raise HTTPException(502, str(e)) from e
+    return enforce(JudgeResult.model_validate(raw), req)

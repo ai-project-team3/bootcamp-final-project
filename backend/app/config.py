@@ -1,13 +1,26 @@
 """Settings. Model ids are settings, never constants — W1 measurement may swap them."""
-from pydantic_settings import BaseSettings
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+REPO = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
+    # The one .env lives at the repo root (gitignored, one per person). Reading it by
+    # absolute path means `uvicorn` works from backend/ or from the root alike.
+    model_config = SettingsConfigDict(env_file=REPO / ".env", extra="ignore")
+
+    # MOCK=1: every route answers the spec's shape with fixed values, no keys, no GPU.
+    # Teammates wire the app against this while the real server runs on the lead's PC.
+    mock: bool = False
+
     llm_provider: str = "openai"
     # 09-25 measured: same 100 questions as gpt-5.6-luna, quality equal or better on
     # four fields, nothing worse, half the price (10.5 vs 21.6 KRW per book). results.md.
     llm_model: str = "gpt-6-luna"
-    llm_api_key: str = ""
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
     llm_effort_judge: str = "none"
     llm_effort_story: str = "high"
 
@@ -16,13 +29,16 @@ class Settings(BaseSettings):
     # 26->15% at 5) for +0.23s. .env is gitignored, so this default is what a fresh
     # checkout or CI actually runs with — it has to be the confirmed model, not turbo.
     stt_model: str = "large-v3"
-    stt_api_key: str = ""
-    whisper_server_url: str = "http://127.0.0.1:9000"
+    stt_device: str = "cuda"
+    stt_compute_type: str = "int8_float16"    # what combination A was measured with
+
+    # 09-25 vendor, 09-28 team scores: Ruri (smart) was the only 12/12. The lineup is
+    # still open, so the voice is a setting and the app may pass its own voice_id.
+    typecast_api_key: str = ""
+    typecast_model: str = "ssfm-v30"
+    typecast_voice_id: str = "tc_65a8c82a7e7bded32947497e"
 
     port: int = 8000
-
-    class Config:
-        env_file = ".env"
 
 
 settings = Settings()
