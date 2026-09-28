@@ -69,6 +69,29 @@ def test_the_system_prompt_is_the_measured_one():
     assert judge_prompt.system().startswith(measured)
 
 
+def test_effort_none_is_sent_not_dropped(monkeypatch):
+    """Dropping effort='none' lets the model reason by default and cut its own answer off."""
+    import asyncio
+    import httpx
+    from app.llm import client as llm
+
+    sent = {}
+
+    class Fake:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, url, headers, json):
+            sent.update(json)
+            body = {"output": [{"type": "message", "content": [{"type": "output_text", "text": "{}"}]}]}
+            return httpx.Response(200, json=body)
+
+    monkeypatch.setattr(settings, "openai_api_key", "test")
+    monkeypatch.setattr(llm.httpx, "AsyncClient", Fake)
+    asyncio.run(llm.complete("s", "u", {}, effort="none"))
+    assert sent["reasoning"] == {"effort": "none"}
+
+
 def test_stt_returns_text(client):
     r = client.post("/stt", files={"file": ("a.wav", b"RIFF....", "audio/wav")})
     assert r.status_code == 200 and isinstance(r.json()["text"], str)

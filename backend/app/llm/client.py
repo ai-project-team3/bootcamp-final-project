@@ -19,13 +19,20 @@ class LLMError(RuntimeError):
 
 
 def _output_text(body: dict) -> str:
+    seen = []
     for item in body.get("output") or []:
         if item.get("type") != "message":
+            seen.append(item.get("type"))
             continue
         for part in item.get("content") or []:
             if part.get("type") == "output_text":
                 return part.get("text") or ""
-    raise LLMError("no output_text in response")
+            if part.get("type") == "refusal":
+                raise LLMError("refusal")
+            seen.append(part.get("type"))
+    # Say why, not just that: a cut-off answer (max_output_tokens) and a refusal need different fixes
+    why = (body.get("incomplete_details") or {}).get("reason")
+    raise LLMError(f"no output_text (status={body.get('status')}, reason={why}, parts={seen})")
 
 
 async def complete(system: str, user: str, schema: dict, *, effort: str,
@@ -45,7 +52,11 @@ async def complete(system: str, user: str, schema: dict, *, effort: str,
         "store": False,
         "max_output_tokens": max_output_tokens,
     }
-    if effort and effort != "none":
+    # Send "none" explicitly. Leaving the field out is NOT "no reasoning": the model then
+    # reasons at its default, spends the token budget on it and returns a cut-off answer
+    # (09-28: 2 of 6 live turns died with status=incomplete, parts=['reasoning']).
+    # The 09-25 measurement sent effort="none" — this is what makes the server match it.
+    if effort:
         payload["reasoning"] = {"effort": effort}
 
     try:
