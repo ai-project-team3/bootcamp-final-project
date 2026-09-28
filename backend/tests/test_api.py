@@ -115,3 +115,41 @@ def test_a_broken_body_still_gets_the_spec_error_shape(client):
 
 def test_tts_refuses_empty_text(client):
     assert client.post("/tts", json={"text": ""}).status_code == 422
+
+
+# ── /story ────────────────────────────────────────────────────────────
+from app.routers import story as story_route          # noqa: E402
+from app.schemas.story import Scene, StoryResult       # noqa: E402
+
+
+def test_story_story_mode_gives_six_scenes(client):
+    r = client.post("/story", json={"slots": {**EMPTY, "place": "공룡나라"}, "template": "C"})
+    assert r.status_code == 200 and len(r.json()["scenes"]) == 6
+
+
+def test_story_diary_reads_the_diary_prompt_not_the_story_one():
+    diary, tale = story_route.system("diary"), story_route.system("story")
+    assert "일기" in diary and "클리프행어" not in diary, "the diary must not be told to leave a crisis open"
+    assert "[입력 슬롯]" not in tale, "the input block is sent as the user message, not twice"
+
+
+def test_story_diary_input_carries_by_and_keep():
+    from app.schemas.story import StoryRequest
+    text = story_route.user(StoryRequest(mode="diary", slots={"solution": "잤어"},
+                                         slot_by={"solution": "mascot"}, keep="또 가고 싶어"))
+    assert '"solution":"mascot"' in text and "또 가고 싶어" in text
+
+
+def _book(*caps):
+    return StoryResult(scenes=[Scene(index=i + 1, caption=c, keywords="x") for i, c in enumerate(caps)])
+
+
+def test_story_check_throws_away_the_wrong_scene_count():
+    assert story_route.check(_book(*["가요."] * 5), "story")
+    assert story_route.check(_book(*["가요."] * 6), "story") is None
+    assert story_route.check(_book(*["가요."] * 4), "diary") is None
+
+
+def test_story_check_throws_away_an_invented_name():
+    assert story_route.check(_book("{주인공}과 {철수}가 놀았어요.", *["가요."] * 5), "story")
+    assert story_route.check(_book("{주인공}과 {친구1}가 놀았어요.", *["가요."] * 5), "story") is None
