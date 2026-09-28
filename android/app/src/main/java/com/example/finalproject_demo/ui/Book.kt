@@ -42,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -188,6 +189,7 @@ private fun Stand(
  */
 @Composable
 private fun PuzzlePage(d: Director, done: Boolean) {
+    val view = LocalView.current   // 효과음과 같이 진동 (Sfx · 09-25)
     val s = d.s
     val density = LocalDensity.current.density
     val picId = assetId(s.bgName)
@@ -211,7 +213,7 @@ private fun PuzzlePage(d: Director, done: Boolean) {
     LaunchedEffect(allIn) {
         if (!allIn || sent) return@LaunchedEffect
         sent = true
-        Sfx.play(Sound.SPARKLE, 0L)
+        Sfx.play(Sound.SPARKLE, 0L, view = view)
         d.send(Reply.Tapped("mission", "미션2"))
     }
 
@@ -263,7 +265,7 @@ private fun PuzzlePage(d: Director, done: Boolean) {
                                 val near = kotlin.math.hypot(now.x - target.x, now.y - target.y) < pw * 0.45f
                                 if (near) {
                                     placed[i] = true
-                                    Sfx.play(Sound.THUD, 0L)
+                                    Sfx.play(Sound.THUD, 0L, view = view)
                                     puffs.burst(target.x + pw / 2, target.y + ph / 2, wpx * 0.018f, 10)
                                 } else {
                                     // 틀렸다고 말하지 않는다 — 조용히 제자리로
@@ -682,6 +684,7 @@ private fun Cover(d: Director, heroArt: Art) {
  */
 @Composable
 private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool: String) {
+    val view = LocalView.current   // 효과음과 같이 진동 (Sfx · 09-25)
     val s = d.s
     val m = s.mission1()
     val density = LocalDensity.current.density
@@ -713,7 +716,7 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
         showHint = true
     }
     val lift by animateFloatAsState(if (allOut) -30f else 0f, tween(900), label = "lift")
-    LaunchedEffect(allOut) { if (allOut && !fired) { fired = true; Sfx.play(Sound.SPARKLE, 0L); d.send(Reply.Tapped("mission", "미션1")) } }
+    LaunchedEffect(allOut) { if (allOut && !fired) { fired = true; Sfx.play(Sound.SPARKLE, 0L, view = view); d.send(Reply.Tapped("mission", "미션1")) } }
     LaunchedEffect(gag) { if (gag != null) { delay(1400); gag = null } }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -753,7 +756,7 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
                             rub[i] = minOf(3f, rub[i] + blow * 0.09f)
                             // 날아가는 것이 보이게 — 바람을 타고 옆으로 흩어진다
                             puffs.water(b.x, b.y, blow * wpx * 0.02f, -blow * wpx * 0.004f, wpx * 0.03f)
-                            if (before < 3f && rub[i] >= 3f) Sfx.play(Sound.SPARKLE, 0L)
+                            if (before < 3f && rub[i] >= 3f) Sfx.play(Sound.SPARKLE, 0L, view = view)
                         }
                     }
                 }
@@ -814,7 +817,7 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
                                 // 마지막 한 방울이 꺼진 순간 — 김이 확 피어오른다
                                 if (before < 3f && rub[i] >= 3f) {
                                     puffs.steam(b.x, b.y, wpx * 0.075f, 10)
-                                    Sfx.play(Sound.SPARKLE, minGapMs = 0L)
+                                    Sfx.play(Sound.SPARKLE, minGapMs = 0L, view = view)
                                 }
                             }
                         }
@@ -921,6 +924,7 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
  */
 @Composable
 private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
+    val view = LocalView.current   // 효과음과 같이 진동 (Sfx · 09-25)
     val s = d.s
     val m = s.mission2()
     val easy = s.m1Result == "helped"
@@ -997,9 +1001,9 @@ private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
         LaunchedEffect(given) {
             // 검사에서는 멈춘다 — 안 그러면 찍는 순간 친구가 뛰어오른 중이라 기준 그림이 매번 달라진다
             if (!given || motionFrozen) return@LaunchedEffect
-            Sfx.play(Sound.THUD, 0L)
+            Sfx.play(Sound.THUD, 0L, view = view)
             puffs.burst(fCx, fCy, wpx * 0.03f, 22)
-            Sfx.play(Sound.SPARKLE, 0L)
+            Sfx.play(Sound.SPARKLE, 0L, view = view)
             hop.snapTo(0f)
             hop.animateTo(1f, spring(dampingRatio = 0.32f, stiffness = 420f), initialVelocity = 7f)
         }

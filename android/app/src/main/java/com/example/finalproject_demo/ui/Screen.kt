@@ -728,7 +728,7 @@ private fun AdultScreen(d: Director) {
                 val t = rememberInfiniteTransition(label = "hi")
                 val bob by t.animateFloat(-5f, 5f, infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "bob")
                 ArtView(Art.Mascot, Modifier.size(190.dp).offset { IntOffset(0, bob.roundToInt()) })
-                // 앱 이름 로고 — 주아 글꼴로 쓴 「오또」에 ComfyUI 로 양모 펠트 질감을 입혔다 (09-26 · 원본 art/drawable/logo_otto.png)
+                // 앱 이름 로고 — 주아 글꼴로 쓴 「오또」에 ComfyUI 로 양모 펠트 질감을 입혔다 (09-26 · res/drawable/logo_otto.png)
                 AssetImage("logo_otto", Modifier.width(220.dp)) {
                     Text("오또", fontSize = 40.sp, color = Color.White, fontWeight = FontWeight.Bold)
                 }

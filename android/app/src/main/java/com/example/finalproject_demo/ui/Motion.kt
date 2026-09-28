@@ -18,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
@@ -464,6 +465,7 @@ fun Modifier.breathing(periodMs: Int = 2600, amount: Float = 0.014f, seed: Int =
 @Composable
 fun Modifier.pressPop(enabled: Boolean = true, onClick: () -> Unit): Modifier {
     val press = remember { Animatable(0f) }
+    val view = LocalView.current
     val scope = rememberCoroutineScope()
     return this
         .graphicsLayer {
@@ -477,7 +479,7 @@ fun Modifier.pressPop(enabled: Boolean = true, onClick: () -> Unit): Modifier {
             detectTapGestures(
                 onPress = {
                     scope.launch { press.animateTo(1f, tween(80)) }
-                    Sfx.play(Sound.POP)
+                    Sfx.play(Sound.POP, view = view)
                     val released = tryAwaitRelease()
                     scope.launch {
                         press.animateTo(
