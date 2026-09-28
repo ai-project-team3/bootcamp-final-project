@@ -3,6 +3,12 @@
 > 근거: `guidelines/7_프롬프트.md` §1(공통 시스템 프롬프트) · §2(턴 판정). 필드 정의는 `guidelines/2_공통_데이터_모델.md` §1-2.
 > 짝 파일: `judge_schema.json` — `reason`이 첫 필드인 1단 평면, 16개 필드.
 > **확정 후 모델마다 손대지 않는다.** 고치는 순간 뭘 비교한 건지 알 수 없다.
+>
+> **정본 (09-28 · 박진웅).** 서버 `/judge` 가 이 파일을 읽는다 — `judge_prompt_demo.md` 는 무료 mock 러너용으로만 남는다.
+> 09-28 에 바꾼 것 셋: ① `[모드]` 절 (`guidelines/2` §1-1 · `3_API_명세.md` §3-2 `mode`) ② 모드 예시 하나(예시 7)
+> ③ 채워지지 않은 `[지금 상태] {slots}…` 자리표시자 블록을 **실제로 오는 입력 줄 설명**으로 바꿈 — 서버·러너 모두 입력을 사용자 메시지로 따로 보낸다.
+> ⚠️ **바뀐 프롬프트다 — 다시 재야 한다** (평가셋 100 + 모드 25).
+> 모델에 보낼 것은 아래 「시스템 프롬프트」 코드 블록 안뿐이다. 이 머리말과 블록 뒤의 절은 사람용이다.
 
 ---
 
@@ -32,6 +38,19 @@
 [칸(슬롯) 목록 — 이 안에서만 고른다. 새 이름을 만들지 않는다]
 place · problem · reaction · cause · newcomer · name · companion · sound · adult · solution · title · extra
 목록에 없는 요소는 extra에 원문 그대로 넣는다.
+
+[모드 — 입력의 mode 줄. 없으면 story]
+칸 이름은 모드와 상관없이 같은 12개다. 모드는 같은 칸을 어떻게 읽을지만 바꾼다.
+story (동화) : 아이와 함께 지어내는 이야기. 아래 판정 기준 그대로.
+diary (일기) : 아이가 오늘 실제로 있었던 일을 말한다. 지어내지 않는다.
+  - 답이 "몰라"·"그냥"·"기억 안 나"뿐이면 slot_1:null. 감정·까닭·결말을 추측해 채우지 않는다.
+  - solution 은 이야기 끝에 어떻게 됐나(결말)다. 문제가 있었으면 어떻게 풀었나.
+    문제가 없던 날의 결말("다 놀고 집에 왔어")도 solution 이다.
+  - 바람·계획("또 가고 싶어", "내일 다시 할 거야")은 아직 일어나지 않은 일이다. solution 이 아니다 —
+    extra 에 원문 그대로 넣는다. 결말과 바람이 한 발화에 같이 나오면 결말은 slot_1, 바람은 slot_2:extra.
+coop (협업) : diary 와 같이 읽는다. 질문은 부모가 적어 둔 것이다.
+  - 발화에 [부모] 표시가 붙은 말은 아이 말이 아니다. 칸 값 · s1_reason · s2_addition · emotion 의
+    근거로 쓰지 않는다. [아이] 표시가 붙은 말만 본다.
 
 [판정 기준]
 reason              : 판정 근거를 딱 한 문장. 반드시 첫 필드 — 판정보다 앞에 근거를 쓴다.
@@ -79,31 +98,31 @@ story_ready         : 템플릿 기준으로 이야기 재료가 다 찼으면 t
 예시 6) 슬롯: {"place":"공룡나라"} / 방금 물은 칸: newcomer / 발화: "공룡!"
 {"reason":"newcomer를 답하긴 했으나 '공룡'은 종류만 말한 것이라 생김새를 더 물으면 이야기가 풍부해짐","slot_1":"newcomer","value_1":"공룡","slot_2":null,"value_2":null,"contradiction":false,"contradiction_with":null,"s1_reason":false,"s2_addition":false,"emotion":null,"unclear":true,"unclear_of":"어떻게 생겼는지","next_slot":"newcomer","next_reason":"방금 답한 공룡의 생김새를 더 물어서 채움","no_longer_needed":null,"story_ready":false}
 
+예시 7) 모드: diary / 슬롯: {"place":"놀이터","problem":"그네를 탔어","cause":"높이 올라가서"} / 방금 물은 칸: solution / 발화: "다 놀고 집에 왔어. 또 오고 싶어"
+{"reason":"앞은 오늘의 결말, 뒤는 아직 안 한 바람이라 결말만 solution, 바람은 extra 원문","slot_1":"solution","value_1":"다 놀고 집에 왔다","slot_2":"extra","value_2":"또 오고 싶어","contradiction":false,"contradiction_with":null,"s1_reason":false,"s2_addition":true,"emotion":null,"unclear":false,"unclear_of":null,"next_slot":null,"next_reason":"결말까지 찼다","no_longer_needed":null,"story_ready":true}
+
 reason에 한 줄 근거를 먼저 쓰고, 그다음 나머지 값을 정한다.
 JSON 외에는 아무것도 출력하지 마라.
 
-[지금 상태]
-슬롯: {slots}
-방금 물은 칸: {asked_slot}
-이야기 템플릿: {template}
-아이 수준: {level}
-턴 수: {turn}
-마스코트가 한 질문: "{question}"
-
-[아이 발화]
-"{utterance}"
+[입력 — 사용자 메시지로 아래 줄들이 온다. 없는 줄은 비어 있을 수 있다]
+mode      : story · diary · coop. 비어 있으면 story
+slots     : 12칸 전부. 빈 칸은 null
+asked     : 방금 물은 칸. 맥락용이다 — 답이 이 칸만 채운다고 가정하지 않는다
+template  : 이야기 템플릿
+question  : 마스코트가 방금 한 질문
+utterance : 이름이 가려진 아이 발화
 ```
 
-## 치환 변수
-⚠️ **`str.format()`으로 치환하면 안 된다.** 프롬프트 본문에 `{주인공}`·`{친구1}` 같은 리터럴 중괄호가 있어서 `.format()`이 이걸 미지정 키로 오인해 `KeyError`를 낸다. `template.replace("{slots}", ...)`처럼 필요한 자리만 정확히 치환한다.
+## 입력 형식
+모델에 가는 입력은 시스템 프롬프트가 아니라 **사용자 메시지**다. 보내는 쪽이 둘이다.
 
-- `{slots}`: `JudgeRequest.slots` — 12칸 전부, 빈 칸은 `null`.
-- `{asked_slot}`: `JudgeRequest.asked_slot` — 맥락용, 없으면 "(없음)".
-- `{template}`: `JudgeRequest.template` — 3턴째 전이면 "(없음)".
-- `{level}`: `JudgeRequest.level` — 고르며 짓기/이어 짓기/까닭 짓기.
-- `{turn}`: `JudgeRequest.turn`.
-- `{question}`: 마스코트가 방금 실제로 한 질문.
-- `{utterance}`: 이름이 이미 가려진 아이 발화.
+| 줄 | 서버 `backend/app/llm/judge_prompt.py` `user()` | 러너 `eval/run_judge.py` `build_user_prompt()` |
+|---|---|---|
+| `mode` | ✅ | ❌ 아직 안 보낸다 — 모드 평가셋(`fixtures_mode.jsonl`)을 재려면 필요 |
+| `slots` · `asked` · `template` · `utterance` | ✅ | ✅ |
+| `question` | ✅ | ❌ (평가셋의 `context` 가 이 자리) |
+
+09-28 전에는 이 자리에 `{slots}`·`{level}`·`{turn}` 자리표시자 블록이 있었는데 **아무도 채우지 않고 그대로 보냈다.** `level`·`turn` 은 어느 쪽도 보내지 않는다.
 
 ## 호출 방법
 - **구조화 출력/제약 디코딩으로 호출**한다(OpenAI Structured Outputs strict / Anthropic 제약 디코딩). 프롬프트만으로 JSON을 유도하면 코드펜스로 감싸는 등 깨질 수 있다.
@@ -116,4 +135,4 @@ JSON 외에는 아무것도 출력하지 마라.
 - `slot_1`/`slot_2`/`contradiction`/`s1_reason`/`s2_addition`/`no_longer_needed`/`story_ready`는 정확히 일치해야 정답(F1 계산 대상).
 
 ## 프롬프트 캐싱
-고정 블록(역할+칸 목록+판정 기준+예시)이 먼저, 매 호출 바뀌는 `{slots}`/`{asked_slot}`/`{template}`/`{level}`/`{turn}`/`{question}`/`{utterance}`가 맨 뒤. 캐시 경계는 `[지금 상태]` 줄 바로 앞.
+시스템 프롬프트 전체가 고정이다(역할 + 칸 목록 + 모드 + 판정 기준 + 예시 + 입력 설명). 매 호출 바뀌는 것은 사용자 메시지뿐이라 **시스템 프롬프트 전체가 캐시된다.**
