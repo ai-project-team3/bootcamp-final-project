@@ -64,8 +64,11 @@ def test_the_user_prompt_carries_mode_and_question():
 
 
 def test_the_system_prompt_is_the_measured_one():
-    # One place only: the server reads eval/judge_prompt.md, it does not keep a copy
-    measured = (judge_prompt.EVAL / "judge_prompt.md").read_text(encoding="utf-8").strip()
+    # One place, one cut: the server and eval/run_judge.py both go through prompt_block.system_block
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("rj", judge_prompt.EVAL / "run_judge.py")
+    assert "system_block(path)" in (judge_prompt.EVAL / "run_judge.py").read_text(encoding="utf-8")
+    measured = judge_prompt.system_block(judge_prompt.EVAL / "judge_prompt.md")
     assert judge_prompt.system().startswith(measured)
 
 
@@ -153,3 +156,11 @@ def test_story_check_throws_away_the_wrong_scene_count():
 def test_story_check_throws_away_an_invented_name():
     assert story_route.check(_book("{주인공}과 {철수}가 놀았어요.", *["가요."] * 5), "story")
     assert story_route.check(_book("{주인공}과 {친구1}가 놀았어요.", *["가요."] * 5), "story") is None
+
+
+def test_the_judge_prompt_is_the_block_not_the_notes():
+    """Only the fenced prompt goes out — no header notes, no unfilled {slots} input block (진웅 09-28)."""
+    s = judge_prompt.system()
+    assert s.startswith("당신은"), s[:40]
+    assert "[지금 상태]" not in s and "{utterance}" not in s
+    assert "## 치환 변수" not in s
