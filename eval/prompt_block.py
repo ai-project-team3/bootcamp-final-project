@@ -10,12 +10,25 @@ the caller sends the input as the user message, so a second, unfilled copy with
 literal {slots} would only confuse the model (09-28, 박진웅).
 
 A file with no such fence is sent whole, as before.
+
+⚠️ 09-28 measurement (results.md): for the JUDGE the block lost to the whole file —
+three runs each, no overlap on multi-fill F1 (0.663~0.677 vs 0.700~0.763) and
+next_slot (70.7~74.3% vs 78.7~82.7%). So the judge is sent WHOLE ([JUDGE_WHOLE]) until
+진웅's canonical prompt is measured better in three runs. The story keeps the block.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
 INPUT_MARKERS = ("[지금 상태]", "[입력 슬롯]")
+
+# The judge goes whole — see the measurement note above. Flip only on three-run numbers.
+JUDGE_WHOLE = True
+
+
+def judge_system(path: Path) -> str:
+    """What the judge model gets. Used by eval/run_judge.py and the server alike."""
+    return Path(path).read_text(encoding="utf-8").strip() if JUDGE_WHOLE else system_block(path)
 
 
 def system_block(path: Path) -> str:

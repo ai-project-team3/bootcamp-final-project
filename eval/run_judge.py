@@ -7,12 +7,12 @@ from pathlib import Path
 
 try:
     from .config import key_env_for, load_dotenv, resolve_model
-    from .prompt_block import system_block
+    from .prompt_block import judge_system
     from .providers import create_provider
     from .providers.http_sse import HttpStatusError
 except ImportError:
     from config import key_env_for, load_dotenv, resolve_model
-    from prompt_block import system_block
+    from prompt_block import judge_system
     from providers import create_provider
     from providers.http_sse import HttpStatusError
 
@@ -35,7 +35,7 @@ def load_jsonl(path: Path):
 
 def load_system_prompt(path: Path, schema: dict) -> str:
     # Only the prompt block, the same function the server uses (prompt_block.py · 09-28).
-    base = system_block(path)
+    base = judge_system(path)
     schema_text = json.dumps(schema, ensure_ascii=False, separators=(",", ":"))
     return f"{base}\n\n[공통 JSON 스키마]\n{schema_text}\n"
 

@@ -20,10 +20,12 @@ def _load_block_fn():
     spec = importlib.util.spec_from_file_location("prompt_block", EVAL / "prompt_block.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return mod.system_block
+    return mod
 
 
-system_block = _load_block_fn()
+_blocks = _load_block_fn()
+system_block = _blocks.system_block      # the story's cut
+judge_system = _blocks.judge_system      # the judge's cut (whole file — 09-28 measurement)
 
 
 @lru_cache(maxsize=1)
@@ -35,7 +37,7 @@ def schema() -> dict:
 
 @lru_cache(maxsize=1)
 def system() -> str:
-    base = system_block(EVAL / "judge_prompt.md")
+    base = judge_system(EVAL / "judge_prompt.md")
     return f"{base}\n\n[공통 JSON 스키마]\n{json.dumps(schema(), ensure_ascii=False, separators=(',', ':'))}\n"
 
 
