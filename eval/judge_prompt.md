@@ -3,12 +3,6 @@
 > 근거: `guidelines/7_프롬프트.md` §1(공통 시스템 프롬프트) · §2(턴 판정). 필드 정의는 `guidelines/2_공통_데이터_모델.md` §1-2.
 > 짝 파일: `judge_schema.json` — `reason`이 첫 필드인 1단 평면, 16개 필드.
 > **확정 후 모델마다 손대지 않는다.** 고치는 순간 뭘 비교한 건지 알 수 없다.
->
-> **정본 (09-28 · 박진웅).** 서버 `/judge` 가 이 파일을 읽는다 — `judge_prompt_demo.md` 는 무료 mock 러너용으로만 남는다.
-> 09-28 에 바꾼 것 셋: ① `[모드]` 절 (`guidelines/2` §1-1 · `3_API_명세.md` §3-2 `mode`) ② 모드 예시 하나(예시 7)
-> ③ 채워지지 않은 `[지금 상태] {slots}…` 자리표시자 블록을 **실제로 오는 입력 줄 설명**으로 바꿈 — 서버·러너 모두 입력을 사용자 메시지로 따로 보낸다.
-> ⚠️ **바뀐 프롬프트다 — 다시 재야 한다** (평가셋 100 + 모드 25).
-> 모델에 보낼 것은 아래 「시스템 프롬프트」 코드 블록 안뿐이다. 이 머리말과 블록 뒤의 절은 사람용이다.
 
 ---
 
@@ -104,25 +98,28 @@ story_ready         : 템플릿 기준으로 이야기 재료가 다 찼으면 t
 reason에 한 줄 근거를 먼저 쓰고, 그다음 나머지 값을 정한다.
 JSON 외에는 아무것도 출력하지 마라.
 
-[입력 — 사용자 메시지로 아래 줄들이 온다. 없는 줄은 비어 있을 수 있다]
-mode      : story · diary · coop. 비어 있으면 story
-slots     : 12칸 전부. 빈 칸은 null
-asked     : 방금 물은 칸. 맥락용이다 — 답이 이 칸만 채운다고 가정하지 않는다
-template  : 이야기 템플릿
-question  : 마스코트가 방금 한 질문
-utterance : 이름이 가려진 아이 발화
+[지금 상태]
+슬롯: {slots}
+방금 물은 칸: {asked_slot}
+이야기 템플릿: {template}
+아이 수준: {level}
+턴 수: {turn}
+마스코트가 한 질문: "{question}"
+
+[아이 발화]
+"{utterance}"
 ```
 
-## 입력 형식
-모델에 가는 입력은 시스템 프롬프트가 아니라 **사용자 메시지**다. 보내는 쪽이 둘이다.
+## 치환 변수
+⚠️ **`str.format()`으로 치환하면 안 된다.** 프롬프트 본문에 `{주인공}`·`{친구1}` 같은 리터럴 중괄호가 있어서 `.format()`이 이걸 미지정 키로 오인해 `KeyError`를 낸다. `template.replace("{slots}", ...)`처럼 필요한 자리만 정확히 치환한다.
 
-| 줄 | 서버 `backend/app/llm/judge_prompt.py` `user()` | 러너 `eval/run_judge.py` `build_user_prompt()` |
-|---|---|---|
-| `mode` | ✅ | ❌ 아직 안 보낸다 — 모드 평가셋(`fixtures_mode.jsonl`)을 재려면 필요 |
-| `slots` · `asked` · `template` · `utterance` | ✅ | ✅ |
-| `question` | ✅ | ❌ (평가셋의 `context` 가 이 자리) |
-
-09-28 전에는 이 자리에 `{slots}`·`{level}`·`{turn}` 자리표시자 블록이 있었는데 **아무도 채우지 않고 그대로 보냈다.** `level`·`turn` 은 어느 쪽도 보내지 않는다.
+- `{slots}`: `JudgeRequest.slots` — 12칸 전부, 빈 칸은 `null`.
+- `{asked_slot}`: `JudgeRequest.asked_slot` — 맥락용, 없으면 "(없음)".
+- `{template}`: `JudgeRequest.template` — 3턴째 전이면 "(없음)".
+- `{level}`: `JudgeRequest.level` — 고르며 짓기/이어 짓기/까닭 짓기.
+- `{turn}`: `JudgeRequest.turn`.
+- `{question}`: 마스코트가 방금 실제로 한 질문.
+- `{utterance}`: 이름이 이미 가려진 아이 발화.
 
 ## 호출 방법
 - **구조화 출력/제약 디코딩으로 호출**한다(OpenAI Structured Outputs strict / Anthropic 제약 디코딩). 프롬프트만으로 JSON을 유도하면 코드펜스로 감싸는 등 깨질 수 있다.
@@ -135,4 +132,4 @@ utterance : 이름이 가려진 아이 발화
 - `slot_1`/`slot_2`/`contradiction`/`s1_reason`/`s2_addition`/`no_longer_needed`/`story_ready`는 정확히 일치해야 정답(F1 계산 대상).
 
 ## 프롬프트 캐싱
-시스템 프롬프트 전체가 고정이다(역할 + 칸 목록 + 모드 + 판정 기준 + 예시 + 입력 설명). 매 호출 바뀌는 것은 사용자 메시지뿐이라 **시스템 프롬프트 전체가 캐시된다.**
+고정 블록(역할+칸 목록+판정 기준+예시)이 먼저, 매 호출 바뀌는 `{slots}`/`{asked_slot}`/`{template}`/`{level}`/`{turn}`/`{question}`/`{utterance}`가 맨 뒤. 캐시 경계는 `[지금 상태]` 줄 바로 앞.
