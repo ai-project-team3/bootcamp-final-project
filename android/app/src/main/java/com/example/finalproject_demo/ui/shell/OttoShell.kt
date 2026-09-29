@@ -103,9 +103,14 @@ fun Shield(onBack: () -> Unit = {}, content: @Composable () -> Unit) {
     Box(
         Modifier
             .fillMaxSize()
+            // 터치를 **받기만 하고 처리됨(consume)으로 표시하지 않는다.** 맨 위 층이 터치를 받는 것만으로
+            // 그 아래 형제(흐름 화면 · 🎤 · 시연 서랍)에는 전달되지 않는다.
+            // ⚠️ 09-29 처음에는 Final 단계에서 전부 consume 했는데, 탭 감지는 손을 뗄 때 Final 단계에서
+            //    「누가 이미 처리했나」를 보고 누름을 취소한다 → 실기기에서 층 안의 버튼이 **전부 안 눌렸다**
+            //    (「눌러서 시작」이 안 넘어감). JVM 검사는 누름을 한 번에 넣어서 이것을 못 잡았다
             .pointerInput(Unit) {
                 awaitPointerEventScope {
-                    while (true) awaitPointerEvent(PointerEventPass.Final).changes.forEach { it.consume() }
+                    while (true) awaitPointerEvent(PointerEventPass.Final)
                 }
             },
     ) { content() }

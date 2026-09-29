@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.onLast
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.pageCount
@@ -179,5 +180,31 @@ class ShellFlowTest {
             compose.runOnIdle { d.s.scene = com.example.finalproject_demo.demo.Scene.BOOK; d.s.progressVisible = false; d.s.line = ""; d.s.stage = Stage.BookPage(p) }
             shot("3${p}_book_page_$p")
         }
+    }
+
+    /**
+     * **실제 손가락처럼** 누르고 → 잠시 뒤 떼면 넘어가는가 (09-29 실기기 — 「눌러서 시작」이 안 넘어갔다).
+     *
+     * `performClick` 은 누름과 뗌을 한 번에 넣어서, 방패 층(`Shield`)이 터치를 처리됨으로 표시해 누름이
+     * 취소되는 문제를 못 잡았다. 누름 · 조금 움직임 · 뗌을 시간을 두고 따로 넣는다(움직이지 않으면 실기기에서도 넘어갔다). 로그인 · 설정 버튼도 같은 층이다
+     */
+    @Test
+    fun aRealFingerTapPassesTheTitleAndLogin() {
+        waitText("눌러서 시작", 10_000)
+        fun finger(t: String) {
+            compose.waitUntil(8_000) { compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
+            compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).onLast().performTouchInput {
+                // 실제 손가락은 누르는 동안 몇 픽셀 움직인다 — 이 움직임에서 누름이 취소됐다
+                down(center); advanceEventTime(60); moveBy(androidx.compose.ui.geometry.Offset(4f, 3f)); advanceEventTime(60); up()
+            }
+            compose.waitForIdle()
+        }
+        finger("눌러서 시작")
+        waitText("카카오로 시작하기")
+        finger("카카오로 시작하기")
+        waitText("이렇게만 써요")
+        finger("모두 동의해요")
+        finger("동의하고 계속")
+        waitText("마이크를 켜 주세요")
     }
 }
