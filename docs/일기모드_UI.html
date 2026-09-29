@@ -337,7 +337,7 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
           <li><b>그리는 중에도 묻는다. 단, 선과 선 사이 짧은 틈에만.</b> 선이 두 개쯤 쌓이면 "지금 그리는 건 뭐야?" — 계속 그려도 되고 아무 때나 답하면 된다. 긋는 중에는 끼어들지 않고 질문 사이는 그리는 중 3초 · 멈춘 뒤 5초</li>
           <li><b>다른 곳으로 옮겨 그려도 앞 조각을 "다 그렸다"고 보지 않는다.</b> 돌아와 그 조각 안쪽에 이어 그리면 "다시 강아지 그리는구나!" — 그 선은 그 조각의 것이다. 바깥으로 크게 뻗는 선(땅 등)만 "더 그린 거야, 새로 그린 거야?"로 묻는다. 물어본 조각을 두고 옮겨 가면 그 조각에 고리를 띄운 채 "이건 뭐 그린 거야?"</li>
           <li><b>그리기를 멈추면</b> 이름 없는 조각을 묻고, 없으면 이번에 그린 것들을 한꺼번에 칭찬("강아지랑 우리 집 멋지다!")한 뒤 이야기 질문으로 넘어간다</li>
-          <li><b>조각은 선의 위치로 묶는다.</b> 가까운 선끼리 한 조각이다. 색은 보지 않는다. 떨어진 선이라도 <b>2초 안에 이어 그렸고 그리던 조각 가까이(70)</b>면 같은 조각(눈 · 코 · 팔)이다. 단, 이름을 받은 두 조각을 한 선이 같이 건드려도 둘을 합치지 않는다. 그 선은 더 많이 겹친 쪽에만 붙는다</li>
+          <li><b>조각은 선의 위치로 묶는다.</b> 가까운 선끼리 한 조각이다. 색도 시간도 보지 않는다. 떨어진 선이라도 <b>어떤 조각 영역 안에 절반 이상 들어가면</b> 그 조각(눈 · 무늬), <b>그리던 조각 가까이(그 크기의 절반, 20~30)</b>면 그 조각(떨어진 팔다리)이다. 단, 이름을 받은 두 조각을 한 선이 같이 건드려도 둘을 합치지 않는다. 그 선은 더 많이 겹친 쪽에만 붙는다</li>
           <li><b>무엇인지는 대화로 정한다.</b> 새 조각엔 "지금 그리는 건 뭐야?" · "이건 뭐 그린 거야?", 이름 받은 조각이 바깥으로 커지면 "모래성에 더 그린 거야, 새로 그린 거야?". "새로 그렸어, 땅이야"면 이름 뒤에 그은 선만 떼어 새 조각이 된다. 안쪽에만 더 그리면 묻지 않는다(문 · 창문)</li>
           <li><b>그래도 잘못 묶이면 D2에서 자른다.</b> 스티커 하나 → [✂️ 자르기] → 떼어 낼 선을 톡 누르거나 동그라미로 감싸기 → [떼어 내기] → 오또가 "이건 뭐 그린 거야?". 둘을 고르면 [붙이기]</li>
           <li><b>인식 낱말은 질문 문구에만 쓴다(규칙 5).</b> 조각 이름은 아이가 말한 것만 붙는다. "집처럼 보이네"에 "모래성이야"라고 하면 모래성이다</li>
@@ -422,7 +422,7 @@ function fresh(){
 // by a stroke that touches both — the stroke joins the one it overlaps most. What each piece IS comes
 // only from talking with the child; growth past a named piece is asked about, not assumed.
 const PAD = 14;
-const CONT_MS = 2000, CONT_DIST = 70;   // a line started within 2 s of the last one, this close to its piece, continues that piece
+// no timing: children switch colours and stop to think. Only where the line is decides.
 function boxOf(p){ let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for (const [x,y] of p){ x0=Math.min(x0,x); y0=Math.min(y0,y); x1=Math.max(x1,x); y1=Math.max(y1,y); } return {x0,y0,x1,y1}; }
 const grow = (b,d) => ({x0:b.x0-d, y0:b.y0-d, x1:b.x1+d, y1:b.y1+d});
 // points every ~6 units along a line, so shares are measured by length, not by how many corners it has
@@ -440,13 +440,17 @@ function assignStroke(s){
   const b = grow(boxOf(s.p), PAD);
   const hits = S.pieces.filter(p => pieceStrokes(p).some(o => touch(b, boxOf(o.p))));
   if (!hits.length){
-    // not touching anything — but drawn right after the last line, near the piece being drawn?
-    const i = S.strokes.indexOf(s), prev = i > 0 ? S.strokes[i-1] : null;
-    const pc = prev && S.pieces.find(p => p.ids.includes(prev.id));
-    if (pc && !s.fresh && s.t - (prev.tEnd || prev.t) < CONT_MS && boxGap(boxOf(s.p), pieceBox(pc)) < CONT_DIST){
-      pc.ids.push(s.id);
-      log(`떨어진 선이지만 바로 이어 그림 → 「${pc.name || '그리던 조각'}」에 붙인다 (${Math.round(boxGap(boxOf(s.p), pieceBox(pc)))} 떨어짐)`);
-      return;
+    // mostly inside a piece's area (eyes in a face, a pattern on a shirt) → that piece
+    const q = dense(s.p);
+    const inside = S.pieces.filter(p => p.ids.length).map(p => { const pb = grow(pieceBox(p), 6);
+      return {p, k: q.filter(([x,y]) => x >= pb.x0 && x <= pb.x1 && y >= pb.y0 && y <= pb.y1).length / q.length}; })
+      .filter(v => v.k >= 0.5).sort((x,y) => area(pieceBox(x.p)) - area(pieceBox(y.p)));
+    if (inside.length){ inside[0].p.ids.push(s.id); log(`선의 ${Math.round(inside[0].k*100)}%가 「${inside[0].p.name || '조각'}」 영역 안 → 그 조각`); return; }
+    // close to the piece being drawn, relative to its size (an arm or a leg drawn with a gap) → that piece
+    const cur = S.curPiece && S.pieces.find(p => p.id === S.curPiece && p.ids.length);
+    if (cur){
+      const cb = pieceBox(cur), reach = Math.min(30, Math.max(20, Math.max(cb.x1-cb.x0, cb.y1-cb.y0) * 0.5)), gap = boxGap(boxOf(s.p), cb);
+      if (gap < reach){ cur.ids.push(s.id); log(`그리던 「${cur.name || '조각'}」에서 ${Math.round(gap)} 떨어진 선 (허용 ${Math.round(reach)}) → 그 조각`); return; }
     }
     newPiece([s.id]); return;
   }
@@ -674,7 +678,7 @@ const SAMPLE = [
 function addSample(){
   if (S.sampleStep >= SAMPLE.length) return;
   const t = Date.now();
-  SAMPLE[S.sampleStep].strokes.forEach((s, i) => { const st = {id:S.nextId++, t, sample:true, fresh:i === 0, c:s.c, w:s.w, p:s.p.map(q => [...q])}; S.strokes.push(st); assignStroke(st); });   // each sample group starts after a pause
+  SAMPLE[S.sampleStep].strokes.forEach(s => { const st = {id:S.nextId++, t, sample:true, c:s.c, w:s.w, p:s.p.map(q => [...q])}; S.strokes.push(st); assignStroke(st); });
   const before = S.curPiece, last = S.strokes[S.strokes.length-1]; S.curPiece = pieceIdOf(last.id);
   onSwitch(before, last);
   S.sampleStep++; S.lastPen = Date.now() - BETWEEN_MS; redraw(); renderObjs(); drawingOpts();
