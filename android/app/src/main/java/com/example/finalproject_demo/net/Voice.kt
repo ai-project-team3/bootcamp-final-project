@@ -43,8 +43,29 @@ object Voice {
 
     @Volatile private var ctx: Context? = null
 
-    /** `MainActivity.onCreate`, next to `Server.base`. */
-    fun attach(context: Context) { ctx = context.applicationContext }
+    /** `MainActivity.onCreate`, next to `Server.base`. Loads the VAD model in the background right away. */
+    fun attach(context: Context) {
+        ctx = context.applicationContext
+        Thread({ runCatching { vad() } }, "vad-warm").apply { isDaemon = true }.start()
+    }
+
+    // ── the VAD is built once ─────────────────────────────────────
+    //
+    // 09-29 S25+: 「로봇나라」→「롯나라」, 「블랙홀」→「쇠콜」 — the first syllable went missing.
+    // Every 🎤 press used to load the Silero ONNX model *before* opening the mic, so a child who
+    // spoke the moment they pressed lost the start. Now the model is loaded once (at app start)
+    // and the mic opens first; the recorder buffer (2 s) holds the audio until the loop reads it.
+    private var vadInstance: VadSilero? = null
+    private val vadLock = Any()
+
+    private fun vad(): VadSilero = synchronized(vadLock) {
+        vadInstance ?: Vad.builder().setContext(ctx!!).setSampleRate(SampleRate.SAMPLE_RATE_16K)
+            .setFrameSize(FrameSize.FRAME_SIZE_512).setMode(Mode.NORMAL)
+            // 500 ms, not the 300 ms measured for adults: a child pauses mid-sentence
+            // ("외계인이 … 창문에서") and 300 ms cut them off
+            .setSpeechDurationMs(50).setSilenceDurationMs(500).build()
+            .also { vadInstance = it }
+    }
 
     /** Record one answer. `stop()` true = the child pressed ⏹. Null = nothing heard or no mic. */
     @Volatile var listen: suspend (stop: () -> Boolean) -> ByteArray? = { stop -> record(stop) }
@@ -66,33 +87,34 @@ object Voice {
         }
         val frame = FrameSize.FRAME_SIZE_512.value
         var rec: AudioRecord? = null
-        var vad: VadSilero? = null
         val pcm = ArrayList<Short>(RATE * 5)
         var heard = false
         try {
-            vad = Vad.builder().setContext(c).setSampleRate(SampleRate.SAMPLE_RATE_16K)
-                .setFrameSize(FrameSize.FRAME_SIZE_512).setMode(Mode.NORMAL)
-                .setSpeechDurationMs(50).setSilenceDurationMs(300).build()
+            // mic first — every millisecond before startRecording() is a lost start of a word
+            val pressed = System.currentTimeMillis()
             val min = AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
             rec = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, RATE,
-                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, frame * 8))
+                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, RATE * 2 * 2))
             if (rec.state != AudioRecord.STATE_INITIALIZED) return@withContext null
-            val buf = ShortArray(frame)
-            val started = System.currentTimeMillis()
             rec.startRecording()
+            val opened = System.currentTimeMillis()
+            val vad = vad()                                  // normally already loaded at app start
+            Log.i(TAG, "mic open ${opened - pressed} ms after press · vad ready ${System.currentTimeMillis() - pressed} ms")
+            val buf = ShortArray(frame)
+            val started = opened
             while (coroutineContext.isActive && !stop() && System.currentTimeMillis() - started < maxMs) {
                 if (rec.read(buf, 0, frame) != frame) continue
                 buf.forEach { pcm += it }
                 val speech = vad.isSpeech(buf)
                 if (speech) heard = true
-                else if (heard) break                    // VAD already waited 300 ms of silence
+                else if (heard) break                    // VAD already waited 500 ms of silence
             }
         } catch (e: Throwable) {
             Log.w(TAG, "record failed: ${e.javaClass.simpleName} ${e.message}")
             return@withContext null
         } finally {
             rec?.let { runCatching { it.stop() }; it.release() }
-            runCatching { vad?.close() }
+            // the VAD stays loaded for the next press
         }
         // ⏹ before VAD caught anything still sends what was recorded — a quiet child is still an answer
         if (pcm.isEmpty() || (!heard && !stop())) null else wav(pcm.toShortArray())

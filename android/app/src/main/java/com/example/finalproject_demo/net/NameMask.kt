@@ -109,4 +109,11 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
  * A story character the child named ("뿌뿌") is masked too — a child may name it after a real
  * friend, and hiding a made-up name costs nothing because it comes back on the phone.
  */
-fun DemoState.nameMask(): NameMask = NameMask(childName, listOfNotNull(friendName.takeUnless { it.startsWith("{") }))
+fun DemoState.nameMask(): NameMask = NameMask(
+    childName,
+    listOfNotNull(
+        friendName.takeUnless { it.startsWith("{") },
+        // 「누구랑?」에 친구 이름으로 답했으면(「민수」) 그 이름도 가린다 — 호칭(삼촌 · 형)은 이름이 아니다
+        partnerCall.takeIf { partnerKey == "friend" },
+    ),
+)

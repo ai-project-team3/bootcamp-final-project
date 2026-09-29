@@ -17,6 +17,18 @@ class HallucinationTest(unittest.TestCase):
         self.assertEqual(check_transcript("한글자막 by 한효정").reason, "hallucination")
         self.assertEqual(check_transcript("시청해주셔서 감사합니다.").reason, "hallucination")
 
+    def test_lines_seen_on_the_09_29_phone_are_dropped(self):
+        # S25+ 조장 테스트에서 서버에 실제로 온 것 — 「보내주셔서…」는 아이 말로 들어갔었다
+        for line in ["보내주셔서 감사합니다.", "자막 제공 배달의민족", "감사합니다. 감사합니다."]:
+            self.assertEqual(check_transcript(line).reason, "hallucination", line)
+        for line in ["MBC 뉴스 김철수입니다.", "구독 좋아요 알림 설정", "이 영상은 유료광고를 포함하고 있습니다"]:
+            self.assertEqual(check_transcript(line).reason, "hallucination", line)
+
+    def test_real_answers_from_the_09_29_phone_are_kept(self):
+        # 같은 날 제대로 받아쓴 답 — 목록이 이것들을 먹으면 안 된다
+        for line in ["삼촌", "엄마", "긴 생머리", "알록달록", "무서워", "괴물", "다 별로야", "다음에 또 만나요"]:
+            self.assertTrue(check_transcript(line).keep, line)
+
     def test_short_real_answers_are_kept(self):
         for line in ["또", "응.", "음", "몰라.", "싫어!", "아니"]:
             self.assertTrue(check_transcript(line).keep, line)
