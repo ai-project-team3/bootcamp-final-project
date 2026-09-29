@@ -621,7 +621,7 @@ private suspend fun Director.scenePlace() {
     val c = s.childName
     s.stage = Stage.HeroShow(s.heroAttr ?: HeroAttr(), "")
     val q = BASE_PLACE.toQuestion(s).copy(choices = basePlaceCards(), noCards = false, easierAsk = "어디로 갈까?", hint = null)
-    val r = ask(q)
+    val r = askStory(q, "place")
     val said = when (r) {
         is Reply.Tapped -> r.value
         is Reply.Spoke -> r.value.ifEmpty { r.text.trim() }
@@ -750,7 +750,7 @@ private suspend fun Director.sceneEvent() {
         partnerLine = partnerLine(s, "shake"),
         partnerChildAnswer = BASE_WHO.answers(s).filter { it.lv >= 2 },
     )
-    val r = ask(q)
+    val r = askStory(q, "problem")
     val nc0 = s.th.newcomers[0].value
     s.newcomerKind = when (r) {
         is Reply.Tapped -> r.value
@@ -810,7 +810,7 @@ private suspend fun Director.sceneCause() {
     mark("partnerfirst")
     pause(2500)
     val q = base.copy(text = "$c${eun(c)} 어떻게 생각해?")
-    val r = ask(q)
+    val r = askStory(q, "cause")
     val a = (r as? Reply.Spoke)?.answer
     when {
         a != null -> {
