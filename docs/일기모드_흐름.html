@@ -166,31 +166,31 @@ td:first-child{white-space:nowrap}
         </div>
         <div class="page">
           <span class="no">2 · 기</span>
-          <div class="pic">배경 그림 (장소)<br>프리셋 · 나중엔 <code>/image</code></div>
+          <div class="pic">내 그림 조각 전부<br>(장소 사진 없음)</div>
           <p class="txt">나는 오늘 어린이집에 갔어요.</p>
           <div class="src"><span class="tag t-child">place · child</span></div>
         </div>
         <div class="page">
           <span class="no">3 · 승</span>
-          <div class="pic">아이가 그린 조각을 오려 등장시킴</div>
+          <div class="pic">문장에 나온 조각이 앞으로 나와 움직임<br>나머지는 흐리게</div>
           <p class="txt">블록을 높이 쌓았는데 탑이 와르르 무너졌어요.</p>
           <div class="src"><span class="tag t-child">problem · child</span></div>
         </div>
         <div class="page">
           <span class="no">4 · 전</span>
-          <div class="pic">아이가 그린 조각을 오려 등장시킴</div>
+          <div class="pic">문장에 나온 조각이 앞으로 나와 움직임<br>나머지는 흐리게</div>
           <p class="txt">그때 너무 속상했어요.</p>
           <div class="src"><span class="tag t-child">reaction · child</span></div>
         </div>
         <div class="page">
           <span class="no">5 · 결</span>
-          <div class="pic">아이가 그린 조각을 오려 등장시킴</div>
+          <div class="pic">문장에 나온 조각이 앞으로 나와 움직임<br>나머지는 흐리게</div>
           <p class="txt">마침내 다시 쌓았어요.</p>
           <div class="src"><span class="tag t-child">solution · child</span></div>
         </div>
         <div class="page">
           <span class="no">6 · 맺음</span>
-          <div class="pic">아이가 그린 조각을 오려 등장시킴</div>
+          <div class="pic">문장에 나온 조각이 앞으로 나와 움직임<br>나머지는 흐리게</div>
           <p class="txt">내일은 더 높이 쌓을 거예요.</p>
           <div class="src"><span class="tag t-child">extra · keep · child</span></div>
         </div>
@@ -208,7 +208,7 @@ td:first-child{white-space:nowrap}
         </div>
         <div class="page">
           <span class="no">2 · 기</span>
-          <div class="pic">배경 그림 (장소)</div>
+          <div class="pic">내 그림 조각 전부<br>(장소 사진 없음)</div>
           <p class="txt">나는 오늘 놀이터에 갔어요.</p>
           <div class="src"><span class="tag t-child">place · child</span></div>
         </div>
@@ -280,13 +280,13 @@ td:first-child{white-space:nowrap}
   </article>
 
   <article class="screen" id="d4">
-    <div class="screen-head"><span class="sid">D4</span><h3>책 만드는 중</h3><span class="tag t-now">이번 주: <code>/story</code></span><span class="tag t-later">나중: <code>/image</code> 배경</span></div>
+    <div class="screen-head"><span class="sid">D4</span><h3>책 만드는 중</h3><span class="tag t-now">이번 주: <code>/story</code></span></div>
     <div class="say">"오늘 이야기가 다 모였어! 이제 그림일기로 만들어 줄게."<small>마스코트 · 고정 대사</small></div>
     <dl class="six">
       <dt>1 누가 말하나</dt><dd>마스코트</dd>
       <dt>2 무엇으로 답하나</dt><dd>없음 (기다리는 화면)</dd>
       <dt>3 무엇이 저장되나</dt><dd>쪽마다 자막</dd>
-      <dt>4 어느 서버</dt><dd><ul><li><code>/story</code>(<code>mode: diary</code>) · 이름은 가려서 보낸다</li><li>나중: 장소 칸이 차는 순간 배경을 뒤에서 만들기 시작(규칙 8). 검사 통과 못 하면 프리셋</li></ul></dd>
+      <dt>4 어느 서버</dt><dd><ul><li><code>/story</code>(<code>mode: diary</code>) · 이름은 가려서 보낸다</li><li>장소 배경은 만들지 않는다 — 책은 아이 그림 조각(과 고른 오또 그림)만으로 간다</li></ul></dd>
       <dt>5 갈림길</dt><dd>8초 안 오면 "조금 뒤에 올 거야" · 실패하거나 15초 넘으면 앱의 책 틀 문장(<code>diaryTemplate</code>)으로 만든다</dd>
       <dt>6 끝</dt><dd>D5로</dd>
     </dl>
@@ -294,11 +294,11 @@ td:first-child{white-space:nowrap}
 
   <article class="screen" id="d5">
     <div class="screen-head"><span class="sid">D5</span><h3>그림일기</h3><span class="tag t-now">이번 주</span></div>
-    <div class="say">책을 한 쪽씩 넘기며 읽어 준다<small>책 낭독 목소리는 미결 (<code>CLAUDE.md</code> 모델 표)</small></div>
+    <div class="say">책을 한 쪽씩 넘기며 1인칭으로 읽어 준다. 흰 종이 위에 아이 그림 조각이 그린 자리 그대로 있고, 쪽마다 문장에 나온 조각이 앞으로 나와 문장대로 움직인다(무너졌어요 → 넘어짐 · 쌓았어요 → 쌓아 올라감 · 친구랑 → 통통)<small>장소 사진 · 미션 없음 · 책 낭독 목소리는 미결 (<code>CLAUDE.md</code> 모델 표)</small></div>
     <dl class="six">
       <dt>1 누가 말하나</dt><dd>낭독</dd>
-      <dt>2 무엇으로 답하나</dt><dd>쪽 넘기기</dd>
-      <dt>3 무엇이 저장되나</dt><dd>책 한 권 (책장)</dd>
+      <dt>2 무엇으로 답하나</dt><dd>쪽 넘기기 · 조각마다 도구로 누르기(✋ 🔨 🪶 🔍 「내가 그린 ○○」) · 끌어서 옮기기</dd>
+      <dt>3 무엇이 저장되나</dt><dd>책 한 권 (책장) — 조각 · 고른 모습(내 그림 / 오또 그림) · 쪽 문장</dd>
       <dt>4 어느 서버</dt><dd>없음 (낭독을 서버로 굽게 되면 <code>/tts</code>)</dd>
       <dt>5 갈림길</dt><dd>없음</dd>
       <dt>6 끝</dt><dd>위 「엔드 픽처」 모양 · 3~6쪽 · 첫 쪽은 아이 그림 원본</dd>
