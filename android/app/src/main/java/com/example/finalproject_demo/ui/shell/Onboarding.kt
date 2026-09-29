@@ -67,10 +67,10 @@ import com.example.finalproject_demo.ui.FeltTeal
 import com.example.finalproject_demo.ui.FeltWhite
 import com.example.finalproject_demo.ui.InkBrown
 import com.example.finalproject_demo.ui.InkSoft
-import com.example.finalproject_demo.ui.MicPermissionRequest
 import com.example.finalproject_demo.ui.PRIVACY_URL
 import com.example.finalproject_demo.ui.ParentFont
 import com.example.finalproject_demo.ui.ParentText
+import com.example.finalproject_demo.ui.Radius
 import com.example.finalproject_demo.ui.StageWood
 import com.example.finalproject_demo.ui.StageWoodDeep
 import com.example.finalproject_demo.ui.Wool
@@ -282,27 +282,99 @@ private fun DataPath() {
 
 @Composable
 fun MicStep(onBack: () -> Unit, onDone: () -> Unit) {
-    var asking by remember { mutableStateOf(false) }
+    // 09-29 사용자 — 「마이크 켜기에서 권한 창이 안 뜬다」. 실기기에서 보니 권한이 **이미 허용**이면 창 없이 바로
+    // 넘어가 창이 안 뜨는 것처럼 보였고, 두 번 거절한 폰은 안드로이드가 창을 다시 띄워 주지 않는다.
+    // 그래서 지금 상태를 보여 준다: 허용됨 → ✓ + 다음 / 아직 → 마이크 켜기(권한 창) / 거절 → 설정에서 켜기 · 마이크 없이 계속
+    val ctx = LocalContext.current
+    val activity = ctx as? android.app.Activity
+    fun granted() = androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED
+    var state by remember { mutableStateOf(if (granted()) "on" else "ask") }
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
+        state = if (ok) "on" else "denied"
+        if (ok) onDone()
+    }
+    // 설정 앱에서 켜고 돌아오면 다시 확인한다
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME && granted()) state = "on" }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
+    fun ask() {
+        ConsentStore.markMicNoticeShown()
+        if (motionFrozenForTests()) { onDone(); return }
+        // 거절한 뒤 다시 물어도 안드로이드가 창을 안 띄우는 경우(두 번 거절) — 설정으로 안내
+        val canAsk = activity == null || state != "denied" ||
+            androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, android.Manifest.permission.RECORD_AUDIO)
+        if (canAsk) runCatching { launcher.launch(android.Manifest.permission.RECORD_AUDIO) }.onFailure { state = "denied" }
+        else openAppSettings(ctx)
+    }
     ObFrame(
-        step = 2, title = "마이크를 켜 주세요", sub = "다음에 뜨는 휴대폰 창에서 '허용'을 눌러 주세요.", onBack = onBack,
+        step = 2,
+        title = when (state) { "on" -> "마이크가 켜져 있어요"; "denied" -> "마이크가 꺼져 있어요"; else -> "마이크를 켜 주세요" },
+        sub = when (state) {
+            "on" -> "이미 허용되어 있어요. 오또가 말할 차례에만 들어요."
+            "denied" -> "설정에서 언제든 켤 수 있어요. 켜지 않아도 그림을 골라서 만들 수 있어요."
+            else -> "다음에 뜨는 휴대폰 창에서 '허용'을 눌러 주세요."
+        },
+        onBack = onBack,
         art = { Otto(Pose.LISTEN, Modifier.size(190.dp)) },
-        // 09-29 — 「나중에」로 건너뛰지 않는다. 휴대폰 창에서 허용 · 거부를 고르면 그다음으로 (거부해도 그림으로 고를 수 있다)
-        cta = "마이크 켜기", onCta = { ConsentStore.markMicNoticeShown(); asking = true },
+        cta = when (state) { "on" -> "다음"; "denied" -> "설정에서 켜기"; else -> "마이크 켜기" },
+        onCta = {
+            when (state) {
+                "on" -> { ConsentStore.markMicNoticeShown(); onDone() }
+                "denied" -> openAppSettings(ctx)
+                else -> ask()
+            }
+        },
+        cta2 = if (state == "denied") "마이크 없이 계속" else null,
+        onCta2 = { ConsentStore.markMicNoticeShown(); onDone() },
     ) {
         Text("오또가 아이 목소리를 들을 수 있게", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = InkBrown)
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(10.dp))
+        // 지금 상태 한 줄 — 켜짐(청록) · 꺼짐(코랄)
+        if (state != "ask") Row(
+            Modifier.felt(if (state == "on") FeltTeal else FeltCoral, RoundedCornerShape(Radius.Round), lift = 2.dp, stitch = false, texture = false)
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) { Text(if (state == "on") "✓  마이크 허용됨" else "✕  마이크 허용 안 됨", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FeltWhite) }
+        Spacer(Modifier.height(8.dp))
         listOf("👂" to "말할 차례에만 들어요 — 오또가 귀를 쫑긋할 때", "🛡" to "녹음은 폰 밖으로 나가지 않아요", "✋" to "안 켜도 그림을 골라서 만들 수 있어요").forEach { (ic, t) ->
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 7.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
                 Box(Modifier.size(32.dp).felt(FeltTeal, CircleShape, lift = 0.dp, stitch = false), contentAlignment = Alignment.Center) { Text(ic, fontSize = 15.sp) }
                 Spacer(Modifier.width(12.dp))
                 Text(t, fontSize = 13.sp, color = InkBrown)
             }
         }
     }
-    if (asking) MicPermissionRequest { asking = false; onDone() }
 }
 
-// ── ⑤ 맞춤 설정 (4/4) — 하루 책 수 · 그림체 · 시작할 때 어른 확인. **셋 다 골라야** 넘어간다 (09-29) ──────
+/** 이 앱의 설정 화면(권한 켜기) */
+private fun openAppSettings(ctx: android.content.Context) = runCatching {
+    ctx.startActivity(
+        Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", ctx.packageName, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+    )
+}
+
+/** JVM 검사(Robolectric)에서는 권한 창을 띄우지 않는다 */
+private fun motionFrozenForTests() = com.example.finalproject_demo.ui.motionFrozen
+
+// ── ④ 부모 비밀번호 (4/5) — 직접 네 자리를 정한다 (09-29 사용자 요청) ─────────────────
+
+@Composable
+fun PinStep(onBack: () -> Unit, onDone: () -> Unit) {
+    ObFrame(
+        step = 3, title = "부모 비밀번호를 정해요", sub = "부모 영역을 열 때 · 하루 한도를 늘릴 때 이 번호를 물어요.", onBack = onBack,
+        art = { AssetImage("pi_lock", Modifier.size(170.dp)) { Box(Modifier.size(110.dp).felt(FeltTeal, CircleShape), contentAlignment = Alignment.Center) { Text("🔒", fontSize = 48.sp) } } },
+    ) {
+        Spacer(Modifier.height(8.dp))
+        PinCreate(onSet = { Shell.setPin(it); onDone() })
+    }
+}
+
+// ── ⑤ 맞춤 설정 (5/5) — 하루 책 수 · 그림체 · 시작할 때 어른 확인. **셋 다 골라야** 넘어간다 (09-29) ──────
 
 @Composable
 fun SetupStep(onBack: () -> Unit, onDone: () -> Unit) {
@@ -310,7 +382,7 @@ fun SetupStep(onBack: () -> Unit, onDone: () -> Unit) {
     var style by remember { mutableStateOf<String?>(null) }
     var pin by remember { mutableStateOf<Boolean?>(null) }
     ObFrame(
-        step = 3, title = "우리 아이에게 맞춰요", sub = "나중에 부모 설정에서 언제든 바꿀 수 있어요.", onBack = onBack,
+        step = 4, title = "우리 아이에게 맞춰요", sub = "나중에 부모 설정에서 언제든 바꿀 수 있어요.", onBack = onBack,
         art = { Otto(Pose.THINK, Modifier.size(190.dp)) },
         cta = "설정 끝", ctaEnabled = limit != null && style != null && pin != null,
         onCta = { Shell.saveSetup(limit!!.takeIf { it > 0 }, style!!, pin!!); onDone() },
@@ -331,7 +403,7 @@ fun SetupStep(onBack: () -> Unit, onDone: () -> Unit) {
         SetupLabel("이야기를 시작할 때 어른 확인")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Choice("받지 않아요", pin == false) { pin = false }
-            Choice("태어난 해로 확인", pin == true) { pin = true }
+            Choice("비밀번호로 확인", pin == true) { pin = true }
         }
     }
 }
@@ -368,7 +440,7 @@ fun HandoffStep(onDone: () -> Unit) {
         Spacer(Modifier.height(12.dp))
         Text("이제 아이에게 건네주세요. 오또가 목소리로 이어서 안내해요.", fontSize = 15.sp, color = InkSoft, lineHeight = 22.sp)
         Spacer(Modifier.height(18.dp))
-        Text("부모 설정은 언제든 왼쪽 위 자물쇠를 누르고 태어난 해를 넣으면 열려요.", fontSize = 12.sp, color = InkSoft, lineHeight = 18.sp)
+        Text("부모 설정은 언제든 왼쪽 위 자물쇠를 누르고 방금 정한 비밀번호를 넣으면 열려요.", fontSize = 12.sp, color = InkSoft, lineHeight = 18.sp)
     }
 }
 

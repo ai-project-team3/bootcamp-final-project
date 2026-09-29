@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.net.Accounts
+import com.example.finalproject_demo.ui.AssetImage
 import com.example.finalproject_demo.ui.ConsentStore
 import com.example.finalproject_demo.ui.FeltCoral
 import com.example.finalproject_demo.ui.FeltWhite
@@ -66,6 +67,7 @@ fun AccountTab(d: Director) {
         Line("가입한 날", g?.let { SimpleDateFormat("yyyy년 M월 d일", Locale.KOREA).format(Date(it.since)) } ?: "—")
         Line("개인정보처리방침", "보기") { open() }
         Line("이용약관", "보기") { open() }
+        Line("부모 비밀번호", if (Shell.hasPin) "바꾸기" else "정하기") { Shell.sheet = Sheet.PIN_CHANGE }
         Line("처음 설정 다시 보기", "로그인 · 동의 · 맞춤 설정") { d.send(Reply.Tapped("home", "처음으로")); Shell.redoOnboarding() }
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -95,6 +97,27 @@ private fun Line(title: String, value: String, onClick: (() -> Unit)? = null) {
     ) {
         Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = InkBrown, modifier = Modifier.weight(1f))
         Text(if (onClick != null) "$value  ›" else value, fontSize = 13.sp, color = InkSoft)
+    }
+}
+
+/** 부모 비밀번호 바꾸기 — 지금 번호 확인 → 새 번호 두 번. 정한 적이 없으면 바로 새 번호 */
+@Composable
+fun PinChangeSheet() {
+    var verified by remember { mutableStateOf(!Shell.hasPin) }
+    var done by remember { mutableStateOf(false) }
+    ObFrame(
+        step = null, title = if (done) "비밀번호를 바꿨어요" else "부모 비밀번호 바꾸기",
+        sub = "비밀번호는 이 폰 안에만 저장돼요. 잊으면 보호자 태어난 해로 다시 정할 수 있어요.",
+        onBack = { Shell.sheet = Sheet.NONE },
+        art = { AssetImage("pi_lock", Modifier.size(160.dp)) { Text("🔒", fontSize = 60.sp) } },
+        cta = if (done) "닫기" else null, onCta = { Shell.sheet = Sheet.NONE },
+    ) {
+        Spacer(Modifier.height(8.dp))
+        when {
+            done -> Text("다음부터 새 번호로 부모 영역이 열려요.", fontSize = 15.sp, color = InkBrown)
+            !verified -> PinPad("지금 비밀번호", "바꾸기 전에 지금 번호를 확인해요", onDone = { ok -> Shell.checkPin(ok).also { if (it) verified = true } })
+            else -> PinCreate(onSet = { Shell.setPin(it); done = true })
+        }
     }
 }
 
@@ -157,7 +180,7 @@ fun WithdrawSheet(d: Director) {
                 )
             }
         }
-        Sheet.NONE -> {}
+        Sheet.NONE, Sheet.PIN_CHANGE -> {}
     }
 }
 
