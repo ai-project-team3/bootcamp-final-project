@@ -4,9 +4,15 @@ import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.bat
 
 /**
- * Real names stay on the phone (rule 6). Everything that leaves — slots, utterances, the
- * question just asked — goes through [mask]; everything that comes back — captions, mascot
- * lines — goes through [unmask]. The mapping lives only here, never on the server.
+ * Real names stay on the phone on the way to the LLM (rule 6, 09-29 revision). Everything
+ * that goes to /judge · /turn · /story — slots, utterances, the question just asked — goes
+ * through [mask]; captions and mascot lines coming back go through [unmask] for the screen.
+ * The mapping lives only here, never on the server.
+ *
+ * The voice is the other half (09-29, 조장): a line sent to TypeCast goes through [speakable].
+ * With the guardian's optional name consent it reads the real name ("지민아!"); without it the
+ * name becomes "우리 친구". Masking costs the LLM nothing, so it stays; reading the name is
+ * what the child notices, so that is what the consent unlocks.
  *
  * The child is `{주인공}`; friends are `{친구1}`, `{친구2}`… in the order given. Build one per
  * session with [DemoState.nameMask] and use the same one both ways, or `{친구1}` could come
@@ -52,6 +58,21 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
             val name = toName[m.groupValues[1]] ?: if (m.groupValues[1] == HERO) "주인공" else fallback
             name + fixParticle(name, m.groupValues[2])
         }
+
+    /**
+     * A line for the mascot's voice (TypeCast). [named] = the guardian agreed to names being read
+     * (`ConsentStore.nameVoiceAgreed`). Without it no real name leaves in the voice: the child
+     * becomes "우리 친구", a friend "친구" — particles fixed, so it still reads as Korean.
+     * Takes masked or unmasked text alike: real names are masked first.
+     */
+    fun speakable(text: String, named: Boolean): String {
+        val masked = mask(text)
+        if (named) return unmask(masked)
+        return MARK.replace(masked) { m ->
+            val word = if (m.groupValues[1] == HERO) "우리 친구" else "친구"
+            word + fixParticle(word, m.groupValues[2])
+        }
+    }
 
     companion object {
         const val HERO = "{주인공}"
