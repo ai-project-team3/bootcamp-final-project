@@ -414,8 +414,13 @@ class Director(
     suspend fun askSlot(slot: String, tweak: (Question) -> Question = { it }): Pair<QVariant, Reply> {
         val v = s.pick(slot)
         log("질문 은행 [$slot] ${v.id} — ${v.probe} · 지금 수준 ${s.level.label}")
-        val q = tweak(v.toQuestion(s))
-        val r = ask(q)
+        val q = tweak(v.toQuestion(s)).let { local ->
+            val serverText = s.storyServerQuestion?.takeIf {
+                Server.liveFor(s.mode) && s.mode == StoryMode.STORY && s.storyNextSlot == slot && it.isNotBlank()
+            }
+            if (serverText == null) local else local.copy(text = serverText)
+        }
+        val r = if (s.mode == StoryMode.STORY) askStory(q, slot) else ask(q)
         judge(v, r, q.text)
         return v to r
     }

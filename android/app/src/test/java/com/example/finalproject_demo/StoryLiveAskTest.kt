@@ -17,8 +17,37 @@ import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class StoryLiveAskTest {
+    @Test
+    fun nextMatchingStorySlotUsesTheQuestionWrittenByTheServer() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope)
+        d.s.speed = 0.01
+        d.s.turn = 3
+        d.s.storyNextSlot = "reaction"
+        d.s.storyServerQuestion = "그때 너는 어떻게 했어?"
+        Server.base = "http://127.0.0.1:1"
+        Server.liveModes = setOf(StoryMode.STORY)
+        try {
+            val job = launch { d.askSlot("reaction") }
+            withTimeout(3_000) { while (!d.s.micEnabled) delay(5) }
+            assertEquals("그때 너는 어떻게 했어?", d.s.line)
+            delay(40)
+            d.send(Reply.Spoke("친구를 불렀어"))
+            withTimeout(6_000) { job.join() }
+        } finally {
+            Server.liveModes = emptySet()
+            Server.base = null
+            scope.cancel()
+        }
+    }
+
     @Test
     fun aSpokenStoryAnswerCallsTurnAndKeepsTheServerQuestion() = runBlocking {
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
