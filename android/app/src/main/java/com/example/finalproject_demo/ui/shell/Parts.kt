@@ -199,7 +199,7 @@ fun ObFrame(
     }
 } }
 
-private val STEPS = listOf("로그인", "동의", "마이크", "맞춤 설정")
+private val STEPS = listOf("로그인", "동의", "마이크", "비밀번호", "맞춤 설정")
 
 @Composable
 private fun StepDots(step: Int, modifier: Modifier) {
@@ -289,4 +289,98 @@ fun Modifier.holdToOpen(millis: Long = 2000, onOpen: () -> Unit): Modifier = poi
         val up = withTimeoutOrNull(millis) { waitForUpOrCancellation() }
         if (up == null) onOpen()
     }
+}
+
+/**
+ * **부모 비밀번호 네 자리** 입력 (09-29 사용자 — 「비밀번호를 태어난 해로 하지 말고 직접 설정하게」).
+ *
+ * 네 자리를 다 넣으면 [onDone] 에 넘긴다. [onDone] 이 false 를 돌려주면(틀렸음) 흔들고 비운다.
+ * 3번 틀리면 30초 기다린다 — 잠그지는 않는다. 눌린 숫자는 점으로만 보인다(옆에서 아이가 보고 따라 누르지 않게).
+ *
+ * @param reset 이 값이 바뀌면 입력을 비운다(만들기 → 확인 단계로 넘어갈 때)
+ */
+@Composable
+fun PinPad(title: String, note: String, onDone: (String) -> Boolean, modifier: Modifier = Modifier, reset: Any? = null) {
+    var digits by remember(reset) { mutableStateOf("") }
+    var wrong by remember { mutableIntStateOf(0) }
+    var waitLeft by remember { mutableIntStateOf(0) }
+    var shake by remember { mutableStateOf(false) }
+    LaunchedEffect(waitLeft) { if (waitLeft > 0) { delay(1000); waitLeft-- } }
+    LaunchedEffect(digits) {
+        if (digits.length == 4) {
+            delay(150)
+            if (!onDone(digits)) {
+                shake = true; digits = ""; wrong++
+                if (wrong >= 3) { waitLeft = 30; wrong = 0 }
+                delay(600); shake = false
+            }
+        }
+    }
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = InkBrown)
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.scale(if (shake) 0.97f else 1f)) {
+                repeat(4) { i ->
+                    val filled = i < digits.length
+                    Box(
+                        Modifier.size(22.dp).clip(CircleShape)
+                            .background(if (filled) FeltCoral else FeltWhite)
+                            .border(2.dp, if (filled) FeltCoral else if (i == digits.length) FeltCoral.copy(alpha = 0.6f) else InkBrown.copy(alpha = 0.18f), CircleShape),
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                when {
+                    waitLeft > 0 -> "잠시 뒤에 다시 해 주세요 · ${waitLeft}초"
+                    shake -> "비밀번호가 맞지 않아요"
+                    else -> note
+                },
+                fontSize = 12.sp, color = if (shake) FeltCoral else InkSoft, lineHeight = 17.sp,
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("", "0", "⌫")).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    row.forEach { k ->
+                        if (k.isEmpty()) Spacer(Modifier.width(58.dp)) else Box(
+                            Modifier.width(58.dp).height(46.dp).clip(RoundedCornerShape(14.dp)).background(WoolCream)
+                                .clickable(enabled = waitLeft == 0) {
+                                    digits = if (k == "⌫") digits.dropLast(1) else if (digits.length < 4) digits + k else digits
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) { Text(k, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = InkBrown) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 비밀번호 **새로 정하기** — 네 자리 → 한 번 더 → 같으면 [onSet]. 다르면 처음부터.
+ */
+@Composable
+fun PinCreate(onSet: (String) -> Unit, modifier: Modifier = Modifier) {
+    var first by remember { mutableStateOf<String?>(null) }
+    var mismatch by remember { mutableStateOf(false) }
+    PinPad(
+        title = if (first == null) "새 비밀번호 네 자리" else "한 번 더 눌러 주세요",
+        note = when {
+            mismatch -> "두 번 누른 번호가 달라요. 처음부터 다시 정해 주세요"
+            first == null -> "부모 영역을 열 때 써요. 아이가 모르는 번호로 정해 주세요"
+            else -> "방금 누른 네 자리를 한 번 더"
+        },
+        onDone = { pin ->
+            val f = first
+            when {
+                f == null -> { first = pin; mismatch = false; true }
+                f == pin -> { onSet(pin); true }
+                else -> { first = null; mismatch = true; true }
+            }
+        },
+        modifier = modifier,
+        reset = first to mismatch,
+    )
 }

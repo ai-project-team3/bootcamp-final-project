@@ -42,7 +42,8 @@ fun OttoShell(d: Director) {
         // 동의가 없으면(탈퇴 · 철회 뒤) 말하기 전에 다시 묻는다. 샘플 책 보기는 책장만이라 예외
         if (!ConsentStore.guardianAgreed && !Shell.sampleOnly) Shell.step = Step.CONSENT
         else if (d.s.stage == Stage.Adult) OttoRoom(d, sample = Shell.sampleOnly)
-        if (Shell.sheet != Sheet.NONE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { WithdrawSheet(d) }
+        if (Shell.sheet == Sheet.PIN_CHANGE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { PinChangeSheet() }
+        else if (Shell.sheet != Sheet.NONE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { WithdrawSheet(d) }
         // 이야기 도중 🏠 — 「방으로 갈까?」 (KidTopBar 가 켠다. 화면 전체를 덮어야 해서 여기서 그린다)
         if (Shell.askHome) Shield(onBack = { Shell.askHome = false }) {
             Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {
@@ -75,8 +76,9 @@ fun OttoShell(d: Director) {
                     onDone = { Shell.step = if (Shell.onboarded) Step.APP else Step.MIC },
                     onDecline = { activity?.finish() },      // 동의하지 않으면 앱을 닫는다 — 다음에 켜면 다시 묻는다
                 )
-                Step.MIC -> MicStep(onBack = { Shell.step = Step.CONSENT }, onDone = { Shell.step = Step.SETUP })
-                Step.SETUP -> SetupStep(onBack = { Shell.step = Step.MIC }, onDone = { Shell.applySetup(d.s); Shell.step = Step.HANDOFF })
+                Step.MIC -> MicStep(onBack = { Shell.step = Step.CONSENT }, onDone = { Shell.step = Step.PIN })
+                Step.PIN -> PinStep(onBack = { Shell.step = Step.MIC }, onDone = { Shell.step = Step.SETUP })
+                Step.SETUP -> SetupStep(onBack = { Shell.step = Step.PIN }, onDone = { Shell.applySetup(d.s); Shell.step = Step.HANDOFF })
                 Step.HANDOFF -> HandoffStep { Shell.step = Step.TUTORIAL_TAP }
                 Step.TUTORIAL_TAP -> OttoRoom(d, tutorial = true) { Shell.step = Step.TUTORIAL_TALK }
                 Step.TUTORIAL_TALK -> TutorialTalk { Shell.step = Step.FEATURES }

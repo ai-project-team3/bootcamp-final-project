@@ -116,11 +116,17 @@ private fun modeOf(value: String) = when (value) {
 private enum class Thing(
     val value: String, val label: String, val title: String, val question: String, val detail: String, val icon: String, val art: String,
     val x: Float, val y: Float, val w: Float, val h: Float,
+    /** 모드 색 — 이름표 아이콘 원 · 확인 창 테두리 · 제목 띠 */
+    val color: Color,
+    /** 모드 아이콘 그림 (ComfyUI · tools/gen_room.py) — 없으면 [icon] 이모지 */
+    val badge: String,
+    /** 이름표 아래 한 줄 — 무엇을 하는 곳인지 */
+    val sub: String,
 ) {
-    WINDOW("diary", "오늘 있었던 일로", "그림일기", "오늘 있었던 일로 그림일기 만들래?", "오늘 한 일을 말하면 그림일기가 돼요", "☀️", "room_window", 84f, 18f, 150f, 150f),
-    THEATER("start", "이야기 만들기", "동화 만들기", "오또랑 새 동화 만들래?", "주인공을 고르고 상상한 이야기를 말해요", "🎭", "room_theater", 414f, 70f, 190f, 222f),
-    SOFA("coop", "같이 만들기", "같이 만들기", "엄마 아빠랑 같이 책 만들래?", "어른이 묻고 아이가 대답해서 함께 만들어요", "🛋", "room_sofa", 10f, 196f, 230f, 134f),
-    SHELF("shelf", "책장", "내 책장", "내가 만든 책 보러 갈래?", "지금까지 만든 책을 다시 볼 수 있어요", "📚", "room_shelf", 624f, 58f, 164f, 252f),
+    WINDOW("diary", "오늘 있었던 일로", "그림일기", "오늘 있었던 일로 그림일기 만들래?", "오늘 한 일을 말하면 그림일기가 돼요", "☀️", "room_window", 84f, 18f, 150f, 150f, FeltSky, "icon_diary", "오늘 있었던 일"),
+    THEATER("start", "이야기 만들기", "동화 만들기", "오또랑 새 동화 만들래?", "주인공을 고르고 상상한 이야기를 말해요", "🎭", "room_theater", 414f, 70f, 190f, 222f, FeltCoral, "icon_story", "상상 이야기"),
+    SOFA("coop", "같이 만들기", "같이 만들기", "엄마 아빠랑 같이 책 만들래?", "어른이 묻고 아이가 대답해서 함께 만들어요", "🛋", "room_sofa", 10f, 196f, 230f, 134f, FeltTeal, "icon_coop", "어른이랑 함께"),
+    SHELF("shelf", "책장", "내 책장", "내가 만든 책 보러 갈래?", "지금까지 만든 책을 다시 볼 수 있어요", "📚", "room_shelf", 624f, 58f, 164f, 252f, FeltMustard, "feat_shelf", "만든 책 보기"),
 }
 
 /** 오또 크기 · 쉬는 자리 (디자인 좌표) — 소파와 무대 사이 바닥. 물건과 겹치지 않게 (09-29) */
@@ -223,7 +229,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
         if (tutorial) Pointer(Modifier.offset(g.x(Thing.THEATER.x + Thing.THEATER.w / 2 - 30f), g.y(200f)))
 
         if (!tutorial) {
-            // 왼쪽 위 부모 문 — 누르면 어른 확인(태어난 해)
+            // 왼쪽 위 부모 문 — 누르면 부모 비밀번호
             LockDoor(Modifier.padding(12.dp)) { d.send(Reply.Tapped("parent", "부모 모드")) }
             // 오른쪽 위 오늘 만들 수 있는 책
             StarWallet(s.dayStars, unlimited = !s.limitOn, modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 64.dp))
@@ -243,9 +249,10 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                     modifier = Modifier.align(Alignment.Center),
                     no = "✨" to "새로", yes = "▶" to "이어서",
                     title = t.title, detail = "새로 만들면 만들던 이야기는 사라져요",
+                    art = t.art, accent = t.color,
                 )
             } else ConfirmDialog(
-                t.icon, t.question, title = t.title, detail = t.detail,
+                t.icon, t.question, title = t.title, detail = t.detail, art = t.art, accent = t.color,
                 onNo = { asking = false; target = null; scope.launch { walkX.animateTo(HOME_X, tween(500)); paws.clear() } },
                 onYes = { done(); d.send(Reply.Tapped(t.value, t.label)) },
                 modifier = Modifier.align(Alignment.Center),
@@ -319,10 +326,10 @@ private fun Pointer(modifier: Modifier) {
 }
 
 /**
- * 🔒 부모 문 — **한 번 누르면** 어른 확인(태어난 해) 화면이 뜬다.
+ * 🔒 부모 문 — **한 번 누르면** 부모 비밀번호 화면이 뜬다.
  *
  * 전에는 2초 길게 눌러야 열렸는데, 누르는 동안 아무 표시가 없어 「자물쇠가 안 열린다」는 지적을 받았다(09-29).
- * 아이가 들어가는 것은 다음 화면의 태어난 해 확인이 막는다.
+ * 아이가 들어가는 것은 다음 화면의 부모 비밀번호가 막는다.
  */
 @Composable
 fun LockDoor(modifier: Modifier = Modifier, onOpen: () -> Unit) {
@@ -334,13 +341,22 @@ fun LockDoor(modifier: Modifier = Modifier, onOpen: () -> Unit) {
 /** 방 물건 아래 이름표 — 아이콘 + 모드 이름 (글을 못 읽는 아이도 아이콘으로 안다) */
 @Composable
 private fun NameTag(t: Thing, modifier: Modifier) {
+    // 09-29 사용자 — 「모드 설명 텍스트 · 이모티콘 UI 퀄리티를 올려 줘」. 이모지 대신 ComfyUI 펠트 아이콘을 모드 색 원에 넣고,
+    // 이름 아래에 무엇을 하는 곳인지 한 줄. 글을 못 읽는 아이는 아이콘 · 색으로, 어른은 글로 안다
     Row(
-        modifier.felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = true).padding(horizontal = 12.dp, vertical = 3.dp),
+        modifier.offset(y = 6.dp).felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 4.dp, stitch = true)
+            .border(2.dp, t.color.copy(alpha = 0.55f), RoundedCornerShape(Radius.Round))
+            .padding(start = 4.dp, end = 14.dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(t.icon, fontSize = 14.sp)
-        Spacer(Modifier.width(5.dp))
-        Text(t.title, fontSize = 15.sp, color = InkBrown, maxLines = 1)
+        Box(Modifier.size(34.dp).felt(t.color, CircleShape, lift = 1.dp, stitch = false), contentAlignment = Alignment.Center) {
+            AssetImage(t.badge, Modifier.size(30.dp)) { Text(t.icon, fontSize = 16.sp) }
+        }
+        Spacer(Modifier.width(7.dp))
+        Column {
+            Text(t.title, fontSize = 15.sp, color = InkBrown, maxLines = 1, lineHeight = 17.sp)
+            ParentText { Text(t.sub, fontSize = 10.sp, color = InkSoft, maxLines = 1, lineHeight = 12.sp) }
+        }
     }
 }
 
@@ -350,12 +366,20 @@ fun ConfirmDialog(
     icon: String, question: String, onNo: () -> Unit, onYes: () -> Unit, modifier: Modifier = Modifier,
     no: Pair<String, String> = "✕" to "아니", yes: Pair<String, String> = "✓" to "응!",
     title: String? = null, detail: String? = null,
+    /** 창 위에 띄울 그림(방 물건 · ComfyUI). 없으면 [icon] 이모지 원 */
+    art: String? = null,
+    /** 모드 색 — 테두리 · 제목 띠 */
+    accent: Color = FeltMustard,
 ) {
+    val top = if (art != null) 70.dp else 34.dp
     // 창 안을 눌러도 뒤로 새지 않게 — 버튼 말고는 아무 일도 없다
-    Box(modifier.width(420.dp).height(if (detail != null) 296.dp else 250.dp).noRippleClickable { }) {
-        Box(Modifier.fillMaxSize().padding(top = 34.dp).felt(Wool, RoundedCornerShape(32.dp), lift = 10.dp).border(4.dp, FeltMustard, RoundedCornerShape(32.dp))) {
-            Column(Modifier.fillMaxSize().padding(top = 44.dp, start = 20.dp, end = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                if (title != null) Text(title, fontSize = 15.sp, color = FeltCoral)
+    Box(modifier.width(440.dp).height((if (detail != null) 262.dp else 216.dp) + top).noRippleClickable { }) {
+        Box(Modifier.fillMaxSize().padding(top = top).felt(Wool, RoundedCornerShape(32.dp), lift = 10.dp).border(5.dp, accent, RoundedCornerShape(32.dp))) {
+            Column(Modifier.fillMaxSize().padding(top = if (art != null) 58.dp else 44.dp, start = 20.dp, end = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                if (title != null) Box(Modifier.felt(accent, RoundedCornerShape(Radius.Round), lift = 2.dp, stitch = false).padding(horizontal = 14.dp, vertical = 3.dp)) {
+                    Text(title, fontSize = 14.sp, color = FeltWhite)
+                }
+                Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("🔊", fontSize = 18.sp); Spacer(Modifier.width(8.dp)); Text(question, fontSize = 23.sp, color = InkBrown, maxLines = 1)
                 }
@@ -371,7 +395,10 @@ fun ConfirmDialog(
                 }
             }
         }
-        Box(Modifier.align(Alignment.TopCenter).size(76.dp).felt(FeltCoral, CircleShape, lift = 5.dp).border(4.dp, FeltWhite.copy(alpha = 0.6f), CircleShape), contentAlignment = Alignment.Center) {
+        if (art != null) AssetImage(art, Modifier.align(Alignment.TopCenter).size(130.dp)) {
+            Box(Modifier.align(Alignment.TopCenter).padding(top = 40.dp).size(76.dp).felt(accent, CircleShape, lift = 5.dp), contentAlignment = Alignment.Center) { Text(icon, fontSize = 36.sp) }
+        }
+        else Box(Modifier.align(Alignment.TopCenter).size(76.dp).felt(FeltCoral, CircleShape, lift = 5.dp).border(4.dp, FeltWhite.copy(alpha = 0.6f), CircleShape), contentAlignment = Alignment.Center) {
             Text(icon, fontSize = 36.sp)
         }
     }
@@ -395,7 +422,7 @@ private fun DailyLimit(d: Director) {
         FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped("notice:shelf", "책장")) }, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 40.dp).size(120.dp), shape = RoundedCornerShape(30.dp)) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("📚", fontSize = 40.sp); Text("책장", fontSize = 18.sp, color = FeltWhite) }
         }
-        // 어른 경로 하나 — 구석 · 작게 → 태어난 해 → 한 권 더 (Lingokids · YouTube Kids)
+        // 어른 경로 하나 — 구석 · 작게 → 부모 비밀번호 → 한 권 더 (Lingokids · YouTube Kids)
         Row(
             Modifier.align(Alignment.BottomEnd).padding(14.dp).clip(RoundedCornerShape(20.dp)).background(FeltWhite.copy(alpha = 0.15f)).clickable { adult = true }.padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -408,7 +435,12 @@ private fun DailyLimit(d: Director) {
                         Text("닫기", fontSize = 14.sp, color = InkSoft, modifier = Modifier.clickable { adult = false }.padding(8.dp))
                     }
                     Spacer(Modifier.height(14.dp))
-                    YearPad(onPass = {
+                    if (Shell.hasPin) PinPad("부모 비밀번호", "한 권 더 만들려면 비밀번호를 넣어 주세요", onDone = { ok -> Shell.checkPin(ok).also { if (it) {
+                        adult = false
+                        d.s.usedToday = (d.s.usedToday - 1).coerceAtLeast(0)
+                        d.send(Reply.Tapped("notice:ok", "한 권 더"))
+                    } } })
+                    else YearPad(onPass = {
                         adult = false
                         // 한 권 더 — 오늘 쓴 수를 하나 되돌린다(하루 한도 자체는 부모 설정에서 바꾼다)
                         d.s.usedToday = (d.s.usedToday - 1).coerceAtLeast(0)

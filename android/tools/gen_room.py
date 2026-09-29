@@ -37,8 +37,20 @@ JOBS = {
     "feat_talk": (1024, 1024, "a cute chunky teal felt microphone toy with little sound wave shapes around it, " + CUT),
     "feat_book": (1024, 1024, "a cute open felt picture book with a colorful felt drawing of a rainbow and a star popping out of the pages, " + CUT),
     "feat_shelf": (1024, 1024, "a cute small stack of three chunky colorful felt books with a little star on top, " + CUT),
+    # 09-29 오또의 방 이름표 · 확인 창 모드 아이콘
+    "icon_diary": (1024, 1024, "a cute smiling felt sun peeking over a small open felt diary notebook with a crayon drawing, " + CUT),
+    "icon_story": (1024, 1024, "a cute felt theater drama mask pair, one smiling mask in coral and one happy mask in mustard, tied with a teal ribbon, " + CUT),
+    "icon_coop": (1024, 1024, "a big felt adult hand and a small felt child hand holding a red felt heart together, " + CUT),
+    # 09-29 부모 영역 메뉴 · 비밀번호
+    "pi_record": (1024, 1024, "a cute felt notebook with a teal cover and a small pencil, a little star sticker on the cover, " + CUT),
+    "pi_coop": (1024, 1024, "two overlapping cute felt speech bubbles, one coral and one teal, with tiny hearts, " + CUT),
+    "pi_achieve": (1024, 1024, "a cute felt gold medal with a star in the middle hanging on a coral and teal ribbon, " + CUT),
+    "pi_settings": (1024, 1024, "a cute chunky felt gear cog in mustard yellow with a small wrench, " + CUT),
+    "pi_account": (1024, 1024, "a cute felt name badge card with a simple person silhouette and a small heart, " + CUT),
+    "pi_lock": (1024, 1024, "a cute chunky felt padlock in teal with a golden keyhole and a small golden key beside it, " + CUT),
+    "pi_home": (1024, 1024, "a cute small felt house with a red roof, a round window and a door, " + CUT),
 }
-CUTOUTS = {k for k in JOBS if k.startswith(("room_window", "room_theater", "room_sofa", "room_shelf", "feat_"))}
+CUTOUTS = {k for k in JOBS if k.startswith(("room_window", "room_theater", "room_sofa", "room_shelf", "feat_", "icon_", "pi_"))}
 
 
 def post(path, data):

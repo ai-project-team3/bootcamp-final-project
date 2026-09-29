@@ -81,6 +81,9 @@ class ShellFlowTest {
         waitText("마이크를 켜 주세요"); shot("04_mic")
         assertEquals("마이크를 건너뛰는 「나중에」가 남아 있다", 0, count("나중에"))
         tap("마이크 켜기")
+        // ④ 부모 비밀번호 — 네 자리 두 번 (09-29 · 태어난 해 대신 직접 정한다)
+        waitText("부모 비밀번호를 정해요"); shot("04b_pin")
+        repeat(2) { "1234".forEach { tap(it.toString()) }; compose.mainClock.advanceTimeBy(600); compose.waitForIdle() }
         waitText("우리 아이에게 맞춰요"); shot("05_setup_empty")
         compose.onNode(hasText("설정 끝") and hasClickAction()).assertIsNotEnabled()
         tap("2권"); tap("양모"); tap("받지 않아요")
@@ -104,6 +107,8 @@ class ShellFlowTest {
     fun onboardingMustBeFinishedAndSetupReachesTheFlow() {
         onboard()
         assertTrue(Shell.onboarded)
+        assertTrue("처음 설정에서 정한 비밀번호가 저장되지 않았다", Shell.checkPin("1234"))
+        assertTrue(!Shell.checkPin("0000"))
         val s = director.s
         assertEquals("맞춤 설정의 하루 책 수가 흐름에 안 들어갔다", 2, s.dailyLimit)
         assertTrue(s.limitOn)
@@ -135,7 +140,20 @@ class ShellFlowTest {
         onboard()
         tap("🔒")
         compose.waitUntil(5_000) { director.s.stage is Stage.Pin }
-        waitText("보호자님이 태어난 해"); shot("15_pin")
+        waitText("부모 비밀번호"); shot("15_pin")
+        // 틀린 번호로는 안 열리고, 처음에 정한 번호로 열린다
+        "9999".forEach { tap(it.toString()) }
+        compose.mainClock.advanceTimeBy(400); compose.waitForIdle()
+        assertTrue("틀린 비밀번호로 부모 영역이 열렸다", director.s.stage is Stage.Pin)
+        compose.mainClock.advanceTimeBy(1_000)
+        "1234".forEach { tap(it.toString()) }
+        compose.mainClock.advanceTimeBy(600)
+        compose.waitUntil(5_000) { director.s.scene == com.example.finalproject_demo.demo.Scene.PARENT }
+        shot("15b_parent")
+        listOf("협업 질문" to "coop", "업적" to "ach", "설정" to "set", "계정" to "acct").forEach { (t, k) ->
+            tap(t); compose.mainClock.advanceTimeBy(400); shot("15c_parent_$k")
+        }
+        tap("부모 비밀번호"); compose.mainClock.advanceTimeBy(400); shot("15d_pin_change")
     }
 
     @Test
