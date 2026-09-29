@@ -199,6 +199,22 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .feel.on{display:flex}
 .feel button{width:7.4cqw;height:7.4cqw;border-radius:1.6cqw;border:.3cqw solid #E6D9C2;background:#fff;font-size:3.2cqw;cursor:pointer;display:grid;place-items:center;line-height:1;padding:.4cqw 0;animation:glow 1.6s ease-in-out infinite}
 .feel button span{font-family:var(--kid);font-size:1.4cqw;color:var(--app-ink)}
+.mz{position:absolute;inset:0;pointer-events:none;z-index:4}
+.mz > *{pointer-events:auto}
+.mz-slot{position:absolute;border:.3cqw dashed #D8C3A0;border-radius:.8cqw;background-color:rgba(255,253,245,.6);background-repeat:no-repeat}
+.mz-slot.glow{border-color:var(--mustard);box-shadow:0 0 0 .5cqw rgba(242,178,50,.35)}
+.mz-num{position:absolute;font-family:var(--kid);font-size:1.6cqw;color:var(--app-ink-soft);pointer-events:none}
+.mz-piece{position:absolute;border-radius:.6cqw;background-color:#fff;background-repeat:no-repeat;border:.25cqw solid #fff;box-shadow:0 .5cqw 1cqw rgba(58,42,32,.25);cursor:grab;touch-action:none;transition:left .15s,top .15s,width .15s,height .15s}
+.mz-piece.drag,.mz-card.drag{transition:none;z-index:6;cursor:grabbing}
+.mz-piece.placed{box-shadow:none;border-color:transparent;border-radius:0;cursor:default}
+.mz-piece.sel,.mz-card.sel{outline:.45cqw solid var(--mustard);outline-offset:.2cqw}
+.mz-card{position:absolute;background:#fff;border:.25cqw solid #E6D9C2;border-radius:1cqw;font-family:"Nanum Pen Script",var(--kid);color:#2F3B63;display:grid;place-items:center;text-align:center;padding:.4cqw .8cqw;line-height:1.1;cursor:grab;touch-action:none;box-shadow:0 .4cqw .8cqw rgba(58,42,32,.18);transition:left .2s,top .2s,width .2s,height .2s,font-size .2s}
+.mz-card.placed{border-color:var(--teal);cursor:default;box-shadow:none}
+.mz-card.play{animation:rxBounce .6s ease-out both}
+.mz-hint{position:absolute;left:50%;top:6.4cqw;transform:translateX(-50%);background:#fff;border-radius:3cqw;padding:.4cqw 1.6cqw;font-family:var(--kid);font-size:1.8cqw;box-shadow:0 .4cqw .8cqw rgba(58,42,32,.18);white-space:nowrap;pointer-events:none}
+.mz-hint.done{background:var(--teal);color:#fff}
+.mz-hint.hint{animation:glow 1.2s ease-in-out infinite}
+.nudge{animation:rxWiggle .7s ease-in-out 2}
 .rx-bubble.below{bottom:auto;top:100%;transform:translate(-50%,.6cqw)}
 @keyframes write{from{opacity:0;transform:translateY(-.3cqw)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.grid .ch{animation:none;opacity:1}}
@@ -389,6 +405,7 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
             <div class="stage" id="bk-stage"></div>
             <div class="grid" id="bk-sub" role="button" aria-label="이 줄 다시 읽기"></div>
             <div class="feel" id="bk-feel" role="group" aria-label="오늘 기분"></div>
+            <div class="mz" id="bk-mz"></div>
           </div>
           <div class="tools" id="bk-tools" role="toolbar" aria-label="도구"></div>
           <div class="mission" id="bk-mission" aria-live="polite"></div>
@@ -430,6 +447,7 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
           <li><b>오또 그림이 오면 이름표에 ✨가 붙고 오른쪽 오또 버튼이 「오또 그림 왔어!」로 바뀐다.</b> 둘 중 어느 쪽을 눌러도 크게 보며 고른다. 이름표는 그리기를 막지 않는다 — 이름표 위에서 <b>짧게 톡</b>은 이름표 누름(점이 안 찍힘), <b>끌면</b> 그대로 선이 그려진다</li>
           <li><b>오또 그림은 뒤에서 만든다.</b> 화면은 그대로이고 아이는 계속 그린다. 다 되면 이름표에 ✨가 붙고 오또가 멈춘 틈에 알려 준다. ✨를 누르면 옆에 작은 고르기 칸 — 원본이 첫 번째. 8초 넘으면 "조금 뒤에 올 거야", 15초면 원본 그대로</li>
           <li><b>책은 아이들이 실제로 쓰는 한 장짜리 그림일기 양식이다</b> — 위에 날짜 · 날씨 · 제목, 가운데 그림 칸(내 그림 조각이 그린 자리 그대로, 고른 오또 그림이면 그 모습), 아래 원고지 글 칸. 쪽을 넘길 때마다 1인칭 문장이 한 글자씩 써지고, 그 문장에 나온 조각이 앞으로 나와 움직인다(나머지는 흐리게). 장소 사진 · 미션 없음</li>
+          <li><b>놀이(미션)는 아이가 한 행동을 말한 날에만</b>, 일기를 다 쓴 뒤에 붙는다(09-29 조장). 지어낸 것 없이 아이 것만 쓴다 — <b>🧩 내 그림 맞추기</b>(아이 그림 세 조각) · <b>🔢 순서 맞추기</b>(아이가 말한 행동 문장이 둘 이상일 때, 처음 · 그다음 · 마지막). 끌어다 놓거나 톡 · 톡. 틀린 칸이면 제자리로 돌아가며 "음, 먼저 한 일은 뭐였지?" · 8초면 힌트 · 안 해도 넘어갈 수 있다</li>
           <li><b>마지막 줄은 오늘 기분이다</b> — 실제 그림일기처럼 느낌으로 닫는다. 아이가 말한 기분이 있으면 그 말로, 없으면 "오늘은 ○○"까지 써 두고 😄 😢 같은 얼굴을 눌러 채운다(고른 것이라 card 출처 · 리포트 인용엔 안 들어감)</li>
           <li><b>누르면 반응한다</b> — 조각(도구 넷) · 글 칸(그 줄을 다시 쓰고 다시 움직임) · 날씨(아이가 고름. 해를 그렸으면 ☀️가 저절로 골라지고, 누르면 그림 속 해가 반짝) · 제목("이 일기 제목은 뭐로 할까?" → title 칸에 아이 말 그대로). 조각은 끌어서 옮길 수도 있다</li>
           <li>인식은 여기서 간단한 모양 규칙으로 흉내 냈다. 실제는 폰 안 ML Kit AutoDraw → 낱말만 Jev (확신 0.6 미만이면 "이건 뭐 그린 거야?"로 연다)</li>
@@ -1378,6 +1396,7 @@ function buildPages(){
   if (!sl.solution && P.length) P[P.length-1].tail = '그 뒤에 어떻게 되었는지는 아직 듣지 못했어요.';
   // real picture diaries end with a feeling line; if the child hasn't said one, they pick it on the page (by: card)
   if (P.length) P.push(sl.reaction ? {kind:'feel', text: yo(sl.reaction)} : {kind:'feel', text:'오늘은 ', pick:true});
+  P.push(...missionPages(P));
   return P;
 }
 // ── the book is the child's own drawing, played out ──
@@ -1438,8 +1457,148 @@ function writeLine(text, tail){
   g.setAttribute('aria-label', text + (tail ? ' ' + tail : ''));
 }
 const FEEL = [{e:'😄', say:'신났어', line:'오늘은 참 신났어요.'}, {e:'🙂', say:'좋았어', line:'오늘은 참 좋았어요.'}, {e:'😢', say:'속상했어', line:'오늘은 조금 속상했어요.'}, {e:'😴', say:'피곤했어', line:'오늘은 조금 피곤했어요.'}];
+// ── missions (lead, 09-29): only on a day the child said what they did, and nothing invented —
+// A3 puzzle of the child's own drawing, B2 putting the child's own lines in order (docs/미션_구상.md)
+const ACTION = /(갔|왔|했|놀|탔|먹|쌓|그렸|만들|뛰|넘어|들어|봤|잤|읽|씻|달렸|던졌|찼|걸었|올라|내려|쳤|불었|춤|일어났)/;
+function missionPages(P){
+  const acts = P.filter(p => ['place','problem','solution'].includes(p.kind) && ACTION.test(p.text));
+  if (!acts.length){ log('아이가 한 행동이 문장에 없다 → 미션 없음'); return []; }
+  const out = [];
+  if (S.strokes.length) out.push({kind:'puzzle', text:'놀이 · 내 그림 맞추기'});
+  if (acts.length >= 2) out.push({kind:'order', text:'놀이 · 순서 맞추기', cards: acts.map(p => p.text.replace(/^(마침내|그러고 나서)\s*/, ''))});
+  log(`아이가 한 행동 ${acts.length}개 → 미션: ${out.map(m => m.kind === 'puzzle' ? 'A3 내 그림 퍼즐' : 'B2 순서 맞추기').join(' · ') || '없음'}`);
+  return out;
+}
+const SX = 6.5, SY = 6, SW = 66, SH = 22;          // the picture box on the sheet, in cqw
+const cq = () => $('frame').clientWidth / 100;
+const at = (el, l, t, w, h) => Object.assign(el.style, {left:l+'cqw', top:t+'cqw', width:w+'cqw', height:h+'cqw'});
+function mzHint(text, cls = ''){ let h = $('bk-mz').querySelector('.mz-hint'); if (!h){ h = document.createElement('div'); h.className = 'mz-hint'; $('bk-mz').appendChild(h); } h.className = 'mz-hint ' + cls; h.textContent = text; }
+function mzArmHint(){
+  clearTimeout(S.mzT);
+  S.mzT = setTimeout(() => {
+    if (!S.mz || S.mz.done || S.scr !== 'd5') return;
+    $('bk-mz').querySelector('.mz-hint').classList.add('hint');
+    const next = S.mz.kind === 'puzzle' ? [...$('bk-mz').querySelectorAll('.mz-piece:not(.placed)')][0] : [...$('bk-mz').querySelectorAll('.mz-card:not(.placed)')].sort((a,b) => a.dataset.i - b.dataset.i)[0];
+    if (next){ next.classList.remove('nudge'); void next.offsetWidth; next.classList.add('nudge'); const sl = $('bk-mz').querySelector(`.mz-slot[data-i="${next.dataset.i}"]`); if (sl) sl.classList.add('glow'); }
+    log('8초 동안 진전 없음 → 힌트 (실패는 없다)');
+  }, 8000);
+}
+function renderPuzzle(){
+  const mz = $('bk-mz'), url = fullURL(), n = 3, pw = SW / n, k = 0.4;
+  S.mz = {kind:'puzzle', left:n, done:false, slots:[]};
+  for (let i = 0; i < n; i++){
+    const sl = document.createElement('div'); sl.className = 'mz-slot'; sl.dataset.i = i; at(sl, SX + i*pw, SY, pw, SH);
+    sl.style.backgroundImage = `linear-gradient(rgba(255,254,248,.85),rgba(255,254,248,.85)), url(${url})`;
+    sl.style.backgroundSize = `100% 100%, ${n*100}% 100%`; sl.style.backgroundPosition = `0 0, ${i*50}% 0`;
+    mz.appendChild(sl); S.mz.slots.push({l:SX + i*pw, t:SY, w:pw, h:SH});
+  }
+  [2, 0, 1].forEach((i, j) => {    // scattered in the writing box, never already in order
+    const pc = document.createElement('div'); pc.className = 'mz-piece'; pc.dataset.i = i;
+    pc.style.backgroundImage = `url(${url})`; pc.style.backgroundSize = `${n*100}% 100%`; pc.style.backgroundPosition = `${i*50}% 0`;
+    at(pc, 10 + j*(pw*k + 6), 30, pw*k, SH*k); pc.style.transform = `rotate(${(j-1)*6}deg)`;
+    mz.appendChild(pc);
+  });
+  mzHint('🧩 내 그림을 맞춰 볼까?'); mzArmHint();
+  log('미션 A3 — 내 그림을 세 조각으로 나눴다. 끌어다 놓거나, 조각을 톡 · 자리를 톡');
+}
+function renderOrder(p){
+  const mz = $('bk-mz'), cards = p.cards, n = cards.length, gap = 2, w = (SW - gap*(n-1)) / n, h = 14;
+  const names = n === 2 ? ['처음', '그다음'] : ['처음', '그다음', '마지막'];
+  S.mz = {kind:'order', left:n, done:false, slots:[]};
+  for (let i = 0; i < n; i++){
+    const l = SX + i*(w + gap), t = SY + 5.5;
+    const sl = document.createElement('div'); sl.className = 'mz-slot'; sl.dataset.i = i; at(sl, l, t, w, h); mz.appendChild(sl);
+    const num = document.createElement('div'); num.className = 'mz-num'; num.textContent = `${i+1} · ${names[i]}`; Object.assign(num.style, {left:(l + 1)+'cqw', top:(t + .5)+'cqw'}); mz.appendChild(num);
+    S.mz.slots.push({l, t, w, h});
+  }
+  const order = [...cards.keys()].reverse(); if (n > 2) [order[0], order[1]] = [order[1], order[0]];   // shuffled, never already right
+  order.forEach((i, j) => {
+    const c = document.createElement('div'); c.className = 'mz-card'; c.dataset.i = i; c.textContent = cards[i];
+    const cw = (SW + 6) / n - 2; at(c, 4 + j*(cw + 2), 29.6, cw, 8.6); c.style.fontSize = '2cqw';
+    c.dataset.home = JSON.stringify([4 + j*(cw + 2), 29.6, cw, 8.6]);
+    mz.appendChild(c);
+  });
+  mzHint('🔢 오늘 한 일을 순서대로 놓아 볼까?'); mzArmHint();
+  log(`미션 B2 — 아이가 말한 행동 ${n}개를 카드로 섞었다. 처음 · 그다음${n > 2 ? ' · 마지막' : ''} 칸에 놓는다`);
+}
+function placeInto(el, i){
+  const sl = S.mz.slots[i], isCard = el.classList.contains('mz-card');
+  at(el, sl.l, sl.t, sl.w, sl.h); el.style.transform = 'none'; el.classList.add('placed'); el.classList.remove('sel', 'nudge');
+  if (isCard) el.style.fontSize = '2.5cqw';
+  const slot = $('bk-mz').querySelector(`.mz-slot[data-i="${i}"]`); if (slot) slot.classList.remove('glow');
+  S.mz.left--; S.mz.sel = null; $('bk-mz').querySelector('.mz-hint').classList.remove('hint'); mzArmHint();
+  log(`${isCard ? '카드' : '조각'} ${i+1} 제자리`);
+  if (S.mz.left > 0) return;
+  S.mz.done = true; clearTimeout(S.mzT);
+  if (S.mz.kind === 'puzzle'){
+    mzHint('✨ 다 맞췄다!', 'done');
+    setTimeout(() => { if (S.scr !== 'd5') return; $('bk-mz').querySelectorAll('.mz-piece, .mz-slot').forEach(x => x.remove()); castAll('hop'); }, 600);
+  } else {
+    mzHint('✨ 순서대로 놓았다!', 'done');
+    [...$('bk-mz').querySelectorAll('.mz-card')].sort((a,b) => a.dataset.i - b.dataset.i).forEach((c, j) => { c.style.animationDelay = `${j*0.5}s`; c.classList.add('play'); });
+  }
+  log('미션 완료 — 점수 · 시간 기록 없음');
+  bookOpts();
+}
+function sendHome(el){
+  if (el.classList.contains('mz-card')){ const [l, t, w, h] = JSON.parse(el.dataset.home); at(el, l, t, w, h); el.style.fontSize = '2cqw'; }
+  el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge');
+  mzHint(S.mz.kind === 'order' ? '🔢 음, 먼저 한 일은 뭐였지?' : '🧩 다른 자리에 맞춰 볼까?');
+  log('맞지 않는 자리 → 제자리로 돌아가 다시 (틀렸다고 하지 않는다)');
+}
+function slotUnder(el){
+  const b = el.getBoundingClientRect(), cx = b.left + b.width/2, cy = b.top + b.height/2;
+  const hit = [...$('bk-mz').querySelectorAll('.mz-slot')].find(sl => { const r = sl.getBoundingClientRect(); return cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom; });
+  return hit ? +hit.dataset.i : null;
+}
+let mzDrag = null;
+$('bk-mz').addEventListener('pointerdown', e => {
+  const el = e.target.closest('.mz-piece:not(.placed), .mz-card:not(.placed)');
+  const slot = e.target.closest('.mz-slot');
+  if (!el && slot && S.mz && S.mz.sel != null){   // tap a piece, then tap a place
+    const sel = $('bk-mz').querySelector(`[data-i="${S.mz.sel}"].sel`);
+    if (sel){ if (+slot.dataset.i === S.mz.sel) placeInto(sel, S.mz.sel); else sendHome(sel); }
+    return;
+  }
+  if (!el) return;
+  e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_){}
+  mzDrag = {el, x0:e.clientX, y0:e.clientY, l:parseFloat(el.style.left), t:parseFloat(el.style.top), moved:false};
+});
+$('bk-mz').addEventListener('pointermove', e => {
+  if (!mzDrag) return;
+  const dx = (e.clientX - mzDrag.x0) / cq(), dy = (e.clientY - mzDrag.y0) / cq();
+  if (!mzDrag.moved && Math.hypot(dx, dy) < 1) return;
+  mzDrag.moved = true; mzDrag.el.classList.add('drag');
+  mzDrag.el.style.left = (mzDrag.l + dx) + 'cqw'; mzDrag.el.style.top = (mzDrag.t + dy) + 'cqw';
+});
+const mzUp = () => {
+  if (!mzDrag) return; const d = mzDrag; mzDrag = null; d.el.classList.remove('drag');
+  const i = +d.el.dataset.i;
+  if (!d.moved){   // a tap selects it
+    $('bk-mz').querySelectorAll('.sel').forEach(x => x.classList.remove('sel'));
+    d.el.classList.add('sel'); S.mz.sel = i; return;
+  }
+  const under = slotUnder(d.el);
+  if (under === i) placeInto(d.el, i);
+  else if (under != null) sendHome(d.el);
+  else mzArmHint();
+};
+$('bk-mz').addEventListener('pointerup', mzUp); $('bk-mz').addEventListener('pointercancel', mzUp);
+function castAll(move){
+  objects().forEach((o, i) => { const c = lookURL(o, o.pc.look || 'orig', 6); addPuppet(o, c.url, {l:(o.box.x0-6)/LW*100, t:(o.box.y0-6)/LH*100, w:c.w/LW*100}, move, i); });
+}
 function renderPage(){
   const p = S.pages[S.page], n = S.pages.length, os = objects();
+  clearTimeout(S.mzT); S.mz = null; $('bk-mz').innerHTML = '';
+  const play = p.kind === 'puzzle' || p.kind === 'order';
+  $('bk-sub').style.visibility = play ? 'hidden' : '';
+  if (play){
+    $('bk-feel').classList.remove('on'); sheetHead(); $('bk-stage').innerHTML = '';
+    if (p.kind === 'puzzle') renderPuzzle(); else renderOrder(p);
+    $('bk-dots').innerHTML = S.pages.map((_,i) => `<i class="${i===S.page?'cur':''}"></i>`).join('') + `${S.page+1}/${n}`;
+    $('bk-prev').disabled = S.page === 0; $('bk-next').textContent = S.page === n-1 ? '✓' : '▶';
+    bookOpts(); return;
+  }
   $('bk-bg').style.background = '#F3E7D3';
   $('bk-feel').classList.toggle('on', !!p.pick);
   $('bk-full').classList.remove('on');
@@ -1546,7 +1705,13 @@ function bookOpts(){
   TOOLS.forEach(t => list.push({label:`${t.e.startsWith('<') ? '🪶' : t.e} ${t.name}${t.id === S.tool ? ' (고름)' : ''}`, run:() => { const b = $('bk-tools').querySelector(`[data-t="${t.id}"]`); if (b) b.click(); }}));
   const first = document.querySelector('#bk-stage .puppet:not(.dim)') || document.querySelector('#bk-stage .puppet');
   if (first) list.push({label:'👆 앞에 나온 조각 톡', hint:'고른 도구로 반응', wide:true, run:() => react(first, +first.dataset.k)});
-  list.push({label:'👆 글 칸 누르기', hint:'이 줄을 다시 쓰고 다시 움직임', run:() => $('bk-sub').click()});
+  if (S.mz && !S.mz.done){
+    list.push({label: S.mz.kind === 'puzzle' ? '🧩 (시연) 조각 하나 맞추기' : '🔢 (시연) 카드 하나 놓기', hint:'끌어다 놓은 것처럼', wide:true, run:() => {
+      const el = [...$('bk-mz').querySelectorAll(S.mz.kind === 'puzzle' ? '.mz-piece:not(.placed)' : '.mz-card:not(.placed)')].sort((a,b) => a.dataset.i - b.dataset.i)[0];
+      if (el) placeInto(el, +el.dataset.i); }});
+    if (S.mz.kind === 'order') list.push({label:'🔢 (시연) 틀린 칸에 놓기', hint:'제자리로 돌아간다', wide:true, run:() => { const el = $('bk-mz').querySelector('.mz-card:not(.placed)'); if (el) sendHome(el); }});
+  }
+  if (!(S.pages[S.page] || {}).kind || !['puzzle','order'].includes(S.pages[S.page].kind)) list.push({label:'👆 글 칸 누르기', hint:'이 줄을 다시 쓰고 다시 움직임', run:() => $('bk-sub').click()});
   list.push({label:'👆 제목 누르기', hint:'제목을 말한다', run:() => $('bk-title').click()});
   if (S.pages[S.page] && S.pages[S.page].pick) FEEL.forEach((f, i) => list.push({label:`👆 ${f.e} ${f.say}`, run:() => $('bk-feel').querySelector(`[data-i="${i}"]`).click()}));
   if (!S.wx) list.push({label:'👆 날씨 ☀️ 누르기', wide:true, run:() => { const b = $('bk-wx').querySelector('[data-w="sun"]'); if (b) b.click(); }});
