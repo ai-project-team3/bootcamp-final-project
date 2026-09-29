@@ -2,7 +2,9 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.applyStoryVerdict
+import com.example.finalproject_demo.demo.exchangeStoryTurn
 import com.example.finalproject_demo.net.Server
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -64,5 +66,36 @@ class StoryTurnResultTest {
         assertEquals("숲", s.slots["place"])
         assertEquals("mascot", s.slotBy["place"])
         assertNull(s.storyNextSlot)
+    }
+
+    @Test
+    fun oneLiveTurnMasksTheRequestAndRestoresTheVerdictAndMascotLine() = runBlocking {
+        val s = DemoState()
+        s.slots["place"] = "지호의 숲"
+        var sent: Server.Turn? = null
+        val result = s.exchangeStoryTurn("problem", "지호야, 무슨 일이야?", "지호가 길을 잃었어") {
+            sent = it
+            Server.TurnResult(
+                verdict(fills = listOf("problem" to "{주인공}이 길을 잃었다"), next = "reaction"),
+                Server.Line("{주인공}이 길을 잃었구나", null, "그다음에는 어떻게 했어?"),
+            )
+        }
+
+        assertEquals("{주인공}의 숲", sent!!.slots["place"])
+        assertEquals("{주인공}야, 무슨 일이야?", sent!!.question)
+        assertEquals("{주인공}가 길을 잃었어", sent!!.utterance)
+        assertEquals("지호가 길을 잃었다", s.slots["problem"])
+        assertEquals("child", s.slotBy["problem"])
+        assertEquals("reaction", s.storyNextSlot)
+        assertEquals("지호가 길을 잃었구나", result?.line?.ack)
+    }
+
+    @Test
+    fun failedLiveTurnDoesNotInventAnAnswerOrAdvanceTheQuestion() = runBlocking {
+        val s = DemoState()
+        val result = s.exchangeStoryTurn("problem", "무슨 일이야?", "몰라") { null }
+        assertNull(result)
+        assertNull(s.storyNextSlot)
+        assertTrue(s.slots.isEmpty())
     }
 }
