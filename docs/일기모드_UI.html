@@ -112,6 +112,14 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .merge-btn{position:absolute;right:6cqw;top:33.5cqw;width:15cqw;height:6cqw;font-size:2.2cqw;display:none}
 .merge-btn.on{display:block}
 #btn-split{right:22cqw}
+.cutter{position:absolute;left:0;right:0;top:0;bottom:12cqw;background:rgba(255,247,236,.97);display:none;z-index:5}
+.cutter.on{display:block}
+.cut-board{position:absolute;left:6cqw;top:3cqw;width:66cqw;height:30cqw;background:#fff;border-radius:2.5cqw;box-shadow:0 .8cqw 2cqw rgba(58,42,32,.2);overflow:hidden}
+.cut-board canvas{width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+.cut-go{position:absolute;right:3cqw;top:5cqw;width:20cqw;height:9cqw;font-size:2.6cqw}
+.cut-go:disabled{opacity:.4;cursor:default}
+.cut-clear{position:absolute;right:3cqw;top:16cqw;width:20cqw;height:6.5cqw;font-size:2.2cqw}
+.cut-close{position:absolute;right:3cqw;top:24.5cqw;width:20cqw;height:6.5cqw;font-size:2.2cqw}
 .bgtag{position:absolute;font-size:1.6cqw;background:rgba(138,115,95,.85);color:#fff;padding:.1cqw 1cqw;border-radius:2cqw;pointer-events:none}
 .sticker.bgcard{cursor:default;opacity:.8}
 .sticker.bgcard img{height:6cqw;max-width:22cqw}
@@ -236,7 +244,13 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
           <div class="sys"><span>🏠</span><span class="lock">🔒</span></div>
           <div class="tray" id="tray"></div>
           <button class="felt mustard merge-btn" id="btn-merge">🧵 붙이기</button>
-          <button class="felt mustard merge-btn" id="btn-split">✂️ 나누기</button>
+          <button class="felt mustard merge-btn" id="btn-split">✂️ 자르기</button>
+          <div class="cutter" id="cutter">
+            <div class="cut-board"><canvas id="cutcv"></canvas></div>
+            <button class="felt coral cut-go" id="btn-cutgo">✂️ 떼어 내기</button>
+            <button class="felt cream cut-clear" id="btn-cutclear">↺ 다시</button>
+            <button class="felt cream cut-close" id="btn-cutclose">그만</button>
+          </div>
         </section>
 
         <section class="scr" id="s-d3">
@@ -284,9 +298,9 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
         <h2>이 프로토타입의 규칙</h2>
         <ul class="rules">
           <li><b>그리는 중에는 붓이 멈췄을 때만 묻는다.</b> 긋는 중에는 끼어들지 않고, 질문 사이는 최소 5초를 둔다. 답을 안 하고 계속 그리면 질문을 조용히 거둔다</li>
-          <li><b>조각은 위치와 그린 때로 나눈다.</b> 아이가 "이건 뭐야?"에 답하면 그 조각은 <b>닫힌다</b> — 뒤에 그린 선은 겹쳐도 새 조각이다. 방금(2.5초 안) 그린 선 옆은 조금 떨어져도 같은 조각(눈 · 코)</li>
-          <li><b>닫힌 조각 안쪽에 작게 그리면 덧그림</b>으로 그 조각에 붙는다(모래성의 문). <b>아주 긴 선이나 닫힌 조각 둘에 걸친 선은 배경</b>으로 뺀다(땅 · 하늘) — 조각들을 하나로 묶지 않고, 책에서는 조각 뒤에 깔린다</li>
-          <li>그래도 틀리면 D2에서 고친다: 하나 골라 [나누기](그린 때가 떨어진 선끼리, 아니면 위치로) · 둘 골라 [붙이기]</li>
+          <li><b>조각은 선의 위치로 묶는다.</b> 가까운 선끼리 한 조각이다. 단, 이름을 받은 두 조각을 한 선이 같이 건드려도 둘을 합치지 않는다. 그 선은 더 많이 겹친 쪽에만 붙는다</li>
+          <li><b>무엇인지는 대화로 정한다.</b> 새 조각엔 "이건 뭐야?", 이름 받은 조각이 바깥으로 커지면 "모래성에 더 그린 거야, 새로 그린 거야?". "새로 그렸어, 땅이야"면 이름 뒤에 그은 선만 떼어 새 조각이 된다. 안쪽에만 더 그리면 묻지 않는다(문 · 창문)</li>
+          <li><b>그래도 잘못 묶이면 D2에서 자른다.</b> 스티커 하나 → [✂️ 자르기] → 떼어 낼 선을 톡 누르거나 동그라미로 감싸기 → [떼어 내기] → 오또가 "이건 뭐야?". 둘을 고르면 [붙이기]</li>
           <li><b>인식 낱말은 질문 문구에만 쓴다(규칙 5).</b> 조각 이름은 아이가 말한 것만 붙는다. "집처럼 보이네"에 "모래성이야"라고 하면 모래성이다</li>
           <li><b>책은 아이 그림을 다시 그리지 않는다(차별점 1).</b> 원본 선을 오려서 옮기고 돌리고 키울 뿐이다. 오리기는 폰 안에서 한다</li>
           <li>인식은 여기서 간단한 모양 규칙으로 흉내 냈다. 실제는 폰 안 ML Kit AutoDraw → 낱말만 Jev (확신 0.6 미만이면 "이건 뭐야?"로 연다)</li>
@@ -349,63 +363,54 @@ const Q = {
 // ── state ──
 let S;
 function fresh(){
-  S = {scr:'d0', strokes:[], pieces:[], slots:{}, storyAsked:{}, epoch:1, nextPiece:1,
+  S = {scr:'d0', strokes:[], pieces:[], apart:[], slots:{}, storyAsked:{}, nextPiece:1,
        wbAsked:0, afterAsked:0, utter:0, cur:null, retried:false, lastPen:0, lastQ:0, qAt:0,
        queue:[], sel:[], pages:[], page:0, log:[], nextId:1, sampleStep:0};
 }
 
-// ── pieces: where a stroke is AND when it was drawn ──
-// A piece closes when the child answers "what is this?". Later strokes never glue onto a closed piece,
-// except small strokes drawn inside it (details). Very long strokes, or strokes that touch two closed
-// pieces, are background (ground, sky) and join no piece. Strokes drawn right after one another
-// (within RECENT_MS) join from farther away — eyes and a nose belong to the face just drawn.
-const PAD = 14, PAD_RECENT = 30, RECENT_MS = 2500;
+// ── pieces: grouped by where the lines are ──
+// A new stroke joins the pieces it touches. Two pieces the child has already named are never fused
+// by a stroke that touches both — the stroke joins the one it overlaps most. What each piece IS comes
+// only from talking with the child; growth past a named piece is asked about, not assumed.
+const PAD = 14;
 function boxOf(p){ let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for (const [x,y] of p){ x0=Math.min(x0,x); y0=Math.min(y0,y); x1=Math.max(x1,x); y1=Math.max(y1,y); } return {x0,y0,x1,y1}; }
 const grow = (b,d) => ({x0:b.x0-d, y0:b.y0-d, x1:b.x1+d, y1:b.y1+d});
 const touch = (a,b) => a.x0 <= b.x1 && b.x0 <= a.x1 && a.y0 <= b.y1 && b.y0 <= a.y1;
 const area = b => Math.max(1,(b.x1-b.x0))*Math.max(1,(b.y1-b.y0));
+const overlap = (a,b) => Math.max(0, Math.min(a.x1,b.x1)-Math.max(a.x0,b.x0)) * Math.max(0, Math.min(a.y1,b.y1)-Math.max(a.y0,b.y0));
 const strokeById = id => S.strokes.find(s => s.id === id);
 const pieceStrokes = pc => pc.ids.map(strokeById).filter(Boolean);
 const pieceBox = pc => boxOf(pieceStrokes(pc).flatMap(s => s.p));
+const apart = (a,b) => S.apart.some(([x,y]) => (x === a.id && y === b.id) || (x === b.id && y === a.id));
+function newPiece(ids, extra={}){ const pc = {id:S.nextPiece++, ids, name:null, namedIds:[], asked:false, ...extra}; S.pieces.push(pc); return pc; }
 function assignStroke(s){
-  const b = boxOf(s.p), w = b.x1 - b.x0;
-  const closed = S.pieces.filter(p => p.closed && !p.bg && p.ids.length);
-  const spans = closed.filter(p => touch(b, grow(pieceBox(p), 8))).length;
-  if (w > LW*0.45 || spans >= 2){
-    let bg = S.pieces.find(p => p.bg);
-    if (!bg){ bg = {id:S.nextPiece++, ids:[], name:null, closed:true, bg:true, asked:true, epoch:S.epoch}; S.pieces.push(bg); }
-    bg.ids.push(s.id);
-    log(`${w > LW*0.45 ? '아주 긴 선' : '닫힌 조각 둘에 걸친 선'} → 배경으로 뺀다. 어느 조각에도 안 붙인다`);
-    return;
-  }
-  for (const p of closed){
-    const pb = grow(pieceBox(p), 6);
-    const inside = s.p.filter(([x,y]) => x >= pb.x0 && x <= pb.x1 && y >= pb.y0 && y <= pb.y1).length / s.p.length;
-    if (inside >= 0.7 && area(b) < area(pb)*0.6){
-      p.ids.push(s.id);
-      log(`닫힌 조각 「${p.name || '이름 없음'}」 안쪽에 작게 그림 → 덧그림으로 붙인다`);
-      return;
-    }
-  }
-  const hits = S.pieces.filter(p => !p.closed && !p.bg && pieceStrokes(p).some(o =>
-    o.id !== s.id && touch(b, grow(boxOf(o.p), s.t - o.t < RECENT_MS ? PAD_RECENT : PAD))));
-  if (hits.length){
-    const [keep, ...rest] = hits; keep.ids.push(s.id);
-    for (const r of rest){ keep.ids.push(...r.ids); keep.name ||= r.name; S.pieces = S.pieces.filter(p => p !== r); }
-    return;
-  }
-  S.pieces.push({id:S.nextPiece++, ids:[s.id], name:null, closed:false, bg:false, asked:false, epoch:S.epoch});
+  const b = grow(boxOf(s.p), PAD);
+  const hits = S.pieces.filter(p => pieceStrokes(p).some(o => touch(b, boxOf(o.p))));
+  if (!hits.length){ newPiece([s.id]); return; }
+  const named = hits.filter(p => p.name).sort((x,y) => overlap(b, pieceBox(y)) - overlap(b, pieceBox(x)));
+  let keep = named[0] || hits[0];
+  const joinable = hits.filter(p => p !== keep && !p.name && !apart(p, keep));
+  keep.ids.push(s.id);
+  for (const r of joinable){ keep.ids.push(...r.ids); S.pieces = S.pieces.filter(p => p !== r); }
+  if (named.length > 1) log(`한 선이 「${named.map(p => p.name).join('」 「')}」에 같이 닿았다 → 이름 있는 조각끼리는 합치지 않고 「${keep.name}」에만 붙인다`);
+}
+// strokes added to a named piece since it was named, and whether they reach outside it
+function growthOf(pc){
+  if (!pc.name) return null;
+  const extra = pieceStrokes(pc).filter(s => !pc.namedIds.includes(s.id));
+  if (!extra.length) return null;
+  const nb = grow(boxOf(pieceStrokes(pc).filter(s => pc.namedIds.includes(s.id)).flatMap(s => s.p)), 10);
+  const pts = extra.flatMap(s => s.p), out = pts.filter(([x,y]) => x < nb.x0 || x > nb.x1 || y < nb.y0 || y > nb.y1).length / pts.length;
+  return {strokes:extra, outside: out > 0.3};
 }
 function view(p){
   const ss = pieceStrokes(p), box = boxOf(ss.flatMap(s => s.p));
-  return {key:p.id, pc:p, strokes:ss, box, name:p.name, asked:p.asked, closed:p.closed, epoch:p.epoch,
-          guess: p.bg ? {label:'배경', conf:1} : recognize(ss, box)};
+  return {key:p.id, pc:p, strokes:ss, box, name:p.name, asked:p.asked, guess:recognize(ss, box)};
 }
-const objects = () => S.pieces.filter(p => !p.bg && p.ids.length).map(view).sort((a,b) => a.box.x0 - b.box.x0);
-const bgView = () => { const p = S.pieces.find(p => p.bg && p.ids.length); return p ? view(p) : null; };
+const objects = () => S.pieces.filter(p => p.ids.length).map(view).sort((a,b) => a.box.x0 - b.box.x0);
+const bgView = () => null;
 const pieceOf = key => { const p = S.pieces.find(p => p.id === key); return p ? view(p) : null; };
-function nameObject(o, name){ o.pc.name = name; }
-function closePiece(o){ if (!o.pc.closed){ o.pc.closed = true; S.epoch++; } }
+function nameObject(o, name){ o.pc.name = name; o.pc.namedIds = [...o.pc.ids]; }
 const mainName = () => { const os = objects().filter(o => o.name); if (!os.length) return null; return os.sort((a,b) => area(b.box)-area(a.box))[0].name; };
 
 // stand-in recognizer (real: ML Kit AutoDraw on the phone → word only → Jev)
@@ -465,7 +470,7 @@ function redraw(){
 }
 function drawRings(){
   if (S.scr !== 'd1'){ $('rings').innerHTML = ''; return; }
-  const curKey = S.cur && S.cur.kind === 'obj' ? S.cur.obj.key : null;
+  const curKey = S.cur && (S.cur.kind === 'obj' || S.cur.kind === 'grow') ? S.cur.obj.key : null;
   $('rings').innerHTML = objects().filter(o => o.name || o.key === curKey).map(o => {
     const p = 16, b = o.box, l = (b.x0-p)/LW*100, t = (b.y0-p)/LH*100, w = (b.x1-b.x0+2*p)/LW*100, h = (b.y1-b.y0+2*p)/LH*100;
     return `<div class="ring ${o.key===curKey?'':'named'}" style="left:${l}%;top:${t}%;width:${w}%;height:${h}%">${o.name?`<span class="tag">${o.name}</span>`:''}</div>`;
@@ -492,10 +497,10 @@ const SAMPLE = [
     {c:'#3F7BD8', w:6, p:[[506,184],[526,212]]} ]},
   {hint:'해', strokes:[
     {c:'#F2C13E', w:7, p:[[610,30],[592,40],[588,58],[598,74],[618,78],[634,66],[636,46],[626,32],[610,30]]},
-    {c:'#F2C13E', w:4, p:[[612,14],[612,4]]}, {c:'#F2C13E', w:4, p:[[648,52],[662,52]]}, {c:'#F2C13E', w:4, p:[[574,54],[562,54]]} ]},
-  {hint:'땅 (모래성·친구에 닿는 긴 선 → 배경)', strokes:[
+    {c:'#F2C13E', w:4, p:[[612,22],[612,6]]}, {c:'#F2C13E', w:4, p:[[644,52],[662,52]]}, {c:'#F2C13E', w:4, p:[[580,54],[562,54]]} ]},
+  {hint:'땅 (모래성·친구에 닿는 긴 선)', strokes:[
     {c:'#8A5A3C', w:5, p:[[20,216],[200,215],[420,217],[670,215]]} ]},
-  {hint:'모래성 문 (닫힌 조각 안쪽 → 덧그림)', strokes:[
+  {hint:'모래성 문 (모래성 안쪽)', strokes:[
     {c:'#8A5A3C', w:5, p:[[300,212],[300,182],[322,182],[322,212]]} ]},
   {hint:'양동이', strokes:[
     {c:'#6C5BD0', w:6, p:[[92,172],[98,208],[138,208],[144,172],[92,172]]},
@@ -536,8 +541,13 @@ function tick(){
   }
   if (pen || now - S.lastPen < IDLE_MS || now - S.lastQ < GAP_MS || !S.strokes.length) return;
   const os = objects();
-  const fresh = os.find(o => !o.name && !o.asked && !o.closed);
+  const fresh = os.find(o => !o.name && !o.asked);
   if (fresh) return askObject(fresh);
+  for (const o of os){
+    const g = growthOf(o.pc);
+    if (g && g.outside) return askGrowth(o, g);
+    if (g) { o.pc.namedIds = [...o.pc.ids]; log(`「${o.name}」 안쪽에 더 그림 → 그대로 ${o.name}의 일부로 둔다`); }
+  }
   const named = os.filter(o => o.name).length;
   if (named >= 1 && !S.slots.place && !S.storyAsked.place) return askStory(Q.place);
   if (S.slots.place && !S.slots.problem && !S.storyAsked.problem) return askStory(Q.problem);
@@ -561,11 +571,37 @@ function objAnswer(name, kind){
   const o = pieceOf(S.cur.obj.key) || S.cur.obj;
   S.cur = null; S.lastQ = Date.now();
   if (name){
-    S.utter++; nameObject(o, name); closePiece(o);
+    S.utter++; nameObject(o, name);
     band(`${name}! 멋지다.`, 'talk');
-    log(`아이: "${iya(name)}" → 조각 이름 ${name} (child) · 조각을 닫는다. 이제부터 그리는 건 새 조각${o.guess.conf>=0.6 && o.guess.label!==name ? ` · 인식 「${o.guess.label}」은 버린다` : ''}`);
-  } else if (kind === 'dunno'){ S.utter++; closePiece(o); band('그래, 계속 그려 봐.', 'talk'); log('아이: "몰라" → 이름 없이 조각을 닫는다. D3에서 한 번 더 기회'); }
-  else { band('계속 그려 봐!', 'talk'); log('무응답 → 조각은 열린 채 둔다. 이어 그리면 같은 조각'); }
+    log(`아이: "${iya(name)}" → 조각 이름 ${name} (child) ${o.guess.conf>=0.6 && o.guess.label!==name ? ` · 인식 「${o.guess.label}」은 버린다` : ''}`);
+  } else if (kind === 'dunno'){ S.utter++; band('그래, 계속 그려 봐.', 'talk'); log('아이: "몰라" → 이 조각은 더 안 묻는다. D3에서 한 번 더 기회'); }
+  else { band('계속 그려 봐!', 'talk'); log('무응답 → 그리기로'); }
+  redraw(); renderObjs(); renderMeter(); drawingOpts();
+}
+function askGrowth(o, g){
+  S.cur = {kind:'grow', obj:o, extra:g.strokes.map(s => s.id)}; S.qAt = Date.now(); S.wbAsked++; renderMeter();
+  const text = `${o.name}에 더 그린 거야, 아니면 새로 그린 거야?`;
+  band(text, 'listen'); drawRings();
+  log(`「${o.name}」에 붙은 선이 바깥으로 나갔다 → 같은 건지 아이에게 묻는다`);
+  const list = [{label:`🗣 "${o.name}에 그렸어"`, hint:'그대로 한 조각', wide:true, run:() => growAnswer(null)}];
+  NAMES.filter(n => n !== o.name).forEach(n => list.push({label:`🗣 "새로 그렸어, ${iya(n)}"`, run:() => growAnswer(n)}));
+  list.push({label:'🗣 "새로 그렸어, 땅이야"', run:() => growAnswer('땅')});
+  list.push({label:'🗣 "몰라"', run:() => growAnswer(null, true)});
+  opts(list);
+}
+function growAnswer(name, dunno){
+  const {obj, extra} = S.cur; const pc = obj.pc; S.cur = null; S.lastQ = Date.now(); S.utter++;
+  if (!name){
+    pc.namedIds = [...pc.ids];
+    band(dunno ? '그래, 계속 그려 봐.' : `${pc.name}에 그렸구나!`, 'talk');
+    log(dunno ? '"몰라" → 그대로 한 조각으로 둔다' : `아이: "${pc.name}에 그렸어" → 한 조각 그대로`);
+  } else {
+    pc.ids = pc.ids.filter(id => !extra.includes(id));
+    const np = newPiece(extra, {name, namedIds:[...extra], asked:true});
+    S.apart.push([pc.id, np.id]);
+    band(`${name}! 따로 떼어 둘게.`, 'talk');
+    log(`아이: "새로 그렸어, ${iya(name)}" → 이름 뒤에 그은 선만 떼어 새 조각 「${name}」 (child). 둘은 다시 안 붙는다`);
+  }
   redraw(); renderObjs(); renderMeter(); drawingOpts();
 }
 function askStory(q){
@@ -635,36 +671,105 @@ $('tray').onclick = e => {
 };
 $('btn-merge').onclick = () => {
   const [a,b] = S.sel.map(k => S.pieces.find(p => p.id === k)); if (!a || !b) return;
-  a.ids.push(...b.ids); a.name ||= b.name; a.closed = a.closed || b.closed;
+  a.ids.push(...b.ids); a.name ||= b.name; a.namedIds = [...a.ids]; S.apart = S.apart.filter(([x,y]) => !((x===a.id&&y===b.id)||(x===b.id&&y===a.id)));
   S.pieces = S.pieces.filter(p => p !== b); S.sel = [];
   log('두 조각을 붙였다 → 한 조각'); band('붙였어!', 'talk'); renderTray(); renderObjs(); d2Opts();
 };
-// split by drawing time first (a pause of RECENT_MS or more starts a new part), then by position
-function splitGroups(ss){
-  const byT = [...ss].sort((x,y) => x.t - y.t || x.id - y.id), g = [[byT[0]]];
-  for (let i = 1; i < byT.length; i++){ if (byT[i].t - byT[i-1].t >= RECENT_MS) g.push([]); g[g.length-1].push(byT[i]); }
-  if (g.length > 1) return {how:'그린 때', groups:g};
-  const par = ss.map((_,i) => i), find = i => par[i] === i ? i : (par[i] = find(par[i]));
-  ss.forEach((x,i) => ss.forEach((y,j) => { if (j > i && touch(grow(boxOf(x.p), PAD), boxOf(y.p))) par[find(i)] = find(j); }));
-  const m = {}; ss.forEach((x,i) => (m[find(i)] ||= []).push(x));
-  return {how:'위치', groups:Object.values(m)};
+// ── scissors: tap lines or draw a loop around the part to cut away ──
+const cutcv = $('cutcv'), cctx = cutcv.getContext('2d');
+let cutPath = null;
+function openCutter(key){
+  S.cut = {key, sel:new Set()}; $('cutter').classList.add('on');
+  requestAnimationFrame(() => { const r = cutcv.getBoundingClientRect(), d = window.devicePixelRatio||1; cutcv.width = Math.round(r.width*d); cutcv.height = Math.round(r.height*d); drawCut(); });
+  const o = pieceOf(key);
+  band('떼어 낼 부분을 동그라미로 감싸거나 선을 톡 눌러 줘.', 'talk');
+  log(`「${o.name || '이름 없는 조각'}」 자르기 화면`);
+  cutOpts();
 }
-$('btn-split').onclick = () => {
-  const pc = S.pieces.find(p => p.id === S.sel[0]); if (!pc) return;
-  const {how, groups} = splitGroups(pieceStrokes(pc));
-  if (groups.length < 2){ band('이건 더 나눌 수 없어.', 'talk'); log('나누기 → 그린 때도 위치도 한 덩어리라 못 나눈다'); return; }
-  groups.sort((x,y) => area(boxOf(y.flatMap(s => s.p))) - area(boxOf(x.flatMap(s => s.p))));
-  pc.ids = groups[0].map(s => s.id);
-  for (const g of groups.slice(1)) S.pieces.push({id:S.nextPiece++, ids:g.map(s => s.id), name:null, closed:true, bg:false, asked:false, epoch:pc.epoch});
-  S.sel = [];
-  log(`나누기 → ${how} 기준으로 ${groups.length}조각. 큰 조각이 이름을 지키고 나머지는 D3에서 묻는다`);
-  band('나눴어!', 'talk'); renderTray(); renderObjs(); d2Opts();
+function closeCutter(){ S.cut = null; cutPath = null; $('cutter').classList.remove('on'); }
+function cutXf(){  // logical → canvas pixels, fitted to the piece
+  const o = pieceOf(S.cut.key), b = grow(o.box, 14), bw = b.x1-b.x0, bh = b.y1-b.y0;
+  const k = Math.min(cutcv.width/bw, cutcv.height/bh), ox = (cutcv.width - bw*k)/2, oy = (cutcv.height - bh*k)/2;
+  return {o, k, fx:x => ox + (x-b.x0)*k, fy:y => oy + (y-b.y0)*k, ix:X => b.x0 + (X-ox)/k, iy:Y => b.y0 + (Y-oy)/k};
+}
+function drawCut(){
+  if (!S.cut || !cutcv.width) return;
+  const X = cutXf(), any = S.cut.sel.size > 0;
+  cctx.setTransform(1,0,0,1,0,0); cctx.clearRect(0,0,cutcv.width,cutcv.height);
+  cctx.lineCap = 'round'; cctx.lineJoin = 'round';
+  for (const st of X.o.strokes){
+    const on = S.cut.sel.has(st.id);
+    cctx.globalAlpha = any && !on ? 0.28 : 1;
+    cctx.shadowColor = on ? 'rgba(232,96,76,.9)' : 'transparent'; cctx.shadowBlur = on ? 14 : 0;
+    cctx.strokeStyle = st.c; cctx.lineWidth = st.w*X.k; cctx.beginPath();
+    st.p.forEach(([x,y],i) => i ? cctx.lineTo(X.fx(x),X.fy(y)) : cctx.moveTo(X.fx(x),X.fy(y))); cctx.stroke();
+  }
+  cctx.globalAlpha = 1; cctx.shadowBlur = 0;
+  if (cutPath && cutPath.length > 1){
+    cctx.setLineDash([10,8]); cctx.strokeStyle = '#E8604C'; cctx.lineWidth = 3; cctx.beginPath();
+    cutPath.forEach(([x,y],i) => i ? cctx.lineTo(x,y) : cctx.moveTo(x,y)); cctx.stroke(); cctx.setLineDash([]);
+  }
+  $('btn-cutgo').disabled = !(S.cut.sel.size && S.cut.sel.size < X.o.strokes.length);
+}
+const cpos = e => { const r = cutcv.getBoundingClientRect(); return [(e.clientX-r.left)*cutcv.width/r.width, (e.clientY-r.top)*cutcv.height/r.height]; };
+cutcv.addEventListener('pointerdown', e => { if (!S.cut) return; cutcv.setPointerCapture(e.pointerId); cutPath = [cpos(e)]; });
+cutcv.addEventListener('pointermove', e => { if (!cutPath) return; cutPath.push(cpos(e)); drawCut(); });
+cutcv.addEventListener('pointerup', () => {
+  if (!cutPath || !S.cut) return;
+  const X = cutXf(), path = cutPath.map(([a,b]) => [X.ix(a), X.iy(b)]); cutPath = null;
+  let len = 0; for (let i = 1; i < path.length; i++) len += Math.hypot(path[i][0]-path[i-1][0], path[i][1]-path[i-1][1]);
+  if (len < 12) tapStroke(path[0]); else lassoStrokes(path);
+  drawCut(); cutOpts();
+});
+function tapStroke([x,y]){
+  let best = null, bd = 18;
+  for (const st of pieceOf(S.cut.key).strokes){
+    const d = Math.min(...st.p.map(([a,b]) => Math.hypot(a-x,b-y)));
+    if (d < bd){ bd = d; best = st; }
+  }
+  if (best){ S.cut.sel.has(best.id) ? S.cut.sel.delete(best.id) : S.cut.sel.add(best.id); }
+}
+function inPoly([x,y], poly){ let c = false; for (let i = 0, j = poly.length-1; i < poly.length; j = i++){ const [xi,yi] = poly[i], [xj,yj] = poly[j]; if ((yi > y) !== (yj > y) && x < (xj-xi)*(y-yi)/(yj-yi)+xi) c = !c; } return c; }
+function lassoStrokes(poly){
+  for (const st of pieceOf(S.cut.key).strokes){
+    const k = st.p.filter(q => inPoly(q, poly)).length / st.p.length;
+    if (k >= 0.6) S.cut.sel.add(st.id);
+  }
+}
+function cutOpts(){
+  const o = pieceOf(S.cut.key), ss = o.strokes, b = o.box;
+  const wid = st => { const q = boxOf(st.p); return q.x1 - q.x0; };
+  const longest = [...ss].sort((x,y) => wid(y) - wid(x))[0];
+  opts([
+    {label:'👆 (시연) 가장 긴 선을 톡', hint:'땅처럼 가로지르는 선', run:() => { S.cut.sel.add(longest.id); drawCut(); cutOpts(); }},
+    {label:'👆 (시연) 왼쪽 끝을 동그라미로', hint:'왼쪽 3분의 1 안의 선', run:() => { ss.forEach(st => { const sb = boxOf(st.p); if ((sb.x0+sb.x1)/2 < b.x0 + (b.x1-b.x0)/3) S.cut.sel.add(st.id); }); drawCut(); cutOpts(); }},
+    {label:'👆 [✂️ 떼어 내기]', wide:true, run:() => $('btn-cutgo').click()},
+    {label:'👆 [↺ 다시]', run:() => $('btn-cutclear').click()},
+    {label:'👆 [그만]', run:() => $('btn-cutclose').click()},
+  ]);
+}
+$('btn-cutclear').onclick = () => { if (S.cut){ S.cut.sel.clear(); drawCut(); cutOpts(); } };
+$('btn-cutclose').onclick = () => { closeCutter(); band('좋아!', 'talk'); renderTray(); d2Opts(); };
+$('btn-cutgo').onclick = () => {
+  if (!S.cut || $('btn-cutgo').disabled) return;
+  const pc = S.pieces.find(p => p.id === S.cut.key), sel = [...S.cut.sel];
+  pc.ids = pc.ids.filter(id => !sel.includes(id)); pc.namedIds = pc.namedIds.filter(id => !sel.includes(id));
+  const np = newPiece(sel, {asked:true}); S.apart.push([pc.id, np.id]);
+  closeCutter(); S.sel = [np.id]; renderTray(); renderObjs();
+  log(`선 ${sel.length}개를 떼어 새 조각으로${pc.name ? ` · 남은 쪽은 「${pc.name}」 그대로` : ''}. 둘은 다시 안 붙는다`);
+  band('떼어 냈어! 이건 뭐야?', 'listen');
+  const list = [...NAMES, '땅'].map(n => ({label:`🗣 "${iya(n)}!"`, run:() => {
+    nameObject(pieceOf(np.id), n); S.utter++; S.sel = [];
+    log(`아이: "${iya(n)}" → 떼어 낸 조각 이름 ${n} (child)`); band(`${n}였구나!`, 'talk'); renderTray(); renderObjs(); renderMeter(); d2Opts(); }}));
+  list.push({label:'🗣 "몰라"', run:() => { S.utter++; S.sel = []; log('"몰라" → 이름 없이 둔다'); band('괜찮아!', 'talk'); renderTray(); renderMeter(); d2Opts(); }});
+  opts(list);
 };
+$('btn-split').onclick = () => { if (S.sel.length === 1) openCutter(S.sel[0]); };
 function d2Opts(){
   const list = [];
   if (S.sel.length === 2) list.push({label:'👆 [붙이기]', wide:true, run:() => $('btn-merge').click()});
-  if (S.sel.length === 1) list.push({label:'👆 [나누기]', hint:'그린 때가 떨어진 선끼리, 아니면 떨어진 위치끼리', wide:true, run:() => $('btn-split').click()});
-  if (!S.sel.length) list.push({label:'👆 조각을 눌러 고르기', hint:'하나 → 나누기 · 둘 → 붙이기. 잘못 나뉜 게 있을 때만', wide:true, run:() => { const os = objects(); if (os.length){ S.sel = [os[0].key]; renderTray(); d2Opts(); } }});
+  if (S.sel.length === 1) list.push({label:'👆 [✂️ 자르기]', hint:'가위 화면에서 떼어 낼 선을 고른다', wide:true, run:() => $('btn-split').click()});
+  if (!S.sel.length) list.push({label:'👆 조각을 눌러 고르기', hint:'하나 → 자르기 · 둘 → 붙이기. 잘못 묶인 게 있을 때만', wide:true, run:() => { const os = objects(); if (os.length){ S.sel = [os[0].key]; renderTray(); d2Opts(); } }});
   list.push({label:'⏭ 다음', hint:'이름 없는 조각 · 빈 필수 칸만 묻는다', wide:true, run:goD3});
   opts(list);
 }
@@ -799,10 +904,9 @@ function goD6(noBook){
 // ── panel ──
 function renderObjs(){
   const os = objects(), bg = bgView();
-  const state = o => o.closed ? '닫힘' : (o.asked ? '묻는 중' : '그리는 중');
   $('objs').innerHTML = (os.length || bg)
-    ? '<tr><th>조각</th><th>구간 · 상태</th><th>인식 (질문에만)</th><th>이름</th></tr>' + os.map((o,i) =>
-        `<tr><td class="k">#${i+1}</td><td>${o.epoch} · ${state(o)}</td><td><span class="hintw">${o.guess.label} ${o.guess.conf.toFixed(2)}</span></td><td>${o.name ? `${o.name} <span class="by">child</span>` : '<span class="empty">없음</span>'}</td></tr>`).join('')
+    ? '<tr><th>조각</th><th>선</th><th>인식 (질문에만)</th><th>아이가 붙인 이름</th></tr>' + os.map((o,i) =>
+        `<tr><td class="k">#${i+1}</td><td>${o.strokes.length}</td><td><span class="hintw">${o.guess.label} ${o.guess.conf.toFixed(2)}</span></td><td>${o.name ? `${o.name} <span class="by">child</span>` : '<span class="empty">없음</span>'}</td></tr>`).join('')
       + (bg ? `<tr><td class="k">배경</td><td>선 ${bg.strokes.length}개</td><td colspan="2"><span class="empty">조각에 안 붙임 · 쪽 뒤에 깔림</span></td></tr>` : '')
     : '<tr><td class="empty">아직 그린 것이 없다</td></tr>';
 }
