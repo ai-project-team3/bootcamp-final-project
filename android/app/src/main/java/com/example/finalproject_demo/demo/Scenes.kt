@@ -1,7 +1,12 @@
 package com.example.finalproject_demo.demo
 
 import androidx.compose.ui.graphics.Color
+import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 
 // 장면별 대본. 기준: 구현대본.md(9/16) + v0.8 요청 + v0.9 요청(9/17).
 // v0.9
@@ -159,36 +164,6 @@ private fun valueOf(r: Reply): String? = when (r) {
     is Reply.Spoke -> r.value.ifEmpty { r.text.trimEnd('!', '.') }
     is Reply.Tapped -> r.value
     else -> null
-}
-
-/**
- * 8턴이 지나면 남은 칸은 마스코트가 채우고 책으로 넘어간다 (구현대본 §2).
- * 데모의 이야기 턴은 6개(장소 · 누가 · 까닭 · 이야기 잇기 2 · 해결)라 평소에는 걸리지 않는다.
- * 시연 서랍의 [8턴 지난 것으로]로 볼 수 있다.
- */
-private suspend fun Director.budgetOver(): Boolean {
-    if (s.turn < 8) return false
-    val left = mutableListOf<String>()
-    if (s.place == null) { s.place = s.placeName; left += "장소" }
-    if (s.problem == null) { s.problem = "${s.newcomerKind}${ga(s.newcomerKind)} ${s.th.vehicle}${eul(s.th.vehicle)} 흔듦"; left += "문제" }
-    if (s.cause == null) { s.cause = "심심해서"; s.causeLine = "친구가 없어서 심심했어"; left += "까닭" }
-    if (s.newcomer == null) {
-        if (s.friendName.startsWith("{")) s.friendName = "${s.newcomerKind} 친구"
-        s.newcomer = "${s.friendName} (프리셋)"; left += "등장인물"
-    }
-    if (s.sound == null) { s.sound = "기본 효과음"; left += "소리" }
-    if (s.solution == null) { s.solution = solutionText(); left += "해결" }
-    if (s.templateKey == null) {
-        val (t, a) = chooseTemplate(s.level, s.causeKind)
-        s.templateKey = t; s.attribute = a
-    }
-    buttons()
-    inputs(false, false)
-    say("이야기가 벌써 이만큼 됐네! 이제 책으로 만들어 볼까?")
-    log("8턴 상한 — 남은 칸(${left.joinToString(" · ").ifEmpty { "없음" }})을 마스코트가 채우고 책으로 넘어간다 (구현대본 §2)")
-    pause(1600)
-    go(Scene.MAKING)
-    return true
 }
 
 /**
@@ -679,10 +654,10 @@ private suspend fun Director.scenePlace() {
     val c = s.childName
     s.stage = Stage.HeroShow(s.heroAttr ?: HeroAttr(), "")
     val q = BASE_PLACE.toQuestion(s).copy(choices = basePlaceCards(), noCards = false, easierAsk = "어디로 갈까?", hint = null)
-    val r = ask(q)
+    val r = askStory(q, "place")
     val said = when (r) {
         is Reply.Tapped -> r.value
-        is Reply.Spoke -> r.value.ifEmpty { "space" }
+        is Reply.Spoke -> r.value.ifEmpty { r.text.trim() }
         else -> "space"
     }
     // 아이 말을 장소 유형에 맞춘다. 유형에 없으면 배경을 새로 만든다 (구현대본 §6)
@@ -690,7 +665,10 @@ private suspend fun Director.scenePlace() {
         s.themeKey = said; s.placeLabel = null; s.generatedBg = false
     } else {
         s.themeKey = "dino"            // 가장 가까운 유형(땅 위)에서 탈것 · 사건 · 미션 뼈대를 가져온다
-        s.placeLabel = "눈 오는 데"
+        s.placeLabel = when (r) {
+            is Reply.Spoke -> r.text.trim().ifBlank { "눈 오는 데" }
+            else -> "눈 오는 데"
+        }
         s.generatedBg = true
     }
     // 장소가 정해지면 **그 장소의 기본값들도 같이** 맞춘다 (9/21).
@@ -706,10 +684,28 @@ private suspend fun Director.scenePlace() {
     if (s.generatedBg) {
         s.stage = Stage.Making("${s.placeName} 배경을 만드는 중…")
         say("${s.placeName}? 그런 데는 처음이야. 그림을 만들어 볼게!")
-        log("장소 유형에 없는 답 → 영어 키워드만 ComfyUI로 → 배경 1장 생성 → 폰 소품함에 저장 (구현대본 §6)")
-        event("image_request", "type" to "background", "reason" to "no_preset_type", "elapsed" to "2.4s")
-        s.images++
-        pause(2400)
+        if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
+            val png = coroutineScope {
+                val request = async { Server.image(s.nameMask().mask(s.placeName), mode = "story") }
+                val early = withTimeoutOrNull(8_000) { request.await() }
+                if (early != null || request.isCompleted) early
+                else {
+                    say("그림이 조금 늦게 오고 있어. 잠깐만 기다려 줘!")
+                    val late = withTimeoutOrNull(7_000) { request.await() }
+                    if (!request.isCompleted) request.cancel()
+                    late
+                }
+            }
+            if (png != null && keepStoryBackground(png)) {
+                s.images++
+                log("서버 배경 PNG를 기기에 저장해 책과 퍼즐에서 사용")
+            } else log("배경 생성 실패 또는 시간 초과 → 눈 배경 프리셋 사용")
+            event("image_request", "type" to "background", "reason" to "no_preset_type", "result" to if (s.storyBackground != null) "generated" else "preset")
+        } else {
+            log("장소 유형에 없는 답 → 배경 프리셋 (시연 모드)")
+            s.images++
+            pause(2400)
+        }
     } else {
         s.images++
         log("${s.th.label} 배경은 프리셋 — 대기 0초 (⭐26)")
@@ -787,7 +783,7 @@ private suspend fun Director.sceneEvent() {
         partnerLine = partnerLine(s, "shake"),
         partnerChildAnswer = BASE_WHO.answers(s).filter { it.lv >= 2 },
     )
-    val r = ask(q)
+    val r = askStory(q, "problem")
     val nc0 = s.th.newcomers[0].value
     s.newcomerKind = when (r) {
         is Reply.Tapped -> r.value
@@ -847,7 +843,7 @@ private suspend fun Director.sceneCause() {
     mark("partnerfirst")
     pause(2500)
     val q = base.copy(text = "$c${eun(c)} 어떻게 생각해?")
-    val r = ask(q)
+    val r = askStory(q, "cause")
     val a = (r as? Reply.Spoke)?.answer
     when {
         a != null -> {
@@ -886,7 +882,6 @@ private suspend fun Director.sceneCause() {
 // ── 장면 6 · 그림판 (아이 그림 원본 그대로 · 이름 · 입 위치) ───────
 
 private suspend fun Director.sceneDraw() {
-    if (budgetOver()) return
     val nc = s.newcomerKind
     s.drawing.clear()
     s.stage = Stage.DrawPad()
@@ -941,7 +936,6 @@ private suspend fun Director.sceneDraw() {
 // ── 장면 6↳ · 이야기 잇기 — 템플릿이 정한 질문 2개 (질문 은행 · 4~5턴) ──
 
 private suspend fun Director.scenePlot() {
-    if (budgetOver()) return
     val t = s.template ?: templateOf(chooseTemplate(s.level, s.causeKind).first).also {
         s.templateKey = it.key; s.attribute = chooseTemplate(s.level, s.causeKind).second
     }
@@ -966,7 +960,6 @@ private suspend fun Director.scenePlot() {
     if (t.key == "C" || t.key == "G") s.stage = world((s.stage as Stage.World).items.map { it.copy(shake = it.art == s.th.vehicleArt) }, quake = true, bump = true)
     pause(1600)
     for (slot in t.plot) {
-        if (budgetOver()) return
         val (_, r) = askSlot(slot)
         val value = valueOf(r)
         if (value != null) {
@@ -991,7 +984,6 @@ private suspend fun Director.scenePlot() {
 // ── 장면 7 · 공룡도 데려갈래 (아이가 먼저 말함 → 되묻기 · 모호한 말 확인) ──
 
 private suspend fun Director.sceneDino() {
-    if (budgetOver()) return
     s.stage = world(
         listOf(
             WorldItem(s.th.vehicleArt, 0.54f, 0.22f, 0.13f, depth = 0.90f),
@@ -1049,7 +1041,6 @@ private suspend fun Director.sceneDino() {
 // ── 장면 8 · 공룡 소리 (원본 녹음 · 다시 2번 · 폰 밖으로 안 나감) ───
 
 private suspend fun Director.sceneSound() {
-    if (budgetOver()) return
     val d = s.dino
     var left = 2
     var retried = false
@@ -1255,7 +1246,6 @@ private suspend fun Director.sceneCheck() {
 // ── 장면 10 · 이야기 매듭짓기 — 해결(질문 은행) → 템플릿 마무리 질문 → 마음 → 함께 하는 사람 ──
 
 private suspend fun Director.sceneSolution() {
-    if (budgetOver()) return
     val f = s.friendName
     val t = s.template ?: templateOf("C")
     s.stage = world(
@@ -1372,6 +1362,20 @@ private suspend fun Director.sceneMaking() {
         p += 0.05f
     }
     s.title = s.autoTitleFor()
+    if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
+        s.stage = Stage.Making("이야기 문장을 쓰는 중… (${t.pages.size}쪽)")
+        val mask = s.nameMask()
+        val captions = Server.story(
+            mode = "story",
+            slots = mask.maskSlots(s.slots),
+            slotBy = s.slotBy,
+            template = t.key,
+            level = s.level.name.lowercase(),
+            pages = s.storyPagePlan(),
+        )?.map(mask::unmask)
+        if (s.useGeneratedStory(captions)) log("서버가 쓴 동화 ${s.pageCount}쪽을 받음")
+        else log("동화 생성 실패 또는 쪽 목록 불일치 → 템플릿 책 사용")
+    }
     s.stage = Stage.Making("『${s.title}』", 1f)
     say("다 만들었어! 제목은 『${s.title}』${if (bat(s.title!!)) "이야" else "야"}.")
     log("제목은 아이에게 묻지 않고 템플릿 · 대화로 지어 준다 → 책장에서 바꿀 수 있다")
@@ -1573,11 +1577,16 @@ private suspend fun Director.sceneEnd() {
     }
     say("책 다 만들었다! 고생했어~~")
     buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
-    awaitValue("shelf")
+    while (true) {
+        awaitValue("shelf")
+        if (s.mode != StoryMode.STORY || saveFinishedStory()) break
+        say("책을 기기에 저장하지 못했어. 다시 눌러 줘.")
+    }
     mark("end")
-    s.shelf.add(0, ShelfBook(s.title ?: s.autoTitleFor(), s.themeKey, s.bgName, pages = s.pageCount, fresh = true))
+    if (s.mode != StoryMode.STORY)
+        s.shelf.add(0, ShelfBook(s.title ?: s.autoTitleFor(), s.themeKey, s.bgName, pages = s.pageCount, fresh = true))
     event("session_end", "duration" to "15분", "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
-    log("책장에 꽂기 → 책장 화면으로 (다시 읽기는 아직 없음 — 꽂히는 것까지) · 확정 그림은 폰 소품함에, 서버에는 아무것도 안 남김 (⭐26)")
+    log("책장에 꽂기 → 동화책 자막과 쪽 종류를 기기에 저장 · 서버에는 저장하지 않음 (⭐26)")
     go(Scene.SHELF)
 }
 
@@ -1601,13 +1610,30 @@ private suspend fun Director.sceneShelf() {
         buttons(DemoBtn("◀ 돌아가기") { send(Reply.Tapped("home", "돌아가기")) })
     }
     while (true) {
-        when (awaitValue("home", "parent", "book")) {
+        val tapped = awaitReply() as? Reply.Tapped ?: continue
+        when (tapped.value) {
             "home" -> { if (fromEnd) goHome() else go(Scene.ADULT); return }
             "parent" -> {
                 if (pinGate("parent")) { go(Scene.PARENT); return }
                 s.stage = Stage.Shelf(fromEnd)
             }
-            else -> log("책을 눌렀음 — 다시 읽기는 아직 없다 (살짝 흔들리기만)")
+            "book" -> {
+                val book = savedStory(tapped.label) ?: continue
+                var page = 0
+                s.line = ""
+                buttons()
+                while (true) {
+                    s.stage = Stage.SavedStory(book, page)
+                    val action = (awaitReply() as? Reply.Tapped)?.value ?: continue
+                    when (action) {
+                        "next" -> if (page < book.pages.size) page++
+                        "prev" -> if (page > 0) page--
+                        "close" -> break
+                    }
+                }
+                s.stage = Stage.Shelf(fromEnd)
+                say("우리가 만든 책들이야!")
+            }
         }
     }
 }

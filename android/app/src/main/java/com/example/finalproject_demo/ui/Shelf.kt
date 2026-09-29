@@ -31,6 +31,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -57,11 +59,14 @@ private val SHELF_Y = listOf(0.645f, 0.985f)   // bg_shelf를 가로 화면에 C
 
 /**
  * 책장 — 만든 책이 표지를 보이며 선반에 선다. 방금 만든 책은 위에서 내려와 꽂히고 "새 책!"이 붙는다.
- * 책을 눌러도 다시 읽기는 아직 없다 (살짝 흔들리기만 · v0.8 범위).
+ * 저장된 동화는 탭해서 완성된 책을 다시 읽는다.
  */
 @Composable
 fun ShelfView(d: Director, stage: Stage.Shelf) {
     val s = d.s
+    var shelfPage by remember { mutableIntStateOf(0) }
+    val lastShelfPage = ((s.shelf.size - 1).coerceAtLeast(0)) / 8
+    if (shelfPage > lastShelfPage) shelfPage = lastShelfPage
     Box(Modifier.fillMaxSize().background(Color(0xFF6B4A33))) {
         AssetImage("bg_shelf", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF8A6246), Color(0xFF5E4030)))))
@@ -69,7 +74,7 @@ fun ShelfView(d: Director, stage: Stage.Shelf) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val bookW = 72.dp
             val bookH = 98.dp
-            val books = s.shelf.take(8)
+            val books = s.shelf.drop(shelfPage * 8).take(8)
             books.forEachIndexed { i, b ->
                 val row = if (i < 4) 0 else 1
                 val col = if (i < 4) i else i - 4
@@ -80,8 +85,17 @@ fun ShelfView(d: Director, stage: Stage.Shelf) {
                 }
             }
         }
-        // 왼쪽 위 = 시스템 (09-29 · 다른 아이 화면과 같은 자리) — 🏠 방으로 · 👪 부모.
-        // 전에는 오른쪽 아래에 있어서 화면 아래를 덮는 오또 말풍선에 가려 **홈으로 갈 버튼이 없었다**
+        if (s.shelf.isEmpty()) {
+            Text("아직 만든 책이 없어요", color = Color.White, fontSize = 24.sp,
+                modifier = Modifier.align(Alignment.Center))
+        }
+        if (lastShelfPage > 0) {
+            Row(Modifier.align(Alignment.TopEnd).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ShelfButton("◀", Sun, Ink) { shelfPage = (shelfPage - 1).coerceAtLeast(0) }
+                Text("${shelfPage + 1}/${lastShelfPage + 1}", color = Color.White, modifier = Modifier.align(Alignment.CenterVertically))
+                ShelfButton("▶", Sun, Ink) { shelfPage = (shelfPage + 1).coerceAtMost(lastShelfPage) }
+            }
+        }
         Row(
             Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -99,6 +113,13 @@ fun ShelfView(d: Director, stage: Stage.Shelf) {
                 .padding(horizontal = 14.dp, vertical = 6.dp)
         ) { Text("📚 ${s.shelf.size}권", fontSize = 16.sp, color = Ink) }
         }
+    }
+}
+
+@Composable
+private fun ShelfButton(label: String, color: Color, textColor: Color, onClick: () -> Unit) {
+    FeltButton(color, onClick = onClick, modifier = Modifier.height(48.dp)) {
+        Text(label, color = textColor, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 14.dp))
     }
 }
 
@@ -123,7 +144,9 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
     val tw by inf.animateFloat(0.4f, 1f, infiniteRepeatable(tween(650), RepeatMode.Reverse), label = "tw")
 
     Box(Modifier.fillMaxSize().offset { IntOffset(0, drop.value.roundToInt()) }.rotate(tilt.value)) {
-        Tappable(text = { if (fresh) "『${b.title}』" else "다시 읽기는 곧 만나요!" }, modifier = Modifier.fillMaxSize(), onTap = { d.send(Reply.Tapped("book", b.title)) }) {
+        Tappable(text = { if (b.savedStoryId != null) "『${b.title}』 다시 읽기" else "『${b.title}』" }, modifier = Modifier.fillMaxSize(), onTap = {
+            b.savedStoryId?.let { d.send(Reply.Tapped("book", it)) }
+        }) {
             Column(
                 Modifier
                     .fillMaxSize()
@@ -159,6 +182,35 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
                 contentAlignment = Alignment.Center,
             ) { Tappable(text = { "이름 바꾸기는 곧 생겨요" }, modifier = Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("✏️", fontSize = 13.sp) } } }
             Text("✨", fontSize = 22.sp, modifier = Modifier.align(Alignment.BottomStart).offset(x = (-12).dp).alpha(tw))
+        }
+    }
+}
+
+/** 저장 당시의 자막을 그대로 보여 주는 읽기 전용 책. 미션 결과도 이미 자막에 포함되어 있다. */
+@Composable
+fun SavedStoryView(d: Director, stage: Stage.SavedStory) {
+    val book = stage.book
+    val page = stage.index
+    Box(Modifier.fillMaxSize().background(Color(0xFF2E2A26))) {
+        AssetImage(book.bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
+            Box(Modifier.fillMaxSize().background(Sun2))
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)))
+        Text(
+            if (page == 0) "『${book.title}』" else book.pages[page - 1].caption,
+            color = Ink, fontSize = if (page == 0) 30.sp else 23.sp,
+            lineHeight = if (page == 0) 38.sp else 34.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.align(Alignment.Center).fillMaxWidth(0.8f)
+                .clip(RoundedCornerShape(20.dp)).background(Color(0xFFFFFBF2).copy(alpha = 0.95f))
+                .padding(24.dp),
+        )
+        Text("$page / ${book.pages.size}", color = Color.White, fontSize = 16.sp,
+            modifier = Modifier.align(Alignment.TopEnd).padding(16.dp))
+        Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ShelfButton("📚 책장", Sun, Ink) { d.send(Reply.Tapped("close", "책장")) }
+            if (page > 0) ShelfButton("◀ 앞 쪽", Sun, Ink) { d.send(Reply.Tapped("prev", "앞")) }
+            if (page < book.pages.size) ShelfButton("다음 쪽 ▶", Sun, Ink) { d.send(Reply.Tapped("next", "다음")) }
         }
     }
 }

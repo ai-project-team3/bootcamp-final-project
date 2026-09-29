@@ -606,8 +606,8 @@ fun diaryPlaceBg(place: String?): String {
 }
 
 
-/** 책장에 꽂힌 책 한 권 (책장에서 다시 읽기는 아직 없다 — 꽂히는 것까지) */
-data class ShelfBook(val title: String, val themeKey: String, val bgName: String, val pages: Int = 6, val fresh: Boolean = false)
+/** 책장에 꽂힌 책 한 권. 저장된 동화만 [savedStoryId]로 다시 읽을 수 있다. */
+data class ShelfBook(val title: String, val themeKey: String, val bgName: String, val pages: Int = 6, val fresh: Boolean = false, val savedStoryId: String? = null)
 
 /** 부모 모드 그림체 견본 4종 (결정안건 부록 6) */
 data class ArtStyle(val key: String, val name: String, val img: String, val ready: Boolean)
@@ -676,6 +676,9 @@ sealed interface Stage {
 
     /** 책장 — fromEnd = 방금 만든 책을 꽂는 중 */
     data class Shelf(val fromEnd: Boolean) : Stage
+
+    /** 저장된 동화는 완성된 자막을 그대로 읽는다. 미션을 다시 실행하지 않는다. */
+    data class SavedStory(val book: SavedStoryBook, val index: Int) : Stage
 
     /** 비밀번호 4자리 — purpose: "parent"(부모 모드) · "start"(이야기 시작) */
     data class Pin(val purpose: String, val typed: Int = 0) : Stage
@@ -914,6 +917,12 @@ class DemoState {
      */
     val slotBy = mutableStateMapOf<String, String>()
 
+    /** 동화 모드의 서버 판정이 정한 다음 질문과 생략 칸. 일기·협업의 질문 순서에는 쓰지 않는다. */
+    var storyNextSlot by mutableStateOf<String?>(null)
+    var storyServerQuestion by mutableStateOf<String?>(null)
+    val storyUnneededSlots = mutableStateListOf<String>()
+    val storyReady: Boolean get() = mode == StoryMode.STORY && endReason == "story_ready"
+
     // ── 함께 하는 사람
     var partnerKey by mutableStateOf("mom")
     /** 아이가 실제로 부른 말(「고모」 · 「형」 · 「민수」). null 이면 종류 이름(엄마 · 삼촌 …) */
@@ -1051,6 +1060,8 @@ class DemoState {
     /** 아이가 말한 장소 그대로. 프리셋 유형에 없으면 배경을 새로 만든다 (구현대본 §6) */
     var placeLabel by mutableStateOf<String?>(null)
     var generatedBg by mutableStateOf(false)
+    /** 서버 PNG를 앱 전용 파일에 보관한 뒤 이 책이 끝날 때까지 사용한다. */
+    var storyBackground by mutableStateOf<String?>(null)
     // 일기 모드의 장소는 아이가 말한 실제 장소다. 아직 못 들었으면 상상 세계 이름("우주")이 새어 나오지 않게 막는다
     val placeName: String get() = placeLabel ?: if (isDiary) "오늘 있었던 곳" else th.label
 
@@ -1064,6 +1075,7 @@ class DemoState {
     val bgName: String
         get() = when {
             isDiary -> diaryPlaceBg(placeLabel)
+            mode == StoryMode.STORY && storyBackground != null -> storyBackground!!
             generatedBg -> "bg_snow"
             else -> "bg_$themeKey"
         }
@@ -1144,6 +1156,8 @@ class DemoState {
     var solutionLine by mutableStateOf("같이 별을 땄어요")
     var m1Result by mutableStateOf<String?>(null)
     var m2Result by mutableStateOf<String?>(null)
+    /** Server-written story scenes. Null keeps the existing template book for the scripted demo. */
+    var storyCaptions by mutableStateOf<List<String>?>(null)
     var bookPage by mutableStateOf(0)
 
     /** 책 화면 위쪽 안내 한 줄 (책은 전체 화면이라 마스코트 말풍선 대신 여기에) */
@@ -1290,11 +1304,8 @@ class DemoState {
     /** 시작 화면에 한 번 띄우는 안내 (하루 별 0 등) */
     var notice by mutableStateOf<String?>(null)
 
-    /** 책장 — 지난 책 2권 + 오늘 만든 책 */
-    val shelf = mutableStateListOf(
-        ShelfBook("문어랑 바닷속 숨바꼭질", "sea", "bg_sea", 7),
-        ShelfBook("기차 타고 공룡 나라", "dino", "bg_dino", 6),
-    )
+    /** 실제 완성된 책만 들어간다. 동화책은 기기 저장소에서 시작할 때 복원한다. */
+    val shelf = mutableStateListOf<ShelfBook>()
 
     /** S10에서 "또 만날래"로 고른 친구 — 다음 이야기의 확인 카드 후보가 된다 (⭐26) */
     val keptFriends = mutableStateListOf<String>()
@@ -1325,7 +1336,8 @@ class DemoState {
     fun resetStory() {
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
-        slots.clear(); slotBy.clear(); partnerHelp = null; partnerHelpLine = null
+        slots.clear(); slotBy.clear(); storyNextSlot = null; storyServerQuestion = null; storyUnneededSlots.clear()
+        partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY
         diaryStart = 0L; diaryTimeUp = false; mascotPicks = 0; endReason = null
@@ -1339,14 +1351,14 @@ class DemoState {
         nextLevel = null; levelAtStart = level
         templateKey = null; attribute = null; causeKind = "lonely"; notes.clear(); levelWhy = ""
         askedThisStory.clear()
-        themeKey = "space"; placeLabel = null; generatedBg = false
+        themeKey = "space"; placeLabel = null; generatedBg = false; storyBackground = null
         mentioned.clear()
         newcomerKind = "외계인"; newcomerEmoji = "👽"
         dinoKey = "horn"; solutionKey = "play"; solutionItem = "star"
         drawing.clear(); drawnPreset = 0; mouth = null
         sceneDrawing.clear(); sceneDrawingAspect = 1f
         friendName = "{친구1}"; causeLine = "친구가 없어서 심심했어"; soundLine = "뿌우우우웅!"
-        solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; bookPage = 0; bookNote = ""
+        solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; storyCaptions = null; bookPage = 0; bookNote = ""
         turn = 0; s1streak = 0; s1count = 0; noAnswerStreak = 0
         mood = Mood.NONE
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
@@ -1371,8 +1383,6 @@ class DemoState {
         heroes += Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9)))
         heroes += Hero("빨간 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
         shelf.clear()
-        shelf += ShelfBook("문어랑 바닷속 숨바꼭질", "sea", "bg_sea", 7)
-        shelf += ShelfBook("기차 타고 공룡 나라", "dino", "bg_dino", 6)
         limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null
         keptFriends.clear(); usedVariants.clear()
         partnerKey = "mom"
