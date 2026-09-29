@@ -68,14 +68,12 @@ def main(src, debug=None):
             else:
                 m["body"][x, y] = 255
     # 다리 · 꼬리 뿌리는 몸 뒤로 이어 둔다(몸이 덮는다) — 돌릴 때 위쪽이 비지 않게
+    # 망토(초록)는 넣지 않는다 — 넣으면 다리가 돌 때 망토 조각이 따라 움직였다
     for y in range(760, LEG_TOP):
         for x in range(380, 700):
-            if solid(x, y) and not poly["arm_near"][x, y]:
+            if solid(x, y) and not poly["arm_near"][x, y] and not green(x, y):
                 m["leg_near" if x < SPLIT else "leg_far"][x, y] = 255
-    for y in range(700, 850):
-        for x in range(380, 430):
-            if solid(x, y) and not green(x, y):
-                m["tail"][x, y] = 255
+    # 꼬리 뿌리는 따로 늘이지 않는다 — 네모로 늘이면 허벅지 털이 꼬리와 함께 흔들렸다. 몸이 꼬리 뿌리를 덮는다
     # 몸 아래 끝을 다리 위로 조금 늘여 흐리게 — 자른 가로줄이 다리가 돌 때 보이지 않게
     for y in range(LEG_TOP - 10, LEG_TOP + FADE):
         k = int(255 * (LEG_TOP + FADE - y) / (FADE + 10))
@@ -103,6 +101,16 @@ def main(src, debug=None):
                 r, g, b, _ = px[sx, y]
                 bpx[x, y] = (r, g, b, 255)
                 bm[x, y] = 255
+
+    # 메운 망토 자리는 흐리게 — 옆에서 옮긴 주름이 찢어진 줄무늬처럼 보였다
+    hole = Image.new("L", (W, H), 0)
+    hp = hole.load()
+    for y in range(540, 752):
+        for x in range(480, 690):
+            if near[x, y] and bm[x, y]:
+                hp[x, y] = 255
+    blurred = body.filter(ImageFilter.GaussianBlur(7))
+    body.paste(blurred, (0, 0), hole.filter(ImageFilter.GaussianBlur(2)))
 
     os.makedirs(RES, exist_ok=True)
     for k in ORDER:
