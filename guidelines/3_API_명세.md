@@ -154,6 +154,12 @@ py -m uvicorn main:app --host 0.0.0.0 --port 8010
 ```
 - **`MOCK=1`** — 키도 GPU 도 없이 명세 모양대로 고정 응답을 준다. 팀원이 자기 PC 에서 앱을 붙일 때 쓴다. `/health` 가 `"mock": true` 로 알려 준다
 - 에뮬레이터에서는 `http://10.0.2.2:8010`, 실기기에서는 서버 PC 의 같은 와이파이 주소
+- **앱 쪽 켜기 (09-29 모드별 스위치)** — 주소와 모드를 **둘 다** 줘야 서버로 간다. 기본은 전부 대본
+  ```
+  adb shell am start -n kr.clap.otto/com.example.finalproject_demo.MainActivity -e server http://10.0.2.2:8010 -e live story,diary,coop
+  ```
+  `-e live all` 도 된다. 앱 안에서는 시연 서랍(오른쪽 위 길게 누르기) 「서버 연결」 칩으로 모드마다 켜고 끈다
+- **모드 담당자 규칙**: 서버를 부르는 곳마다 `if (Server.liveFor(s.mode))` 로 감싼다. 꺼져 있거나 `null` 이 오면 지금 대본으로 간다 — 그래야 반쯤 붙인 모드를 병합해도 다른 모드가 안 깨진다
 - ⚠️ 조장 PC 에서는 **8000 번을 다른 파이썬이 쓰고 있어** 8010 으로 띄운다
 - Windows 에서 받아쓰기를 GPU 로 돌리려면 `nvidia-cublas-cu12` · `nvidia-cudnn-cu12` 를 깐다 (경로 문제는 서버가 알아서 잡는다 · `results.md` 09-25 §2)
 
