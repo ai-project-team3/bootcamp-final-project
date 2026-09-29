@@ -70,6 +70,8 @@ class MainActivity : ComponentActivity() {
         FeelPrefs.load(this)      // 효과음 · 진동 켬/끔 (부모 설정 · 09-25)
         // 서버는 주소를 줄 때만 켠다 — 없으면 지금처럼 대본으로 돈다 (net/Server.kt)
         intent?.getStringExtra("server")?.let { Server.base = it.trimEnd('/') }
+        // 어느 모드를 서버로 돌릴지 — 없으면 전부 대본 (`-e live story,diary,coop` 또는 `all`)
+        intent?.getStringExtra("live")?.let { Server.liveModes = Server.parseLive(it) }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
