@@ -1,13 +1,18 @@
 # -*- coding: utf-8 -*-
-"""오또 **옆모습** 인형 부위 자르기 (09-29) — 걸을 때 쓴다. 오른쪽을 비스듬히 보는 전신 한 장(ComfyUI · Kontext `side`).
+"""오또 **옆모습** 인형 부위 자르기 — 걸을 때 쓴다.
 
-옆모습은 다리 · 팔이 겹쳐 있어 정면처럼 자를 수 없다. 걷기에 필요한 것만 나눈다:
-  뒷팔(몸 앞쪽으로 나온 작은 앞발 · 망토 아래 어깨에서 흔든다) · 꼬리 · 뒷다리 · 앞다리 · 몸 ·
-  앞팔(**소매째** 어깨에서 흔든다 — 09-29 사용자 「팔도 실제 걷는 것처럼」. 전에는 소매 끝 아래 앞발만 까딱였다)
-앞팔이 흔들릴 때 드러나는 몸 자리는 망토 천 · 배 털 무늬를 옆에서 옮겨 메운다.
+09-29 두 번째 판: 기존 마스코트(`mascot.png`)를 Kontext 로 옆으로 돌린 그림(`tools/gen_faces.py side_m`)에서 자른다.
+첫 판은 새로 뽑은 A-포즈에서 돌린 그림이라 앱 곳곳의 오또와 얼굴 · 비율이 조금 달랐다.
+
+부위(뒤 → 앞): 꼬리 · 뒷다리 · 앞다리 · 뒷팔 · 몸(머리 포함) · 앞팔
+  - 앞팔 = 소매 + 앞발 **통째로**, 어깨에서 흔든다(실제 걷기처럼 팔 전체가 앞뒤로)
+  - 뒷팔 = 가슴 앞으로 나온 먼 쪽 소매단 + 앞발, 망토 속 어깨에서 흔든다
+  - 다리는 엉덩이 아래에서 둘로 — 뿌리는 몸 뒤에 이어 두고, 몸 아래 끝은 흐리게 끝나 다리 위에 겹친다
+  - 앞팔이 비운 몸 자리는 망토 천(소매 자리) · 허벅지 털(앞발 자리)을 옆에서 옮겨 메운다
+좌표는 1024 원본 기준(격자로 재었다). 앱에는 512 로 줄여 넣는다.
 
     python tools/otto_puppet_side.py SRC.png [DEBUG_OUT.png]
-결과: res/drawable/otto_side_*.webp (512×512 같은 틀) · 축 좌표 출력 (Kotlin `OttoPuppet` 옆모습에 옮긴다)
+결과: res/drawable/otto_side_*.webp (512×512 같은 틀) · 축 좌표 출력 (Kotlin `OttoPuppet` 의 SIDE 에 옮긴다)
 """
 import os
 import sys
@@ -16,10 +21,14 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 RES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "src", "main", "res", "drawable")
 
-PIV = {
-    "arm_far": (648, 628), "tail": (385, 770), "leg_far": (575, 790), "leg_near": (475, 792), "arm_near": (452, 548),
-}
-ORDER = ["arm_far", "tail", "leg_far", "leg_near", "body", "arm_near"]
+PIV = {"tail": (392, 760), "leg_far": (610, 815), "leg_near": (478, 800), "arm_far": (700, 640), "arm_near": (572, 585)}
+ORDER = ["tail", "leg_far", "leg_near", "arm_far", "body", "arm_near"]
+ARM_NEAR = [(540, 552), (602, 558), (642, 640), (632, 690), (650, 755), (642, 792), (600, 804), (556, 798), (536, 778),
+            (528, 742), (504, 740), (498, 690), (518, 620)]
+ARM_FAR = [(688, 636), (762, 648), (792, 698), (798, 748), (772, 778), (720, 774), (690, 742), (680, 690)]
+LEG_TOP = 836      # 이 아래가 다리
+SPLIT = 560        # 앞다리 | 뒷다리 경계(x)
+FADE = 30          # 몸 아래 끝을 흐리게 하는 폭
 
 
 def main(src, debug=None):
@@ -34,76 +43,66 @@ def main(src, debug=None):
 
     def green(x, y):
         r, g, b, _ = px[x, y]
-        return g > r + 10 and g >= b - 10
+        return g > r + 10
+
+    poly = {}
+    for k, pts in (("arm_near", ARM_NEAR), ("arm_far", ARM_FAR)):
+        mk = Image.new("L", (W, H), 0)
+        ImageDraw.Draw(mk).polygon(pts, fill=255)
+        poly[k] = mk.filter(ImageFilter.MaxFilter(5)).load()   # 흐린 테두리까지
 
     masks = {k: Image.new("L", (W, H), 0) for k in ORDER}
     m = {k: v.load() for k, v in masks.items()}
-    # 앞팔 소매 — 어깨(위) · 소매 앞뒤 가장자리 · 소매 끝(파란 단)까지. 1024 원본에서 격자로 재었다
-    sleeve = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(sleeve).polygon([(418, 512), (492, 512), (506, 560), (508, 640), (504, 690), (396, 692), (396, 610), (402, 548)], fill=255)
-    # 어깨 둥근 뚜껑 — 돌려도 어깨 이음매가 안 보이게
-    ImageDraw.Draw(sleeve).ellipse((452 - 40, 548 - 40, 452 + 40, 548 + 40), fill=255)
-    # 앞발 — 소매 끝 아래 앞발 윤곽만. 네모로 자르면 뒤의 허벅지 털이 같이 딸려 와 팔과 함께 돌았다
-    ImageDraw.Draw(sleeve).polygon([(398, 688), (502, 688), (500, 740), (490, 772), (470, 788), (425, 790), (405, 775), (400, 740)], fill=255)
-    sl = sleeve.load()
     for y in range(H):
         for x in range(W):
             if not solid(x, y):
                 continue
-            if sl[x, y]:
+            if poly["arm_near"][x, y]:
                 m["arm_near"][x, y] = 255
-            elif x >= 636 and 640 <= y <= 752 and not green(x, y):
+            elif poly["arm_far"][x, y]:
                 m["arm_far"][x, y] = 255
-            elif x < 392 and 600 <= y <= 860 and not green(x, y):
+            elif x < 395 and 560 <= y <= 860 and not green(x, y):
                 m["tail"][x, y] = 255
-            elif y >= 805:
-                m["leg_near" if x < 545 else "leg_far"][x, y] = 255
+            elif y >= LEG_TOP:
+                m["leg_near" if x < SPLIT else "leg_far"][x, y] = 255
             else:
                 m["body"][x, y] = 255
-    # 다리 뿌리는 몸 뒤로 이어 둔다(몸이 덮는다)
-    for y in range(725, 805):
-        for x in range(W):
-            if solid(x, y) and 395 <= x < 640:
-                m["leg_near" if x < 545 else "leg_far"][x, y] = 255
-    # 꼬리 뿌리도 몸 뒤로
-    for y in range(730, 830):
-        for x in range(370, 420):
+    # 다리 · 꼬리 뿌리는 몸 뒤로 이어 둔다(몸이 덮는다) — 돌릴 때 위쪽이 비지 않게
+    for y in range(760, LEG_TOP):
+        for x in range(380, 700):
+            if solid(x, y) and not poly["arm_near"][x, y]:
+                m["leg_near" if x < SPLIT else "leg_far"][x, y] = 255
+    for y in range(700, 850):
+        for x in range(380, 430):
             if solid(x, y) and not green(x, y):
                 m["tail"][x, y] = 255
+    # 몸 아래 끝을 다리 위로 조금 늘여 흐리게 — 자른 가로줄이 다리가 돌 때 보이지 않게
+    for y in range(LEG_TOP - 10, LEG_TOP + FADE):
+        k = int(255 * (LEG_TOP + FADE - y) / (FADE + 10))
+        for x in range(380, 700):
+            if solid(x, y) and not poly["arm_near"][x, y]:
+                m["body"][x, y] = max(m["body"][x, y], min(255, k))
 
-    # 앞팔이 비운 몸 자리를 메운다 — 소매 자리(위)는 망토 천을 왼쪽에서 되풀이해 옮기고(없으면 오른쪽),
-    # 앞발 자리(아래)는 오른쪽 배 · 허벅지 털 무늬를 옮긴다. 한 색으로 채우면 가로 줄무늬가 보였다
+    # 앞팔이 비운 몸 자리 — 소매 자리(망토 아랫단 위)는 망토 천을 왼쪽에서 되풀이해 옮기고,
+    # 앞발 자리(아래)는 왼쪽 허벅지 털을 옮긴다. 몸 실루엣 밖(원래 앞발만 있던 오른쪽 바깥)은 비운다
     body = im.copy()
     bpx = body.load()
     bm = m["body"]
-    arm = m["arm_near"]
-    for y in range(500, 805):
-        for x in range(380, 520):
-            if not arm[x, y]:
+    near = poly["arm_near"]
+    for y in range(540, 820):
+        for x in range(480, 670):
+            if not near[x, y]:
                 continue
-            got = None
-            if y < 720:     # 소매 자리 + 앞발 뒤 망토 아랫단까지는 망토 천
-                sx = x - 60
-                while sx >= 0 and arm[sx, y]:
-                    sx -= 60
-                if sx >= 0 and bpx[sx, y][3] > 200:
-                    got = bpx[sx, y]
-                elif x + 90 < W and px[x + 90, y][3] > 200:
-                    got = px[x + 90, y]
-            else:
-                sx = min(x + 108, W - 1)
-                if px[sx, y][3] > 8:
-                    got = px[sx, y]
-            if got is not None:
-                bpx[x, y] = (got[0], got[1], got[2], 255)
+            cape = y < 752
+            step = 90 if cape else 110
+            sx = x - step
+            while sx >= 0 and near[sx, y]:
+                sx -= step
+            inside = x < (690 if y < 700 else 672 - (y - 700) * 0.2)
+            if inside and sx >= 0 and a[sx, y] > 200 and (green(sx, y) == cape or not cape):
+                r, g, b, _ = px[sx, y]
+                bpx[x, y] = (r, g, b, 255)
                 bm[x, y] = 255
-
-    # 몸 아래 끝(엉덩이)을 다리 위로 조금 늘여 **흐리게** 끝낸다 — 자른 가로줄이 다리가 돌 때 보였다
-    for y in range(790, 822):
-        k = int(255 * (822 - y) / 32)
-        for x in range(395, 640):
-            if solid(x, y):
-                bm[x, y] = max(bm[x, y], k) if y < 805 else k
 
     os.makedirs(RES, exist_ok=True)
     for k in ORDER:
@@ -125,7 +124,7 @@ def main(src, debug=None):
         dbg.alpha_composite(body)
         over = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         for k, mask in masks.items():
-            over.paste(Image.new("RGBA", (W, H), colors[k] + (110,)), (0, 0), mask)
+            over.paste(Image.new("RGBA", (W, H), colors[k] + (100,)), (0, 0), mask)
         dbg.alpha_composite(over)
         d = ImageDraw.Draw(dbg)
         for (x, y) in PIV.values():
