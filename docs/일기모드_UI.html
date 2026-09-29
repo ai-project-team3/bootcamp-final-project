@@ -113,6 +113,17 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .merge-btn{position:absolute;right:6cqw;top:33.5cqw;width:15cqw;height:6cqw;font-size:2.2cqw;display:none}
 .merge-btn.on{display:block}
 #btn-split{right:22cqw}
+#btn-look{right:38cqw}
+.looks{position:absolute;left:4cqw;right:4cqw;top:6cqw;height:27cqw;background:rgba(255,247,236,.97);border-radius:3cqw;display:none;align-items:center;justify-content:center;gap:3cqw;z-index:5;box-shadow:0 .8cqw 2cqw rgba(58,42,32,.2)}
+.looks.on{display:flex}
+.look{background:#fff;border:.4cqw solid transparent;border-radius:2.4cqw;padding:1.2cqw;display:grid;justify-items:center;gap:.8cqw;cursor:pointer;font-family:var(--kid);color:var(--app-ink);width:22cqw}
+.look img{height:15cqw;max-width:19cqw;object-fit:contain}
+.look span{font-size:2.1cqw}
+.look small{font-size:1.4cqw;color:var(--app-ink-soft)}
+.look[aria-pressed="true"]{border-color:var(--mustard);transform:translateY(-.6cqw)}
+.look.wait{cursor:default}
+.look.wait img{filter:blur(.6cqw) saturate(.4);opacity:.6}
+.sticker em{position:absolute;right:-.6cqw;top:-.6cqw;font-style:normal;font-size:2cqw;background:var(--coral);color:#fff;border-radius:50%;width:3.2cqw;height:3.2cqw;display:grid;place-items:center}
 .cutter{position:absolute;left:0;right:0;top:0;bottom:12cqw;background:rgba(255,247,236,.97);display:none;z-index:5}
 .cutter.on{display:block}
 .cut-board{position:absolute;left:6cqw;top:3cqw;width:66cqw;height:30cqw;background:#fff;border-radius:2.5cqw;box-shadow:0 .8cqw 2cqw rgba(58,42,32,.2);overflow:hidden}
@@ -212,6 +223,7 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
 .note{font-size:12.5px;color:var(--muted)}
 .rules{margin:0;padding-left:18px;font-size:13px;display:grid;gap:4px;color:var(--muted)}
 .rules b{color:var(--ink);font-weight:500}
+.gen{display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer}
 </style>
 
 <div class="wrap">
@@ -250,6 +262,8 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
           <div class="sys"><span>🏠</span><span class="lock">🔒</span></div>
           <div class="tray" id="tray"></div>
           <button class="felt mustard merge-btn" id="btn-merge">🧵 붙이기</button>
+          <button class="felt coral merge-btn" id="btn-look">✨ 바꿔 보기</button>
+          <div class="looks" id="looks"></div>
           <button class="felt mustard merge-btn" id="btn-split">✂️ 자르기</button>
           <div class="cutter" id="cutter">
             <div class="cut-board"><canvas id="cutcv"></canvas></div>
@@ -322,6 +336,11 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
         <div class="say-opts" id="opts"></div>
       </div>
       <div class="card">
+        <h2>✨ 제안: 그림 바꿔 보기 <small>조장 결정 전</small></h2>
+        <label class="gen"><input type="checkbox" id="gen-on"> D2에서 [✨ 바꿔 보기] 켜기</label>
+        <p class="note">⚠️ 차별점 1(아이가 만든 건 AI가 다시 그리지 않는다)을 바꾸는 기능이다. 켜면 조각 그림이 우리 서버로 간다 — 처리방침 · Play 양식을 같이 고쳐야 한다. 원본이 늘 기본값이고, 책 1쪽은 늘 원본이며, 생성 결과는 안전 검사를 통과한 것만 보인다. 여기 보이는 「생성」은 아이 선을 가공한 시연용 자리 표시다.</p>
+      </div>
+      <div class="card">
         <h2>그림 조각 <small>이름은 아이 말만</small></h2>
         <table class="t" id="objs"></table>
       </div>
@@ -385,6 +404,8 @@ function fresh(){
 const PAD = 14;
 function boxOf(p){ let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for (const [x,y] of p){ x0=Math.min(x0,x); y0=Math.min(y0,y); x1=Math.max(x1,x); y1=Math.max(y1,y); } return {x0,y0,x1,y1}; }
 const grow = (b,d) => ({x0:b.x0-d, y0:b.y0-d, x1:b.x1+d, y1:b.y1+d});
+// points every ~6 units along a line, so shares are measured by length, not by how many corners it has
+function dense(p){ const out = [p[0]]; for (let i = 1; i < p.length; i++){ const [a,b] = p[i-1], [c,d] = p[i], n = Math.max(1, Math.ceil(Math.hypot(c-a, d-b)/6)); for (let k = 1; k <= n; k++) out.push([a+(c-a)*k/n, b+(d-b)*k/n]); } return out; }
 const touch = (a,b) => a.x0 <= b.x1 && b.x0 <= a.x1 && a.y0 <= b.y1 && b.y0 <= a.y1;
 const area = b => Math.max(1,(b.x1-b.x0))*Math.max(1,(b.y1-b.y0));
 const overlap = (a,b) => Math.max(0, Math.min(a.x1,b.x1)-Math.max(a.x0,b.x0)) * Math.max(0, Math.min(a.y1,b.y1)-Math.max(a.y0,b.y0));
@@ -407,10 +428,10 @@ function assignStroke(s){
 // strokes added to a named piece since it was named, and whether they reach outside it
 function growthOf(pc){
   if (!pc.name || pc.open) return null;
-  const extra = pieceStrokes(pc).filter(s => !pc.namedIds.includes(s.id));
+  const extra = pieceStrokes(pc).filter(s => !pc.namedIds.includes(s.id));  // held back, or added after it was finished
   if (!extra.length) return null;
   const nb = grow(boxOf(pieceStrokes(pc).filter(s => pc.namedIds.includes(s.id)).flatMap(s => s.p)), 10);
-  const pts = extra.flatMap(s => s.p), out = pts.filter(([x,y]) => x < nb.x0 || x > nb.x1 || y < nb.y0 || y > nb.y1).length / pts.length;
+  const pts = extra.flatMap(s => dense(s.p)), out = pts.filter(([x,y]) => x < nb.x0 || x > nb.x1 || y < nb.y0 || y > nb.y1).length / pts.length;
   return {strokes:extra, outside: out > 0.3};
 }
 function view(p){
@@ -515,17 +536,27 @@ function outsideShare(st, pc){
   const others = pieceStrokes(pc).filter(o => o.id !== st.id);
   if (!others.length) return 1;
   const b = grow(boxOf(others.flatMap(o => o.p)), 10);
-  return st.p.filter(([x,y]) => x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1).length / st.p.length;
+  const q = dense(st.p); return q.filter(([x,y]) => x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1).length / q.length;
+}
+// Does a line that touches a named piece look like a different thing? A body under a head does not:
+// it is attached and of a similar size. The ground does: it is long and thin, reaches another named
+// piece, or dwarfs the piece.
+function foreignTo(st, cur){
+  const sb = boxOf(st.p), w = sb.x1 - sb.x0, h = sb.y1 - sb.y0;
+  const ob = boxOf(cur.strokes.filter(o => o.id !== st.id).flatMap(o => o.p)), ow = Math.max(20, ob.x1 - ob.x0), oh = Math.max(20, ob.y1 - ob.y0);
+  if (S.pieces.some(p => p.id !== cur.key && p.name && touch(grow(sb, PAD), pieceBox(p)))) return '다른 조각에도 닿는 선';
+  const long = Math.max(w, h), short = Math.max(1, Math.min(w, h));
+  if (long >= short * 4 && long > Math.max(ow, oh) * 2) return '가늘고 긴 선';
+  if (w > ow * 2.5 || h > oh * 2.5) return `「${cur.name}」보다 훨씬 큰 선`;
+  return null;
 }
 function onSwitch(before, st){
   if (before && before === S.curPiece){
     const cur = pieceOf(S.curPiece);
     if (cur && cur.name && cur.pc.open && outsideShare(st, cur.pc) > 0.5){
-      const others = boxOf(cur.strokes.filter(o => o.id !== st.id).flatMap(o => o.p)), sb = boxOf(st.p);
-      if (sb.x1 - sb.x0 > (others.x1 - others.x0) * 0.8 || sb.y1 - sb.y0 > (others.y1 - others.y0) * 0.8){
-        st.loose = true;
-        log(`「${cur.name}」을 그리다 그보다 넓게 바깥으로 뻗은 선 → 바로 붙이지 않고 멈추면 같은 건지 묻는다`);
-      }
+      const why = foreignTo(st, cur);
+      if (why){ st.loose = true; log(`「${cur.name}」을 그리다 ${why} → 바로 붙이지 않고 멈추면 같은 건지 묻는다`); }
+      else log(`「${cur.name}」에 붙여 이어 그린 선 (머리 → 몸통처럼) → 그대로 ${cur.name}`);
     }
     return;
   }
@@ -534,12 +565,14 @@ function onSwitch(before, st){
   if (prev) leavePiece(prev);
   if (!cur || cur.strokes.length < 2) return;                 // a brand-new piece
   // the line joined a piece drawn earlier: coming back to it, or something new touching it?
-  if (outsideShare(st, cur.pc) <= 0.3){
+  const why = cur.name && outsideShare(st, cur.pc) > 0.3 ? foreignTo(st, cur) : null;
+  if (!why){
     cur.pc.open = true;                                        // back to it: more lines are its own
     if (cur.name && !S.cur) band(`다시 ${cur.name} 그리는구나!`, 'talk');
     log(`앞서 그리던 조각으로 돌아옴${cur.name ? ` → 「${cur.name}」 다시 열기` : ''}. 이어 그린 선은 그 조각의 것`);
-  } else if (cur.name){
-    log(`「${cur.name}」에 닿았지만 바깥으로 크게 뻗은 선 → 멈추면 같은 건지 묻는다`);
+  } else {
+    st.loose = true;
+    log(`「${cur.name}」에 닿았지만 ${why} → 멈추면 같은 건지 묻는다`);
   }
 }
 // the child moved to another place on the board. The piece may not be done — they can come back —
@@ -761,12 +794,86 @@ function goD2(){
 }
 function renderTray(){
   const os = objects(), bg = bgView();
-  $('tray').innerHTML = os.map(o => { const c = cutURL(o);
-    return `<button class="sticker" data-k="${o.key}" aria-pressed="${S.sel.includes(o.key)}"><img src="${c.url}" alt="${o.name||'이름 없는 조각'}"><span class="${o.name?'':'q'}">${o.name||'?'}</span></button>`; }).join('')
+  $('tray').innerHTML = os.map(o => { const c = lookURL(o);
+    return `<button class="sticker" data-k="${o.key}" aria-pressed="${S.sel.includes(o.key)}">${o.pc.look && o.pc.look !== 'orig' ? '<em aria-label="바꾼 모습">✨</em>' : ''}<img src="${c.url}" alt="${o.name||'이름 없는 조각'}"><span class="${o.name?'':'q'}">${o.name||'?'}</span></button>`; }).join('')
     + (bg ? `<div class="sticker bgcard"><img src="${cutURL(bg).url}" alt="배경으로 뺀 선"><span class="q">배경</span></div>` : '');
   $('btn-merge').classList.toggle('on', S.sel.length === 2);
   $('btn-split').classList.toggle('on', S.sel.length === 1);
+  $('btn-look').classList.toggle('on', S.sel.length === 1 && S.genOn);
 }
+
+// ── ✨ proposal: offer generated looks for a piece; the child's own lines stay the default ──
+// ⚠️ This changes differentiator 1 ("what the child made is not redrawn by AI") and sends the drawing
+// to our server. Shown here for the lead to decide. Placeholders stand in for the image model.
+const LOOKS = [
+  {id:'orig', name:'내가 그린 그대로', note:'기본 · 늘 첫 번째'},
+  {id:'felt', name:'펠트 인형', note:'(시연) 생성 자리'},
+  {id:'book', name:'동화책 그림', note:'(시연) 생성 자리'},
+];
+function hull(pts){
+  const P = [...pts].sort((a,b) => a[0]-b[0] || a[1]-b[1]); if (P.length < 3) return P;
+  const cr = (o,a,b) => (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]); const lo = [], up = [];
+  for (const p of P){ while (lo.length >= 2 && cr(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop(); lo.push(p); }
+  for (const p of P.reverse()){ while (up.length >= 2 && cr(up[up.length-2], up[up.length-1], p) <= 0) up.pop(); up.push(p); }
+  return lo.slice(0,-1).concat(up.slice(0,-1));
+}
+function lookURL(o, look = o.pc.look || 'orig', pad = 10){
+  if (look === 'orig') return cutURL(o, pad);
+  const b = o.box, w = b.x1-b.x0+2*pad, h = b.y1-b.y0+2*pad, k = 3;
+  const c = document.createElement('canvas'); c.width = Math.ceil(w*k); c.height = Math.ceil(h*k);
+  const x = c.getContext('2d'), ox = b.x0-pad, oy = b.y0-pad, T = ([px,py]) => [(px-ox)*k, (py-oy)*k];
+  const main = o.strokes[0].c;
+  x.lineCap = 'round'; x.lineJoin = 'round';
+  if (look === 'felt'){
+    const hp = hull(o.strokes.flatMap(s => s.p)).map(T);
+    x.fillStyle = main + '55'; x.beginPath(); hp.forEach((q,i) => i ? x.lineTo(...q) : x.moveTo(...q)); x.closePath(); x.fill();
+    for (const s of o.strokes){ x.strokeStyle = s.c; x.lineWidth = s.w*k*2.4; x.beginPath(); s.p.map(T).forEach((q,i) => i ? x.lineTo(...q) : x.moveTo(...q)); x.stroke(); }
+    x.setLineDash([k*2.2, k*2.2]); x.strokeStyle = 'rgba(255,255,255,.85)'; x.lineWidth = k*1.1;
+    for (const s of o.strokes){ x.beginPath(); s.p.map(T).forEach((q,i) => i ? x.lineTo(...q) : x.moveTo(...q)); x.stroke(); }
+  } else {
+    const hp = hull(o.strokes.flatMap(s => s.p)).map(T);
+    x.filter = `blur(${k*3}px)`; x.fillStyle = main + '88'; x.beginPath(); hp.forEach((q,i) => i ? x.lineTo(...q) : x.moveTo(...q)); x.closePath(); x.fill();
+    x.filter = 'none'; x.strokeStyle = '#5A3E2B'; x.lineWidth = k*2;
+    for (const s of o.strokes){ x.beginPath(); s.p.map(T).forEach((q,i) => i ? x.lineTo(...q) : x.moveTo(...q)); x.stroke(); }
+  }
+  return {url:c.toDataURL('image/png'), w, h};
+}
+function openLooks(key){
+  const o = pieceOf(key); if (!o) return;
+  S.lookFor = key; S.lookPick = o.pc.look || 'orig';
+  $('looks').classList.add('on');
+  $('looks').innerHTML = LOOKS.map(L => `<button class="look ${L.id==='orig'?'':'wait'}" data-l="${L.id}" aria-pressed="${L.id===S.lookPick}"><img src="${lookURL(o, L.id).url}" alt="${L.name}"><span>${L.name}</span><small>${L.id==='orig' ? L.note : '만드는 중…'}</small></button>`).join('');
+  band(`${o.name || '이 그림'}, 다른 모습으로도 만들어 볼까? 마음에 드는 걸 골라 줘.`, 'talk');
+  log(`✨ 「${o.name || '조각'}」 바꿔 보기 — 아이가 원해서 연다. 원본이 기본값이고 첫 번째 보기`);
+  log('서버: 이 조각 그림 + 아이가 붙인 이름 → 이미지 생성 → 안전 검사 통과한 것만 보인다 (규칙 8). 8초 넘으면 "조금 뒤에 올 거야", 15초면 원본으로');
+  setTimeout(() => {
+    if (S.lookFor !== key) return;
+    document.querySelectorAll('.look.wait').forEach(el => { el.classList.remove('wait'); el.querySelector('small').textContent = LOOKS.find(L => L.id === el.dataset.l).note; });
+    log('생성 결과 도착 · 검사 통과 (시연)');
+  }, 1400);
+  lookOpts();
+}
+$('looks').onclick = e => {
+  const b = e.target.closest('.look'); if (!b || b.classList.contains('wait')) return;
+  S.lookPick = b.dataset.l;
+  [...$('looks').children].forEach(x => x.setAttribute('aria-pressed', x === b));
+  lookOpts();
+};
+function lookOpts(){
+  opts([
+    ...LOOKS.map(L => ({label:`👆 「${L.name}」 고르기`, run:() => { const el = $('looks').querySelector(`[data-l="${L.id}"]`); if (el) el.click(); }})),
+    {label:'✓ 이걸로 할래', hint:'책 2쪽부터 이 모습으로 나온다. 1쪽은 늘 원본', wide:true, run:closeLooks},
+  ]);
+}
+function closeLooks(){
+  const o = pieceOf(S.lookFor); if (!o) return;
+  o.pc.look = S.lookPick; S.lookFor = null; $('looks').classList.remove('on'); S.sel = [];
+  const L = LOOKS.find(x => x.id === o.pc.look);
+  band(o.pc.look === 'orig' ? '내가 그린 그대로가 제일 좋지!' : `${L.name}(으)로 할게!`, 'talk');
+  log(`아이가 고름: 「${o.name || '조각'}」 → ${L.name}${o.pc.look === 'orig' ? '' : ' · 부모 기록엔 "아이가 고른 생성 그림"으로 표시, 원본도 함께 보관'}`);
+  renderTray(); d2Opts();
+}
+$('btn-look').onclick = () => { if (S.sel.length === 1) openLooks(S.sel[0]); };
 $('tray').onclick = e => {
   const b = e.target.closest('button.sticker'); if (!b) return; const k = +b.dataset.k;
   S.sel = S.sel.includes(k) ? S.sel.filter(x => x !== k) : [...S.sel, k].slice(-2);
@@ -835,7 +942,7 @@ function tapStroke([x,y]){
 function inPoly([x,y], poly){ let c = false; for (let i = 0, j = poly.length-1; i < poly.length; j = i++){ const [xi,yi] = poly[i], [xj,yj] = poly[j]; if ((yi > y) !== (yj > y) && x < (xj-xi)*(y-yi)/(yj-yi)+xi) c = !c; } return c; }
 function lassoStrokes(poly){
   for (const st of pieceOf(S.cut.key).strokes){
-    const k = st.p.filter(q => inPoly(q, poly)).length / st.p.length;
+    const d = dense(st.p), k = d.filter(q => inPoly(q, poly)).length / d.length;
     if (k >= 0.6) S.cut.sel.add(st.id);
   }
 }
@@ -872,6 +979,7 @@ function d2Opts(){
   const list = [];
   if (S.sel.length === 2) list.push({label:'👆 [붙이기]', wide:true, run:() => $('btn-merge').click()});
   if (S.sel.length === 1) list.push({label:'👆 [✂️ 자르기]', hint:'가위 화면에서 떼어 낼 선을 고른다', wide:true, run:() => $('btn-split').click()});
+  if (S.sel.length === 1 && S.genOn) list.push({label:'🗣 "이거 멋지게 바꿔 줘!" → [✨ 바꿔 보기]', hint:'제안 기능 · 아이가 원할 때만', wide:true, run:() => $('btn-look').click()});
   if (!S.sel.length) list.push({label:'👆 조각을 눌러 고르기', hint:'하나 → 자르기 · 둘 → 붙이기. 잘못 묶인 게 있을 때만', wide:true, run:() => { const os = objects(); if (os.length){ S.sel = [os[0].key]; renderTray(); d2Opts(); } }});
   list.push({label:'⏭ 다음', hint:'이름 없는 조각 · 빈 필수 칸만 묻는다', wide:true, run:goD3});
   opts(list);
@@ -977,7 +1085,7 @@ function renderPage(){
   }
   const focus = !p.all && cast.length < os.length;
   cast.forEach((o, i) => {
-    const c = cutURL(o, 6), el = document.createElement('img');
+    const c = lookURL(o, o.pc.look || 'orig', 6), el = document.createElement('img');
     el.src = c.url; el.alt = o.name || '아이가 그린 조각';
     const act = (p.act||{})[o.name] || (p.all ? 'enter' : 'bob');
     el.className = 'piece ' + act;
@@ -1031,6 +1139,7 @@ $('btn-done').onclick = () => { log('[다 그렸어]'); goD2(); };
 $('btn-skip').onclick = () => { S.strokes = []; S.cur = null; redraw(); renderObjs(); log('[그리기 싫어] → 말로 한다'); goD3(); };
 $('btn-shelf').onclick = () => { band('책장에 꽂았어! 또 만나.', 'talk'); log('책장에 꽂음 → 홈'); opts([{label:'↺ 처음부터', wide:true, run:start}]); };
 $('btn-reset').onclick = start;
+$('gen-on').onchange = e => { S.genOn = e.target.checked; log(S.genOn ? '✨ 제안 기능 켬 (조장 결정 전)' : '✨ 제안 기능 끔'); if (S.scr === 'd2'){ renderTray(); d2Opts(); } };
 function demoFill(){
   while (S.sampleStep < SAMPLE.length) addSample();
   const os = objects(); const nm = ['양동이','모래성','친구','해'];
@@ -1046,7 +1155,7 @@ $('steps').onclick = e => {
 };
 window.addEventListener('resize', () => { if (S.scr === 'd1') fitCanvas(); });
 
-function start(){ fresh(); $('log').innerHTML = ''; renderObjs(); renderSlots(); renderMeter(); redraw(); goD0(); }
+function start(){ const g = S && S.genOn; fresh(); S.genOn = !!g || $('gen-on').checked; $('log').innerHTML = ''; renderObjs(); renderSlots(); renderMeter(); redraw(); goD0(); }
 start();
 })();
 </script>
