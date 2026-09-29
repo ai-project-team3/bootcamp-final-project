@@ -339,6 +339,8 @@ class Director(
     )
 
     fun go(scene: Scene) {
+        // 책이 펼쳐지면 이야기는 끝났다 — 멈춰 둔 이야기(이어 가기)도 비운다
+        if (scene == Scene.BOOK) s.paused = null
         scope.launch {
             job?.cancelAndJoin()
             drain()
@@ -400,7 +402,9 @@ class Director(
 
     /** 지금이 이야기 **안**이면 그 장면을 기억한다 — 방 · 부모 · 책장은 이야기 밖이다 */
     private fun pauseStory() {
-        if (s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF)) {
+        // 책(BOOK)은 **다 만든 이야기**다 — 이어 갈 것이 없다. 전에는 책을 보다 🏠 로 나가면 BOOK 을 기억해,
+        // 방에서 동화 만들기를 누를 때마다 「이어서 할까?」가 뜨고 이어 가면 그 책 마지막 쪽이 다시 열렸다 (09-29 사용자 지적)
+        if (s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF, Scene.BOOK)) {
             s.paused = s.scene
             log("이야기 도중 나감 — 「${s.scene.label}」을 기억해 둔다. 다시 들어오면 이어서 할지 묻는다")
         }

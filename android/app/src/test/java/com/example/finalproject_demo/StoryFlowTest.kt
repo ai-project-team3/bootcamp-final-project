@@ -302,4 +302,36 @@ class StoryFlowTest {
         assertTrue("「새로」 를 눌렀는데 새 이야기가 안 시작됐다", await { s.scene == Scene.PARTNER } != null)
         assertEquals("새 이야기를 시작했는데 멈춘 이야기가 남았다", null, s.paused)
     }
+
+    /**
+     * 책까지 만든 뒤 🏠 로 나가고 → 방에서 「✨ 새로」 (09-29 사용자 — 「새로를 누르면 그림책 마지막 부분이 나온다」).
+     * 다 만든 책은 「만들던 이야기」가 아니다 — 이어 가기를 묻지 않고, 새로 누르면 새 이야기의 첫 장면이어야 한다
+     */
+    @Test
+    fun leavingAFinishedBookDoesNotOfferToContinueAndNewStartsFresh() = run { d ->
+        val s = d.s
+        d.toBook()
+        assertEquals(Scene.BOOK, s.scene)
+        d.leaveToRoom()
+        assertTrue(await { s.scene == Scene.ADULT } != null)
+        val pausedAt = s.paused
+        d.send(com.example.finalproject_demo.demo.Reply.Tapped("start", "이야기 만들기"))
+        assertTrue("「새로」 뒤에 새 이야기가 아니라 ${s.scene} · ${s.stage} 가 떴다", await(8_000) { s.scene == Scene.PARTNER } != null)
+        delay(500)
+        assertEquals("「새로」 뒤 장면", Scene.PARTNER, s.scene)
+        assertEquals("다 만든 책인데 「이어서 할까?」 대상으로 남았다", null, pausedAt)
+    }
+
+    /** 이야기 도중(책 전) 나갔다가 「✨ 새로」 — 새 이야기의 첫 장면 */
+    @Test
+    fun newAfterLeavingMidStoryStartsFresh() = run { d ->
+        val s = d.s
+        d.toCause()
+        d.leaveToRoom()
+        assertTrue(await { s.scene == Scene.ADULT } != null)
+        d.send(com.example.finalproject_demo.demo.Reply.Tapped("start", "이야기 만들기"))
+        assertTrue("「새로」 뒤에 ${s.scene} · ${s.stage}", await(8_000) { s.scene == Scene.PARTNER } != null)
+        delay(300)
+        assertEquals(Scene.PARTNER, s.scene)
+    }
 }

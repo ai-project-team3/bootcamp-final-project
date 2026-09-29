@@ -19,10 +19,10 @@ import androidx.compose.runtime.setValue
  *
  * 기억(폰 안): 처음 설정을 끝냈나 · 튜토리얼을 봤나. 계정은 `net/Account.kt`, 동의는 `ConsentStore`(원래 것 그대로).
  */
-enum class Step { CLAP, TITLE, LOGIN, EMAIL, CONSENT, MIC, SETUP, HANDOFF, TUTORIAL_TAP, TUTORIAL_TALK, FEATURES, EXPIRED, APP }
+enum class Step { CLAP, TITLE, LOGIN, EMAIL, CONSENT, MIC, PIN, SETUP, HANDOFF, TUTORIAL_TAP, TUTORIAL_TALK, FEATURES, EXPIRED, APP }
 
 /** 부모 영역에서 여는 큰 창 */
-enum class Sheet { NONE, WITHDRAW_INFO, WITHDRAW_CONFIRM }
+enum class Sheet { NONE, WITHDRAW_INFO, WITHDRAW_CONFIRM, PIN_CHANGE }
 
 object Shell {
     var step by mutableStateOf(Step.CLAP)
@@ -66,6 +66,20 @@ object Shell {
         if (limit > 0) s.dailyLimit = limit
         s.artStyle = p.getString("style", "felt") ?: "felt"
         s.pinToStart = p.getBoolean("pinStart", false)
+    }
+
+    // ── 부모 비밀번호 (09-29) — 폰 안에만 · 해시로만 저장한다(원래 숫자는 남기지 않는다) ─────────────
+
+    /** 부모 비밀번호를 정했나 */
+    val hasPin: Boolean get() = prefs?.getString("pin_hash", null) != null
+
+    fun setPin(pin: String) { prefs?.edit()?.putString("pin_hash", hash(pin))?.apply() }
+
+    fun checkPin(pin: String): Boolean = prefs?.getString("pin_hash", null) == hash(pin)
+
+    private fun hash(pin: String): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        return md.digest("otto-pin:$pin".toByteArray()).joinToString("") { "%02x".format(it) }
     }
 
     fun finishOnboarding() {
