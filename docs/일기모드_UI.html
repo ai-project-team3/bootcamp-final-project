@@ -90,6 +90,24 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* D1 whiteboard — logical space 690×230 */
 .board-wrap{position:absolute;left:12.5cqw;top:3.2cqw;width:84.6cqw;height:28.2cqw;background:#fff;border-radius:2.5cqw;box-shadow:0 .8cqw 2cqw rgba(58,42,32,.2)}
 #rings{position:absolute;inset:0;pointer-events:none;z-index:2}
+.fx{position:absolute;pointer-events:none;z-index:3}
+.fx img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.fx.pung img.old{animation:pungOut .3s ease-in forwards}
+.fx.pung img.new{animation:pungIn .5s cubic-bezier(.3,1.7,.5,1) both}
+.fx.boing img{transform-origin:50% 100%;animation:boing 1s ease-out}
+.fx .puff{position:absolute;left:50%;top:50%;width:var(--r);height:var(--r);margin:calc(var(--r) / -2) 0 0 calc(var(--r) / -2);border-radius:50%;background:#fff;box-shadow:inset 0 -.3cqw 0 var(--wool-cream),0 0 0 .2cqw rgba(58,42,32,.12);animation:puff .7s ease-out forwards}
+.fx-word{position:absolute;left:50%;top:0;transform:translate(-50%,-110%);font:3.4cqw var(--kid);white-space:nowrap;color:var(--coral);-webkit-text-stroke:.5cqw #fff;paint-order:stroke fill;animation:word 1s ease-out forwards;z-index:1}
+.fx-word.in{top:50%;transform:translate(-50%,-50%)}
+.fx.boing .fx-word{color:var(--sky)}
+.sticker .fx-word{font-size:2.8cqw;top:1cqw}
+.sticker.pung img{animation:pungIn .5s cubic-bezier(.3,1.7,.5,1) both}
+.sticker.boing img{transform-origin:50% 100%;animation:boing 1s ease-out}
+.sticker .puff{position:absolute;left:50%;top:7cqw;width:var(--r);height:var(--r);margin:calc(var(--r) / -2) 0 0 calc(var(--r) / -2);border-radius:50%;background:#fff;box-shadow:inset 0 -.3cqw 0 var(--wool-cream),0 0 0 .2cqw rgba(58,42,32,.12);animation:puff .7s ease-out forwards;pointer-events:none;z-index:2}
+@keyframes pungOut{0%{transform:none}40%{transform:scale(1.15)}100%{transform:scale(.4);opacity:0}}
+@keyframes pungIn{0%{transform:scale(.3);opacity:0}100%{transform:none;opacity:1}}
+@keyframes puff{0%{transform:translate(0,0) scale(.2);opacity:1}45%{opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(1.2);opacity:0}}
+@keyframes boing{0%{transform:none}14%{transform:scale(1.25,.7)}30%{transform:scale(.82,1.3)}46%{transform:scale(1.12,.88)}62%{transform:scale(.94,1.08)}78%{transform:scale(1.03,.97)}100%{transform:none}}
+@keyframes word{0%{opacity:0;scale:.4}20%{opacity:1;scale:1.2}35%{scale:1}80%{opacity:1}100%{opacity:0}}
 .board-wrap canvas{width:100%;height:100%;display:block;touch-action:none;cursor:crosshair;border-radius:2.5cqw}
 .board-hint{position:absolute;inset:0;display:grid;place-items:center;color:var(--app-ink-soft);font-size:2.4cqw;pointer-events:none}
 .ring{position:absolute;border:.45cqw dashed var(--teal);border-radius:50%;pointer-events:none;animation:ring 1.2s ease-in-out infinite}
@@ -117,10 +135,10 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .sticker[aria-pressed="true"]::before{content:"";position:absolute;inset:-1cqw -1cqw 2.6cqw;border:.4cqw solid var(--mustard);border-radius:2cqw}
 .sticker span{font-size:2.1cqw;background:#fff;border-radius:2cqw;padding:.1cqw 1.4cqw}
 .sticker span.q{background:var(--wool-cream);color:var(--app-ink-soft)}
-.merge-btn{position:absolute;right:6cqw;top:33.5cqw;width:15cqw;height:6cqw;font-size:2.2cqw;display:none}
+.merge-btn{position:absolute;right:6cqw;top:1.6cqw;width:15cqw;height:5.4cqw;font-size:2.2cqw;display:none;z-index:3}   /* above the tray — the band covers the bottom */
 .merge-btn.on{display:block}
 #btn-split{right:22cqw}
-#btn-look{right:38cqw}
+#btn-look{right:38cqw;width:19cqw}
 .pick{position:absolute;left:3cqw;right:3cqw;top:5.5cqw;bottom:12.5cqw;background:rgba(255,247,236,.98);border-radius:3cqw;box-shadow:0 1cqw 2.4cqw rgba(58,42,32,.25);display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.4cqw;padding:1.6cqw 2cqw;z-index:7}
 .pick.on{display:flex}
 .pick b{font-size:2.8cqw;font-weight:400}
@@ -517,7 +535,7 @@ const Q = {
 // ── state ──
 let S;
 function fresh(){
-  S = {scr:'d0', strokes:[], pieces:[], apart:[], slots:{}, lines:{}, storyAsked:{}, praised:{}, curPiece:null, nextPiece:1, gen:{}, notices:[], pickFor:null, offered:{}, offers:0, seeAsked:{}, doneAt:-1,
+  S = {scr:'d0', strokes:[], pieces:[], apart:[], fxHide:new Set(), slots:{}, lines:{}, storyAsked:{}, praised:{}, curPiece:null, nextPiece:1, gen:{}, notices:[], pickFor:null, offered:{}, offers:0, seeAsked:{}, doneAt:-1,
        wbAsked:0, afterAsked:0, utter:0, cur:null, retried:false, lastPen:0, lastQ:0, qAt:0,
        queue:[], sel:[], pages:[], page:0, log:[], nextId:1, sampleStep:0};
 }
@@ -664,8 +682,9 @@ function paint(c, strokes, sx, sy, ox=0, oy=0){
 }
 function redraw(){
   ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
-  const sx = cv.width/LW, sy = cv.height/LH, swapped = S.pieces.filter(p => p.look && p.look !== 'orig' && p.lookIds);
-  const hidden = new Set(swapped.flatMap(p => p.lookIds));
+  const fx = S.pieces.filter(p => S.fxHide.has(p.id));   // drawn by the 펑 / 띠용 overlay for a moment
+  const sx = cv.width/LW, sy = cv.height/LH, swapped = S.pieces.filter(p => p.look && p.look !== 'orig' && p.lookIds && !fx.includes(p));
+  const hidden = new Set([...swapped.flatMap(p => p.lookIds), ...fx.flatMap(p => p.ids)]);
   for (const p of swapped){
     const L = boardLook(p); if (!L) continue;
     if (L.img.complete && L.img.naturalWidth) ctx.drawImage(L.img, L.ox*sx, L.oy*sy, L.w*sx, L.h*sy);
@@ -1056,19 +1075,6 @@ function goD2(){
   if (!S.strokes.length){ log('빈 화이트보드 → 그림 없는 날'); return goD3(); }
   show('d2'); S.sel = []; renderTray();
   log(`원본 획을 조각 ${objects().length}개${bgView() ? ' + 배경' : ''}으로 오림 (폰 안) · 원본 전체도 sceneDrawing 에 그대로`);
-  const named = objects().filter(o => o.name && !S.gen[o.key]);   // pieces the child has not asked about yet
-  if (S.genOn && named.length && !S.lookAsked){
-    S.lookAsked = true;
-    band('그린 것들을 오려 봤어! 이 중에 다른 모습으로 바꿔 보고 싶은 거 있어?', 'listen');
-    log('아이 희망을 한 번 묻는다 — 바꾸지 않아도 된다');
-    opts([
-      {label:'🗣 "아니, 그대로 좋아!"', hint:'원본 그대로 간다', wide:true, run:() => { S.utter++; log('아이: "그대로 좋아" → 원본 그대로'); band('좋아, 네가 그린 그대로 갈게! 잘못 잘린 게 있으면 눌러서 고쳐 줘.', 'talk'); d2Opts(); }},
-      ...named.map(o => ({label:`🗣 "${o.name} 바꿔 줘!"`, run:() => { S.utter++; log(`아이: "${o.name} 바꿔 줘" → 그 조각만`); requestLook(o); d2Opts(); }})),
-    ], t => { const o = named.find(x => t.includes(x.name)); S.utter++;
-      if (o){ log(`아이: "${t}" → 「${o.name}」`); requestLook(o); d2Opts(); }
-      else { log(`아이: "${t}" → 바꿀 조각을 못 찾음 · 그대로`); band('그래, 그대로 갈게! 바꾸고 싶으면 그림을 눌러 줘.', 'talk'); d2Opts(); } });
-    return;
-  }
   band('그린 것들을 오려 봤어! 잘못 잘린 게 있으면 눌러서 고쳐 줘.', 'talk');
   d2Opts();
 }
@@ -1225,15 +1231,53 @@ function openPick(key){
 }
 function pickLook(id){
   const o = pieceOf(S.pickFor); if (!o) return;
+  const before = lookURL(o).url;   // what the child saw until now
   o.pc.look = id; o.pc.lookIds = id === 'orig' ? null : [...o.pc.ids]; const L = LOOKS.find(x => x.id === id);
   redraw();
   log(`아이가 고름: 「${what(o)}」 → ${L.name}${id === 'orig' ? '' : ' · 부모 기록엔 "아이가 고른 생성 그림", 원본도 보관'}`);
   const yn = o.name && you(o.name), n = yn ? `${yn}${batchim(yn) ? '으로' : '로'}` : '걸로';
   closePick(id === 'orig' ? `네가 그린 ${n} 할게!` : `내가 그린 ${n} 할게! 고마워.`);
+  morph(o.key, before, id === 'orig' ? 'boing' : 'pung');
+}
+// 펑! — the old drawing bursts in a puff and the picked Otto drawing pops out · 띠용! — the child's own drawing stretches and squashes
+function puffs(el, n = 9){
+  for (let i = 0; i < n; i++){
+    const a = i / n * Math.PI * 2, d = 3 + (i % 3);
+    const q = document.createElement('i'); q.className = 'puff';
+    q.style.cssText = `--r:${2.2 + (i % 3) * .8}cqw;--dx:${(Math.cos(a) * d).toFixed(2)}cqw;--dy:${(Math.sin(a) * d * .8).toFixed(2)}cqw;animation-delay:${(i % 3) * 40}ms`;
+    el.appendChild(q);
+  }
+}
+function fxWord(el, text, inside){ const w = document.createElement('b'); w.className = 'fx-word' + (inside ? ' in' : ''); w.textContent = text; el.appendChild(w); }
+function morph(key, before, kind){
+  const o = pieceOf(key); if (!o) return;
+  const after = lookURL(o).url, word = kind === 'pung' ? '펑!' : '띠용!';
+  log(kind === 'pung' ? `「${what(o)}」 펑! — 원래 그림이 연기로 사라지고 고른 오또 그림이 튀어나온다` : `「${what(o)}」 띠용! — 내 그림 그대로, 늘었다 줄었다`);
+  if (S.scr === 'd2'){
+    const st = document.querySelector(`#tray .sticker[data-k="${key}"]`); if (!st) return;
+    st.classList.remove('pung', 'boing'); void st.offsetWidth; st.classList.add(kind);
+    if (kind === 'pung') puffs(st);
+    fxWord(st, word);
+    setTimeout(() => { st.classList.remove(kind); st.querySelectorAll('.puff,.fx-word').forEach(x => x.remove()); }, 1100);
+    return;
+  }
+  if (S.scr !== 'd1') return;
+  const pad = 10, b = o.box, cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+  const w = b.x1 - b.x0 + 2 * pad, h = b.y1 - b.y0 + 2 * pad;
+  const el = document.createElement('div'); el.className = 'fx ' + kind;
+  el.style.cssText = `left:${(cx - w/2) / LW * 100}%;top:${(cy - h/2) / LH * 100}%;width:${w / LW * 100}%;height:${h / LH * 100}%`;
+  el.innerHTML = `<img class="old" src="${kind === 'boing' ? after : before}" alt="">`;   // 띠용 bounces the child's own drawing
+  fxWord(el, word, cy - h/2 < LH * .18);   // no room above → the word sits on the piece
+  S.fxHide.add(o.pc.id); redraw(); $('board').appendChild(el);
+  const done = () => { el.remove(); S.fxHide.delete(o.pc.id); redraw(); };
+  if (kind === 'boing') return setTimeout(done, 1050);
+  puffs(el);
+  setTimeout(() => { const n = document.createElement('img'); n.className = 'new'; n.src = after; n.alt = ''; el.querySelector('img.old').remove(); el.prepend(n); }, 280);
+  setTimeout(done, 1000);
 }
 function closePick(msg){
   S.pickFor = null; $('pick').classList.remove('on'); $('tray').classList.remove('narrow');
-  if (typeof msg === 'string') band(msg, 'talk');
+  if (typeof msg === 'string'){ band(msg, 'talk'); S.lastQ = Date.now(); }   // let the 펑 / 띠용 and the thanks land before the next question
   refreshGen(); if (S.scr === 'd1') drawingOpts();
   renderAskBtn();
 }
