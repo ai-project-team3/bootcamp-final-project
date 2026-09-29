@@ -343,7 +343,7 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
           <li><b>인식 낱말은 질문 문구에만 쓴다(규칙 5).</b> 조각 이름은 아이가 말한 것만 붙는다. "집처럼 보이네"에 "모래성이야"라고 하면 모래성이다</li>
           <li><b>책은 아이 그림을 다시 그리지 않는다(차별점 1).</b> 원본 선을 오려서 옮기고 돌리고 키울 뿐이다. 오리기는 폰 안에서 한다</li>
     <li><b>[너도 그려줘]를 누르면 오또가 "나도 강아지 그려 볼까?"</b> — "응!"이면 "나도 그려 보고 보여줄게! 너도 더 그리고 있어." 이름이 없으면 먼저 "이거 뭐 그린 거야?". 말로 "강아지 멋지게 그려줘"라고 해도 된다</li>
-          <li><b>오또 그림이 오면 이름표엔 ✨만 붙고, 여는 곳은 화이트보드 밖 오또 버튼이다</b> — 그리다 잘못 누를 일이 없게. 버튼이 「오또 그림 왔어!」로 바뀌고, 누르면 크게 보며 고른다</li>
+          <li><b>오또 그림이 오면 이름표에 ✨가 붙고 오른쪽 오또 버튼이 「오또 그림 왔어!」로 바뀐다.</b> 둘 중 어느 쪽을 눌러도 크게 보며 고른다. 이름표는 그리기를 막지 않는다 — 이름표 위에서 <b>짧게 톡</b>은 이름표 누름(점이 안 찍힘), <b>끌면</b> 그대로 선이 그려진다</li>
           <li><b>오또 그림은 뒤에서 만든다.</b> 화면은 그대로이고 아이는 계속 그린다. 다 되면 이름표에 ✨가 붙고 오또가 멈춘 틈에 알려 준다. ✨를 누르면 옆에 작은 고르기 칸 — 원본이 첫 번째. 8초 넘으면 "조금 뒤에 올 거야", 15초면 원본 그대로</li>
           <li>인식은 여기서 간단한 모양 규칙으로 흉내 냈다. 실제는 폰 안 ML Kit AutoDraw → 낱말만 Jev (확신 0.6 미만이면 "이건 뭐 그린 거야?"로 연다)</li>
         </ul>
@@ -545,14 +545,34 @@ function drawRings(){
   $('rings').innerHTML = objects().filter(o => o.name || o.key === curKey).map(o => {
     const p = 16, b = o.box, l = (b.x0-p)/LW*100, t = (b.y0-p)/LH*100, w = (b.x1-b.x0+2*p)/LW*100, h = (b.y1-b.y0+2*p)/LH*100;
     const ready = lookReady(o);
-    return `<div class="ring ${o.key===curKey ? (S.cur && S.cur.point ? 'point' : '') : 'named'}" style="left:${l}%;top:${t}%;width:${w}%;height:${h}%">${o.name?`<span class="tag${ready?' ready':''}">${ready?'✨ ':''}${o.name}</span>`:''}</div>`;
+    return `<div class="ring ${o.key===curKey ? (S.cur && S.cur.point ? 'point' : '') : 'named'}" style="left:${l}%;top:${t}%;width:${w}%;height:${h}%">${o.name?`<span class="tag${ready?' ready':''}" data-k="${o.key}">${ready?'✨ ':''}${o.name}</span>`:''}</div>`;
   }).join('') + (bgView() ? `<span class="bgtag" style="left:${bgView().box.x0/LW*100}%;top:${(bgView().box.y0-22)/LH*100}%">배경</span>` : '');
 }
 function lpos(e){ const r = cv.getBoundingClientRect(); return [(e.clientX-r.left)/r.width*LW, (e.clientY-r.top)/r.height*LH]; }
-cv.addEventListener('pointerdown', e => { if (S.scr !== 'd1') return; cv.setPointerCapture(e.pointerId); pen = {id:S.nextId++, t:Date.now(), c:color, w:6, p:[lpos(e)]}; S.strokes.push(pen); S.lastPen = Date.now(); redraw(); });
+// which name tag (if any) is under the pointer; tags never block drawing, they only get short taps
+function tagAt(e){
+  for (const t of document.querySelectorAll('#rings .tag[data-k]')){
+    const r = t.getBoundingClientRect();
+    if (e.clientX >= r.left - 4 && e.clientX <= r.right + 4 && e.clientY >= r.top - 4 && e.clientY <= r.bottom + 4) return +t.dataset.k;
+  }
+  return null;
+}
+cv.addEventListener('pointerdown', e => { if (S.scr !== 'd1') return; cv.setPointerCapture(e.pointerId); pen = {id:S.nextId++, t:Date.now(), c:color, w:6, p:[lpos(e)], onTag:tagAt(e)}; S.strokes.push(pen); S.lastPen = Date.now(); redraw(); });
 cv.addEventListener('pointermove', e => { if (!pen) return; pen.p.push(lpos(e)); S.lastPen = Date.now(); redraw(); });
+const TAP_MOVE = 8, TAP_MS = 400;   // logical units / ms: less than this on a name tag is a tap, not a line
+function lineLength(p){ let n = 0; for (let i = 1; i < p.length; i++) n += Math.hypot(p[i][0]-p[i-1][0], p[i][1]-p[i-1][1]); return n; }
+function tapTag(key){
+  const o = pieceOf(key); if (!o) return;
+  if (lookReady(o) || (S.gen[o.key] && S.gen[o.key].state === 'ready')){ S.cur = null; openPick(o.key); log(`「${o.name}」 이름표를 톡 → 오또 그림 크게 보기 (점은 안 찍힘)`); return; }
+  if (!S.cur) band(`${o.name}!`, 'talk');
+  log(`「${o.name}」 이름표를 톡 → 이름만 불러 준다 (점은 안 찍힘)`);
+}
 const up = () => {
   if (!pen) return;
+  if (pen.onTag != null && lineLength(pen.p) < TAP_MOVE && Date.now() - pen.t < TAP_MS){
+    const key = pen.onTag; S.strokes = S.strokes.filter(st => st !== pen); pen = null; redraw();
+    tapTag(key); drawingOpts(); return;
+  }
   const before = S.curPiece;
   const st = pen; assignStroke(st); S.curPiece = pieceIdOf(st.id); pen = null; S.lastPen = Date.now();
   onSwitch(before, st);
