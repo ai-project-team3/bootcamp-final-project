@@ -9,6 +9,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -142,18 +143,34 @@ class Director(private val scope: CoroutineScope) {
      * 서버 모드면 마스코트 말을 **목소리로도** 낸다(`/tts` · 09-29).
      * 이름은 보호자가 「이름 읽기」에 동의했을 때만 소리로 나간다 — 아니면 「우리 친구」(규칙 6 개정).
      * 목소리가 실패해도 말풍선은 이미 떴다 — 조용한 마스코트일 뿐 멈추지 않는다.
-     * ⚠️ 아직 **기다리지 않는다**: `ask()` 의 `pause(1200)` 은 대본 기준이라, 긴 대사면 아이 차례와 겹칠 수 있다
+     *
+     * **대사는 줄을 서서 끝까지 읽는다** (09-29 S25+). 전에는 새 대사가 앞 대사를 끊어서
+     * 「받아주기 → 질문」이 연달아 오면 앞말이 반쯤 잘렸다. 지금은 목소리를 **먼저 받아 두고**
+     * (기다리는 동안 다음 것을 받는다) 앞 대사가 끝나면 튼다. 아이 차례는 [awaitVoice] 뒤에 온다.
      */
     private var voiceJob: Job? = null
 
     private fun speakLive(text: String) {
         if (!Server.liveFor(s.mode) || text.isBlank()) return
         val line = s.nameMask().speakable(text, ConsentStore.nameVoiceAgreed)
-        voiceJob?.cancel()
+        val before = voiceJob
+        val audio = scope.async { Server.tts(line) }          // 앞 대사를 읽는 동안 미리 받는다
         voiceJob = scope.launch {
-            val audio = Server.tts(line) ?: return@launch
-            Voice.play(audio)
+            before?.join()
+            audio.await()?.let { Voice.playAndWait(it) }
         }
+    }
+
+    /** 마스코트가 하던 말을 끝낼 때까지 기다린다 — 서버 모드가 아니면 바로 돌아온다 */
+    suspend fun awaitVoice() {
+        voiceJob?.join()
+    }
+
+    /** 목소리를 지금 멈추고 줄 선 대사도 버린다 — 🎤 가 눌렸다(마스코트 소리가 녹음에 섞이면 안 된다) */
+    private fun hushVoice() {
+        voiceJob?.cancel()
+        voiceJob = null
+        Voice.stopPlaying()
     }
 
     /**
@@ -241,6 +258,7 @@ class Director(private val scope: CoroutineScope) {
     private fun liveMic() {
         if (s.micOn) { stopMic = true; return }            // ⏹ — 녹음을 여기서 끊는다
         stopMic = false
+        hushVoice()                                       // 마스코트 소리가 녹음에 들어가지 않게
         s.micOn = true
         s.countdown = null
         log("🎤 켬 — 진짜 녹음 · 말이 끝나면 저절로 끊는다 (VAD 0.3초)")
@@ -454,7 +472,8 @@ class Director(private val scope: CoroutineScope) {
         scripted += q.extra
         buttons(*scripted.toTypedArray())
 
-        pause(1200) // 마스코트 말이 끝나면(TTS 종료) 아이 차례
+        // 마스코트 말이 끝나면(TTS 종료) 아이 차례 — 서버 모드는 **진짜 목소리가 끝날 때까지** 기다린다 (09-29 S25+)
+        if (Server.liveFor(s.mode)) { awaitVoice(); pause(300) } else pause(1200)
         val sec = when (q.kind) { Kind.EASY -> 5.0; Kind.HARD -> 8.0; Kind.CHOICE -> 7.0 }
         val first = waitReply(sec)
 

@@ -17,6 +17,8 @@ import com.konovalov.vad.silero.config.Mode
 import com.konovalov.vad.silero.config.SampleRate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -112,23 +114,39 @@ object Voice {
     // ── out ────────────────────────────────────────────────────────
 
     private var player: MediaPlayer? = null
+    private var done: (() -> Unit)? = null
 
-    /** Play TTS bytes (mp3, wav in mock). Stops whatever was playing — one mascot, one voice. */
-    fun play(audio: ByteArray) {
+    /**
+     * Play TTS bytes (mp3, wav in mock) and **return when it has finished** (or was stopped).
+     * The caller queues lines one after another — 09-29 on the S25+: cutting the previous line
+     * made the mascot skip half of what it said.
+     */
+    suspend fun playAndWait(audio: ByteArray) {
         val c = ctx ?: return
-        runCatching {
-            stopPlaying()
-            val f = File(c.cacheDir, "mascot_line").apply { writeBytes(audio) }
-            player = MediaPlayer().apply {
-                setDataSource(f.absolutePath)
-                setOnCompletionListener { it.release(); if (player === it) player = null }
-                prepare(); start()
+        withContext(Dispatchers.Main) {
+            suspendCancellableCoroutine { cont ->
+                val finish = { if (cont.isActive) cont.resume(Unit) }
+                runCatching {
+                    stopPlaying()
+                    val f = File(c.cacheDir, "mascot_line_${System.nanoTime()}").apply { writeBytes(audio) }
+                    player = MediaPlayer().apply {
+                        setDataSource(f.absolutePath)
+                        setOnCompletionListener { it.release(); f.delete(); if (player === it) player = null; finish() }
+                        setOnErrorListener { mp, _, _ -> mp.release(); f.delete(); if (player === mp) player = null; finish(); true }
+                        prepare(); start()
+                    }
+                    done = finish
+                }.onFailure { Log.w(TAG, "play failed: ${it.message}"); finish() }
+                cont.invokeOnCancellation { stopPlaying() }
             }
-        }.onFailure { Log.w(TAG, "play failed: ${it.message}") }
+        }
     }
 
+    /** Stop the voice now — the child pressed 🎤, so the mascot must not be recorded. */
     fun stopPlaying() {
         player?.let { runCatching { it.stop() }; it.release() }
         player = null
+        done?.invoke()
+        done = null
     }
 }

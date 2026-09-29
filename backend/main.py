@@ -28,6 +28,8 @@ async def lifespan(_: FastAPI):
     # Rule 8 needs the first picture of the day in time too: cold, it took 48.9 s (09-29)
     if not settings.mock and settings.image_warmup:
         asyncio.create_task(comfy.warm_up())
+    if not settings.mock and settings.stt_warmup:
+        asyncio.create_task(asyncio.to_thread(stt.warm_up))
     yield
 
 
