@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException
 from ..config import REPO, settings
 from ..filters.blocklist import BLOCK, ALLOW
 from ..llm.client import LLMError, complete
+from ..llm.judge_prompt import system_block
 from ..schemas.story import Scene, StoryRequest, StoryResult
 
 router = APIRouter()
@@ -21,19 +22,10 @@ EVAL = REPO / "eval"
 _SCENES = {"story": (6, 6), "diary": (3, 6), "coop": (3, 6)}
 
 
-def _system_block(path: str) -> str:
-    """The text inside the first ``` fence under 「시스템 프롬프트」 — the files wrap it in notes."""
-    text = (EVAL / path).read_text(encoding="utf-8")
-    body = text.split("## 시스템 프롬프트", 1)[1]
-    return body.split("```", 2)[1].strip("\n")
-
-
 @lru_cache(maxsize=4)
 def system(mode: str) -> str:
-    if mode == "story":
-        # the story prompt ends with its own input block; the server sends input separately
-        return _system_block("story_prompt.md").split("[입력 슬롯]", 1)[0].rstrip()
-    return _system_block("story_prompt_diary.md")
+    # same cut as the judge and the measurement (eval/prompt_block.py): the fenced block, input dropped
+    return system_block(EVAL / ("story_prompt.md" if mode == "story" else "story_prompt_diary.md"))
 
 
 @lru_cache(maxsize=1)

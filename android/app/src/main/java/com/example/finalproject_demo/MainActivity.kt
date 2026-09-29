@@ -44,6 +44,7 @@ import com.example.finalproject_demo.ui.ProgressTrack
 import com.example.finalproject_demo.ui.PuppetTypography
 import com.example.finalproject_demo.ui.ConsentStore
 import com.example.finalproject_demo.ui.FeelPrefs
+import com.example.finalproject_demo.net.Server
 import androidx.compose.ui.platform.LocalContext
 import com.example.finalproject_demo.ui.GuardianConsentScreen
 import com.example.finalproject_demo.ui.SplashScreen
@@ -67,6 +68,8 @@ class MainActivity : ComponentActivity() {
         // 동의를 기기에서 읽어 온다 — 없으면 켤 때마다 동의 화면이 다시 뜬다 (09-25)
         ConsentStore.attach(this)
         FeelPrefs.load(this)      // 효과음 · 진동 켬/끔 (부모 설정 · 09-25)
+        // 서버는 주소를 줄 때만 켠다 — 없으면 지금처럼 대본으로 돈다 (net/Server.kt)
+        intent?.getStringExtra("server")?.let { Server.base = it.trimEnd('/') }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
