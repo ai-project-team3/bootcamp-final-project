@@ -121,6 +121,20 @@ class ServerClientTest {
         assertEquals(3, Server.tts("놀이터 갔구나!")!!.size)
     }
 
+    @Test
+    fun turnReturnsVerdictAndLineAndEitherMayBeMissing() = runBlocking {
+        json("/turn", """{"judge":$VERDICT,"line":{"ack":"놀이터구나!","expand":null,"question":"거기서 뭐 했어?"}}""")
+        val r = Server.turn(turn(), ask = false)!!
+        assertEquals(false, JSONObject(seen.getValue("/turn")).getBoolean("ask"))
+        assertEquals("reaction", r.verdict!!.nextSlot)
+        assertEquals(Server.Line("놀이터구나!", null, "거기서 뭐 했어?"), r.line)
+
+        json("/turn", """{"judge":null,"line":{"ack":"그랬구나!","expand":null,"question":null}}""")
+        val half = Server.turn(turn())!!
+        assertNull(half.verdict)
+        assertNull(half.line!!.question)
+    }
+
     private fun turn() = Server.Turn("diary", mapOf("place" to null), "place", "오늘 어디 갔었어?", "놀이터 갔어")
 
     companion object {

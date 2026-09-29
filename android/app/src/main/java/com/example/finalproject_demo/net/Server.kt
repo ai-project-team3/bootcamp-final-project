@@ -122,6 +122,38 @@ object Server {
         emotion = str(j, "emotion"),
     )
 
+    // ── /turn ──────────────────────────────────────────────────────
+
+    /** What the mascot says after the child (guidelines/7 §3). Placeholders `{주인공}` · `{친구n}` stay — unmask on the phone. */
+    data class Line(val ack: String, val expand: String?, val question: String?)
+
+    /** Either half may be null — fill it from the script. [question] is null when [ask] was false or the story is ready. */
+    data class TurnResult(val verdict: Verdict?, val line: Line?)
+
+    /**
+     * One turn: the verdict, then the mascot's three pieces, in one round trip (~3.3s, 09-29).
+     * [ask] = false when the parent wrote the next question (coop) — the mascot only reacts.
+     */
+    suspend fun turn(t: Turn, ask: Boolean = true): TurnResult? {
+        val body = JSONObject()
+            .put("mode", t.mode)
+            .put("slots", slotsJson(t.slots))
+            .put("asked_slot", t.askedSlot ?: JSONObject.NULL)
+            .put("template", t.template ?: JSONObject.NULL)
+            .put("level", t.level ?: JSONObject.NULL)
+            .put("turn", t.turn)
+            .put("question", t.question)
+            .put("utterance", t.utterance)
+            .put("ask", ask)
+        val j = postJson("/turn", body, readMs = 20_000) ?: return null
+        return try {
+            TurnResult(
+                verdict = j.optJSONObject("judge")?.let { parseVerdict(it) },
+                line = j.optJSONObject("line")?.let { Line(it.getString("ack"), str(it, "expand"), str(it, "question")) },
+            )
+        } catch (e: Exception) { warn("/turn parse", e); null }
+    }
+
     // ── /story ─────────────────────────────────────────────────────
 
     /** Book text. Null = keep the app's own template book. Captions still carry `{주인공}` · `{친구n}` — unmask on the phone. */
