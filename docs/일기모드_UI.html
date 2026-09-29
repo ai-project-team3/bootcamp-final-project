@@ -2,7 +2,7 @@
 <title>오늘 이야기 프로토타입</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* page chrome follows the viewer theme */
 :root{
@@ -177,7 +177,39 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .book-full{position:absolute;left:50%;top:9cqw;transform:translateX(-50%);width:62cqw;height:20.7cqw;background:#fff;border-radius:1.6cqw;box-shadow:0 1cqw 2cqw rgba(58,42,32,.25);padding:.6cqw;display:none}
 .book-full.on{display:block}
 .book-full img{width:100%;height:100%;object-fit:contain}
-.stage{position:absolute;left:20cqw;width:60cqw;top:8.5cqw;height:20cqw;touch-action:none;background:#fff;border-radius:2cqw;box-shadow:0 .8cqw 2cqw rgba(58,42,32,.18)}   /* 3:1 like the whiteboard, so pieces sit where they were drawn */
+.stage{position:absolute;left:20cqw;width:60cqw;top:8.5cqw;height:20cqw;touch-action:none;background:#fff;border-radius:2cqw;box-shadow:0 .8cqw 2cqw rgba(58,42,32,.18)}
+/* the 그림일기 sheet: date · weather · title, a picture box at the whiteboard's 3:1, a 원고지 writing box */
+.sheet{position:absolute;left:9.5cqw;width:79cqw;top:1.6cqw;height:42cqw;background:#FFFEF8;border-radius:1.6cqw;box-shadow:0 .8cqw 2cqw rgba(58,42,32,.2)}
+.sheet-head{position:absolute;left:2cqw;right:2cqw;top:.9cqw;height:4.4cqw;display:flex;align-items:center;gap:2cqw;font-size:1.8cqw;color:var(--app-ink);border-bottom:.2cqw solid #E6D9C2}
+.sheet-head .date{white-space:nowrap}
+.wx{display:flex;align-items:center;gap:.5cqw;white-space:nowrap}
+.wx button{width:3.6cqw;height:3.6cqw;border-radius:50%;border:.25cqw solid transparent;background:none;font-size:2cqw;cursor:pointer;opacity:.35;padding:0}
+.wx button[aria-pressed="true"]{opacity:1;border-color:var(--mustard);background:#FFF3D1}
+.wx.ask button{animation:glow 1.4s ease-in-out infinite;opacity:.7}
+.ttl{flex:1;text-align:left;border:none;background:none;font-family:var(--kid);font-size:1.8cqw;color:var(--app-ink);cursor:pointer;padding:.3cqw .6cqw;border-radius:1cqw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ttl:hover,.ttl:focus-visible{background:#FFF3D1}
+.ttl{position:relative;overflow:visible}
+.ttl .blank{color:var(--app-ink-soft);border-bottom:.2cqw dashed var(--app-ink-soft)}
+.sheet .stage{left:6.5cqw;width:66cqw;top:6cqw;height:22cqw;border-radius:1cqw;box-shadow:none;border:.25cqw solid #E6D9C2}
+.grid{position:absolute;left:3cqw;right:3cqw;top:28.8cqw;bottom:1cqw;display:flex;flex-wrap:wrap;align-content:flex-start;cursor:pointer;
+  background-image:linear-gradient(#EBD9BD .15cqw, transparent .15cqw),linear-gradient(90deg,#EBD9BD .15cqw, transparent .15cqw);background-size:var(--cell,3.3cqw) var(--row,5.2cqw)}
+.grid .ch{width:var(--cell,3.3cqw);height:var(--row,5.2cqw);display:grid;place-items:center;font-family:"Nanum Pen Script",var(--kid);font-size:calc(var(--cell,3.3cqw) * 1.05);color:#2F3B63;opacity:0;animation:write .18s ease-out forwards}
+.grid .ch.soft{color:var(--app-ink-soft)}
+.feel{position:absolute;right:4cqw;top:29.6cqw;display:none;gap:1cqw;z-index:3}
+.feel.on{display:flex}
+.feel button{width:7.4cqw;height:7.4cqw;border-radius:1.6cqw;border:.3cqw solid #E6D9C2;background:#fff;font-size:3.2cqw;cursor:pointer;display:grid;place-items:center;line-height:1;padding:.4cqw 0;animation:glow 1.6s ease-in-out infinite}
+.feel button span{font-family:var(--kid);font-size:1.4cqw;color:var(--app-ink)}
+.rx-bubble.below{bottom:auto;top:100%;transform:translate(-50%,.6cqw)}
+@keyframes write{from{opacity:0;transform:translateY(-.3cqw)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.grid .ch{animation:none;opacity:1}}
+#s-d5 .tools{top:3cqw;left:1.4cqw;flex-direction:column}
+#s-d5 .tools button{width:5.4cqw;height:5.4cqw}
+#s-d5 .nav{top:auto;bottom:3cqw;transform:none;width:6.4cqw;height:6.4cqw}
+#s-d5 .nav.prev{left:1.4cqw}
+#s-d5 .nav.next{right:1.4cqw}
+#s-d5 .dots{top:3cqw;right:1cqw;flex-direction:column;padding:1cqw .7cqw;gap:.6cqw;font-size:1.5cqw}
+#s-d5 .mission{display:none}
+.puppet.glow .piece{filter:drop-shadow(0 0 .8cqw rgba(242,178,50,.95))}
 .puppet{position:absolute;cursor:grab;touch-action:none;transform-origin:50% 100%}
 .puppet.lift{cursor:grabbing;filter:drop-shadow(0 1.4cqw 1cqw rgba(58,42,32,.3));z-index:3}
 .puppet .piece{position:static;display:block;width:100%;pointer-events:none}
@@ -348,13 +380,21 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
         <section class="scr" id="s-d5">
           <div class="book-bg" id="bk-bg"></div>
           <div class="book-full" id="bk-full"><img id="bk-full-img" alt="아이가 그린 그림 원본 전체"></div>
-          <div class="stage" id="bk-stage"></div>
+          <div class="sheet" id="bk-sheet">
+            <div class="sheet-head">
+              <span class="date" id="bk-date"></span>
+              <span class="wx" id="bk-wx" role="group" aria-label="날씨"></span>
+              <button class="ttl" id="bk-title"></button>
+            </div>
+            <div class="stage" id="bk-stage"></div>
+            <div class="grid" id="bk-sub" role="button" aria-label="이 줄 다시 읽기"></div>
+            <div class="feel" id="bk-feel" role="group" aria-label="오늘 기분"></div>
+          </div>
           <div class="tools" id="bk-tools" role="toolbar" aria-label="도구"></div>
           <div class="mission" id="bk-mission" aria-live="polite"></div>
           <div class="dots" id="bk-dots"></div>
-          <button class="nav prev" id="bk-prev" aria-label="앞 쪽">◀</button>
-          <button class="nav next" id="bk-next" aria-label="다음 쪽">▶</button>
-          <div class="subtitle" id="bk-sub"></div>
+          <button class="nav prev" id="bk-prev" aria-label="앞 줄">◀</button>
+          <button class="nav next" id="bk-next" aria-label="다음 줄">▶</button>
         </section>
 
         <section class="scr" id="s-d6">
@@ -380,7 +420,7 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
           <li><b>그리는 중에도 묻는다. 단, 선과 선 사이 짧은 틈에만.</b> 선이 두 개쯤 쌓이면 "지금 그리는 건 뭐야?" — 계속 그려도 되고 아무 때나 답하면 된다. 긋는 중에는 끼어들지 않고 질문 사이는 그리는 중 3초 · 멈춘 뒤 5초</li>
           <li><b>다른 곳으로 옮겨 그려도 앞 조각을 "다 그렸다"고 보지 않는다.</b> 돌아와 그 조각 안쪽에 이어 그리면 "다시 강아지 그리는구나!" — 그 선은 그 조각의 것이다. 바깥으로 크게 뻗는 선(땅 등)만 "더 그린 거야, 새로 그린 거야?"로 묻는다. 물어본 조각을 두고 옮겨 가면 그 조각에 고리를 띄운 채 "이건 뭐 그린 거야?"</li>
           <li><b>그리기를 멈추면</b> 이름 없는 조각을 묻고, 없으면 이번에 그린 것들을 한꺼번에 칭찬("강아지랑 우리 집 멋지다!")한 뒤 이야기 질문으로 넘어간다</li>
-          <li><b>조각은 선의 위치로 묶는다.</b> 가까운 선끼리 한 조각이다. 색도 시간도 보지 않는다. 떨어진 선이라도 <b>어떤 조각 영역 안에 절반 이상 들어가면</b> 그 조각(눈 · 무늬), <b>그리던 조각 가까이(그 크기의 절반, 20~30)</b>면 그 조각(떨어진 팔다리)이다. 단, 이름을 받은 두 조각을 한 선이 같이 건드려도 둘을 합치지 않는다. 그 선은 더 많이 겹친 쪽에만 붙는다</li>
+          <li><b>조각은 선의 위치로 묶는다.</b> 가까운 선끼리 한 조각이다. 색도 시간도 보지 않는다. 떨어진 선이라도 <b>어떤 조각 영역 안에 절반 이상 들어가면</b> 그 조각(눈 · 무늬), <b>그리던 조각 가까이(그 크기의 35%, 12~20)</b>면 그 조각(떨어진 팔다리)이다. 단, 이름을 받은 두 조각을 한 선이 같이 건드려도 둘을 합치지 않는다. 그 선은 더 많이 겹친 쪽에만 붙는다</li>
           <li><b>무엇인지는 대화로 정한다.</b> 새 조각엔 "지금 그리는 건 뭐야?" · "이건 뭐 그린 거야?", 이름 받은 조각이 바깥으로 커지면 "모래성에 더 그린 거야, 새로 그린 거야?". "새로 그렸어, 땅이야"면 이름 뒤에 그은 선만 떼어 새 조각이 된다. 안쪽에만 더 그리면 묻지 않는다(문 · 창문)</li>
           <li><b>그래도 잘못 묶이면 D2에서 자른다.</b> 스티커 하나 → [✂️ 자르기] → 떼어 낼 선을 톡 누르거나 동그라미로 감싸기 → [떼어 내기] → 오또가 "이건 뭐 그린 거야?". 둘을 고르면 [붙이기]</li>
           <li><b>인식 낱말은 질문 문구에만 쓴다(규칙 5).</b> 조각 이름은 아이가 말한 것만 붙는다. "집처럼 보이네"에 "모래성이야"라고 하면 모래성이다</li>
@@ -388,7 +428,9 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
     <li><b>[너도 그려줘]를 누르면 묻지 않고 바로</b> "나도 그려볼게! 더 그리고 있어!" — 방금 그리던 조각을 오또도 그린다(이름이 아직 없어도). 말로 "강아지 멋지게 그려줘"라고 해도 된다</li>
           <li><b>오또 그림이 오면 이름표에 ✨가 붙고 오른쪽 오또 버튼이 「오또 그림 왔어!」로 바뀐다.</b> 둘 중 어느 쪽을 눌러도 크게 보며 고른다. 이름표는 그리기를 막지 않는다 — 이름표 위에서 <b>짧게 톡</b>은 이름표 누름(점이 안 찍힘), <b>끌면</b> 그대로 선이 그려진다</li>
           <li><b>오또 그림은 뒤에서 만든다.</b> 화면은 그대로이고 아이는 계속 그린다. 다 되면 이름표에 ✨가 붙고 오또가 멈춘 틈에 알려 준다. ✨를 누르면 옆에 작은 고르기 칸 — 원본이 첫 번째. 8초 넘으면 "조금 뒤에 올 거야", 15초면 원본 그대로</li>
-          <li><b>책은 흰 종이 위의 내 그림 조각뿐이다</b> — 장소 사진도 미션도 없다. 조각은 그린 자리 그대로(고른 오또 그림이면 그 모습). 쪽마다 1인칭 문장에 나온 조각이 앞으로 나와 문장대로 움직이고(무너졌어요 → 넘어짐 · 쌓았어요 → 쌓아 올라감 · 놀았어요 → 통통 · 갔어요 → 걸어 들어옴 · 속상했어요 → 고개 숙임) 나머지는 흐리게 남는다. 어느 조각이든 도구로 누르거나(✋ 톡 · 🔨 간지러워 · 🪶 깔깔깔 · 🔍 「내가 그린 ○○」) 끌어서 옮길 수 있다</li>
+          <li><b>책은 아이들이 실제로 쓰는 한 장짜리 그림일기 양식이다</b> — 위에 날짜 · 날씨 · 제목, 가운데 그림 칸(내 그림 조각이 그린 자리 그대로, 고른 오또 그림이면 그 모습), 아래 원고지 글 칸. 쪽을 넘길 때마다 1인칭 문장이 한 글자씩 써지고, 그 문장에 나온 조각이 앞으로 나와 움직인다(나머지는 흐리게). 장소 사진 · 미션 없음</li>
+          <li><b>마지막 줄은 오늘 기분이다</b> — 실제 그림일기처럼 느낌으로 닫는다. 아이가 말한 기분이 있으면 그 말로, 없으면 "오늘은 ○○"까지 써 두고 😄 😢 같은 얼굴을 눌러 채운다(고른 것이라 card 출처 · 리포트 인용엔 안 들어감)</li>
+          <li><b>누르면 반응한다</b> — 조각(도구 넷) · 글 칸(그 줄을 다시 쓰고 다시 움직임) · 날씨(아이가 고름. 해를 그렸으면 ☀️가 저절로 골라지고, 누르면 그림 속 해가 반짝) · 제목("이 일기 제목은 뭐로 할까?" → title 칸에 아이 말 그대로). 조각은 끌어서 옮길 수도 있다</li>
           <li>인식은 여기서 간단한 모양 규칙으로 흉내 냈다. 실제는 폰 안 ML Kit AutoDraw → 낱말만 Jev (확신 0.6 미만이면 "이건 뭐 그린 거야?"로 연다)</li>
         </ul>
       </div>
@@ -467,7 +509,7 @@ function fresh(){
 // A new stroke joins the pieces it touches. Two pieces the child has already named are never fused
 // by a stroke that touches both — the stroke joins the one it overlaps most. What each piece IS comes
 // only from talking with the child; growth past a named piece is asked about, not assumed.
-const PAD = 14;
+const PAD = 10;
 // no timing: children switch colours and stop to think. Only where the line is decides.
 function boxOf(p){ let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for (const [x,y] of p){ x0=Math.min(x0,x); y0=Math.min(y0,y); x1=Math.max(x1,x); y1=Math.max(y1,y); } return {x0,y0,x1,y1}; }
 const grow = (b,d) => ({x0:b.x0-d, y0:b.y0-d, x1:b.x1+d, y1:b.y1+d});
@@ -495,7 +537,7 @@ function assignStroke(s){
     // close to the piece being drawn, relative to its size (an arm or a leg drawn with a gap) → that piece
     const cur = S.curPiece && S.pieces.find(p => p.id === S.curPiece && p.ids.length);
     if (cur){
-      const cb = pieceBox(cur), reach = Math.min(30, Math.max(20, Math.max(cb.x1-cb.x0, cb.y1-cb.y0) * 0.5)), gap = boxGap(boxOf(s.p), cb);
+      const cb = pieceBox(cur), reach = Math.min(20, Math.max(12, Math.max(cb.x1-cb.x0, cb.y1-cb.y0) * 0.35)), gap = boxGap(boxOf(s.p), cb);
       if (gap < reach){ cur.ids.push(s.id); log(`그리던 「${cur.name || '조각'}」에서 ${Math.round(gap)} 떨어진 선 (허용 ${Math.round(reach)}) → 그 조각`); return; }
     }
     newPiece([s.id]); return;
@@ -574,7 +616,7 @@ function opts(list, sayName){
     $('sayname-in').addEventListener('keydown', e => {
       if (e.key === 'Enter' && (e.isComposing || e.keyCode === 229)){ e.preventDefault(); $('sayname-in').addEventListener('compositionend', () => $('sayname').requestSubmit(), {once:true}); }
     });
-    setTimeout(() => { try { $('sayname-in').focus({preventScroll:true}); } catch(_){} }, 0);
+
   }
 }
 
@@ -1309,6 +1351,8 @@ function buildPages(){
   }
   if (sl.keep)     P.push({kind:'keep', ...(L.keep ? {bg, text:yo(L.keep)} : {bg, text:'내일 또 모래성을 만들고 싶어요.', act:{'모래성':'bob'}})});
   if (!sl.solution && P.length) P[P.length-1].tail = '그 뒤에 어떻게 되었는지는 아직 듣지 못했어요.';
+  // real picture diaries end with a feeling line; if the child hasn't said one, they pick it on the page (by: card)
+  if (P.length) P.push(sl.reaction ? {kind:'feel', text: yo(sl.reaction)} : {kind:'feel', text:'오늘은 ', pick:true});
   return P;
 }
 // ── the book is the child's own drawing, played out ──
@@ -1334,6 +1378,7 @@ function mentions(text, name){
 // a piece the sentence uses as a place ("우리 집 앞에", "놀이터에서") stays put
 const asPlace = (text, name) => new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*(앞|옆|안|뒤|위|밑)?\\s*(에|에서)(\\s|$)').test(text);
 function goD5(){
+  S.wx = undefined;
   S.pages = buildPages(); S.page = 0; S.tool = S.tool || 'hand'; S.pos = {};
   if (!S.pages.length) return goD6(true);
   show('d5'); $('band').style.display = 'none';
@@ -1343,16 +1388,43 @@ function goD5(){
 }
 $('bk-tools').onclick = e => { const b = e.target.closest('button[data-t]'); if (!b) return; S.tool = b.dataset.t; [...$('bk-tools').children].forEach(x => x.setAttribute('aria-pressed', x === b)); bookOpts(); };
 const stageBox = () => $('bk-stage').getBoundingClientRect();
+// weather is not invented: a drawn sun / cloud / rain / snow picks it, otherwise the child taps one
+const WX = [{id:'sun', e:'☀️', name:'맑음', re:/(해|햇님|햇빛|태양)/}, {id:'cloud', e:'☁️', name:'흐림', re:/구름/}, {id:'rain', e:'☔', name:'비', re:/(비|우산|빗)/}, {id:'snow', e:'⛄', name:'눈', re:/(눈사람|눈이|눈싸움)/}];
+function sheetHead(){
+  const d = new Date(), days = '일월화수목금토';
+  $('bk-date').textContent = `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 ${days[d.getDay()]}요일`;
+  if (S.wx === undefined){
+    const hit = WX.find(w => objects().some(o => o.name && w.re.test(o.name)));
+    S.wx = hit ? hit.id : null; S.wxBy = hit ? 'drawing' : null;
+    if (hit) log(`날씨 「${hit.name}」 — 아이가 그린 「${objects().find(o => o.name && hit.re.test(o.name)).name}」에서 골랐다 (지어내지 않음)`);
+  }
+  $('bk-wx').innerHTML = '날씨 ' + WX.map(w => `<button data-w="${w.id}" aria-label="${w.name}" aria-pressed="${S.wx === w.id}">${w.e}</button>`).join('');
+  $('bk-wx').classList.toggle('ask', !S.wx);
+  $('bk-title').innerHTML = S.slots.title ? `제목: ${S.slots.title}` : '제목: <span class="blank">눌러서 말해 줘</span>';
+}
+// the sentence is written into the 원고지 one character per cell, as a child writes a 그림일기
+function writeLine(text, tail){
+  const g = $('bk-sub'), chars = [...text.replace(/\s+/g, ' ')], extra = tail ? [' ', ...tail] : [];
+  const all = chars.length + extra.length, cols = all <= 42 ? 21 : all <= 64 ? 28 : 34;
+  const cell = 73 / cols;
+  g.style.setProperty('--cell', cell + 'cqw'); g.style.setProperty('--row', (cell * 1.55) + 'cqw');
+  g.innerHTML = chars.map((c, i) => `<span class="ch" style="animation-delay:${i*0.06}s">${c === ' ' ? '&nbsp;' : c}</span>`).join('')
+    + extra.map((c, i) => `<span class="ch soft" style="animation-delay:${(chars.length + i)*0.06}s">${c === ' ' ? '&nbsp;' : c}</span>`).join('');
+  g.setAttribute('aria-label', text + (tail ? ' ' + tail : ''));
+}
+const FEEL = [{e:'😄', say:'신났어', line:'오늘은 참 신났어요.'}, {e:'🙂', say:'좋았어', line:'오늘은 참 좋았어요.'}, {e:'😢', say:'속상했어', line:'오늘은 조금 속상했어요.'}, {e:'😴', say:'피곤했어', line:'오늘은 조금 피곤했어요.'}];
 function renderPage(){
   const p = S.pages[S.page], n = S.pages.length, os = objects();
-  $('bk-bg').style.background = '#FFF7EC';
+  $('bk-bg').style.background = '#F3E7D3';
+  $('bk-feel').classList.toggle('on', !!p.pick);
   $('bk-full').classList.remove('on');
+  sheetHead();
   const st = $('bk-stage'); st.innerHTML = '';
-  // pieces the sentence names; on the first page (the whole drawing) everyone is on
-  const named = p.full ? os : os.filter(o => o.name && (mentions(p.text, o.name) || (p.also||[]).includes(o.name)));
+  // pieces the sentence names; on the first line (the whole drawing) everyone is on
+  const named = (p.full || p.kind === 'feel') ? os : os.filter(o => o.name && (mentions(p.text, o.name) || (p.also||[]).includes(o.name)));
   const lead = new Set((named.length ? named : os).map(o => o.key));
   // nothing named → nobody acts; a wish (keep) only sways; "친구랑" → the one who was there too hops
-  const move = p.full ? 'enter' : !named.length ? 'still' : p.kind === 'keep' ? 'bob' : moveFrom(p.text);
+  const move = p.full ? 'enter' : p.kind === 'feel' ? (p.pick ? 'still' : /(속상|피곤)/.test(p.text) ? 'droop' : 'hop') : !named.length ? 'still' : p.kind === 'keep' ? 'bob' : moveFrom(p.text);
   const withWho = o => o.name && new RegExp(o.name + '(이랑|랑|하고|와|과)').test(p.text);
   const saved = S.pos[S.page] || {};
   os.forEach((o, i) => {
@@ -1363,16 +1435,44 @@ function renderPage(){
     const w = addPuppet(o, c.url, pos, act, i);
     if (!on) w.classList.add('dim');
   });
-  const m = $('bk-mission');
-  m.className = 'mission on soft';
-  m.textContent = p.full ? '👆 내 그림을 눌러 봐' : '👆 눌러 보고, 끌어서 옮겨 봐';
-  $('bk-sub').innerHTML = `${p.text}${p.tail ? ` <em>${p.tail}</em>` : ''}<span class="spk" aria-hidden="true">🔊</span>`;
-  $('bk-dots').innerHTML = S.pages.map((_,i) => `<i class="${i===S.page?'cur':''}"></i>`).join('') + ` ${S.page+1}/${n}`;
+  writeLine(p.text, p.tail);
+  if (p.pick) $('bk-feel').innerHTML = FEEL.map((f, i) => `<button data-i="${i}" aria-label="${f.say}">${f.e}<span>${f.say}</span></button>`).join('');
+  $('bk-dots').innerHTML = S.pages.map((_,i) => `<i class="${i===S.page?'cur':''}"></i>`).join('') + `${S.page+1}/${n}`;
   $('bk-prev').disabled = S.page === 0;
   $('bk-next').textContent = S.page === n-1 ? '✓' : '▶';
-  log(`${S.page+1}쪽: "${p.text}" → ${p.full ? '그림 전체' : `앞에 나온 조각 ${[...lead].map(k => pieceOf(k).name || '조각').join(' · ')} · 움직임 ${move}`}`);
+  log(`${S.page+1}줄: "${p.text}" → ${p.full ? '그림 전체' : `앞에 나온 조각 ${[...lead].map(k => pieceOf(k).name || '조각').join(' · ')} · 움직임 ${move}`}`);
   bookOpts();
 }
+// the feeling line: the child taps a face, the line is finished with it and kept as reaction (card)
+$('bk-feel').addEventListener('click', e => {
+  const b = e.target.closest('button[data-i]'); if (!b) return;
+  const f = FEEL[+b.dataset.i], p = S.pages[S.page];
+  S.slots.reaction = f.say; S.slotBy = S.slotBy || {}; S.slotBy.reaction = 'card';
+  p.text = f.line; p.pick = false; renderSlots();
+  log(`기분을 「${f.e} ${f.say}」로 누름 → reaction 칸 (card — 말한 것이 아니라 고른 것이라 리포트 인용엔 안 들어간다)`);
+  renderPage();
+  document.querySelectorAll('#bk-stage .puppet').forEach(w => { if (!w.classList.contains('dim')){ w.classList.remove('rx-bounce'); void w.offsetWidth; w.classList.add('rx-bounce'); } });
+});
+// tap the writing box: the line is written again and its pieces play again
+$('bk-sub').addEventListener('click', () => { if (S.scr !== 'd5') return; log('글 칸을 누름 → 이 줄을 다시 쓰고 다시 움직인다'); renderPage(); });
+// tap weather: the child chooses; choosing the sun makes a drawn sun glow
+$('bk-wx').addEventListener('click', e => {
+  const b = e.target.closest('button[data-w]'); if (!b) return;
+  const w = WX.find(x => x.id === b.dataset.w); S.wx = w.id; S.wxBy = 'child'; sheetHead();
+  log(`날씨를 「${w.name}」로 누름 (child)`);
+  const o = objects().find(x => x.name && w.re.test(x.name));
+  const el = o && document.querySelector(`#bk-stage .puppet[data-k="${o.key}"]`);
+  if (el){ el.classList.remove('dim'); el.classList.add('glow'); bubble(el, `${w.e} ${o.name}!`); setTimeout(() => el.classList.remove('glow'), 1500); }
+});
+// tap the title: the mascot asks for one; the child's words go into the title slot as they are
+$('bk-title').addEventListener('click', () => {
+  if (S.scr !== 'd5') return;
+  const t = $('bk-title'); bubble(t, '이 일기 제목은 뭐로 할까?'); t.querySelector('.rx-bubble').classList.add('below');
+  log('제목을 누름 → "이 일기 제목은 뭐로 할까?" (title 칸 · 아이 말 그대로)');
+  const set = v => { S.slots.title = v; S.utter++; renderSlots(); sheetHead(); log(`아이: "${v}" → title (child)`); bookOpts(); };
+  const names = objects().filter(o => o.name).map(o => o.name);
+  opts([...names.slice(0, 2).map(n => ({label:`🗣 "${n} 일기"`, run:() => set(`${n} 일기`)})), {label:'↩ 그만', run:bookOpts}], set);
+});
 function addPuppet(o, url, pos, act, i){
   const w = document.createElement('div'); w.className = 'puppet'; w.dataset.k = o.key;
   w.style.left = pos.l + '%'; w.style.top = pos.t + '%'; w.style.width = pos.w + '%';
@@ -1421,11 +1521,15 @@ function bookOpts(){
   TOOLS.forEach(t => list.push({label:`${t.e.startsWith('<') ? '🪶' : t.e} ${t.name}${t.id === S.tool ? ' (고름)' : ''}`, run:() => { const b = $('bk-tools').querySelector(`[data-t="${t.id}"]`); if (b) b.click(); }}));
   const first = document.querySelector('#bk-stage .puppet:not(.dim)') || document.querySelector('#bk-stage .puppet');
   if (first) list.push({label:'👆 앞에 나온 조각 톡', hint:'고른 도구로 반응', wide:true, run:() => react(first, +first.dataset.k)});
+  list.push({label:'👆 글 칸 누르기', hint:'이 줄을 다시 쓰고 다시 움직임', run:() => $('bk-sub').click()});
+  list.push({label:'👆 제목 누르기', hint:'제목을 말한다', run:() => $('bk-title').click()});
+  if (S.pages[S.page] && S.pages[S.page].pick) FEEL.forEach((f, i) => list.push({label:`👆 ${f.e} ${f.say}`, run:() => $('bk-feel').querySelector(`[data-i="${i}"]`).click()}));
+  if (!S.wx) list.push({label:'👆 날씨 ☀️ 누르기', wide:true, run:() => { const b = $('bk-wx').querySelector('[data-w="sun"]'); if (b) b.click(); }});
   list.push({label: S.page === S.pages.length - 1 ? '▶ 책 끝' : '▶ 다음 쪽', wide:true, run:() => $('bk-next').click()});
   opts(list);
 }
 $('bk-prev').onclick = () => { if (S.page > 0){ S.page--; renderPage(); } };
-$('bk-next').onclick = () => { if (S.page < S.pages.length-1){ S.page++; renderPage(); } else goD6(false); };
+$('bk-next').onclick = () => { if (S.page < S.pages.length-1){ S.page++; renderPage(); } else goD6(false); };   // never blocked: an unpicked feeling line just stays "오늘은"
 
 // ── D6 ──
 // the finished diary as a book: the child's drawing (with any picked Otto looks) on a cover
@@ -1437,7 +1541,7 @@ function coverURL(){
   x.fillStyle = '#fff'; x.fillRect(50, 50, 510, 170 * 510 / 520 + 20);
   x.save(); x.translate(55, 55); paint(x, S.strokes, 500 / LW, (500 / 3) / LH); x.restore();   // the child's own lines, drawn straight onto the cover
   x.fillStyle = '#fff'; x.font = 'bold 40px Jua, sans-serif'; x.textAlign = 'center';
-  x.fillText('나의 그림일기', 300, 330);
+  x.fillText(S.slots.title || '나의 그림일기', 300, 330);
   x.font = '26px Jua, sans-serif'; x.fillText(new Date().toLocaleDateString('ko-KR', {month:'long', day:'numeric'}), 300, 380);
   return c.toDataURL('image/png');
 }
