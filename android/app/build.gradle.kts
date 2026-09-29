@@ -110,7 +110,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation(libs.vad.silero)   // 기기 점검 화면 전용
+    implementation(libs.vad.silero)   // 말 끝 감지 — 진짜 마이크(net/Voice.kt) · 기기 점검 화면
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

@@ -1,5 +1,9 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.Voice
+import com.example.finalproject_demo.net.nameMask
+import com.example.finalproject_demo.ui.ConsentStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -124,6 +128,25 @@ class Director(private val scope: CoroutineScope) {
         s.speaker = who
         s.line = text
         s.lineId++
+        if (who == "마스코트") speakLive(text)
+    }
+
+    /**
+     * 서버 모드면 마스코트 말을 **목소리로도** 낸다(`/tts` · 09-29).
+     * 이름은 보호자가 「이름 읽기」에 동의했을 때만 소리로 나간다 — 아니면 「우리 친구」(규칙 6 개정).
+     * 목소리가 실패해도 말풍선은 이미 떴다 — 조용한 마스코트일 뿐 멈추지 않는다.
+     * ⚠️ 아직 **기다리지 않는다**: `ask()` 의 `pause(1200)` 은 대본 기준이라, 긴 대사면 아이 차례와 겹칠 수 있다
+     */
+    private var voiceJob: Job? = null
+
+    private fun speakLive(text: String) {
+        if (!Server.liveFor(s.mode) || text.isBlank()) return
+        val line = s.nameMask().speakable(text, ConsentStore.nameVoiceAgreed)
+        voiceJob?.cancel()
+        voiceJob = scope.launch {
+            val audio = Server.tts(line) ?: return@launch
+            Voice.play(audio)
+        }
     }
 
     /**
@@ -183,6 +206,7 @@ class Director(private val scope: CoroutineScope) {
      */
     fun toggleMic() {
         if (!s.micEnabled) return
+        if (Server.liveFor(s.mode)) { liveMic(); return }
         if (!s.micOn) {
             s.micOn = true
             s.countdown = null
@@ -194,6 +218,37 @@ class Director(private val scope: CoroutineScope) {
         val a = s.pickAnswer(q.spoken) ?: Answer("응", lv = 1)
         log("🎤 끔 — 녹음 끝 → 글자로: \"${a.text}\" (더미 답 ${q.spoken.size}개 중 · 아이 흉내: ${s.profile.label})")
         send(Reply.Spoke(a.text, a.value, a))
+    }
+
+    // ── 진짜 마이크 (서버 모드일 때만 · 09-29 오케스트레이터 ①) ────────────
+    //
+    // 🎤 누름 → 녹음 → 말이 끝나면 VAD 가 0.3초 뒤 스스로 끊는다(⏹ 로 먼저 끊어도 된다)
+    // → 우리 서버 `/stt` → 들은 글자를 대본 답과 **같은 모양**(`Reply.Spoke`)으로 흐름에 넣는다.
+    // 그래서 장면 코드는 대본인지 진짜인지 모른다. 글자는 **실명 그대로**다 — 서버로 다시
+    // 보낼 때는 모드 담당자가 `s.nameMask().mask(...)` 를 거친다(규칙 6).
+    // 아무것도 못 들었거나(빈 글자) 서버가 실패하면 **무응답**으로 보낸다 — 무응답 흐름(⭐5)이 이어받는다.
+
+    @Volatile private var stopMic = false
+    private var micJob: Job? = null
+
+    private fun liveMic() {
+        if (s.micOn) { stopMic = true; return }            // ⏹ — 녹음을 여기서 끊는다
+        stopMic = false
+        s.micOn = true
+        s.countdown = null
+        log("🎤 켬 — 진짜 녹음 · 말이 끝나면 저절로 끊는다 (VAD 0.3초)")
+        micJob = scope.launch {
+            val audio = Voice.listen { stopMic }
+            s.micOn = false
+            if (audio == null) { log("🎤 아무것도 못 들음 → 무응답"); send(Reply.Silent); return@launch }
+            log("🎤 끝 → 우리 서버로 받아쓰기 (${audio.size / 1024}KB)")
+            val text = Voice.transcribe(audio)
+            when {
+                text == null -> { log("받아쓰기 실패 → 무응답으로 넘김"); send(Reply.Silent) }
+                text.isBlank() -> { log("받아쓰기: 들을 말이 없음 → 무응답"); send(Reply.Silent) }
+                else -> { log("받아쓰기: \"$text\""); send(Reply.Spoke(text)) }
+            }
+        }
     }
 
     /** ➡️ 말 없이 넘김 = 무응답 */
