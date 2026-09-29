@@ -56,5 +56,6 @@ JSON 외에는 아무것도 출력하지 마라.
 채워진 칸: {slots}      // 12칸. 이름은 {주인공} · {친구n} 으로 가려져 있다
 칸마다 by: {slot_by}    // child · card · mascot
 맺음: {keep}            // 앱이 맺음 걸음에서 받은 바람 원문. 없으면 null
+[쪽 목록] …             // 앱이 pages 를 보낼 때만 (09-29) — 쪽 수 · 차례 · 미션
 ```
-`backend/app/routers/story.py` `user()` 가 이 네 줄을 보낸다. 규칙 5 는 셋째 줄을 본다.
+`backend/app/routers/story.py` `user()` 가 이 네 줄(쪽 목록이 오면 다섯 줄)을 보낸다. 규칙 5 는 셋째 줄을 본다.
