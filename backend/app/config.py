@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     llm_effort_judge: str = "none"
     llm_effort_story: str = "high"
+    # the mascot line waits on the judge, so it gets the judge's latency budget
+    llm_effort_line: str = "none"
 
     stt_provider: str = "local"
     # 09-23 measured: large-v3 halves CER for ages 3-6 against turbo (57->37% at 3,
