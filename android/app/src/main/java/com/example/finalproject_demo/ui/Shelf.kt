@@ -96,36 +96,31 @@ fun ShelfView(d: Director, stage: Stage.Shelf) {
                 ShelfButton("▶", Sun, Ink) { shelfPage = (shelfPage + 1).coerceAtMost(lastShelfPage) }
             }
         }
-        // 오른쪽 아래 버튼
         Row(
-            Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 14.dp),
+            Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (stage.fromEnd) {
-                ShelfButton("👪 부모 모드", Color(0xFF4A423A), Color.White) { d.send(Reply.Tapped("parent", "부모 모드")) }
-                ShelfButton("🏠 처음으로", Sun, Ink) { d.send(Reply.Tapped("home", "처음으로")) }
-            } else {
-                ShelfButton("◀ 돌아가기", Sun, Ink) { d.send(Reply.Tapped("home", "돌아가기")) }
+            FeltButton(FeltMustard, onClick = { d.send(Reply.Tapped("home", "처음으로")) }, modifier = Modifier.height(56.dp), shape = RoundedCornerShape(Radius.Round)) {
+                Text("🏠 방으로", fontSize = 18.sp, color = Ink, modifier = Modifier.padding(horizontal = 16.dp))
             }
-        }
+            if (stage.fromEnd) FeltButton(WoolCream, onClick = { d.send(Reply.Tapped("parent", "부모 모드")) }, modifier = Modifier.height(56.dp), shape = RoundedCornerShape(Radius.Round)) {
+                Text("👪 부모", fontSize = 16.sp, color = Ink, modifier = Modifier.padding(horizontal = 14.dp))
+            }
         Box(
-            Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 12.dp)
-                .clip(RoundedCornerShape(999.dp)).background(Color.White.copy(alpha = 0.85f))
-                .padding(horizontal = 12.dp, vertical = 5.dp)
-        ) { Text("📚 ${s.shelf.size}권", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold) }
+            Modifier
+                .felt(FeltWhite.copy(alpha = 0.94f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+        ) { Text("📚 ${s.shelf.size}권", fontSize = 16.sp, color = Ink) }
+        }
     }
 }
 
 @Composable
-private fun ShelfButton(t: String, bg: Color, fg: Color, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .shadow(6.dp, RoundedCornerShape(999.dp))
-            .clip(RoundedCornerShape(999.dp))
-            .background(bg)
-            .clickable { onClick() }
-            .padding(horizontal = 18.dp, vertical = 10.dp)
-    ) { Text(t, fontSize = 17.sp, color = fg, fontWeight = FontWeight.Bold) }
+private fun ShelfButton(label: String, color: Color, textColor: Color, onClick: () -> Unit) {
+    FeltButton(color, onClick = onClick, modifier = Modifier.height(48.dp)) {
+        Text(label, color = textColor, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 14.dp))
+    }
 }
 
 @Composable
@@ -176,7 +171,7 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
             Box(
                 Modifier.align(Alignment.TopCenter).offset(y = (-14).dp)
                     .scale(0.9f + 0.1f * tw)
-                    .clip(RoundedCornerShape(999.dp)).background(Coral)
+                    .felt(FeltCoral, RoundedCornerShape(Radius.Round), lift = 2.dp, stitch = false)
                     .padding(horizontal = 8.dp, vertical = 2.dp)
             ) { Text("새 책!", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold) }
             // 책 이름은 나중에 책장에서 바꿀 수 있다 — 자리만 둔다

@@ -1,0 +1,354 @@
+<meta charset="utf-8">
+<title>일기 모드 흐름</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=Gaegu:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F3F5F8; --surface:#FFFFFF; --ink:#18212E; --muted:#5A6778; --line:#D9DEE6;
+  --accent:#2F62C9; --accent-soft:#E3EBFA;
+  --child:#1F8A5B; --child-soft:#DDF2E7;
+  --mascot:#7A5AB8; --mascot-soft:#ECE5F7;
+  --warn:#B4541B; --warn-soft:#FBE9DC;
+  --later:#6B7686; --later-soft:#E9ECF1;
+  --paper:#FFFDF7; --paper-line:#E7E1D0;
+  --font:"IBM Plex Sans KR",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+  --hand:"Gaegu","IBM Plex Sans KR","Malgun Gothic",cursive;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#11161E; --surface:#19202B; --ink:#E6EAF0; --muted:#9AA6B6; --line:#2C3542;
+    --accent:#7EA6F2; --accent-soft:#1E2B44;
+    --child:#5CC795; --child-soft:#163326;
+    --mascot:#B39AE6; --mascot-soft:#2A2240;
+    --warn:#F0A06A; --warn-soft:#3A2518;
+    --later:#9AA6B6; --later-soft:#232B36;
+    --paper:#1F2530; --paper-line:#38404D;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#11161E; --surface:#19202B; --ink:#E6EAF0; --muted:#9AA6B6; --line:#2C3542;
+  --accent:#7EA6F2; --accent-soft:#1E2B44;
+  --child:#5CC795; --child-soft:#163326;
+  --mascot:#B39AE6; --mascot-soft:#2A2240;
+  --warn:#F0A06A; --warn-soft:#3A2518;
+  --later:#9AA6B6; --later-soft:#232B36;
+  --paper:#1F2530; --paper-line:#38404D;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.65;margin:0}
+.wrap{max-width:960px;margin:0 auto;padding-inline:20px;padding-block:32px 64px;display:grid;gap:40px}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:28px;font-weight:700}
+h2{font-size:21px;font-weight:700}
+h3{font-size:17px;font-weight:700}
+p{margin:0}
+code{font-family:var(--mono);font-size:.88em;background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+.lede{color:var(--muted);max-width:68ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px;font-size:13px}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:12.5px;font-weight:500;letter-spacing:.01em;white-space:nowrap}
+.t-now{background:var(--accent-soft);color:var(--accent)}
+.t-later{background:var(--later-soft);color:var(--later)}
+.t-child{background:var(--child-soft);color:var(--child)}
+.t-mascot{background:var(--mascot-soft);color:var(--mascot)}
+.t-warn{background:var(--warn-soft);color:var(--warn)}
+section{display:grid;gap:16px}
+
+/* flow strip */
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.flow a{display:grid;gap:2px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;color:var(--ink);text-decoration:none;min-width:0}
+.flow a:hover,.flow a:focus-visible{border-color:var(--accent);outline:none}
+.flow a b{font-size:14px}
+.flow a span{font-size:12px;color:var(--muted)}
+.flow .arrow{color:var(--muted);font-size:14px}
+.flow .end{border-style:dashed}
+
+/* book mock */
+.books{display:grid;gap:20px}
+.book{display:grid;gap:10px}
+.book-head{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+.book-head p{color:var(--muted);font-size:13.5px}
+.pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.page{background:var(--paper);border:1px solid var(--paper-line);border-radius:6px;padding:14px;display:grid;gap:10px;align-content:start}
+.page .no{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.04em}
+.page .pic{aspect-ratio:4/3;max-width:100%;border-radius:4px;border:1px dashed var(--paper-line);display:grid;place-items:center;color:var(--muted);font-size:12px;text-align:center;padding:8px}
+.page .pic svg{width:100%;height:100%}
+.page .txt{font-family:var(--hand);font-size:21px;line-height:1.35}
+.page .src{display:flex;flex-wrap:wrap;gap:6px}
+.page.empty .txt{color:var(--muted)}
+
+/* screen cards */
+.screen{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;display:grid;gap:14px;scroll-margin-top:16px}
+.screen-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.screen-head .sid{font-family:var(--mono);font-size:13px;color:var(--accent);font-weight:500}
+.say{border-left:3px solid var(--mascot);padding:6px 12px;background:var(--mascot-soft);border-radius:0 8px 8px 0;font-size:14.5px}
+.say small{display:block;color:var(--muted);font-size:12px}
+dl.six{display:grid;grid-template-columns:150px 1fr;margin:0;border-top:1px solid var(--line)}
+dl.six dt,dl.six dd{margin:0;padding:10px 0;border-bottom:1px solid var(--line)}
+dl.six dt{font-weight:500;color:var(--muted);font-size:13.5px;padding-right:12px}
+dl.six dd{display:grid;gap:6px}
+dl.six ul{margin:0;padding-left:18px;display:grid;gap:3px}
+@media (max-width:560px){
+  dl.six{grid-template-columns:1fr}
+  dl.six dt{border-bottom:none;padding-bottom:0}
+}
+
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:13px;background:var(--bg)}
+tr:last-child td{border-bottom:none}
+td:first-child{white-space:nowrap}
+
+.open{display:grid;gap:10px;counter-reset:q}
+.open li{list-style:none;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;gap:4px}
+.open{padding:0;margin:0}
+.open li b{font-size:14.5px}
+.open li p{color:var(--muted);font-size:14px}
+.note{font-size:13.5px;color:var(--muted)}
+</style>
+
+<div class="wrap">
+
+<header style="display:grid;gap:12px">
+  <h1>일기 모드 흐름 (초안)</h1>
+  <p class="lede">아이가 오늘 있었던 일을 한 장 그리는 동안 마스코트가 짧게 묻는다. 다 그리면 빈 필수 칸만 두세 번 더 묻고, 아이가 한 말만으로 1인칭 그림일기 3~6쪽을 만든다.</p>
+  <div class="meta">
+    <span class="tag t-now">2026-09-29 초안 · 박진웅</span>
+    <span class="tag t-later">09-30 확정 목표</span>
+    <span class="tag t-now">이번 주 연결</span>
+    <span class="tag t-later">나중 (측정·경로 준비 뒤)</span>
+  </div>
+  <p class="note">틀은 <code>guidelines/6</code> §6-1-1의 「화면마다 넣을 것」 여섯 칸을 따른다(협업 흐름과 나란히 비교하려고). 정본 규칙: <code>CLAUDE.md</code> 규칙 아홉 · <code>guidelines/2</code> 슬롯 12종 · <code>guidelines/7</code> §5-1.</p>
+</header>
+
+<section aria-labelledby="flow-h">
+  <h2 id="flow-h">한 바퀴</h2>
+  <nav class="flow" aria-label="화면 순서">
+    <a href="#d0"><b>D0 시작</b><span>그려볼래?</span></a><span class="arrow">→</span>
+    <a href="#d1"><b>D1 그리며 묻기</b><span>조각마다 이건 뭐야?</span></a><span class="arrow">→</span>
+    <a href="#d2"><b>D2 오려 내기</b><span>조각 스티커</span></a><span class="arrow">→</span>
+    <a href="#d3"><b>D3 빈 칸만 묻기</b><span>최대 2~3개</span></a><span class="arrow">→</span>
+    <a href="#d4"><b>D4 책 만드는 중</b><span><code>/story</code></span></a><span class="arrow">→</span>
+    <a href="#d5"><b>D5 그림일기</b><span>3~6쪽</span></a><span class="arrow">→</span>
+    <a href="#d6" class="end"><b>D6 끝</b><span>책장 · 부모 기록</span></a>
+  </nav>
+  <p class="note">그림 없이 말로 하고 싶으면 D0에서 D3로 바로 간다. 그림도 말도 없으면 D6으로 조용히 끝낸다(책 없음).</p>
+</section>
+
+<section aria-labelledby="end-h">
+  <h2 id="end-h">엔드 픽처: 책이 실제로 어떻게 보이나</h2>
+  <p class="lede">쪽은 칸이 찬 만큼만 생긴다. 주어는 「나는」, 과거 <code>-어요체</code>. 빈 칸은 지어내지 않는다. 예시는 한 아이의 가상 하루다.</p>
+
+  <div class="books">
+    <div class="book">
+      <div class="book-head"><h3>많이 말한 날 · 6쪽</h3><p>필수 두 칸 + 선택 칸이 다 찼다</p></div>
+      <div class="pages">
+        <div class="page">
+          <span class="no">1 · 그림 쪽</span>
+          <div class="pic" aria-label="아이가 그린 블록 탑 그림 (원본 획)">
+            <svg viewBox="0 0 160 120" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M52 104 L108 104" stroke="#8a7a5a" stroke-width="3" fill="none"/>
+              <path d="M60 104 L60 84 L96 85 L97 104" stroke="#d2553f" stroke-width="3.5" fill="none"/>
+              <path d="M64 84 L63 64 L92 65 L93 85" stroke="#3a78c9" stroke-width="3.5" fill="none"/>
+              <path d="M67 64 L68 46 L88 45 L89 65" stroke="#e0a526" stroke-width="3.5" fill="none"/>
+              <path d="M70 45 L71 30 L85 29 L86 45" stroke="#2e9a63" stroke-width="3.5" fill="none"/>
+              <path d="M120 36 q8 -10 16 0 q-8 10 -16 0" stroke="#e0a526" stroke-width="3" fill="none"/>
+              <path d="M30 70 l6 -12 l6 12 z" stroke="#7a5ab8" stroke-width="3" fill="none"/>
+            </svg>
+          </div>
+          <p class="txt">나는 오늘 블록으로 높은 탑을 쌓은 걸 그렸어요.</p>
+          <div class="src"><span class="tag t-child">extra · whiteboard · child</span></div>
+        </div>
+        <div class="page">
+          <span class="no">2 · 기</span>
+          <div class="pic">내 그림 조각 전부<br>(장소 사진 없음)</div>
+          <p class="txt">나는 오늘 어린이집에 갔어요.</p>
+          <div class="src"><span class="tag t-child">place · child</span></div>
+        </div>
+        <div class="page">
+          <span class="no">3 · 승</span>
+          <div class="pic">문장에 나온 조각이 앞으로 나와 움직임<br>나머지는 흐리게</div>
+          <p class="txt">블록을 높이 쌓았는데 탑이 와르르 무너졌어요.</p>
+          <div class="src"><span class="tag t-child">problem · child</span></div>
+        </div>
+        <div class="page">
+          <span class="no">4 · 전</span>
+          <div class="pic">문장에 나온 조각이 앞으로 나와 움직임<br>나머지는 흐리게</div>
+          <p class="txt">그때 너무 속상했어요.</p>
+          <div class="src"><span class="tag t-child">reaction · child</span></div>
+        </div>
+        <div class="page">
+          <span class="no">5 · 결</span>
+          <div class="pic">문장에 나온 조각이 앞으로 나와 움직임<br>나머지는 흐리게</div>
+          <p class="txt">마침내 다시 쌓았어요.</p>
+          <div class="src"><span class="tag t-child">solution · child</span></div>
+        </div>
+        <div class="page">
+          <span class="no">6 · 맺음</span>
+          <div class="pic">문장에 나온 조각이 앞으로 나와 움직임<br>나머지는 흐리게</div>
+          <p class="txt">내일은 더 높이 쌓을 거예요.</p>
+          <div class="src"><span class="tag t-child">extra · keep · child</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="book">
+      <div class="book-head"><h3>조금 말한 날 · 3쪽</h3><p>필수 두 칸만 찼다. 여기서 끝나도 책이다</p></div>
+      <div class="pages">
+        <div class="page">
+          <span class="no">1 · 그림 쪽</span>
+          <div class="pic">아이 그림 원본</div>
+          <p class="txt">나는 오늘 공룡을 그렸어요.</p>
+          <div class="src"><span class="tag t-child">extra · whiteboard · child</span></div>
+        </div>
+        <div class="page">
+          <span class="no">2 · 기</span>
+          <div class="pic">내 그림 조각 전부<br>(장소 사진 없음)</div>
+          <p class="txt">나는 오늘 놀이터에 갔어요.</p>
+          <div class="src"><span class="tag t-child">place · child</span></div>
+        </div>
+        <div class="page empty">
+          <span class="no">3 · 승 + 닫음</span>
+          <div class="pic">아이 그림 원본</div>
+          <p class="txt">미끄럼틀을 탔어요. 그 뒤에 어떻게 되었는지는 아직 듣지 못했어요.</p>
+          <div class="src"><span class="tag t-child">problem · child</span><span class="tag t-warn">빈 칸은 비었다고 씀</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="note">문제가 없던 날(놀이터 예시)에는 「마침내」 · 「알고 보니」를 쓰지 않는다(<code>hadTrouble()</code> 기준, <code>guidelines/7</code> §5-1). 마스코트가 대신 채운 칸은 없다. 그래서 책의 모든 문장이 <code>by: child</code>이고 부모 기록 인용과 어긋나지 않는다.</p>
+</section>
+
+<section aria-labelledby="screens-h">
+  <h2 id="screens-h">화면마다</h2>
+
+  <article class="screen" id="d0">
+    <div class="screen-head"><span class="sid">D0</span><h3>시작</h3><span class="tag t-now">이번 주</span></div>
+    <div class="say">"오늘 있었던 일 하나를 그려볼래? 생각나는 것부터 그려줘."<small>마스코트 · 이름 없이 부른다 · 고정 대사라 미리 구운 목소리</small></div>
+    <dl class="six">
+      <dt>1 누가 말하나</dt><dd>마스코트</dd>
+      <dt>2 무엇으로 답하나</dt><dd>버튼 둘: [그릴래] · [그림 없이 말할래]</dd>
+      <dt>3 무엇이 저장되나</dt><dd>칸 없음 · 이벤트 <code>story_start</code> (<code>mode: diary</code>)</dd>
+      <dt>4 어느 서버</dt><dd>없음</dd>
+      <dt>5 갈림길</dt><dd><ul><li>[그림 없이 말할래] → D3 (필수 두 칸을 말로)</li><li>무응답 → 화이트보드를 그대로 띄워 둔다. 재촉하지 않는다</li></ul></dd>
+      <dt>6 끝</dt><dd>D1로</dd>
+    </dl>
+  </article>
+
+  <article class="screen" id="d1">
+    <div class="screen-head"><span class="sid">D1</span><h3>그리는 중 · 질문 1~2개</h3><span class="tag t-now">이번 주: 인식 없이</span><span class="tag t-later">나중: 폰 안 인식 + Jev</span></div>
+    <div class="say">그리는 중(선과 선 사이 짧은 틈): "공룡처럼 보이네! 지금 그리는 건 뭐야?" · 못 알아보면 "우와, 지금 그리는 건 뭐야?"<br>떨어진 곳에서 새로 그리기 시작하면: "강아지 다 그렸구나!" · 그리기를 멈추면: 이름 없는 조각에 "이건 뭐야?", 없으면 "강아지 멋지다!" → 이야기 질문 "여기가 어디야?"<small>마스코트 · 긋는 중에는 끼어들지 않는다. 질문은 흐름을 막지 않아 계속 그리다 아무 때나 답해도 된다. 질문 사이는 그리는 중 3초 · 멈춘 뒤 5초. 답 없이 15초 넘게 그리면 조용히 거둔다</small></div>
+    <dl class="six">
+      <dt>1 누가 말하나</dt><dd>마스코트 → 아이</dd>
+      <dt>2 무엇으로 답하나</dt><dd>그림(계속) + 말</dd>
+      <dt>3 무엇이 저장되나</dt><dd><ul><li>획을 위치로 묶은 <strong>조각</strong>마다 아이가 말한 이름 → <code>extra</code>(<code>whiteboard</code>) <span class="tag t-child">child</span></li><li>이야기 질문의 답 → <code>place</code> · <code>problem</code> · <code>solution</code> <span class="tag t-child">child</span></li><li>⚠️ 인식한 낱말은 <strong>어느 칸에도 안 들어간다</strong>(규칙 5). 질문 문구에만 쓴다. "집처럼 보이네"에 "모래성이야"라고 하면 모래성이다</li></ul></dd>
+      <dt>4 어느 서버</dt><dd><ul><li><code>/stt</code> → <code>/judge</code>(<code>mode: diary</code>) → 가변 대사는 <code>/tts</code></li><li>나중: 폰 안 ML Kit AutoDraw → <strong>낱말만</strong> Jev(무엇을 물을까 · 다 그렸나). 그림은 폰을 안 떠난다</li></ul></dd>
+      <dt>5 갈림길</dt><dd><ul><li>「몰라」 → "그래, 계속 그려 봐." 더 묻지 않는다</li><li>무응답 → 그리기로 돌아간다. 같은 질문을 다시 하지 않는다</li><li>딴 얘기 → <code>extra</code>에 원문. 되받아 주고 따라가지 않는다</li><li>아이가 "아니, 블록이야"라고 바로잡으면 그 말을 따른다</li></ul></dd>
+      <dt>6 끝</dt><dd>[다 그렸어] → D2 · 질문 수는 정하지 않고 <strong>간격(붓 멈춤 + 5초)</strong>으로만 조절한다. 그림이 중심이고 질문은 그 사이에 낀다</dd>
+    </dl>
+  </article>
+
+  <article class="screen" id="d2">
+    <div class="screen-head"><span class="sid">D2</span><h3>오려 내기</h3><span class="tag t-now">이번 주</span></div>
+    <div class="say">"그린 것들을 오려 봤어! 붙어 있어야 하는 건 두 개를 눌러서 붙여 줘."<small>마스코트 · 고정 대사 · 조각이 스티커처럼 한 줄로 놓이고 아이가 붙인 이름표가 달린다</small></div>
+    <dl class="six">
+      <dt>1 누가 말하나</dt><dd>마스코트</dd>
+      <dt>2 무엇으로 답하나</dt><dd>조각 두 개 누르기 → [붙이기] (잘못 나뉜 것만. 안 해도 된다)</dd>
+      <dt>3 무엇이 저장되나</dt><dd>원본 획 전체 → <code>sceneDrawing</code> · 조각 = 획 묶음 + 원래 위치 (폰에만) · 이벤트 <code>make</code>(<code>kind: draw</code>)</dd>
+      <dt>4 어느 서버</dt><dd>없음. 오리기는 폰 안에서 하고 그림은 서버로 안 간다(차별점 1). AI가 다시 그리지 않는다</dd>
+      <dt>5 갈림길</dt><dd>빈 화이트보드로 [다 그렸어] → 그림 없는 날로 보고 D3</dd>
+      <dt>6 끝</dt><dd>D3 (이름 없는 조각 하나 + 빈 필수 칸만)</dd>
+    </dl>
+  </article>
+
+  <article class="screen" id="d3">
+    <div class="screen-head"><span class="sid">D3</span><h3>빈 필수 칸만 묻기 · 최대 2~3개</h3><span class="tag t-now">이번 주</span></div>
+    <div class="say">"오늘 어디 갔었어?" (<code>place</code>가 비었을 때) · "거기서 무슨 일이 있었어?" (<code>problem</code>이 비었을 때)<br>남은 질문이 있으면: "그래서 어떻게 됐어?" · "내일 또 하고 싶은 거 있어?"<small>마스코트 · 무엇을 물을지는 판정의 <code>next_slot</code>이 정한다</small></div>
+    <dl class="six">
+      <dt>1 누가 말하나</dt><dd>마스코트 → 아이</dd>
+      <dt>2 무엇으로 답하나</dt><dd>말. 카드 · 그림 보기는 없다(앱이 아이 하루를 추측해 보여 주지 않는다)</dd>
+      <dt>3 무엇이 저장되나</dt><dd><ul><li>필수: <code>place</code> · <code>problem</code> <span class="tag t-child">child</span></li><li>선택: <code>solution</code> · <code>reaction</code> · <code>companion</code> · <code>extra</code>(<code>keep</code> 등) <span class="tag t-child">child</span></li><li>모든 답의 원문 → <code>utterance</code> 이벤트</li></ul></dd>
+      <dt>4 어느 서버</dt><dd><code>/stt</code> → <code>/judge</code>(<code>mode: diary</code>) → <code>/tts</code> · 판정을 기다리는 약 5초는 미리 구운 리액션으로 메운다</dd>
+      <dt>5 갈림길</dt><dd><ul><li>「몰라」 → 한 번만 쉽게 바꿔 묻는다("아침 먹고 어디 갔어?"). 또 모르면 그 칸은 비워 두고 넘어간다. 마스코트가 대신 채우지 않는다</li><li>무응답 8초 → "괜찮아, 생각 안 나도 돼." 다음으로</li><li>딴 얘기 → <code>extra</code>에 원문, 판정이 칸을 찾으면 채운다</li><li>아이가 계속 말하면 <strong>받아 준다</strong>. 상한은 우리가 거는 질문 수이지 아이 말 수가 아니다(규칙 3)</li></ul></dd>
+      <dt>6 끝</dt><dd>필수 두 칸이 차면 <code>story_ready</code> → D4 · 질문이 다 떨어져도 D4 · 15분은 안전장치로만 남긴다</dd>
+    </dl>
+  </article>
+
+  <article class="screen" id="d4">
+    <div class="screen-head"><span class="sid">D4</span><h3>책 만드는 중</h3><span class="tag t-now">이번 주: <code>/story</code></span></div>
+    <div class="say">"오늘 이야기가 다 모였어! 이제 그림일기로 만들어 줄게."<small>마스코트 · 고정 대사</small></div>
+    <dl class="six">
+      <dt>1 누가 말하나</dt><dd>마스코트</dd>
+      <dt>2 무엇으로 답하나</dt><dd>없음 (기다리는 화면)</dd>
+      <dt>3 무엇이 저장되나</dt><dd>쪽마다 자막</dd>
+      <dt>4 어느 서버</dt><dd><ul><li><code>/story</code>(<code>mode: diary</code>) · 이름은 가려서 보낸다</li><li>장소 배경은 만들지 않는다 — 책은 아이 그림 조각(과 고른 오또 그림)만으로 간다</li></ul></dd>
+      <dt>5 갈림길</dt><dd>8초 안 오면 "조금 뒤에 올 거야" · 실패하거나 15초 넘으면 앱의 책 틀 문장(<code>diaryTemplate</code>)으로 만든다</dd>
+      <dt>6 끝</dt><dd>D5로</dd>
+    </dl>
+  </article>
+
+  <article class="screen" id="d5">
+    <div class="screen-head"><span class="sid">D5</span><h3>그림일기</h3><span class="tag t-now">이번 주</span></div>
+    <div class="say">책을 한 쪽씩 넘기며 1인칭으로 읽어 준다. 흰 종이 위에 아이 그림 조각이 그린 자리 그대로 있고, 쪽마다 문장에 나온 조각이 앞으로 나와 문장대로 움직인다(무너졌어요 → 넘어짐 · 쌓았어요 → 쌓아 올라감 · 친구랑 → 통통)<small>장소 사진 · 미션 없음 · 책 낭독 목소리는 미결 (<code>CLAUDE.md</code> 모델 표)</small></div>
+    <dl class="six">
+      <dt>1 누가 말하나</dt><dd>낭독</dd>
+      <dt>2 무엇으로 답하나</dt><dd>쪽 넘기기 · 조각마다 도구로 누르기(✋ 🔨 🪶 🔍 「내가 그린 ○○」) · 끌어서 옮기기</dd>
+      <dt>3 무엇이 저장되나</dt><dd>책 한 권 (책장) — 조각 · 고른 모습(내 그림 / 오또 그림) · 쪽 문장</dd>
+      <dt>4 어느 서버</dt><dd>없음 (낭독을 서버로 굽게 되면 <code>/tts</code>)</dd>
+      <dt>5 갈림길</dt><dd>없음</dd>
+      <dt>6 끝</dt><dd>위 「엔드 픽처」 모양 · 3~6쪽 · 첫 쪽은 아이 그림 원본</dd>
+    </dl>
+  </article>
+
+  <article class="screen" id="d6">
+    <div class="screen-head"><span class="sid">D6</span><h3>끝</h3><span class="tag t-now">이번 주: 기존 화면</span></div>
+    <div class="say">책이 있으면: 선물 → [책장에 꽂기]<br>책이 없으면(그림도 말도 없음): "오늘은 여기까지 하고, 내일 또 하자."<small>벌점 · 아쉬움 표현 없음</small></div>
+    <dl class="six">
+      <dt>1 누가 말하나</dt><dd>마스코트</dd>
+      <dt>2 무엇으로 답하나</dt><dd>버튼</dd>
+      <dt>3 무엇이 저장되나</dt><dd>부모 기록: 주고받기 횟수 · <code>by: child</code> 원문 인용만 (규칙 5 · 9)</dd>
+      <dt>4 어느 서버</dt><dd>없음</dd>
+      <dt>5 갈림길</dt><dd>없음. 동화 모드로 넘기지 않는다(말을 안 한 아이에게 더 많은 말을 요구하게 된다)</dd>
+      <dt>6 끝</dt><dd>홈</dd>
+    </dl>
+  </article>
+</section>
+
+<section aria-labelledby="diff-h">
+  <h2 id="diff-h">지금 코드에서 바뀌는 것</h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>무엇</th><th>지금 (main)</th><th>이 흐름</th><th>어디</th></tr></thead>
+      <tbody>
+        <tr><td>필수 칸</td><td>기승전결 넷 (<code>place</code> · <code>problem</code> · <code>cause</code> · <code>solution</code>)</td><td><code>place</code> · <code>problem</code> 둘. 나머지는 선택</td><td><code>DiaryBank.kt</code> <code>DIARY_REQUIRED</code></td></tr>
+        <tr><td>질문 수</td><td>화이트보드 뒤 11걸음</td><td>그리는 중엔 간격으로만(붓 멈춤 + 5초) · 뒤에 최대 2~3</td><td><code>DIARY_STEPS</code> · <code>sceneDiary()</code></td></tr>
+        <tr><td>빈 칸</td><td>마스코트가 이야기로 메움 (<code>by: mascot</code>)</td><td>비워 두고 "아직 듣지 못했어요"</td><td><code>finishDiary()</code></td></tr>
+        <tr><td>쪽수</td><td>6~8쪽</td><td>칸이 찬 만큼 3~6쪽</td><td><code>diaryTemplate()</code></td></tr>
+        <tr><td>주어</td><td>「지호는 오늘…」</td><td>「나는 오늘…」</td><td><code>diaryTemplate()</code> · <code>guidelines/7</code> §5-1 · <code>eval/story_prompt_diary.md</code></td></tr>
+        <tr><td>씨앗 0개</td><td>[끝내기] / [동화 모드로 넘기기]</td><td>조용히 끝내기만</td><td><code>finishDiary()</code></td></tr>
+        <tr><td>오늘 만난 사람 그리기</td><td>기승전결이 다 차면 한 번 더 그리기</td><td>뺀다. 화이트보드가 「만들기」를 이미 채운다</td><td><code>diaryDrawStep()</code></td></tr>
+        <tr><td>수준</td><td>질문 말투 · 기다림 시간을 수준으로 가름</td><td>일기에서는 가르지 않는다. 신호 기록은 공용 그대로</td><td><code>askDiaryStep()</code></td></tr>
+        <tr><td>서버</td><td>없음 (대본)</td><td><code>/stt</code> · <code>/judge</code> · <code>/story</code> · <code>/tts</code> (견본: <code>spike/first-lap</code> <code>Live.kt</code>)</td><td><code>DiaryScenes.kt</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="open-h">
+  <h2 id="open-h">정해야 할 것</h2>
+  <ul class="open">
+    <li><b>질문 상한과 규칙 3</b><p>"그리는 중 2 + 뒤에 2~3"은 우리가 먼저 거는 질문의 상한이다. 아이 말을 끊는 턴 상한은 아니다. 동결 규칙을 건드리는 자리라 조장 확인이 필요하다.</p></li>
+    <li><b>필수 칸을 둘로 줄이기</b><p><code>place</code> · <code>problem</code>만 필수로 두면 판정의 <code>no_longer_needed</code> · <code>story_ready</code> 기준이 일기에서 달라진다. 판정 프롬프트 모드 절(<code>prompt/judge-canonical</code>)에 같이 반영한다.</p></li>
+    <li><b>그리는 중 질문 타이밍</b><p>프로토타입은 붓 멈춤 1.6초 · 질문 사이 5초 · 답 없이 10초 그리면 거둠. 3~7세에게 맞는 값은 조카(10/3) 관찰로 정한다. 나중에 Jev 「다 그렸나」가 멈춤 판단을 돕는다.</p></li>
+    <li><b>폰 안 인식이 되나</b><p>AutoDraw가 3~7세 낙서를 얼마나 알아보는지 아직 안 쟀다. 안 되면 D1은 늘 "무엇을 그렸어?"로 연다. 흐름은 그대로 선다.</p></li>
+    <li><b>조각 나누기와 쪽마다 등장</b><p>조각을 위치로 묶는 방식이 겹친 그림에서 얼마나 틀리나, 아이가 [붙이기]를 할 수 있나. 문장에 나온 조각만 그 쪽에 나오는 규칙(이름 맞추기)으로 충분한가. 움직임(무너짐 · 뛰기)을 누가 고르나 — 조장 Jev 자리 · 무대는 치영.</p></li>
+    <li><b>✨ 아이 그림을 생성 그림으로 바꿔 보기 (09-29 조장과 이야기 — 차별점 1을 푸는 방향 · 문서 수정은 추후)</b><p>아이가 원하면 조각을 「펠트 인형」 · 「동화책 그림」 모습으로 만들어 고르게 한다. 그리는 중(D1)이든 오려 내기(D2)든 "강아지 멋지게 그려줘"라고 하면 <strong>뒤에서 만들고 아이는 계속 그린다</strong> — 기다리는 화면이 없다. 다 되면 이름표에 ✨, 누르면 옆에 작은 고르기 칸. <strong>차별점 1 「아이가 만든 건 AI가 다시 그리지 않는다」를 푸는 일</strong>이고 조각 그림이 우리 서버로 간다 — 제품 설명 · 처리방침 · Play 양식을 같이 고쳐야 한다. 지킬 선: 원본이 늘 기본값 · 책 1쪽은 늘 원본 · 안전 검사 통과한 결과만(규칙 8) · 부모 기록엔 「아이가 고른 생성 그림」으로 표시하고 원본도 보관.</p></li>
+  </ul>
+</section>
+
+</div>

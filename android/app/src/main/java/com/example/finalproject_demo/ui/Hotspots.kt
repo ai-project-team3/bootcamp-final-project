@@ -165,7 +165,7 @@ fun HotspotLayer(
                 //
                 // 전에는 소개할 때도 `glow`(아이가 말한 것)에 든 자리만 켰다. 그런데 일기·협업의 `glow` 는
                 // 아이 말과 겹치는 낱말만 담아서 **비어 있는 날이 많았고, 안내가 아예 안 떴다.**
-                val lit = if (introducing) true else (mentioned && glowMentioned)
+                val lit = SHOW_TOUCH_MARKS && (if (introducing) true else (mentioned && glowMentioned))
                 if (marks) LaunchedEffect(pulse, mentioned) {
                     if (mentioned && pulse > 0) {
                         delay(i * 90L)
@@ -244,11 +244,9 @@ fun HotspotLayer(
                                 .wrapContentSize(unbounded = true)
                                 .offset { IntOffset(0, (-20 - rise.value * 40).roundToInt()) }
                                 .graphicsLayer { alpha = 1f - rise.value * 0.6f }
-                                .shadow(4.dp, RoundedCornerShape(999.dp))
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(Color.White)
-                                .padding(horizontal = 10.dp, vertical = 3.dp)
-                        ) { Text(st.popText, fontSize = 15.sp, color = Coral, fontWeight = FontWeight.Bold) }
+                                .felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) { Text(st.popText, fontSize = 16.sp, color = FeltCoral) }
                     }
                 }
             }

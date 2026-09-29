@@ -209,8 +209,14 @@ private suspend fun Director.sceneAdult() {
     )
     // 갈래가 갈라지는 유일한 자리 (일기 §1 · 협업 §3). 뒤의 흐름은 질문 세트와 **묻는 사람**만 다르고 나머지는 같다
     var picked = StoryMode.STORY
-    when (awaitValue("start", "diary", "coop", "shelf", "parent", "notice:ok", "notice:shelf")) {
+    when (awaitValue("start", "diary", "coop", "shelf", "parent", "notice:ok", "notice:shelf", "resume")) {
         "shelf", "notice:shelf" -> { go(Scene.SHELF); return }
+        // 이야기 도중 나갔다가 「이어서 할까?」에 응 (09-29) — 별을 다시 쓰지 않고, 이야기 조각을 지우지 않고 멈춘 장면부터
+        "resume" -> {
+            val sc = s.paused
+            s.paused = null
+            if (sc != null) { log("만들던 이야기 이어서 — 「${sc.label}」부터 (별은 이미 썼다)"); go(sc); return }
+        }
         "parent" -> {
             if (pinGate("parent")) go(Scene.PARENT) else go(Scene.ADULT)
             return
@@ -236,6 +242,7 @@ private suspend fun Director.sceneAdult() {
         log("부모 설정: 이야기를 시작하려면 비밀번호 → 어른이 함께 있을 때만 시작")
         if (!pinGate("start")) { go(Scene.ADULT); return }
     }
+    s.paused = null          // 새 이야기 — 멈춰 둔 이야기는 버린다
     s.resetStory()
     s.mode = picked
     if (s.isDiary) {
@@ -440,8 +447,19 @@ private suspend fun Director.sceneMakeHero() {
         attr = when (key) {
             "hair" -> attr.copy(hair = v)
             "glasses" -> attr.copy(glasses = v)
-            else -> attr.copy(shirt = Color(v.toLong(16) or 0xFF000000))
+            // 빈 값 · 이상한 값이면 옷을 그대로 둔다 — 전에는 여기서 앱이 죽었다 (09-29 「드레스」)
+            else -> v.toLongOrNull(16)?.let { attr.copy(shirt = Color(it or 0xFF000000)) } ?: attr
         }
+    }
+
+    /** 대본 답이면 꼬리표로, 진짜 말이면 글자에서 찾는다. 못 찾으면 모습을 그대로 둔다 */
+    fun applySpoken(key: String?, r: Reply.Spoke) {
+        val found = (if (key != null) r.value.takeIf { it.isNotBlank() }?.let { key to it } else null)
+            ?: r.value.split(":").takeIf { it.size == 2 }?.let { it[0] to it[1] }
+            ?: heroValueIn(key, r.text)
+        if (found == null) { log("\"${r.text}\" 에서 바꿀 모습을 못 찾음 → 그대로 둔다"); return }
+        apply(found.first, found.second)
+        log("\"${r.text}\" → ${found.first}=${found.second}")
     }
 
     suspend fun voiceStep(from: Int) {
@@ -450,7 +468,7 @@ private suspend fun Director.sceneMakeHero() {
             s.stage = Stage.HeroShow(if (i == 0) null else attr, if (i == 0) "주인공 만드는 중 — 마이크로 말해 줘" else "이렇게 되고 있어 — 마이크로 말해 줘")
             val r = ask(Question(text = q.text, kind = Kind.EASY, spoken = q.spoken, easierText = q.easier, easierAsk = "골라 볼래?", choices = q.cards))
             when (r) {
-                is Reply.Spoke -> { apply(q.key, r.value); log("Whisper → \"${r.text}\" → 속성값 ${q.key}=${r.value} (발화 원문 아님 · 음성 사본 즉시 삭제)") }
+                is Reply.Spoke -> applySpoken(q.key, r)
                 is Reply.Tapped -> apply(q.key, r.value)
                 else -> {}
             }
@@ -472,11 +490,7 @@ private suspend fun Director.sceneMakeHero() {
             )
         )
         when (r) {
-            is Reply.Spoke -> {
-                val (k, v) = r.value.split(":")
-                apply(k, v)
-                log("한 번에 한 가지만 · Whisper → \"${r.text}\" → $k=$v")
-            }
+            is Reply.Spoke -> applySpoken(null, r)          // 한 번에 한 가지만
             is Reply.Tapped -> {
                 val idx = questions.indexOfFirst { it.key == r.value }
                 if (idx >= 0) voiceStep(idx)
@@ -545,7 +559,7 @@ private suspend fun Director.scenePartner() {
             is Reply.Spoke -> {
                 s.micOn = false
                 childSays(r.text)
-                key = r.value.takeIf { v -> PARTNERS.any { it.key == v } }
+                key = r.value.takeIf { v -> PARTNERS.any { it.key == v } } ?: partnerKeyIn(r.text)
                 if (key == null) { say("다시 한번 말해 줄래?"); pause(1200) }
                 else log("Whisper \"${r.text}\" → 호칭 사전과 맞춤 → ${partner(key).name}")
             }
@@ -1421,7 +1435,7 @@ private suspend fun Director.sceneBook() {
             vv == "prev" -> { if (s.bookPage > 0) { s.bookPage--; show(); announce(); refreshButtons() } }
             vv == "speak" -> log("🔊 자막 낭독 (CLOVA Voice, 이름 없는 문장)")
             vv == "mission" && s.bookPage == rubPage && s.m1Result == null -> {
-                s.m1Result = "solo"; s.reactions++
+                s.m1Result = "solo"; s.reactions++; feel(Mood.CHEER)
                 s.achievements += "${m1.blobName} 치운 손"
                 show(); announce(); refreshButtons()
                 event("mission", "id" to 1, "motion" to "rub", "result" to "solo")
@@ -1429,7 +1443,7 @@ private suspend fun Director.sceneBook() {
                 mark("book")
             }
             vv == "helped" && s.bookPage == rubPage && s.m1Result == null -> {
-                s.m1Result = "helped"; s.achievements += "${m1.blobName} 치운 손"
+                s.m1Result = "helped"; s.achievements += "${m1.blobName} 치운 손"; feel(Mood.CHEER)
                 show(); refreshButtons()
                 s.bookNote = "같이 하자! 슥슥~ 퐁! 다 됐어!"
                 event("mission", "id" to 1, "motion" to "rub", "result" to "helped")
@@ -1437,7 +1451,7 @@ private suspend fun Director.sceneBook() {
             }
             vv == "gag" -> log("장난 반응 (미션과 무관 · 저장 안 함)")
             vv == "mission" && s.bookPage == dragPage && s.m2Result == null -> {
-                s.m2Result = if (s.m1Result == "helped") "easy" else "solo"; s.reactions++
+                s.m2Result = if (s.m1Result == "helped") "easy" else "solo"; s.reactions++; feel(Mood.CHEER)
                 s.achievements += "${m2.itemName} 건넨 손"
                 show(); announce(); refreshButtons()
                 event("mission", "id" to 2, "motion" to "drag", "result" to s.m2Result)

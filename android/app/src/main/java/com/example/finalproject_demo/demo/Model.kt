@@ -119,6 +119,41 @@ val PARTNERS = listOf(
 
 fun partner(key: String) = PARTNERS.firstOrNull { it.key == key } ?: PARTNERS.first()
 
+/**
+ * 진짜 마이크로 들은 말에서 호칭을 찾는다 (09-29 S25+).
+ * 대본 답에는 `value = "mom"` 꼬리표가 붙어 오지만 받아쓴 글자에는 없다 — 그래서 「엄마」를 맞게
+ * 받아써도 「다시 한번 말해 줄래?」가 끝없이 돌았다. 긴 이름부터 본다(「할아버지」가 「아버지」에 먹히지 않게).
+ */
+private val PARTNER_WORDS = listOf(
+    "할아버지" to "grandpa", "할부지" to "grandpa", "할머니" to "grandma", "할미" to "grandma",
+    "어머니" to "mom", "엄마" to "mom", "아버지" to "dad", "아빠" to "dad",
+    "이모" to "aunt", "친구" to "friend",
+)
+
+fun partnerKeyIn(text: String): String? = PARTNER_WORDS.firstOrNull { (word, _) -> word in text }?.second
+
+/**
+ * 진짜 마이크로 들은 말에서 주인공 모습(머리 · 옷 색 · 안경)을 찾는다 (09-29 S25+).
+ * 대본 답의 꼬리표(`"F25C4C"` · `"hair:long"`)가 받아쓴 글자에는 없어서, 「드레스」라고 답하자
+ * 빈 꼬리표를 색으로 바꾸다 **앱이 죽었다.** 못 찾으면 null — 부르는 쪽은 모습을 그대로 둔다.
+ * [key] 가 있으면 그 부분만, 없으면(「어디를 바꿀까?」) 셋 다 본다.
+ */
+private val HERO_WORDS: Map<String, List<Pair<String, String>>> = mapOf(
+    "glasses" to listOf("동글" to "round", "동그란" to "round", "네모" to "square",
+        "안 써" to "none", "안써" to "none", "싫어" to "none", "없어" to "none"),
+    "hair" to listOf("짧" to "short", "길" to "long", "긴" to "long", "묶" to "tied"),
+    "shirt" to listOf("빨" to "F25C4C", "파랑" to "3F7BD9", "파란" to "3F7BD9", "하늘" to "3F7BD9",
+        "노랑" to "F9B233", "노란" to "F9B233", "초록" to "4CAF50", "녹색" to "4CAF50",
+        "분홍" to "F48FB1", "핑크" to "F48FB1", "보라" to "9C6ADE", "주황" to "F28C28",
+        "까만" to "333333", "검은" to "333333", "검정" to "333333", "하얀" to "F5F5F5", "흰" to "F5F5F5"),
+)
+
+fun heroValueIn(key: String?, text: String): Pair<String, String>? {
+    val keys = if (key != null) listOf(key) else listOf("glasses", "hair", "shirt")
+    for (k in keys) HERO_WORDS[k]?.firstOrNull { (word, _) -> word in text }?.let { return k to it.second }
+    return null
+}
+
 /** 아이가 그림판에 그린 선 하나. 좌표는 0~1로 정규화. */
 /**
  * 아이가 그린 선 하나. [pts]는 그림판 크기로 나눈 0~1 좌표, [w]는 **그림판 폭에 대한 붓 굵기**다.
@@ -679,6 +714,27 @@ data class Answer(
 }
 
 /** 아이가 낸 반응. 마이크 · 화면 탭 · 대본 버튼이 모두 이리로 들어온다. */
+/**
+ * 마스코트(오또)의 기분 — 말풍선 옆 얼굴이 **상황마다 다르게 움직이게** 하는 신호다 (09-29).
+ *
+ * 감독([Director.feel])이 흐름 속에서 켠다. 그림은 얼굴 세 장뿐이고 움직임은 전부 코드다(`ui/Chrome.kt` `OttoFace`).
+ *   - [CHEER] · [SURPRISED] 는 **한 번 터지고 끝나는** 반응이다. 같은 기분을 또 켜도 [DemoState.moodId] 가 올라 다시 터진다
+ *   - [WAITING] 은 켜 둔 동안 이어진다. 질문 하나가 끝나면 [Director.ask] 가 끈다
+ *   - 「생각하는 중」은 여기 없다 — 화면이 [Stage.Making] 이면 얼굴이 알아서 생각한다
+ */
+enum class Mood {
+    NONE,
+
+    /** 해냈다 — 미션 성공 · 아이가 답했을 때. 폴짝 뛰고 반짝임이 터진다 */
+    CHEER,
+
+    /** 깜짝 — 「쉿」 「앗」 으로 시작하는 말. 움찔 커졌다 부르르 떤다 */
+    SURPRISED,
+
+    /** 아이가 말이 없다 — 재촉하지 않고 고개를 끄덕이며 기다린다 */
+    WAITING,
+}
+
 sealed interface Reply {
     data class Spoke(val text: String, val value: String = "", val answer: Answer? = null) : Reply
 
@@ -1164,6 +1220,17 @@ class DemoState {
 
     /** 말풍선 애니메이션을 다시 시작시키는 번호 — 말할 때마다 1씩 오른다 */
     var lineId by mutableStateOf(0)
+
+    /** 마스코트 기분 · 같은 기분을 다시 켜도 반응이 또 터지게 하는 번호 ([Mood]) */
+    var mood by mutableStateOf(Mood.NONE)
+    var moodId by mutableStateOf(0)
+
+    /**
+     * 이야기 **도중** 🏠 · 🔒 로 나갔을 때 멈춘 장면 (09-29). 이야기 조각(칸 · 주인공 · 그림)은 새 이야기를 시작할 때만
+     * 지워지므로 그대로 남아 있다 — 다시 같은 모드로 들어오면 「이어서 할까?」를 묻고 이 장면부터 다시 돈다.
+     * 새 이야기를 시작하거나 이어 가면 비운다. 앱을 끄면 사라진다(메모리뿐)
+     */
+    var paused by mutableStateOf<Scene?>(null)
     var micOn by mutableStateOf(false)
     var micEnabled by mutableStateOf(false)
     var nextEnabled by mutableStateOf(false)
@@ -1251,6 +1318,7 @@ class DemoState {
         friendName = "{친구1}"; causeLine = "친구가 없어서 심심했어"; soundLine = "뿌우우우웅!"
         solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; storyCaptions = null; bookPage = 0; bookNote = ""
         turn = 0; s1streak = 0; s1count = 0; noAnswerStreak = 0
+        mood = Mood.NONE
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null
@@ -1263,6 +1331,7 @@ class DemoState {
 
     /** 앱을 새로 켠 것처럼 전부 지운다 (시연 서랍 "처음부터") */
     fun reset() {
+        paused = null
         nextLevel = null
         level = Level.CHAIN
         resetStory()

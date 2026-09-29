@@ -248,4 +248,58 @@ class StoryFlowTest {
             s.askTotal, s.askDone,
         )
     }
+
+    // ── 이야기 도중 나갔다가 이어 가기 (09-29 앱 틀 · 🏠 · 🔒) ─────────────────────
+
+    /** 동화 모드를 시작해 「왜 그랬을까」 장면까지 민다 */
+    private suspend fun Director.toCause() {
+        go(Scene.ADULT)
+        assertTrue("시작 화면이 안 떴다", await { s.buttons.any { "이야기 만들기 탭" in it.label } } != null)
+        s.buttons.first { "이야기 만들기 탭" in it.label }.onClick()
+        assertTrue("동화 모드가 안 시작됐다", await { s.scene == Scene.PARTNER } != null)
+        walkTo(setOf(Scene.CAUSE))
+        assertEquals(Scene.CAUSE, s.scene)
+    }
+
+    @Test
+    fun leavingMidStoryWithHomeAndComingBackResumesWhereItStopped() = run { d ->
+        val s = d.s
+        d.toCause()
+        val used = s.usedToday
+        val slots = s.slots.toMap()
+        d.leaveToRoom()
+        assertTrue("🏠 로 방에 안 돌아왔다", await { s.scene == Scene.ADULT } != null)
+        assertEquals("멈춘 장면을 기억하지 않았다", Scene.CAUSE, s.paused)
+        d.send(com.example.finalproject_demo.demo.Reply.Tapped("resume", "이어서"))
+        assertTrue("「이어서」 를 눌렀는데 멈춘 장면으로 안 갔다 — ${s.scene}", await { s.scene == Scene.CAUSE } != null)
+        assertEquals("이어 가는데 하루 별을 또 썼다", used, s.usedToday)
+        assertEquals("이어 가는데 이야기 조각이 지워졌다", slots, s.slots.toMap())
+        assertEquals("이어 간 뒤에도 멈춘 장면이 남았다", null, s.paused)
+    }
+
+    @Test
+    fun theParentDoorMidStoryAlsoKeepsTheStory() = run { d ->
+        val s = d.s
+        d.toCause()
+        d.openParent()
+        assertTrue("🔒 로 어른 확인이 안 떴다", await { s.stage is com.example.finalproject_demo.demo.Stage.Pin } != null)
+        d.send(com.example.finalproject_demo.demo.Reply.Tapped("pin:ok", "통과"))
+        assertTrue("부모 영역으로 안 갔다", await { s.scene == Scene.PARENT } != null)
+        assertEquals(Scene.CAUSE, s.paused)
+        d.send(com.example.finalproject_demo.demo.Reply.Tapped("home", "처음으로"))
+        assertTrue("부모 영역에서 방으로 안 돌아왔다", await { s.scene == Scene.ADULT } != null)
+        d.send(com.example.finalproject_demo.demo.Reply.Tapped("resume", "이어서"))
+        assertTrue("부모 영역을 다녀온 뒤 이어 가지 못했다 — ${s.scene}", await { s.scene == Scene.CAUSE } != null)
+    }
+
+    @Test
+    fun startingANewStoryDropsThePausedOne() = run { d ->
+        val s = d.s
+        d.toCause()
+        d.leaveToRoom()
+        assertTrue(await { s.scene == Scene.ADULT } != null)
+        d.send(com.example.finalproject_demo.demo.Reply.Tapped("start", "이야기 만들기"))
+        assertTrue("「새로」 를 눌렀는데 새 이야기가 안 시작됐다", await { s.scene == Scene.PARTNER } != null)
+        assertEquals("새 이야기를 시작했는데 멈춘 이야기가 남았다", null, s.paused)
+    }
 }

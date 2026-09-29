@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     stt_model: str = "large-v3"
     stt_device: str = "cuda"
     stt_compute_type: str = "int8_float16"    # what combination A was measured with
+    stt_warmup: bool = True                   # load at start; first calls raced the load and 502-ed (09-29)
+    # lead-only test switch: keep audio + text here to hear what the model heard. Never with a child.
+    stt_debug_dir: str = ""
 
     # 09-25 vendor, 09-28 team scores: Ruri (smart) was the only 12/12. The lineup is
     # still open, so the voice is a setting and the app may pass its own voice_id.
