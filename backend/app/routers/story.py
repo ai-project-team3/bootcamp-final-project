@@ -76,7 +76,8 @@ def plan(req: StoryRequest) -> str:
     for i, pg in enumerate(req.pages, 1):
         line = f"{i} {pg.kind} : {KIND_MEANING[pg.kind]}"
         if pg.mission:
-            line += f" · 미션 {pg.mission} {MISSION_SETUP[pg.mission]}. 이 상황으로 끝내고 풀지 않는다"
+            line += (f" · 미션 {pg.mission} {MISSION_SETUP[pg.mission]}. 이 상황으로 끝내고 풀지 않는다."
+                     " 미션 이름 · 도구 이름 · '직전' 같은 설명 말은 쓰지 않고 이야기 속 장면으로만 보여 준다")
         lines.append(line)
     if req.mode != "story":
         lines.append("있었던 일이다. 미션 쪽도 칸에 있는 일로만 쓰고, 없던 일을 지어내지 않는다.")
