@@ -59,6 +59,15 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .coin{position:absolute;top:2cqw;right:2cqw;background:#fff;border-radius:3cqw;padding:.6cqw 1.6cqw;font-size:1.9cqw;display:flex;gap:.6cqw;align-items:center;box-shadow:0 .5cqw 1cqw rgba(58,42,32,.18);z-index:5}
 .coin b{width:2.6cqw;height:2.6cqw;border-radius:50%;background:var(--coral);display:inline-block}
 
+/* D3: Otto beside the page, the line in a speech bubble (placeholder — later Otto lies down drawing / writing) */
+.d3-otto{position:absolute;left:2cqw;bottom:0;height:33cqw;filter:drop-shadow(0 1cqw 1.2cqw rgba(58,42,32,.25));transform-origin:50% 100%;animation:bob 2.6s ease-in-out infinite;pointer-events:none}
+.d3-otto.hop{animation:hop .45s ease-out}
+.frame.asking .band{left:31cqw;right:auto;top:11cqw;bottom:auto;width:30cqw;min-height:0;background:#fff;border:.4cqw solid var(--app-ink-soft);border-radius:3cqw;padding:1.6cqw 2.2cqw;box-shadow:0 .8cqw 1.6cqw rgba(58,42,32,.2);animation:pop .3s ease-out}
+.frame.asking .band::after{inset:auto;left:-2.5cqw;top:50%;width:2.6cqw;height:3cqw;margin-top:-1.5cqw;border:none;border-radius:0;background:var(--app-ink-soft);clip-path:polygon(100% 0,0 55%,100% 100%)}
+.frame.asking .band::before{content:"";position:absolute;left:-1.8cqw;top:50%;width:2.2cqw;height:2.2cqw;margin-top:-1.1cqw;background:#fff;clip-path:polygon(100% 0,0 55%,100% 100%);z-index:1}
+.frame.asking .band .face{display:none}
+.frame.asking .band .line{font-size:2.6cqw}
+.frame.asking .echo{display:none}   /* Otto's bubble already says it */
 /* narration band */
 .frame.drawing .band{left:1.2cqw;right:auto;bottom:1.2cqw;max-width:62cqw;min-height:0;gap:1.2cqw;padding:.6cqw 2cqw .6cqw .6cqw;border-width:.4cqw;border-radius:4cqw;cursor:pointer;transition:max-width .35s ease, padding .35s ease, opacity .35s ease;overflow:hidden}
 .frame.drawing .band .face{width:5.4cqw;height:5.4cqw;border-width:.4cqw}
@@ -425,6 +434,7 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
           <div class="sys"><span>🏠</span><span class="lock">🔒</span></div>
           <div class="prog"><div class="yarn"><i id="yarn"></i></div><span class="star" id="st1">⭐</span><span class="star" id="st2">⭐</span></div>
           <div class="page-card" id="d3-card"><img id="d3-img" alt="아이가 그린 조각"></div>
+          <img class="d3-otto" id="d3-otto" src="img/diary_ui/listen.png" alt="오또">
           <div class="echo" id="echo"></div>
         </section>
 
@@ -664,6 +674,11 @@ function tuckLater(text){   // drawing screen: the line is spoken (TTS), so it o
 }
 function band(text, state='talk'){
   $('band').style.display = 'flex'; $('line').textContent = text; tuckLater(text);
+  if (S.scr === 'd3'){   // placeholder poses: listening while asking, talking otherwise
+    const ot = $('d3-otto'); ot.src = `img/diary_ui/${state === 'listen' ? 'listen' : state === 'think' ? 'think' : 'talk'}.png`;
+    ot.classList.remove('hop'); void ot.offsetWidth; ot.classList.add('hop'); setTimeout(() => ot.classList.remove('hop'), 460);
+    const b = $('band'); b.style.animation = 'none'; void b.offsetWidth; b.style.animation = '';
+  }
   $('face').className = 'face ' + (state === 'talk' ? '' : state);
   $('face').style.backgroundImage = `url(${FACE[state]})`;
   $('vbar').classList.toggle('on', state === 'listen');
@@ -675,7 +690,7 @@ const STEPS = [['d0','D0 시작'],['d1','D1 그리며 묻기'],['d2','D2 오려 
 function show(scr){
   S.scr = scr;
   document.querySelectorAll('.scr').forEach(e => e.classList.toggle('on', e.id === 's-'+scr));
-  $('frame').classList.toggle('drawing', scr === 'd1'); if (scr !== 'd1'){ clearTimeout(bandT); $('band').classList.remove('tuck'); }
+  $('frame').classList.toggle('drawing', scr === 'd1'); $('frame').classList.toggle('asking', scr === 'd3'); if (scr !== 'd1'){ clearTimeout(bandT); $('band').classList.remove('tuck'); }
   $('steps').innerHTML = STEPS.map(([k,n]) => `<button data-go="${k}" ${k===scr?'aria-current="step"':''}>${n}</button>`).join('');
 }
 let optsAt = 0;
