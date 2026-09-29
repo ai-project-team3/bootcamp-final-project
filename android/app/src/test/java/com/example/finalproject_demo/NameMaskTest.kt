@@ -54,6 +54,21 @@ class NameMaskTest {
     }
 
     @Test
+    fun theVoiceReadsTheNameOnlyWithConsent() {
+        val line = "지민이 민수랑 공룡 나라에 갔구나!"
+        assertEquals(line, m.speakable(line, named = true))
+        assertEquals("우리 친구가 친구랑 공룡 나라에 갔구나!", m.speakable(line, named = false))
+        // a masked line from the server reads the same way
+        assertEquals("우리 친구는 웃었어.", m.speakable("{주인공}은 웃었어.", named = false))
+    }
+
+    @Test
+    fun withoutConsentNoRealNameIsInTheVoice() {
+        val out = m.speakable("하늘아, 지민이가 민수를 불렀어", named = false)
+        listOf("지민", "민수", "하늘").forEach { assertFalse("$it leaked into the voice: $out", it in out) }
+    }
+
+    @Test
     fun oneLetterAndPlaceholderNamesAreIgnored() {
         val short = NameMask("호", listOf("{친구1}"))
         assertEquals("호수에 갔어", short.mask("호수에 갔어"))
