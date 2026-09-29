@@ -53,11 +53,15 @@ class FlowShotTest {
         compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).onLast().performClick()
     }
 
-    private fun lap(dir: String, thing: String) {
+    private fun lap(dir: String, thing: String, prep: (com.example.finalproject_demo.demo.DemoState) -> Unit = {}) {
         compose.waitUntil(10_000) { compose.activity.director != null }
         val d = compose.activity.director!!
-        compose.runOnIdle { d.s.speed = 0.02 }
-        tap(thing); tap("응!")
+        compose.runOnIdle { d.s.speed = 0.02; prep(d.s) }
+        tap(thing)
+        runCatching { tap("응!") }.onFailure {
+            captureScreenRoboImage(File("build/flow/$dir/fail_room.png").path, RoborazziOptions(taskType = RoborazziTaskType.Record))
+            throw it
+        }
         compose.waitUntil(8_000) { d.s.scene != Scene.ADULT }
         var last = ""
         var n = 0
@@ -92,5 +96,9 @@ class FlowShotTest {
 
     @Test fun storyLap() = lap("story", "동화 만들기")
     @Test fun diaryLap() = lap("diary", "그림일기")
-    @Test fun coopLap() = lap("coop", "같이 만들기")
+    // 같이 만들기는 부모님이 먼저 템플릿으로 이야기를 준비해 둬야 소파가 열린다 (09-29) — 부모 모드에서 고른 것과 같게 채운다
+    @Test fun coopLap() = lap("coop", "같이 만들기") { s ->
+        s.parentQuestions.addAll(com.example.finalproject_demo.ui.coopKind("job")!!.questions("소방관", com.example.finalproject_demo.ui.CoopReason.SOON))
+        s.coopPick = com.example.finalproject_demo.demo.CoopPick("job", "소방관", "soon")
+    }
 }
