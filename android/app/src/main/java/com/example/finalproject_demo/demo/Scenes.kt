@@ -234,8 +234,14 @@ private suspend fun Director.sceneAdult() {
     )
     // 갈래가 갈라지는 유일한 자리 (일기 §1 · 협업 §3). 뒤의 흐름은 질문 세트와 **묻는 사람**만 다르고 나머지는 같다
     var picked = StoryMode.STORY
-    when (awaitValue("start", "diary", "coop", "shelf", "parent", "notice:ok", "notice:shelf")) {
+    when (awaitValue("start", "diary", "coop", "shelf", "parent", "notice:ok", "notice:shelf", "resume")) {
         "shelf", "notice:shelf" -> { go(Scene.SHELF); return }
+        // 이야기 도중 나갔다가 「이어서 할까?」에 응 (09-29) — 별을 다시 쓰지 않고, 이야기 조각을 지우지 않고 멈춘 장면부터
+        "resume" -> {
+            val sc = s.paused
+            s.paused = null
+            if (sc != null) { log("만들던 이야기 이어서 — 「${sc.label}」부터 (별은 이미 썼다)"); go(sc); return }
+        }
         "parent" -> {
             if (pinGate("parent")) go(Scene.PARENT) else go(Scene.ADULT)
             return
@@ -261,6 +267,7 @@ private suspend fun Director.sceneAdult() {
         log("부모 설정: 이야기를 시작하려면 비밀번호 → 어른이 함께 있을 때만 시작")
         if (!pinGate("start")) { go(Scene.ADULT); return }
     }
+    s.paused = null          // 새 이야기 — 멈춰 둔 이야기는 버린다
     s.resetStory()
     s.mode = picked
     if (s.isDiary) {
@@ -1417,7 +1424,7 @@ private suspend fun Director.sceneBook() {
             vv == "prev" -> { if (s.bookPage > 0) { s.bookPage--; show(); announce(); refreshButtons() } }
             vv == "speak" -> log("🔊 자막 낭독 (CLOVA Voice, 이름 없는 문장)")
             vv == "mission" && s.bookPage == rubPage && s.m1Result == null -> {
-                s.m1Result = "solo"; s.reactions++
+                s.m1Result = "solo"; s.reactions++; feel(Mood.CHEER)
                 s.achievements += "${m1.blobName} 치운 손"
                 show(); announce(); refreshButtons()
                 event("mission", "id" to 1, "motion" to "rub", "result" to "solo")
@@ -1425,7 +1432,7 @@ private suspend fun Director.sceneBook() {
                 mark("book")
             }
             vv == "helped" && s.bookPage == rubPage && s.m1Result == null -> {
-                s.m1Result = "helped"; s.achievements += "${m1.blobName} 치운 손"
+                s.m1Result = "helped"; s.achievements += "${m1.blobName} 치운 손"; feel(Mood.CHEER)
                 show(); refreshButtons()
                 s.bookNote = "같이 하자! 슥슥~ 퐁! 다 됐어!"
                 event("mission", "id" to 1, "motion" to "rub", "result" to "helped")
@@ -1433,7 +1440,7 @@ private suspend fun Director.sceneBook() {
             }
             vv == "gag" -> log("장난 반응 (미션과 무관 · 저장 안 함)")
             vv == "mission" && s.bookPage == dragPage && s.m2Result == null -> {
-                s.m2Result = if (s.m1Result == "helped") "easy" else "solo"; s.reactions++
+                s.m2Result = if (s.m1Result == "helped") "easy" else "solo"; s.reactions++; feel(Mood.CHEER)
                 s.achievements += "${m2.itemName} 건넨 손"
                 show(); announce(); refreshButtons()
                 event("mission", "id" to 2, "motion" to "drag", "result" to s.m2Result)

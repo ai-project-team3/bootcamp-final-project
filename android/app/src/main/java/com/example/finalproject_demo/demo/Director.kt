@@ -124,6 +124,13 @@ class Director(private val scope: CoroutineScope) {
         s.speaker = who
         s.line = text
         s.lineId++
+        if (who == "마스코트" && surprise.containsMatchIn(text)) feel(Mood.SURPRISED)
+    }
+
+    /** 마스코트 기분을 켠다 — 얼굴이 그에 맞게 움직인다 ([Mood]) */
+    fun feel(m: Mood) {
+        s.mood = m
+        s.moodId++
     }
 
     /**
@@ -241,6 +248,41 @@ class Director(private val scope: CoroutineScope) {
             // 방금 입력한 질문이 [같이 만들기] 전에 사라졌다 (90de2d6 의 실수 · 박진웅 4549b88 지적).
             // 비우는 곳은 협업 이야기가 끝날 때(`coopFinishLog`)와 `reset()` 둘이다
             go(Scene.ADULT)
+        }
+    }
+
+    /**
+     * 이야기 **도중** 🔒 부모 문 (09-29 앱 틀 · 디자인 시스템 「왼쪽 위 = 시스템」).
+     * 전에는 부모 신호를 첫 화면 · 책장에서만 받아, 이야기 중에 누르면 아무 일도 없었다.
+     * 지금 장면을 멈추고 어른 확인(태어난 해) → 부모 영역. 취소하면 오또의 방으로 — 만들던 이야기는 이어 가지 않는다
+     */
+    fun openParent() {
+        pauseStory()
+        scope.launch {
+            job?.cancelAndJoin()
+            drain()
+            currentQ = null
+            inputs(mic = false, next = false)
+            s.progressVisible = false
+            s.line = ""
+            job = scope.launch { if (pinGate("parent")) go(Scene.PARENT) else go(Scene.ADULT) }
+        }
+    }
+
+    /**
+     * 이야기 **도중** 🏠 방으로 (09-29) — 멈춘 장면을 기억해 두고 첫 화면(오또의 방)으로.
+     * 다시 같은 모드로 들어오면 「이어서 할까?」 → `resume` 신호로 이 장면부터 이어 간다 (`Scenes.sceneAdult`)
+     */
+    fun leaveToRoom() {
+        pauseStory()
+        goHome()
+    }
+
+    /** 지금이 이야기 **안**이면 그 장면을 기억한다 — 방 · 부모 · 책장은 이야기 밖이다 */
+    private fun pauseStory() {
+        if (s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF)) {
+            s.paused = s.scene
+            log("이야기 도중 나감 — 「${s.scene.label}」을 기억해 둔다. 다시 들어오면 이어서 할지 묻는다")
         }
     }
 
@@ -376,6 +418,7 @@ class Director(private val scope: CoroutineScope) {
         }
         currentQ = null
         inputs(mic = false, next = false)
+        if (s.mood == Mood.WAITING) s.mood = Mood.NONE
         return result
     }
 
@@ -431,6 +474,7 @@ class Director(private val scope: CoroutineScope) {
         childSays(text)
         s.reactions++
         s.modeVoice++
+        feel(Mood.CHEER)
         event("utterance", "speaker" to "child", "confidence" to "0.9", "mode" to "voice", "text" to text)
         log("[${s.childName}] $text  →  우리 서버 Whisper → 글자 (음성 사본 즉시 삭제)")
         pause(900)
@@ -441,6 +485,7 @@ class Director(private val scope: CoroutineScope) {
         s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = r.value) ?: s.stage
         s.reactions++
         s.modeCard++
+        feel(Mood.CHEER)
         event("utterance", "speaker" to "child", "mode" to "card", "text" to r.label)
         log("탭으로 고름: ${r.label} → 수준 신호로 세지 않음 (mode: card)")
         pause(800)
@@ -476,6 +521,7 @@ class Director(private val scope: CoroutineScope) {
     /** 기다림 → 쉬운 질문 → (힌트 질문 → 마스코트) 또는 (그림 카드 → 교체 3 → 마스코트) (⭐5 · ⭐22 · v0.8) */
     private suspend fun noAnswer(q: Question): Reply {
         s.modeSilent++
+        feel(Mood.WAITING)
         mark("noanswer")
         event("utterance", "speaker" to "unsure", "mode" to "silent", "text" to "(무응답)")
 
@@ -603,3 +649,6 @@ class Director(private val scope: CoroutineScope) {
         if (text !in s.quotes) s.quotes += text
     }
 }
+
+/** 「쉿, 창문에서 뭔가 움직였어!」 처럼 놀라며 시작하는 말 — 대본마다 따로 표시하지 않고 말머리로 알아본다 */
+private val surprise = Regex("""^(쉿|앗|헉|어라|어\?|깜짝)""")

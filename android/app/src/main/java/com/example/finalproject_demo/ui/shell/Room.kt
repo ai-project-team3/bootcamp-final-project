@@ -1,0 +1,462 @@
+package com.example.finalproject_demo.ui.shell
+
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.Reply
+import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.ui.AssetImage
+import com.example.finalproject_demo.ui.Cheek
+import com.example.finalproject_demo.ui.Radius
+import com.example.finalproject_demo.ui.Curtain
+import com.example.finalproject_demo.ui.CurtainDeep
+import com.example.finalproject_demo.ui.FeltButton
+import com.example.finalproject_demo.ui.FeltCoral
+import com.example.finalproject_demo.ui.FeltMustard
+import com.example.finalproject_demo.ui.FeltSky
+import com.example.finalproject_demo.ui.FeltTeal
+import com.example.finalproject_demo.ui.FeltWhite
+import com.example.finalproject_demo.ui.InkBrown
+import com.example.finalproject_demo.ui.InkSoft
+import com.example.finalproject_demo.ui.Kitten
+import com.example.finalproject_demo.ui.ParentText
+import com.example.finalproject_demo.ui.StageWood
+import com.example.finalproject_demo.ui.StageWoodDeep
+import com.example.finalproject_demo.ui.StarWallet
+import com.example.finalproject_demo.ui.Wool
+import com.example.finalproject_demo.ui.WoolCream
+import com.example.finalproject_demo.ui.felt
+import com.example.finalproject_demo.ui.motionFrozen
+import com.example.finalproject_demo.ui.noRippleClickable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+/*
+ * ⑨ 오또의 방 — **버튼 화면이 없다. 방 안의 물건이 곧 메뉴다** (Toca Boca · Pok Pok · Khan Academy Kids · 09-29)
+ *
+ *   🎭 인형극 무대 = 이야기 만들기   🪟 창문 = 오늘 이야기   🛋 소파 = 같이 만들기   📚 책장 = 내 책
+ *
+ * 물건을 누르면 오또가 발자국을 남기며 그 물건으로 걸어가서 묻는다 — "책장으로 갈까?" (그림 · 목소리 · ✓/✕ 큰 버튼).
+ * 「응!」이면 흐름에 **지금 첫 화면 버튼과 같은 신호**를 보낸다 → 흐름(`Scenes.sceneAdult`)은 그대로다.
+ * 아무것도 안 누르고 6초가 지나면 오또가 무대를 권한다 — 반짝임은 **추천 하나에만**.
+ * 왼쪽 위 🔒 는 **2초 길게** 눌러야 열린다.
+ *
+ * 자리는 `.pen` 의 800×360 좌표를 화면 비율로 옮긴다.
+ */
+
+/** 방 물건 → 이야기 모드 (이어 갈 이야기가 이 물건 것인가) */
+private fun modeOf(value: String) = when (value) {
+    "start" -> com.example.finalproject_demo.demo.StoryMode.STORY
+    "diary" -> com.example.finalproject_demo.demo.StoryMode.DIARY
+    "coop" -> com.example.finalproject_demo.demo.StoryMode.COOP
+    else -> null
+}
+
+/**
+ * 방 물건 하나 = 모드 하나. 물건 아래 **이름표**(아이콘 + 모드 이름)로 무엇을 하는 곳인지 보인다 (09-29 사용자 요청).
+ * 누르면 모드마다 **다른 말**로 묻는다 — 「뭐 하러 갈까?」 하나로 다 묻지 않는다.
+ *
+ * @param title    이름표 · 확인 창 제목 (모드 이름)
+ * @param question 확인 창에서 오또가 묻는 말
+ * @param detail   확인 창 아래 한 줄 — 이 모드에서 무엇을 하는지
+ * @param art      ComfyUI 로 만든 물건 그림 (`res/drawable` · tools/gen_room.py). 없으면 펠트 도형으로 그린다
+ */
+private enum class Thing(
+    val value: String, val label: String, val title: String, val question: String, val detail: String, val icon: String, val art: String,
+    val x: Float, val y: Float, val w: Float, val h: Float,
+) {
+    WINDOW("diary", "오늘 있었던 일로", "그림일기", "오늘 있었던 일로 그림일기 만들래?", "오늘 한 일을 말하면 그림일기가 돼요", "☀️", "room_window", 84f, 18f, 150f, 150f),
+    THEATER("start", "이야기 만들기", "동화 만들기", "오또랑 새 동화 만들래?", "주인공을 고르고 상상한 이야기를 말해요", "🎭", "room_theater", 414f, 70f, 190f, 222f),
+    SOFA("coop", "같이 만들기", "같이 만들기", "엄마 아빠랑 같이 책 만들래?", "어른이 묻고 아이가 대답해서 함께 만들어요", "🛋", "room_sofa", 10f, 196f, 230f, 134f),
+    SHELF("shelf", "책장", "내 책장", "내가 만든 책 보러 갈래?", "지금까지 만든 책을 다시 볼 수 있어요", "📚", "room_shelf", 624f, 58f, 164f, 252f),
+}
+
+/** 오또 크기 · 쉬는 자리 (디자인 좌표) — 소파와 무대 사이 바닥. 물건과 겹치지 않게 (09-29) */
+private const val OTTO = 160f
+private const val HOME_X = 244f
+
+/** 디자인 좌표(800×360) → 이 화면의 dp */
+private class Grid(val w: Dp, val h: Dp) {
+    fun x(v: Float) = w * (v / 800f)
+    fun y(v: Float) = h * (v / 360f)
+}
+
+@Composable
+fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, onTutorialTap: () -> Unit = {}) {
+    val s = d.s
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var target by remember { mutableStateOf<Thing?>(null) }
+    var asking by remember { mutableStateOf(false) }
+    var idleHint by remember { mutableStateOf(false) }
+    val walkX = remember { Animatable(HOME_X) }
+    val paws = remember { mutableStateListOf<Float>() }
+    val offline = Server.on && !online(ctx)
+
+    LaunchedEffect(target) {
+        if (target == null && !tutorial && !motionFrozen) { delay(6000); idleHint = true }
+    }
+
+    fun pick(t: Thing) {
+        if (tutorial) { if (t == Thing.THEATER) onTutorialTap(); return }
+        // 이미 한 물건으로 가는 중이거나 묻는 중이면 다른 물건은 받지 않는다 — 알림만 누를 수 있다
+        if (target != null) return
+        // 샘플 책 보기(로그인 · 동의 전) — 책장만. 이야기를 만들려면 로그인부터
+        if (sample && t != Thing.SHELF) { Shell.sampleOnly = false; Shell.step = Step.LOGIN; return }
+        idleHint = false
+        target = t
+        scope.launch {
+            // 오또가 물건 쪽으로 걸어간다 — 지나간 자리에 발자국
+            paws.clear()
+            val to = (t.x + t.w / 2 - OTTO / 2).coerceIn(10f, 800f - OTTO)
+            val from = walkX.value
+            if (!motionFrozen) {
+                val steps = 4
+                for (k in 1..steps) {
+                    walkX.animateTo(from + (to - from) * k / steps, tween(220, easing = LinearEasing))
+                    paws += walkX.value + OTTO / 2 - 10f
+                }
+            } else walkX.snapTo(to)
+            asking = true
+        }
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize().background(Wool)) {
+        val g = Grid(maxWidth, maxHeight)
+        // 벽지 · 바닥 · 러그 — ComfyUI 그림(room_bg). 없으면 펠트 도형으로 그린다
+        AssetImage("room_bg", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { Canvas(Modifier.fillMaxSize()) {
+            val sx = size.width / 800f; val sy = size.height / 360f
+            for (i in 0 until 13) drawRect(WoolCream.copy(alpha = 0.5f), Offset((20 + i * 64) * sx, 0f), Size(22 * sx, 262 * sy))
+            drawRect(StageWood, Offset(0f, 262 * sy), Size(size.width, size.height - 262 * sy))
+            drawRect(StageWoodDeep.copy(alpha = 0.5f), Offset(0f, 262 * sy), Size(size.width, 4 * sy))
+            drawOval(Cheek.copy(alpha = 0.4f), Offset(196 * sx, 296 * sy), Size(250 * sx, 50 * sy))
+        } }
+        // 물건
+        Thing.entries.forEach { t ->
+            val hinted = (idleHint || tutorial) && t == Thing.THEATER
+            // 만들다 멈춘 이야기가 있는 물건 — 털실 뭉치 표시 (여기서 이어 갈 수 있다)
+            val resumable = !tutorial && s.paused != null && modeOf(t.value) == s.mode
+            Box(
+                Modifier.offset(g.x(t.x), g.y(t.y)).width(g.x(t.w)).height(g.y(t.h))
+                    .alpha(if (tutorial && t != Thing.THEATER) 0.35f else 1f)
+                    .noRippleClickable { pick(t) }
+            ) {
+                AssetImage(t.art, Modifier.fillMaxSize().padding(bottom = 22.dp), contentScale = ContentScale.Fit) {
+                    Box(Modifier.fillMaxSize().padding(bottom = 22.dp)) {
+                        when (t) {
+                            Thing.WINDOW -> WindowThing()
+                            Thing.THEATER -> TheaterThing()
+                            Thing.SOFA -> SofaThing()
+                            Thing.SHELF -> ShelfThing()
+                        }
+                    }
+                }
+                // 이름표 — 이 물건이 어떤 모드인지 (아이콘 + 이름)
+                NameTag(t, Modifier.align(Alignment.BottomCenter))
+                if (hinted) Sparkle(Modifier.align(Alignment.TopEnd).offset(10.dp, (-10).dp))
+                if (resumable) Box(
+                    Modifier.align(Alignment.TopStart).offset((-10).dp, (-12).dp).size(44.dp).felt(FeltMustard, CircleShape, lift = 4.dp, stitch = false),
+                    contentAlignment = Alignment.Center,
+                ) { Text("🧶", fontSize = 22.sp) }
+            }
+        }
+        // 발자국
+        paws.forEach { px -> Text("🐾", fontSize = 18.sp, modifier = Modifier.offset(g.x(px), g.y(318f)).alpha(0.55f)) }
+        // 오또
+        Box(Modifier.offset(g.x(walkX.value), g.y(if (target != null) 330f - OTTO - 6f else 330f - OTTO)).size(g.y(OTTO))) {
+            Otto(if (target != null && !asking) Pose.WALK else Pose.POINT, Modifier.fillMaxSize())
+        }
+        // 오또가 권하는 말 · 튜토리얼 안내
+        if (idleHint || tutorial) SpeakBubble(if (tutorial) "여기를 눌러 봐!" else "무대를 눌러 봐!", Modifier.offset(g.x(240f), g.y(14f)))
+        if (tutorial) Pointer(Modifier.offset(g.x(Thing.THEATER.x + Thing.THEATER.w / 2 - 30f), g.y(200f)))
+
+        if (!tutorial) {
+            // 왼쪽 위 부모 문 — 누르면 어른 확인(태어난 해)
+            LockDoor(Modifier.padding(12.dp)) { d.send(Reply.Tapped("parent", "부모 모드")) }
+            // 오른쪽 위 오늘 만들 수 있는 책
+            StarWallet(s.dayStars, unlimited = !s.limitOn, modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 64.dp))
+        }
+
+        if (asking) target?.let { t ->
+            // 알림이 떠 있는 동안 **뒤의 방은 눌리지 않는다** — 누르면 이 막이 받고 아무 일도 하지 않는다.
+            // 닫는 것은 알림의 ✕ 버튼뿐이다 (09-29 사용자 요청 — 알림만 터치 가능)
+            Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.45f)).noRippleClickable { })
+            fun done() { asking = false; target = null; paws.clear(); scope.launch { walkX.snapTo(HOME_X) } }
+            if (s.paused != null && modeOf(t.value) == s.mode) {
+                // 만들다 멈춘 이야기 — 이어서 할까, 새로 만들까 (09-29). 이어 가면 별을 다시 쓰지 않는다
+                ConfirmDialog(
+                    "🧶", "만들던 이야기 이어서 할까?",
+                    onNo = { done(); d.send(Reply.Tapped(t.value, t.label)) },
+                    onYes = { done(); d.send(Reply.Tapped("resume", "이어서")) },
+                    modifier = Modifier.align(Alignment.Center),
+                    no = "✨" to "새로", yes = "▶" to "이어서",
+                    title = t.title, detail = "새로 만들면 만들던 이야기는 사라져요",
+                )
+            } else ConfirmDialog(
+                t.icon, t.question, title = t.title, detail = t.detail,
+                onNo = { asking = false; target = null; scope.launch { walkX.animateTo(HOME_X, tween(500)); paws.clear() } },
+                onYes = { done(); d.send(Reply.Tapped(t.value, t.label)) },
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
+
+        // 하루 한도에 닿으면 — 흐름이 `notice` 를 켠다
+        if (s.notice != null && !tutorial) DailyLimit(d)
+        // 서버를 켰는데 인터넷이 없으면 — 막다른 화면 없이 책장 + 어른용 다시 시도
+        if (offline && !tutorial && s.notice == null) OfflineScreen(onShelf = { d.send(Reply.Tapped("shelf", "책장")) })
+    }
+}
+
+// ── 방 물건 (펠트 도형) ─────────────────────────────────────
+
+@Composable
+private fun WindowThing() = Box(Modifier.fillMaxSize().felt(StageWood, RoundedCornerShape(20.dp))) {
+    Box(Modifier.fillMaxSize().padding(10.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFCFE6EE))) {
+        Box(Modifier.align(Alignment.TopEnd).padding(10.dp).size(38.dp).felt(FeltMustard, CircleShape, lift = 0.dp, stitch = false))
+        Box(Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = 14.dp).width(56.dp).height(20.dp).clip(RoundedCornerShape(10.dp)).background(FeltWhite))
+        Box(Modifier.align(Alignment.Center).width(4.dp).fillMaxHeight().background(StageWood))
+    }
+}
+
+@Composable
+private fun TheaterThing() = Box(Modifier.fillMaxSize().felt(StageWoodDeep, RoundedCornerShape(24.dp))) {
+    Box(Modifier.fillMaxSize().padding(start = 14.dp, end = 14.dp, top = 32.dp, bottom = 12.dp).felt(CurtainDeep, RoundedCornerShape(14.dp), lift = 0.dp, stitch = false)) {
+        Box(Modifier.fillMaxHeight().fillMaxWidth(0.3f).felt(Curtain, RoundedCornerShape(12.dp), lift = 0.dp, stitch = false))
+        Box(Modifier.align(Alignment.TopEnd).fillMaxHeight().fillMaxWidth(0.3f).felt(Curtain, RoundedCornerShape(12.dp), lift = 0.dp, stitch = false))
+        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(16.dp).felt(StageWood, RoundedCornerShape(6.dp), lift = 0.dp, stitch = false))
+    }
+    Box(Modifier.align(Alignment.TopCenter).padding(top = 6.dp).width(100.dp).height(24.dp).felt(FeltMustard, RoundedCornerShape(12.dp), lift = 2.dp, stitch = false), contentAlignment = Alignment.Center) {
+        Text("★", fontSize = 14.sp, color = FeltWhite)
+    }
+}
+
+@Composable
+private fun SofaThing() = Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().padding(top = 16.dp).felt(FeltSky, RoundedCornerShape(30.dp)))
+    Row(Modifier.padding(start = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.width(60.dp).height(46.dp).felt(Cheek, RoundedCornerShape(20.dp)))
+        Box(Modifier.width(60.dp).height(46.dp).felt(FeltMustard, RoundedCornerShape(20.dp)))
+    }
+}
+
+@Composable
+private fun ShelfThing() = Box(Modifier.fillMaxSize().felt(StageWood, RoundedCornerShape(18.dp)).padding(horizontal = 12.dp, vertical = 14.dp)) {
+    val colors = listOf(FeltCoral, FeltTeal, FeltMustard, FeltSky, Cheek, Kitten)
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
+        repeat(3) { r ->
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.Bottom) {
+                repeat(4) { k -> Box(Modifier.width(18.dp).height((44 - (k % 2) * 8).dp).clip(RoundedCornerShape(4.dp)).background(colors[(r * 4 + k) % 6])) }
+            }
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(StageWoodDeep))
+        }
+    }
+}
+
+@Composable
+private fun Sparkle(modifier: Modifier) {
+    val t = rememberInfiniteTransition(label = "sp")
+    val a by t.animateFloat(0.4f, 1f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "a")
+    Text("✨", fontSize = 30.sp, modifier = modifier.alpha(a).scale(0.8f + 0.3f * a))
+}
+
+@Composable
+private fun Pointer(modifier: Modifier) {
+    val t = rememberInfiniteTransition(label = "pt")
+    val s by t.animateFloat(0.9f, 1.1f, infiniteRepeatable(tween(500), RepeatMode.Reverse), label = "s")
+    Box(modifier.size(64.dp).scale(s).felt(FeltWhite, CircleShape, lift = 4.dp, stitch = false), contentAlignment = Alignment.Center) { Text("👆", fontSize = 32.sp) }
+}
+
+/**
+ * 🔒 부모 문 — **한 번 누르면** 어른 확인(태어난 해) 화면이 뜬다.
+ *
+ * 전에는 2초 길게 눌러야 열렸는데, 누르는 동안 아무 표시가 없어 「자물쇠가 안 열린다」는 지적을 받았다(09-29).
+ * 아이가 들어가는 것은 다음 화면의 태어난 해 확인이 막는다.
+ */
+@Composable
+fun LockDoor(modifier: Modifier = Modifier, onOpen: () -> Unit) {
+    FeltButton(WoolCream, onClick = onOpen, modifier = modifier.size(56.dp), shape = CircleShape) {
+        Text("🔒", fontSize = 22.sp)
+    }
+}
+
+/** 방 물건 아래 이름표 — 아이콘 + 모드 이름 (글을 못 읽는 아이도 아이콘으로 안다) */
+@Composable
+private fun NameTag(t: Thing, modifier: Modifier) {
+    Row(
+        modifier.felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = true).padding(horizontal = 12.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(t.icon, fontSize = 14.sp)
+        Spacer(Modifier.width(5.dp))
+        Text(t.title, fontSize = 15.sp, color = InkBrown, maxLines = 1)
+    }
+}
+
+/** 확인 창 — 무엇으로 가는지 그림 · 오또 목소리 · ✕ 아니 / ✓ 응! 큰 버튼 (`.pen` confirm_dialog) */
+@Composable
+fun ConfirmDialog(
+    icon: String, question: String, onNo: () -> Unit, onYes: () -> Unit, modifier: Modifier = Modifier,
+    no: Pair<String, String> = "✕" to "아니", yes: Pair<String, String> = "✓" to "응!",
+    title: String? = null, detail: String? = null,
+) {
+    // 창 안을 눌러도 뒤로 새지 않게 — 버튼 말고는 아무 일도 없다
+    Box(modifier.width(420.dp).height(if (detail != null) 296.dp else 250.dp).noRippleClickable { }) {
+        Box(Modifier.fillMaxSize().padding(top = 34.dp).felt(Wool, RoundedCornerShape(32.dp), lift = 10.dp).border(4.dp, FeltMustard, RoundedCornerShape(32.dp))) {
+            Column(Modifier.fillMaxSize().padding(top = 44.dp, start = 20.dp, end = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                if (title != null) Text(title, fontSize = 15.sp, color = FeltCoral)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🔊", fontSize = 18.sp); Spacer(Modifier.width(8.dp)); Text(question, fontSize = 23.sp, color = InkBrown, maxLines = 1)
+                }
+                if (detail != null) ParentText { Text(detail, fontSize = 13.sp, color = InkSoft, modifier = Modifier.padding(top = 4.dp), maxLines = 1) }
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+                    FeltButton(WoolCream, onClick = onNo, modifier = Modifier.width(120.dp).height(76.dp), shape = RoundedCornerShape(26.dp)) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(no.first, fontSize = 26.sp, color = InkBrown); Text(no.second, fontSize = 16.sp, color = InkBrown) }
+                    }
+                    FeltButton(FeltTeal, onClick = onYes, modifier = Modifier.width(120.dp).height(76.dp), shape = RoundedCornerShape(26.dp)) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(yes.first, fontSize = 26.sp, color = FeltWhite); Text(yes.second, fontSize = 16.sp, color = FeltWhite) }
+                    }
+                }
+            }
+        }
+        Box(Modifier.align(Alignment.TopCenter).size(76.dp).felt(FeltCoral, CircleShape, lift = 5.dp).border(4.dp, FeltWhite.copy(alpha = 0.6f), CircleShape), contentAlignment = Alignment.Center) {
+            Text(icon, fontSize = 36.sp)
+        }
+    }
+}
+
+// ── ⑮ 하루 한도에 닿으면 — 밤 장면 · 하품하는 오또 · 구석 작은 어른 버튼 ──────────────
+
+@Composable
+private fun DailyLimit(d: Director) {
+    var adult by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize().background(Color(0xFF3B4A6B)).noRippleClickable { }) {
+        AssetImage("night_bg", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { Canvas(Modifier.fillMaxSize()) {
+            val rnd = java.util.Random(3)
+            repeat(12) { drawCircle(FeltMustard.copy(alpha = 0.8f), 2.5f + rnd.nextFloat() * 3f, Offset(rnd.nextFloat() * size.width, rnd.nextFloat() * size.height * 0.45f)) }
+            drawCircle(Color(0xFFF7E08A), size.height * 0.12f, Offset(size.width * 0.83f, size.height * 0.2f))
+            drawRect(StageWoodDeep, Offset(0f, size.height * 0.8f), Size(size.width, size.height * 0.2f))
+        } }
+        Otto(Pose.YAWN, Modifier.align(Alignment.Center).padding(top = 30.dp).size(240.dp))
+        SpeakBubble("오늘은 여기까지! 내일 또 만나", Modifier.align(Alignment.CenterStart).padding(start = 36.dp, bottom = 60.dp))
+        // 아이가 할 일 하나 — 지난 책 보기 (막다른 화면이 없게)
+        FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped("notice:shelf", "책장")) }, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 40.dp).size(120.dp), shape = RoundedCornerShape(30.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("📚", fontSize = 40.sp); Text("책장", fontSize = 18.sp, color = FeltWhite) }
+        }
+        // 어른 경로 하나 — 구석 · 작게 → 태어난 해 → 한 권 더 (Lingokids · YouTube Kids)
+        Row(
+            Modifier.align(Alignment.BottomEnd).padding(14.dp).clip(RoundedCornerShape(20.dp)).background(FeltWhite.copy(alpha = 0.15f)).clickable { adult = true }.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) { Text("🔒", fontSize = 13.sp); Spacer(Modifier.width(6.dp)); ParentText { Text("어른", fontSize = 13.sp, color = FeltWhite) } }
+        if (adult) Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.5f)).noRippleClickable { }, contentAlignment = Alignment.Center) {
+            ParentText {
+                Column(Modifier.width(560.dp).felt(Wool, RoundedCornerShape(28.dp), lift = 10.dp, texture = false).padding(24.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("오늘 한 권 더 만들기", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = InkBrown, modifier = Modifier.weight(1f))
+                        Text("닫기", fontSize = 14.sp, color = InkSoft, modifier = Modifier.clickable { adult = false }.padding(8.dp))
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    YearPad(onPass = {
+                        adult = false
+                        // 한 권 더 — 오늘 쓴 수를 하나 되돌린다(하루 한도 자체는 부모 설정에서 바꾼다)
+                        d.s.usedToday = (d.s.usedToday - 1).coerceAtLeast(0)
+                        d.send(Reply.Tapped("notice:ok", "한 권 더"))
+                    })
+                }
+            }
+        }
+    }
+}
+
+// ── 예외 · 오프라인 — 아이용 하나(책장) + 어른용 작게 ─────────────────────────
+
+@Composable
+private fun OfflineScreen(onShelf: () -> Unit) {
+    val ctx = LocalContext.current
+    var tick by remember { mutableStateOf(0) }
+    Box(Modifier.fillMaxSize().background(Wool)) {
+        Otto(Pose.THINK, Modifier.align(Alignment.CenterStart).padding(start = 70.dp, top = 40.dp).size(220.dp))
+        SpeakBubble("새 책은 조금 뒤에 만들자!", Modifier.padding(start = 40.dp, top = 20.dp), color = WoolCream)
+        FeltButton(FeltCoral, onClick = onShelf, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 120.dp).width(220.dp).height(200.dp), shape = RoundedCornerShape(36.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("📚", fontSize = 64.sp); Spacer(Modifier.height(8.dp)); Text("책장 가기", fontSize = 22.sp, color = FeltWhite) }
+        }
+        Row(
+            Modifier.align(Alignment.BottomEnd).padding(14.dp).clip(RoundedCornerShape(20.dp)).background(InkBrown.copy(alpha = 0.1f)).clickable { tick++ }.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) { Text("📶", fontSize = 13.sp); Spacer(Modifier.width(6.dp)); ParentText { Text("다시 시도", fontSize = 13.sp, color = InkSoft) } }
+        // 다시 시도 — 다시 그리면 online() 을 다시 본다
+        LaunchedEffect(tick) { online(ctx) }
+    }
+}
+
+/** 인터넷에 붙어 있나 — 서버를 켰을 때만 본다 */
+fun online(ctx: Context): Boolean = runCatching {
+    val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+}.getOrDefault(true)
+
+/**
+ * 이야기 도중 **왼쪽 위 = 시스템** (디자인 시스템 「공통 자리」 · Toca · Sago) — 🏠 방으로 · 🔒 부모 문(2초).
+ * 🏠 는 바로 나가지 않고 「방으로 갈까?」를 묻는다 — 아이가 잘못 눌러 만들던 책을 잃지 않게
+ */
+@Composable
+fun KidTopBar(d: Director, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        // 「방으로 갈까?」 확인은 화면 전체를 덮어야 해서 앱 틀(OttoShell)이 그린다
+        FeltButton(WoolCream, onClick = { Shell.askHome = true }, modifier = Modifier.size(56.dp), shape = CircleShape) { Text("🏠", fontSize = 24.sp) }
+        Spacer(Modifier.width(10.dp))
+        LockDoor { d.openParent() }
+    }
+}

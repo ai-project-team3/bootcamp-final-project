@@ -63,6 +63,8 @@ import com.example.finalproject_demo.ui.TitleChip
  *  - 시작 화면 · 책 · 부모 모드 · 비밀번호에서는 마스코트 말풍선을 숨긴다
  */
 class MainActivity : ComponentActivity() {
+    /** 지금 흐름 — 검사(`ShellFlowTest`)가 상태를 들여다볼 때 쓴다 */
+    var director: Director? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 동의를 기기에서 읽어 온다 — 없으면 켤 때마다 동의 화면이 다시 뜬다 (09-25)
@@ -71,11 +73,23 @@ class MainActivity : ComponentActivity() {
         // 서버는 주소를 줄 때만 켠다 — 없으면 지금처럼 대본으로 돈다 (net/Server.kt)
         intent?.getStringExtra("server")?.let { Server.base = it.trimEnd('/') }
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        // 풀스크린 — 카메라 구멍(노치) 쪽까지 그린다 (09-29). 가로 화면에서 한쪽에 검은 띠가 남지 않게
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         setContent { MaterialTheme(typography = PuppetTypography) { DemoApp() } }
+    }
+
+    /** 앱으로 돌아올 때 · 창(설정 · 알림)이 닫힐 때마다 다시 전체 화면으로 (09-29) */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) com.example.finalproject_demo.ui.shell.hideBars(window)
     }
 }
 
@@ -83,8 +97,8 @@ class MainActivity : ComponentActivity() {
 fun DemoApp() {
     val scope = rememberCoroutineScope()
     val d = remember { Director(scope) }
+    (LocalContext.current as? MainActivity)?.director = d
     var drawerOpen by remember { mutableStateOf(false) }
-    var splash by remember { mutableStateOf(true) }
     val s = d.s
 
     LaunchedEffect(Unit) { d.go(Scene.ADULT) }
@@ -93,21 +107,19 @@ fun DemoApp() {
     val bubbleHidden = s.scene in setOf(Scene.ADULT, Scene.BOOK, Scene.PARENT) || pinStage != null
 
     Box(Modifier.fillMaxSize().background(Bg)) {
+      // 처음 설정(스플래시 · 로그인 · 동의 …)이 끝나기 전에는 흐름 화면을 그리지 않는다 (09-29).
+      // 설정 창(Dialog)이 뜨기 한순간 전에 **뒤의 옛 첫 화면이 비쳐** 켤 때 화면이 이상해 보였다
+      if (com.example.finalproject_demo.ui.shell.Shell.step == com.example.finalproject_demo.ui.shell.Step.APP) {
         StageView(d, Modifier.fillMaxSize())
 
-        // 맨 위 가운데 — 진행 막대(가장 위) + 그 아래 화면 이름
-        Column(Modifier.align(Alignment.TopCenter).padding(top = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            // 필수 칸은 동화 모드 6개 · 일기 모드 기승전결 네 자리 (일기 설계 §2-1)
-            // 막대는 **물은 질문 수**로 찬다 (9/22). 필수 칸(4·6)으로 세면 질문을 여러 개 답해도
-            // 안 움직이다가 한 번에 뛴다. 끝나는 조건은 여전히 filled/reqCount 가 정한다 (Model.askTotal)
-            if (s.progressVisible && pinStage == null) ProgressTrack(s.askDone, s.askTotal, Modifier.padding(bottom = 2.dp))
-            // 부모 모드는 화면 안의 고정 머리에 이름이 있다 (스크롤 내용과 겹치지 않게)
-            if (s.scene != Scene.PARENT || pinStage != null) TitleChip(
-                // s.sceneLabel — 협업 모드는 `Scene.DIARY` 를 그대로 쓰므로 제목만 갈아끼운다 (09-22)
-                if (pinStage != null) (if (pinStage.purpose == "start") "어른 확인" else "부모 확인") else s.sceneLabel,
-                dark = s.scene == Scene.BOOK,
-            )
-        }
+        // 맨 위 가운데 — 별 모으기 진행만 (09-29 디자인 시스템: 화면 이름 칩은 없다 — 아이는 글을 못 읽는다)
+        // 필수 칸은 동화 모드 6개 · 일기 모드 기승전결 네 자리 (일기 설계 §2-1)
+        // 막대는 **물은 질문 수**로 찬다 (9/22). 끝나는 조건은 여전히 filled/reqCount 가 정한다 (Model.askTotal)
+        if (s.progressVisible && pinStage == null) ProgressTrack(s.askDone, s.askTotal, Modifier.align(Alignment.TopCenter).padding(top = 4.dp))
+
+        // 왼쪽 위 = 시스템 — 🏠 방으로 · 🔒 부모 문(2초). 방 · 부모 · 책장은 자기 버튼이 있어 뺀다
+        val kidScreen = pinStage == null && s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF)
+        if (kidScreen) com.example.finalproject_demo.ui.shell.KidTopBar(d, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 10.dp))
 
         // 시작 화면 오른쪽 위 — 하루 별
         if (s.scene == Scene.ADULT && pinStage == null) {
@@ -117,7 +129,7 @@ fun DemoApp() {
         s.countdown?.let { left ->
             Box(
                 Modifier
-                    .align(Alignment.TopStart)
+                    .align(Alignment.BottomStart)
                     .padding(12.dp)
                     .clip(RoundedCornerShape(999.dp))
                     .background(Color.White.copy(alpha = 0.85f))
@@ -145,7 +157,8 @@ fun DemoApp() {
         // 🎤 · ➡️ 는 **늘 오른쪽 아래**다 (9/22). 전에는 띠가 떠 있으면 172dp 위로 올려
         //  화면 중간에 붕 떠 있었다. 지금은 자리를 지키고, 대신 띠가 글자를 버튼 앞에서 끊는다
         //  (ParentBand.kt 의 END_RESERVE). 버튼 크기를 바꾸면 그 값도 같이 바꾼다.
-        if (pinStage == null) FloatingControls(
+        // 🎤 · 🖍️ 는 나레이션 칸 **안**에 있다 (09-29). 칸이 없는 화면에서만 오른쪽 아래에 따로 띄운다
+        if (pinStage == null && bubbleHidden) FloatingControls(
             d,
             Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 10.dp),
         )
@@ -160,24 +173,13 @@ fun DemoApp() {
                 }
         )
 
+      }
+        // 앱 틀 (09-29 · 치영) — ⓪ CLAP → ① 타이틀 → 처음이면 로그인 · 동의 · 마이크 · 튜토리얼 → ⑨ 오또의 방.
+        // 예전 「스플래시 → 보호자 동의」 자리를 이 틀이 맡는다. 동의 화면은 전처럼 **자기 창**이라 뒤로 터치가 새지 않는다.
+        // 흐름(Director)은 그대로이고, 틀은 기존 신호(start · diary · coop · shelf · parent)만 보낸다 — ui/shell/Shell.kt
+        com.example.finalproject_demo.ui.shell.OttoShell(d)
+
+        // 시연 서랍은 틀보다 **위에** — 오또의 방 위에서도 열려야 한다
         if (drawerOpen) DemoDrawer(d) { drawerOpen = false }
-
-        // 앱을 켜면 팀 이름(CLAP)이 먼저 — 첫 화면 위를 덮었다가 옅어진다
-        if (splash) SplashScreen { splash = false }
-
-        // 스플래시가 끝나면 **보호자 동의**가 먼저다 (9/23).
-        //
-        // 계정이 없는 앱이라 「회원가입 → 약관 동의 → 메인」의 가입 자리가 없다.
-        // 그 자리를 **첫 실행**이 대신한다 — 아이용 앱의 표준 모양이다.
-        //
-        // ⚠️ 처음에는 **부모 모드 진입**에만 걸어 두었는데 그건 약했다.
-        //    부모 모드는 아이가 가지 않는 곳이라, 아이가 **동의 없이 말하고 그리고 책까지 만들 수 있었다.**
-        //    개인정보보호법 제22조의2 는 만 14세 미만 아동의 개인정보를 **처리하기 전에**
-        //    법정대리인 동의를 받으라고 한다. 처리가 시작되는 순간은 아이가 말하는 순간이다.
-        if (!splash && !ConsentStore.guardianAgreed) {
-            // 거절하면 앱을 닫는다 — 다음에 켜면 동의를 다시 묻는다 (09-25)
-            val activity = LocalContext.current as? android.app.Activity
-            GuardianConsentScreen(onAgree = { }, onBack = { activity?.finish() })
-        }
     }
 }
