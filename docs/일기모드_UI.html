@@ -524,7 +524,13 @@ function paint(c, strokes, sx, sy, ox=0, oy=0){
 }
 function redraw(){
   ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
-  paint(ctx, S.strokes, cv.width/LW, cv.height/LH);
+  const sx = cv.width/LW, sy = cv.height/LH, swapped = S.pieces.filter(p => p.look && p.look !== 'orig' && p.lookIds);
+  const hidden = new Set(swapped.flatMap(p => p.lookIds));
+  for (const p of swapped){
+    const L = boardLook(p); if (!L) continue;
+    if (L.img.complete && L.img.naturalWidth) ctx.drawImage(L.img, L.ox*sx, L.oy*sy, L.w*sx, L.h*sy);
+  }
+  paint(ctx, S.strokes.filter(st => !hidden.has(st.id)), sx, sy);
   $('hint').style.display = S.strokes.length ? 'none' : 'grid';
   drawRings();
 }
@@ -867,9 +873,28 @@ function hull(pts){
   for (const p of P.reverse()){ while (up.length >= 2 && cr(up[up.length-2], up[up.length-1], p) <= 0) up.pop(); up.push(p); }
   return lo.slice(0,-1).concat(up.slice(0,-1));
 }
-function lookURL(o, look = o.pc.look || 'orig', pad = 10){
+// image of a piece's chosen look at board scale, cached until the look or its lines change
+function boardLook(p){
+  const sig = p.look + ':' + p.lookIds.join(',');
+  S.lookCache ||= {};
+  let L = S.lookCache[p.id];
+  if (!L || L.sig !== sig){
+    const base = view(p); base.strokes = base.strokes.filter(st => p.lookIds.includes(st.id));
+    if (!base.strokes.length) return null;
+    base.box = boxOf(base.strokes.flatMap(st => st.p));
+    const r = lookURL(base, p.look, 10, true);
+    L = S.lookCache[p.id] = {sig, img:new Image(), ox:base.box.x0-10, oy:base.box.y0-10, w:r.w, h:r.h};
+    L.img.onload = () => { if (S.scr === 'd1' || S.scr === 'd2') redraw(); };
+    L.img.src = r.url;
+  }
+  return L;
+}
+function lookURL(o, look = o.pc.look || 'orig', pad = 10, baseOnly = false){
   if (look === 'orig') return cutURL(o, pad);
-  const b = o.box, w = b.x1-b.x0+2*pad, h = b.y1-b.y0+2*pad, k = 3;
+  const ids = !baseOnly && o.pc.lookIds, later = ids ? o.strokes.filter(st => !ids.includes(st.id)) : [];
+  if (ids){ const keep = o.strokes.filter(st => ids.includes(st.id)); if (keep.length) o = {...o, strokes:keep}; }
+  const all = ids ? [...o.strokes, ...later] : o.strokes;
+  const b = boxOf(all.flatMap(st => st.p)), w = b.x1-b.x0+2*pad, h = b.y1-b.y0+2*pad, k = 3;
   const c = document.createElement('canvas'); c.width = Math.ceil(w*k); c.height = Math.ceil(h*k);
   const x = c.getContext('2d'), ox = b.x0-pad, oy = b.y0-pad, T = ([px,py]) => [(px-ox)*k, (py-oy)*k];
   const main = o.strokes[0].c;
@@ -886,6 +911,7 @@ function lookURL(o, look = o.pc.look || 'orig', pad = 10){
     x.filter = 'none'; x.strokeStyle = '#5A3E2B'; x.lineWidth = k*2;
     for (const s of o.strokes){ x.beginPath(); s.p.map(T).forEach((q,i) => i ? x.lineTo(...q) : x.moveTo(...q)); x.stroke(); }
   }
+  if (later.length){ x.filter = 'none'; x.setLineDash([]); paint(x, later, k, k, ox, oy); }
   return {url:c.toDataURL('image/png'), w, h};
 }
 // ── looks are made in the background; the child keeps drawing ──
@@ -975,7 +1001,8 @@ function openPick(key){
 }
 function pickLook(id){
   const o = pieceOf(S.pickFor); if (!o) return;
-  o.pc.look = id; const L = LOOKS.find(x => x.id === id);
+  o.pc.look = id; o.pc.lookIds = id === 'orig' ? null : [...o.pc.ids]; const L = LOOKS.find(x => x.id === id);
+  redraw();
   log(`아이가 고름: 「${o.name}」 → ${L.name}${id === 'orig' ? '' : ' · 부모 기록엔 "아이가 고른 생성 그림", 원본도 보관'}`);
   closePick(id === 'orig' ? `네가 그린 ${o.name}${batchim(o.name)?'으로':'로'} 할게!` : `내가 그린 ${o.name}${batchim(o.name)?'으로':'로'} 할게! 고마워.`);
 }
@@ -1083,6 +1110,7 @@ $('btn-cutgo').onclick = () => {
   if (!S.cut || $('btn-cutgo').disabled) return;
   const pc = S.pieces.find(p => p.id === S.cut.key), sel = [...S.cut.sel];
   pc.ids = pc.ids.filter(id => !sel.includes(id)); pc.namedIds = pc.namedIds.filter(id => !sel.includes(id));
+  if (pc.lookIds){ pc.lookIds = pc.lookIds.filter(id => !sel.includes(id)); if (!pc.lookIds.length){ pc.lookIds = null; pc.look = 'orig'; } }
   const np = newPiece(sel, {asked:true}); S.apart.push([pc.id, np.id]);
   closeCutter(); S.sel = [np.id]; renderTray(); renderObjs();
   log(`선 ${sel.length}개를 떼어 새 조각으로${pc.name ? ` · 남은 쪽은 「${pc.name}」 그대로` : ''}. 둘은 다시 안 붙는다`);
