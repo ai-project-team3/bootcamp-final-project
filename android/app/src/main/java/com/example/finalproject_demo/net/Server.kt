@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import com.example.finalproject_demo.demo.StoryMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
@@ -156,10 +157,20 @@ object Server {
 
     // ── /story ─────────────────────────────────────────────────────
 
-    /** Book text. Null = keep the app's own template book. Captions still carry `{주인공}` · `{친구n}` — unmask on the phone. */
+    /** One page of the book plan: a `PageKind` name and the mission on it (`docs/미션_구상.md` §3 id), if any. */
+    data class Page(val kind: String, val mission: String? = null)
+
+    /**
+     * Book text. Null = keep the app's own template book. Captions still carry `{주인공}` · `{친구n}` — unmask on the phone.
+     *
+     * [pages] (09-29): the template's pages in order. When given, the answer has exactly one caption
+     * per page, in that order — so a mission stays on the page the app put it. Mission pages end on the
+     * setup ("불이 번졌어요"); the result line is still the app's to add.
+     */
     suspend fun story(
         mode: String, slots: Map<String, String?>, slotBy: Map<String, String> = emptyMap(),
         keep: String? = null, template: String? = null, level: String? = null,
+        pages: List<Page>? = null,
     ): List<String>? {
         val body = JSONObject()
             .put("mode", mode)
@@ -168,10 +179,15 @@ object Server {
             .put("keep", keep ?: JSONObject.NULL)
             .put("template", template ?: JSONObject.NULL)
             .put("level", level ?: JSONObject.NULL)
+        if (pages != null) body.put("pages", JSONArray().apply {
+            pages.forEach { put(JSONObject().put("kind", it.kind).put("mission", it.mission ?: JSONObject.NULL)) }
+        })
         val j = postJson("/story", body, readMs = 60_000) ?: return null
         return try {
             val a = j.getJSONArray("scenes")
-            List(a.length()) { a.getJSONObject(it).getString("caption") }
+            val caps = List(a.length()) { a.getJSONObject(it).getString("caption") }
+            // the server already refuses a wrong count; checking again costs nothing and keeps missions in place
+            if (pages != null && caps.size != pages.size) { Log.w(TAG, "/story ${caps.size} pages, want ${pages.size}"); null } else caps
         } catch (e: Exception) { warn("/story parse", e); null }
     }
 

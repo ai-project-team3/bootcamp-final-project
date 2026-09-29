@@ -106,6 +106,21 @@ class ServerClientTest {
         assertEquals("child", sent.getJSONObject("slot_by").getString("place"))
         assertTrue("slot_by keeps only the twelve names", !sent.getJSONObject("slot_by").has("keep"))
         assertEquals("또 갈래", sent.getString("keep"))
+        assertTrue("no plan → no pages field (old shape)", !sent.has("pages"))
+    }
+
+    @Test
+    fun storySendsThePagePlanAndRefusesAShortBook() = runBlocking {
+        val plan = listOf(Server.Page("DEPART"), Server.Page("RUB", "A1"), Server.Page("TOGETHER"))
+        json("/story", """{"scenes":[{"index":1,"caption":"a","keywords":"x"},{"index":2,"caption":"b","keywords":"x"},{"index":3,"caption":"c","keywords":"x"}]}""")
+        assertEquals(listOf("a", "b", "c"), Server.story("story", emptyMap(), pages = plan))
+        val sent = JSONObject(seen.getValue("/story")).getJSONArray("pages")
+        assertEquals("RUB", sent.getJSONObject(1).getString("kind"))
+        assertEquals("A1", sent.getJSONObject(1).getString("mission"))
+        assertTrue(sent.getJSONObject(0).isNull("mission"))
+
+        json("/story", """{"scenes":[{"index":1,"caption":"a","keywords":"x"}]}""")
+        assertNull("a page short would move the missions", Server.story("story", emptyMap(), pages = plan))
     }
 
     @Test
