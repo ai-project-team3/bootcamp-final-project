@@ -121,6 +121,20 @@ class ServerClientTest {
     }
 
     @Test
+    fun characterGivesPngAndRigAndPresetMeansNull() = runBlocking {
+        json("/image", """{"preset":false,"reason":"ok","scene":"robot","rig":"human","png_base64":"iVBORw0KGgo="}""")
+        val c = Server.character("파란 눈 로봇")!!
+        assertEquals("human", c.rig)
+        assertEquals(0x89.toByte(), c.png[0])
+        val sent = JSONObject(seen.getValue("/image"))
+        assertEquals("character", sent.getString("kind"))
+        assertEquals("파란 눈 로봇", sent.getString("description"))
+
+        json("/image", """{"preset":true,"reason":"cutout: nothing but background","scene":"x","png_base64":null}""")
+        assertNull(Server.character("유령"))
+    }
+
+    @Test
     fun storySendsThePagePlanAndRefusesAShortBook() = runBlocking {
         val plan = listOf(Server.Page("DEPART"), Server.Page("RUB", "A1"), Server.Page("TOGETHER"))
         json("/story", """{"scenes":[{"index":1,"caption":"a","keywords":"x"},{"index":2,"caption":"b","keywords":"x"},{"index":3,"caption":"c","keywords":"x"}]}""")
