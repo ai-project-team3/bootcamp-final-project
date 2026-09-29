@@ -569,10 +569,16 @@ private suspend fun Director.scenePartner() {
     )
     log("함께 하는 사람을 녹음으로 묻는다 — 그림 카드 없음 (9/17). 호칭을 이모로 못 박지 않고, 말한 사람에 맞춰 질문 · 말투(할머니 · 할아버지는 높임, 친구는 친구 말투) · 책 자막 · 기록이 바뀐다")
     var key: String? = null
+    var call: String? = null
     var round = 0
+    // 09-29 S25+: 못 알아들으면 「다시 한번 말해 줄래?」 뒤에 **첫 질문을 통째로 다시** 읽어서 같은 말이 두 번씩 나왔다.
+    // 이제 다시 묻는 건 짧게 한 번, 두 번 못 알아들으면 엄마로 두고 넘어간다(아이를 붙잡아 두지 않는다 · 부모 모드에서 바꾼다)
+    var needAsk = true
+    var misses = 0
     while (key == null) {
         val q = Question(text = asks[round.coerceAtMost(asks.lastIndex)], kind = Kind.EASY, spoken = spoken, noCards = true, id = "partner")
-        say(q.text)
+        if (needAsk) say(q.text)
+        needAsk = false
         inputs(mic = true, next = true)
         val b = mutableListOf<DemoBtn>()
         b += DemoBtn("🎲 말로 답함 — 후보 ${spoken.size}개 중 무작위") { val a = spoken.random(); send(Reply.Spoke(a.text, a.value, a)) }
@@ -584,12 +590,24 @@ private suspend fun Director.scenePartner() {
             is Reply.Spoke -> {
                 s.micOn = false
                 childSays(r.text)
-                key = r.value.takeIf { v -> PARTNERS.any { it.key == v } } ?: partnerKeyIn(r.text)
-                if (key == null) { say("다시 한번 말해 줄래?"); pause(1200) }
-                else log("Whisper \"${r.text}\" → 호칭 사전과 맞춤 → ${partner(key).name}")
+                val found = r.value.takeIf { v -> PARTNERS.any { it.key == v } }?.let { it to null } ?: partnerIn(r.text)
+                when {
+                    found != null -> {
+                        key = found.first; call = found.second
+                        log("\"${r.text}\" → ${partner(found.first).name}${call?.let { " (부르는 말: $it)" } ?: ""}")
+                    }
+                    ++misses >= 2 -> {
+                        key = "mom"
+                        say("잘 못 들었어. 오늘은 엄마랑 함께라고 할게! 나중에 바꿀 수 있어.")
+                        log("두 번 못 알아들음 → 기본 호칭(엄마)으로 진행 · 부모 모드에서 바꿀 자리")
+                        pause(1500)
+                    }
+                    else -> { say("누구랑 왔는지 한 번만 더 말해 줄래?"); pause(600) }
+                }
             }
             is Reply.Silent -> {
                 round++
+                needAsk = true
                 log("무응답 → 카드 대신 다른 말로 다시 묻는다 (${round}번째)")
                 if (round > asks.lastIndex) {
                     key = "mom"
@@ -605,6 +623,7 @@ private suspend fun Director.scenePartner() {
     inputs(false, false)
     buttons()
     s.partnerKey = key
+    s.partnerCall = call?.takeIf { it != partner(key).name }
     s.stage = Stage.PartnerPick(key)
     event("partner", "who" to s.pn, "adult" to s.partner.adult, "mode" to "voice")
     log("함께 하는 사람 = ${s.pn} (${if (s.partner.honor) "높임말" else if (s.partner.adult) "어른" else "또래 친구"}) → 이후 질문 · 자막 · 부모 기록에 \"${s.pn}\"")

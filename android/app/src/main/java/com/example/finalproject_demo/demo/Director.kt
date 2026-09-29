@@ -112,7 +112,19 @@ class Director(private val scope: CoroutineScope) {
         while (input.tryReceive().isSuccess) { /* 이전 장면의 입력 버리기 */ }
     }
 
-    suspend fun pause(ms: Long) = delay((ms * s.speed).toLong())
+    /**
+     * 장면 사이 쉬는 시간. 대본은 「이 정도면 말이 끝났겠지」로 ms 를 정해 두었다.
+     * 서버 모드에서는 **진짜 목소리가 끝날 때까지** 먼저 기다리고, 남은 시간만 쉰다 (09-29 S25+) —
+     * 전에는 화면이 목소리보다 앞서 달려가서 대사 세 개가 「후루룩」 넘어가고, 🎤 를 누를 때마다
+     * 밀린 대사가 버려져 뒤로 갈수록 목소리가 안 들렸다.
+     */
+    suspend fun pause(ms: Long) {
+        val total = (ms * s.speed).toLong()
+        if (!Server.liveFor(s.mode)) { delay(total); return }
+        val t0 = System.currentTimeMillis()
+        awaitVoice()
+        delay(maxOf(total - (System.currentTimeMillis() - t0), 250L))
+    }
 
     /**
      * 말풍선에 한 줄 띄운다.

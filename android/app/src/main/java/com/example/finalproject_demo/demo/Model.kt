@@ -115,6 +115,11 @@ val PARTNERS = listOf(
     Partner("grandma", "할머니", "ic_p_grandma", "👵", adult = true, honor = true),
     Partner("grandpa", "할아버지", "ic_p_grandpa", "👴", adult = true, honor = true),
     Partner("friend", "친구", "ic_p_friend", "👧", adult = false, honor = false),
+    // 09-29 S25+: 「삼촌」을 정확히 받아써도 목록에 없어 무한 반복했다. 종류는 아이콘 · 말투를 정하고,
+    // 아이가 실제로 부른 말(고모 · 형 · 민수 …)은 [DemoState.partnerCall] 로 따로 들고 간다
+    Partner("uncle", "삼촌", "ic_p_dad", "👨", adult = true, honor = false),
+    Partner("teacher", "선생님", "ic_p_aunt", "🧑‍🏫", adult = true, honor = true),
+    Partner("sibling", "언니", "ic_p_friend", "🧒", adult = false, honor = false),
 )
 
 fun partner(key: String) = PARTNERS.firstOrNull { it.key == key } ?: PARTNERS.first()
@@ -125,12 +130,40 @@ fun partner(key: String) = PARTNERS.firstOrNull { it.key == key } ?: PARTNERS.fi
  * 받아써도 「다시 한번 말해 줄래?」가 끝없이 돌았다. 긴 이름부터 본다(「할아버지」가 「아버지」에 먹히지 않게).
  */
 private val PARTNER_WORDS = listOf(
-    "할아버지" to "grandpa", "할부지" to "grandpa", "할머니" to "grandma", "할미" to "grandma",
+    // 긴 말부터 — 「외할아버지」가 「할아버지」로, 「할아버지」가 「아버지」로 먹히지 않게
+    "외할아버지" to "grandpa", "친할아버지" to "grandpa", "할아버지" to "grandpa", "할부지" to "grandpa",
+    "외할머니" to "grandma", "친할머니" to "grandma", "할머니" to "grandma", "할미" to "grandma",
+    "큰아빠" to "uncle", "작은아빠" to "uncle", "큰아버지" to "uncle", "작은아버지" to "uncle",
+    "이모부" to "uncle", "고모부" to "uncle", "외삼촌" to "uncle", "삼촌" to "uncle",
+    "큰엄마" to "aunt", "작은엄마" to "aunt", "외숙모" to "aunt", "숙모" to "aunt", "고모" to "aunt", "이모" to "aunt",
     "어머니" to "mom", "엄마" to "mom", "아버지" to "dad", "아빠" to "dad",
-    "이모" to "aunt", "친구" to "friend",
+    "선생님" to "teacher", "쌤" to "teacher",
+    "언니" to "sibling", "누나" to "sibling", "오빠" to "sibling", "형아" to "sibling", "형" to "sibling", "동생" to "sibling",
+    "친구" to "friend",
 )
 
-fun partnerKeyIn(text: String): String? = PARTNER_WORDS.firstOrNull { (word, _) -> word in text }?.second
+fun partnerKeyIn(text: String): String? = partnerIn(text)?.first
+
+/** 아이가 「혼자」 · 「몰라」 같은 말을 했을 때 이름으로 잡지 않는다 */
+private val NOT_A_NAME = setOf("몰라", "없어", "아무도", "혼자", "나", "나랑", "응", "아니", "싫어", "그냥", "몰라요", "없어요")
+
+/**
+ * 「누구랑?」에 대한 답 → (종류, 부를 말). 부를 말은 아이가 쓴 말 그대로다 — 「고모」라 했으면 고모.
+ * 아는 호칭이 없고 짧은 이름 하나로 보이면(「민수」 · 「지민이랑!」) **친구 이름**으로 받는다.
+ * 친구 이름은 이름 가리기 목록에 들어간다([DemoState.nameMask]) — 규칙 6.
+ */
+fun partnerIn(text: String): Pair<String, String>? {
+    PARTNER_WORDS.firstOrNull { (word, _) -> word in text }?.let { (word, key) ->
+        return key to (if (key == "friend") "친구" else word)
+    }
+    val word = text.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
+        .trimEnd('!', '.', '?', '~', ',')
+        .removeSuffix("이랑").removeSuffix("랑").removeSuffix("하고").removeSuffix("이요").removeSuffix("요")
+        .removeSuffix("이야").removeSuffix("야").removeSuffix("아")
+    val looksLikeName = text.trim().split(Regex("\\s+")).size <= 2 && word.length in 2..3 &&
+        word.all { it in '가'..'힣' } && word !in NOT_A_NAME
+    return if (looksLikeName) "friend" to word else null
+}
 
 /**
  * 진짜 마이크로 들은 말에서 주인공 모습(머리 · 옷 색 · 안경)을 찾는다 (09-29 S25+).
@@ -876,7 +909,9 @@ class DemoState {
 
     // ── 함께 하는 사람
     var partnerKey by mutableStateOf("mom")
-    val partner: Partner get() = partner(partnerKey)
+    /** 아이가 실제로 부른 말(「고모」 · 「형」 · 「민수」). null 이면 종류 이름(엄마 · 삼촌 …) */
+    var partnerCall by mutableStateOf<String?>(null)
+    val partner: Partner get() = partner(partnerKey).let { p -> partnerCall?.let { p.copy(name = it) } ?: p }
     val pn: String get() = partner.name
 
     // ── 이야기 칸 6개 (진행 막대는 칸이 찼나 하는 표시일 뿐, 점수가 아님)
@@ -1334,6 +1369,7 @@ class DemoState {
         limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null
         keptFriends.clear(); usedVariants.clear()
         partnerKey = "mom"
+        partnerCall = null
         firstDay = false
     }
 }
