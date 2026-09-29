@@ -1,0 +1,272 @@
+package com.example.finalproject_demo
+
+import com.example.finalproject_demo.demo.PageKind
+import com.example.finalproject_demo.ui.LimbRole
+import com.example.finalproject_demo.ui.buddyActFrom
+import com.example.finalproject_demo.ui.heroActFrom
+import com.example.finalproject_demo.ui.ridingFrom
+import com.example.finalproject_demo.ui.walksInFrom
+import com.example.finalproject_demo.ui.RigBuilder
+import com.example.finalproject_demo.ui.RigMesh
+import com.example.finalproject_demo.ui.RigMotion
+import com.example.finalproject_demo.ui.poseAt
+import com.example.finalproject_demo.ui.skin
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Test
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import java.io.File
+
+/**
+ * 그림만 보고 뼈대 붙이기 — **앱에 든 실제 캐릭터 그림**으로 확인한다 (09-28).
+ *
+ * 뼈대 계산(`RigCore.kt`)은 순수 코틀린이라 그림 화소만 넘기면 된다. 그림을 읽고 쓰는 데만 Robolectric 을 쓴다
+ * (단위 검사 경로에는 자바 그래픽 `java.awt` 가 없다).
+ * 결과를 눈으로 보도록 `build/rig_auto/` 에 표를 그린다 — 줄마다 캐릭터, 칸마다
+ * 「뼈대 · 가만히 · 손 흔들기 · 만세 · 걷기 두 장면」.
+ */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34])
+class RigBuilderTest {
+    private val drawable = File("src/main/res/drawable")
+    private val outDir = File("build/rig_auto").apply { mkdirs() }
+
+    private val heroes = listOf("red", "blue", "yellow").flatMap { c ->
+        listOf("pants", "shorts", "skirt").flatMap { b -> listOf("", "_long", "_tied").map { h -> "body_${c}_$b$h" } }
+    }
+    private val others = listOf(
+        "dino_long", "dino_horn", "dino_trex", "bud_alien", "bud_robot", "bud_star",
+        "bud_dolphin", "bud_seahorse", "bud_starfish", "bud_snowman", "bud_bear", "bud_penguin",
+    )
+
+    private class Img(val w: Int, val h: Int, val px: IntArray)
+
+    private fun load(name: String): Img {
+        val bmp = BitmapFactory.decodeFile(File(drawable, "$name.png").path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+        val px = IntArray(bmp.width * bmp.height)
+        bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+        return Img(bmp.width, bmp.height, px)
+    }
+
+    private fun build(img: Img): RigMesh? = RigBuilder.build(img.px, img.w, img.h)
+
+    @Test
+    fun 주인공_27장은_모두_사람형으로_팔_둘을_찾는다() {
+        val bad = heroes.mapNotNull { n ->
+            val m = build(load(n))
+            val arms = m?.bones?.count { it.role == LimbRole.ARM && it.parent == 0 } ?: 0
+            if (m?.kind == "human" && arms == 2) null else "$n(${m?.kind}, 팔 $arms)"
+        }
+        assertEquals("사람형으로 못 잡은 그림: $bad", 0, bad.size)
+    }
+
+    @Test
+    fun 목_긴_공룡은_목을_끄덕인다() {
+        // 짧고 굵은 다리는 몸통으로 친다 — 가지로 떼어 휘면 몸이 찢어진다. 목(머리)과 꼬리가 움직인다
+        val m = build(load("dino_long"))
+        assertNotNull(m)
+        assertEquals(2, m!!.bones.count { it.role == LimbRole.NECK })
+    }
+
+    @Test
+    fun 사람으로_보이지_않는_캐릭터는_팔을_떼어_내지_않는다() {
+        // 트리케라톱스 발 · 외계인 · 별의 끝을 손으로 잡으면 그림이 찢어졌다 (09-28)
+        for (n in listOf("dino_horn", "bud_alien", "bud_star", "bud_bear")) {
+            val m = build(load(n))
+            assertEquals("$n 에 떼어 낸 팔이 생겼다", null, m?.atlas)
+        }
+    }
+
+    @Test
+    fun 쪽에_적힌_대로_동작을_고른다() {
+        val t = { k: PageKind, c: String -> heroActFrom(k, c, ridingFrom(c)) }
+        assertEquals(RigMotion.WAVE, t(PageKind.MEET, "친구에게 손을 흔들며 인사했어요"))
+        assertEquals(RigMotion.HOORAY, t(PageKind.TOGETHER, "모두 함께 집으로 돌아왔어요"))
+        assertEquals(RigMotion.HOORAY, t(PageKind.TALK, "드디어 해냈어요!"))
+        // 속상한 일이 먼저 — 넘어져 운 쪽에서 만세를 하면 안 된다
+        assertEquals(RigMotion.SAD, t(PageKind.TALK, "달리다가 넘어져서 울었어요"))
+        assertEquals(RigMotion.SAD, t(PageKind.FAIL, "문이 열리지 않았어요"))
+        assertEquals(RigMotion.WALK, t(PageKind.JOURNEY, "숲속을 뛰어갔어요"))
+        // 기차가 흔들린 것은 인사가 아니다
+        assertEquals(RigMotion.IDLE, t(PageKind.SHAKE, "기차가 덜컹덜컹 흔들렸어요"))
+        // 떠나는 쪽 · 만나는 쪽은 걸어 들어온다. 탈것에 탄 쪽은 걷지 않는다
+        assertEquals(true, walksInFrom(PageKind.DEPART, "용감한 아이가 길을 나섰어요", false))
+        assertEquals(false, walksInFrom(PageKind.DEPART, "로켓에 올라탔어요", ridingFrom("로켓에 올라탔어요")))
+        assertEquals(RigMotion.HOORAY, buddyActFrom(PageKind.TOGETHER, ""))
+    }
+
+    @Test
+    fun 확인표를_그린다() {
+        sheet("heroes", heroes)
+        sheet("others", others)
+        // 떼어 낸 팔을 몇 도까지 들어도 소매에 붙어 보이나 — 크게
+        val fixed = { deg: Float -> { m: RigMesh -> FloatArray(m.bones.size) { if (m.bones[it].name.endsWith("_up")) deg * -m.bones[it].side else 0f } } }
+        sheet("angles", listOf("body_red_pants", "body_blue_skirt_long", "body_yellow_pants"), cell = 400,
+            cols = listOf("몸층" to { m: RigMesh -> FloatArray(m.bones.size) { if (m.bones[it].name.startsWith("arm")) 999f else 0f } },
+                "60" to fixed(60f), "90" to fixed(90f), "110" to fixed(110f), "130" to fixed(130f)))
+    }
+
+    /** 이전 시연(도구로 만든 뼈대 · 사용자가 「잘 나온다」고 한 것)과 지금 자동 방식을 **같은 그림**에서 나란히 */
+    @Test
+    fun 이전_시연과_비교한다() {
+        val kidDir = File("src/main/assets/rig/kid")
+        val kidImg = run {
+            val bmp = BitmapFactory.decodeFile(File(kidDir, "full.png").path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+            val px = IntArray(bmp.width * bmp.height); bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+            Img(bmp.width, bmp.height, px)
+        }
+        val demo = run {
+            val j = org.json.JSONObject(File(kidDir, "mesh.json").readText())
+            val bj = j.getJSONArray("bones")
+            val bones = (0 until bj.length()).map { i ->
+                val b = bj.getJSONObject(i); val p = b.optJSONArray("pivot")
+                com.example.finalproject_demo.ui.Bone(b.getString("name"), b.getInt("parent"), p?.getDouble(0)?.toFloat() ?: 0f,
+                    p?.getDouble(1)?.toFloat() ?: 0f, b.optString("follow").ifEmpty { null }, b.optDouble("ratio", 1.0).toFloat())
+            }
+            val vj = j.getJSONArray("vertices"); val n = vj.length()
+            val rest = FloatArray(n * 2) { k -> vj.getJSONArray(k / 2).getDouble(k % 2).toFloat() }
+            val wj = j.getJSONArray("weights")
+            val wB = Array(n) { i -> val w = wj.getJSONArray(i); IntArray(w.length()) { k -> w.getJSONArray(k).getInt(0) } }
+            val wV = Array(n) { i -> val w = wj.getJSONArray(i); FloatArray(w.length()) { k -> w.getJSONArray(k).getDouble(1).toFloat() } }
+            val tj = j.getJSONArray("triangles")
+            val idx = ShortArray(tj.length() * 3) { k -> tj.getJSONArray(k / 3).getInt(k % 3).toShort() }
+            RigMesh("human", 512f, 512f, bones, rest, rest.copyOf(), wB, wV, idx)
+        }
+        val hero = load("body_red_pants")
+        sheet("hero_big", listOf("body_red_pants", "body_blue_skirt_long"), cell = 640,
+            cols = listOf(poses[0], poses[2], poses[3], poses[4]))
+        sheet("compare", listOf("이전(도구)", "지금(자동)", "주인공(자동)"), cell = 360,
+            imgOf = { if (it.startsWith("주인공")) hero else kidImg },
+            meshOf = { n, i -> if (n.startsWith("이전")) demo else RigBuilder.build(i.px, i.w, i.h) })
+    }
+
+    private val poses = listOf<Pair<String, (RigMesh) -> FloatArray?>>(
+        "뼈대" to { _ -> null },
+        "가만히" to { m -> poseAt(m.bones, RigMotion.IDLE, 1.3f).first },
+        "손흔들기" to { m -> poseAt(m.bones, RigMotion.WAVE, 1.3f).first },
+        "만세" to { m -> poseAt(m.bones, RigMotion.HOORAY, 1.0f).first },
+        "걷기1" to { m -> poseAt(m.bones, RigMotion.WALK, 0.2f).first },
+        "걷기2" to { m -> poseAt(m.bones, RigMotion.WALK, 0.62f).first },
+    )
+
+    private fun sheet(
+        tag: String, names: List<String>, cell: Int = 220, cols: List<Pair<String, (RigMesh) -> FloatArray?>> = poses,
+        imgOf: (String) -> Img = { load(it) },
+        meshOf: (String, Img) -> RigMesh? = { _, i -> RigBuilder.build(i.px, i.w, i.h) },
+    ) {
+        val poses = cols
+        val sw = cell * poses.size; val sh = cell * names.size
+        val sheet = IntArray(sw * sh) { 0xFFF4EFE6.toInt() }
+        val log = StringBuilder()
+        names.forEachIndexed { r, n ->
+            val img = imgOf(n)
+            val w = img.w; val h = img.h
+            val px = img.px
+            val t0 = System.nanoTime()
+            RigBuilder.why = ""
+            val m = meshOf(n, img)
+            val ms = (System.nanoTime() - t0) / 1_000_000
+            log.appendLine("${r + 1}. $n: ${m?.kind ?: "없음"} · ${m?.bones?.drop(1)?.joinToString { "${it.name}(${"%.0f".format(it.restOut)}°)" }} · 점 ${m?.vertexCount} · ${ms}ms · ${RigBuilder.why}")
+            poses.forEachIndexed { c, (_, f) ->
+                val pic = if (m == null) px else render(px, w, h, m, f(m))
+                // 칸에 줄여 넣는다 (가장 가까운 화소)
+                for (y in 0 until cell) for (x in 0 until cell) {
+                    val sx = x * w / cell; val sy = y * h / cell
+                    val v = pic[sy * w + sx]
+                    val a = v ushr 24
+                    if (a == 0) continue
+                    val di = (r * cell + y) * sw + c * cell + x
+                    sheet[di] = blend(sheet[di], v)
+                }
+            }
+        }
+        val out = Bitmap.createBitmap(sheet, sw, sh, Bitmap.Config.ARGB_8888)
+        File(outDir, "$tag.png").outputStream().use { out.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        File(outDir, "$tag.txt").writeText(log.toString())
+        println(log)
+    }
+
+    /** 미리 곱한 알파로 네 화소를 섞는다 — 투명한 이웃의 검은색이 가장자리에 번지지 않게 */
+    private fun bilinear(t: IntArray, tw: Int, th: Int, fu: Float, fv: Float): Int {
+        val x0 = fu.toInt(); val y0 = fv.toInt(); val x1 = minOf(x0 + 1, tw - 1); val y1 = minOf(y0 + 1, th - 1)
+        val dx = fu - x0; val dy = fv - y0
+        var a = 0f; var r = 0f; var g = 0f; var b = 0f
+        for ((p, wt) in listOf(t[y0 * tw + x0] to (1 - dx) * (1 - dy), t[y0 * tw + x1] to dx * (1 - dy),
+                t[y1 * tw + x0] to (1 - dx) * dy, t[y1 * tw + x1] to dx * dy)) {
+            val pa = (p ushr 24) / 255f * wt
+            a += pa; r += ((p shr 16) and 255) * pa; g += ((p shr 8) and 255) * pa; b += (p and 255) * pa
+        }
+        if (a <= 0f) return 0
+        return ((a * 255).toInt().coerceIn(0, 255) shl 24) or ((r / a).toInt().coerceIn(0, 255) shl 16) or
+            ((g / a).toInt().coerceIn(0, 255) shl 8) or (b / a).toInt().coerceIn(0, 255)
+    }
+
+    private fun blend(dst: Int, src: Int): Int {
+        val a = (src ushr 24) / 255f
+        fun ch(sh: Int) = (((src shr sh) and 255) * a + ((dst shr sh) and 255) * (1 - a)).toInt()
+        return (0xFF shl 24) or (ch(16) shl 16) or (ch(8) shl 8) or ch(0)
+    }
+
+    /** 그물의 삼각형마다 그림을 입혀 그린다 — 앱의 `Canvas.drawVertices` 와 같은 일. pose 가 null 이면 뼈대를 그린다 */
+    private fun render(src: IntArray, w: Int, h: Int, m: RigMesh, pose: FloatArray?): IntArray {
+        if (pose == null) {
+            val out = src.copyOf()
+            val colors = intArrayOf(0xFFE53935.toInt(), 0xFF1E88E5.toInt(), 0xFF43A047.toInt(), 0xFF8E24AA.toInt(),
+                0xFFFB8C00.toInt(), 0xFF00ACC1.toInt(), 0xFFD81B60.toInt(), 0xFFFDD835.toInt())
+            fun dot(cx: Int, cy: Int, r: Int, col: Int) {
+                for (y in cy - r..cy + r) for (x in cx - r..cx + r)
+                    if (x in 0 until w && y in 0 until h && (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r * r) out[y * w + x] = col
+            }
+            for (i in 0 until m.vertexCount) {
+                val k = m.wVal[i].indices.maxBy { m.wVal[i][it] }
+                val b = m.wBone[i][k]
+                if (b == 0) continue
+                dot(m.rest[2 * i].toInt(), m.rest[2 * i + 1].toInt(), 3, colors[(b - 1) % colors.size])
+            }
+            m.bones.forEachIndexed { i, b ->
+                if (i == 0) return@forEachIndexed
+                if (b.parent > 0) {
+                    val p = m.bones[b.parent]
+                    for (s in 0..40) dot((p.px + (b.px - p.px) * s / 40f).toInt(), (p.py + (b.py - p.py) * s / 40f).toInt(), 3, 0xFF000000.toInt())
+                }
+                dot(b.px.toInt(), b.py.toInt(), 9, 0xFF000000.toInt())
+                dot(b.px.toInt(), b.py.toInt(), 5, colors[(i - 1) % colors.size])
+            }
+            return out
+        }
+        val hideArms = pose.any { it == 999f }
+        skin(m, if (hideArms) FloatArray(pose.size) else pose)
+        val out = IntArray(w * h)
+        val u = m.tex; val o = m.out
+        val tx = m.atlas ?: src; val tw = m.atlasW
+        for (t in 0 until m.triangleCount) {
+            val a = m.indices[3 * t].toInt(); val b = m.indices[3 * t + 1].toInt(); val c = m.indices[3 * t + 2].toInt()
+            val x0 = o[2 * a]; val y0 = o[2 * a + 1]; val x1 = o[2 * b]; val y1 = o[2 * b + 1]; val x2 = o[2 * c]; val y2 = o[2 * c + 1]
+            val den = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+            if (kotlin.math.abs(den) < 1e-6f) continue
+            if (hideArms && m.tex[2 * a] >= w) continue
+            val bx0 = maxOf(0, kotlin.math.floor(minOf(x0, x1, x2)).toInt()); val bx1 = minOf(w - 1, kotlin.math.ceil(maxOf(x0, x1, x2)).toInt())
+            val by0 = maxOf(0, kotlin.math.floor(minOf(y0, y1, y2)).toInt()); val by1 = minOf(h - 1, kotlin.math.ceil(maxOf(y0, y1, y2)).toInt())
+            for (y in by0..by1) for (x in bx0..bx1) {
+                val fx = x + 0.5f; val fy = y + 0.5f
+                val l0 = ((y1 - y2) * (fx - x2) + (x2 - x1) * (fy - y2)) / den
+                val l1 = ((y2 - y0) * (fx - x2) + (x0 - x2) * (fy - y2)) / den
+                val l2 = 1 - l0 - l1
+                if (l0 < -0.01f || l1 < -0.01f || l2 < -0.01f) continue
+                // 이중선형 — 폰의 FILTER_BITMAP 과 같게. 가장 가까운 화소만 집으면 가장자리가 계단처럼 거칠다
+                val fu = (l0 * u[2 * a] + l1 * u[2 * b] + l2 * u[2 * c] - 0.5f).coerceIn(0f, tw - 1.001f)
+                val fv = (l0 * u[2 * a + 1] + l1 * u[2 * b + 1] + l2 * u[2 * c + 1] - 0.5f).coerceIn(0f, h - 1.001f)
+                val v = bilinear(tx, tw, h, fu, fv)
+                if (v ushr 24 == 0) continue
+                out[y * w + x] = if (out[y * w + x] ushr 24 == 0) v else blend(out[y * w + x], v)
+            }
+        }
+        return out
+    }
+}
