@@ -90,6 +90,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .board-wrap canvas{width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
 .board-hint{position:absolute;inset:0;display:grid;place-items:center;color:var(--app-ink-soft);font-size:2.4cqw;pointer-events:none}
 .ring{position:absolute;border:.45cqw dashed var(--teal);border-radius:50%;pointer-events:none;animation:ring 1.2s ease-in-out infinite}
+.ring.point{border-width:.6cqw;border-color:var(--coral);box-shadow:0 0 0 .6cqw rgba(232,96,76,.18)}
 .ring.named{border:.3cqw solid rgba(242,178,50,.8);animation:none}
 .ring .tag{position:absolute;left:50%;top:-1.2cqw;transform:translate(-50%,-100%);background:var(--mustard);color:var(--app-ink);font-size:1.7cqw;padding:.2cqw 1.2cqw;border-radius:2cqw;white-space:nowrap}
 @keyframes ring{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
@@ -216,7 +217,7 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
 <div class="wrap">
   <header style="display:grid;gap:8px">
     <h1>오늘 이야기(일기 모드) 그림 중심 프로토타입</h1>
-    <p class="lede">그리는 동안 붓이 멈출 때마다 새로 생긴 조각에 고리가 뜨고 오또가 "이건 뭐야?"라고 묻는다. 이야기 질문은 그 사이사이에 끼운다. 다 그리면 그림을 조각별로 오려 스티커로 만들고, 그림일기의 쪽마다 그 조각이 나와 움직인다. 화면은 <code>design/디자인시스템.md</code> 09-28 개편과 실제 오또 그림을 썼다.</p>
+    <p class="lede">그리는 동안 붓이 멈출 때마다 새로 생긴 조각에 고리가 뜨고 오또가 "이건 뭐 그린 거야?"라고 묻는다. 이야기 질문은 그 사이사이에 끼운다. 다 그리면 그림을 조각별로 오려 스티커로 만들고, 그림일기의 쪽마다 그 조각이 나와 움직인다. 화면은 <code>design/디자인시스템.md</code> 09-28 개편과 실제 오또 그림을 썼다.</p>
     <nav class="steps" id="steps" aria-label="화면으로 바로 가기"></nav>
   </header>
 
@@ -303,14 +304,14 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
         <h2>이 프로토타입의 규칙</h2>
         <ul class="rules">
           <li><b>그리는 중에도 묻는다. 단, 선과 선 사이 짧은 틈에만.</b> 선이 두 개쯤 쌓이면 "지금 그리는 건 뭐야?" — 계속 그려도 되고 아무 때나 답하면 된다. 긋는 중에는 끼어들지 않고 질문 사이는 그리는 중 3초 · 멈춘 뒤 5초</li>
-          <li><b>다른 곳으로 옮겨 그려도 앞 조각을 "다 그렸다"고 보지 않는다.</b> 돌아와 그 조각 안쪽에 이어 그리면 "다시 강아지 그리는구나!" — 그 선은 그 조각의 것이다. 바깥으로 크게 뻗는 선(땅 등)만 "더 그린 거야, 새로 그린 거야?"로 묻는다. 물어본 조각을 두고 옮겨 가면 "아까 그리던 건 뭐야?"</li>
+          <li><b>다른 곳으로 옮겨 그려도 앞 조각을 "다 그렸다"고 보지 않는다.</b> 돌아와 그 조각 안쪽에 이어 그리면 "다시 강아지 그리는구나!" — 그 선은 그 조각의 것이다. 바깥으로 크게 뻗는 선(땅 등)만 "더 그린 거야, 새로 그린 거야?"로 묻는다. 물어본 조각을 두고 옮겨 가면 그 조각에 고리를 띄운 채 "이건 뭐 그린 거야?"</li>
           <li><b>그리기를 멈추면</b> 이름 없는 조각을 묻고, 없으면 이번에 그린 것들을 한꺼번에 칭찬("강아지랑 우리 집 멋지다!")한 뒤 이야기 질문으로 넘어간다</li>
           <li><b>조각은 선의 위치로 묶는다.</b> 가까운 선끼리 한 조각이다. 단, 이름을 받은 두 조각을 한 선이 같이 건드려도 둘을 합치지 않는다. 그 선은 더 많이 겹친 쪽에만 붙는다</li>
-          <li><b>무엇인지는 대화로 정한다.</b> 새 조각엔 "이건 뭐야?", 이름 받은 조각이 바깥으로 커지면 "모래성에 더 그린 거야, 새로 그린 거야?". "새로 그렸어, 땅이야"면 이름 뒤에 그은 선만 떼어 새 조각이 된다. 안쪽에만 더 그리면 묻지 않는다(문 · 창문)</li>
-          <li><b>그래도 잘못 묶이면 D2에서 자른다.</b> 스티커 하나 → [✂️ 자르기] → 떼어 낼 선을 톡 누르거나 동그라미로 감싸기 → [떼어 내기] → 오또가 "이건 뭐야?". 둘을 고르면 [붙이기]</li>
+          <li><b>무엇인지는 대화로 정한다.</b> 새 조각엔 "지금 그리는 건 뭐야?" · "이건 뭐 그린 거야?", 이름 받은 조각이 바깥으로 커지면 "모래성에 더 그린 거야, 새로 그린 거야?". "새로 그렸어, 땅이야"면 이름 뒤에 그은 선만 떼어 새 조각이 된다. 안쪽에만 더 그리면 묻지 않는다(문 · 창문)</li>
+          <li><b>그래도 잘못 묶이면 D2에서 자른다.</b> 스티커 하나 → [✂️ 자르기] → 떼어 낼 선을 톡 누르거나 동그라미로 감싸기 → [떼어 내기] → 오또가 "이건 뭐 그린 거야?". 둘을 고르면 [붙이기]</li>
           <li><b>인식 낱말은 질문 문구에만 쓴다(규칙 5).</b> 조각 이름은 아이가 말한 것만 붙는다. "집처럼 보이네"에 "모래성이야"라고 하면 모래성이다</li>
           <li><b>책은 아이 그림을 다시 그리지 않는다(차별점 1).</b> 원본 선을 오려서 옮기고 돌리고 키울 뿐이다. 오리기는 폰 안에서 한다</li>
-          <li>인식은 여기서 간단한 모양 규칙으로 흉내 냈다. 실제는 폰 안 ML Kit AutoDraw → 낱말만 Jev (확신 0.6 미만이면 "이건 뭐야?"로 연다)</li>
+          <li>인식은 여기서 간단한 모양 규칙으로 흉내 냈다. 실제는 폰 안 ML Kit AutoDraw → 낱말만 Jev (확신 0.6 미만이면 "이건 뭐 그린 거야?"로 연다)</li>
         </ul>
       </div>
     </div>
@@ -496,7 +497,7 @@ function drawRings(){
   const curKey = !S.cur ? null : S.cur.kind === 'obj' ? pieceIdOf(S.cur.sid) : S.cur.kind === 'grow' ? S.cur.obj.key : null;
   $('rings').innerHTML = objects().filter(o => o.name || o.key === curKey).map(o => {
     const p = 16, b = o.box, l = (b.x0-p)/LW*100, t = (b.y0-p)/LH*100, w = (b.x1-b.x0+2*p)/LW*100, h = (b.y1-b.y0+2*p)/LH*100;
-    return `<div class="ring ${o.key===curKey?'':'named'}" style="left:${l}%;top:${t}%;width:${w}%;height:${h}%">${o.name?`<span class="tag">${o.name}</span>`:''}</div>`;
+    return `<div class="ring ${o.key===curKey ? (S.cur && S.cur.point ? 'point' : '') : 'named'}" style="left:${l}%;top:${t}%;width:${w}%;height:${h}%">${o.name?`<span class="tag">${o.name}</span>`:''}</div>`;
   }).join('') + (bgView() ? `<span class="bgtag" style="left:${bgView().box.x0/LW*100}%;top:${(bgView().box.y0-22)/LH*100}%">배경</span>` : '');
 }
 function lpos(e){ const r = cv.getBoundingClientRect(); return [(e.clientX-r.left)/r.width*LW, (e.clientY-r.top)/r.height*LH]; }
@@ -546,8 +547,8 @@ function onSwitch(before, st){
 function leavePiece(prev){
   finishPiece(prev.pc);
   if (S.cur && S.cur.kind === 'obj' && pieceIdOf(S.cur.sid) === prev.key && S.cur.during){
-    S.cur.during = false; band('아까 그리던 건 뭐야?', 'listen');
-    log('물어본 조각을 두고 다른 곳을 그린다 → "아까 그리던 건 뭐야?"로 바꿔 묻는다');
+    S.cur.during = false; S.cur.point = true; band('이건 뭐 그린 거야?', 'listen');
+    log('물어본 조각을 두고 다른 곳을 그린다 → 그 조각에 고리를 띄운 채 "이건 뭐 그린 거야?"');
     return;
   }
   log(`다른 곳으로 옮겨 그림 → 「${prev.name || '이름 없는 조각'}」은 잠시 둔다. 돌아와도 된다`);
@@ -600,7 +601,7 @@ function drawingOpts(){
   const waiting = objects().some(o => !o.name && !o.asked) || objects().some(o => { const g = growthOf(o.pc); return g && g.outside; });
   if (!handDrawn && S.sampleStep < SAMPLE.length) list.push({label:`✏️ 예시 그리기 ${S.sampleStep+1}/${SAMPLE.length}: ${SAMPLE[S.sampleStep].hint}`, hint:'직접 그리기 시작하면 이 버튼은 사라진다', wide:true, run:addSample});
   if (!S.strokes.length) list.push({label:'✏️ 왼쪽 화이트보드에 직접 그려 보기', hint:'그리고 손을 떼면 잠시 뒤 오또가 묻는다', wide:true, run:() => {}});
-  list.push({label: waiting ? '✋ 붓을 멈춘다 — 오또가 지금 묻는다' : '⏩ 다음 질문 받기', hint: waiting ? '기다리지 않고 바로 "이건 뭐야?"' : '이야기 질문을 앞당긴다', wide:true, run:() => { S.lastQ = 0; S.lastPen = 0; tick(); }});
+  list.push({label: waiting ? '✋ 붓을 멈춘다 — 오또가 지금 묻는다' : '⏩ 다음 질문 받기', hint: waiting ? '기다리지 않고 바로 묻는다' : '이야기 질문을 앞당긴다', wide:true, run:() => { S.lastQ = 0; S.lastPen = 0; tick(); }});
   list.push({label:'👆 [다 그렸어]', run:() => $('btn-done').click()});
   opts(list);
 }
@@ -656,7 +657,7 @@ function askObject(o, during){
   S.cur = {kind:'obj', obj:o, sid:o.strokes[0].id, during}; S.qAt = Date.now(); S.wbAsked++; renderMeter();
   const g = o.guess, sure = g.conf >= 0.6;
   const text = during ? (sure ? `${g.label}처럼 보이네! 지금 그리는 건 뭐야?` : '우와, 지금 그리는 건 뭐야?')
-                      : (sure ? `${g.label}처럼 보이네! 이건 뭐야?` : '우와, 이건 뭐야?');
+                      : (sure ? `${g.label}처럼 보이네! 이건 뭐 그린 거야?` : '이건 뭐 그린 거야?');
   band(text, 'listen'); drawRings();
   log(`${during ? '선 사이 짧은 틈 → 그리는 중인 조각' : '그리기를 멈춤 → 이름 없는 조각'}에 고리 · 인식(시연) ${g.label} ${g.conf.toFixed(2)}${sure ? ' → 질문 문구에만' : ' → 0.6 미만이라 열어서 묻는다'}${during ? ' · 계속 그려도 되고 아무 때나 답하면 된다' : ''}`);
   const list = NAMES.map(n => ({label:`🗣 "${iya(n)}!"`, run:() => objAnswer(n)}));
@@ -859,7 +860,7 @@ $('btn-cutgo').onclick = () => {
   const np = newPiece(sel, {asked:true}); S.apart.push([pc.id, np.id]);
   closeCutter(); S.sel = [np.id]; renderTray(); renderObjs();
   log(`선 ${sel.length}개를 떼어 새 조각으로${pc.name ? ` · 남은 쪽은 「${pc.name}」 그대로` : ''}. 둘은 다시 안 붙는다`);
-  band('떼어 냈어! 이건 뭐야?', 'listen');
+  band('떼어 냈어! 이건 뭐 그린 거야?', 'listen');
   const nameCut = n => { nameObject(pieceOf(np.id), n); S.utter++; S.sel = [];
     log(`아이: "${iya(n)}" → 떼어 낸 조각 이름 ${n} (child)`); band(`${n}였구나!`, 'talk'); renderTray(); renderObjs(); renderMeter(); d2Opts(); };
   const list = [...NAMES, '땅'].map(n => ({label:`🗣 "${iya(n)}!"`, run:() => nameCut(n)}));
@@ -905,7 +906,7 @@ function nextD3(){
   S.afterAsked++; renderMeter();
   if (item.kind === 'obj'){
     const o = objects().find(x => x.key === item.key); if (!o){ S.afterAsked--; return nextD3(); }
-    S.cur = {kind:'obj', obj:o}; setD3Bg(o); band('이건 뭐였어?', 'listen');
+    S.cur = {kind:'obj', obj:o}; setD3Bg(o); band('이건 뭐 그린 거야?', 'listen');
     log(`그린 뒤 질문 ${S.afterAsked}/3: 이름 없는 조각 "이건 뭐였어?"`);
     const list = NAMES.map(n => ({label:`🗣 "${iya(n)}!"`, run:() => { S.utter++; nameObject(o, n); S.cur = null; log(`아이: "${iya(n)}" → 조각 이름 (child)`); renderObjs(); renderMeter(); afterD3(`${n}였구나!`); }}));
     list.push({label:'🗣 "몰라"', run:() => { S.utter++; S.cur = null; log('"몰라" → 이름 없이 책에 싣는다 (그림은 아이 것이다)'); renderMeter(); afterD3(null); }});
