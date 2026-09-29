@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -24,6 +25,15 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class StoryLiveAskTest {
+    private suspend fun answerAfterVoice(job: Job, d: Director, answer: String) {
+        // The mic button appears before the mascot finishes speaking. Keep offering the
+        // answer until ask() starts listening instead of relying on a fixed TTS delay.
+        while (job.isActive) {
+            d.send(Reply.Spoke(answer))
+            delay(100)
+        }
+    }
+
     @Test
     fun nextMatchingStorySlotUsesTheQuestionWrittenByTheServer() = runBlocking {
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
@@ -38,9 +48,9 @@ class StoryLiveAskTest {
             val job = launch { d.askSlot("reaction") }
             withTimeout(3_000) { while (!d.s.micEnabled) delay(5) }
             assertEquals("그때 너는 어떻게 했어?", d.s.line)
-            delay(40)
-            d.send(Reply.Spoke("친구를 불렀어"))
-            withTimeout(6_000) { job.join() }
+            val answer = launch { answerAfterVoice(job, d, "친구를 불렀어") }
+            withTimeout(8_000) { job.join() }
+            answer.cancel()
         } finally {
             Server.liveModes = emptySet()
             Server.base = null
@@ -68,9 +78,9 @@ class StoryLiveAskTest {
                 }
             }
             withTimeout(3_000) { while (!d.s.micEnabled) delay(5) }
-            delay(40) // ask() discards input sent before its question has finished speaking
-            d.send(Reply.Spoke("길을 잃었어"))
-            withTimeout(3_000) { job.join() }
+            val answer = launch { answerAfterVoice(job, d, "길을 잃었어") }
+            withTimeout(8_000) { job.join() }
+            answer.cancel()
             assertEquals(1, calls)
             assertEquals("길을 잃었다", d.s.slots["problem"])
             assertEquals("reaction", d.s.storyNextSlot)
