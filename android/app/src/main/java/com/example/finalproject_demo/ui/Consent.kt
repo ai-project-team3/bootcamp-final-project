@@ -108,6 +108,15 @@ object ConsentStore {
     var micNoticeShown by mutableStateOf(false)
         private set
 
+    /**
+     * **선택 동의 — 마스코트가 아이 이름을 소리로 불러도 되는가** (09-29 조장 · 규칙 6 개정).
+     * 켜면 이름이 든 대사가 목소리 업체(TypeCast)로 간다 — 제3자 제공이라 **따로, 기본 꺼짐**으로 받는다.
+     * 끄면 목소리에서 이름이 「우리 친구」로 바뀐다(`NameMask.speakable`). 화면 · 책에는 어느 쪽이든 실명이다.
+     * ⚠️ 동의 화면에 체크 칸은 아직 없다 — UI(치영)에 붙인다
+     */
+    var nameVoiceAgreed by mutableStateOf(false)
+        private set
+
     /** 이 기기에서 신고 화면을 연 기록 — 실제 전달은 메일 앱이 한다(`ReportSection`) */
     val reports = mutableStateListOf<Report>()
 
@@ -119,6 +128,7 @@ object ConsentStore {
     private const val PREFS = "consent"
     private const val KEY_AGREED = "guardian_agreed"
     private const val KEY_MIC = "mic_notice_shown"
+    private const val KEY_NAME_VOICE = "name_voice_agreed"
 
     /** `MainActivity.onCreate` 에서 한 번. 저장된 값을 읽어 온다 */
     fun attach(context: Context) {
@@ -126,6 +136,13 @@ object ConsentStore {
         prefs = p
         guardianAgreed = p.getBoolean(KEY_AGREED, false)
         micNoticeShown = p.getBoolean(KEY_MIC, false)
+        nameVoiceAgreed = p.getBoolean(KEY_NAME_VOICE, false)
+    }
+
+    /** 이름 읽기 선택 동의를 켜고 끈다 — 부모 설정에서 언제든 바꿀 수 있어야 한다 */
+    fun setNameVoice(on: Boolean) {
+        nameVoiceAgreed = on
+        prefs?.edit()?.putBoolean(KEY_NAME_VOICE, on)?.apply()
     }
 
     fun agree() {
@@ -136,7 +153,8 @@ object ConsentStore {
     /** 동의 철회 — 정책상 **언제든 물릴 수 있어야** 한다. 물리면 다음 화면부터 동의를 다시 받는다 */
     fun withdraw() {
         guardianAgreed = false
-        prefs?.edit()?.putBoolean(KEY_AGREED, false)?.apply()
+        nameVoiceAgreed = false      // 본 동의를 물리면 선택 동의도 같이 물린다
+        prefs?.edit()?.putBoolean(KEY_AGREED, false)?.putBoolean(KEY_NAME_VOICE, false)?.apply()
     }
 
     fun markMicNoticeShown() {
@@ -463,9 +481,7 @@ fun MicNoticeSheet(onOk: () -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth(0.68f)
-                .shadow(12.dp, RoundedCornerShape(22.dp))
-                .clip(RoundedCornerShape(22.dp))
-                .background(CardWhite)
+                .felt(Wool, RoundedCornerShape(Radius.L), lift = 10.dp, texture = false)
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -542,9 +558,7 @@ private fun NoticeCard(content: @Composable ColumnScopeLike.() -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
-            .shadow(3.dp, RoundedCornerShape(16.dp))
-            .clip(RoundedCornerShape(16.dp))
-            .background(CardWhite)
+            .felt(CardWhite, RoundedCornerShape(16.dp), lift = 1.dp, texture = false, stitch = false)
             .padding(16.dp),
     ) { ColumnScopeLike.content() }
 }

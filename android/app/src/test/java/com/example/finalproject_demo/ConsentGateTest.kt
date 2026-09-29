@@ -6,6 +6,10 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.longClick
 import com.example.finalproject_demo.ui.ConsentStore
 import org.junit.After
 import org.junit.Before
@@ -33,11 +37,17 @@ import org.robolectric.annotation.Config
 class ConsentGateTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
-    /** 스플래시가 지나가고 동의 화면이 올라오기를 기다린다 */
+    /**
+     * 스플래시가 지나가고 동의 화면이 올라오기를 기다린다.
+     * 09-29 앱 틀(`ui/shell`) — 처음 켜면 ⓪ CLAP → ① 타이틀(누르면 시작) → ② 로그인 → ③ **동의** 순서다.
+     * 로그인은 아직 서버가 없어 폰 안의 가짜(`net/Account.kt`)라 카카오를 누르면 바로 넘어간다
+     */
     private fun awaitConsent() {
-        compose.waitUntil(10_000) {
-            compose.onAllNodesWithText("시작하기 전에").fetchSemanticsNodes().isNotEmpty()
-        }
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("눌러서 시작").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("눌러서 시작").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("카카오로 시작하기").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("카카오로 시작하기").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(CONSENT_TITLE).fetchSemanticsNodes().isNotEmpty() }
     }
 
     private fun countOf(text: String) =
@@ -45,6 +55,8 @@ class ConsentGateTest {
 
     @Before
     fun resetConsent() {
+        // 앱 틀도 처음 설치한 상태로 — `object` 라 검사 사이에 남는다
+        com.example.finalproject_demo.ui.shell.Shell.resetToFirstRun()
         // `ConsentStore` 는 메모리뿐인 object 라 검사 사이에 값이 남는다. (그 자체가 미해결 과제 —
         // 앱을 껐다 켜면 동의가 초기화된다. 여기서는 「막는가」만 보므로 되돌려 두고 시작한다)
         ConsentStore.withdraw()
@@ -65,44 +77,36 @@ class ConsentGateTest {
     @Test
     fun consentScreenIsUpBeforeAgreeing() {
         awaitConsent()
-        compose.onNodeWithText("시작하기 전에").assertIsDisplayed()
+        compose.onNodeWithText(CONSENT_TITLE).assertIsDisplayed()
     }
 
     /**
-     * ⚠️ **본 검사 — 동의 화면이 자기 창(`Dialog`)에 있는가.**
+     * ⚠️ **본 검사 — 동의 화면이 떠 있는 동안 뒤로 터치가 새지 않는가.**
      *
-     * 이것이 구멍을 막는 **바로 그 성질**이다. `MainActivity` 의 같은 `Box` 안에 그리면
-     * 컴포즈 루트가 하나여서 카드 밖 여백의 터치가 **그 아래 형제(🎤 · 시연 서랍)로 내려간다.**
-     * `Dialog` 는 안드로이드 창을 하나 더 만들고, 그 창이 화면을 덮으면 터치는 **OS 창 단계에서**
-     * 막힌다 — 컴포즈가 끝까지 내려보내지 않는다.
-     *
-     * 그래서 루트 개수를 센다. **동의 중 2개**(앱 창 + 동의 창), **동의 뒤 1개**.
-     * 누가 `Dialog` 를 걷어내면 이 수가 1로 떨어지고 검사가 깨진다 — 그것이 이 검사의 목적이다.
-     *
-     * ⚠️ **이 검사가 실기기 확인을 대신하지 못한다.** 창이 실제로 화면 전체를 덮는지는
-     * `usePlatformDefaultWidth = false` 와 `fillMaxSize()` 에 달려 있고, 태블릿 세로처럼
-     * 크기가 다른 화면에서는 눈으로 한 번 봐야 한다.
+     * 09-25 구멍은 동의 화면이 `MainActivity` 의 같은 `Box` 안에서 **터치를 소비하지 않아**, 카드 밖 여백의 터치가
+     * 그 아래 🎤(오른쪽 아래) · 시연 서랍(오른쪽 위 길게)으로 내려간 것이었다.
+     * 그때는 자기 창(`Dialog`)으로 막았는데, 실기기에서 Dialog 창이 화면 끝까지 차지 않아(09-29) 지금은
+     * 본 화면 맨 위의 방패 층(`Shield`)이 남은 터치를 삼킨다. 그래서 창 개수가 아니라 **실제로 눌러 본다.**
      */
     @Test
-    fun consentLivesInItsOwnWindowSoTouchesCannotLeakBehind() {
+    fun touchesBehindTheConsentScreenDoNothing() {
         awaitConsent()
-
-        val rootsWhileConsenting = compose.onAllNodes(isRoot()).fetchSemanticsNodes().size
-        assert(rootsWhileConsenting >= 2) {
-            "동의 화면이 Dialog 가 아니다 (루트 $rootsWhileConsenting 개). " +
-                "같은 Box 안에 그리면 카드 밖 여백의 터치가 🎤·시연 서랍으로 내려간다"
+        val d = compose.activity.director!!
+        // 오른쪽 아래(🎤 자리) 탭 · 오른쪽 위(시연 서랍) 길게 누르기
+        compose.onAllNodes(isRoot()).onFirst().performTouchInput {
+            click(androidx.compose.ui.geometry.Offset(width - 40f, height - 40f))
+            longClick(androidx.compose.ui.geometry.Offset(width - 20f, 20f))
         }
-
-        // 시연 서랍이 동의 화면 위로 열려 있지는 않다
+        compose.waitForIdle()
+        assert(!d.s.micOn) { "동의 화면이 떠 있는데 뒤의 마이크가 켜졌다" }
         assert(countOf("🎮 조작") == 0) { "동의 화면 위에 시연 서랍이 떠 있다" }
+        compose.onNodeWithText(CONSENT_TITLE).assertIsDisplayed()
 
-        // 동의하면 창이 닫히고 앱 창만 남는다
-        compose.onNodeWithText(
-            "만 14세 미만 아동의 개인정보(음성 · 그림 · 대화 기록) 처리에 법정대리인으로서 동의합니다.",
-        ).performClick()
-        compose.onNodeWithText("동의하고 시작").performClick()
+        // 동의하면 동의 화면이 사라진다
+        compose.onNodeWithText("모두 동의해요").performClick()
+        compose.onNodeWithText(AGREE).performClick()
         compose.waitUntil(5_000) {
-            compose.onAllNodesWithText("시작하기 전에").fetchSemanticsNodes().isEmpty()
+            compose.onAllNodesWithText(CONSENT_TITLE).fetchSemanticsNodes().isEmpty()
         }
         assert(ConsentStore.guardianAgreed) { "동의가 저장되지 않았다" }
     }
@@ -111,9 +115,9 @@ class ConsentGateTest {
     @Test
     fun startButtonDoesNothingUntilTheBoxIsChecked() {
         awaitConsent()
-        compose.onNodeWithText("동의하고 시작").performClick()
+        compose.onNodeWithText(AGREE).performClick()
         // 체크 없이 눌렀으므로 아직 동의 화면이다
-        compose.onNodeWithText("시작하기 전에").assertIsDisplayed()
+        compose.onNodeWithText(CONSENT_TITLE).assertIsDisplayed()
         assert(!ConsentStore.guardianAgreed) { "체크 없이 동의가 저장됐다" }
     }
 
@@ -159,3 +163,7 @@ class ConsentGateTest {
         assert(!prefs.getBoolean("guardian_agreed", true)) { "철회가 기기에 안 써졌다" }
     }
 }
+
+/** 동의 화면 문구 (09-29 앱 틀 · `ui/shell/Onboarding.kt` `ConsentStep`) — 문구를 바꾸면 여기도 */
+private const val CONSENT_TITLE = "이렇게만 써요"
+private const val AGREE = "동의하고 계속"

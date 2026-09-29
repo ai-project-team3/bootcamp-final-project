@@ -2,12 +2,10 @@ package com.example.finalproject_demo.ui
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
 
 
-/** 웹 데모와 같은 둥근 한글 글꼴 (Jua · OFL). 모든 Text의 기본 글꼴로 쓴다. */
-val Jua = FontFamily(Font(com.example.finalproject_demo.R.font.jua))
+/** 아이 화면 기본 글꼴 (Jua · OFL) — 값은 `Theme.kt` 의 [KidFont]. 모든 Text의 기본 글꼴로 쓴다. */
+val Jua = KidFont
 
 val PuppetTypography = Typography().let { t ->
     t.copy(

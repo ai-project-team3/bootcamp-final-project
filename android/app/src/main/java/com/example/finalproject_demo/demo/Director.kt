@@ -1,10 +1,15 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.Voice
+import com.example.finalproject_demo.net.nameMask
+import com.example.finalproject_demo.ui.ConsentStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -124,6 +129,48 @@ class Director(private val scope: CoroutineScope) {
         s.speaker = who
         s.line = text
         s.lineId++
+        if (who == "마스코트" && surprise.containsMatchIn(text)) feel(Mood.SURPRISED)
+        if (who == "마스코트") speakLive(text)
+    }
+
+    /** 마스코트 기분을 켠다 — 얼굴이 그에 맞게 움직인다 ([Mood]) */
+    fun feel(m: Mood) {
+        s.mood = m
+        s.moodId++
+    }
+
+    /**
+     * 서버 모드면 마스코트 말을 **목소리로도** 낸다(`/tts` · 09-29).
+     * 이름은 보호자가 「이름 읽기」에 동의했을 때만 소리로 나간다 — 아니면 「우리 친구」(규칙 6 개정).
+     * 목소리가 실패해도 말풍선은 이미 떴다 — 조용한 마스코트일 뿐 멈추지 않는다.
+     *
+     * **대사는 줄을 서서 끝까지 읽는다** (09-29 S25+). 전에는 새 대사가 앞 대사를 끊어서
+     * 「받아주기 → 질문」이 연달아 오면 앞말이 반쯤 잘렸다. 지금은 목소리를 **먼저 받아 두고**
+     * (기다리는 동안 다음 것을 받는다) 앞 대사가 끝나면 튼다. 아이 차례는 [awaitVoice] 뒤에 온다.
+     */
+    private var voiceJob: Job? = null
+
+    private fun speakLive(text: String) {
+        if (!Server.liveFor(s.mode) || text.isBlank()) return
+        val line = s.nameMask().speakable(text, ConsentStore.nameVoiceAgreed)
+        val before = voiceJob
+        val audio = scope.async { Server.tts(line) }          // 앞 대사를 읽는 동안 미리 받는다
+        voiceJob = scope.launch {
+            before?.join()
+            audio.await()?.let { Voice.playAndWait(it) }
+        }
+    }
+
+    /** 마스코트가 하던 말을 끝낼 때까지 기다린다 — 서버 모드가 아니면 바로 돌아온다 */
+    suspend fun awaitVoice() {
+        voiceJob?.join()
+    }
+
+    /** 목소리를 지금 멈추고 줄 선 대사도 버린다 — 🎤 가 눌렸다(마스코트 소리가 녹음에 섞이면 안 된다) */
+    private fun hushVoice() {
+        voiceJob?.cancel()
+        voiceJob = null
+        Voice.stopPlaying()
     }
 
     /**
@@ -183,6 +230,7 @@ class Director(private val scope: CoroutineScope) {
      */
     fun toggleMic() {
         if (!s.micEnabled) return
+        if (Server.liveFor(s.mode)) { liveMic(); return }
         if (!s.micOn) {
             s.micOn = true
             s.countdown = null
@@ -194,6 +242,38 @@ class Director(private val scope: CoroutineScope) {
         val a = s.pickAnswer(q.spoken) ?: Answer("응", lv = 1)
         log("🎤 끔 — 녹음 끝 → 글자로: \"${a.text}\" (더미 답 ${q.spoken.size}개 중 · 아이 흉내: ${s.profile.label})")
         send(Reply.Spoke(a.text, a.value, a))
+    }
+
+    // ── 진짜 마이크 (서버 모드일 때만 · 09-29 오케스트레이터 ①) ────────────
+    //
+    // 🎤 누름 → 녹음 → 말이 끝나면 VAD 가 0.3초 뒤 스스로 끊는다(⏹ 로 먼저 끊어도 된다)
+    // → 우리 서버 `/stt` → 들은 글자를 대본 답과 **같은 모양**(`Reply.Spoke`)으로 흐름에 넣는다.
+    // 그래서 장면 코드는 대본인지 진짜인지 모른다. 글자는 **실명 그대로**다 — 서버로 다시
+    // 보낼 때는 모드 담당자가 `s.nameMask().mask(...)` 를 거친다(규칙 6).
+    // 아무것도 못 들었거나(빈 글자) 서버가 실패하면 **무응답**으로 보낸다 — 무응답 흐름(⭐5)이 이어받는다.
+
+    @Volatile private var stopMic = false
+    private var micJob: Job? = null
+
+    private fun liveMic() {
+        if (s.micOn) { stopMic = true; return }            // ⏹ — 녹음을 여기서 끊는다
+        stopMic = false
+        hushVoice()                                       // 마스코트 소리가 녹음에 들어가지 않게
+        s.micOn = true
+        s.countdown = null
+        log("🎤 켬 — 진짜 녹음 · 말이 끝나면 저절로 끊는다 (VAD 0.3초)")
+        micJob = scope.launch {
+            val audio = Voice.listen { stopMic }
+            s.micOn = false
+            if (audio == null) { log("🎤 아무것도 못 들음 → 무응답"); send(Reply.Silent); return@launch }
+            log("🎤 끝 → 우리 서버로 받아쓰기 (${audio.size / 1024}KB)")
+            val text = Voice.transcribe(audio)
+            when {
+                text == null -> { log("받아쓰기 실패 → 무응답으로 넘김"); send(Reply.Silent) }
+                text.isBlank() -> { log("받아쓰기: 들을 말이 없음 → 무응답"); send(Reply.Silent) }
+                else -> { log("받아쓰기: \"$text\""); send(Reply.Spoke(text)) }
+            }
+        }
     }
 
     /** ➡️ 말 없이 넘김 = 무응답 */
@@ -241,6 +321,41 @@ class Director(private val scope: CoroutineScope) {
             // 방금 입력한 질문이 [같이 만들기] 전에 사라졌다 (90de2d6 의 실수 · 박진웅 4549b88 지적).
             // 비우는 곳은 협업 이야기가 끝날 때(`coopFinishLog`)와 `reset()` 둘이다
             go(Scene.ADULT)
+        }
+    }
+
+    /**
+     * 이야기 **도중** 🔒 부모 문 (09-29 앱 틀 · 디자인 시스템 「왼쪽 위 = 시스템」).
+     * 전에는 부모 신호를 첫 화면 · 책장에서만 받아, 이야기 중에 누르면 아무 일도 없었다.
+     * 지금 장면을 멈추고 어른 확인(태어난 해) → 부모 영역. 취소하면 오또의 방으로 — 만들던 이야기는 이어 가지 않는다
+     */
+    fun openParent() {
+        pauseStory()
+        scope.launch {
+            job?.cancelAndJoin()
+            drain()
+            currentQ = null
+            inputs(mic = false, next = false)
+            s.progressVisible = false
+            s.line = ""
+            job = scope.launch { if (pinGate("parent")) go(Scene.PARENT) else go(Scene.ADULT) }
+        }
+    }
+
+    /**
+     * 이야기 **도중** 🏠 방으로 (09-29) — 멈춘 장면을 기억해 두고 첫 화면(오또의 방)으로.
+     * 다시 같은 모드로 들어오면 「이어서 할까?」 → `resume` 신호로 이 장면부터 이어 간다 (`Scenes.sceneAdult`)
+     */
+    fun leaveToRoom() {
+        pauseStory()
+        goHome()
+    }
+
+    /** 지금이 이야기 **안**이면 그 장면을 기억한다 — 방 · 부모 · 책장은 이야기 밖이다 */
+    private fun pauseStory() {
+        if (s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF)) {
+            s.paused = s.scene
+            log("이야기 도중 나감 — 「${s.scene.label}」을 기억해 둔다. 다시 들어오면 이어서 할지 묻는다")
         }
     }
 
@@ -357,7 +472,8 @@ class Director(private val scope: CoroutineScope) {
         scripted += q.extra
         buttons(*scripted.toTypedArray())
 
-        pause(1200) // 마스코트 말이 끝나면(TTS 종료) 아이 차례
+        // 마스코트 말이 끝나면(TTS 종료) 아이 차례 — 서버 모드는 **진짜 목소리가 끝날 때까지** 기다린다 (09-29 S25+)
+        if (Server.liveFor(s.mode)) { awaitVoice(); pause(300) } else pause(1200)
         val sec = when (q.kind) { Kind.EASY -> 5.0; Kind.HARD -> 8.0; Kind.CHOICE -> 7.0 }
         val first = waitReply(sec)
 
@@ -376,6 +492,7 @@ class Director(private val scope: CoroutineScope) {
         }
         currentQ = null
         inputs(mic = false, next = false)
+        if (s.mood == Mood.WAITING) s.mood = Mood.NONE
         return result
     }
 
@@ -431,6 +548,7 @@ class Director(private val scope: CoroutineScope) {
         childSays(text)
         s.reactions++
         s.modeVoice++
+        feel(Mood.CHEER)
         event("utterance", "speaker" to "child", "confidence" to "0.9", "mode" to "voice", "text" to text)
         log("[${s.childName}] $text  →  우리 서버 Whisper → 글자 (음성 사본 즉시 삭제)")
         pause(900)
@@ -441,6 +559,7 @@ class Director(private val scope: CoroutineScope) {
         s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = r.value) ?: s.stage
         s.reactions++
         s.modeCard++
+        feel(Mood.CHEER)
         event("utterance", "speaker" to "child", "mode" to "card", "text" to r.label)
         log("탭으로 고름: ${r.label} → 수준 신호로 세지 않음 (mode: card)")
         pause(800)
@@ -476,6 +595,7 @@ class Director(private val scope: CoroutineScope) {
     /** 기다림 → 쉬운 질문 → (힌트 질문 → 마스코트) 또는 (그림 카드 → 교체 3 → 마스코트) (⭐5 · ⭐22 · v0.8) */
     private suspend fun noAnswer(q: Question): Reply {
         s.modeSilent++
+        feel(Mood.WAITING)
         mark("noanswer")
         event("utterance", "speaker" to "unsure", "mode" to "silent", "text" to "(무응답)")
 
@@ -603,3 +723,6 @@ class Director(private val scope: CoroutineScope) {
         if (text !in s.quotes) s.quotes += text
     }
 }
+
+/** 「쉿, 창문에서 뭔가 움직였어!」 처럼 놀라며 시작하는 말 — 대본마다 따로 표시하지 않고 말머리로 알아본다 */
+private val surprise = Regex("""^(쉿|앗|헉|어라|어\?|깜짝)""")

@@ -46,8 +46,12 @@ import kotlin.math.sin
  *
  * 그림이 없으면 벡터 인형으로 대신 그린다.
  */
+/**
+ * @param motion 뼈대로 움직일 동작 (09-28 — 책 쪽). 뼈대가 준비됐으면 몸 그림 대신 휘는 그림을 그리고,
+ *   눈 · 안경은 그 위에 그대로 얹는다 — 머리는 몸통에 속해 움직이지 않으니 자리가 어긋나지 않는다
+ */
 @Composable
-fun HeroImage(attr: HeroAttr, modifier: Modifier = Modifier) {
+fun HeroImage(attr: HeroAttr, modifier: Modifier = Modifier, motion: RigMotion? = null) {
     val name = heroImageName(attr)
     val id = assetId(name)
     if (id == 0) {
@@ -66,7 +70,10 @@ fun HeroImage(attr: HeroAttr, modifier: Modifier = Modifier) {
 
     // 숨쉬기 — 발이 뜨지 않게 아래쪽을 축으로 아주 조금만. 정지 그림을 살아 보이게 하는 가장 싼 방법
     Box(modifier.breathing(seed = name.hashCode())) {
-        Image(painterResource(id), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+        val rig = if (motion != null) rememberRig(name) else null
+        // 몸 전체 들썩임은 끈다 — 얹는 눈 · 안경과 어긋난다. 책 쪽이 인물 전체를 따로 통통 튀긴다
+        if (rig != null && motion != null) RigView(rig, motion, Modifier.fillMaxSize(), bobbing = false)
+        else Image(painterResource(id), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
 
         // ⚠️ **눈을 먼저, 안경을 나중에** 그린다 (9/22). 전에는 거꾸로라 살색 패치가 안경테를 덮었다.
         //    실제로도 안경은 눈 위에 걸친다.

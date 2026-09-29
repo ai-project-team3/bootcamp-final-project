@@ -73,7 +73,10 @@ private val END_RESERVE = 168.dp
  * 의 `say` · `askSay` 가 맡는다.
  */
 @Composable
-fun ParentBand(d: Director, modifier: Modifier = Modifier) {
+fun ParentBand(d: Director, modifier: Modifier = Modifier) = ParentText { ParentBandBody(d, modifier) }
+
+@Composable
+private fun ParentBandBody(d: Director, modifier: Modifier) {
     val s = d.s
     val card = s.parentCard
     AnimatedVisibility(
