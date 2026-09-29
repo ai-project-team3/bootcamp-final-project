@@ -961,6 +961,8 @@ class DemoState {
     /** 아이가 말한 장소 그대로. 프리셋 유형에 없으면 배경을 새로 만든다 (구현대본 §6) */
     var placeLabel by mutableStateOf<String?>(null)
     var generatedBg by mutableStateOf(false)
+    /** 서버 PNG를 앱 전용 파일에 보관한 뒤 이 책이 끝날 때까지 사용한다. */
+    var storyBackground by mutableStateOf<String?>(null)
     // 일기 모드의 장소는 아이가 말한 실제 장소다. 아직 못 들었으면 상상 세계 이름("우주")이 새어 나오지 않게 막는다
     val placeName: String get() = placeLabel ?: if (isDiary) "오늘 있었던 곳" else th.label
 
@@ -974,6 +976,7 @@ class DemoState {
     val bgName: String
         get() = when {
             isDiary -> diaryPlaceBg(placeLabel)
+            mode == StoryMode.STORY && storyBackground != null -> storyBackground!!
             generatedBg -> "bg_snow"
             else -> "bg_$themeKey"
         }
@@ -1238,7 +1241,7 @@ class DemoState {
         nextLevel = null; levelAtStart = level
         templateKey = null; attribute = null; causeKind = "lonely"; notes.clear(); levelWhy = ""
         askedThisStory.clear()
-        themeKey = "space"; placeLabel = null; generatedBg = false
+        themeKey = "space"; placeLabel = null; generatedBg = false; storyBackground = null
         mentioned.clear()
         newcomerKind = "외계인"; newcomerEmoji = "👽"
         dinoKey = "horn"; solutionKey = "play"; solutionItem = "star"

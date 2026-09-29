@@ -1,7 +1,12 @@
 package com.example.finalproject_demo.demo
 
 import androidx.compose.ui.graphics.Color
+import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 
 // 장면별 대본. 기준: 구현대본.md(9/16) + v0.8 요청 + v0.9 요청(9/17).
 // v0.9
@@ -619,7 +624,7 @@ private suspend fun Director.scenePlace() {
     val r = ask(q)
     val said = when (r) {
         is Reply.Tapped -> r.value
-        is Reply.Spoke -> r.value.ifEmpty { "space" }
+        is Reply.Spoke -> r.value.ifEmpty { r.text.trim() }
         else -> "space"
     }
     // 아이 말을 장소 유형에 맞춘다. 유형에 없으면 배경을 새로 만든다 (구현대본 §6)
@@ -627,7 +632,10 @@ private suspend fun Director.scenePlace() {
         s.themeKey = said; s.placeLabel = null; s.generatedBg = false
     } else {
         s.themeKey = "dino"            // 가장 가까운 유형(땅 위)에서 탈것 · 사건 · 미션 뼈대를 가져온다
-        s.placeLabel = "눈 오는 데"
+        s.placeLabel = when (r) {
+            is Reply.Spoke -> r.text.trim().ifBlank { "눈 오는 데" }
+            else -> "눈 오는 데"
+        }
         s.generatedBg = true
     }
     // 장소가 정해지면 **그 장소의 기본값들도 같이** 맞춘다 (9/21).
@@ -643,10 +651,28 @@ private suspend fun Director.scenePlace() {
     if (s.generatedBg) {
         s.stage = Stage.Making("${s.placeName} 배경을 만드는 중…")
         say("${s.placeName}? 그런 데는 처음이야. 그림을 만들어 볼게!")
-        log("장소 유형에 없는 답 → 영어 키워드만 ComfyUI로 → 배경 1장 생성 → 폰 소품함에 저장 (구현대본 §6)")
-        event("image_request", "type" to "background", "reason" to "no_preset_type", "elapsed" to "2.4s")
-        s.images++
-        pause(2400)
+        if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
+            val png = coroutineScope {
+                val request = async { Server.image(s.nameMask().mask(s.placeName), mode = "story") }
+                val early = withTimeoutOrNull(8_000) { request.await() }
+                if (early != null || request.isCompleted) early
+                else {
+                    say("그림이 조금 늦게 오고 있어. 잠깐만 기다려 줘!")
+                    val late = withTimeoutOrNull(7_000) { request.await() }
+                    if (!request.isCompleted) request.cancel()
+                    late
+                }
+            }
+            if (png != null && keepStoryBackground(png)) {
+                s.images++
+                log("서버 배경 PNG를 기기에 저장해 책과 퍼즐에서 사용")
+            } else log("배경 생성 실패 또는 시간 초과 → 눈 배경 프리셋 사용")
+            event("image_request", "type" to "background", "reason" to "no_preset_type", "result" to if (s.storyBackground != null) "generated" else "preset")
+        } else {
+            log("장소 유형에 없는 답 → 배경 프리셋 (시연 모드)")
+            s.images++
+            pause(2400)
+        }
     } else {
         s.images++
         log("${s.th.label} 배경은 프리셋 — 대기 0초 (⭐26)")
@@ -1303,6 +1329,20 @@ private suspend fun Director.sceneMaking() {
         p += 0.05f
     }
     s.title = s.autoTitleFor()
+    if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
+        s.stage = Stage.Making("이야기 문장을 쓰는 중… (${t.pages.size}쪽)")
+        val mask = s.nameMask()
+        val captions = Server.story(
+            mode = "story",
+            slots = mask.maskSlots(s.slots),
+            slotBy = s.slotBy,
+            template = t.key,
+            level = s.level.name.lowercase(),
+            pages = s.storyPagePlan(),
+        )?.map(mask::unmask)
+        if (s.useGeneratedStory(captions)) log("서버가 쓴 동화 ${s.pageCount}쪽을 받음")
+        else log("동화 생성 실패 또는 쪽 목록 불일치 → 템플릿 책 사용")
+    }
     s.stage = Stage.Making("『${s.title}』", 1f)
     say("다 만들었어! 제목은 『${s.title}』${if (bat(s.title!!)) "이야" else "야"}.")
     log("제목은 아이에게 묻지 않고 템플릿 · 대화로 지어 준다 → 책장에서 바꿀 수 있다")

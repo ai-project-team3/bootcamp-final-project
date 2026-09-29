@@ -34,6 +34,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.LocalStoryBookStore
+import com.example.finalproject_demo.demo.StoryImageStore
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.ui.Bg
@@ -87,7 +88,7 @@ class MainActivity : ComponentActivity() {
 fun DemoApp() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val d = remember { Director(scope, LocalStoryBookStore(context)) }
+    val d = remember { Director(scope, LocalStoryBookStore(context), StoryImageStore(context)) }
     var drawerOpen by remember { mutableStateOf(false) }
     var splash by remember { mutableStateOf(true) }
     val s = d.s

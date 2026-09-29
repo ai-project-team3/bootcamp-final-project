@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.ui
 
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -7,8 +8,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
 import kotlin.math.cos
 import kotlin.math.sin
@@ -19,11 +23,22 @@ import kotlin.math.sin
  */
 @Composable
 fun assetId(name: String): Int {
+    if (name.startsWith("local:")) return 0
     val ctx = LocalContext.current
     return remember(name) {
         @Suppress("DiscouragedApi")
         ctx.resources.getIdentifier(name, "drawable", ctx.packageName)
     }
+}
+
+/** 앱 전용 파일의 그림과 번들 그림을 같은 책·퍼즐 화면에서 사용한다. */
+@Composable
+fun assetBitmap(name: String): ImageBitmap? {
+    if (name.startsWith("local:")) return remember(name) {
+        BitmapFactory.decodeFile(name.removePrefix("local:"))?.asImageBitmap()
+    }
+    val id = assetId(name)
+    return if (id == 0) null else ImageBitmap.imageResource(id)
 }
 
 @Composable
@@ -34,6 +49,12 @@ fun AssetImage(
     colorFilter: ColorFilter? = null,
     fallback: @Composable () -> Unit = {},
 ) {
+    if (name.startsWith("local:")) {
+        val bitmap = assetBitmap(name)
+        if (bitmap != null) Image(bitmap, contentDescription = null, modifier = modifier, contentScale = contentScale, colorFilter = colorFilter)
+        else fallback()
+        return
+    }
     val id = assetId(name)
     if (id != 0) {
         Image(painterResource(id), contentDescription = null, modifier = modifier, contentScale = contentScale, colorFilter = colorFilter)

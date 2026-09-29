@@ -62,7 +62,11 @@ data class Question(
     val silent: Boolean = false,
 )
 
-class Director(private val scope: CoroutineScope, private val storyBookStore: StoryBookStore? = null) {
+class Director(
+    private val scope: CoroutineScope,
+    private val storyBookStore: StoryBookStore? = null,
+    private val storyImageStore: StoryImageStore? = null,
+) {
 
     val s = DemoState()
     private val savedStories = mutableListOf<SavedStoryBook>()
@@ -90,6 +94,12 @@ class Director(private val scope: CoroutineScope, private val storyBookStore: St
     }
 
     fun savedStory(id: String): SavedStoryBook? = savedStories.firstOrNull { it.id == id }
+
+    fun keepStoryBackground(png: ByteArray): Boolean {
+        val path = storyImageStore?.save(png) ?: return false
+        s.storyBackground = path
+        return true
+    }
     private var job: Job? = null
     private val input = Channel<Reply>(Channel.BUFFERED)
 
