@@ -463,9 +463,7 @@ fun MicNoticeSheet(onOk: () -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth(0.68f)
-                .shadow(12.dp, RoundedCornerShape(22.dp))
-                .clip(RoundedCornerShape(22.dp))
-                .background(CardWhite)
+                .felt(Wool, RoundedCornerShape(Radius.L), lift = 10.dp, texture = false)
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -542,9 +540,7 @@ private fun NoticeCard(content: @Composable ColumnScopeLike.() -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
-            .shadow(3.dp, RoundedCornerShape(16.dp))
-            .clip(RoundedCornerShape(16.dp))
-            .background(CardWhite)
+            .felt(CardWhite, RoundedCornerShape(16.dp), lift = 1.dp, texture = false, stitch = false)
             .padding(16.dp),
     ) { ColumnScopeLike.content() }
 }
