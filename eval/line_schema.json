@@ -1,0 +1,12 @@
+{
+  "name": "mascot_line",
+  "description": "마스코트 한 턴 세 조각. 구현 계약은 backend/app/schemas/turn.py(Line), 프롬프트는 eval/line_prompt.md, 근거는 guidelines/7_프롬프트.md §3, API 는 guidelines/3_API_명세.md §3-2-1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ack", "expand", "question"],
+  "properties": {
+    "ack": { "type": "string" },
+    "expand": { "type": ["string", "null"] },
+    "question": { "type": ["string", "null"] }
+  }
+}

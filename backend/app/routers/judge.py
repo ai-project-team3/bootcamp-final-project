@@ -49,15 +49,20 @@ def mock(req: JudgeRequest) -> JudgeResult:
     )
 
 
-@router.post("/judge", response_model=JudgeResult)
-async def judge(req: JudgeRequest) -> JudgeResult:
+async def run(req: JudgeRequest) -> JudgeResult:
+    """The verdict with its guardrails. Raises LLMError; /judge and /turn both call this."""
     if is_blocked(req.utterance):
         return blocked()
     if settings.mock:
         return enforce(mock(req), req)
+    raw = await complete(judge_prompt.system(), judge_prompt.user(req), judge_prompt.schema(),
+                         effort=settings.llm_effort_judge)
+    return enforce(JudgeResult.model_validate(raw), req)
+
+
+@router.post("/judge", response_model=JudgeResult)
+async def judge(req: JudgeRequest) -> JudgeResult:
     try:
-        raw = await complete(judge_prompt.system(), judge_prompt.user(req), judge_prompt.schema(),
-                             effort=settings.llm_effort_judge)
+        return await run(req)
     except LLMError as e:
         raise HTTPException(502, str(e)) from e
-    return enforce(JudgeResult.model_validate(raw), req)

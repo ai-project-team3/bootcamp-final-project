@@ -1,0 +1,7053 @@
+{
+ "version": "2.8",
+ "variables": {
+  "--wool": {
+   "type": "color",
+   "value": "#FFF7EC"
+  },
+  "--wool-cream": {
+   "type": "color",
+   "value": "#F3E7D3"
+  },
+  "--stage-wood": {
+   "type": "color",
+   "value": "#D9A56B"
+  },
+  "--stage-wood-deep": {
+   "type": "color",
+   "value": "#A8733F"
+  },
+  "--curtain": {
+   "type": "color",
+   "value": "#B8322E"
+  },
+  "--curtain-deep": {
+   "type": "color",
+   "value": "#7A1E1E"
+  },
+  "--ink": {
+   "type": "color",
+   "value": "#3A2A20"
+  },
+  "--ink-soft": {
+   "type": "color",
+   "value": "#8A735F"
+  },
+  "--felt-coral": {
+   "type": "color",
+   "value": "#E8604C"
+  },
+  "--felt-mustard": {
+   "type": "color",
+   "value": "#F2B232"
+  },
+  "--felt-teal": {
+   "type": "color",
+   "value": "#4FAF98"
+  },
+  "--felt-sky": {
+   "type": "color",
+   "value": "#5B8ED6"
+  },
+  "--kitten": {
+   "type": "color",
+   "value": "#F2955A"
+  },
+  "--cheek": {
+   "type": "color",
+   "value": "#F48C92"
+  },
+  "--white": {
+   "type": "color",
+   "value": "#FFFFFF"
+  },
+  "--radius-s": {
+   "type": "number",
+   "value": 12
+  },
+  "--radius-m": {
+   "type": "number",
+   "value": 20
+  },
+  "--radius-l": {
+   "type": "number",
+   "value": 28
+  },
+  "--radius-full": {
+   "type": "number",
+   "value": 999
+  },
+  "--space-1": {
+   "type": "number",
+   "value": 4
+  },
+  "--space-2": {
+   "type": "number",
+   "value": 8
+  },
+  "--space-3": {
+   "type": "number",
+   "value": 12
+  },
+  "--space-4": {
+   "type": "number",
+   "value": 16
+  },
+  "--space-6": {
+   "type": "number",
+   "value": 24
+  },
+  "--space-8": {
+   "type": "number",
+   "value": 32
+  },
+  "--touch-hero": {
+   "type": "number",
+   "value": 96
+  },
+  "--touch-kid": {
+   "type": "number",
+   "value": 80
+  },
+  "--touch-kid-min": {
+   "type": "number",
+   "value": 64
+  },
+  "--touch-parent": {
+   "type": "number",
+   "value": 48
+  }
+ },
+ "children": [
+  {
+   "type": "frame",
+   "id": "b355",
+   "name": "03 컴포넌트 · 아이",
+   "x": 1340,
+   "y": 0,
+   "width": 1180,
+   "height": 780,
+   "fill": "$--wool",
+   "clip": true,
+   "layout": "none",
+   "children": [
+    {
+     "type": "text",
+     "id": "t334",
+     "content": "03 컴포넌트 · 아이",
+     "fill": "$--ink",
+     "fontFamily": "Jua",
+     "fontSize": 36,
+     "fontWeight": "400",
+     "x": 40,
+     "y": 32
+    },
+    {
+     "type": "text",
+     "id": "t335",
+     "content": "마이크 버튼이 없습니다. 오또의 몸짓 + 발밑 물결 색이 차례를 알립니다. 작은 글은 설명이며 화면에 넣지 않습니다.",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 14,
+     "fontWeight": "400",
+     "x": 360,
+     "y": 46
+    },
+    {
+     "type": "frame",
+     "id": "f169",
+     "name": "🌊 발밑 물결 · 말하는 중",
+     "width": 240,
+     "height": 44,
+     "layout": "none",
+     "reusable": true,
+     "children": [
+      {
+       "type": "ellipse",
+       "id": "e170",
+       "x": 0,
+       "y": 0,
+       "width": 240,
+       "height": 44,
+       "fill": "#F48C9233"
+      },
+      {
+       "type": "ellipse",
+       "id": "e171",
+       "x": 30,
+       "y": 6,
+       "width": 180,
+       "height": 32,
+       "fill": "#F48C9259"
+      },
+      {
+       "type": "ellipse",
+       "id": "e172",
+       "x": 70,
+       "y": 12,
+       "width": 100,
+       "height": 20,
+       "fill": "#F48C928C"
+      }
+     ],
+     "x": 40,
+     "y": 150
+    },
+    {
+     "type": "text",
+     "id": "t336",
+     "content": "말하는 중 · 분홍",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 40,
+     "y": 206
+    },
+    {
+     "type": "frame",
+     "id": "f177",
+     "name": "🌊 발밑 물결 · 듣는 중 (이때만 녹음)",
+     "width": 240,
+     "height": 44,
+     "layout": "none",
+     "reusable": true,
+     "children": [
+      {
+       "type": "ellipse",
+       "id": "e178",
+       "x": 0,
+       "y": 0,
+       "width": 240,
+       "height": 44,
+       "fill": "#4FAF9833"
+      },
+      {
+       "type": "ellipse",
+       "id": "e179",
+       "x": 30,
+       "y": 6,
+       "width": 180,
+       "height": 32,
+       "fill": "#4FAF9859"
+      },
+      {
+       "type": "ellipse",
+       "id": "e180",
+       "x": 70,
+       "y": 12,
+       "width": 100,
+       "height": 20,
+       "fill": "#4FAF988C"
+      }
+     ],
+     "x": 300,
+     "y": 150
+    },
+    {
+     "type": "text",
+     "id": "t337",
+     "content": "듣는 중 · 청록 — 이때만 녹음",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 300,
+     "y": 206
+    },
+    {
+     "type": "frame",
+     "id": "f185",
+     "name": "🌊 발밑 물결 · 생각하는 중",
+     "width": 240,
+     "height": 44,
+     "layout": "none",
+     "reusable": true,
+     "children": [
+      {
+       "type": "ellipse",
+       "id": "e186",
+       "x": 0,
+       "y": 0,
+       "width": 240,
+       "height": 44,
+       "fill": "#F2B23233"
+      },
+      {
+       "type": "ellipse",
+       "id": "e187",
+       "x": 30,
+       "y": 6,
+       "width": 180,
+       "height": 32,
+       "fill": "#F2B23259"
+      },
+      {
+       "type": "ellipse",
+       "id": "e188",
+       "x": 70,
+       "y": 12,
+       "width": 100,
+       "height": 20,
+       "fill": "#F2B2328C"
+      }
+     ],
+     "x": 560,
+     "y": 150
+    },
+    {
+     "type": "text",
+     "id": "t338",
+     "content": "생각하는 중 · 겨자",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 560,
+     "y": 206
+    },
+    {
+     "type": "frame",
+     "id": "f176",
+     "name": "💬 상태 표시 · 말하는 중",
+     "x": 840,
+     "y": 150,
+     "width": 44,
+     "height": 44,
+     "fill": "#F48C92",
+     "cornerRadius": 22,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "outside",
+      "thickness": 1.5,
+      "fill": "#FFFFFF59"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img175",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 44,
+       "height": 44,
+       "cornerRadius": 22,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      },
+      {
+       "type": "frame",
+       "id": "ctr174",
+       "name": "content",
+       "x": 0,
+       "y": 0,
+       "width": 44,
+       "height": 44,
+       "layout": "vertical",
+       "justifyContent": "center",
+       "alignItems": "center",
+       "gap": 6,
+       "children": [
+        {
+         "type": "icon_font",
+         "id": "i173",
+         "iconFontFamily": "lucide",
+         "iconFontName": "message-circle",
+         "width": 24,
+         "height": 24,
+         "fill": "$--white"
+        }
+       ]
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "frame",
+     "id": "f184",
+     "name": "💬 상태 표시 · 듣는 중 (이때만 녹음)",
+     "x": 900,
+     "y": 150,
+     "width": 44,
+     "height": 44,
+     "fill": "#4FAF98",
+     "cornerRadius": 22,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "outside",
+      "thickness": 1.5,
+      "fill": "#FFFFFF59"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img183",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 44,
+       "height": 44,
+       "cornerRadius": 22,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      },
+      {
+       "type": "frame",
+       "id": "ctr182",
+       "name": "content",
+       "x": 0,
+       "y": 0,
+       "width": 44,
+       "height": 44,
+       "layout": "vertical",
+       "justifyContent": "center",
+       "alignItems": "center",
+       "gap": 6,
+       "children": [
+        {
+         "type": "icon_font",
+         "id": "i181",
+         "iconFontFamily": "lucide",
+         "iconFontName": "ear",
+         "width": 24,
+         "height": 24,
+         "fill": "$--white"
+        }
+       ]
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "frame",
+     "id": "f192",
+     "name": "💬 상태 표시 · 생각하는 중",
+     "x": 960,
+     "y": 150,
+     "width": 44,
+     "height": 44,
+     "fill": "#F2B232",
+     "cornerRadius": 22,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "outside",
+      "thickness": 1.5,
+      "fill": "#FFFFFF59"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img191",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 44,
+       "height": 44,
+       "cornerRadius": 22,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      },
+      {
+       "type": "frame",
+       "id": "ctr190",
+       "name": "content",
+       "x": 0,
+       "y": 0,
+       "width": 44,
+       "height": 44,
+       "layout": "vertical",
+       "justifyContent": "center",
+       "alignItems": "center",
+       "gap": 6,
+       "children": [
+        {
+         "type": "icon_font",
+         "id": "i189",
+         "iconFontFamily": "lucide",
+         "iconFontName": "ellipsis",
+         "width": 24,
+         "height": 24,
+         "fill": "$--white"
+        }
+       ]
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "text",
+     "id": "t339",
+     "content": "상태 표시 (작게)",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 960,
+     "y": 206
+    },
+    {
+     "type": "frame",
+     "id": "f202",
+     "name": "🎙 아이 목소리 (들리는 만큼 출렁)",
+     "x": 40,
+     "y": 260,
+     "width": 136,
+     "height": 56,
+     "fill": "$--felt-teal",
+     "cornerRadius": 28,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "outside",
+      "thickness": 1.5,
+      "fill": "#FFFFFF59"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img201",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 136,
+       "height": 56,
+       "cornerRadius": 28,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      },
+      {
+       "type": "rectangle",
+       "id": "bar193",
+       "x": 20,
+       "y": 23,
+       "width": 6,
+       "height": 10,
+       "cornerRadius": 3,
+       "fill": "$--white"
+      },
+      {
+       "type": "rectangle",
+       "id": "bar194",
+       "x": 32,
+       "y": 17,
+       "width": 6,
+       "height": 22,
+       "cornerRadius": 3,
+       "fill": "$--white"
+      },
+      {
+       "type": "rectangle",
+       "id": "bar195",
+       "x": 44,
+       "y": 11,
+       "width": 6,
+       "height": 34,
+       "cornerRadius": 3,
+       "fill": "$--white"
+      },
+      {
+       "type": "rectangle",
+       "id": "bar196",
+       "x": 56,
+       "y": 19,
+       "width": 6,
+       "height": 18,
+       "cornerRadius": 3,
+       "fill": "$--white"
+      },
+      {
+       "type": "rectangle",
+       "id": "bar197",
+       "x": 68,
+       "y": 14,
+       "width": 6,
+       "height": 28,
+       "cornerRadius": 3,
+       "fill": "$--white"
+      },
+      {
+       "type": "rectangle",
+       "id": "bar198",
+       "x": 80,
+       "y": 22,
+       "width": 6,
+       "height": 12,
+       "cornerRadius": 3,
+       "fill": "$--white"
+      },
+      {
+       "type": "rectangle",
+       "id": "bar199",
+       "x": 92,
+       "y": 16,
+       "width": 6,
+       "height": 24,
+       "cornerRadius": 3,
+       "fill": "$--white"
+      },
+      {
+       "type": "rectangle",
+       "id": "bar200",
+       "x": 104,
+       "y": 20,
+       "width": 6,
+       "height": 16,
+       "cornerRadius": 3,
+       "fill": "$--white"
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "text",
+     "id": "t340",
+     "content": "아이 목소리 — 들리는 만큼 출렁",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 40,
+     "y": 328
+    },
+    {
+     "type": "frame",
+     "id": "f210",
+     "name": "🔁 되받아 말하기 (들은 말 확인)",
+     "x": 220,
+     "y": 256,
+     "width": 300,
+     "height": 64,
+     "fill": "$--wool",
+     "cornerRadius": 24,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "outside",
+      "thickness": 1.5,
+      "fill": "#FFFFFF59"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img209",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 300,
+       "height": 64,
+       "cornerRadius": 24,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      },
+      {
+       "type": "frame",
+       "id": "f207",
+       "name": "귀",
+       "x": 12,
+       "y": 12,
+       "width": 40,
+       "height": 40,
+       "fill": "$--felt-teal",
+       "cornerRadius": 20,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img206",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 40,
+         "height": 40,
+         "cornerRadius": 20,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "ctr205",
+         "name": "content",
+         "x": 0,
+         "y": 0,
+         "width": 40,
+         "height": 40,
+         "layout": "vertical",
+         "justifyContent": "center",
+         "alignItems": "center",
+         "gap": 6,
+         "children": [
+          {
+           "type": "icon_font",
+           "id": "i204",
+           "iconFontFamily": "lucide",
+           "iconFontName": "ear",
+           "width": 22,
+           "height": 22,
+           "fill": "$--white"
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "type": "text",
+       "id": "ec203",
+       "content": "\"빨간 공룡이구나!\"",
+       "fill": "$--ink",
+       "fontFamily": "Jua",
+       "fontSize": 22,
+       "fontWeight": "400",
+       "x": 64,
+       "y": 18
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "text",
+     "id": "t341",
+     "content": "되받아 말하기 — 들은 말 확인",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 220,
+     "y": 332
+    },
+    {
+     "type": "frame",
+     "id": "f300",
+     "name": "🏠 방으로",
+     "x": 660,
+     "y": 260,
+     "width": 56,
+     "height": 56,
+     "fill": "$--wool-cream",
+     "cornerRadius": 28,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "outside",
+      "thickness": 1.5,
+      "fill": "#FFFFFF59"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img298",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 56,
+       "height": 56,
+       "cornerRadius": 28,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      },
+      {
+       "type": "frame",
+       "id": "st299",
+       "name": "stitch",
+       "x": 5,
+       "y": 5,
+       "width": 46,
+       "height": 46,
+       "cornerRadius": 23,
+       "stroke": {
+        "align": "inside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF73"
+       },
+       "layout": "none"
+      },
+      {
+       "type": "frame",
+       "id": "ctr297",
+       "name": "content",
+       "x": 0,
+       "y": 0,
+       "width": 56,
+       "height": 56,
+       "layout": "vertical",
+       "justifyContent": "center",
+       "alignItems": "center",
+       "gap": 6,
+       "children": [
+        {
+         "type": "icon_font",
+         "id": "i296",
+         "iconFontFamily": "lucide",
+         "iconFontName": "house",
+         "width": 26,
+         "height": 26,
+         "fill": "$--ink"
+        }
+       ]
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "text",
+     "id": "t342",
+     "content": "방으로",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 660,
+     "y": 328
+    },
+    {
+     "type": "frame",
+     "id": "f301",
+     "name": "🔒 부모 문 (2초 길게 누르기)",
+     "width": 40,
+     "height": 40,
+     "cornerRadius": 20,
+     "fill": "#3A2A201A",
+     "layout": "none",
+     "reusable": true,
+     "children": [
+      {
+       "type": "frame",
+       "id": "ctr303",
+       "name": "content",
+       "x": 0,
+       "y": 0,
+       "width": 40,
+       "height": 40,
+       "layout": "vertical",
+       "justifyContent": "center",
+       "alignItems": "center",
+       "gap": 6,
+       "children": [
+        {
+         "type": "icon_font",
+         "id": "i302",
+         "iconFontFamily": "lucide",
+         "iconFontName": "lock",
+         "width": 18,
+         "height": 18,
+         "fill": "$--ink-soft"
+        }
+       ]
+      }
+     ],
+     "x": 850,
+     "y": 268
+    },
+    {
+     "type": "text",
+     "id": "t343",
+     "content": "부모 문",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 850,
+     "y": 320
+    },
+    {
+     "type": "frame",
+     "id": "f304",
+     "name": "✨ 만질 수 있어요 (안 만지면 반짝)",
+     "width": 56,
+     "height": 56,
+     "layout": "none",
+     "reusable": true,
+     "children": [
+      {
+       "type": "ellipse",
+       "id": "e305",
+       "x": 0,
+       "y": 0,
+       "width": 56,
+       "height": 56,
+       "fill": "#F2B23233"
+      },
+      {
+       "type": "frame",
+       "id": "ctr307",
+       "name": "content",
+       "x": 0,
+       "y": 0,
+       "width": 56,
+       "height": 56,
+       "layout": "vertical",
+       "justifyContent": "center",
+       "alignItems": "center",
+       "gap": 6,
+       "children": [
+        {
+         "type": "icon_font",
+         "id": "i306",
+         "iconFontFamily": "lucide",
+         "iconFontName": "sparkles",
+         "width": 30,
+         "height": 30,
+         "fill": "$--felt-mustard"
+        }
+       ]
+      }
+     ],
+     "x": 930,
+     "y": 262
+    },
+    {
+     "type": "text",
+     "id": "t344",
+     "content": "반짝 (새것·추천만)",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 930,
+     "y": 330
+    },
+    {
+     "type": "frame",
+     "id": "f217",
+     "name": "🫧 고르기 방울",
+     "x": 40,
+     "y": 400,
+     "width": 128,
+     "height": 150,
+     "fill": "$--wool-cream",
+     "cornerRadius": 64,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "outside",
+      "thickness": 1.5,
+      "fill": "#FFFFFF59"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img215",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 128,
+       "height": 150,
+       "cornerRadius": 64,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      },
+      {
+       "type": "frame",
+       "id": "st216",
+       "name": "stitch",
+       "x": 5,
+       "y": 5,
+       "width": 118,
+       "height": 140,
+       "cornerRadius": 59,
+       "stroke": {
+        "align": "inside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF73"
+       },
+       "layout": "none"
+      },
+      {
+       "type": "ellipse",
+       "id": "pic212",
+       "name": "그림 자리",
+       "x": 14,
+       "y": 12,
+       "width": 100,
+       "height": 100,
+       "fill": "$--white"
+      },
+      {
+       "type": "frame",
+       "id": "ctr214",
+       "name": "content",
+       "x": 0,
+       "y": 114,
+       "width": 128,
+       "height": 28,
+       "layout": "vertical",
+       "justifyContent": "center",
+       "alignItems": "center",
+       "gap": 6,
+       "children": [
+        {
+         "type": "text",
+         "id": "cb211",
+         "content": "공룡 숲",
+         "fill": "$--ink",
+         "fontFamily": "Jua",
+         "fontSize": 18,
+         "fontWeight": "400"
+        }
+       ]
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "text",
+     "id": "t345",
+     "content": "고르기 방울",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 40,
+     "y": 562
+    },
+    {
+     "type": "frame",
+     "id": "f224",
+     "name": "🫧 고르기 방울 (고름)",
+     "x": 200,
+     "y": 400,
+     "width": 128,
+     "height": 150,
+     "fill": "$--wool-cream",
+     "cornerRadius": 64,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "inside",
+      "thickness": 5,
+      "fill": "$--felt-coral"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img222",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 128,
+       "height": 150,
+       "cornerRadius": 64,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      },
+      {
+       "type": "frame",
+       "id": "st223",
+       "name": "stitch",
+       "x": 5,
+       "y": 5,
+       "width": 118,
+       "height": 140,
+       "cornerRadius": 59,
+       "stroke": {
+        "align": "inside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF73"
+       },
+       "layout": "none"
+      },
+      {
+       "type": "ellipse",
+       "id": "pic219",
+       "name": "그림 자리",
+       "x": 14,
+       "y": 12,
+       "width": 100,
+       "height": 100,
+       "fill": "$--white"
+      },
+      {
+       "type": "frame",
+       "id": "ctr221",
+       "name": "content",
+       "x": 0,
+       "y": 114,
+       "width": 128,
+       "height": 28,
+       "layout": "vertical",
+       "justifyContent": "center",
+       "alignItems": "center",
+       "gap": 6,
+       "children": [
+        {
+         "type": "text",
+         "id": "cb218",
+         "content": "공룡 숲",
+         "fill": "$--ink",
+         "fontFamily": "Jua",
+         "fontSize": 18,
+         "fontWeight": "400"
+        }
+       ]
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "text",
+     "id": "t346",
+     "content": "고름",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 200,
+     "y": 562
+    },
+    {
+     "type": "frame",
+     "id": "f244",
+     "name": "⭐ 진행 · 1/6",
+     "width": 330,
+     "height": 60,
+     "layout": "none",
+     "clip": false,
+     "reusable": true,
+     "children": [
+      {
+       "type": "frame",
+       "id": "f226",
+       "name": "판",
+       "x": 0,
+       "y": 6,
+       "width": 330,
+       "height": 46,
+       "fill": "$--white",
+       "cornerRadius": 23,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img225",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 330,
+         "height": 46,
+         "cornerRadius": 23,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.35
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f229",
+       "name": "길",
+       "x": 16,
+       "y": 21,
+       "width": 250,
+       "height": 16,
+       "fill": "$--wool-cream",
+       "cornerRadius": 8,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img228",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 250,
+         "height": 16,
+         "cornerRadius": 8,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "rectangle",
+         "id": "in227",
+         "name": "안쪽 그늘",
+         "x": 2,
+         "y": 2,
+         "width": 246,
+         "height": 4,
+         "cornerRadius": 2,
+         "fill": "#3A2A2014"
+        }
+       ]
+      },
+      {
+       "type": "frame",
+       "id": "f232",
+       "name": "차오른 만큼",
+       "x": 16,
+       "y": 21,
+       "width": 41.666666666666664,
+       "height": 16,
+       "fill": "$--felt-mustard",
+       "cornerRadius": 8,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img231",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 41.666666666666664,
+         "height": 16,
+         "cornerRadius": 8,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "rectangle",
+         "id": "hl230",
+         "name": "윤기",
+         "x": 5,
+         "y": 3,
+         "width": 31.666666666666664,
+         "height": 4,
+         "cornerRadius": 2,
+         "fill": "#FFFFFF73"
+        }
+       ]
+      },
+      {
+       "type": "path",
+       "id": "star233",
+       "name": "1쪽 별",
+       "x": 48.666666666666664,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "$--white",
+       "stroke": {
+        "align": "center",
+        "thickness": 1.2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#C98A12"
+       }
+      },
+      {
+       "type": "path",
+       "id": "star234",
+       "name": "2쪽 별",
+       "x": 90.33333333333333,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "#8A735F4D"
+      },
+      {
+       "type": "path",
+       "id": "star235",
+       "name": "3쪽 별",
+       "x": 132.0,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "#8A735F4D"
+      },
+      {
+       "type": "path",
+       "id": "star236",
+       "name": "4쪽 별",
+       "x": 173.66666666666666,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "#8A735F4D"
+      },
+      {
+       "type": "path",
+       "id": "star237",
+       "name": "5쪽 별",
+       "x": 215.33333333333334,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "#8A735F4D"
+      },
+      {
+       "type": "path",
+       "id": "rb238",
+       "name": "리본 꼬리",
+       "x": 284,
+       "y": 36,
+       "width": 14,
+       "height": 22,
+       "geometry": "M0 0 L14 0 L14 22 L7 16 L0 22 Z",
+       "fill": "$--felt-coral"
+      },
+      {
+       "type": "path",
+       "id": "rb239",
+       "name": "리본 꼬리",
+       "x": 302,
+       "y": 36,
+       "width": 14,
+       "height": 22,
+       "geometry": "M0 0 L14 0 L14 22 L7 16 L0 22 Z",
+       "fill": "$--felt-coral"
+      },
+      {
+       "type": "frame",
+       "id": "f243",
+       "name": "메달",
+       "x": 272,
+       "y": 0,
+       "width": 56,
+       "height": 56,
+       "fill": "$--wool",
+       "cornerRadius": 28,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "inside",
+        "thickness": 3,
+        "fill": "$--felt-mustard"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img241",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 56,
+         "height": 56,
+         "cornerRadius": 28,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st242",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 46,
+         "height": 46,
+         "cornerRadius": 23,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "path",
+         "id": "star240",
+         "name": "별 (안쪽부터 차오름)",
+         "x": 11,
+         "y": 10,
+         "width": 34,
+         "height": 34,
+         "geometry": "M17.00 2.52 L21.37 12.00 L31.74 13.23 L24.08 20.32 L26.11 30.56 L17.00 25.46 L7.89 30.56 L9.92 20.32 L2.26 13.23 L12.63 12.00 Z",
+         "fill": "$--felt-mustard"
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      }
+     ],
+     "x": 380,
+     "y": 400
+    },
+    {
+     "type": "text",
+     "id": "t347",
+     "content": "진행 · 1/6",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 380,
+     "y": 472
+    },
+    {
+     "type": "frame",
+     "id": "f264",
+     "name": "⭐ 진행 · 4/6",
+     "width": 330,
+     "height": 60,
+     "layout": "none",
+     "clip": false,
+     "reusable": true,
+     "children": [
+      {
+       "type": "frame",
+       "id": "f246",
+       "name": "판",
+       "x": 0,
+       "y": 6,
+       "width": 330,
+       "height": 46,
+       "fill": "$--white",
+       "cornerRadius": 23,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img245",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 330,
+         "height": 46,
+         "cornerRadius": 23,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.35
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f249",
+       "name": "길",
+       "x": 16,
+       "y": 21,
+       "width": 250,
+       "height": 16,
+       "fill": "$--wool-cream",
+       "cornerRadius": 8,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img248",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 250,
+         "height": 16,
+         "cornerRadius": 8,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "rectangle",
+         "id": "in247",
+         "name": "안쪽 그늘",
+         "x": 2,
+         "y": 2,
+         "width": 246,
+         "height": 4,
+         "cornerRadius": 2,
+         "fill": "#3A2A2014"
+        }
+       ]
+      },
+      {
+       "type": "frame",
+       "id": "f252",
+       "name": "차오른 만큼",
+       "x": 16,
+       "y": 21,
+       "width": 166.66666666666666,
+       "height": 16,
+       "fill": "$--felt-mustard",
+       "cornerRadius": 8,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img251",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 166.66666666666666,
+         "height": 16,
+         "cornerRadius": 8,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "rectangle",
+         "id": "hl250",
+         "name": "윤기",
+         "x": 5,
+         "y": 3,
+         "width": 156.66666666666666,
+         "height": 4,
+         "cornerRadius": 2,
+         "fill": "#FFFFFF73"
+        }
+       ]
+      },
+      {
+       "type": "path",
+       "id": "star253",
+       "name": "1쪽 별",
+       "x": 48.666666666666664,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "$--white",
+       "stroke": {
+        "align": "center",
+        "thickness": 1.2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#C98A12"
+       }
+      },
+      {
+       "type": "path",
+       "id": "star254",
+       "name": "2쪽 별",
+       "x": 90.33333333333333,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "$--white",
+       "stroke": {
+        "align": "center",
+        "thickness": 1.2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#C98A12"
+       }
+      },
+      {
+       "type": "path",
+       "id": "star255",
+       "name": "3쪽 별",
+       "x": 132.0,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "$--white",
+       "stroke": {
+        "align": "center",
+        "thickness": 1.2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#C98A12"
+       }
+      },
+      {
+       "type": "path",
+       "id": "star256",
+       "name": "4쪽 별",
+       "x": 173.66666666666666,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "$--white",
+       "stroke": {
+        "align": "center",
+        "thickness": 1.2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#C98A12"
+       }
+      },
+      {
+       "type": "path",
+       "id": "star257",
+       "name": "5쪽 별",
+       "x": 215.33333333333334,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "#8A735F4D"
+      },
+      {
+       "type": "path",
+       "id": "rb258",
+       "name": "리본 꼬리",
+       "x": 284,
+       "y": 36,
+       "width": 14,
+       "height": 22,
+       "geometry": "M0 0 L14 0 L14 22 L7 16 L0 22 Z",
+       "fill": "$--felt-coral"
+      },
+      {
+       "type": "path",
+       "id": "rb259",
+       "name": "리본 꼬리",
+       "x": 302,
+       "y": 36,
+       "width": 14,
+       "height": 22,
+       "geometry": "M0 0 L14 0 L14 22 L7 16 L0 22 Z",
+       "fill": "$--felt-coral"
+      },
+      {
+       "type": "frame",
+       "id": "f263",
+       "name": "메달",
+       "x": 272,
+       "y": 0,
+       "width": 56,
+       "height": 56,
+       "fill": "$--wool",
+       "cornerRadius": 28,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "inside",
+        "thickness": 3,
+        "fill": "$--felt-mustard"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img261",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 56,
+         "height": 56,
+         "cornerRadius": 28,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st262",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 46,
+         "height": 46,
+         "cornerRadius": 23,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "path",
+         "id": "star260",
+         "name": "별 (안쪽부터 차오름)",
+         "x": 11,
+         "y": 10,
+         "width": 34,
+         "height": 34,
+         "geometry": "M17.00 2.52 L21.37 12.00 L31.74 13.23 L24.08 20.32 L26.11 30.56 L17.00 25.46 L7.89 30.56 L9.92 20.32 L2.26 13.23 L12.63 12.00 Z",
+         "fill": "$--felt-mustard"
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      }
+     ],
+     "x": 380,
+     "y": 490
+    },
+    {
+     "type": "text",
+     "id": "t348",
+     "content": "진행 · 4/6",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 380,
+     "y": 562
+    },
+    {
+     "type": "frame",
+     "id": "f285",
+     "name": "⭐ 진행 · 완성",
+     "width": 330,
+     "height": 60,
+     "layout": "none",
+     "clip": false,
+     "reusable": true,
+     "children": [
+      {
+       "type": "frame",
+       "id": "f266",
+       "name": "판",
+       "x": 0,
+       "y": 6,
+       "width": 330,
+       "height": 46,
+       "fill": "$--white",
+       "cornerRadius": 23,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img265",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 330,
+         "height": 46,
+         "cornerRadius": 23,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.35
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f269",
+       "name": "길",
+       "x": 16,
+       "y": 21,
+       "width": 250,
+       "height": 16,
+       "fill": "$--wool-cream",
+       "cornerRadius": 8,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img268",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 250,
+         "height": 16,
+         "cornerRadius": 8,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "rectangle",
+         "id": "in267",
+         "name": "안쪽 그늘",
+         "x": 2,
+         "y": 2,
+         "width": 246,
+         "height": 4,
+         "cornerRadius": 2,
+         "fill": "#3A2A2014"
+        }
+       ]
+      },
+      {
+       "type": "frame",
+       "id": "f272",
+       "name": "차오른 만큼",
+       "x": 16,
+       "y": 21,
+       "width": 250.0,
+       "height": 16,
+       "fill": "$--felt-mustard",
+       "cornerRadius": 8,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img271",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 250.0,
+         "height": 16,
+         "cornerRadius": 8,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "rectangle",
+         "id": "hl270",
+         "name": "윤기",
+         "x": 5,
+         "y": 3,
+         "width": 240.0,
+         "height": 4,
+         "cornerRadius": 2,
+         "fill": "#FFFFFF73"
+        }
+       ]
+      },
+      {
+       "type": "path",
+       "id": "star273",
+       "name": "1쪽 별",
+       "x": 48.666666666666664,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "$--white",
+       "stroke": {
+        "align": "center",
+        "thickness": 1.2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#C98A12"
+       }
+      },
+      {
+       "type": "path",
+       "id": "star274",
+       "name": "2쪽 별",
+       "x": 90.33333333333333,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "$--white",
+       "stroke": {
+        "align": "center",
+        "thickness": 1.2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#C98A12"
+       }
+      },
+      {
+       "type": "path",
+       "id": "star275",
+       "name": "3쪽 별",
+       "x": 132.0,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "$--white",
+       "stroke": {
+        "align": "center",
+        "thickness": 1.2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#C98A12"
+       }
+      },
+      {
+       "type": "path",
+       "id": "star276",
+       "name": "4쪽 별",
+       "x": 173.66666666666666,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "$--white",
+       "stroke": {
+        "align": "center",
+        "thickness": 1.2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#C98A12"
+       }
+      },
+      {
+       "type": "path",
+       "id": "star277",
+       "name": "5쪽 별",
+       "x": 215.33333333333334,
+       "y": 20,
+       "width": 18,
+       "height": 18,
+       "geometry": "M9.00 2.04 L11.12 6.63 L16.13 7.22 L12.42 10.65 L13.41 15.61 L9.00 13.14 L4.59 15.61 L5.58 10.65 L1.87 7.22 L6.88 6.63 Z",
+       "fill": "$--white",
+       "stroke": {
+        "align": "center",
+        "thickness": 1.2,
+        "join": "round",
+        "cap": "round",
+        "fill": "#C98A12"
+       }
+      },
+      {
+       "type": "path",
+       "id": "rb278",
+       "name": "리본 꼬리",
+       "x": 284,
+       "y": 36,
+       "width": 14,
+       "height": 22,
+       "geometry": "M0 0 L14 0 L14 22 L7 16 L0 22 Z",
+       "fill": "$--felt-coral"
+      },
+      {
+       "type": "path",
+       "id": "rb279",
+       "name": "리본 꼬리",
+       "x": 302,
+       "y": 36,
+       "width": 14,
+       "height": 22,
+       "geometry": "M0 0 L14 0 L14 22 L7 16 L0 22 Z",
+       "fill": "$--felt-coral"
+      },
+      {
+       "type": "frame",
+       "id": "f283",
+       "name": "메달 (완성 · 숨 쉼)",
+       "x": 272,
+       "y": 0,
+       "width": 56,
+       "height": 56,
+       "fill": "$--felt-mustard",
+       "cornerRadius": 28,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "inside",
+        "thickness": 3,
+        "fill": "$--felt-mustard"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img281",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 56,
+         "height": 56,
+         "cornerRadius": 28,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st282",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 46,
+         "height": 46,
+         "cornerRadius": 23,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "path",
+         "id": "star280",
+         "name": "별 (안쪽부터 차오름)",
+         "x": 11,
+         "y": 10,
+         "width": 34,
+         "height": 34,
+         "geometry": "M17.00 2.52 L21.37 12.00 L31.74 13.23 L24.08 20.32 L26.11 30.56 L17.00 25.46 L7.89 30.56 L9.92 20.32 L2.26 13.23 L12.63 12.00 Z",
+         "fill": "$--white"
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "icon_font",
+       "id": "i284",
+       "iconFontFamily": "lucide",
+       "iconFontName": "sparkles",
+       "width": 18,
+       "height": 18,
+       "fill": "$--felt-mustard",
+       "x": 320,
+       "y": -6
+      }
+     ],
+     "x": 380,
+     "y": 580
+    },
+    {
+     "type": "text",
+     "id": "t349",
+     "content": "진행 · 완성 (별이 빛나고 숨 쉼)",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 380,
+     "y": 652
+    },
+    {
+     "type": "frame",
+     "id": "f313",
+     "name": "💗 좋아",
+     "x": 790,
+     "y": 400,
+     "width": 132,
+     "height": 132,
+     "fill": "$--cheek",
+     "cornerRadius": 36,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "outside",
+      "thickness": 1.5,
+      "fill": "#FFFFFF59"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img311",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 132,
+       "height": 132,
+       "cornerRadius": 36,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      },
+      {
+       "type": "frame",
+       "id": "st312",
+       "name": "stitch",
+       "x": 5,
+       "y": 5,
+       "width": 122,
+       "height": 122,
+       "cornerRadius": 31,
+       "stroke": {
+        "align": "inside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF73"
+       },
+       "layout": "none"
+      },
+      {
+       "type": "frame",
+       "id": "ctr310",
+       "name": "content",
+       "x": 0,
+       "y": 0,
+       "width": 132,
+       "height": 132,
+       "layout": "vertical",
+       "justifyContent": "center",
+       "alignItems": "center",
+       "gap": 6,
+       "children": [
+        {
+         "type": "icon_font",
+         "id": "i308",
+         "iconFontFamily": "lucide",
+         "iconFontName": "heart",
+         "width": 52,
+         "height": 52,
+         "fill": "$--white"
+        },
+        {
+         "type": "text",
+         "id": "t309",
+         "content": "좋아",
+         "fill": "$--white",
+         "fontFamily": "Jua",
+         "fontSize": 22,
+         "fontWeight": "400"
+        }
+       ]
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "text",
+     "id": "t350",
+     "content": "좋아",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 790,
+     "y": 544
+    },
+    {
+     "type": "frame",
+     "id": "f319",
+     "name": "🔁 다시",
+     "x": 950,
+     "y": 400,
+     "width": 132,
+     "height": 132,
+     "fill": "$--wool-cream",
+     "cornerRadius": 36,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "outside",
+      "thickness": 1.5,
+      "fill": "#FFFFFF59"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img317",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 132,
+       "height": 132,
+       "cornerRadius": 36,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      },
+      {
+       "type": "frame",
+       "id": "st318",
+       "name": "stitch",
+       "x": 5,
+       "y": 5,
+       "width": 122,
+       "height": 122,
+       "cornerRadius": 31,
+       "stroke": {
+        "align": "inside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF73"
+       },
+       "layout": "none"
+      },
+      {
+       "type": "frame",
+       "id": "ctr316",
+       "name": "content",
+       "x": 0,
+       "y": 0,
+       "width": 132,
+       "height": 132,
+       "layout": "vertical",
+       "justifyContent": "center",
+       "alignItems": "center",
+       "gap": 6,
+       "children": [
+        {
+         "type": "icon_font",
+         "id": "i314",
+         "iconFontFamily": "lucide",
+         "iconFontName": "rotate-ccw",
+         "width": 48,
+         "height": 48,
+         "fill": "$--ink"
+        },
+        {
+         "type": "text",
+         "id": "t315",
+         "content": "다시",
+         "fill": "$--ink",
+         "fontFamily": "Jua",
+         "fontSize": 22,
+         "fontWeight": "400"
+        }
+       ]
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "text",
+     "id": "t351",
+     "content": "다시",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 950,
+     "y": 544
+    },
+    {
+     "type": "frame",
+     "id": "f286",
+     "name": "📖 오늘 만들 수 있는 책 (재화)",
+     "width": 128,
+     "height": 56,
+     "layout": "none",
+     "reusable": true,
+     "clip": false,
+     "children": [
+      {
+       "type": "frame",
+       "id": "f290",
+       "name": "판",
+       "x": 24,
+       "y": 6,
+       "width": 104,
+       "height": 44,
+       "fill": "$--white",
+       "cornerRadius": 22,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img289",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 104,
+         "height": 44,
+         "cornerRadius": 22,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.35
+        },
+        {
+         "type": "text",
+         "id": "t287",
+         "content": "3",
+         "fill": "$--ink",
+         "fontFamily": "Jua",
+         "fontSize": 28,
+         "fontWeight": "400",
+         "x": 40,
+         "y": 4
+        },
+        {
+         "type": "text",
+         "id": "t288",
+         "content": "권",
+         "fill": "$--ink-soft",
+         "fontFamily": "Jua",
+         "fontSize": 14,
+         "fontWeight": "400",
+         "x": 64,
+         "y": 18
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f295",
+       "name": "책 동전",
+       "x": 0,
+       "y": 2,
+       "width": 52,
+       "height": 52,
+       "fill": "$--felt-coral",
+       "cornerRadius": 26,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "inside",
+        "thickness": 3,
+        "fill": "#FFFFFF80"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img293",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 52,
+         "height": 52,
+         "cornerRadius": 26,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st294",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 42,
+         "height": 42,
+         "cornerRadius": 21,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "frame",
+         "id": "ctr292",
+         "name": "content",
+         "x": 0,
+         "y": 0,
+         "width": 52,
+         "height": 52,
+         "layout": "vertical",
+         "justifyContent": "center",
+         "alignItems": "center",
+         "gap": 6,
+         "children": [
+          {
+           "type": "icon_font",
+           "id": "i291",
+           "iconFontFamily": "lucide",
+           "iconFontName": "book-open",
+           "width": 26,
+           "height": 26,
+           "fill": "$--white"
+          }
+         ]
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      }
+     ],
+     "x": 560,
+     "y": 690
+    },
+    {
+     "type": "text",
+     "id": "t352",
+     "content": "오늘 만들 수 있는 책 (재화)",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 560,
+     "y": 758
+    },
+    {
+     "type": "frame",
+     "id": "f325",
+     "name": "🔨 미션 도구",
+     "x": 40,
+     "y": 640,
+     "width": 64,
+     "height": 64,
+     "fill": "$--wool-cream",
+     "cornerRadius": 32,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "outside",
+      "thickness": 1.5,
+      "fill": "#FFFFFF59"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img323",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 64,
+       "height": 64,
+       "cornerRadius": 32,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      },
+      {
+       "type": "frame",
+       "id": "st324",
+       "name": "stitch",
+       "x": 5,
+       "y": 5,
+       "width": 54,
+       "height": 54,
+       "cornerRadius": 27,
+       "stroke": {
+        "align": "inside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF73"
+       },
+       "layout": "none"
+      },
+      {
+       "type": "frame",
+       "id": "ctr322",
+       "name": "content",
+       "x": 0,
+       "y": 0,
+       "width": 64,
+       "height": 64,
+       "layout": "vertical",
+       "justifyContent": "center",
+       "alignItems": "center",
+       "gap": 6,
+       "children": [
+        {
+         "type": "icon_font",
+         "id": "tl320",
+         "iconFontFamily": "lucide",
+         "iconFontName": "hand",
+         "width": 30,
+         "height": 30,
+         "fill": "$--ink"
+        }
+       ]
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "frame",
+     "id": "f331",
+     "name": "🔨 미션 도구 (고름)",
+     "x": 120,
+     "y": 640,
+     "width": 64,
+     "height": 64,
+     "fill": "$--felt-mustard",
+     "cornerRadius": 32,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "outside",
+      "thickness": 1.5,
+      "fill": "#FFFFFF59"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img329",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 64,
+       "height": 64,
+       "cornerRadius": 32,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      },
+      {
+       "type": "frame",
+       "id": "st330",
+       "name": "stitch",
+       "x": 5,
+       "y": 5,
+       "width": 54,
+       "height": 54,
+       "cornerRadius": 27,
+       "stroke": {
+        "align": "inside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF73"
+       },
+       "layout": "none"
+      },
+      {
+       "type": "frame",
+       "id": "ctr328",
+       "name": "content",
+       "x": 0,
+       "y": 0,
+       "width": 64,
+       "height": 64,
+       "layout": "vertical",
+       "justifyContent": "center",
+       "alignItems": "center",
+       "gap": 6,
+       "children": [
+        {
+         "type": "icon_font",
+         "id": "tl326",
+         "iconFontFamily": "lucide",
+         "iconFontName": "hand",
+         "width": 30,
+         "height": 30,
+         "fill": "$--white"
+        }
+       ]
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "text",
+     "id": "t353",
+     "content": "미션 도구 · 고름",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 120,
+     "y": 716
+    },
+    {
+     "type": "frame",
+     "id": "f333",
+     "name": "🖍 크레용",
+     "x": 240,
+     "y": 648,
+     "width": 48,
+     "height": 48,
+     "fill": "$--felt-coral",
+     "cornerRadius": 24,
+     "clip": false,
+     "layout": "none",
+     "stroke": {
+      "align": "outside",
+      "thickness": 1.5,
+      "fill": "#FFFFFF59"
+     },
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "img332",
+       "name": "felt-texture",
+       "x": 0,
+       "y": 0,
+       "width": 48,
+       "height": 48,
+       "cornerRadius": 24,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/felt_texture.png",
+        "mode": "fill"
+       },
+       "opacity": 0.9
+      }
+     ],
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     },
+     "reusable": true
+    },
+    {
+     "type": "text",
+     "id": "t354",
+     "content": "크레용",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 12,
+     "fontWeight": "400",
+     "x": 240,
+     "y": 708
+    }
+   ]
+  },
+  {
+   "type": "frame",
+   "id": "b3122",
+   "name": "오또의 방 — 물건이 메뉴 · 걸어가서 묻기 · 오늘 만들 수 있는 책",
+   "x": 0,
+   "y": 900,
+   "width": 3480,
+   "height": 730,
+   "fill": "$--wool",
+   "clip": true,
+   "layout": "none",
+   "children": [
+    {
+     "type": "text",
+     "id": "t3105",
+     "content": "오또의 방 — 물건이 메뉴 · 걸어가서 묻기 · 오늘 만들 수 있는 책",
+     "fill": "$--ink",
+     "fontFamily": "Jua",
+     "fontSize": 36,
+     "fontWeight": "400",
+     "x": 40,
+     "y": 36
+    },
+    {
+     "type": "text",
+     "id": "t3106",
+     "content": "화면 아래 글: 흐름도 단계 · 참고한 앱과 규칙. 아이 화면의 글자는 설명용이며, 실제로는 오또가 소리로 말한다.",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 14,
+     "fontWeight": "400",
+     "x": 42,
+     "y": 90
+    },
+    {
+     "type": "frame",
+     "id": "chip3108",
+     "name": "단계",
+     "x": 40,
+     "y": 150,
+     "height": 30,
+     "width": 150,
+     "cornerRadius": 15,
+     "fill": "$--felt-teal",
+     "layout": "horizontal",
+     "justifyContent": "center",
+     "alignItems": "center",
+     "children": [
+      {
+       "type": "text",
+       "id": "t3109",
+       "content": "매일",
+       "fill": "$--white",
+       "fontFamily": "Noto Sans KR",
+       "fontSize": 13,
+       "fontWeight": "700"
+      }
+     ]
+    },
+    {
+     "type": "text",
+     "id": "t3110",
+     "content": "⑨ 오또의 방",
+     "fill": "$--ink",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 18,
+     "fontWeight": "700",
+     "x": 204,
+     "y": 153
+    },
+    {
+     "type": "frame",
+     "id": "b3107",
+     "name": "⑨ 오또의 방",
+     "x": 40,
+     "y": 194,
+     "width": 800,
+     "height": 360,
+     "fill": "$--wool",
+     "clip": true,
+     "layout": "none",
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "wp2006",
+       "name": "벽지 줄",
+       "x": 20,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2007",
+       "name": "벽지 줄",
+       "x": 84,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2008",
+       "name": "벽지 줄",
+       "x": 148,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2009",
+       "name": "벽지 줄",
+       "x": 212,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2010",
+       "name": "벽지 줄",
+       "x": 276,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2011",
+       "name": "벽지 줄",
+       "x": 340,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2012",
+       "name": "벽지 줄",
+       "x": 404,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2013",
+       "name": "벽지 줄",
+       "x": 468,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2014",
+       "name": "벽지 줄",
+       "x": 532,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2015",
+       "name": "벽지 줄",
+       "x": 596,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2016",
+       "name": "벽지 줄",
+       "x": 660,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2017",
+       "name": "벽지 줄",
+       "x": 724,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2018",
+       "name": "벽지 줄",
+       "x": 788,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "frame",
+       "id": "f2068",
+       "name": "바닥",
+       "x": 0,
+       "y": 262,
+       "width": 800,
+       "height": 100,
+       "fill": "$--stage-wood",
+       "cornerRadius": 0,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2067",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 800,
+         "height": 100,
+         "cornerRadius": 0,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        }
+       ]
+      },
+      {
+       "type": "ellipse",
+       "id": "rug2069",
+       "name": "러그",
+       "x": 196,
+       "y": 296,
+       "width": 250,
+       "height": 50,
+       "fill": "#F48C9266"
+      },
+      {
+       "type": "frame",
+       "id": "f2026",
+       "name": "🪟 창문 = 오늘 이야기",
+       "x": 36,
+       "y": 34,
+       "width": 150,
+       "height": 120,
+       "fill": "$--stage-wood",
+       "cornerRadius": 20,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2024",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 150,
+         "height": 120,
+         "cornerRadius": 20,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st2025",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 140,
+         "height": 110,
+         "cornerRadius": 15,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "rectangle",
+         "id": "sky2019",
+         "name": "하늘",
+         "x": 12,
+         "y": 12,
+         "width": 126,
+         "height": 96,
+         "cornerRadius": 12,
+         "fill": "#CFE6EE"
+        },
+        {
+         "type": "frame",
+         "id": "f2021",
+         "name": "해",
+         "x": 76,
+         "y": 22,
+         "width": 44,
+         "height": 44,
+         "fill": "$--felt-mustard",
+         "cornerRadius": 22,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2020",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 44,
+           "height": 44,
+           "cornerRadius": 22,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        },
+        {
+         "type": "rectangle",
+         "id": "cl2022",
+         "name": "구름",
+         "x": 24,
+         "y": 62,
+         "width": 60,
+         "height": 22,
+         "cornerRadius": 11,
+         "fill": "$--white"
+        },
+        {
+         "type": "rectangle",
+         "id": "mul2023",
+         "name": "창살",
+         "x": 73,
+         "y": 12,
+         "width": 4,
+         "height": 96,
+         "fill": "$--stage-wood"
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f2041",
+       "name": "🎭 작은 인형극 무대 = 이야기 만들기",
+       "x": 392,
+       "y": 76,
+       "width": 196,
+       "height": 186,
+       "fill": "$--stage-wood-deep",
+       "cornerRadius": 24,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2039",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 196,
+         "height": 186,
+         "cornerRadius": 24,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st2040",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 186,
+         "height": 176,
+         "cornerRadius": 19,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "frame",
+         "id": "f2028",
+         "name": "무대 안",
+         "x": 16,
+         "y": 34,
+         "width": 164,
+         "height": 116,
+         "fill": "$--curtain-deep",
+         "cornerRadius": 14,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2027",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 164,
+           "height": 116,
+           "cornerRadius": 14,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2030",
+         "name": "막 왼쪽",
+         "x": 16,
+         "y": 34,
+         "width": 50,
+         "height": 116,
+         "fill": "$--curtain",
+         "cornerRadius": 12,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2029",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 50,
+           "height": 116,
+           "cornerRadius": 12,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2032",
+         "name": "막 오른쪽",
+         "x": 130,
+         "y": 34,
+         "width": 50,
+         "height": 116,
+         "fill": "$--curtain",
+         "cornerRadius": 12,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2031",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 50,
+           "height": 116,
+           "cornerRadius": 12,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2036",
+         "name": "간판",
+         "x": 43,
+         "y": 6,
+         "width": 110,
+         "height": 26,
+         "fill": "$--felt-mustard",
+         "cornerRadius": 13,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2035",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 110,
+           "height": 26,
+           "cornerRadius": 13,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          },
+          {
+           "type": "frame",
+           "id": "ctr2034",
+           "name": "content",
+           "x": 0,
+           "y": 0,
+           "width": 110,
+           "height": 26,
+           "layout": "vertical",
+           "justifyContent": "center",
+           "alignItems": "center",
+           "gap": 6,
+           "children": [
+            {
+             "type": "icon_font",
+             "id": "i2033",
+             "iconFontFamily": "lucide",
+             "iconFontName": "star",
+             "width": 16,
+             "height": 16,
+             "fill": "$--white"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2038",
+         "name": "무대 바닥",
+         "x": 16,
+         "y": 150,
+         "width": 164,
+         "height": 20,
+         "fill": "$--stage-wood",
+         "cornerRadius": 6,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2037",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 164,
+           "height": 20,
+           "cornerRadius": 6,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f2066",
+       "name": "📚 책장 = 내 책",
+       "x": 640,
+       "y": 46,
+       "width": 134,
+       "height": 236,
+       "fill": "$--stage-wood",
+       "cornerRadius": 18,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2064",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 134,
+         "height": 236,
+         "cornerRadius": 18,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st2065",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 124,
+         "height": 226,
+         "cornerRadius": 13,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "rectangle",
+         "id": "sh2061",
+         "name": "선반",
+         "x": 8,
+         "y": 72,
+         "width": 118,
+         "height": 6,
+         "cornerRadius": 3,
+         "fill": "$--stage-wood-deep"
+        },
+        {
+         "type": "rectangle",
+         "id": "sh2062",
+         "name": "선반",
+         "x": 8,
+         "y": 142,
+         "width": 118,
+         "height": 6,
+         "cornerRadius": 3,
+         "fill": "$--stage-wood-deep"
+        },
+        {
+         "type": "rectangle",
+         "id": "sh2063",
+         "name": "선반",
+         "x": 8,
+         "y": 212,
+         "width": 118,
+         "height": 6,
+         "cornerRadius": 3,
+         "fill": "$--stage-wood-deep"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2049",
+         "name": "책",
+         "x": 14,
+         "y": 18,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-coral"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2050",
+         "name": "책",
+         "x": 40,
+         "y": 18,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-teal"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2051",
+         "name": "책",
+         "x": 66,
+         "y": 18,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-mustard"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2052",
+         "name": "책",
+         "x": 92,
+         "y": 18,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-sky"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2053",
+         "name": "책",
+         "x": 14,
+         "y": 88,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--cheek"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2054",
+         "name": "책",
+         "x": 40,
+         "y": 88,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--kitten"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2055",
+         "name": "책",
+         "x": 66,
+         "y": 88,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-coral"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2056",
+         "name": "책",
+         "x": 92,
+         "y": 88,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-teal"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2057",
+         "name": "책",
+         "x": 14,
+         "y": 158,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-mustard"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2058",
+         "name": "책",
+         "x": 40,
+         "y": 158,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-sky"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2059",
+         "name": "책",
+         "x": 66,
+         "y": 158,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--cheek"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2060",
+         "name": "책",
+         "x": 92,
+         "y": 158,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--kitten"
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f2048",
+       "name": "🛋 소파 = 같이 만들기",
+       "x": 22,
+       "y": 210,
+       "width": 190,
+       "height": 96,
+       "fill": "$--felt-sky",
+       "cornerRadius": 30,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2046",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 190,
+         "height": 96,
+         "cornerRadius": 30,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st2047",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 180,
+         "height": 86,
+         "cornerRadius": 25,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "frame",
+         "id": "f2043",
+         "name": "쿠션 1",
+         "x": 24,
+         "y": -18,
+         "width": 64,
+         "height": 52,
+         "fill": "$--cheek",
+         "cornerRadius": 20,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2042",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 64,
+           "height": 52,
+           "cornerRadius": 20,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        },
+        {
+         "type": "frame",
+         "id": "f2045",
+         "name": "쿠션 2",
+         "x": 100,
+         "y": -18,
+         "width": 64,
+         "height": 52,
+         "fill": "$--felt-mustard",
+         "cornerRadius": 20,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2044",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 64,
+           "height": 52,
+           "cornerRadius": 20,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "rectangle",
+       "id": "img2070",
+       "name": "오또 · 자세: 가리키기",
+       "x": 214,
+       "y": 106,
+       "width": 214,
+       "height": 214,
+       "cornerRadius": 0,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/poses/point.png",
+        "mode": "fill"
+       }
+      },
+      {
+       "type": "ref",
+       "id": "r2071",
+       "ref": "f301",
+       "x": 12,
+       "y": 12
+      },
+      {
+       "type": "ref",
+       "id": "r2072",
+       "ref": "f286",
+       "x": 660,
+       "y": 8
+      }
+     ],
+     "cornerRadius": 20,
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     }
+    },
+    {
+     "type": "text",
+     "id": "t3111",
+     "content": "물건이 메뉴 · 우측 상단 오늘 만들 수 있는 책 3권(재화, 지금 앱 StarWallet 자리) [자세: 가리키기]",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 13,
+     "fontWeight": "400",
+     "x": 40,
+     "y": 566,
+     "width": 800,
+     "textGrowth": "fixed-width",
+     "lineHeight": 1.45
+    },
+    {
+     "type": "frame",
+     "id": "chip3113",
+     "name": "단계",
+     "x": 900,
+     "y": 150,
+     "height": 30,
+     "width": 150,
+     "cornerRadius": 15,
+     "fill": "$--felt-teal",
+     "layout": "horizontal",
+     "justifyContent": "center",
+     "alignItems": "center",
+     "children": [
+      {
+       "type": "text",
+       "id": "t3114",
+       "content": "매일",
+       "fill": "$--white",
+       "fontFamily": "Noto Sans KR",
+       "fontSize": 13,
+       "fontWeight": "700"
+      }
+     ]
+    },
+    {
+     "type": "text",
+     "id": "t3115",
+     "content": "⑨-1 책장을 눌렀을 때",
+     "fill": "$--ink",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 18,
+     "fontWeight": "700",
+     "x": 1064,
+     "y": 153
+    },
+    {
+     "type": "frame",
+     "id": "b3112",
+     "name": "⑨-1 책장을 눌렀을 때",
+     "x": 900,
+     "y": 194,
+     "width": 800,
+     "height": 360,
+     "fill": "$--wool",
+     "clip": true,
+     "layout": "none",
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "wp2073",
+       "name": "벽지 줄",
+       "x": 20,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2074",
+       "name": "벽지 줄",
+       "x": 84,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2075",
+       "name": "벽지 줄",
+       "x": 148,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2076",
+       "name": "벽지 줄",
+       "x": 212,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2077",
+       "name": "벽지 줄",
+       "x": 276,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2078",
+       "name": "벽지 줄",
+       "x": 340,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2079",
+       "name": "벽지 줄",
+       "x": 404,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2080",
+       "name": "벽지 줄",
+       "x": 468,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2081",
+       "name": "벽지 줄",
+       "x": 532,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2082",
+       "name": "벽지 줄",
+       "x": 596,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2083",
+       "name": "벽지 줄",
+       "x": 660,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2084",
+       "name": "벽지 줄",
+       "x": 724,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2085",
+       "name": "벽지 줄",
+       "x": 788,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "frame",
+       "id": "f2135",
+       "name": "바닥",
+       "x": 0,
+       "y": 262,
+       "width": 800,
+       "height": 100,
+       "fill": "$--stage-wood",
+       "cornerRadius": 0,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2134",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 800,
+         "height": 100,
+         "cornerRadius": 0,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        }
+       ]
+      },
+      {
+       "type": "ellipse",
+       "id": "rug2136",
+       "name": "러그",
+       "x": 196,
+       "y": 296,
+       "width": 250,
+       "height": 50,
+       "fill": "#F48C9266"
+      },
+      {
+       "type": "frame",
+       "id": "f2093",
+       "name": "🪟 창문 = 오늘 이야기",
+       "x": 36,
+       "y": 34,
+       "width": 150,
+       "height": 120,
+       "fill": "$--stage-wood",
+       "cornerRadius": 20,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2091",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 150,
+         "height": 120,
+         "cornerRadius": 20,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st2092",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 140,
+         "height": 110,
+         "cornerRadius": 15,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "rectangle",
+         "id": "sky2086",
+         "name": "하늘",
+         "x": 12,
+         "y": 12,
+         "width": 126,
+         "height": 96,
+         "cornerRadius": 12,
+         "fill": "#CFE6EE"
+        },
+        {
+         "type": "frame",
+         "id": "f2088",
+         "name": "해",
+         "x": 76,
+         "y": 22,
+         "width": 44,
+         "height": 44,
+         "fill": "$--felt-mustard",
+         "cornerRadius": 22,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2087",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 44,
+           "height": 44,
+           "cornerRadius": 22,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        },
+        {
+         "type": "rectangle",
+         "id": "cl2089",
+         "name": "구름",
+         "x": 24,
+         "y": 62,
+         "width": 60,
+         "height": 22,
+         "cornerRadius": 11,
+         "fill": "$--white"
+        },
+        {
+         "type": "rectangle",
+         "id": "mul2090",
+         "name": "창살",
+         "x": 73,
+         "y": 12,
+         "width": 4,
+         "height": 96,
+         "fill": "$--stage-wood"
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f2108",
+       "name": "🎭 작은 인형극 무대 = 이야기 만들기",
+       "x": 392,
+       "y": 76,
+       "width": 196,
+       "height": 186,
+       "fill": "$--stage-wood-deep",
+       "cornerRadius": 24,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2106",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 196,
+         "height": 186,
+         "cornerRadius": 24,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st2107",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 186,
+         "height": 176,
+         "cornerRadius": 19,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "frame",
+         "id": "f2095",
+         "name": "무대 안",
+         "x": 16,
+         "y": 34,
+         "width": 164,
+         "height": 116,
+         "fill": "$--curtain-deep",
+         "cornerRadius": 14,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2094",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 164,
+           "height": 116,
+           "cornerRadius": 14,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2097",
+         "name": "막 왼쪽",
+         "x": 16,
+         "y": 34,
+         "width": 50,
+         "height": 116,
+         "fill": "$--curtain",
+         "cornerRadius": 12,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2096",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 50,
+           "height": 116,
+           "cornerRadius": 12,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2099",
+         "name": "막 오른쪽",
+         "x": 130,
+         "y": 34,
+         "width": 50,
+         "height": 116,
+         "fill": "$--curtain",
+         "cornerRadius": 12,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2098",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 50,
+           "height": 116,
+           "cornerRadius": 12,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2103",
+         "name": "간판",
+         "x": 43,
+         "y": 6,
+         "width": 110,
+         "height": 26,
+         "fill": "$--felt-mustard",
+         "cornerRadius": 13,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2102",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 110,
+           "height": 26,
+           "cornerRadius": 13,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          },
+          {
+           "type": "frame",
+           "id": "ctr2101",
+           "name": "content",
+           "x": 0,
+           "y": 0,
+           "width": 110,
+           "height": 26,
+           "layout": "vertical",
+           "justifyContent": "center",
+           "alignItems": "center",
+           "gap": 6,
+           "children": [
+            {
+             "type": "icon_font",
+             "id": "i2100",
+             "iconFontFamily": "lucide",
+             "iconFontName": "star",
+             "width": 16,
+             "height": 16,
+             "fill": "$--white"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2105",
+         "name": "무대 바닥",
+         "x": 16,
+         "y": 150,
+         "width": 164,
+         "height": 20,
+         "fill": "$--stage-wood",
+         "cornerRadius": 6,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2104",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 164,
+           "height": 20,
+           "cornerRadius": 6,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f2133",
+       "name": "📚 책장 = 내 책",
+       "x": 640,
+       "y": 46,
+       "width": 134,
+       "height": 236,
+       "fill": "$--stage-wood",
+       "cornerRadius": 18,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2131",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 134,
+         "height": 236,
+         "cornerRadius": 18,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st2132",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 124,
+         "height": 226,
+         "cornerRadius": 13,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "rectangle",
+         "id": "sh2128",
+         "name": "선반",
+         "x": 8,
+         "y": 72,
+         "width": 118,
+         "height": 6,
+         "cornerRadius": 3,
+         "fill": "$--stage-wood-deep"
+        },
+        {
+         "type": "rectangle",
+         "id": "sh2129",
+         "name": "선반",
+         "x": 8,
+         "y": 142,
+         "width": 118,
+         "height": 6,
+         "cornerRadius": 3,
+         "fill": "$--stage-wood-deep"
+        },
+        {
+         "type": "rectangle",
+         "id": "sh2130",
+         "name": "선반",
+         "x": 8,
+         "y": 212,
+         "width": 118,
+         "height": 6,
+         "cornerRadius": 3,
+         "fill": "$--stage-wood-deep"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2116",
+         "name": "책",
+         "x": 14,
+         "y": 18,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-coral"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2117",
+         "name": "책",
+         "x": 40,
+         "y": 18,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-teal"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2118",
+         "name": "책",
+         "x": 66,
+         "y": 18,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-mustard"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2119",
+         "name": "책",
+         "x": 92,
+         "y": 18,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-sky"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2120",
+         "name": "책",
+         "x": 14,
+         "y": 88,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--cheek"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2121",
+         "name": "책",
+         "x": 40,
+         "y": 88,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--kitten"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2122",
+         "name": "책",
+         "x": 66,
+         "y": 88,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-coral"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2123",
+         "name": "책",
+         "x": 92,
+         "y": 88,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-teal"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2124",
+         "name": "책",
+         "x": 14,
+         "y": 158,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-mustard"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2125",
+         "name": "책",
+         "x": 40,
+         "y": 158,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-sky"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2126",
+         "name": "책",
+         "x": 66,
+         "y": 158,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--cheek"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2127",
+         "name": "책",
+         "x": 92,
+         "y": 158,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--kitten"
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f2115",
+       "name": "🛋 소파 = 같이 만들기",
+       "x": 22,
+       "y": 210,
+       "width": 190,
+       "height": 96,
+       "fill": "$--felt-sky",
+       "cornerRadius": 30,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2113",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 190,
+         "height": 96,
+         "cornerRadius": 30,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st2114",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 180,
+         "height": 86,
+         "cornerRadius": 25,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "frame",
+         "id": "f2110",
+         "name": "쿠션 1",
+         "x": 24,
+         "y": -18,
+         "width": 64,
+         "height": 52,
+         "fill": "$--cheek",
+         "cornerRadius": 20,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2109",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 64,
+           "height": 52,
+           "cornerRadius": 20,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        },
+        {
+         "type": "frame",
+         "id": "f2112",
+         "name": "쿠션 2",
+         "x": 100,
+         "y": -18,
+         "width": 64,
+         "height": 52,
+         "fill": "$--felt-mustard",
+         "cornerRadius": 20,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2111",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 64,
+           "height": 52,
+           "cornerRadius": 20,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "icon_font",
+       "id": "i2137",
+       "iconFontFamily": "lucide",
+       "iconFontName": "paw-print",
+       "width": 22,
+       "height": 22,
+       "fill": "$--stage-wood-deep",
+       "x": 300,
+       "y": 318
+      },
+      {
+       "type": "icon_font",
+       "id": "i2138",
+       "iconFontFamily": "lucide",
+       "iconFontName": "paw-print",
+       "width": 22,
+       "height": 22,
+       "fill": "$--stage-wood-deep",
+       "x": 360,
+       "y": 330
+      },
+      {
+       "type": "icon_font",
+       "id": "i2139",
+       "iconFontFamily": "lucide",
+       "iconFontName": "paw-print",
+       "width": 22,
+       "height": 22,
+       "fill": "$--stage-wood-deep",
+       "x": 420,
+       "y": 318
+      },
+      {
+       "type": "rectangle",
+       "id": "img2140",
+       "name": "오또 · 자세: 걷기",
+       "x": 470,
+       "y": 96,
+       "width": 200,
+       "height": 200,
+       "cornerRadius": 0,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/poses/walk.png",
+        "mode": "fill"
+       }
+      },
+      {
+       "type": "ref",
+       "id": "r2141",
+       "ref": "f301",
+       "x": 12,
+       "y": 12
+      },
+      {
+       "type": "ref",
+       "id": "r2142",
+       "ref": "f286",
+       "x": 660,
+       "y": 8
+      },
+      {
+       "type": "rectangle",
+       "id": "dim2143",
+       "name": "나머지 흐리게",
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 360,
+       "fill": "#3A2A204D"
+      },
+      {
+       "type": "frame",
+       "id": "dlg2144",
+       "name": "확인 창 · 책장으로 갈까?",
+       "x": 86,
+       "y": 76,
+       "width": 330,
+       "height": 232,
+       "layout": "none",
+       "clip": false,
+       "children": [
+        {
+         "type": "frame",
+         "id": "f2147",
+         "name": "창",
+         "x": 0,
+         "y": 0,
+         "width": 330,
+         "height": 232,
+         "fill": "$--wool",
+         "cornerRadius": 32,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "inside",
+          "thickness": 4,
+          "fill": "$--felt-mustard"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2145",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 330,
+           "height": 232,
+           "cornerRadius": 32,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.5
+          },
+          {
+           "type": "frame",
+           "id": "st2146",
+           "name": "stitch",
+           "x": 5,
+           "y": 5,
+           "width": 320,
+           "height": 222,
+           "cornerRadius": 27,
+           "stroke": {
+            "align": "inside",
+            "thickness": 1.5,
+            "fill": "#FFFFFF73"
+           },
+           "layout": "none"
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        },
+        {
+         "type": "frame",
+         "id": "f2152",
+         "name": "무엇으로 가는지",
+         "x": 127,
+         "y": -34,
+         "width": 76,
+         "height": 76,
+         "fill": "$--felt-coral",
+         "cornerRadius": 38,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "inside",
+          "thickness": 4,
+          "fill": "#FFFFFF99"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2150",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 76,
+           "height": 76,
+           "cornerRadius": 38,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          },
+          {
+           "type": "frame",
+           "id": "st2151",
+           "name": "stitch",
+           "x": 5,
+           "y": 5,
+           "width": 66,
+           "height": 66,
+           "cornerRadius": 33,
+           "stroke": {
+            "align": "inside",
+            "thickness": 1.5,
+            "fill": "#FFFFFF73"
+           },
+           "layout": "none"
+          },
+          {
+           "type": "frame",
+           "id": "ctr2149",
+           "name": "content",
+           "x": 0,
+           "y": 0,
+           "width": 76,
+           "height": 76,
+           "layout": "vertical",
+           "justifyContent": "center",
+           "alignItems": "center",
+           "gap": 6,
+           "children": [
+            {
+             "type": "icon_font",
+             "id": "i2148",
+             "iconFontFamily": "lucide",
+             "iconFontName": "library",
+             "width": 38,
+             "height": 38,
+             "fill": "$--white"
+            }
+           ]
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        },
+        {
+         "type": "frame",
+         "id": "q2153",
+         "name": "질문 (오또 목소리로도)",
+         "x": 0,
+         "y": 56,
+         "width": 330,
+         "height": 40,
+         "layout": "horizontal",
+         "justifyContent": "center",
+         "alignItems": "center",
+         "gap": 8,
+         "children": [
+          {
+           "type": "icon_font",
+           "id": "i2154",
+           "iconFontFamily": "lucide",
+           "iconFontName": "volume-2",
+           "width": 20,
+           "height": 20,
+           "fill": "$--felt-coral"
+          },
+          {
+           "type": "text",
+           "id": "t2155",
+           "content": "책장으로 갈까?",
+           "fill": "$--ink",
+           "fontFamily": "Jua",
+           "fontSize": 26,
+           "fontWeight": "400"
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2161",
+         "name": "✕ 아니",
+         "x": 34,
+         "y": 124,
+         "width": 120,
+         "height": 76,
+         "fill": "$--wool-cream",
+         "cornerRadius": 26,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2159",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 120,
+           "height": 76,
+           "cornerRadius": 26,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          },
+          {
+           "type": "frame",
+           "id": "st2160",
+           "name": "stitch",
+           "x": 5,
+           "y": 5,
+           "width": 110,
+           "height": 66,
+           "cornerRadius": 21,
+           "stroke": {
+            "align": "inside",
+            "thickness": 1.5,
+            "fill": "#FFFFFF73"
+           },
+           "layout": "none"
+          },
+          {
+           "type": "frame",
+           "id": "ctr2158",
+           "name": "content",
+           "x": 0,
+           "y": 0,
+           "width": 120,
+           "height": 76,
+           "layout": "vertical",
+           "justifyContent": "center",
+           "alignItems": "center",
+           "gap": 2,
+           "children": [
+            {
+             "type": "icon_font",
+             "id": "i2156",
+             "iconFontFamily": "lucide",
+             "iconFontName": "x",
+             "width": 30,
+             "height": 30,
+             "fill": "$--ink"
+            },
+            {
+             "type": "text",
+             "id": "t2157",
+             "content": "아니",
+             "fill": "$--ink",
+             "fontFamily": "Jua",
+             "fontSize": 16,
+             "fontWeight": "400"
+            }
+           ]
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        },
+        {
+         "type": "frame",
+         "id": "f2167",
+         "name": "✓ 응!",
+         "x": 176,
+         "y": 124,
+         "width": 120,
+         "height": 76,
+         "fill": "$--felt-teal",
+         "cornerRadius": 26,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2165",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 120,
+           "height": 76,
+           "cornerRadius": 26,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          },
+          {
+           "type": "frame",
+           "id": "st2166",
+           "name": "stitch",
+           "x": 5,
+           "y": 5,
+           "width": 110,
+           "height": 66,
+           "cornerRadius": 21,
+           "stroke": {
+            "align": "inside",
+            "thickness": 1.5,
+            "fill": "#FFFFFF73"
+           },
+           "layout": "none"
+          },
+          {
+           "type": "frame",
+           "id": "ctr2164",
+           "name": "content",
+           "x": 0,
+           "y": 0,
+           "width": 120,
+           "height": 76,
+           "layout": "vertical",
+           "justifyContent": "center",
+           "alignItems": "center",
+           "gap": 2,
+           "children": [
+            {
+             "type": "icon_font",
+             "id": "i2162",
+             "iconFontFamily": "lucide",
+             "iconFontName": "check",
+             "width": 30,
+             "height": 30,
+             "fill": "$--white"
+            },
+            {
+             "type": "text",
+             "id": "t2163",
+             "content": "응!",
+             "fill": "$--white",
+             "fontFamily": "Jua",
+             "fontSize": 16,
+             "fontWeight": "400"
+            }
+           ]
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        }
+       ]
+      }
+     ],
+     "cornerRadius": 20,
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     }
+    },
+    {
+     "type": "text",
+     "id": "t3116",
+     "content": "오또가 발자국을 남기며 책장으로 걸어가서 \"책장으로 갈까?\" — 그림 · 목소리 · ✓/✕ 큰 버튼 [자세: 걷기]",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 13,
+     "fontWeight": "400",
+     "x": 900,
+     "y": 566,
+     "width": 800,
+     "textGrowth": "fixed-width",
+     "lineHeight": 1.45
+    },
+    {
+     "type": "frame",
+     "id": "chip3118",
+     "name": "단계",
+     "x": 1760,
+     "y": 150,
+     "height": 30,
+     "width": 150,
+     "cornerRadius": 15,
+     "fill": "$--felt-teal",
+     "layout": "horizontal",
+     "justifyContent": "center",
+     "alignItems": "center",
+     "children": [
+      {
+       "type": "text",
+       "id": "t3119",
+       "content": "매일",
+       "fill": "$--white",
+       "fontFamily": "Noto Sans KR",
+       "fontSize": 13,
+       "fontWeight": "700"
+      }
+     ]
+    },
+    {
+     "type": "text",
+     "id": "t3120",
+     "content": "⑨-2 인형극 무대를 눌렀을 때",
+     "fill": "$--ink",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 18,
+     "fontWeight": "700",
+     "x": 1924,
+     "y": 153
+    },
+    {
+     "type": "frame",
+     "id": "b3117",
+     "name": "⑨-2 인형극 무대를 눌렀을 때",
+     "x": 1760,
+     "y": 194,
+     "width": 800,
+     "height": 360,
+     "fill": "$--wool",
+     "clip": true,
+     "layout": "none",
+     "children": [
+      {
+       "type": "rectangle",
+       "id": "wp2168",
+       "name": "벽지 줄",
+       "x": 20,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2169",
+       "name": "벽지 줄",
+       "x": 84,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2170",
+       "name": "벽지 줄",
+       "x": 148,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2171",
+       "name": "벽지 줄",
+       "x": 212,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2172",
+       "name": "벽지 줄",
+       "x": 276,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2173",
+       "name": "벽지 줄",
+       "x": 340,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2174",
+       "name": "벽지 줄",
+       "x": 404,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2175",
+       "name": "벽지 줄",
+       "x": 468,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2176",
+       "name": "벽지 줄",
+       "x": 532,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2177",
+       "name": "벽지 줄",
+       "x": 596,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2178",
+       "name": "벽지 줄",
+       "x": 660,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2179",
+       "name": "벽지 줄",
+       "x": 724,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "rectangle",
+       "id": "wp2180",
+       "name": "벽지 줄",
+       "x": 788,
+       "y": 0,
+       "width": 22,
+       "height": 262,
+       "fill": "#F3E7D380"
+      },
+      {
+       "type": "frame",
+       "id": "f2230",
+       "name": "바닥",
+       "x": 0,
+       "y": 262,
+       "width": 800,
+       "height": 100,
+       "fill": "$--stage-wood",
+       "cornerRadius": 0,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2229",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 800,
+         "height": 100,
+         "cornerRadius": 0,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        }
+       ]
+      },
+      {
+       "type": "ellipse",
+       "id": "rug2231",
+       "name": "러그",
+       "x": 196,
+       "y": 296,
+       "width": 250,
+       "height": 50,
+       "fill": "#F48C9266"
+      },
+      {
+       "type": "frame",
+       "id": "f2188",
+       "name": "🪟 창문 = 오늘 이야기",
+       "x": 36,
+       "y": 34,
+       "width": 150,
+       "height": 120,
+       "fill": "$--stage-wood",
+       "cornerRadius": 20,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2186",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 150,
+         "height": 120,
+         "cornerRadius": 20,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st2187",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 140,
+         "height": 110,
+         "cornerRadius": 15,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "rectangle",
+         "id": "sky2181",
+         "name": "하늘",
+         "x": 12,
+         "y": 12,
+         "width": 126,
+         "height": 96,
+         "cornerRadius": 12,
+         "fill": "#CFE6EE"
+        },
+        {
+         "type": "frame",
+         "id": "f2183",
+         "name": "해",
+         "x": 76,
+         "y": 22,
+         "width": 44,
+         "height": 44,
+         "fill": "$--felt-mustard",
+         "cornerRadius": 22,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2182",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 44,
+           "height": 44,
+           "cornerRadius": 22,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        },
+        {
+         "type": "rectangle",
+         "id": "cl2184",
+         "name": "구름",
+         "x": 24,
+         "y": 62,
+         "width": 60,
+         "height": 22,
+         "cornerRadius": 11,
+         "fill": "$--white"
+        },
+        {
+         "type": "rectangle",
+         "id": "mul2185",
+         "name": "창살",
+         "x": 73,
+         "y": 12,
+         "width": 4,
+         "height": 96,
+         "fill": "$--stage-wood"
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f2203",
+       "name": "🎭 작은 인형극 무대 = 이야기 만들기",
+       "x": 392,
+       "y": 76,
+       "width": 196,
+       "height": 186,
+       "fill": "$--stage-wood-deep",
+       "cornerRadius": 24,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2201",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 196,
+         "height": 186,
+         "cornerRadius": 24,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st2202",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 186,
+         "height": 176,
+         "cornerRadius": 19,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "frame",
+         "id": "f2190",
+         "name": "무대 안",
+         "x": 16,
+         "y": 34,
+         "width": 164,
+         "height": 116,
+         "fill": "$--curtain-deep",
+         "cornerRadius": 14,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2189",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 164,
+           "height": 116,
+           "cornerRadius": 14,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2192",
+         "name": "막 왼쪽",
+         "x": 16,
+         "y": 34,
+         "width": 50,
+         "height": 116,
+         "fill": "$--curtain",
+         "cornerRadius": 12,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2191",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 50,
+           "height": 116,
+           "cornerRadius": 12,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2194",
+         "name": "막 오른쪽",
+         "x": 130,
+         "y": 34,
+         "width": 50,
+         "height": 116,
+         "fill": "$--curtain",
+         "cornerRadius": 12,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2193",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 50,
+           "height": 116,
+           "cornerRadius": 12,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2198",
+         "name": "간판",
+         "x": 43,
+         "y": 6,
+         "width": 110,
+         "height": 26,
+         "fill": "$--felt-mustard",
+         "cornerRadius": 13,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2197",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 110,
+           "height": 26,
+           "cornerRadius": 13,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          },
+          {
+           "type": "frame",
+           "id": "ctr2196",
+           "name": "content",
+           "x": 0,
+           "y": 0,
+           "width": 110,
+           "height": 26,
+           "layout": "vertical",
+           "justifyContent": "center",
+           "alignItems": "center",
+           "gap": 6,
+           "children": [
+            {
+             "type": "icon_font",
+             "id": "i2195",
+             "iconFontFamily": "lucide",
+             "iconFontName": "star",
+             "width": 16,
+             "height": 16,
+             "fill": "$--white"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2200",
+         "name": "무대 바닥",
+         "x": 16,
+         "y": 150,
+         "width": 164,
+         "height": 20,
+         "fill": "$--stage-wood",
+         "cornerRadius": 6,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2199",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 164,
+           "height": 20,
+           "cornerRadius": 6,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ]
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f2228",
+       "name": "📚 책장 = 내 책",
+       "x": 640,
+       "y": 46,
+       "width": 134,
+       "height": 236,
+       "fill": "$--stage-wood",
+       "cornerRadius": 18,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2226",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 134,
+         "height": 236,
+         "cornerRadius": 18,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st2227",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 124,
+         "height": 226,
+         "cornerRadius": 13,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "rectangle",
+         "id": "sh2223",
+         "name": "선반",
+         "x": 8,
+         "y": 72,
+         "width": 118,
+         "height": 6,
+         "cornerRadius": 3,
+         "fill": "$--stage-wood-deep"
+        },
+        {
+         "type": "rectangle",
+         "id": "sh2224",
+         "name": "선반",
+         "x": 8,
+         "y": 142,
+         "width": 118,
+         "height": 6,
+         "cornerRadius": 3,
+         "fill": "$--stage-wood-deep"
+        },
+        {
+         "type": "rectangle",
+         "id": "sh2225",
+         "name": "선반",
+         "x": 8,
+         "y": 212,
+         "width": 118,
+         "height": 6,
+         "cornerRadius": 3,
+         "fill": "$--stage-wood-deep"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2211",
+         "name": "책",
+         "x": 14,
+         "y": 18,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-coral"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2212",
+         "name": "책",
+         "x": 40,
+         "y": 18,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-teal"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2213",
+         "name": "책",
+         "x": 66,
+         "y": 18,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-mustard"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2214",
+         "name": "책",
+         "x": 92,
+         "y": 18,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-sky"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2215",
+         "name": "책",
+         "x": 14,
+         "y": 88,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--cheek"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2216",
+         "name": "책",
+         "x": 40,
+         "y": 88,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--kitten"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2217",
+         "name": "책",
+         "x": 66,
+         "y": 88,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-coral"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2218",
+         "name": "책",
+         "x": 92,
+         "y": 88,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-teal"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2219",
+         "name": "책",
+         "x": 14,
+         "y": 158,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-mustard"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2220",
+         "name": "책",
+         "x": 40,
+         "y": 158,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--felt-sky"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2221",
+         "name": "책",
+         "x": 66,
+         "y": 158,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--cheek"
+        },
+        {
+         "type": "rectangle",
+         "id": "bk2222",
+         "name": "책",
+         "x": 92,
+         "y": 158,
+         "width": 20,
+         "height": 52,
+         "cornerRadius": 4,
+         "fill": "$--kitten"
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "frame",
+       "id": "f2210",
+       "name": "🛋 소파 = 같이 만들기",
+       "x": 22,
+       "y": 210,
+       "width": 190,
+       "height": 96,
+       "fill": "$--felt-sky",
+       "cornerRadius": 30,
+       "clip": false,
+       "layout": "none",
+       "stroke": {
+        "align": "outside",
+        "thickness": 1.5,
+        "fill": "#FFFFFF59"
+       },
+       "children": [
+        {
+         "type": "rectangle",
+         "id": "img2208",
+         "name": "felt-texture",
+         "x": 0,
+         "y": 0,
+         "width": 190,
+         "height": 96,
+         "cornerRadius": 30,
+         "fill": {
+          "type": "image",
+          "enabled": true,
+          "url": "assets/felt_texture.png",
+          "mode": "fill"
+         },
+         "opacity": 0.9
+        },
+        {
+         "type": "frame",
+         "id": "st2209",
+         "name": "stitch",
+         "x": 5,
+         "y": 5,
+         "width": 180,
+         "height": 86,
+         "cornerRadius": 25,
+         "stroke": {
+          "align": "inside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF73"
+         },
+         "layout": "none"
+        },
+        {
+         "type": "frame",
+         "id": "f2205",
+         "name": "쿠션 1",
+         "x": 24,
+         "y": -18,
+         "width": 64,
+         "height": 52,
+         "fill": "$--cheek",
+         "cornerRadius": 20,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2204",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 64,
+           "height": 52,
+           "cornerRadius": 20,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        },
+        {
+         "type": "frame",
+         "id": "f2207",
+         "name": "쿠션 2",
+         "x": 100,
+         "y": -18,
+         "width": 64,
+         "height": 52,
+         "fill": "$--felt-mustard",
+         "cornerRadius": 20,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2206",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 64,
+           "height": 52,
+           "cornerRadius": 20,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        }
+       ],
+       "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#3A2A2033",
+        "offset": {
+         "x": 0,
+         "y": 5
+        },
+        "blur": 10,
+        "spread": 0
+       }
+      },
+      {
+       "type": "icon_font",
+       "id": "i2232",
+       "iconFontFamily": "lucide",
+       "iconFontName": "paw-print",
+       "width": 22,
+       "height": 22,
+       "fill": "$--stage-wood-deep",
+       "x": 290,
+       "y": 330
+      },
+      {
+       "type": "rectangle",
+       "id": "img2233",
+       "name": "오또 · 자세: 걷기",
+       "x": 300,
+       "y": 112,
+       "width": 190,
+       "height": 190,
+       "cornerRadius": 0,
+       "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "assets/poses/walk.png",
+        "mode": "fill"
+       }
+      },
+      {
+       "type": "ref",
+       "id": "r2234",
+       "ref": "f301",
+       "x": 12,
+       "y": 12
+      },
+      {
+       "type": "ref",
+       "id": "r2235",
+       "ref": "f286",
+       "x": 660,
+       "y": 8
+      },
+      {
+       "type": "rectangle",
+       "id": "dim2236",
+       "name": "나머지 흐리게",
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 360,
+       "fill": "#3A2A204D"
+      },
+      {
+       "type": "frame",
+       "id": "dlg2237",
+       "name": "확인 창 · 이야기 만들러 갈까?",
+       "x": 440,
+       "y": 76,
+       "width": 330,
+       "height": 232,
+       "layout": "none",
+       "clip": false,
+       "children": [
+        {
+         "type": "frame",
+         "id": "f2240",
+         "name": "창",
+         "x": 0,
+         "y": 0,
+         "width": 330,
+         "height": 232,
+         "fill": "$--wool",
+         "cornerRadius": 32,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "inside",
+          "thickness": 4,
+          "fill": "$--felt-mustard"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2238",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 330,
+           "height": 232,
+           "cornerRadius": 32,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.5
+          },
+          {
+           "type": "frame",
+           "id": "st2239",
+           "name": "stitch",
+           "x": 5,
+           "y": 5,
+           "width": 320,
+           "height": 222,
+           "cornerRadius": 27,
+           "stroke": {
+            "align": "inside",
+            "thickness": 1.5,
+            "fill": "#FFFFFF73"
+           },
+           "layout": "none"
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        },
+        {
+         "type": "frame",
+         "id": "f2245",
+         "name": "무엇으로 가는지",
+         "x": 127,
+         "y": -34,
+         "width": 76,
+         "height": 76,
+         "fill": "$--felt-coral",
+         "cornerRadius": 38,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "inside",
+          "thickness": 4,
+          "fill": "#FFFFFF99"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2243",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 76,
+           "height": 76,
+           "cornerRadius": 38,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          },
+          {
+           "type": "frame",
+           "id": "st2244",
+           "name": "stitch",
+           "x": 5,
+           "y": 5,
+           "width": 66,
+           "height": 66,
+           "cornerRadius": 33,
+           "stroke": {
+            "align": "inside",
+            "thickness": 1.5,
+            "fill": "#FFFFFF73"
+           },
+           "layout": "none"
+          },
+          {
+           "type": "frame",
+           "id": "ctr2242",
+           "name": "content",
+           "x": 0,
+           "y": 0,
+           "width": 76,
+           "height": 76,
+           "layout": "vertical",
+           "justifyContent": "center",
+           "alignItems": "center",
+           "gap": 6,
+           "children": [
+            {
+             "type": "icon_font",
+             "id": "i2241",
+             "iconFontFamily": "lucide",
+             "iconFontName": "drama",
+             "width": 38,
+             "height": 38,
+             "fill": "$--white"
+            }
+           ]
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        },
+        {
+         "type": "frame",
+         "id": "q2246",
+         "name": "질문 (오또 목소리로도)",
+         "x": 0,
+         "y": 56,
+         "width": 330,
+         "height": 40,
+         "layout": "horizontal",
+         "justifyContent": "center",
+         "alignItems": "center",
+         "gap": 8,
+         "children": [
+          {
+           "type": "icon_font",
+           "id": "i2247",
+           "iconFontFamily": "lucide",
+           "iconFontName": "volume-2",
+           "width": 20,
+           "height": 20,
+           "fill": "$--felt-coral"
+          },
+          {
+           "type": "text",
+           "id": "t2248",
+           "content": "이야기 만들러 갈까?",
+           "fill": "$--ink",
+           "fontFamily": "Jua",
+           "fontSize": 26,
+           "fontWeight": "400"
+          }
+         ]
+        },
+        {
+         "type": "frame",
+         "id": "f2254",
+         "name": "✕ 아니",
+         "x": 34,
+         "y": 124,
+         "width": 120,
+         "height": 76,
+         "fill": "$--wool-cream",
+         "cornerRadius": 26,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2252",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 120,
+           "height": 76,
+           "cornerRadius": 26,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          },
+          {
+           "type": "frame",
+           "id": "st2253",
+           "name": "stitch",
+           "x": 5,
+           "y": 5,
+           "width": 110,
+           "height": 66,
+           "cornerRadius": 21,
+           "stroke": {
+            "align": "inside",
+            "thickness": 1.5,
+            "fill": "#FFFFFF73"
+           },
+           "layout": "none"
+          },
+          {
+           "type": "frame",
+           "id": "ctr2251",
+           "name": "content",
+           "x": 0,
+           "y": 0,
+           "width": 120,
+           "height": 76,
+           "layout": "vertical",
+           "justifyContent": "center",
+           "alignItems": "center",
+           "gap": 2,
+           "children": [
+            {
+             "type": "icon_font",
+             "id": "i2249",
+             "iconFontFamily": "lucide",
+             "iconFontName": "x",
+             "width": 30,
+             "height": 30,
+             "fill": "$--ink"
+            },
+            {
+             "type": "text",
+             "id": "t2250",
+             "content": "아니",
+             "fill": "$--ink",
+             "fontFamily": "Jua",
+             "fontSize": 16,
+             "fontWeight": "400"
+            }
+           ]
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        },
+        {
+         "type": "frame",
+         "id": "f2260",
+         "name": "✓ 응!",
+         "x": 176,
+         "y": 124,
+         "width": 120,
+         "height": 76,
+         "fill": "$--felt-teal",
+         "cornerRadius": 26,
+         "clip": false,
+         "layout": "none",
+         "stroke": {
+          "align": "outside",
+          "thickness": 1.5,
+          "fill": "#FFFFFF59"
+         },
+         "children": [
+          {
+           "type": "rectangle",
+           "id": "img2258",
+           "name": "felt-texture",
+           "x": 0,
+           "y": 0,
+           "width": 120,
+           "height": 76,
+           "cornerRadius": 26,
+           "fill": {
+            "type": "image",
+            "enabled": true,
+            "url": "assets/felt_texture.png",
+            "mode": "fill"
+           },
+           "opacity": 0.9
+          },
+          {
+           "type": "frame",
+           "id": "st2259",
+           "name": "stitch",
+           "x": 5,
+           "y": 5,
+           "width": 110,
+           "height": 66,
+           "cornerRadius": 21,
+           "stroke": {
+            "align": "inside",
+            "thickness": 1.5,
+            "fill": "#FFFFFF73"
+           },
+           "layout": "none"
+          },
+          {
+           "type": "frame",
+           "id": "ctr2257",
+           "name": "content",
+           "x": 0,
+           "y": 0,
+           "width": 120,
+           "height": 76,
+           "layout": "vertical",
+           "justifyContent": "center",
+           "alignItems": "center",
+           "gap": 2,
+           "children": [
+            {
+             "type": "icon_font",
+             "id": "i2255",
+             "iconFontFamily": "lucide",
+             "iconFontName": "check",
+             "width": 30,
+             "height": 30,
+             "fill": "$--white"
+            },
+            {
+             "type": "text",
+             "id": "t2256",
+             "content": "응!",
+             "fill": "$--white",
+             "fontFamily": "Jua",
+             "fontSize": 16,
+             "fontWeight": "400"
+            }
+           ]
+          }
+         ],
+         "effect": {
+          "type": "shadow",
+          "shadowType": "outer",
+          "color": "#3A2A2033",
+          "offset": {
+           "x": 0,
+           "y": 5
+          },
+          "blur": 10,
+          "spread": 0
+         }
+        }
+       ]
+      }
+     ],
+     "cornerRadius": 20,
+     "effect": {
+      "type": "shadow",
+      "shadowType": "outer",
+      "color": "#3A2A2033",
+      "offset": {
+       "x": 0,
+       "y": 5
+      },
+      "blur": 10,
+      "spread": 0
+     }
+    },
+    {
+     "type": "text",
+     "id": "t3121",
+     "content": "창문 · 소파도 같은 방식: 오또가 걸어가서 \"○○ 하러 갈까?\" [자세: 걷기]",
+     "fill": "$--ink-soft",
+     "fontFamily": "Noto Sans KR",
+     "fontSize": 13,
+     "fontWeight": "400",
+     "x": 1760,
+     "y": 566,
+     "width": 800,
+     "textGrowth": "fixed-width",
+     "lineHeight": 1.45
+    }
+   ]
+  }
+ ]
+}

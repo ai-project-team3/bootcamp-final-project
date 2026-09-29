@@ -1,6 +1,10 @@
 package com.example.finalproject_demo.net
 
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.example.finalproject_demo.demo.StoryMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -15,10 +19,11 @@ import java.net.URL
  * spec §3-0: *the app does not stop on an error.* A dead server must feel like a quiet
  * mascot, not a crash.
  *
- * **Off until an address is set** ([base] = null). The demo, the tests and every screenshot
- * run without a server exactly as before. Turn it on:
- * - emulator: `adb shell am start -n kr.clap.otto/com.example.finalproject_demo.MainActivity -e server http://10.0.2.2:8010`
- * - phone on USB: `adb reverse tcp:8010 tcp:8010`, then `-e server http://127.0.0.1:8010`
+ * **Off until an address is set** ([base] = null) **and** a mode is switched on ([liveModes]).
+ * The demo, the tests and every screenshot run without a server exactly as before. Turn it on:
+ * - emulator: `adb shell am start -n kr.clap.otto/com.example.finalproject_demo.MainActivity -e server http://10.0.2.2:8010 -e live all`
+ * - phone on USB: `adb reverse tcp:8010 tcp:8010`, then `-e server http://127.0.0.1:8010 -e live story`
+ * - or open the demo drawer and tap 「서버 연결」 per mode
  *
  * Owners of what goes through it: input `/stt` (조장 — 09-28 · was 민우), judge `/judge` (치영 · 민우 for the diary),
  * voice `/tts` (진웅), book `/story` (조장). This file is 조장's: ask before changing its shape.
@@ -26,6 +31,31 @@ import java.net.URL
 object Server {
     @Volatile var base: String? = null
     val on: Boolean get() = base != null
+
+    // ── mode switches (09-29) ──────────────────────────────────────
+    //
+    // Each mode owner guards every server call with `Server.liveFor(s.mode)`. A mode that is
+    // not switched on runs its script exactly as before — so a half-wired mode can be merged
+    // without breaking the other two ("merge regardless of quality", 09-29 mentoring).
+    // **Default: all off.** Turn on with `-e live story,diary,coop` (or `all`) next to
+    // `-e server …`, or per mode from the demo drawer.
+
+    /** Modes that go through the server. Compose state so the demo drawer redraws. */
+    var liveModes: Set<StoryMode> by mutableStateOf(emptySet())
+
+    /** True only when there is an address **and** this mode is switched on. */
+    fun liveFor(mode: StoryMode): Boolean = on && mode in liveModes
+
+    fun toggle(mode: StoryMode) {
+        liveModes = if (mode in liveModes) liveModes - mode else liveModes + mode
+    }
+
+    /** `"story,diary"` · `"all"` · null → the set. Unknown words are ignored (a typo must not switch a mode on). */
+    fun parseLive(arg: String?): Set<StoryMode> {
+        val words = arg.orEmpty().split(',', ' ').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+        if ("all" in words) return StoryMode.entries.toSet()
+        return StoryMode.entries.filter { it.name.lowercase() in words }.toSet()
+    }
 
     /** Slot names, closed list (guidelines/2 §1-1). The server gets all twelve, empty ones as null. */
     val SLOTS = listOf(
@@ -91,6 +121,38 @@ object Server {
         s2Addition = j.optBoolean("s2_addition"),
         emotion = str(j, "emotion"),
     )
+
+    // ── /turn ──────────────────────────────────────────────────────
+
+    /** What the mascot says after the child (guidelines/7 §3). Placeholders `{주인공}` · `{친구n}` stay — unmask on the phone. */
+    data class Line(val ack: String, val expand: String?, val question: String?)
+
+    /** Either half may be null — fill it from the script. [question] is null when [ask] was false or the story is ready. */
+    data class TurnResult(val verdict: Verdict?, val line: Line?)
+
+    /**
+     * One turn: the verdict, then the mascot's three pieces, in one round trip (~3.3s, 09-29).
+     * [ask] = false when the parent wrote the next question (coop) — the mascot only reacts.
+     */
+    suspend fun turn(t: Turn, ask: Boolean = true): TurnResult? {
+        val body = JSONObject()
+            .put("mode", t.mode)
+            .put("slots", slotsJson(t.slots))
+            .put("asked_slot", t.askedSlot ?: JSONObject.NULL)
+            .put("template", t.template ?: JSONObject.NULL)
+            .put("level", t.level ?: JSONObject.NULL)
+            .put("turn", t.turn)
+            .put("question", t.question)
+            .put("utterance", t.utterance)
+            .put("ask", ask)
+        val j = postJson("/turn", body, readMs = 20_000) ?: return null
+        return try {
+            TurnResult(
+                verdict = j.optJSONObject("judge")?.let { parseVerdict(it) },
+                line = j.optJSONObject("line")?.let { Line(it.getString("ack"), str(it, "expand"), str(it, "question")) },
+            )
+        } catch (e: Exception) { warn("/turn parse", e); null }
+    }
 
     // ── /story ─────────────────────────────────────────────────────
 
