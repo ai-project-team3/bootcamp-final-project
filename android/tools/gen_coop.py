@@ -22,7 +22,7 @@ JOBS = {
     "coop_el_school": "a cute small felt school building with a clock on the front and a little flag on top, ",
     "coop_el_park": "a cute felt ferris wheel with colorful pastel cabins, ",
     "coop_el_aquarium": "a cute round felt fish bowl with a smiling orange fish and green seaweed inside, ",
-    "coop_el_zoo": "a cute felt giraffe head and neck peeking over a small wooden fence, ",
+    "coop_el_zoo": "a cute felt baby giraffe sitting down, whole body visible, with a small green felt leaf in its mouth, ",  # 울타리를 넣으면 배경 제거가 울타리를 조각내서 뺐다
     # 직업
     "coop_el_firefighter": "a cute felt red firefighter helmet with a golden badge, ",
     "coop_el_doctor": "a cute felt doctor stethoscope in teal with a little red cross badge, ",
