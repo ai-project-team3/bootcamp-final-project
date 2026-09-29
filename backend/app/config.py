@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     image_lora: str = "sdxl_lightning_8step_lora.safetensors"
     # under the app's 15 s preset line (rule 8), so the answer lands before the app gives up
     image_deadline_s: float = 13.0
+    image_warmup: bool = True            # draw one picture at start so models are loaded
     # rule 8: our image model has no safety filter — every picture is checked
     moderation_model: str = "omni-moderation-latest"
 

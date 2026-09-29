@@ -46,10 +46,27 @@ def workflow(scene: str, seed: int) -> dict:
     }
 
 
+async def _cancel(base: str, pid: str) -> None:
+    """Drop our job so a given-up picture does not hold the queue for the next child.
+
+    09-29: without this, a 48.9 s cold first picture made the next four wait
+    behind it and all timed out, though each alone took 4.7 s.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=3) as http:
+            await http.post(f"{base}/queue", json={"delete": [pid]})
+            running = (await http.get(f"{base}/queue")).json().get("queue_running", [])
+            if any(item[1] == pid for item in running):
+                await http.post(f"{base}/interrupt", json={"prompt_id": pid})
+    except Exception:                    # best effort — the deadline already answered the child
+        pass
+
+
 async def background(scene: str) -> bytes:
-    """PNG bytes. Raises ComfyError; the caller owns the deadline."""
+    """PNG bytes. Raises ComfyError; the caller owns the deadline and cancelling cancels the job."""
     base = settings.comfy_url.rstrip("/")
     wf = workflow(scene, random.randrange(2 ** 31))
+    pid = None
     try:
         async with httpx.AsyncClient(timeout=10) as http:
             r = await http.post(f"{base}/prompt", json={"prompt": wf})
@@ -70,4 +87,17 @@ async def background(scene: str) -> bytes:
                     return v.content
     except httpx.HTTPError as e:
         raise ComfyError(f"network: {type(e).__name__}") from e
+    except asyncio.CancelledError:
+        if pid:
+            await asyncio.shield(_cancel(base, pid))
+        raise
     raise ComfyError("no image in output")
+
+
+async def warm_up() -> None:
+    """Load the models once at server start. Cold, the first picture took 48.9 s (09-29);
+    warm, 4.6-4.7 s. Without this the first child of the day always gets the preset."""
+    try:
+        await background("a sunny meadow with a small hill")
+    except Exception:
+        pass                             # ComfyUI not up yet — /image falls back to presets anyway

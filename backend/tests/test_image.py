@@ -121,3 +121,38 @@ def test_the_workflow_is_the_measured_recipe():
 def test_the_scene_prompt_is_the_fenced_block_only():
     s = image_route.system()
     assert s.startswith("당신은") and "근거:" not in s
+
+
+def test_giving_up_cancels_the_comfy_job(monkeypatch):
+    """A given-up picture must not hold the queue for the next child (09-29: 48.9 s cold start)."""
+    cancelled = []
+
+    async def fake_cancel(base, pid):
+        cancelled.append(pid)
+
+    class Resp:
+        status_code = 200
+
+        def json(self):
+            return {"prompt_id": "p1"}
+
+    class Http:
+        def __init__(self, **_): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, *_, **__): return Resp()
+        async def get(self, *_, **__):
+            r = Resp()
+            r.json = lambda: {}          # never done
+            return r
+
+    monkeypatch.setattr(comfy, "_cancel", fake_cancel)
+    monkeypatch.setattr(comfy.httpx, "AsyncClient", Http)
+
+    async def go():
+        try:
+            await asyncio.wait_for(comfy.background("x"), timeout=0.3)
+        except asyncio.TimeoutError:
+            pass
+    asyncio.run(go())
+    assert cancelled == ["p1"]

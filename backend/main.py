@@ -8,6 +8,9 @@ Run (from backend/):
     py -m uvicorn main:app --host 0.0.0.0 --port 8000
     MOCK=1 → spec-shaped fixed answers, no keys, no GPU (for wiring the app)
 """
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -16,9 +19,19 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from app.config import settings
+from app.image import comfy
 from app.routers import image, judge, story, stt, tts, turn
 
-app = FastAPI(title="말로 짓는 인형극")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Rule 8 needs the first picture of the day in time too: cold, it took 48.9 s (09-29)
+    if not settings.mock and settings.image_warmup:
+        asyncio.create_task(comfy.warm_up())
+    yield
+
+
+app = FastAPI(title="말로 짓는 인형극", lifespan=lifespan)
 app.include_router(judge.router)
 app.include_router(story.router)
 app.include_router(stt.router)
