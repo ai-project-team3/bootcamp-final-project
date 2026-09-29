@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>오늘 이야기 프로토타입</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41,7 +42,8 @@ code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);paddi
 .steps button[aria-current="step"]{background:var(--accent);border-color:var(--accent);color:#fff}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .layout{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:20px;align-items:start}
-@media (max-width:1000px){.layout{grid-template-columns:1fr}}
+@media (max-width:1100px){.layout{grid-template-columns:minmax(0,1fr) 300px}}
+@media (max-width:760px){.layout{grid-template-columns:1fr}}
 
 /* ─── app frame 800×360dp · 1cqw = 8dp ─── */
 .device{background:#2A211B;border-radius:22px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
@@ -86,8 +88,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .start-actions .no{width:20cqw;height:8cqw;font-size:2.3cqw}
 
 /* D1 whiteboard — logical space 690×230 */
-.board-wrap{position:absolute;left:14cqw;top:8cqw;width:69cqw;height:23cqw;background:#fff;border-radius:2.5cqw;box-shadow:0 .8cqw 2cqw rgba(58,42,32,.2);overflow:hidden}
-.board-wrap canvas{width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+.board-wrap{position:absolute;left:14cqw;top:8cqw;width:69cqw;height:23cqw;background:#fff;border-radius:2.5cqw;box-shadow:0 .8cqw 2cqw rgba(58,42,32,.2)}
+#rings{position:absolute;inset:0;pointer-events:none;z-index:2}
+.board-wrap canvas{width:100%;height:100%;display:block;touch-action:none;cursor:crosshair;border-radius:2.5cqw}
 .board-hint{position:absolute;inset:0;display:grid;place-items:center;color:var(--app-ink-soft);font-size:2.4cqw;pointer-events:none}
 .ring{position:absolute;border:.45cqw dashed var(--teal);border-radius:50%;pointer-events:none;animation:ring 1.2s ease-in-out infinite}
 .ring.point{border-width:.6cqw;border-color:var(--coral);box-shadow:0 0 0 .6cqw rgba(232,96,76,.18)}
@@ -114,13 +117,13 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .merge-btn.on{display:block}
 #btn-split{right:22cqw}
 #btn-look{right:38cqw}
-.pick{position:absolute;right:1.2cqw;top:6.5cqw;width:17cqw;bottom:13cqw;background:rgba(255,247,236,.97);border-radius:2.4cqw;box-shadow:0 .8cqw 1.8cqw rgba(58,42,32,.22);display:none;flex-direction:column;align-items:center;gap:.8cqw;padding:1cqw;z-index:6}
+.pick{position:absolute;right:1cqw;top:6cqw;width:20cqw;bottom:12.5cqw;background:rgba(255,247,236,.97);border-radius:2.4cqw;box-shadow:0 .8cqw 1.8cqw rgba(58,42,32,.22);display:none;flex-direction:column;align-items:center;gap:.8cqw;padding:1cqw;z-index:6}
 .pick.on{display:flex}
-.pick b{font-size:1.9cqw;font-weight:400}
+.pick b{font-size:2.2cqw;font-weight:400}
 .pick .x{position:absolute;top:.5cqw;right:.6cqw;border:none;background:none;font-size:1.8cqw;cursor:pointer;color:var(--app-ink-soft)}
 .look{background:#fff;border:.35cqw solid transparent;border-radius:1.6cqw;padding:.5cqw;display:flex;align-items:center;gap:.8cqw;cursor:pointer;font-family:var(--kid);color:var(--app-ink);width:100%;flex:1;min-height:0}
-.look img{height:100%;max-height:6cqw;width:6cqw;object-fit:contain}
-.look span{font-size:1.6cqw;text-align:left;line-height:1.2}
+.look img{height:100%;max-height:7cqw;width:7cqw;object-fit:contain;flex:none}
+.look span{font-size:2cqw;text-align:left;line-height:1.2;white-space:nowrap}
 .look[aria-pressed="true"]{border-color:var(--mustard)}
 .tray.narrow{right:20cqw}
 .ring .tag.ready{pointer-events:auto;cursor:pointer;background:var(--coral);color:#fff;animation:glow 1.2s ease-in-out infinite}
@@ -662,7 +665,7 @@ function drawingOpts(){
 // every 0.5s: the pen has rested and the last question is far enough back → maybe ask one
 function tick(){
   genTick();
-  if (S.scr !== 'd1' || pen) return;          // never while a line is being drawn
+  if (S.scr !== 'd1' || pen || S.pickFor) return;   // no new questions while the child is picking a look          // never while a line is being drawn
   const now = Date.now(), since = now - S.lastPen;
   if (S.cur){
     if (now - S.qAt > GIVEUP_MS && since < 3000){   // kept drawing instead of answering
@@ -810,7 +813,7 @@ function goD2(){
   if (!S.strokes.length){ log('빈 화이트보드 → 그림 없는 날'); return goD3(); }
   show('d2'); S.sel = []; renderTray();
   log(`원본 획을 조각 ${objects().length}개${bgView() ? ' + 배경' : ''}으로 오림 (폰 안) · 원본 전체도 sceneDrawing 에 그대로`);
-  const named = objects().filter(o => o.name);
+  const named = objects().filter(o => o.name && !S.gen[o.key]);   // pieces the child has not asked about yet
   if (S.genOn && named.length && !S.lookAsked){
     S.lookAsked = true;
     band('그린 것들을 오려 봤어! 이 중에 다른 모습으로 바꿔 보고 싶은 거 있어?', 'listen');
@@ -843,9 +846,9 @@ function renderTray(){
 // Loosens differentiator 1 (09-29, lead agreed in talk; docs to follow) and sends the piece to our
 // server. Placeholders stand in for the image model.
 const LOOKS = [
-  {id:'orig', name:'내가 그린 그대로', note:'기본 · 늘 첫 번째'},
-  {id:'felt', name:'펠트 인형', note:'(시연) 생성 자리'},
-  {id:'book', name:'동화책 그림', note:'(시연) 생성 자리'},
+  {id:'orig', name:'내가 그린 그대로', short:'그대로', note:'기본 · 늘 첫 번째'},
+  {id:'felt', name:'펠트 인형', short:'펠트 인형', note:'(시연) 생성 자리'},
+  {id:'book', name:'동화책 그림', short:'동화책', note:'(시연) 생성 자리'},
 ];
 function hull(pts){
   const P = [...pts].sort((a,b) => a[0]-b[0] || a[1]-b[1]); if (P.length < 3) return P;
@@ -912,9 +915,9 @@ function openPick(key){
   S.pickFor = key; S.gen[key].seen = true; S.notices = S.notices.filter(n => n.key !== key);
   const cur = o.pc.look || 'orig';
   $('pick').innerHTML = `<button class="x" aria-label="닫기">✕</button><b>${o.name}</b>` +
-    LOOKS.map(L => `<button class="look" data-l="${L.id}" aria-pressed="${L.id===cur}"><img src="${lookURL(o, L.id).url}" alt=""><span>${L.name}</span></button>`).join('');
+    LOOKS.map(L => `<button class="look" data-l="${L.id}" aria-pressed="${L.id===cur}"><img src="${lookURL(o, L.id).url}" alt=""><span>${L.short}</span></button>`).join('');
   $('pick').classList.add('on');
-  if (S.scr === 'd1'){ $('btn-done').style.visibility = 'hidden'; $('btn-skip').style.visibility = 'hidden'; }
+  if (S.scr === 'd1'){ $('btn-done').style.visibility = 'hidden'; $('btn-skip').style.visibility = 'hidden'; drawRings(); }
   if (S.scr === 'd2') $('tray').classList.add('narrow');
   band(`${o.name}, 어떤 게 좋아? 그리면서 골라도 돼.`, 'talk');
   log(`「${o.name}」 고르기 칸을 옆에 연다 — 화이트보드는 그대로 쓸 수 있다. 원본이 첫 번째`);
