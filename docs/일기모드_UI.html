@@ -60,7 +60,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .coin b{width:2.6cqw;height:2.6cqw;border-radius:50%;background:var(--coral);display:inline-block}
 
 /* narration band */
-.frame.drawing .band{left:auto;right:1.2cqw;bottom:1.2cqw;max-width:62cqw;min-height:0;gap:1.2cqw;padding:.6cqw 2cqw .6cqw .6cqw;border-width:.4cqw;border-radius:4cqw;cursor:pointer;transition:max-width .35s ease, padding .35s ease, opacity .35s ease;overflow:hidden}
+.frame.drawing .band{left:1.2cqw;right:auto;bottom:1.2cqw;max-width:62cqw;min-height:0;gap:1.2cqw;padding:.6cqw 2cqw .6cqw .6cqw;border-width:.4cqw;border-radius:4cqw;cursor:pointer;transition:max-width .35s ease, padding .35s ease, opacity .35s ease;overflow:hidden}
 .frame.drawing .band .face{width:5.4cqw;height:5.4cqw;border-width:.4cqw}
 .frame.drawing .band .line{font-size:2.2cqw;line-height:1.3}
 .frame.drawing .band.tuck{max-width:7cqw;padding:.6cqw;opacity:.9}
@@ -90,16 +90,16 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
 /* D0 */
 .otto-big{position:absolute;width:30cqw;left:10cqw;bottom:10cqw;filter:drop-shadow(0 1cqw 1.4cqw rgba(58,42,32,.25))}
-.start-actions{position:absolute;right:7cqw;top:5.5cqw;display:grid;gap:2.4cqw;justify-items:center}
-.start-actions .go{width:38cqw;height:19cqw;border-radius:7cqw;font-size:6.6cqw;display:flex;align-items:center;justify-content:center;gap:1.4cqw;
-  background:linear-gradient(165deg,#FF9A76 0%,var(--coral) 50%,#D9483A 100%);box-shadow:0 1.1cqw 0 #B23A2C,0 2.2cqw 3cqw rgba(58,42,32,.35),inset 0 0 0 .6cqw rgba(255,255,255,.22);
+.start-actions{position:absolute;right:8cqw;top:9cqw;display:grid;gap:2.6cqw;justify-items:center}
+.start-actions .go,.start-actions .no{width:28cqw;height:11cqw;border-radius:5.5cqw;font-size:3.4cqw}
+.start-actions .go{display:flex;align-items:center;justify-content:center;gap:1cqw;
+  background:linear-gradient(165deg,#FF9A76 0%,var(--coral) 50%,#D9483A 100%);box-shadow:0 .8cqw 0 #B23A2C,0 1.6cqw 2.4cqw rgba(58,42,32,.35),inset 0 0 0 .5cqw rgba(255,255,255,.22);
   text-shadow:0 .35cqw 0 rgba(150,40,30,.45);animation:goBob 1.8s ease-in-out infinite}
-.start-actions .go::before{content:"";position:absolute;inset:-1.6cqw;border-radius:8.6cqw;border:.6cqw solid var(--mustard);animation:goHalo 1.8s ease-out infinite;pointer-events:none}
+.start-actions .go::before{content:"";position:absolute;inset:-1.2cqw;border-radius:6.7cqw;border:.6cqw solid var(--mustard);animation:goHalo 1.8s ease-out infinite;pointer-events:none}
 .start-actions .go:active{animation:none;transform:translateY(.8cqw) scale(.97);box-shadow:0 .3cqw 0 #B23A2C,0 .8cqw 1.4cqw rgba(58,42,32,.3)}
-.go-ico{font-size:8.4cqw;display:inline-block;transform-origin:70% 80%;animation:goScribble 1.1s ease-in-out infinite}
-.go .sp{position:absolute;font-style:normal;font-size:3.4cqw;color:var(--mustard);text-shadow:0 0 1cqw #fff;animation:twinkle 1.6s ease-in-out infinite;pointer-events:none}
-.start-actions .no{border:none;background:rgba(255,255,255,.7);color:var(--app-ink-soft);font-family:var(--kid);font-size:1.8cqw;padding:.8cqw 2.2cqw;border-radius:3cqw;cursor:pointer}
-@keyframes goBob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-1cqw) rotate(1deg)}}
+.go-ico{font-size:4.4cqw;display:inline-block;transform-origin:70% 80%;animation:goScribble 1.1s ease-in-out infinite}
+.go .sp{position:absolute;font-style:normal;font-size:2.6cqw;color:var(--mustard);text-shadow:0 0 1cqw #fff;animation:twinkle 1.6s ease-in-out infinite;pointer-events:none}
+@keyframes goBob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-.6cqw) rotate(1deg)}}
 @keyframes goHalo{0%{transform:scale(.94);opacity:.95}100%{transform:scale(1.14);opacity:0}}
 @keyframes goScribble{0%,100%{transform:rotate(0)}25%{transform:rotate(-14deg) translateY(-.4cqw)}50%{transform:rotate(6deg)}75%{transform:rotate(-8deg) translateY(-.2cqw)}}
 @keyframes twinkle{0%,100%{transform:scale(.6) rotate(0);opacity:.4}50%{transform:scale(1.25) rotate(25deg);opacity:1}}
@@ -398,8 +398,8 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
           <div class="coin"><b></b>오늘 2권</div>
           <img class="otto-big" src="img/diary_ui/wave.png" alt="손 흔드는 오또">
           <div class="start-actions">
-            <button class="felt coral go" id="btn-draw"><span class="go-ico">🖍️</span><span class="go-txt">그릴래!</span><i class="sp" style="left:-2cqw;top:-2.4cqw">✦</i><i class="sp" style="right:-1.6cqw;top:-1.2cqw;animation-delay:.5s">★</i><i class="sp" style="left:3cqw;bottom:-2.6cqw;animation-delay:.9s">✦</i><i class="sp" style="right:4cqw;bottom:-2.2cqw;animation-delay:.3s;color:var(--sky)">●</i></button>
-            <button class="no" id="btn-talk">그림 없이 말할래</button>
+            <button class="felt coral go" id="btn-draw"><span class="go-ico">🖍️</span><span class="go-txt">그릴래!</span><i class="sp" style="left:-2cqw;top:-2.4cqw">✦</i><i class="sp" style="right:-1.6cqw;top:-1.2cqw;animation-delay:.5s">★</i><i class="sp" style="left:-2.6cqw;bottom:.4cqw;animation-delay:.9s">✦</i><i class="sp" style="right:-2.4cqw;bottom:1.2cqw;animation-delay:.3s;color:var(--sky)">●</i></button>
+            <button class="felt cream no" id="btn-talk">그림 없이 말할래</button>
           </div>
         </section>
 
