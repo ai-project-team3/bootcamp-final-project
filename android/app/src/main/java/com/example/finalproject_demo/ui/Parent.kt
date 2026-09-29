@@ -58,20 +58,20 @@ import com.example.finalproject_demo.demo.wa
 import com.example.finalproject_demo.demo.eun
 import com.example.finalproject_demo.demo.ga
 
-private val PBg = Color(0xFFFBF4E8)
-private val PCard = Color.White
+// 09-29 디자인 시스템 토큰 (`Theme.kt`) — 부모 영역은 차분한 성인 UI: 크림 메뉴 · 흰 카드 · 코랄 강조
+private val PBg = Wool
+private val PCard = FeltWhite
 private val PLine = Color(0xFFEDE2CF)
-private val PSub = Color(0xFF8A7B6A)
-private val PAccent = Color(0xFFE8704F)
-private val PMint = Color(0xFF7CC4A8)
+private val PSub = InkSoft
+private val PAccent = FeltCoral
+private val PMint = FeltTeal
 
 @Composable
 private fun PCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Column(
         modifier
-            .shadow(3.dp, RoundedCornerShape(18.dp), ambientColor = Ink.copy(alpha = 0.12f), spotColor = Ink.copy(alpha = 0.12f))
-            .clip(RoundedCornerShape(18.dp))
-            .background(PCard)
+            // 부모 카드 — 펠트의 ① 단색만 (결 · 큰 그림자 없음 · 디자인 시스템 §4)
+            .felt(PCard, RoundedCornerShape(18.dp), lift = 1.dp, texture = false, stitch = false)
             .padding(14.dp)
     ) { content() }
 }
@@ -89,7 +89,10 @@ private fun Section(text: String, sub: String? = null) {
 
 /** 부모 모드 — 왼쪽 메뉴 · 오른쪽 카드. 아래 마스코트 · 버튼은 없다 (v0.8) */
 @Composable
-fun ParentView(d: Director, tab: String) {
+fun ParentView(d: Director, tab: String) = ParentText { ParentViewBody(d, tab) }
+
+@Composable
+private fun ParentViewBody(d: Director, tab: String) {
     val s = d.s
     Row(Modifier.fillMaxSize().background(PBg)) {
         // ── 왼쪽 메뉴
@@ -97,7 +100,7 @@ fun ParentView(d: Director, tab: String) {
             Modifier
                 .width(178.dp)
                 .fillMaxHeight()
-                .background(Color(0xFFF3E7D2))
+                .background(WoolCream)
                 .padding(horizontal = 12.dp, vertical = 14.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -109,7 +112,8 @@ fun ParentView(d: Director, tab: String) {
                 }
             }
             Spacer(Modifier.height(16.dp))
-            listOf(Triple("rec", "📋", "오늘의 기록"), Triple("coop", "🤝", "협업 질문"), Triple("ach", "🏅", "업적"), Triple("set", "⚙️", "설정")).forEach { (k, e, t) ->
+            // 「계정」 탭 (09-29) — 로그인 정보 · 로그아웃 · 회원 탈퇴 (Google Play 요건). 탭은 흐름이 이름만 받아 바꾼다
+            listOf(Triple("rec", "📋", "오늘의 기록"), Triple("coop", "🤝", "협업 질문"), Triple("ach", "🏅", "업적"), Triple("set", "⚙️", "설정"), Triple("acct", "👤", "계정")).forEach { (k, e, t) ->
                 val on = tab == k
                 Row(
                     Modifier
@@ -134,12 +138,11 @@ fun ParentView(d: Director, tab: String) {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Sun)
-                    .clickable { d.send(Reply.Tapped("home", "처음으로")) }
-                    .padding(vertical = 10.dp),
+                    .height(44.dp)
+                    .felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 2.dp, texture = false)
+                    .clickable { d.send(Reply.Tapped("home", "처음으로")) },
                 contentAlignment = Alignment.Center,
-            ) { Text("🏠 아이 모드로", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold) }
+            ) { Text("아이 화면으로", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold) }
         }
         // ── 오른쪽 내용
         Column(Modifier.weight(1f).fillMaxHeight()) {
@@ -150,7 +153,7 @@ fun ParentView(d: Director, tab: String) {
             ) {
                 Text("부모 모드", fontSize = 13.sp, color = PSub)
                 Text("  ›  ", fontSize = 13.sp, color = PSub)
-                Text(when (tab) { "coop" -> "협업 질문"; "ach" -> "업적"; "set" -> "설정"; else -> "오늘의 기록" }, fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold)
+                Text(when (tab) { "coop" -> "협업 질문"; "ach" -> "업적"; "set" -> "설정"; "acct" -> "계정"; else -> "오늘의 기록" }, fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold)
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(PLine))
             Column(
@@ -164,6 +167,7 @@ fun ParentView(d: Director, tab: String) {
                     "coop" -> CoopQuestionsTab(d)
                     "ach" -> AchievementsTab(d)
                     "set" -> SettingsTab(d)
+                    "acct" -> com.example.finalproject_demo.ui.shell.AccountTab(d)
                     else -> RecordTab(d)
                 }
             }
@@ -725,9 +729,7 @@ private fun SettingsTab(d: Director) {
             Column(
                 Modifier
                     .weight(1f)
-                    .shadow(if (on) 6.dp else 2.dp, RoundedCornerShape(16.dp))
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White)
+                    .felt(FeltWhite, RoundedCornerShape(16.dp), lift = if (on) 4.dp else 1.dp, texture = false, stitch = false)
                     .border(if (on) 3.dp else 0.dp, if (on) PAccent else Color.Transparent, RoundedCornerShape(16.dp))
                     .clickable { d.send(Reply.Tapped("set:style:${st.key}", st.name)) }
                     .padding(8.dp),
@@ -830,45 +832,26 @@ private fun Stepper(t: String, onClick: () -> Unit) {
 
 /** 비밀번호 4자리 — 부모 모드에 들어갈 때 · (설정하면) 이야기를 시작할 때 */
 @Composable
-fun PinView(d: Director, stage: Stage.Pin) {
-    Row(
-        Modifier.fillMaxSize().background(PBg).padding(start = 40.dp, end = 40.dp, top = 40.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+fun PinView(d: Director, stage: Stage.Pin) = ParentText { PinViewBody(d, stage) }
+
+@Composable
+private fun PinViewBody(d: Director, stage: Stage.Pin) {
+    // 09-29 디자인 시스템 — **비밀번호 4자리 대신 태어난 해** (부모 PIN 을 만들지 않는다 · Lingokids · ABCmouse).
+    // 흐름(`Director.pinGate`)은 그대로 둔다: 맞는 해를 넣으면 「통과」, 닫기는 「취소」 신호를 보낸다
+    val start = stage.purpose == "start"
+    com.example.finalproject_demo.ui.shell.ObFrame(
+        step = null,
+        title = if (start) "어른 확인" else "부모 영역",
+        // 09-29 사용자 — 「비번이 뭐야 설정한 적 없는데」. 비밀번호가 아니라 **보호자 태어난 해**라는 것을 먼저 말한다
+        sub = "따로 정한 비밀번호는 없어요. 보호자님이 태어난 해(예: 1988)를 넣으면 열려요.",
+        onBack = { d.send(Reply.Tapped("pin:cancel", "취소")) },
+        art = {
+            Box(Modifier.size(110.dp).felt(FeltTeal, CircleShape), contentAlignment = Alignment.Center) { Text("🔒", fontSize = 48.sp) }
+        },
     ) {
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("🔒", fontSize = 40.sp)
-            Spacer(Modifier.height(6.dp))
-            Text(if (stage.purpose == "start") "어른 확인" else "부모 확인", fontSize = 22.sp, color = Ink, fontWeight = FontWeight.Bold)
-            Text(
-                if (stage.purpose == "start") "이야기를 시작하려면 어른이 비밀번호를 넣어 주세요" else "비밀번호 4자리를 넣어 주세요",
-                fontSize = 13.sp, color = PSub, textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                repeat(4) { i ->
-                    Box(Modifier.size(16.dp).clip(CircleShape).background(if (i < stage.typed) PAccent else PLine))
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text("데모: 아무 숫자 4개", fontSize = 11.sp, color = PSub)
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("취소", "0", "⌫")).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { k ->
-                        val v = when (k) { "취소" -> "pin:cancel"; "⌫" -> "pin:back"; else -> "pin:$k" }
-                        Box(
-                            Modifier
-                                .size(width = 72.dp, height = 50.dp)
-                                .shadow(2.dp, RoundedCornerShape(14.dp))
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(if (k.length == 1) Color.White else Color(0xFFF3EDE3))
-                                .clickable { d.send(Reply.Tapped(v, k)) },
-                            contentAlignment = Alignment.Center,
-                        ) { Text(k, fontSize = if (k.length == 1) 22.sp else 15.sp, color = Ink, fontWeight = FontWeight.Bold) }
-                    }
-                }
-            }
-        }
+        com.example.finalproject_demo.ui.shell.YearPad(
+            onPass = { d.send(Reply.Tapped("pin:ok", "통과")) },
+            note = "3번 틀리면 30초 기다려요",
+        )
     }
 }

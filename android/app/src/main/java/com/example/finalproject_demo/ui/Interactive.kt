@@ -31,11 +31,17 @@ import kotlin.math.sin
  * 만질 수 없는 것(배경 · 장식 · 멀리 있는 인물)에는 두르지 않는다 — 전부 두르면 다시 구별이 안 된다.
  */
 
+/**
+ * 만질 수 있다는 표시를 **그릴 것인가** (09-29 사용자 요청 — 「그림책을 만들 때 상호작용 요소 표시를 없애 줘」).
+ * 끄면 테두리 · 고리 · 반짝임을 그리지 않고, 누르는 것 · 누른 뒤 반응(통 튀기 · 글자)은 그대로다.
+ */
+const val SHOW_TOUCH_MARKS = false
+
 /** 안쪽 흰 테두리 두께 */
-val TOUCH_INNER: Dp = 4.dp
+val TOUCH_INNER: Dp = Border.TouchInner
 
 /** 바깥 노란 테두리 두께 (흰 테두리 바깥으로 더 나오는 만큼) */
-val TOUCH_OUTER: Dp = 2.dp
+val TOUCH_OUTER: Dp = Border.TouchOuter
 
 private val TouchWhite = Color.White
 private val TouchYellow = Sun
@@ -54,7 +60,7 @@ private const val OUTLINE_STEPS = 16
  * @param enabled 끄면 아무것도 하지 않는다 — 다 맞춘 퍼즐 조각처럼 **이제 만질 수 없는 것**은 끈다
  */
 fun Modifier.touchOutline(enabled: Boolean = true): Modifier =
-    if (!enabled) this else this.drawWithContent {
+    if (!enabled || !SHOW_TOUCH_MARKS) this else this.drawWithContent {
         val inner = TOUCH_INNER.toPx()
         val outer = inner + TOUCH_OUTER.toPx()
         drawIntoCanvas { canvas ->
@@ -80,6 +86,7 @@ fun Modifier.touchOutline(enabled: Boolean = true): Modifier =
  */
 @Composable
 fun TouchRing(modifier: Modifier = Modifier) {
+    if (!SHOW_TOUCH_MARKS) return
     // `border()` 를 두 번 겹치면 **바깥 것이 안쪽 것 위에** 그려져 흰색이 사라진다 (09-27 첫 시도).
     // 순서를 손으로 정하려고 Canvas 에 직접 그린다 — 노랑(넓게) 먼저, 그 위에 흰색(안쪽)
     Canvas(modifier) {

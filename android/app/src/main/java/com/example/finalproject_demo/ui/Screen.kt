@@ -1,5 +1,9 @@
 package com.example.finalproject_demo.ui
 
+import androidx.compose.ui.draw.rotate
+
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
@@ -37,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -87,6 +92,7 @@ import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.demo.PEN_W
 import com.example.finalproject_demo.demo.dinoKind
+import com.example.finalproject_demo.demo.heroImageName
 import com.example.finalproject_demo.demo.Stroke as DrawStroke
 import kotlin.math.roundToInt
 
@@ -102,12 +108,20 @@ private fun Modifier.dashedBorder(color: Color, radius: androidx.compose.ui.unit
     )
 }
 
+/**
+ * @param motion 뼈대로 움직일 동작 (09-28). null 이면 예전처럼 그림 한 장 — 책 쪽만 넘긴다.
+ *   뼈대가 아직 없으면(만드는 중 · 못 붙임) 넘겨도 그림 한 장으로 그린다
+ */
 @Composable
-fun ArtView(art: Art, modifier: Modifier = Modifier) {
+fun ArtView(art: Art, modifier: Modifier = Modifier, motion: RigMotion? = null) {
     when (art) {
-        is Art.HeroArt -> HeroImage(art.attr, modifier)   // 프리셋 · 골라서 · 말로 만든 주인공 모두 같은 펠트 그림
-        is Art.DinoArt -> AssetImage(dinoKind(art.kind).art, modifier, colorFilter = if (dinoHue(art.color) != 0f) hueRotate(dinoHue(art.color)) else null) {
-            FigureView(dino(art.color, art.kind), modifier)
+        is Art.HeroArt -> HeroImage(art.attr, modifier, motion)   // 프리셋 · 골라서 · 말로 만든 주인공 모두 같은 펠트 그림
+        is Art.DinoArt -> {
+            val name = dinoKind(art.kind).art
+            val filter = if (dinoHue(art.color) != 0f) hueRotate(dinoHue(art.color)) else null
+            val rig = if (motion != null) rememberRig(name) else null
+            if (rig != null && motion != null) RigView(rig, motion, modifier, colorFilter = filter)
+            else AssetImage(name, modifier, colorFilter = filter) { FigureView(dino(art.color, art.kind), modifier) }
         }
         is Art.Alien -> FigureView(alienPreset(art.k), modifier)
         is Art.Emoji -> EmojiView(art.text, modifier)
@@ -166,34 +180,32 @@ fun BigCard(
     width: Int = 176,
     onClick: () -> Unit,
 ) {
+    // 09-29 디자인 시스템 — 「고르기 방울」: 크림 펠트 + 바느질선, 고르면 겨자 테두리로 살짝 커진다. 누르면 꾹 눌림
+    val source = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val press by animateFloatAsState(if (pressed) Felt.PressedScale else 1f, tween(Felt.PressMillis), label = "cardPress")
     Column(
         modifier
             .width(width.dp)
-            .scale(if (picked) 1.06f else 1f)
-            .shadow(if (picked) 14.dp else 8.dp, RoundedCornerShape(R), ambientColor = Ink.copy(alpha = 0.25f), spotColor = Ink.copy(alpha = 0.25f))
-            .clip(RoundedCornerShape(R))
-            .background(CardWhite)
-            .then(if (picked) Modifier.border(5.dp, Sun, RoundedCornerShape(R)) else Modifier)
-            .clickable { onClick() }
+            .scale((if (picked) 1.06f else 1f) * press)
+            .felt(WoolCream, RoundedCornerShape(R), lift = if (pressed) Felt.PressedShadowY else if (picked) Felt.ShadowY * 1.6f else Felt.ShadowY)
+            .then(if (picked) Modifier.border(Border.Picked, FeltMustard, RoundedCornerShape(R)) else Modifier)
+            .clickable(interactionSource = source, indication = null) { onClick() }
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         ArtView(card.art, Modifier.fillMaxWidth().height(108.dp))
         Spacer(Modifier.height(6.dp))
-        Text(card.label, fontSize = 21.sp, color = Ink, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(card.label, fontSize = TextSize.KidCard, color = InkBrown, maxLines = 1)
     }
 }
 
 @Composable
 fun PillButton(text: String, bg: Color, fg: Color, fontSize: Int = 19, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .shadow(4.dp, RoundedCornerShape(999.dp))
-            .clip(RoundedCornerShape(999.dp))
-            .background(bg)
-            .clickable { onClick() }
-            .padding(horizontal = (fontSize * 0.9).dp, vertical = (fontSize * 0.45).dp)
-    ) { Text(text, fontSize = fontSize.sp, color = fg, fontWeight = FontWeight.Bold) }
+    // 09-29 디자인 시스템 — 펠트 버튼(꾹 눌림). 색은 부르는 쪽이 정한다(선명한 색은 누르는 것에만)
+    FeltButton(bg, onClick = onClick) {
+        Text(text, fontSize = fontSize.sp, color = fg, modifier = Modifier.padding(horizontal = (fontSize * 0.95).dp, vertical = (fontSize * 0.55).dp))
+    }
 }
 
 @Composable
@@ -310,6 +322,12 @@ private fun Centered(content: @Composable () -> Unit) {
 fun StageView(d: Director, modifier: Modifier = Modifier) {
     val s = d.s
     val stage = s.stage
+    // 주인공 · 공룡이 정해지는 순간 **뒤에서 뼈대를 붙여 둔다** (09-28) — 대화가 끝나 책이 열릴 때는 이미 끝나 있다
+    val ctx = LocalContext.current
+    val heroName = s.heroAttr?.let { heroImageName(it) }
+    val dinoName = dinoKind(s.dinoKey).art
+    LaunchedEffect(heroName) { heroName?.let { RigCache.prefetch(ctx, it) } }
+    LaunchedEffect(dinoName) { RigCache.prefetch(ctx, dinoName) }
     Box(modifier.fillMaxSize().background(Bg), contentAlignment = Alignment.Center) {
         when (stage) {
             Stage.Empty -> {}
@@ -320,18 +338,12 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     stage.heroes.forEachIndexed { i, h ->
                         Box {
-                            Column(
-                                Modifier
-                                    .width(146.dp)
-                                    .shadow(8.dp, RoundedCornerShape(R), ambientColor = Ink.copy(alpha = 0.25f), spotColor = Ink.copy(alpha = 0.25f))
-                                    .clip(RoundedCornerShape(R))
-                                    .background(CardWhite)
-                                    .clickable { d.send(Reply.Tapped("hero:$i", h.name)) }
-                                    .padding(10.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                ArtView(Art.HeroArt(h.attr), Modifier.fillMaxWidth().height(130.dp))
-                                Text(h.name, fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold, maxLines = 1)
+                            // 09-29 디자인 시스템 — 고르기 방울: 크림 펠트 카드 · 꾹 눌림 (주인공 카드가 주인공 — 오또는 빼는 화면)
+                            FeltButton(WoolCream, onClick = { d.send(Reply.Tapped("hero:$i", h.name)) }, modifier = Modifier.width(146.dp), shape = RoundedCornerShape(R)) {
+                                Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    ArtView(Art.HeroArt(h.attr), Modifier.fillMaxWidth().height(130.dp))
+                                    Text(h.name, fontSize = TextSize.KidCard, color = InkBrown, maxLines = 1)
+                                }
                             }
                             // 지우기 — 네 칸이 다 차면 더 못 만들기 때문에 필요하다 (9/21 요청).
                             // 마지막 한 명은 못 지운다 — 도감이 비면 이야기를 시작할 수 없다
@@ -340,10 +352,8 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                                     Modifier
                                         .align(Alignment.TopEnd)
                                         .padding(4.dp)
-                                        .size(30.dp)
-                                        .shadow(3.dp, CircleShape)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFF7E7E2))
+                                        .size(32.dp)
+                                        .felt(FeltWhite, CircleShape, lift = 2.dp, stitch = false)
                                         .clickable { d.send(Reply.Tapped("del:$i", h.name)) },
                                     contentAlignment = Alignment.Center,
                                 ) { Text("🗑", fontSize = 15.sp) }
@@ -354,12 +364,19 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                         repeat((4 - stage.heroes.size).coerceAtLeast(0)) {
                             Box(
                                 Modifier
-                                    .size(146.dp, 172.dp)
+                                    .size(146.dp, 176.dp)
                                     .clip(RoundedCornerShape(R))
-                                    .dashedBorder(Sun, R)
+                                    .background(WoolCream.copy(alpha = 0.6f))
+                                    .dashedBorder(FeltMustard, R)
                                     .clickable { d.send(Reply.Tapped("plus", "＋")) },
                                 contentAlignment = Alignment.Center,
-                            ) { Text("＋", fontSize = 60.sp, color = Sun) }
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(Modifier.size(64.dp).felt(FeltMustard, CircleShape), contentAlignment = Alignment.Center) { Text("＋", fontSize = 36.sp, color = FeltWhite) }
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("새로 만들기", fontSize = 17.sp, color = InkBrown)
+                                }
+                            }
                         }
                     }
                 }
@@ -374,8 +391,7 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                         Column(
                             Modifier
                                 .width(120.dp)
-                                .clip(RoundedCornerShape(R))
-                                .background(CardWhite.copy(alpha = 0.9f))
+                                .felt(WoolCream, RoundedCornerShape(R))
                                 .clickable { d.send(Reply.Tapped("draw", "그려서 알려줄래")) }
                                 .padding(12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -432,26 +448,29 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
 
             is Stage.HeroBuilder -> HeroBuilderView(d, stage)
 
-            is Stage.Making -> Centered {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // ⑩ 책 만드는 중 (09-29 디자인 시스템) — 흐릿한 그림책 쪽이 점점 또렷해지고, 가운데 **바느질 로딩**
+            //   (바늘이 앞으로 가며 꿰맴 · 숫자 % 없음). 끝나면 책 더미가 숨 쉰다
+            is Stage.Making -> Box(Modifier.fillMaxSize()) {
+                val p by animateFloatAsState(stage.progress.coerceAtLeast(0f), tween(300), label = "mk")
+                AssetImage(s.bgName, Modifier.fillMaxSize().alpha(0.25f + 0.6f * p), contentScale = ContentScale.Crop) {}
+                Box(Modifier.fillMaxSize().background(Wool.copy(alpha = 0.55f - 0.3f * p)))
+                Column(Modifier.align(Alignment.Center).padding(bottom = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     val t = rememberInfiniteTransition(label = "brush")
                     val a by t.animateFloat(0f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "a")
-                    if (stage.progress >= 1f) {
-                        ArtView(Art.Img("ic_books", Art.Emoji("📚")), Modifier.size((84 + 10 * a).dp))
-                    } else {
-                        Text("🖌️", fontSize = (48 + 14 * a).sp)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(stage.label, fontSize = 24.sp, color = Ink, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                    if (stage.progress >= 0f) {
-                        Spacer(Modifier.height(10.dp))
-                        val p by animateFloatAsState(stage.progress, tween(200), label = "mk")
-                        Box(Modifier.width(260.dp).height(12.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFFEDE2CF))) {
-                            Box(Modifier.fillMaxWidth(p).height(12.dp).clip(RoundedCornerShape(6.dp)).background(Brush.horizontalGradient(listOf(Sun2, Coral))))
+                    Box(Modifier.width(150.dp).height(110.dp).felt(Curtain, RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+                        Box(Modifier.width(128.dp).height(90.dp).felt(FeltWhite, RoundedCornerShape(12.dp), lift = 0.dp, stitch = false), contentAlignment = Alignment.Center) {
+                            if (stage.progress >= 1f) ArtView(Art.Img("ic_books", Art.Emoji("📚")), Modifier.size((56 + 8 * a).dp))
+                            else Text("🖌️", fontSize = (34 + 8 * a).sp)
                         }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(stage.label, fontSize = 24.sp, color = InkBrown, textAlign = TextAlign.Center)
+                    if (stage.progress >= 0f) {
+                        Spacer(Modifier.height(12.dp))
+                        StitchLoading(p)
                         if (stage.progress >= 1f) {
                             Spacer(Modifier.height(6.dp))
-                            Text("책 이름은 책장에서 바꿀 수 있어요", fontSize = 13.sp, color = Muted)
+                            ParentText { Text("책 이름은 책장에서 바꿀 수 있어요", fontSize = 13.sp, color = InkSoft) }
                         }
                     }
                 }
@@ -478,10 +497,9 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                                 Modifier
                                     .align(Alignment.TopEnd)
                                     .padding(top = 62.dp, end = 16.dp)
-                                    .clip(RoundedCornerShape(999.dp))
-                                    .background(Color.White.copy(alpha = 0.9f))
-                                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                            ) { Text("다시 그리기 ${stage.redraws}/${stage.redrawMax}", fontSize = 13.sp, color = Muted) }
+                                    .felt(FeltWhite.copy(alpha = 0.94f), RoundedCornerShape(Radius.Round), lift = 2.dp, stitch = false)
+                                    .padding(horizontal = 12.dp, vertical = 5.dp)
+                            ) { Text("다시 그리기 ${stage.redraws}/${stage.redrawMax}", fontSize = 14.sp, color = InkSoft) }
                         }
                     }
                 }
@@ -517,7 +535,8 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                     Text("🖌️", fontSize = 26.sp, modifier = Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 16.dp).alpha(a))
                 }
                 if (stage.retry >= 0) {
-                    Row(Modifier.align(Alignment.BottomEnd).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // 나레이션 칸 **위**에 — 전에는 화면 오른쪽 아래(칸 자리)에 있어 녹음 뒤 칸과 겹쳤다 (09-29 사용자 지적)
+                    Row(Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = LocalStageBottomInset.current + 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         PillButton("🔁 다시 (${stage.retry}번 남음)", Color.White.copy(alpha = 0.95f), Ink, 16) { d.send(Reply.Tapped("retry", "다시")) }
                         PillButton("👍 이 소리로", Sun, Ink, 16) { d.send(Reply.Tapped("ok", "이 소리로")) }
                     }
@@ -634,7 +653,8 @@ private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem) {
         // 그래야 세로가 짧은 기기에서도 발이 말풍선 밑으로 안 들어간다
         val feetNear = minOf(maxHeight * FEET_NEAR, maxHeight - LocalStageBottomInset.current)
         val feetFar = maxHeight * FEET_FAR
-        val feet = feetFar + (feetNear - feetFar) * d
+        // 멀리 있는 인물도 나레이션 칸 밑으로 발이 들어가지 않게 (09-29 — 칸이 화면 아래 전체 폭 120dp 가 되면서)
+        val feet = minOf(feetFar + (feetNear - feetFar) * d, maxHeight - LocalStageBottomInset.current)
         // xf 는 **가운데**다 (Model.WorldItem 주석). 깊이에 따라 커져도 좌우로 안 밀린다
         // 화면 밖으로 밀리지 않게 가둔다 — 여백은 음수가 될 수 없다
         val left = (maxWidth * item.xf - wide / 2).coerceIn(0.dp, (maxWidth - wide).coerceAtLeast(0.dp))
@@ -689,15 +709,9 @@ private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem) {
 /** 시작 화면의 모드 버튼 — 무엇으로 짓는가를 고르는 자리 */
 @Composable
 private fun ModeButton(label: String, bg: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier
-            .shadow(6.dp, RoundedCornerShape(999.dp))
-            .clip(RoundedCornerShape(999.dp))
-            .background(bg)
-            .clickable { onClick() }
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, fontSize = 17.sp, color = Color.White, fontWeight = FontWeight.Bold) }
+    FeltButton(bg, onClick = onClick, modifier = modifier) {
+        Text(label, fontSize = 17.sp, color = FeltWhite, modifier = Modifier.padding(vertical = 12.dp))
+    }
 }
 
 /** 장면 1 — 시작 화면. 아래 마스코트 말풍선은 없다. 위 왼쪽 아이/부모 전환 · 위 오른쪽 별(크롬) */
@@ -713,13 +727,11 @@ private fun AdultScreen(d: Director) {
             Modifier
                 .align(Alignment.TopStart)
                 .padding(start = 14.dp, top = 12.dp)
-                .shadow(6.dp, RoundedCornerShape(999.dp))
-                .clip(RoundedCornerShape(999.dp))
-                .background(Color.White.copy(alpha = 0.95f))
+                .felt(FeltWhite.copy(alpha = 0.95f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
                 .padding(3.dp)
         ) {
-            Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Sun).padding(horizontal = 14.dp, vertical = 6.dp)) {
-                Text("🧒 아이", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
+            Box(Modifier.felt(FeltMustard, RoundedCornerShape(Radius.Round), lift = 0.dp, stitch = false).padding(horizontal = 14.dp, vertical = 6.dp)) {
+                Text("🧒 아이", fontSize = 15.sp, color = InkBrown)
             }
             Box(Modifier.clip(RoundedCornerShape(999.dp)).clickable { d.send(Reply.Tapped("parent", "부모 모드")) }.padding(horizontal = 14.dp, vertical = 6.dp)) {
                 Text("👪 부모", fontSize = 15.sp, color = Muted)
@@ -729,54 +741,42 @@ private fun AdultScreen(d: Director) {
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                 val t = rememberInfiniteTransition(label = "hi")
                 val bob by t.animateFloat(-5f, 5f, infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "bob")
-                ArtView(Art.Mascot, Modifier.size(190.dp).offset { IntOffset(0, bob.roundToInt()) })
-                // 앱 이름 로고 — 주아 글꼴로 쓴 「오또」에 ComfyUI 로 양모 펠트 질감을 입혔다 (09-26 · res/drawable/logo_otto.png)
-                AssetImage("logo_otto", Modifier.width(220.dp)) {
-                    Text("오또", fontSize = 40.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                // 앱 이름 로고 v2 (09-28 디자인 시스템) — 펠트 패치 글자 「오또」 + 손 흔드는 고양이 오또 + 청록 리본
+                // 「말로 만드는 그림책」. 오또가 로고 안에 있어 마스코트 그림을 따로 두지 않는다
+                AssetImage("logo_otto_v2", Modifier.width(330.dp).offset { IntOffset(0, bob.roundToInt()) }) {
+                    ArtView(Art.Mascot, Modifier.size(190.dp))
                 }
             }
             Column(
                 Modifier
                     .weight(1.15f)
-                    .shadow(16.dp, RoundedCornerShape(30.dp), ambientColor = Ink.copy(alpha = 0.3f), spotColor = Ink.copy(alpha = 0.3f))
-                    .clip(RoundedCornerShape(30.dp))
-                    .background(Color.White.copy(alpha = 0.94f))
+                    .felt(FeltWhite.copy(alpha = 0.96f), RoundedCornerShape(Radius.L), lift = 8.dp, texture = false)
                     .padding(horizontal = 22.dp, vertical = 16.dp),
             ) {
                 Text("${s.childName}${if (com.example.finalproject_demo.demo.bat(s.childName)) "과" else "와"} 함께 이야기를 만들어요", fontSize = 22.sp, color = Ink, fontWeight = FontWeight.Bold)
                 Text("약 15분 · 책장에 ${s.shelf.size}권", fontSize = 13.sp, color = Muted)
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .shadow(10.dp, RoundedCornerShape(999.dp), ambientColor = Coral.copy(alpha = 0.5f), spotColor = Coral.copy(alpha = 0.5f))
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(Brush.horizontalGradient(listOf(Coral, Coral2)))
-                            .clickable { d.send(Reply.Tapped("start", "이야기 만들기")) }
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center,
-                    ) { Text(if (s.pinToStart) "🔒 이야기 만들기" else "이야기 만들기", fontSize = 21.sp, color = Color.White, fontWeight = FontWeight.Bold) }
+                    // 주 버튼 — 코랄 펠트 (디자인 시스템: 주 버튼 = --felt-coral)
+                    FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped("start", "이야기 만들기")) }, modifier = Modifier.weight(1f)) {
+                        Text(if (s.pinToStart) "🔒 이야기 만들기" else "이야기 만들기", fontSize = 22.sp, color = FeltWhite, modifier = Modifier.padding(vertical = 14.dp))
+                    }
                     Spacer(Modifier.width(10.dp))
-                    Box(
-                        Modifier
-                            .shadow(6.dp, RoundedCornerShape(999.dp))
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(Sun2)
-                            .clickable { d.send(Reply.Tapped("shelf", "책장")) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                    ) { Text("📚 책장", fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold) }
+                    FeltButton(WoolCream, onClick = { d.send(Reply.Tapped("shelf", "책장")) }) {
+                        Text("📚 책장", fontSize = 18.sp, color = InkBrown, modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp))
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 // 갈래가 갈라지는 유일한 자리 (일기 §1 · 협업 §3).
                 // ⚠️ 문구에 "일기"를 쓰지 않는다 — 아이가 옆에서 보고 숙제로 듣는다 (일기 §0)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // 모드 색 — 디자인 시스템 09-28 저녁판: 이야기 만들기 빨강 · 오늘 이야기 파랑 · 같이 만들기 청록
                     ModeButton(
-                        "🌙 오늘 있었던 일로", Color(0xFF6E5A8C), Modifier.weight(1f),
+                        "🌙 오늘 있었던 일로", FeltSky, Modifier.weight(1f),
                     ) { d.send(Reply.Tapped("diary", "오늘 있었던 일로")) }
                     // 부모에게 소재를 받는 모드가 아니라 **질문하는 사람을 바꾸는 모드**다 (협업 §0)
                     ModeButton(
-                        "👪 같이 만들기", Color(0xFF3F6E63), Modifier.weight(1f),
+                        "👪 같이 만들기", FeltTeal, Modifier.weight(1f),
                     ) { d.send(Reply.Tapped("coop", "같이 만들기")) }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -789,7 +789,7 @@ private fun AdultScreen(d: Director) {
                         if (s.pinToStart) "시작 비밀번호 켜짐" else "바로 시작",
                         com.example.finalproject_demo.demo.ART_STYLES.first { it.key == s.artStyle }.name,
                     ).forEach {
-                        Box(Modifier.clip(RoundedCornerShape(999.dp)).background(Sun2.copy(alpha = 0.45f)).padding(horizontal = 9.dp, vertical = 4.dp)) {
+                        Box(Modifier.clip(RoundedCornerShape(Radius.Round)).background(WoolCream).padding(horizontal = 9.dp, vertical = 4.dp)) {
                             Text(it, fontSize = 11.sp, color = Ink)
                         }
                     }
@@ -802,9 +802,7 @@ private fun AdultScreen(d: Director) {
                 Column(
                     Modifier
                         .width(380.dp)
-                        .shadow(16.dp, RoundedCornerShape(26.dp))
-                        .clip(RoundedCornerShape(26.dp))
-                        .background(Color.White)
+                        .felt(Wool, RoundedCornerShape(Radius.L), lift = 10.dp)
                         .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -813,7 +811,7 @@ private fun AdultScreen(d: Director) {
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         PillButton("📚 책장 보기", Sun, Ink, 16) { d.send(Reply.Tapped("notice:shelf", "책장")) }
-                        PillButton("🙂 괜찮아", Color(0xFFF3E7D0), Ink, 16) { d.send(Reply.Tapped("notice:ok", "괜찮아")) }
+                        PillButton("🙂 괜찮아", WoolCream, Ink, 16) { d.send(Reply.Tapped("notice:ok", "괜찮아")) }
                     }
                 }
             }
@@ -846,7 +844,7 @@ private fun HeroBuilderView(d: Director, stage: Stage.HeroBuilder) {
     Row(Modifier.fillMaxSize().padding(start = 30.dp, end = 20.dp, top = TopChrome, bottom = BottomChrome), verticalAlignment = Alignment.CenterVertically) {
         HeroImage(stage.attr, Modifier.width(200.dp).fillMaxHeight())
         Spacer(Modifier.width(18.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             rows.forEach { (label, key, opts) ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(label, fontSize = 17.sp, color = Ink, modifier = Modifier.width(58.dp))
@@ -861,11 +859,10 @@ private fun HeroBuilderView(d: Director, stage: Stage.HeroBuilder) {
                         Box(
                             Modifier
                                 .padding(end = 8.dp)
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(if (on) Sun else Color(0xFFF3E7D0))
+                                .felt(if (on) FeltMustard else WoolCream, RoundedCornerShape(Radius.Round), lift = if (on) 3.dp else 1.dp, stitch = on)
                                 .clickable { d.send(Reply.Tapped("set:$key:$v", t)) }
-                                .padding(horizontal = 14.dp, vertical = 5.dp)
-                        ) { Text(t, fontSize = 16.sp, color = Ink) }
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                        ) { Text(t, fontSize = 17.sp, color = InkBrown) }
                     }
                 }
             }
@@ -947,7 +944,7 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
                                 .size(30.dp)
                                 .clip(CircleShape)
                                 .background(c)
-                                .border(if (c == color && !erasing) 4.dp else 1.dp, if (c == color && !erasing) Ink else Color(0x33000000), CircleShape)
+                                .border(if (c == color && !erasing) 4.dp else 1.dp, if (c == color && !erasing) InkBrown else InkBrown.copy(alpha = 0.2f), CircleShape)
                                 .clickable { color = c; erasing = false }
                         )
                     }
@@ -957,19 +954,16 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(
                     Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (erasing) Coral else Color(0xFFF3E7D0))
-                        .border(if (erasing) 3.dp else 0.dp, Ink, RoundedCornerShape(12.dp))
+                        .felt(if (erasing) FeltCoral else WoolCream, RoundedCornerShape(14.dp), lift = if (erasing) 3.dp else 1.dp, stitch = erasing)
                         .clickable { erasing = !erasing }
-                        .padding(horizontal = 10.dp, vertical = 7.dp)
-                ) { Text("🧽 지우개", fontSize = 14.sp, color = if (erasing) Color.White else Ink) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) { Text("🧽 지우개", fontSize = 15.sp, color = if (erasing) FeltWhite else InkBrown) }
                 Box(
                     Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFF3E7D0))
+                        .felt(WoolCream, RoundedCornerShape(14.dp), lift = 1.dp, stitch = false)
                         .clickable { strokes.clear(); erasing = false; tick++ }
-                        .padding(horizontal = 10.dp, vertical = 7.dp)
-                ) { Text("모두 지우기", fontSize = 14.sp, color = Ink) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) { Text("모두 지우기", fontSize = 15.sp, color = InkBrown) }
             }
         }
         Spacer(Modifier.width(8.dp))
@@ -977,9 +971,7 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
             Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .shadow(6.dp, RoundedCornerShape(R))
-                .clip(RoundedCornerShape(R))
-                .background(Color.White)
+                .felt(FeltWhite, RoundedCornerShape(R), lift = 6.dp, texture = false)
                 .onSizeChanged { box = it }
                 .pointerInput(erasing) {
                     detectDragGestures(
@@ -1012,7 +1004,7 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
             PillButton("✅ 다 그렸어", Coral, Color.White, 17) { commit(); d.send(Reply.Tapped("done", "완료")) }
             // 동화 DRAW 는 "preset"(프리셋 3장으로), 일기·협업은 "skip" 을 기다린다(`diaryDrawStep`).
             // 전에는 늘 "preset" 을 보내 일기·협업에서 눌러도 아무 일이 없었다 (09-22 박진웅 에뮬레이터 보고)
-            if (!forAnswer) PillButton("그리기 싫어", Color(0xFFF3E7D0), Ink, 15) {
+            if (!forAnswer) PillButton("그리기 싫어", WoolCream, Ink, 15) {
                 d.send(if (d.s.isDiary) Reply.Tapped("skip", "안 그릴래") else Reply.Tapped("preset", "프리셋"))
             }
         }
@@ -1031,29 +1023,34 @@ private fun FriendRateView(d: Director, stage: Stage.FriendRate) {
     Centered {
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
             stage.friends.forEach { f ->
+                // 09-29 디자인 시스템 ⑫ — 크림 펠트 카드 · 「안녕 · 친구 · 또 만날래」 **좌우 대칭 같은 크기** · 점수 없음
                 Column(
                     Modifier
-                        .width(220.dp)
-                        .shadow(10.dp, RoundedCornerShape(R), ambientColor = Ink.copy(alpha = 0.25f), spotColor = Ink.copy(alpha = 0.25f))
-                        .clip(RoundedCornerShape(R))
-                        .background(CardWhite)
+                        .width(240.dp)
+                        .felt(WoolCream, RoundedCornerShape(R))
                         .padding(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    ArtView(f.art, Modifier.fillMaxWidth().height(100.dp))
-                    Text(f.name, fontSize = 19.sp, color = Ink, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(6.dp))
+                    ArtView(f.art, Modifier.fillMaxWidth().height(104.dp))
+                    Text(f.name, fontSize = TextSize.KidCard, color = InkBrown)
+                    Spacer(Modifier.height(8.dp))
                     if (f.keep == null) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            PillButton("또 만날래 💛", Coral, Color.White, 14) { d.send(Reply.Tapped("keep:${f.id}", f.name)) }
-                            PillButton("안녕 👋", Color(0xFFF3E7D0), Ink, 14) { d.send(Reply.Tapped("bye:${f.id}", f.name)) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FeltButton(FeltWhite, onClick = { d.send(Reply.Tapped("bye:${f.id}", f.name)) }, modifier = Modifier.width(104.dp).height(Touch.KidMin), shape = RoundedCornerShape(22.dp)) {
+                                Text("👋 안녕", fontSize = 16.sp, color = InkBrown)
+                            }
+                            FeltButton(Cheek, onClick = { d.send(Reply.Tapped("keep:${f.id}", f.name)) }, modifier = Modifier.width(104.dp).height(Touch.KidMin), shape = RoundedCornerShape(22.dp)) {
+                                Text("💗 또 만날래", fontSize = 15.sp, color = FeltWhite)
+                            }
                         }
                     } else {
-                        Text(if (f.keep) "또 만나기로 했어 💛" else "안녕! 👋", fontSize = 16.sp, color = if (f.keep) Coral else Muted, modifier = Modifier.padding(vertical = 6.dp))
+                        Text(if (f.keep) "또 만나기로 했어 💗" else "안녕! 👋", fontSize = 17.sp, color = if (f.keep) FeltCoral else InkSoft, modifier = Modifier.padding(vertical = 18.dp))
                     }
                 }
             }
-            PillButton("➡️ 다음", Sun, Ink, 17) { d.send(Reply.Tapped("done", "다음")) }
+            FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped("done", "다음")) }, modifier = Modifier.size(Touch.Kid), shape = CircleShape) {
+                ArtView(Art.Img("ic_next", Art.Emoji("➡️")), Modifier.size(40.dp))
+            }
         }
     }
 }
@@ -1069,28 +1066,34 @@ private fun GiftsView(d: Director, stage: Stage.Gifts) {
                     .take(d.s.giftCount).forEachIndexed { i, (img, e, t) ->
                     val on = i < stage.shown
                     val pop by animateFloatAsState(if (on) 1f else 0.85f, spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "gift$i")
-                    Column(
+                    // 09-29 디자인 시스템 ⑬ — 아직 안 나온 선물은 흐린 카드 대신 **흔들리는 선물 상자**, 나오면 톡 열린다
+                    if (!on) {
+                        val t2 = rememberInfiniteTransition(label = "box$i")
+                        val wig by t2.animateFloat(-4f, 4f, infiniteRepeatable(tween(260), RepeatMode.Reverse), label = "w$i")
+                        Box(Modifier.width(210.dp).height(200.dp), contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(130.dp).rotate(wig).felt(Curtain, RoundedCornerShape(24.dp)), contentAlignment = Alignment.Center) { Text("🎁", fontSize = 64.sp) }
+                        }
+                    } else Column(
                         Modifier
                             .width(210.dp)
                             .scale(pop)
-                            .alpha(if (on) 1f else 0.15f)
-                            .shadow(10.dp, RoundedCornerShape(R), ambientColor = Ink.copy(alpha = 0.25f), spotColor = Ink.copy(alpha = 0.25f))
-                            .clip(RoundedCornerShape(R))
-                            .background(CardWhite)
+                            .felt(WoolCream, RoundedCornerShape(R))
                             .padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         ArtView(Art.Img(img, Art.Emoji(e)), Modifier.size(110.dp))
                         Spacer(Modifier.height(4.dp))
-                        Text(t, fontSize = 16.sp, color = Ink, textAlign = TextAlign.Center)
+                        Text(t, fontSize = 17.sp, color = InkBrown, textAlign = TextAlign.Center)
                     }
                 }
             }
         }
         // 선물 수가 아니라 **다 나왔는가**로 본다 — 안 그린 날은 선물이 하나뿐이다 (9/22 · 치영 d7f6754)
         if (stage.done) {
-            Box(Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 16.dp)) {
-                PillButton("📚 책장에 꽂기", Sun, Ink, 19) { d.send(Reply.Tapped("shelf", "책장")) }
+            Box(Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = BottomChrome + 6.dp)) {
+                FeltButton(FeltMustard, onClick = { d.send(Reply.Tapped("shelf", "책장")) }, modifier = Modifier.height(Touch.Kid)) {
+                    Text("📚 책장에 꽂기", fontSize = 21.sp, color = InkBrown, modifier = Modifier.padding(horizontal = 24.dp))
+                }
             }
         }
     }
@@ -1105,7 +1108,7 @@ fun DemoDrawer(d: Director, onClose: () -> Unit) {
         Box(Modifier.weight(1f).fillMaxHeight().background(Color.Black.copy(alpha = 0.35f)).clickable { onClose() })
         Column(Modifier.width(430.dp).fillMaxHeight().background(Color(0xFF221D18)).padding(14.dp)) {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("ctrl" to "🎮 조작", "judge" to "🧠 발달 판단", "behind" to "⚙️ 뒤에서", "state" to "📊 상태", "event" to "🧾 기록", "check" to "✅ 체크", "never" to "🚫 금지")
+                listOf("ctrl" to "🎮 조작", "judge" to "🧠 발달 판단", "behind" to "⚙️ 뒤에서", "state" to "📊 상태", "event" to "🧾 기록", "check" to "✅ 체크", "never" to "🚫 금지", "rig" to "🦴 관절")
                     .forEach { (k, t) ->
                         Box(
                             Modifier
@@ -1123,6 +1126,7 @@ fun DemoDrawer(d: Director, onClose: () -> Unit) {
                     "behind" -> Text(s.behind, fontSize = 13.sp, color = Color(0xFFE8DCC8), lineHeight = 20.sp)
                     "state" -> DrawerState(d)
                     "judge" -> DrawerJudge(d)
+                    "rig" -> RigDemoPanel()   // 생성 캐릭터를 뼈대로 움직이기 시연 (09-28 · ui/Rig.kt)
                     "event" -> DrawerEvents(d)
                     "check" -> CHECKLIST.forEach { (k, t) ->
                         Text(
@@ -1330,4 +1334,24 @@ private fun DrawerJudge(d: Director) {
     Spacer(Modifier.height(6.dp))
     Text("이번 이야기 질문 id: ${s.askedThisStory.joinToString(", ").ifEmpty { "-" }}", fontSize = 10.sp, color = Muted)
     Text("지난 이야기들에서 쓴 질문 ${s.usedVariants.size}개 → 다음 이야기에서는 되도록 피한다", fontSize = 10.sp, color = Muted)
+}
+
+/** 바느질 로딩 — 흰 펠트 판 · 크림 길 · 코랄로 꿰맨 만큼 · 앞으로 가는 겨자 바늘 (디자인 시스템 ⑩) */
+@Composable
+private fun StitchLoading(p: Float) {
+    Box(Modifier.width(400.dp).height(52.dp).felt(FeltWhite, RoundedCornerShape(26.dp), lift = 4.dp, stitch = false)) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 14.dp)) {
+            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)).background(WoolCream))
+            Box(Modifier.fillMaxWidth(p.coerceIn(0.04f, 1f)).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(FeltCoral)) {
+                Row(Modifier.fillMaxSize().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    repeat(24) { Box(Modifier.width(12.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(FeltWhite.copy(alpha = 0.7f))) }
+                }
+            }
+            // 바늘 — 꿰맨 끝에
+            Box(
+                Modifier.offset(x = maxWidth * p.coerceIn(0f, 1f) - 18.dp, y = (-6).dp).size(36.dp).felt(FeltMustard, CircleShape, lift = 3.dp, stitch = false),
+                contentAlignment = Alignment.Center,
+            ) { Text("🧵", fontSize = 16.sp) }
+        }
+    }
 }
