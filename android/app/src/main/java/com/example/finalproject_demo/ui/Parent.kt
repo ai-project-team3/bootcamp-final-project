@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,21 +71,46 @@ private val PMint = FeltTeal
 private fun PCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Column(
         modifier
-            // 부모 카드 — 펠트의 ① 단색만 (결 · 큰 그림자 없음 · 디자인 시스템 §4)
-            .felt(PCard, RoundedCornerShape(18.dp), lift = 1.dp, texture = false, stitch = false)
-            .padding(14.dp)
+            // 부모 카드 — 펠트의 ① 단색만 (결 · 큰 그림자 없음 · 디자인 시스템 §4) + 옅은 테두리로 카드끼리 구분 (09-29)
+            .felt(PCard, RoundedCornerShape(20.dp), lift = 2.dp, texture = false, stitch = false)
+            .border(1.dp, PLine, RoundedCornerShape(20.dp))
+            .padding(horizontal = 18.dp, vertical = 16.dp)
     ) { content() }
 }
 
 @Composable
 private fun Section(text: String, sub: String? = null) {
-    Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 14.dp, bottom = 6.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp)) {
+        Box(Modifier.width(4.dp).height(18.dp).clip(RoundedCornerShape(2.dp)).background(PAccent))
+        Spacer(Modifier.width(8.dp))
         Text(text, fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
         if (sub != null) {
             Spacer(Modifier.width(8.dp))
-            Text(sub, fontSize = 12.sp, color = PSub)
+            Text(sub, fontSize = 12.sp, color = PSub, maxLines = 1)
         }
     }
+}
+
+/**
+ * 부모 영역 탭 — 키 · 펠트 아이콘(ComfyUI `pi_*`) · 이모지(그림이 없을 때) · 이름 · 이 탭에서 보는 것 한 줄 (09-29)
+ */
+private data class PTab(val key: String, val art: String, val emoji: String, val title: String, val desc: String)
+
+private val PTABS = listOf(
+    PTab("rec", "pi_record", "📋", "오늘의 기록", "오늘 아이가 한 말 그대로 · 만든 책 · 이야기한 방식"),
+    PTab("coop", "pi_coop", "🤝", "협업 질문", "「같이 만들기」에서 어른이 아이에게 물을 질문을 미리 넣어 둬요"),
+    PTab("ach", "pi_achieve", "🏅", "업적", "아이가 한 일로만 받는 선물과 해결 방법 도감"),
+    PTab("set", "pi_settings", "⚙️", "설정", "하루 한도 · 시작할 때 확인 · 그림체 · 소리 · 동의"),
+    PTab("acct", "pi_account", "👤", "계정", "로그인 · 부모 비밀번호 · 처음 설정 다시 보기 · 탈퇴"),
+)
+
+/** 탭 아이콘 — 펠트 그림을 흰 둥근 네모에 */
+@Composable
+private fun TabIcon(t: PTab, size: androidx.compose.ui.unit.Dp, on: Boolean) {
+    Box(
+        Modifier.size(size).clip(RoundedCornerShape(size * 0.3f)).background(if (on) Color(0xFFFFF4E6) else Color.White.copy(alpha = 0.6f)),
+        contentAlignment = Alignment.Center,
+    ) { AssetImage(t.art, Modifier.size(size * 0.82f)) { Text(t.emoji, fontSize = (size.value * 0.45f).sp) } }
 }
 
 /** 부모 모드 — 왼쪽 메뉴 · 오른쪽 카드. 아래 마스코트 · 버튼은 없다 (v0.8) */
@@ -94,66 +120,80 @@ fun ParentView(d: Director, tab: String) = ParentText { ParentViewBody(d, tab) }
 @Composable
 private fun ParentViewBody(d: Director, tab: String) {
     val s = d.s
+    val cur = PTABS.firstOrNull { it.key == tab } ?: PTABS.first()
+    // 부모 설정에서 바꾼 값은 폰에 남긴다 — 전에는 앱을 다시 켜면 처음 설정 값으로 돌아갔다 (09-29)
+    LaunchedEffect(s.limitOn, s.dailyLimit, s.pinToStart, s.artStyle) {
+        if (com.example.finalproject_demo.ui.shell.Shell.onboarded) {
+            com.example.finalproject_demo.ui.shell.Shell.saveSetup(if (s.limitOn) s.dailyLimit else null, s.artStyle, s.pinToStart)
+        }
+    }
     Row(Modifier.fillMaxSize().background(PBg)) {
-        // ── 왼쪽 메뉴
+        // ── 왼쪽 메뉴 (09-29 다시 그림) — 오또 머리 · 펠트 아이콘 탭 · 아이 화면으로
         Column(
             Modifier
-                .width(178.dp)
+                .width(200.dp)
                 .fillMaxHeight()
                 .background(WoolCream)
-                .padding(horizontal = 12.dp, vertical = 14.dp)
+                .padding(horizontal = 12.dp, vertical = 12.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(42.dp).clip(CircleShape).background(Color.White)) { HeroImage(s.heroAttr ?: s.heroes.first().attr, Modifier.fillMaxSize()) }
-                Spacer(Modifier.width(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)) {
+                Box(Modifier.size(44.dp).clip(CircleShape).background(FeltTeal).padding(3.dp).clip(CircleShape).background(Color.White)) {
+                    AssetImage("otto_face_talk", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop) { HeroImage(s.heroAttr ?: s.heroes.first().attr, Modifier.fillMaxSize()) }
+                }
+                Spacer(Modifier.width(10.dp))
                 Column {
-                    Text("${s.childName}네 기록", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
-                    Text("부모만 보는 화면", fontSize = 11.sp, color = PSub)
+                    Text("부모 모드", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
+                    Text("${s.childName}네 기록 · 어른만", fontSize = 11.sp, color = PSub)
                 }
             }
-            Spacer(Modifier.height(16.dp))
-            // 「계정」 탭 (09-29) — 로그인 정보 · 로그아웃 · 회원 탈퇴 (Google Play 요건). 탭은 흐름이 이름만 받아 바꾼다
-            listOf(Triple("rec", "📋", "오늘의 기록"), Triple("coop", "🤝", "협업 질문"), Triple("ach", "🏅", "업적"), Triple("set", "⚙️", "설정"), Triple("acct", "👤", "계정")).forEach { (k, e, t) ->
-                val on = tab == k
+            PTABS.forEach { t ->
+                val on = t.key == cur.key
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 6.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .padding(bottom = 4.dp)
+                        .clip(RoundedCornerShape(16.dp))
                         .background(if (on) Color.White else Color.Transparent)
-                        .clickable { d.send(Reply.Tapped("tab:$k", t)) }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .clickable { d.send(Reply.Tapped("tab:${t.key}", t.title)) }
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(e, fontSize = 17.sp)
-                    Spacer(Modifier.width(8.dp))
-                    Text(t, fontSize = 15.sp, color = if (on) Ink else PSub, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal)
-                    if (on) {
-                        Spacer(Modifier.weight(1f))
-                        Box(Modifier.size(6.dp).clip(CircleShape).background(PAccent))
-                    }
+                    Box(Modifier.width(4.dp).height(26.dp).clip(RoundedCornerShape(2.dp)).background(if (on) PAccent else Color.Transparent))
+                    Spacer(Modifier.width(6.dp))
+                    TabIcon(t, 36.dp, on)
+                    Spacer(Modifier.width(10.dp))
+                    Text(t.title, fontSize = 15.sp, color = if (on) Ink else PSub, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium)
                 }
             }
             Spacer(Modifier.weight(1f))
-            Box(
+            Row(
                 Modifier
                     .fillMaxWidth()
-                    .height(44.dp)
-                    .felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 2.dp, texture = false)
-                    .clickable { d.send(Reply.Tapped("home", "처음으로")) },
-                contentAlignment = Alignment.Center,
-            ) { Text("아이 화면으로", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold) }
+                    .height(50.dp)
+                    .felt(PAccent, RoundedCornerShape(Radius.Round), lift = 3.dp, texture = false)
+                    .clickable { d.send(Reply.Tapped("home", "처음으로")) }
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                AssetImage("pi_home", Modifier.size(30.dp)) { Text("🏠", fontSize = 18.sp) }
+                Spacer(Modifier.width(8.dp))
+                Text("아이 화면으로", fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.Bold)
+            }
         }
         // ── 오른쪽 내용
         Column(Modifier.weight(1f).fillMaxHeight()) {
-            // 고정 머리 — 화면 이름은 여기 (내용이 스크롤돼도 겹치지 않게)
+            // 고정 머리 — 탭 아이콘 · 이름 · 이 탭에서 보는 것 (내용이 스크롤돼도 겹치지 않게)
             Row(
-                Modifier.fillMaxWidth().background(PBg).padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 8.dp),
+                Modifier.fillMaxWidth().background(PBg).padding(start = 22.dp, end = 22.dp, top = 12.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("부모 모드", fontSize = 13.sp, color = PSub)
-                Text("  ›  ", fontSize = 13.sp, color = PSub)
-                Text(when (tab) { "coop" -> "협업 질문"; "ach" -> "업적"; "set" -> "설정"; "acct" -> "계정"; else -> "오늘의 기록" }, fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold)
+                TabIcon(cur, 46.dp, true)
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(cur.title, fontSize = 20.sp, color = Ink, fontWeight = FontWeight.Bold)
+                    Text(cur.desc, fontSize = 12.sp, color = PSub, maxLines = 1)
+                }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(PLine))
             Column(
@@ -161,9 +201,9 @@ private fun ParentViewBody(d: Director, tab: String) {
                     .weight(1f)
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 18.dp)
+                    .padding(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 22.dp)
             ) {
-                when (tab) {
+                when (cur.key) {
                     "coop" -> CoopQuestionsTab(d)
                     "ach" -> AchievementsTab(d)
                     "set" -> SettingsTab(d)
@@ -183,9 +223,29 @@ private fun ParentViewBody(d: Director, tab: String) {
 private fun RecordTab(d: Director) {
     val s = d.s
     if (s.title == null && s.quotes.isEmpty()) {
+        // 빈 화면도 막다른 곳이 아니게 — 무엇이 여기에 생기는지 보여 주고, 아이 화면으로 돌아갈 길 (09-29)
         PCard(Modifier.fillMaxWidth()) {
-            Text("오늘은 아직 만든 책이 없어요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
-            Text("아이와 이야기를 하나 만들면 여기에 기록이 생겨요.", fontSize = 13.sp, color = PSub)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AssetImage("otto_pose_think", Modifier.size(120.dp)) { Text("📖", fontSize = 48.sp) }
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("오늘은 아직 만든 책이 없어요", fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("아이와 이야기를 하나 만들면 여기에 생겨요.", fontSize = 13.sp, color = PSub)
+                    Spacer(Modifier.height(10.dp))
+                    listOf("💬" to "아이가 한 말 그대로", "📖" to "만든 책과 쪽수", "🎙" to "말로 · 그림으로 답한 횟수").forEach { (e, t) ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+                            Text(e, fontSize = 13.sp); Spacer(Modifier.width(6.dp)); Text(t, fontSize = 13.sp, color = Ink)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Box(
+                Modifier.fillMaxWidth().height(46.dp).felt(PMint, RoundedCornerShape(Radius.Round), lift = 2.dp, texture = false)
+                    .clickable { d.send(Reply.Tapped("home", "처음으로")) },
+                contentAlignment = Alignment.Center,
+            ) { Text("아이 화면에서 이야기 만들기", fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.Bold) }
         }
         return
     }
@@ -643,7 +703,8 @@ private fun AchievementsTab(d: Director) {
                         .padding(10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(if (got) "🧩" else "❔", fontSize = 22.sp)
+                    if (got) AssetImage("gift_book", Modifier.size(40.dp)) { Text("🧩", fontSize = 22.sp) }
+                    else Box(Modifier.size(40.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) { Text("?", fontSize = 18.sp, color = PSub, fontWeight = FontWeight.Bold) }
                     Text(t, fontSize = 12.sp, color = if (got) Ink else PSub)
                 }
             }
@@ -652,13 +713,22 @@ private fun AchievementsTab(d: Director) {
     Section("받은 선물", "아이가 한 일로만 받아요 · 많이 말한 것 · 빨리 한 것에는 주지 않아요")
     val items = s.achievements.filterNot { it.startsWith("해결 방법 도감") }
     if (items.isEmpty()) {
-        Text("아직 없어요", fontSize = 13.sp, color = PSub)
+        PCard(Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AssetImage("pi_achieve", Modifier.size(56.dp).alpha(0.45f)) { Text("🏅", fontSize = 28.sp) }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("아직 받은 선물이 없어요", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
+                    Text("미션을 스스로 해내거나 직접 그림을 그리면 받아요", fontSize = 12.sp, color = PSub)
+                }
+            }
+        }
     }
     items.chunked(3).forEach { row ->
         Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             row.forEach { a ->
                 PCard(Modifier.weight(1f)) {
-                    Text(if (a.contains("크레용")) "🌈" else "🏅", fontSize = 22.sp)
+                    AssetImage(if (a.contains("크레용")) "gift_crayon" else "pi_achieve", Modifier.size(44.dp)) { Text(if (a.contains("크레용")) "🌈" else "🏅", fontSize = 22.sp) }
                     Text(a, fontSize = 13.sp, color = Ink, fontWeight = FontWeight.Bold)
                 }
             }
@@ -836,22 +906,37 @@ fun PinView(d: Director, stage: Stage.Pin) = ParentText { PinViewBody(d, stage) 
 
 @Composable
 private fun PinViewBody(d: Director, stage: Stage.Pin) {
-    // 09-29 디자인 시스템 — **비밀번호 4자리 대신 태어난 해** (부모 PIN 을 만들지 않는다 · Lingokids · ABCmouse).
-    // 흐름(`Director.pinGate`)은 그대로 둔다: 맞는 해를 넣으면 「통과」, 닫기는 「취소」 신호를 보낸다
+    // 09-29 사용자 — 「비밀번호를 태어난 해로 하지 말고 직접 설정하게」. 처음 설정에서 정한 **부모 비밀번호 네 자리**로 연다.
+    //   잊었으면 → 보호자 태어난 해 확인 → 새 비밀번호. 정한 적이 없으면(처음 설정 전에 설치한 폰) 여기서 먼저 정한다.
+    // 흐름(`Director.pinGate`)은 그대로 둔다: 통과하면 「통과」, 닫기는 「취소」 신호를 보낸다
     val start = stage.purpose == "start"
+    var mode by remember { mutableStateOf(if (com.example.finalproject_demo.ui.shell.Shell.hasPin) "check" else "create") }
+    fun pass() = d.send(Reply.Tapped("pin:ok", "통과"))
     com.example.finalproject_demo.ui.shell.ObFrame(
         step = null,
-        title = if (start) "어른 확인" else "부모 영역",
-        // 09-29 사용자 — 「비번이 뭐야 설정한 적 없는데」. 비밀번호가 아니라 **보호자 태어난 해**라는 것을 먼저 말한다
-        sub = "따로 정한 비밀번호는 없어요. 보호자님이 태어난 해(예: 1988)를 넣으면 열려요.",
-        onBack = { d.send(Reply.Tapped("pin:cancel", "취소")) },
+        title = when (mode) { "forgot" -> "비밀번호를 잊었어요"; "create" -> "부모 비밀번호 정하기"; else -> if (start) "어른 확인" else "부모 영역" },
+        sub = when (mode) {
+            "forgot" -> "보호자님이 태어난 해를 확인한 뒤 새 비밀번호를 정해요."
+            "create" -> "아직 정한 비밀번호가 없어요. 부모 영역을 열 네 자리를 정해 주세요."
+            else -> if (start) "이야기를 시작하려면 부모 비밀번호를 넣어 주세요." else "처음 설정에서 정한 부모 비밀번호를 넣어 주세요."
+        },
+        onBack = { if (mode == "forgot") mode = "check" else d.send(Reply.Tapped("pin:cancel", "취소")) },
         art = {
-            Box(Modifier.size(110.dp).felt(FeltTeal, CircleShape), contentAlignment = Alignment.Center) { Text("🔒", fontSize = 48.sp) }
+            AssetImage("pi_lock", Modifier.size(170.dp)) { Box(Modifier.size(110.dp).felt(FeltTeal, CircleShape), contentAlignment = Alignment.Center) { Text("🔒", fontSize = 48.sp) } }
         },
     ) {
-        com.example.finalproject_demo.ui.shell.YearPad(
-            onPass = { d.send(Reply.Tapped("pin:ok", "통과")) },
-            note = "3번 틀리면 30초 기다려요",
-        )
+        when (mode) {
+            "check" -> {
+                com.example.finalproject_demo.ui.shell.PinPad(
+                    "부모 비밀번호", "3번 틀리면 30초 기다려요",
+                    onDone = { com.example.finalproject_demo.ui.shell.Shell.checkPin(it).also { ok -> if (ok) pass() } },
+                )
+                Spacer(Modifier.height(4.dp))
+                Text("비밀번호를 잊었어요", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = PAccent,
+                    modifier = Modifier.clickable { mode = "forgot" }.padding(vertical = 8.dp))
+            }
+            "forgot" -> com.example.finalproject_demo.ui.shell.YearPad(onPass = { mode = "create" }, note = "3번 틀리면 30초 기다려요")
+            else -> com.example.finalproject_demo.ui.shell.PinCreate(onSet = { com.example.finalproject_demo.ui.shell.Shell.setPin(it); pass() })
+        }
     }
 }
