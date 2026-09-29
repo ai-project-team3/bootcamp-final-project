@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     typecast_model: str = "ssfm-v30"
     typecast_voice_id: str = "tc_65a8c82a7e7bded32947497e"
 
+    # 09-21 recipe (results.md): SDXL base + Lightning 8-step, 3.74 s alone · 3.86 s beside large-v3
+    comfy_url: str = "http://127.0.0.1:8188"
+    image_ckpt: str = "sd_xl_base_1.0.safetensors"
+    image_lora: str = "sdxl_lightning_8step_lora.safetensors"
+    # under the app's 15 s preset line (rule 8), so the answer lands before the app gives up
+    image_deadline_s: float = 13.0
+    # rule 8: our image model has no safety filter — every picture is checked
+    moderation_model: str = "omni-moderation-latest"
+
     port: int = 8000
 
 

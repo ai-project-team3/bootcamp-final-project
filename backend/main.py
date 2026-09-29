@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from app.config import settings
-from app.routers import judge, story, stt, tts, turn
+from app.routers import image, judge, story, stt, tts, turn
 
 app = FastAPI(title="말로 짓는 인형극")
 app.include_router(judge.router)
@@ -24,6 +24,7 @@ app.include_router(story.router)
 app.include_router(stt.router)
 app.include_router(tts.router)
 app.include_router(turn.router)
+app.include_router(image.router)
 
 
 # Spec §3-0: every error has one shape. The app reads `error`, never the status text.
