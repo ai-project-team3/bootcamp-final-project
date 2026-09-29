@@ -121,16 +121,20 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .merge-btn.on{display:block}
 #btn-split{right:22cqw}
 #btn-look{right:38cqw}
-.pick{position:absolute;right:1cqw;top:6cqw;width:20cqw;bottom:12.5cqw;background:rgba(255,247,236,.97);border-radius:2.4cqw;box-shadow:0 .8cqw 1.8cqw rgba(58,42,32,.22);display:none;flex-direction:column;align-items:center;gap:.8cqw;padding:1cqw;z-index:6}
+.pick{position:absolute;left:3cqw;right:3cqw;top:5.5cqw;bottom:12.5cqw;background:rgba(255,247,236,.98);border-radius:3cqw;box-shadow:0 1cqw 2.4cqw rgba(58,42,32,.25);display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.4cqw;padding:1.6cqw 2cqw;z-index:7}
 .pick.on{display:flex}
-.pick b{font-size:2.2cqw;font-weight:400}
-.pick .x{position:absolute;top:.5cqw;right:.6cqw;border:none;background:none;font-size:1.8cqw;cursor:pointer;color:var(--app-ink-soft)}
-.look{background:#fff;border:.35cqw solid transparent;border-radius:1.6cqw;padding:.5cqw;display:flex;align-items:center;gap:.8cqw;cursor:pointer;font-family:var(--kid);color:var(--app-ink);width:100%;flex:1;min-height:0}
-.look img{height:100%;max-height:7cqw;width:7cqw;object-fit:contain;flex:none}
-.look span{font-size:2cqw;text-align:left;line-height:1.2;white-space:nowrap}
+.pick b{font-size:2.8cqw;font-weight:400}
+.pick .row{display:flex;gap:2.4cqw;justify-content:center;width:100%;flex:1;min-height:0}
+.pick .x{position:absolute;top:1.2cqw;right:1.6cqw;border:none;background:var(--wool-cream);border-radius:3cqw;padding:.6cqw 1.8cqw;font-family:var(--kid);font-size:2cqw;cursor:pointer;color:var(--app-ink)}
+.look{background:#fff;border:.5cqw solid transparent;border-radius:2.4cqw;padding:1cqw;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8cqw;cursor:pointer;font-family:var(--kid);color:var(--app-ink);width:24cqw;min-height:0;box-shadow:0 .5cqw 1cqw rgba(58,42,32,.15);transition:transform .12s}
+.look:active{transform:scale(.97)}
+.look img{flex:1;min-height:0;width:100%;object-fit:contain}
+.look span{font-size:2.3cqw;white-space:nowrap}
 .look[aria-pressed="true"]{border-color:var(--mustard)}
+.ask-btn.ready{background:var(--coral);color:#fff;animation:glow 1.2s ease-in-out infinite}
+.ask-btn.ready img{border-radius:1cqw;background:#fff;object-fit:contain}
 .tray.narrow{right:20cqw}
-.ring .tag.ready{pointer-events:auto;cursor:pointer;background:var(--coral);color:#fff;animation:glow 1.2s ease-in-out infinite}
+.ring .tag.ready{background:var(--coral);color:#fff;animation:glow 1.2s ease-in-out infinite}
 @keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(232,96,76,.5)}50%{box-shadow:0 0 0 .8cqw rgba(232,96,76,0)}}
 @media (prefers-reduced-motion:reduce){.ring .tag.ready{animation:none}}
 .sticker em.ready{animation:glow 1.2s ease-in-out infinite}
@@ -339,6 +343,7 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
           <li><b>인식 낱말은 질문 문구에만 쓴다(규칙 5).</b> 조각 이름은 아이가 말한 것만 붙는다. "집처럼 보이네"에 "모래성이야"라고 하면 모래성이다</li>
           <li><b>책은 아이 그림을 다시 그리지 않는다(차별점 1).</b> 원본 선을 오려서 옮기고 돌리고 키울 뿐이다. 오리기는 폰 안에서 한다</li>
     <li><b>[너도 그려줘]를 누르면 오또가 "나도 강아지 그려 볼까?"</b> — "응!"이면 "나도 그려 보고 보여줄게! 너도 더 그리고 있어." 이름이 없으면 먼저 "이거 뭐 그린 거야?". 말로 "강아지 멋지게 그려줘"라고 해도 된다</li>
+          <li><b>오또 그림이 오면 이름표엔 ✨만 붙고, 여는 곳은 화이트보드 밖 오또 버튼이다</b> — 그리다 잘못 누를 일이 없게. 버튼이 「오또 그림 왔어!」로 바뀌고, 누르면 크게 보며 고른다</li>
           <li><b>오또 그림은 뒤에서 만든다.</b> 화면은 그대로이고 아이는 계속 그린다. 다 되면 이름표에 ✨가 붙고 오또가 멈춘 틈에 알려 준다. ✨를 누르면 옆에 작은 고르기 칸 — 원본이 첫 번째. 8초 넘으면 "조금 뒤에 올 거야", 15초면 원본 그대로</li>
           <li>인식은 여기서 간단한 모양 규칙으로 흉내 냈다. 실제는 폰 안 ML Kit AutoDraw → 낱말만 Jev (확신 0.6 미만이면 "이건 뭐 그린 거야?"로 연다)</li>
         </ul>
@@ -540,7 +545,7 @@ function drawRings(){
   $('rings').innerHTML = objects().filter(o => o.name || o.key === curKey).map(o => {
     const p = 16, b = o.box, l = (b.x0-p)/LW*100, t = (b.y0-p)/LH*100, w = (b.x1-b.x0+2*p)/LW*100, h = (b.y1-b.y0+2*p)/LH*100;
     const ready = lookReady(o);
-    return `<div class="ring ${o.key===curKey ? (S.cur && S.cur.point ? 'point' : '') : 'named'}" style="left:${l}%;top:${t}%;width:${w}%;height:${h}%">${o.name?`<span class="tag${ready?' ready':''}" ${ready?`data-pick="${o.key}" role="button" aria-label="${o.name} 새 모습 보기"`:''}>${ready?'✨ ':''}${o.name}</span>`:''}</div>`;
+    return `<div class="ring ${o.key===curKey ? (S.cur && S.cur.point ? 'point' : '') : 'named'}" style="left:${l}%;top:${t}%;width:${w}%;height:${h}%">${o.name?`<span class="tag${ready?' ready':''}">${ready?'✨ ':''}${o.name}</span>`:''}</div>`;
   }).join('') + (bgView() ? `<span class="bgtag" style="left:${bgView().box.x0/LW*100}%;top:${(bgView().box.y0-22)/LH*100}%">배경</span>` : '');
 }
 function lpos(e){ const r = cv.getBoundingClientRect(); return [(e.clientX-r.left)/r.width*LW, (e.clientY-r.top)/r.height*LH]; }
@@ -650,7 +655,7 @@ function goD1(){
   drawingOpts();
 }
 function drawingOpts(){
-  $('btn-ask').style.display = S.genOn ? '' : 'none'; $('btn-ask').disabled = !S.strokes.length;
+  renderAskBtn();
   if (S.scr !== 'd1' || S.cur) return;
   const list = [];
   const handDrawn = S.strokes.some(st => !st.sample);
@@ -661,8 +666,8 @@ function drawingOpts(){
   list.push({label:'👆 [다 그렸어]', run:() => $('btn-done').click()});
   if (S.genOn){
     const named = objects().filter(o => o.name);
-    if (S.strokes.length) list.push({label:'👆 [너도 그려줘] 누르기', hint:'방금 그린 걸 오또도 그려 볼지 묻는다', wide:true, run:() => $('btn-ask').click()});
-    named.filter(lookReady).forEach(o => list.push({label:`👆 ✨ 「${o.name}」 이름표 누르기`, hint:'옆에 고르기 칸이 뜬다. 계속 그릴 수 있다', wide:true, run:() => openPick(o.key)}));
+    if (S.strokes.length && !named.some(lookReady)) list.push({label:'👆 [너도 그려줘] 누르기', hint:'방금 그린 걸 오또도 그려 볼지 묻는다', wide:true, run:() => $('btn-ask').click()});
+    if (named.some(lookReady)) list.push({label:'👆 [오또 그림 왔어!] 버튼 누르기', hint:'크게 보고 고른다', wide:true, run:() => $('btn-ask').click()});
     named.filter(o => !S.gen[o.key]).forEach((o, i) => {
       list.push({label:`🗣 "${o.name} 멋지게 그려줘!"`, hint:'뒤에서 만든다. 그동안 계속 그린다', run:() => { S.utter++; requestLook(o); }});
       if (i === 0) list.push({label:`🗣 "${o.name} 그려줘" (시연: 느린 생성)`, hint:'8초 안내 → 15초면 원본', run:() => { S.utter++; requestLook(o, true); }});
@@ -976,7 +981,7 @@ function genTick(){
   for (const [k, g] of Object.entries(S.gen)){
     if (g.state !== 'making') continue;
     const o = pieceOf(+k), t = now - g.t0; if (!o){ g.state = 'failed'; continue; }
-    if (!g.slow && t >= GEN_MS){ g.state = 'ready'; notify(`짠! 나도 ${eul(o.name)} 그려 봤어! ${S.scr === 'd2' ? '반짝이는 그림을' : '반짝이는 이름표를'} 눌러 봐.`, o.key); log(`「${o.name}」 생성 도착 · 검사 통과 (시연) → 이름표에 ✨`); refreshGen(); }
+    if (!g.slow && t >= GEN_MS){ g.state = 'ready'; notify(`짠! 나도 ${eul(o.name)} 그려 봤어! ${S.scr === 'd2' ? '반짝이는 그림을' : '반짝이는 오또 버튼을'} 눌러 봐.`, o.key); log(`「${o.name}」 생성 도착 · 검사 통과 (시연) → 이름표에 ✨`); refreshGen(); }
     else if (t >= 8000 && !g.lateSaid){ g.lateSaid = true; notify(`${o.name}${batchim(o.name)?'은':'는'} 조금만 더 그리고 보여줄게.`, o.key); log('8초 넘음 → "조금 뒤에 올 거야"'); }
     if (g.slow && t >= 15000){ g.state = 'failed'; notify(`${o.name}${batchim(o.name)?'은':'는'} 네 그림이 더 멋져서 그대로 갈게!`, o.key); log('15초 넘음 → 원본 그대로 (규칙 8)'); refreshGen(); }
   }
@@ -986,18 +991,32 @@ function genTick(){
   }
 }
 function refreshGen(){ if (S.scr === 'd1'){ drawRings(); drawingOpts(); } if (S.scr === 'd2'){ renderTray(); if (!S.pickFor) d2Opts(); } }
+function renderAskBtn(){
+  const btn = $('btn-ask'), ready = objects().filter(lookReady);
+  btn.style.display = S.genOn ? '' : 'none';
+  btn.classList.toggle('ready', ready.length > 0);
+  if (ready.length){
+    btn.disabled = false;
+    const o = ready[0], look = S.gen[o.key].look || 'felt';
+    btn.innerHTML = `<img src="${lookURL(o, look).url}" alt=""><span>오또 그림<br>왔어!${ready.length > 1 ? ` (${ready.length})` : ''}</span>`;
+    btn.setAttribute('aria-label', `오또가 그린 ${o.name} 보기`);
+  } else {
+    btn.disabled = !S.strokes.length;
+    btn.innerHTML = '<img src="img/diary_ui/face_talk.png" alt=""><span>너도<br>그려줘</span>';
+    btn.removeAttribute('aria-label');
+  }
+}
 function openPick(key){
   const o = pieceOf(key); if (!o) return;
   S.pickFor = key; S.gen[key].seen = true; S.notices = S.notices.filter(n => n.key !== key);
   const cur = o.pc.look || 'orig';
-  $('pick').innerHTML = `<button class="x" aria-label="닫기">✕</button><b>${o.name}</b>` +
-    LOOKS.map(L => `<button class="look" data-l="${L.id}" aria-pressed="${L.id===cur}"><img src="${lookURL(o, L.id).url}" alt=""><span>${L.short}</span></button>`).join('');
+  $('pick').innerHTML = `<button class="x">계속 그리기</button><b>${o.name}, 어떤 게 좋아?</b><div class="row">` +
+    LOOKS.map(L => `<button class="look" data-l="${L.id}" aria-pressed="${L.id===cur}"><img src="${lookURL(o, L.id).url}" alt=""><span>${L.name}</span></button>`).join('') + '</div>';
   $('pick').classList.add('on');
   if (S.scr === 'd1'){ ['btn-done','btn-skip','btn-ask'].forEach(id => $(id).style.visibility = 'hidden'); drawRings(); }
-  if (S.scr === 'd2') $('tray').classList.add('narrow');
-  band(`${o.name}, 어떤 게 좋아? 네 그림도 내 그림도 좋아. 그리면서 골라도 돼.`, 'talk');
-  log(`「${o.name}」 고르기 칸을 옆에 연다 — 화이트보드는 그대로 쓸 수 있다. 원본이 첫 번째`);
-  opts([...LOOKS.map(L => ({label:`👆 「${L.name}」`, run:() => pickLook(L.id)})), {label:'👆 ✕ 닫기', wide:true, run:closePick}]);
+  band(`네 그림도 내 그림도 좋아. 마음에 드는 걸 눌러 줘!`, 'talk');
+  log(`「${o.name}」 크게 보기 — 아이가 화이트보드 밖 버튼을 눌러서 연다. 원본이 첫 번째`);
+  opts([...LOOKS.map(L => ({label:`👆 「${L.name}」`, run:() => pickLook(L.id)})), {label:'👆 [계속 그리기]', wide:true, run:closePick}]);
 }
 function pickLook(id){
   const o = pieceOf(S.pickFor); if (!o) return;
@@ -1011,14 +1030,19 @@ function closePick(msg){
   ['btn-done','btn-skip','btn-ask'].forEach(id => $(id).style.visibility = '');
   if (typeof msg === 'string') band(msg, 'talk');
   refreshGen(); if (S.scr === 'd1') drawingOpts();
+  renderAskBtn();
 }
 $('pick').onclick = e => { if (e.target.closest('.x')) return closePick(); const b = e.target.closest('.look'); if (b) pickLook(b.dataset.l); };
-$('rings').onclick = e => { const t = e.target.closest('[data-pick]'); if (t) openPick(+t.dataset.pick); };
 $('btn-look').onclick = () => {
   if (S.sel.length !== 1) return; const o = pieceOf(S.sel[0]);
   if (lookReady(o) || (S.gen[o.key] && S.gen[o.key].state === 'ready')) openPick(o.key); else askToDraw(o);
 };
-$('btn-ask').onclick = () => { if (S.cur || S.pickFor) return; askToDraw(askTarget()); };
+$('btn-ask').onclick = () => {
+  if (S.pickFor) return;
+  const ready = objects().filter(lookReady);
+  if (ready.length){ S.cur = null; openPick(ready[0].key); return; }
+  if (S.cur) return; askToDraw(askTarget());
+};
 $('tray').onclick = e => {
   const b = e.target.closest('button.sticker'); if (!b) return; const k = +b.dataset.k;
   if (S.genOn && lookReady(pieceOf(k))){ openPick(k); return; }
@@ -1127,7 +1151,7 @@ function d2Opts(){
   if (S.sel.length === 2) list.push({label:'👆 [붙이기]', wide:true, run:() => $('btn-merge').click()});
   if (S.sel.length === 1) list.push({label:'👆 [✂️ 자르기]', hint:'가위 화면에서 떼어 낼 선을 고른다', wide:true, run:() => $('btn-split').click()});
   if (S.sel.length === 1 && S.genOn){ const o = pieceOf(S.sel[0]); if (o && o.name && !S.gen[o.key]) list.push({label:`🗣 "${o.name} 멋지게 그려줘!"`, hint:'뒤에서 만든다. 그동안 계속 고칠 수 있다', wide:true, run:() => requestLook(o)}); }
-  objects().filter(lookReady).forEach(o => list.push({label:`👆 반짝이는 「${o.name}」 누르기`, hint:'새 모습 고르기', wide:true, run:() => openPick(o.key)}));
+  objects().filter(lookReady).forEach(o => list.push({label:`👆 반짝이는 「${o.name}」 누르기`, hint:'크게 보고 고른다', wide:true, run:() => openPick(o.key)}));
   if (!S.sel.length) list.push({label:'👆 조각을 눌러 고르기', hint:'하나 → 자르기 · 둘 → 붙이기. 잘못 묶인 게 있을 때만', wide:true, run:() => { const os = objects(); if (os.length){ S.sel = [os[0].key]; renderTray(); d2Opts(); } }});
   list.push({label:'⏭ 다음', hint:'이름 없는 조각 · 빈 필수 칸만 묻는다', wide:true, run:goD3});
   opts(list);
