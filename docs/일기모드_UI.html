@@ -420,6 +420,7 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
           <li><b>그리는 중에도 묻는다. 단, 선과 선 사이 짧은 틈에만.</b> 선이 두 개쯤 쌓이면 "지금 그리는 건 뭐야?" — 계속 그려도 되고 아무 때나 답하면 된다. 긋는 중에는 끼어들지 않고 질문 사이는 그리는 중 3초 · 멈춘 뒤 5초</li>
           <li><b>다른 곳으로 옮겨 그려도 앞 조각을 "다 그렸다"고 보지 않는다.</b> 돌아와 그 조각 안쪽에 이어 그리면 "다시 강아지 그리는구나!" — 그 선은 그 조각의 것이다. 바깥으로 크게 뻗는 선(땅 등)만 "더 그린 거야, 새로 그린 거야?"로 묻는다. 물어본 조각을 두고 옮겨 가면 그 조각에 고리를 띄운 채 "이건 뭐 그린 거야?"</li>
           <li><b>그리기를 멈추면</b> 이름 없는 조각을 묻고, 없으면 이번에 그린 것들을 한꺼번에 칭찬("강아지랑 우리 집 멋지다!")한 뒤 이야기 질문으로 넘어간다</li>
+          <li><b>이름을 받고 다 그린 조각은 닫힌다.</b> 그 옆이나 앞에 새로 그리면(집 앞의 사람) 닿아도 새 조각이다. 창문처럼 그 안에 그린 것도 모양만으로는 집 앞의 사람과 구별이 안 되니 새 조각으로 두고 대화로 정한다 — "이건 뭐 그린 거야?"에 "우리 집에 그렸어" · "우리 집 창문" · "강아지 꼬리"처럼 옆 조각 이름으로 답하면 그 조각에 합치고, "엄마"면 따로 둔다</li>
           <li><b>조각은 선의 위치로 묶는다.</b> 가까운 선끼리 한 조각이다. 색도 시간도 보지 않는다. 떨어진 선이라도 <b>어떤 조각 영역 안에 절반 이상 들어가면</b> 그 조각(눈 · 무늬), <b>그리던 조각 가까이(그 크기의 35%, 12~20)</b>면 그 조각(떨어진 팔다리)이다. 단, 이름을 받은 두 조각을 한 선이 같이 건드려도 둘을 합치지 않는다. 그 선은 더 많이 겹친 쪽에만 붙는다</li>
           <li><b>무엇인지는 대화로 정한다.</b> 새 조각엔 "지금 그리는 건 뭐야?" · "이건 뭐 그린 거야?", 이름 받은 조각이 바깥으로 커지면 "모래성에 더 그린 거야, 새로 그린 거야?". "새로 그렸어, 땅이야"면 이름 뒤에 그은 선만 떼어 새 조각이 된다. 안쪽에만 더 그리면 묻지 않는다(문 · 창문)</li>
           <li><b>그래도 잘못 묶이면 D2에서 자른다.</b> 스티커 하나 → [✂️ 자르기] → 떼어 낼 선을 톡 누르거나 동그라미로 감싸기 → [떼어 내기] → 오또가 "이건 뭐 그린 거야?". 둘을 고르면 [붙이기]</li>
@@ -524,18 +525,28 @@ const pieceBox = pc => boxOf(pieceStrokes(pc).flatMap(s => s.p));
 const apart = (a,b) => S.apart.some(([x,y]) => (x === a.id && y === b.id) || (x === b.id && y === a.id));
 function newPiece(ids, extra={}){ const pc = {id:S.nextPiece++, ids, name:null, namedIds:[], asked:false, ...extra}; S.pieces.push(pc); return pc; }
 const boxGap = (a, b) => Math.hypot(Math.max(0, a.x0 - b.x1, b.x0 - a.x1), Math.max(0, a.y0 - b.y1, b.y0 - a.y1));
+// a named piece the child is no longer drawing takes only small details drawn inside it (a window, a door)
+const closedNamed = p => !!p.name && !p.open;
+function isDetail(s, p){
+  const pb = grow(pieceBox(p), 6), q = dense(s.p);
+  const inside = q.filter(([x,y]) => x >= pb.x0 && x <= pb.x1 && y >= pb.y0 && y <= pb.y1).length / q.length;
+  return inside >= 0.7 && area(boxOf(s.p)) < area(pieceBox(p)) * 0.25;
+}
 function assignStroke(s){
   const b = grow(boxOf(s.p), PAD);
-  const hits = S.pieces.filter(p => pieceStrokes(p).some(o => touch(b, boxOf(o.p))));
+  const touching = S.pieces.filter(p => pieceStrokes(p).some(o => touch(b, boxOf(o.p))));
+  const skipped = touching.filter(closedNamed);
+  if (skipped.length) log(`「${skipped.map(p => p.name).join('」 「')}」에 닿았지만 이미 다 그린 조각 → 새 조각으로 두고, 물을 때 "${skipped[0].name}에 그렸어"를 보기로 준다`);
+  const hits = touching.filter(p => !closedNamed(p));
   if (!hits.length){
     // mostly inside a piece's area (eyes in a face, a pattern on a shirt) → that piece
     const q = dense(s.p);
-    const inside = S.pieces.filter(p => p.ids.length).map(p => { const pb = grow(pieceBox(p), 6);
+    const inside = S.pieces.filter(p => p.ids.length && !closedNamed(p)).map(p => { const pb = grow(pieceBox(p), 6);
       return {p, k: q.filter(([x,y]) => x >= pb.x0 && x <= pb.x1 && y >= pb.y0 && y <= pb.y1).length / q.length}; })
       .filter(v => v.k >= 0.5).sort((x,y) => area(pieceBox(x.p)) - area(pieceBox(y.p)));
     if (inside.length){ inside[0].p.ids.push(s.id); log(`선의 ${Math.round(inside[0].k*100)}%가 「${inside[0].p.name || '조각'}」 영역 안 → 그 조각`); return; }
     // close to the piece being drawn, relative to its size (an arm or a leg drawn with a gap) → that piece
-    const cur = S.curPiece && S.pieces.find(p => p.id === S.curPiece && p.ids.length);
+    const cur = S.curPiece && S.pieces.find(p => p.id === S.curPiece && p.ids.length && !closedNamed(p));
     if (cur){
       const cb = pieceBox(cur), reach = Math.min(20, Math.max(12, Math.max(cb.x1-cb.x0, cb.y1-cb.y0) * 0.35)), gap = boxGap(boxOf(s.p), cb);
       if (gap < reach){ cur.ids.push(s.id); log(`그리던 「${cur.name || '조각'}」에서 ${Math.round(gap)} 떨어진 선 (허용 ${Math.round(reach)}) → 그 조각`); return; }
@@ -719,6 +730,7 @@ function onSwitch(before, st){
   const prev = pieceOf(before), cur = pieceOf(S.curPiece);
   if (prev) leavePiece(prev);
   if (!cur || cur.strokes.length < 2) return;                 // a brand-new piece
+  if (closedNamed(cur.pc)) return;                           // a detail on a finished piece does not reopen it
   // the line joined a piece drawn earlier: coming back to it, or something new touching it?
   const why = cur.name && outsideShare(st, cur.pc) > 0.3 ? foreignTo(st, cur) : null;
   if (!why){
@@ -733,7 +745,7 @@ function onSwitch(before, st){
 // the child moved to another place on the board. The piece may not be done — they can come back —
 // so nothing is praised yet; that waits until the drawing stops.
 function leavePiece(prev){
-  finishPiece(prev.pc);
+  if (prev.pc.open) prev.pc.namedIds = prev.pc.ids.filter(id => !strokeById(id).loose);   // still open: the child may come back without stopping
   if (S.cur && S.cur.kind === 'obj' && pieceIdOf(S.cur.sid) === prev.key && S.cur.during){
     S.cur.during = false; S.cur.point = true; band('이건 뭐 그린 거야?', 'listen');
     log('물어본 조각을 두고 다른 곳을 그린다 → 그 조각에 고리를 띄운 채 "이건 뭐 그린 거야?"');
@@ -831,7 +843,7 @@ function tick(){
   }
   if (since < IDLE_MS || now - S.lastQ < GAP_MS) return;
   // stopped drawing
-  if (cp) finishPiece(cp.pc);
+  S.pieces.forEach(finishPiece);   // stopping closes every piece: what comes next near them is new unless the child says otherwise
   const os = objects();
   const fresh = os.find(o => !o.name && !o.asked);
   if (fresh) return askObject(fresh, false);
@@ -864,7 +876,9 @@ function askObject(o, during){
                       : (sure ? `${g.label}처럼 보이네! 이건 뭐 그린 거야?` : '이건 뭐 그린 거야?');
   band(text, 'listen'); drawRings();
   log(`${during ? '선 사이 짧은 틈 → 그리는 중인 조각' : '그리기를 멈춤 → 이름 없는 조각'}에 고리 · 인식(시연) ${g.label} ${g.conf.toFixed(2)}${sure ? ' → 질문 문구에만' : ' → 0.6 미만이라 열어서 묻는다'}${during ? ' · 계속 그려도 되고 아무 때나 답하면 된다' : ''}`);
-  const list = NAMES.map(n => ({label:`🗣 "${iya(n)}!"`, run:() => objAnswer(n)}));
+  const near = objects().filter(x => x.key !== o.key && closedNamed(x.pc) && boxGap(o.box, x.box) < 30);
+  const list = near.map(x => ({label:`🗣 "${x.name}에 그렸어"`, hint:`${x.name}의 일부로 합친다`, wide:true, run:() => objAnswer(`${x.name}에 그렸어`)}));
+  NAMES.forEach(n => list.push({label:`🗣 "${iya(n)}!"`, run:() => objAnswer(n)}));
   list.push({label:'🗣 "몰라"', run:() => objAnswer(null, 'dunno')});
   list.push({label:'🤐 (말 없이 계속 그림)', run:() => objAnswer(null, 'silent')});
   opts(list, n => objAnswer(n));
@@ -873,9 +887,20 @@ function objAnswer(name, kind){
   const during = S.cur.during, genAfter = S.cur.genAfter, o = pieceOf(pieceIdOf(S.cur.sid)) || S.cur.obj;
   S.cur = null; S.lastQ = Date.now();
   if (name){
-    S.utter++; nameObject(o, name);
-    if (o.key === S.curPiece) o.pc.open = true;   // lines still to come on this piece belong to it
+    S.utter++;
+    // "강아지 꼬리" next to the dog → that part belongs to the dog: merge instead of naming a new piece
+    const owner = objects().find(x => x.key !== o.key && x.name && name !== x.name && name.startsWith(x.name) && boxGap(o.box, x.box) < 30);   // "강아지 꼬리" · "우리 집에 그렸어" · "우리 집 창문"
+    if (owner){
+      owner.pc.ids.push(...o.pc.ids); owner.pc.namedIds.push(...o.pc.ids); S.pieces = S.pieces.filter(p => p !== o.pc);
+      if (S.curPiece === o.key) S.curPiece = owner.key;
+      band(`${you(owner.name)}에 붙여 둘게!`, 'talk');
+      log(`아이: "${iya(name)}" → 옆의 「${owner.name}」의 일부라서 합친다 (대화로 묶기)`);
+      redraw(); renderObjs(); renderMeter(); drawingOpts(); if (S.scr === 'd2'){ renderTray(); d2Opts(); }
+      return;
+    }
+    nameObject(o, name);
     const drawing = Date.now() - S.lastPen < IDLE_MS, here = o.key === S.curPiece;
+    if (here && drawing) o.pc.open = true;   // named mid-drawing: the lines still to come belong to it
     if (!drawing) S.praised[o.key] = true;
     const yn = you(name);
     band(!here ? `아, ${yn}${batchim(yn) ? '이었' : '였'}구나!` : drawing ? `${yn} 그리는구나! 계속 그려 봐.` : `${yn}! 멋지다.`, 'talk');
