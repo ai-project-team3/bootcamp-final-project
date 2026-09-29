@@ -472,8 +472,19 @@ private suspend fun Director.sceneMakeHero() {
         attr = when (key) {
             "hair" -> attr.copy(hair = v)
             "glasses" -> attr.copy(glasses = v)
-            else -> attr.copy(shirt = Color(v.toLong(16) or 0xFF000000))
+            // 빈 값 · 이상한 값이면 옷을 그대로 둔다 — 전에는 여기서 앱이 죽었다 (09-29 「드레스」)
+            else -> v.toLongOrNull(16)?.let { attr.copy(shirt = Color(it or 0xFF000000)) } ?: attr
         }
+    }
+
+    /** 대본 답이면 꼬리표로, 진짜 말이면 글자에서 찾는다. 못 찾으면 모습을 그대로 둔다 */
+    fun applySpoken(key: String?, r: Reply.Spoke) {
+        val found = (if (key != null) r.value.takeIf { it.isNotBlank() }?.let { key to it } else null)
+            ?: r.value.split(":").takeIf { it.size == 2 }?.let { it[0] to it[1] }
+            ?: heroValueIn(key, r.text)
+        if (found == null) { log("\"${r.text}\" 에서 바꿀 모습을 못 찾음 → 그대로 둔다"); return }
+        apply(found.first, found.second)
+        log("\"${r.text}\" → ${found.first}=${found.second}")
     }
 
     suspend fun voiceStep(from: Int) {
@@ -482,7 +493,7 @@ private suspend fun Director.sceneMakeHero() {
             s.stage = Stage.HeroShow(if (i == 0) null else attr, if (i == 0) "주인공 만드는 중 — 마이크로 말해 줘" else "이렇게 되고 있어 — 마이크로 말해 줘")
             val r = ask(Question(text = q.text, kind = Kind.EASY, spoken = q.spoken, easierText = q.easier, easierAsk = "골라 볼래?", choices = q.cards))
             when (r) {
-                is Reply.Spoke -> { apply(q.key, r.value); log("Whisper → \"${r.text}\" → 속성값 ${q.key}=${r.value} (발화 원문 아님 · 음성 사본 즉시 삭제)") }
+                is Reply.Spoke -> applySpoken(q.key, r)
                 is Reply.Tapped -> apply(q.key, r.value)
                 else -> {}
             }
@@ -504,11 +515,7 @@ private suspend fun Director.sceneMakeHero() {
             )
         )
         when (r) {
-            is Reply.Spoke -> {
-                val (k, v) = r.value.split(":")
-                apply(k, v)
-                log("한 번에 한 가지만 · Whisper → \"${r.text}\" → $k=$v")
-            }
+            is Reply.Spoke -> applySpoken(null, r)          // 한 번에 한 가지만
             is Reply.Tapped -> {
                 val idx = questions.indexOfFirst { it.key == r.value }
                 if (idx >= 0) voiceStep(idx)

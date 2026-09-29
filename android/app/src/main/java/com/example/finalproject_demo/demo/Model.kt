@@ -132,6 +132,28 @@ private val PARTNER_WORDS = listOf(
 
 fun partnerKeyIn(text: String): String? = PARTNER_WORDS.firstOrNull { (word, _) -> word in text }?.second
 
+/**
+ * 진짜 마이크로 들은 말에서 주인공 모습(머리 · 옷 색 · 안경)을 찾는다 (09-29 S25+).
+ * 대본 답의 꼬리표(`"F25C4C"` · `"hair:long"`)가 받아쓴 글자에는 없어서, 「드레스」라고 답하자
+ * 빈 꼬리표를 색으로 바꾸다 **앱이 죽었다.** 못 찾으면 null — 부르는 쪽은 모습을 그대로 둔다.
+ * [key] 가 있으면 그 부분만, 없으면(「어디를 바꿀까?」) 셋 다 본다.
+ */
+private val HERO_WORDS: Map<String, List<Pair<String, String>>> = mapOf(
+    "glasses" to listOf("동글" to "round", "동그란" to "round", "네모" to "square",
+        "안 써" to "none", "안써" to "none", "싫어" to "none", "없어" to "none"),
+    "hair" to listOf("짧" to "short", "길" to "long", "긴" to "long", "묶" to "tied"),
+    "shirt" to listOf("빨" to "F25C4C", "파랑" to "3F7BD9", "파란" to "3F7BD9", "하늘" to "3F7BD9",
+        "노랑" to "F9B233", "노란" to "F9B233", "초록" to "4CAF50", "녹색" to "4CAF50",
+        "분홍" to "F48FB1", "핑크" to "F48FB1", "보라" to "9C6ADE", "주황" to "F28C28",
+        "까만" to "333333", "검은" to "333333", "검정" to "333333", "하얀" to "F5F5F5", "흰" to "F5F5F5"),
+)
+
+fun heroValueIn(key: String?, text: String): Pair<String, String>? {
+    val keys = if (key != null) listOf(key) else listOf("glasses", "hair", "shirt")
+    for (k in keys) HERO_WORDS[k]?.firstOrNull { (word, _) -> word in text }?.let { return k to it.second }
+    return null
+}
+
 /** 아이가 그림판에 그린 선 하나. 좌표는 0~1로 정규화. */
 /**
  * 아이가 그린 선 하나. [pts]는 그림판 크기로 나눈 0~1 좌표, [w]는 **그림판 폭에 대한 붓 굵기**다.
