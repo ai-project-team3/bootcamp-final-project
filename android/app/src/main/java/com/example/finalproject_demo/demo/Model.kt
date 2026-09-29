@@ -1046,6 +1046,8 @@ class DemoState {
     var solutionLine by mutableStateOf("같이 별을 땄어요")
     var m1Result by mutableStateOf<String?>(null)
     var m2Result by mutableStateOf<String?>(null)
+    /** Server-written story scenes. Null keeps the existing template book for the scripted demo. */
+    var storyCaptions by mutableStateOf<List<String>?>(null)
     var bookPage by mutableStateOf(0)
 
     /** 책 화면 위쪽 안내 한 줄 (책은 전체 화면이라 마스코트 말풍선 대신 여기에) */
@@ -1237,7 +1239,7 @@ class DemoState {
         drawing.clear(); drawnPreset = 0; mouth = null
         sceneDrawing.clear(); sceneDrawingAspect = 1f
         friendName = "{친구1}"; causeLine = "친구가 없어서 심심했어"; soundLine = "뿌우우우웅!"
-        solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; bookPage = 0; bookNote = ""
+        solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; storyCaptions = null; bookPage = 0; bookNote = ""
         turn = 0; s1streak = 0; s1count = 0; noAnswerStreak = 0
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)

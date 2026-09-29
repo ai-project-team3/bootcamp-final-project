@@ -1020,9 +1020,12 @@ fun DemoState.autoTitleFor(): String {
 }
 
 /** 표지 · 쪽 수 · 자막 */
-val DemoState.pageCount: Int get() = (template?.pages?.size ?: 6)
+val DemoState.pageCount: Int get() =
+    if (!isDiary && !storyCaptions.isNullOrEmpty()) storyCaptions!!.size else (template?.pages?.size ?: 6)
 
 fun DemoState.pageKind(i: Int): PageKind = if (i == 0) PageKind.COVER else template?.pages?.getOrNull(i - 1)?.kind ?: PageKind.TOGETHER
 
 fun DemoState.bookCaption(i: Int): String =
-    if (i == 0) title ?: "우리 책" else template?.pages?.getOrNull(i - 1)?.text?.invoke(this) ?: ""
+    if (i == 0) title ?: "우리 책"
+    else if (!isDiary && !storyCaptions.isNullOrEmpty()) storyCaptions?.getOrNull(i - 1).orEmpty()
+    else template?.pages?.getOrNull(i - 1)?.text?.invoke(this) ?: ""

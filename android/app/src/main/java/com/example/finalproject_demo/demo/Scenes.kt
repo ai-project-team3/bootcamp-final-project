@@ -162,36 +162,6 @@ private fun valueOf(r: Reply): String? = when (r) {
 }
 
 /**
- * 8턴이 지나면 남은 칸은 마스코트가 채우고 책으로 넘어간다 (구현대본 §2).
- * 데모의 이야기 턴은 6개(장소 · 누가 · 까닭 · 이야기 잇기 2 · 해결)라 평소에는 걸리지 않는다.
- * 시연 서랍의 [8턴 지난 것으로]로 볼 수 있다.
- */
-private suspend fun Director.budgetOver(): Boolean {
-    if (s.turn < 8) return false
-    val left = mutableListOf<String>()
-    if (s.place == null) { s.place = s.placeName; left += "장소" }
-    if (s.problem == null) { s.problem = "${s.newcomerKind}${ga(s.newcomerKind)} ${s.th.vehicle}${eul(s.th.vehicle)} 흔듦"; left += "문제" }
-    if (s.cause == null) { s.cause = "심심해서"; s.causeLine = "친구가 없어서 심심했어"; left += "까닭" }
-    if (s.newcomer == null) {
-        if (s.friendName.startsWith("{")) s.friendName = "${s.newcomerKind} 친구"
-        s.newcomer = "${s.friendName} (프리셋)"; left += "등장인물"
-    }
-    if (s.sound == null) { s.sound = "기본 효과음"; left += "소리" }
-    if (s.solution == null) { s.solution = solutionText(); left += "해결" }
-    if (s.templateKey == null) {
-        val (t, a) = chooseTemplate(s.level, s.causeKind)
-        s.templateKey = t; s.attribute = a
-    }
-    buttons()
-    inputs(false, false)
-    say("이야기가 벌써 이만큼 됐네! 이제 책으로 만들어 볼까?")
-    log("8턴 상한 — 남은 칸(${left.joinToString(" · ").ifEmpty { "없음" }})을 마스코트가 채우고 책으로 넘어간다 (구현대본 §2)")
-    pause(1600)
-    go(Scene.MAKING)
-    return true
-}
-
-/**
  * 비밀번호 4자리. 맞으면 true, [취소]면 false.
  * 데모에서는 아무 숫자 4개면 통과한다.
  */
@@ -853,7 +823,6 @@ private suspend fun Director.sceneCause() {
 // ── 장면 6 · 그림판 (아이 그림 원본 그대로 · 이름 · 입 위치) ───────
 
 private suspend fun Director.sceneDraw() {
-    if (budgetOver()) return
     val nc = s.newcomerKind
     s.drawing.clear()
     s.stage = Stage.DrawPad()
@@ -908,7 +877,6 @@ private suspend fun Director.sceneDraw() {
 // ── 장면 6↳ · 이야기 잇기 — 템플릿이 정한 질문 2개 (질문 은행 · 4~5턴) ──
 
 private suspend fun Director.scenePlot() {
-    if (budgetOver()) return
     val t = s.template ?: templateOf(chooseTemplate(s.level, s.causeKind).first).also {
         s.templateKey = it.key; s.attribute = chooseTemplate(s.level, s.causeKind).second
     }
@@ -933,7 +901,6 @@ private suspend fun Director.scenePlot() {
     if (t.key == "C" || t.key == "G") s.stage = world((s.stage as Stage.World).items.map { it.copy(shake = it.art == s.th.vehicleArt) }, quake = true, bump = true)
     pause(1600)
     for (slot in t.plot) {
-        if (budgetOver()) return
         val (_, r) = askSlot(slot)
         val value = valueOf(r)
         if (value != null) {
@@ -958,7 +925,6 @@ private suspend fun Director.scenePlot() {
 // ── 장면 7 · 공룡도 데려갈래 (아이가 먼저 말함 → 되묻기 · 모호한 말 확인) ──
 
 private suspend fun Director.sceneDino() {
-    if (budgetOver()) return
     s.stage = world(
         listOf(
             WorldItem(s.th.vehicleArt, 0.54f, 0.22f, 0.13f, depth = 0.90f),
@@ -1016,7 +982,6 @@ private suspend fun Director.sceneDino() {
 // ── 장면 8 · 공룡 소리 (원본 녹음 · 다시 2번 · 폰 밖으로 안 나감) ───
 
 private suspend fun Director.sceneSound() {
-    if (budgetOver()) return
     val d = s.dino
     var left = 2
     var retried = false
@@ -1222,7 +1187,6 @@ private suspend fun Director.sceneCheck() {
 // ── 장면 10 · 이야기 매듭짓기 — 해결(질문 은행) → 템플릿 마무리 질문 → 마음 → 함께 하는 사람 ──
 
 private suspend fun Director.sceneSolution() {
-    if (budgetOver()) return
     val f = s.friendName
     val t = s.template ?: templateOf("C")
     s.stage = world(
