@@ -123,7 +123,9 @@ class Director(private val scope: CoroutineScope) {
         if (!Server.liveFor(s.mode)) { delay(total); return }
         val t0 = System.currentTimeMillis()
         awaitVoice()
-        delay(maxOf(total - (System.currentTimeMillis() - t0), 250L))
+        // 최소 쉬는 틈도 속도를 따른다 — 고정 250ms 는 테스트의 빨리 감기(speed 0.01)를 무시해서, 질문이
+        // 준비되기 전에 온 답이 버려지고(ask 는 그 전 입력을 버린다) 서버 모드 테스트가 멈췄다(09-29 StoryLiveAskTest)
+        delay(maxOf(total - (System.currentTimeMillis() - t0), (250 * s.speed).toLong()))
     }
 
     /**
@@ -163,7 +165,9 @@ class Director(private val scope: CoroutineScope) {
     private var voiceJob: Job? = null
 
     private fun speakLive(text: String) {
-        if (!Server.liveFor(s.mode) || text.isBlank()) return
+        // 소리를 낼 수 없으면(단위 테스트 — Voice 가 붙지 않았다) 목소리를 청하지도 않는다.
+        // 들리지 않을 목소리 때문에 가짜 서버 주소로 대사마다 연결을 시도할 까닭이 없다
+        if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text, ConsentStore.nameVoiceAgreed)
         val before = voiceJob
         val audio = scope.async { Server.tts(line) }          // 앞 대사를 읽는 동안 미리 받는다
