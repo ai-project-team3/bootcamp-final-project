@@ -110,6 +110,17 @@ class ServerClientTest {
     }
 
     @Test
+    fun imageGivesPngBytesAndPresetMeansNull() = runBlocking {
+        json("/image", """{"preset":false,"reason":"ok","scene":"a beach","png_base64":"iVBORw0KGgo="}""")
+        val png = Server.image("바닷가")!!
+        assertEquals(0x89.toByte(), png[0])
+        assertEquals("바닷가", JSONObject(seen.getValue("/image")).getString("place"))
+
+        json("/image", """{"preset":true,"reason":"check: flagged","scene":"x","png_base64":null}""")
+        assertNull("a flagged picture must never reach the screen", Server.image("동굴"))
+    }
+
+    @Test
     fun storySendsThePagePlanAndRefusesAShortBook() = runBlocking {
         val plan = listOf(Server.Page("DEPART"), Server.Page("RUB", "A1"), Server.Page("TOGETHER"))
         json("/story", """{"scenes":[{"index":1,"caption":"a","keywords":"x"},{"index":2,"caption":"b","keywords":"x"},{"index":3,"caption":"c","keywords":"x"}]}""")

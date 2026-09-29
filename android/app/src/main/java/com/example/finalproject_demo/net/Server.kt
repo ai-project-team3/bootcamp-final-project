@@ -191,6 +191,24 @@ object Server {
         } catch (e: Exception) { warn("/story parse", e); null }
     }
 
+    // ── /image ─────────────────────────────────────────────────────
+
+    /**
+     * A background for the place the child named, drawn and safety-checked on our GPU (rule 8).
+     * PNG bytes, or **null = use the preset** — the server said preset (blocked, not a place, slow,
+     * flagged), or the call failed. Call it the moment the place slot fills, in the background;
+     * the 8 s "조금 뒤에 올 거야" and the 15 s preset line stay the caller's. [place] must be name-masked.
+     */
+    suspend fun image(place: String, mode: String = "story"): ByteArray? {
+        val body = JSONObject().put("kind", "background").put("place", place).put("mode", mode)
+        // the server gives up at 13 s and answers preset, so 16 s only covers the network
+        val j = postJson("/image", body, readMs = 16_000) ?: return null
+        return try {
+            if (j.optBoolean("preset", true)) { Log.i(TAG, "/image preset: ${j.optString("reason")}"); null }
+            else android.util.Base64.decode(j.getString("png_base64"), android.util.Base64.DEFAULT)
+        } catch (e: Exception) { warn("/image parse", e); null }
+    }
+
     // ── /stt ───────────────────────────────────────────────────────
 
     /**
