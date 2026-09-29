@@ -67,7 +67,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .frame.asking .band::before{content:"";position:absolute;left:-1.8cqw;top:50%;width:2.2cqw;height:2.2cqw;margin-top:-1.1cqw;background:#fff;clip-path:polygon(100% 0,0 55%,100% 100%);z-index:1}
 .frame.asking .band .face{display:none}
 .frame.asking .band .line{font-size:2.6cqw}
-.frame.asking .echo{display:none}   /* Otto's bubble already says it */
+.frame.asking .echo{display:none}
+.frame.asking .page-card{padding:2cqw}   /* Otto's bubble already says it */
 /* narration band */
 .frame.drawing .band{left:1.2cqw;right:auto;bottom:1.2cqw;max-width:62cqw;min-height:0;gap:1.2cqw;padding:.6cqw 2cqw .6cqw .6cqw;border-width:.4cqw;border-radius:4cqw;cursor:pointer;transition:max-width .35s ease, padding .35s ease, opacity .35s ease;overflow:hidden}
 .frame.drawing .band .face{width:5.4cqw;height:5.4cqw;border-width:.4cqw}
@@ -208,8 +209,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .piece.bgl{filter:none;opacity:.95}
 
 /* D3 */
-.page-card{position:absolute;right:8cqw;top:8cqw;width:28cqw;aspect-ratio:4/3;background:#fff;border-radius:1.6cqw;box-shadow:0 1cqw 2cqw rgba(58,42,32,.25);padding:1cqw;transform:rotate(1.5deg);display:grid;place-items:center}
-.page-card img{max-width:100%;max-height:100%;object-fit:contain}
+.page-card{position:absolute;right:3cqw;top:8.5cqw;width:47cqw;aspect-ratio:4/3;background:#fff;border-radius:1.6cqw;box-shadow:0 1cqw 2cqw rgba(58,42,32,.25);padding:1cqw;transform:rotate(1.5deg);display:grid;place-items:center}
+.page-card img{width:100%;height:100%;object-fit:contain}
 .page-card::before{content:"";position:absolute;top:-1cqw;left:50%;width:2.4cqw;height:2.4cqw;border-radius:50%;background:var(--coral);transform:translateX(-50%)}
 .echo{position:absolute;left:5cqw;top:11cqw;background:#fff;border-radius:3cqw;padding:1.4cqw 2.6cqw;font-size:2.6cqw;box-shadow:0 .6cqw 1.4cqw rgba(58,42,32,.2);border:.35cqw solid var(--teal);max-width:40cqw;display:none}
 .echo.on{display:block;animation:pop .3s ease-out}
@@ -1495,7 +1496,7 @@ function setD3Bg(obj){
   $('d3-bg').style.background = 'linear-gradient(#FFF7EC,#F3E7D3)';   // no place photo — the child's drawing is the picture
   const has = S.strokes.length > 0;
   $('d3-card').style.display = has ? '' : 'none';
-  if (has) $('d3-img').src = obj ? cutURL(obj).url : fullURL();
+  if (has) $('d3-img').src = cutURL(obj || {box:boxOf(S.strokes.flatMap(st => st.p)), strokes:S.strokes}, 14).url;   // cropped tight so it fills the card
   const r = ['place','problem'].filter(s => S.slots[s]).length;
   $('yarn').style.width = (r/2*100)+'%'; $('st1').classList.toggle('lit', r>=1); $('st2').classList.toggle('lit', r>=2);
 }
