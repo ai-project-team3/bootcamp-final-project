@@ -6,6 +6,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -50,6 +52,8 @@ import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.coopAsked
+import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.demo.hasCoopQuestions
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.bat
@@ -523,10 +527,17 @@ private fun CoopQuestionsTab(d: Director) {
 
     PCard(Modifier.fillMaxWidth()) {
         Text("오늘 아이에게 물어볼 것을 적어 두세요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
-        Text("[같이 만들기]를 시작하면 마스코트가 이 순서대로 대신 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
+        Text("아이가 오또의 방에서 소파(같이 만들기)를 누르면 마스코트가 이 순서대로 대신 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
+        if (s.hasCoopQuestions) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                s.coopPick?.let { "✓ ‘${it.name}’ 이야기가 준비됐어요. 소파에 🎁 표시가 붙어요." } ?: "✓ 질문이 준비됐어요. 소파에 🎁 표시가 붙어요.",
+                fontSize = 13.sp, color = PMint, fontWeight = FontWeight.Bold,
+            )
+        }
     }
 
-    CoopTemplateCards(qs)
+    CoopTemplateCards(d)
 
     Section("질문", "네 자리를 먼저 채우고, 더 있으면 [＋]")
     val rows = maxOf(COOP_PARTS.size, qs.size)
@@ -607,28 +618,40 @@ private fun CoopQuestionsTab(d: Director) {
 }
 
 /**
- * 템플릿 카드 넷 — 탭하면 네 자리가 한 번에 채워지고, 빈칸(장소·호칭) 하나만 고친다 ([COOP_TEMPLATES]).
- * 채우기만 한다 — 홀더(`parentQuestions`)와 마스코트가 읽는 흐름(CoopScenes)은 그대로다.
- * 채운 뒤에도 아래 입력 줄은 그대로 열려 있어 줄 단위로 고칠 수 있다.
+ * 템플릿으로 준비하기 — **장소 · 직업 · 스포츠 → 요소 하나(직접 쓰기 포함) → 고른 이유** (09-29 · [COOP_KINDS]).
+ * 고를 때마다 네 자리가 채워진다. 채우기만 한다 — 홀더(`parentQuestions`)와 마스코트가 읽는 흐름(CoopScenes)은 그대로다.
+ * 채운 뒤에도 아래 입력 줄은 열려 있어 줄 단위로 고칠 수 있고, 요소 · 이유를 바꾸면 **손으로 고친 줄은 그대로** 둔다([refillBlank]).
+ * 무엇을 골랐는지는 `s.coopPick` 에 남는다 — 오또가 「‘소방관’ 이야기야」라고 소개할 때 쓴다.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CoopTemplateCards(qs: MutableList<String>) {
-    var picked by remember { mutableStateOf<CoopTemplate?>(null) }
-    var value by remember { mutableStateOf("") }
+private fun CoopTemplateCards(d: Director) {
+    val s = d.s
+    val qs = s.parentQuestions
+    val pick = s.coopPick
+    var kindKey by remember { mutableStateOf(pick?.kind) }
+    var typing by remember { mutableStateOf(false) }
+    var draft by remember { mutableStateOf("") }
+    var err by remember { mutableStateOf<String?>(null) }
+    val kind = kindKey?.let { coopKind(it) }
 
-    fun replace(lines: List<String>) {
+    fun reasonOf(p: CoopPick?) = p?.reason?.let { r -> CoopReason.entries.firstOrNull { it.key == r } }
+
+    /** 고른 것을 네 줄로 — 처음이면 네 줄을 갈고, 이미 템플릿으로 채웠으면 손대지 않은 줄만 바꾼다 */
+    fun apply(k: CoopKind, name: String, reason: CoopReason?) {
+        val old = s.coopPick
+        val oldLines = old?.let { o -> coopKind(o.kind)?.questions(o.name, reasonOf(o)) }
+        val newLines = k.questions(name, reason)
+        val cur = qs.toList()
+        val lines = if (oldLines != null && cur.isNotEmpty()) refillBlank(cur, oldLines, newLines) else fillFromTemplate(cur, newLines)
         qs.clear(); qs.addAll(lines)
+        s.coopPick = CoopPick(k.key, name, reason?.key)
     }
 
-    fun change(t: CoopTemplate, v: String) {
-        replace(refillBlank(qs.toList(), t.questions(value), t.questions(v)))
-        value = v
-    }
-
-    Section("템플릿으로 시작하기", "탭하면 네 자리가 한 번에 채워져요")
+    Section("템플릿으로 준비하기", "고르면 아래 네 자리가 채워져요")
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        COOP_TEMPLATES.forEach { t ->
-            val on = picked?.key == t.key
+        COOP_KINDS.forEach { k ->
+            val on = kind?.key == k.key
             Column(
                 Modifier
                     .weight(1f)
@@ -636,52 +659,87 @@ private fun CoopTemplateCards(qs: MutableList<String>) {
                     .clip(RoundedCornerShape(14.dp))
                     .background(if (on) Color(0xFFFFF1CC) else Color.White)
                     .border(1.dp, if (on) PAccent else PLine, RoundedCornerShape(14.dp))
-                    .clickable {
-                        picked = t
-                        value = t.blank?.default ?: ""
-                        replace(fillFromTemplate(qs.toList(), t.questions()))
-                    }
+                    .clickable { kindKey = k.key; typing = false; err = null }
                     .padding(10.dp),
             ) {
-                Text(t.emoji, fontSize = 20.sp)
-                Text(t.label(if (on) value else null), fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
-                Text(t.questions(if (on) value else null).first(), fontSize = 11.sp, color = PSub, maxLines = 2)
+                AssetImage(coopKindArt(k), Modifier.size(48.dp)) { Text(k.emoji, fontSize = 20.sp) }
+                Text("${k.title} · ${k.arc}", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
+                Text(k.items.joinToString(" · "), fontSize = 11.sp, color = PSub, maxLines = 2)
             }
         }
     }
 
-    val t = picked
-    val b = t?.blank
-    if (t != null && b != null) {
+    if (kind == null) return
+    val picked = pick?.takeIf { it.kind == kind.key }
+
+    Section("${kind.title} 하나 고르기", "목록에 없으면 직접 써도 돼요")
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        kind.items.forEach { name ->
+            CoopChip(name, on = picked?.name == name, art = COOP_ITEM_ART[name]) { typing = false; err = null; apply(kind, name, reasonOf(picked)) }
+        }
+        val customOn = picked != null && picked.name !in kind.items
+        if (!typing) CoopChip(if (customOn) "✏️ ${picked!!.name}" else "✏️ 직접 쓰기", on = customOn, dashed = !customOn, art = COOP_CUSTOM_ART) {
+            typing = true; err = null; draft = if (customOn) picked!!.name else ""
+        }
+    }
+    if (typing) {
         Spacer(Modifier.height(8.dp))
-        PCard(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${b.label} 바꾸기", fontSize = 13.sp, color = PSub, modifier = Modifier.width(72.dp))
-                b.choices.forEach { c ->
-                    val on = value.trim() == c
-                    Box(
-                        Modifier
-                            .padding(end = 6.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(if (on) PAccent else Color(0xFFF3EDE3))
-                            .clickable { change(t, c) }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    ) { Text(c, fontSize = 13.sp, color = if (on) Color.White else Ink) }
-                }
-                if (b.free) {
-                    TextField(
-                        value = value,
-                        onValueChange = { change(t, it) },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        placeholder = { Text("직접 쓰기", fontSize = 13.sp, color = PSub.copy(alpha = 0.6f)) },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = PBg, unfocusedContainerColor = PBg,
-                            focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
-                        ),
-                    )
-                }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextField(
+                value = draft,
+                onValueChange = { draft = it.take(COOP_NAME_MAX + 4); err = null },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                placeholder = { Text("${kind.title} 이름 (예: ${kind.customExample})", fontSize = 13.sp, color = PSub.copy(alpha = 0.6f)) },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = PBg, unfocusedContainerColor = PBg,
+                    focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
+                ),
+            )
+            Spacer(Modifier.width(8.dp))
+            CoopChip("넣기", on = true) {
+                val v = cleanCoopName(draft)
+                if (v == null) err = if (draft.isBlank()) "이름을 한 글자 이상 써 주세요" else "한글 · 영문 · 숫자로 ${COOP_NAME_MAX}자까지 써 주세요"
+                else { typing = false; apply(kind, v, reasonOf(picked)) }
             }
+        }
+        err?.let { Text(it, fontSize = 12.sp, color = Curtain, modifier = Modifier.padding(top = 4.dp)) }
+    }
+
+    if (picked == null) return
+    Section("고른 이유가 있나요?", "하나만 · 이유에 따라 첫 질문이 달라져요")
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        CoopReason.entries.forEach { r ->
+            CoopChip("${kind.reasonLabels[r]}", sub = kind.reasonExamples[r], on = picked.reason == r.key, art = coopReasonArt(r)) {
+                apply(kind, picked.name, if (picked.reason == r.key) null else r)
+            }
+        }
+    }
+    Text("안 고르면 상상 이야기로 물어봐요.", fontSize = 11.sp, color = PSub, modifier = Modifier.padding(top = 4.dp))
+}
+
+@Composable
+private fun CoopChip(text: String, on: Boolean, sub: String? = null, dashed: Boolean = false, art: String? = null, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (on) PAccent else if (dashed) Color.White else Color(0xFFF3EDE3))
+            .then(if (dashed) Modifier.border(1.dp, PAccent, RoundedCornerShape(999.dp)) else Modifier)
+            .clickable { onClick() }
+            .padding(start = if (art != null) 8.dp else 14.dp, end = 14.dp, top = 5.dp, bottom = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 펠트 그림이 있으면 앞에 작게 — 없으면 글자만 (이모지를 따로 두지 않는다)
+        if (art != null && assetId(art) != 0) {
+            Box(Modifier.size(30.dp).clip(CircleShape).background(Color.White.copy(alpha = if (on) 0.9f else 0.7f)), contentAlignment = Alignment.Center) {
+                AssetImage(art, Modifier.size(26.dp))
+            }
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(if (art != null && assetId(art) != 0) text.removePrefix("✏️ ") else text, fontSize = 13.sp, color = if (on) Color.White else if (dashed) PAccent else Ink)
+        if (sub != null) {
+            Spacer(Modifier.width(6.dp))
+            Text(sub, fontSize = 11.sp, color = if (on) Color.White.copy(alpha = 0.85f) else PSub)
         }
     }
 }

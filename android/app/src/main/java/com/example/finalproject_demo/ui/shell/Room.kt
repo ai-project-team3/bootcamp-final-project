@@ -39,6 +39,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.runtime.key
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -56,8 +60,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Reply
+import com.example.finalproject_demo.demo.hasCoopQuestions
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.ui.AssetImage
+import com.example.finalproject_demo.ui.OttoMove
+import com.example.finalproject_demo.ui.OttoPuppet
 import com.example.finalproject_demo.ui.Cheek
 import com.example.finalproject_demo.ui.Radius
 import com.example.finalproject_demo.ui.Curtain
@@ -125,8 +132,21 @@ private enum class Thing(
 ) {
     WINDOW("diary", "오늘 있었던 일로", "그림일기", "오늘 있었던 일로 그림일기 만들래?", "오늘 한 일을 말하면 그림일기가 돼요", "☀️", "room_window", 84f, 18f, 150f, 150f, FeltSky, "icon_diary", "오늘 있었던 일"),
     THEATER("start", "이야기 만들기", "동화 만들기", "오또랑 새 동화 만들래?", "주인공을 고르고 상상한 이야기를 말해요", "🎭", "room_theater", 414f, 70f, 190f, 222f, FeltCoral, "icon_story", "상상 이야기"),
-    SOFA("coop", "같이 만들기", "같이 만들기", "엄마 아빠랑 같이 책 만들래?", "어른이 묻고 아이가 대답해서 함께 만들어요", "🛋", "room_sofa", 10f, 196f, 230f, 134f, FeltTeal, "icon_coop", "어른이랑 함께"),
+    SOFA("coop", "같이 만들기", "같이 만들기", "부모님이 준비한 이야기 들어 볼래?", "부모님이 고른 이야기로 오또가 물어봐요", "🛋", "room_sofa", 10f, 196f, 230f, 134f, FeltTeal, "icon_coop", "어른이랑 함께"),
     SHELF("shelf", "책장", "내 책장", "내가 만든 책 보러 갈래?", "지금까지 만든 책을 다시 볼 수 있어요", "📚", "room_shelf", 624f, 58f, 164f, 252f, FeltMustard, "feat_shelf", "만든 책 보기"),
+}
+
+/**
+ * 오또를 누르면 하는 리액션 (09-29 사용자 — 「마스코트를 터치하면 여러 리액션」). 직전과 같은 것은 고르지 않는다.
+ * @param hearts 하트가 떠오르나
+ */
+private enum class Poke(val move: OttoMove, val line: String, val millis: Long, val hearts: Boolean = false) {
+    JUMP(OttoMove.JUMP, "야호! 폴짝!", 1300),
+    SPIN(OttoMove.SPIN, "빙글빙글~", 1100),
+    DANCE(OttoMove.DANCE, "랄라~ 같이 춤출래?", 1800),
+    GIGGLE(OttoMove.GIGGLE, "헤헤, 간지러워!", 1300),
+    HELLO(OttoMove.WAVE, "안녕! 나 오또야", 1600),
+    LOVE(OttoMove.HOORAY, "너 좋아!", 1600, hearts = true),
 }
 
 /** 오또 크기 · 쉬는 자리 (디자인 좌표) — 소파와 무대 사이 바닥. 물건과 겹치지 않게 (09-29) */
@@ -147,6 +167,24 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
     var target by remember { mutableStateOf<Thing?>(null) }
     var asking by remember { mutableStateOf(false) }
     var idleHint by remember { mutableStateOf(false) }
+    /** 오또가 걷는 중 — 걸음 사이 잠깐 멈출 때도 걷기 동작을 유지한다 */
+    var moving by remember { mutableStateOf(false) }
+    /** 걷는 방향 — 왼쪽으로 가면 왼쪽을 본다 */
+    var goingLeft by remember { mutableStateOf(false) }
+    /** 지금 하는 리액션 · 몇 번째 누름인가(같은 리액션이라도 다시 시작) */
+    var poke by remember { mutableStateOf<Poke?>(null) }
+    var pokeId by remember { mutableStateOf(0) }
+    val view = androidx.compose.ui.platform.LocalView.current
+    fun pokeOtto() {
+        // 걷는 중 · 묻는 중 · 튜토리얼에서는 리액션하지 않는다(해야 할 것을 가리지 않게)
+        if (moving || target != null || tutorial) return
+        idleHint = false
+        val next = Poke.entries.filter { it != poke }.random()
+        poke = next; pokeId++
+        com.example.finalproject_demo.ui.Sfx.play(com.example.finalproject_demo.ui.Sound.POP, 0L, view = view)
+        val my = pokeId
+        scope.launch { delay(next.millis); if (pokeId == my) poke = null }
+    }
     val walkX = remember { Animatable(HOME_X) }
     val paws = remember { mutableStateListOf<Float>() }
     val offline = Server.on && !online(ctx)
@@ -168,6 +206,8 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
             paws.clear()
             val to = (t.x + t.w / 2 - OTTO / 2).coerceIn(10f, 800f - OTTO)
             val from = walkX.value
+            goingLeft = to < from
+            moving = true
             if (!motionFrozen) {
                 val steps = 4
                 for (k in 1..steps) {
@@ -175,6 +215,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                     paws += walkX.value + OTTO / 2 - 10f
                 }
             } else walkX.snapTo(to)
+            moving = false
             asking = true
         }
     }
@@ -212,6 +253,12 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                 // 이름표 — 이 물건이 어떤 모드인지 (아이콘 + 이름)
                 NameTag(t, Modifier.align(Alignment.BottomCenter))
                 if (hinted) Sparkle(Modifier.align(Alignment.TopEnd).offset(10.dp, (-10).dp))
+                // 어른이 부모 모드에서 이야기를 준비해 뒀으면 소파에 선물 표시 (09-29) — 털실(🧶)이 있으면 그쪽이 먼저다
+                if (t == Thing.SOFA && !tutorial && !resumable && s.hasCoopQuestions) Box(
+                    // 소파가 화면 왼쪽 끝에 있어 왼쪽 위에 두면 잘린다 — 오른쪽 위에
+                    Modifier.align(Alignment.TopEnd).offset(6.dp, (-6).dp).size(44.dp).felt(FeltMustard, CircleShape, lift = 4.dp, stitch = false),
+                    contentAlignment = Alignment.Center,
+                ) { AssetImage("ic_gift", Modifier.size(34.dp)) { Text("🎁", fontSize = 22.sp) } }
                 if (resumable) Box(
                     Modifier.align(Alignment.TopStart).offset((-10).dp, (-12).dp).size(44.dp).felt(FeltMustard, CircleShape, lift = 4.dp, stitch = false),
                     contentAlignment = Alignment.Center,
@@ -221,8 +268,34 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
         // 발자국
         paws.forEach { px -> Text("🐾", fontSize = 18.sp, modifier = Modifier.offset(g.x(px), g.y(318f)).alpha(0.55f)) }
         // 오또
-        Box(Modifier.offset(g.x(walkX.value), g.y(if (target != null) 330f - OTTO - 6f else 330f - OTTO)).size(g.y(OTTO))) {
-            Otto(if (target != null && !asking) Pose.WALK else Pose.POINT, Modifier.fillMaxSize())
+        Box(Modifier.offset(g.x(walkX.value), g.y(if (target != null) 330f - OTTO - 6f else 330f - OTTO)).size(g.y(OTTO)).semantics { contentDescription = "오또" }.noRippleClickable { pokeOtto() }) {
+            // 09-29 뼈대로 움직이는 오또 인형 — 걸을 땐 다리 · 팔을 번갈아, 물을 땐 그 물건을 가리키고,
+            // 권할 땐 손을 흔들고, 평소엔 숨 쉬며 꼬리를 흔든다. 보는 방향은 가는 쪽 · 가리키는 쪽
+            val walking = moving || walkX.isRunning
+            val cx = walkX.value + OTTO / 2
+            val face = when {
+                walking -> goingLeft
+                target != null -> target!!.let { it.x + it.w / 2 } < cx
+                else -> false
+            }
+            OttoPuppet(
+                move = when {
+                    walking -> OttoMove.WALK
+                    target != null -> OttoMove.POINT
+                    poke != null -> poke!!.move
+                    idleHint || tutorial -> OttoMove.WAVE
+                    else -> OttoMove.IDLE
+                },
+                modifier = Modifier.fillMaxSize(),
+                flip = face,
+            )
+            // 리액션 말풍선 · 하트 — 오또 머리 위
+            poke?.let { p ->
+                key(pokeId) {
+                    PokeBubble(p.line, Modifier.align(Alignment.TopCenter).offset(y = (-34).dp))
+                    if (p.hearts) Hearts(Modifier.align(Alignment.TopCenter).offset(y = 10.dp))
+                }
+            }
         }
         // 오또가 권하는 말 · 튜토리얼 안내
         if (idleHint || tutorial) SpeakBubble(if (tutorial) "여기를 눌러 봐!" else "무대를 눌러 봐!", Modifier.offset(g.x(240f), g.y(14f)))
@@ -251,9 +324,21 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                     title = t.title, detail = "새로 만들면 만들던 이야기는 사라져요",
                     art = t.art, accent = t.color,
                 )
+            } else if (t == Thing.SOFA && !s.hasCoopQuestions) {
+                // 준비된 이야기가 없다 — 옛 흐름(어른이 띠를 읽고 묻기)으로 들어가지 않고 부모님께 부탁하라고 한다 (09-29 사용자 요청).
+                // 버튼은 하나 — 아이가 막히지 않고 방으로 돌아간다
+                ConfirmDialog(
+                    "🎁", "아직 준비된 이야기가 없어!", title = t.title, art = t.art, accent = t.color,
+                    detail = "부모님한테 이야기를 골라 달라고 부탁해 볼까?",
+                    note = "부모님은 🔒 → 협업 질문에서 골라요",
+                    no = null, yes = "✓" to "알겠어!",
+                    onNo = {}, onYes = { asking = false; target = null; scope.launch { walkX.animateTo(HOME_X, tween(500)); paws.clear() } },
+                    modifier = Modifier.align(Alignment.Center),
+                )
             } else ConfirmDialog(
-                t.icon, t.question, title = t.title, detail = t.detail, art = t.art, accent = t.color,
-                onNo = { asking = false; target = null; scope.launch { walkX.animateTo(HOME_X, tween(500)); paws.clear() } },
+                t.icon, t.question, title = t.title, art = t.art, accent = t.color,
+                detail = if (t == Thing.SOFA) s.coopPick?.let { "‘${it.name}’ 이야기 · 부모님이 골라 뒀어요" } ?: t.detail else t.detail,
+                onNo = { asking = false; target = null; scope.launch { goingLeft = HOME_X < walkX.value; moving = true; walkX.animateTo(HOME_X, tween(700)); moving = false; paws.clear() } },
                 onYes = { done(); d.send(Reply.Tapped(t.value, t.label)) },
                 modifier = Modifier.align(Alignment.Center),
             )
@@ -338,6 +423,34 @@ fun LockDoor(modifier: Modifier = Modifier, onOpen: () -> Unit) {
     }
 }
 
+/** 오또를 눌렀을 때 머리 위에 톡 튀어나오는 말 */
+@Composable
+private fun PokeBubble(text: String, modifier: Modifier) {
+    val pop = remember { Animatable(0.5f) }
+    LaunchedEffect(Unit) { if (!motionFrozen) pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.45f, stiffness = 500f)) else pop.snapTo(1f) }
+    Box(
+        modifier.wrapContentSize(unbounded = true).scale(pop.value)
+            .felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 4.dp, stitch = true)
+            .padding(horizontal = 14.dp, vertical = 5.dp),
+    ) { Text(text, fontSize = 16.sp, color = InkBrown, maxLines = 1) }
+}
+
+/** 하트가 여러 개 떠오르며 옅어진다 */
+@Composable
+private fun Hearts(modifier: Modifier) {
+    val rise = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { if (!motionFrozen) rise.animateTo(1f, tween(1500)) else rise.snapTo(0.4f) }
+    Box(modifier.size(120.dp, 90.dp)) {
+        listOf(-40 to 0f, 0 to 0.15f, 36 to 0.3f, -18 to 0.45f).forEach { (dx, delay) ->
+            val k = ((rise.value - delay) / (1f - delay)).coerceIn(0f, 1f)
+            if (k > 0f) Text(
+                "💕", fontSize = (18 + 8 * k).sp,
+                modifier = Modifier.align(Alignment.BottomCenter).offset(x = dx.dp, y = (-70 * k).dp).alpha(1f - k * 0.8f),
+            )
+        }
+    }
+}
+
 /** 방 물건 아래 이름표 — 아이콘 + 모드 이름 (글을 못 읽는 아이도 아이콘으로 안다) */
 @Composable
 private fun NameTag(t: Thing, modifier: Modifier) {
@@ -364,8 +477,10 @@ private fun NameTag(t: Thing, modifier: Modifier) {
 @Composable
 fun ConfirmDialog(
     icon: String, question: String, onNo: () -> Unit, onYes: () -> Unit, modifier: Modifier = Modifier,
-    no: Pair<String, String> = "✕" to "아니", yes: Pair<String, String> = "✓" to "응!",
+    no: Pair<String, String>? = "✕" to "아니", yes: Pair<String, String> = "✓" to "응!",
     title: String? = null, detail: String? = null,
+    /** detail 아래 더 작은 한 줄 — 어른에게 하는 말 (09-29) */
+    note: String? = null,
     /** 창 위에 띄울 그림(방 물건 · ComfyUI). 없으면 [icon] 이모지 원 */
     art: String? = null,
     /** 모드 색 — 테두리 · 제목 띠 */
@@ -373,7 +488,7 @@ fun ConfirmDialog(
 ) {
     val top = if (art != null) 70.dp else 34.dp
     // 창 안을 눌러도 뒤로 새지 않게 — 버튼 말고는 아무 일도 없다
-    Box(modifier.width(440.dp).height((if (detail != null) 262.dp else 216.dp) + top).noRippleClickable { }) {
+    Box(modifier.width(440.dp).height((if (detail != null) 262.dp else 216.dp) + (if (note != null) 16.dp else 0.dp) + top).noRippleClickable { }) {
         Box(Modifier.fillMaxSize().padding(top = top).felt(Wool, RoundedCornerShape(32.dp), lift = 10.dp).border(5.dp, accent, RoundedCornerShape(32.dp))) {
             Column(Modifier.fillMaxSize().padding(top = if (art != null) 58.dp else 44.dp, start = 20.dp, end = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 if (title != null) Box(Modifier.felt(accent, RoundedCornerShape(Radius.Round), lift = 2.dp, stitch = false).padding(horizontal = 14.dp, vertical = 3.dp)) {
@@ -384,9 +499,10 @@ fun ConfirmDialog(
                     Text("🔊", fontSize = 18.sp); Spacer(Modifier.width(8.dp)); Text(question, fontSize = 23.sp, color = InkBrown, maxLines = 1)
                 }
                 if (detail != null) ParentText { Text(detail, fontSize = 13.sp, color = InkSoft, modifier = Modifier.padding(top = 4.dp), maxLines = 1) }
+                if (note != null) ParentText { Text(note, fontSize = 11.sp, color = InkSoft.copy(alpha = 0.8f), maxLines = 1) }
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                    FeltButton(WoolCream, onClick = onNo, modifier = Modifier.width(120.dp).height(76.dp), shape = RoundedCornerShape(26.dp)) {
+                    if (no != null) FeltButton(WoolCream, onClick = onNo, modifier = Modifier.width(120.dp).height(76.dp), shape = RoundedCornerShape(26.dp)) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(no.first, fontSize = 26.sp, color = InkBrown); Text(no.second, fontSize = 16.sp, color = InkBrown) }
                     }
                     FeltButton(FeltTeal, onClick = onYes, modifier = Modifier.width(120.dp).height(76.dp), shape = RoundedCornerShape(26.dp)) {

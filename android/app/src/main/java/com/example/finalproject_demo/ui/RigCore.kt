@@ -305,6 +305,12 @@ object RigBuilder {
     /** 팔 떼어 내기가 어디서 멈췄나 — 검사가 본다 */
     @Volatile var why = ""
 
+    /**
+     * 손이 살색이 아니어도 사람 팔로 떼어 낸다 (09-29 시험 — 마스코트 오또). 오또의 앞발은 크림 · 분홍이고 소매는 청록이라
+     * 「소매 끝 = 손 색 비율이 넘는 자리」는 그대로 통한다. 기본은 꺼 둔다 — 돌고래 지느러미 · 로봇 팔이 찢어진 규칙이다
+     */
+    @Volatile var anyHands = false
+
     /** 그물 한 벌 — 몸 · 팔마다 따로 만들어 합친다 */
     private class Part(
         val kind: String,
@@ -761,7 +767,7 @@ object RigBuilder {
             // 손이 **살색**일 때만 사람 팔로 떼어 낸다 — 돌고래 지느러미 · 로봇 팔은 몸과 같은 색이라 소매 끝이 없고,
             // 이 길로 오면 찢어졌다 (09-28 전수 확인). 그런 것은 「튀어나온 가지」로 휘게 하는 쪽이 낫다
             val skinLike = sr > 150f && sr >= sg && sg >= sbb && sr - sbb in 25f..130f
-            if (!skinLike) run { why = "R8 살색 아님 (${sr.toInt()},${sg.toInt()},${sbb.toInt()})"; return null }
+            if (!skinLike && !anyHands) run { why = "R8 살색 아님 (${sr.toInt()},${sg.toInt()},${sbb.toInt()})"; return null }
 
             val attached = freeBot - freeTop < 0.5f * (freeBot - top)
             val attachedGuess = attached

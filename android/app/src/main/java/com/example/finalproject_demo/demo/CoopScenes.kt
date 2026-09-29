@@ -90,7 +90,10 @@ val DemoState.coopAsked: List<CoopAsked> get() = trackByState[this]?.asked.orEmp
 suspend fun Director.coopIntro(childName: String) {
     s.newCoopTrack()
     if (s.hasCoopQuestions) {
-        say("${childName}${ya(childName)}, 어른이 물어보고 싶은 게 있대! 내가 대신 물어볼게.")
+        // 템플릿으로 골랐으면 무슨 이야기인지 먼저 알려 준다 (09-29) — 호칭은 "부모님" (사용자 결정)
+        val pick = s.coopPick
+        if (pick != null) say("${childName}${ya(childName)}, 부모님이 준비한 ‘${pick.name}’ 이야기야! 내가 대신 물어볼게.")
+        else say("${childName}${ya(childName)}, 어른이 물어보고 싶은 게 있대! 내가 대신 물어볼게.")
         log("부모 협업 모드 — 부모가 미리 넣어 둔 질문 ${s.parentQuestions.count { it.isNotBlank() }}개를 **마스코트가 소리 내어 읽는다.** 받아주기 · 되돌려주기 · 낭독도 마스코트 (구현설계 §1-① · 설계 §2-2)")
         log("부모 질문이 없는 자리와 소진 뒤는 마스코트가 그 자리에 필요한 질문을 그대로 묻는다 — 지금은 일기 사다리, LLM이 붙으면 찬 칸을 보고 만든 질문 (구현설계 §1-②)")
         return

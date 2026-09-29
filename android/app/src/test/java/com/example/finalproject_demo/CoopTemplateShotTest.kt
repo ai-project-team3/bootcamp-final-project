@@ -1,12 +1,18 @@
 package com.example.finalproject_demo
 
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import com.example.finalproject_demo.demo.Director
-import com.example.finalproject_demo.ui.COOP_TEMPLATES
+import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.ui.COOP_KINDS
+import com.example.finalproject_demo.ui.CoopReason
+import com.example.finalproject_demo.ui.coopKind
 import com.example.finalproject_demo.ui.ParentView
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.RoborazziTaskType
@@ -23,7 +29,7 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 /**
- * 협업 탭 템플릿 카드 — 카드를 탭하면 네 자리가 채워지고, 빈칸 칩 하나로 장소만 바뀌는가 (docs/주말_데모_뼈대.md 「B. 협업」).
+ * 협업 탭 템플릿 — 장소 · 직업 · 스포츠 → 요소(직접 쓰기) → 고른 이유를 누르면 네 자리가 채워지는가 (09-29).
  * 그림은 `screens/coop_template_*.png` 에 **기록만** 한다 (WorldSceneShotTest.snap 과 같은 이유).
  */
 @RunWith(RobolectricTestRunner::class)
@@ -43,25 +49,57 @@ class CoopTemplateShotTest {
     }
 
     @Test
-    fun emptyTabShowsFourCards() {
+    fun emptyTabShowsThreeKinds() {
         parent()
-        COOP_TEMPLATES.forEach { compose.onNodeWithText(it.label()).assertExists() }
+        COOP_KINDS.forEach { compose.onNodeWithText("${it.title} · ${it.arc}").assertExists() }
         snap("screens/coop_template_empty.png")
     }
 
     @Test
-    fun tappingWeekendThenAChipFillsAllFourAndChangesOnlyThePlace() {
+    fun pickingKindItemAndReasonFillsAllFour() {
         val d = parent()
-        val t = COOP_TEMPLATES.first { it.key == "weekend" }
+        val job = coopKind("job")!!
 
-        compose.onNodeWithText(t.label()).performScrollTo().performClick()
+        compose.onNodeWithText("직업 · 임무 이야기").performScrollTo().performClick()
+        compose.onNodeWithText("소방관").performScrollTo().performClick()
         compose.waitForIdle()
-        assertEquals(t.questions(), d.s.parentQuestions.toList())
+        assertEquals(job.questions("소방관"), d.s.parentQuestions.toList())
+        assertEquals(CoopPick("job", "소방관", null), d.s.coopPick)
 
-        compose.onNodeWithText("외할머니 집").performScrollTo().performClick()
+        compose.onNodeWithText("체험했어요").performScrollTo().performClick()
         compose.waitForIdle()
-        assertEquals(t.questions("외할머니 집"), d.s.parentQuestions.toList())
+        assertEquals(job.questions("소방관", CoopReason.DONE), d.s.parentQuestions.toList())
+        assertEquals("done", d.s.coopPick?.reason)
 
-        snap("screens/coop_template_weekend.png")
+        snap("screens/coop_template_job.png")
+    }
+
+    @Test
+    fun typingANameUsesTheSameTemplate() {
+        val d = parent()
+        val place = coopKind("place")!!
+
+        compose.onNodeWithText("장소 · 탐험 이야기").performScrollTo().performClick()
+        compose.onNodeWithText("직접 쓰기", substring = true).performScrollTo().performClick()
+        compose.onAllNodes(hasSetTextAction()).onFirst().performTextInput("  할머니 집 ")
+        compose.onNodeWithText("넣기").performClick()
+        compose.waitForIdle()
+        assertEquals(place.questions("할머니 집"), d.s.parentQuestions.toList())
+        assertEquals("할머니 집", d.s.coopPick?.name)
+
+        snap("screens/coop_template_custom.png")
+    }
+
+    @Test
+    fun aBadNameIsRefusedWithAReason() {
+        val d = parent()
+        compose.onNodeWithText("스포츠 · 도전 이야기").performScrollTo().performClick()
+        compose.onNodeWithText("직접 쓰기", substring = true).performScrollTo().performClick()
+        compose.onAllNodes(hasSetTextAction()).onFirst().performTextInput("축구!!")
+        compose.onNodeWithText("넣기").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("한글 · 영문 · 숫자로 10자까지 써 주세요").assertExists()
+        assertEquals(null, d.s.coopPick)
+        assertEquals(emptyList<String>(), d.s.parentQuestions.toList())
     }
 }

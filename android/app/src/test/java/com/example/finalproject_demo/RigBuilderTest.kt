@@ -112,6 +112,66 @@ class RigBuilderTest {
                 "60" to fixed(60f), "90" to fixed(90f), "110" to fixed(110f), "130" to fixed(130f)))
     }
 
+    /**
+     * **시험 — 마스코트 오또에도 뼈대가 붙나** (09-29 사용자 — 「마스코트한테도 뼈대를 붙여서 실제로 움직이게」).
+     * 방 · 온보딩에 쓰는 전신 자세 그림 9장 + 기본 마스코트를 같은 자동 방식으로 돌려 확인표를 그린다(`build/rig_auto/otto.png`)
+     */
+    @Test
+    fun 마스코트_오또_시험() {
+        val otto = listOf("mascot", "otto_pose_wave", "otto_pose_walk", "otto_pose_point", "otto_pose_talk",
+            "otto_pose_listen", "otto_pose_think", "otto_pose_phone", "otto_pose_yawn", "otto_pose_call")
+        val cols = poses + listOf("꼬리" to { m: RigMesh -> poseAt(m.bones, RigMotion.TAIL, 0.4f).first })
+        sheet("otto", otto, cell = 260, cols = cols)
+        // 손 색 규칙을 풀면 — 지금 그림 · A-포즈 시험 그림(있으면)
+        RigBuilder.anyHands = true
+        try {
+            sheet("otto_anyhands", otto, cell = 260, cols = cols)
+            // 시험 그림 폴더(ComfyUI 결과) — 시스템 속성 `otto.trial` 로 바꿀 수 있다
+            val trial = File(System.getProperty("otto.trial") ?: File(System.getProperty("user.home"),
+                "AppData/Local/Temp/claude/C--dev-final-project/344838c4-f7ce-48e6-9be7-ad3985d432f5/scratchpad/apose2").path)
+            val ap = trial.listFiles { f -> f.name.startsWith("apose_") && f.name.endsWith(".png") }?.sorted().orEmpty()
+            if (ap.isNotEmpty()) sheet("otto_apose", ap.map { it.path }, cell = 300, cols = cols, imgOf = { path ->
+                val bmp = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+                val sc = 512f / maxOf(bmp.width, bmp.height)
+                val b2 = Bitmap.createScaledBitmap(bmp, (bmp.width * sc).toInt(), (bmp.height * sc).toInt(), true)
+                val px = IntArray(b2.width * b2.height); b2.getPixels(px, 0, b2.width, 0, 0, b2.width, b2.height)
+                Img(b2.width, b2.height, px)
+            })
+        } finally { RigBuilder.anyHands = false }
+    }
+
+    /** 시험 그림 하나를 시간에 따라 움직여 프레임으로 떨군다 (`build/rig_auto/frames/<동작>_<번호>.png`) — GIF 로 묶어 본다 */
+    @Test
+    fun 마스코트_오또_움직임_프레임() {
+        val path = System.getProperty("otto.frames") ?: File(System.getProperty("user.home"),
+            "AppData/Local/Temp/claude/C--dev-final-project/344838c4-f7ce-48e6-9be7-ad3985d432f5/scratchpad/apose2/apose_2.png").path
+        if (!File(path).exists()) return
+        val bmp = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+        val sc = 512f / maxOf(bmp.width, bmp.height)
+        val b2 = Bitmap.createScaledBitmap(bmp, (bmp.width * sc).toInt(), (bmp.height * sc).toInt(), true)
+        val w = b2.width; val h = b2.height
+        val px = IntArray(w * h); b2.getPixels(px, 0, w, 0, 0, w, h)
+        RigBuilder.anyHands = true
+        val m = try { RigBuilder.build(px, w, h) } finally { RigBuilder.anyHands = false } ?: return
+        val dir = File(outDir, "frames").apply { mkdirs() }
+        for (motion in listOf(RigMotion.IDLE, RigMotion.WAVE, RigMotion.TAIL, RigMotion.WALK, RigMotion.HOORAY)) {
+            for (k in 0 until 24) {
+                val (angles, bob) = poseAt(m.bones, motion, k / 12f)
+                val pic = render(px, w, h, m, angles)
+                val out = IntArray(w * h) { 0xFFF4EFE6.toInt() }
+                val dy = bob.toInt()
+                for (y in 0 until h) for (x in 0 until w) {
+                    val sy = y - dy; if (sy !in 0 until h) continue
+                    val v = pic[sy * w + x]; if ((v ushr 24) == 0) continue
+                    out[y * w + x] = blend(out[y * w + x], v)
+                }
+                File(dir, "${motion.name.lowercase()}_%02d.png".format(k)).outputStream().use {
+                    Bitmap.createBitmap(out, w, h, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it)
+                }
+            }
+        }
+    }
+
     /** 이전 시연(도구로 만든 뼈대 · 사용자가 「잘 나온다」고 한 것)과 지금 자동 방식을 **같은 그림**에서 나란히 */
     @Test
     fun 이전_시연과_비교한다() {

@@ -870,8 +870,15 @@ class DemoState {
      * 오늘 넣은 질문이 내일 또 나오면 안 된다. (계정에 남길지는 저장이 붙은 뒤의 일이다)
      */
     fun clearParentQuestions() {
-        parentQuestions.clear(); parentQIndex = 0
+        parentQuestions.clear(); parentQIndex = 0; coopPick = null
     }
+
+    /**
+     * 어른이 부모 모드에서 **템플릿으로 고른 이야기** (09-29 · 장소/직업/스포츠 → 요소 → 고른 이유).
+     * 질문 네 줄은 [parentQuestions] 에 그대로 들어가고, 이 칸은 오또가 「엄마가 준비한 ‘소방관’ 이야기야」라고
+     * 소개하는 데만 쓴다. 줄을 손으로만 적었으면 null. [clearParentQuestions] 가 같이 비운다.
+     */
+    var coopPick by mutableStateOf<CoopPick?>(null)
 
     /**
      * 협업 모드 아이 화면의 제목 (09-22 박진웅 요청).
@@ -1373,6 +1380,12 @@ class DemoState {
         firstDay = false
     }
 }
+
+/**
+ * 어른이 고른 협업 이야기 — 템플릿 종류(`place` · `job` · `sport`), 요소 이름(「소방관」 · 직접 쓴 「선생님」),
+ * 고른 이유(`done` · `soon` · `dream`, 안 골랐으면 null). 템플릿 목록 자체는 `ui/CoopTemplates.kt` 에 있다.
+ */
+data class CoopPick(val kind: String, val name: String, val reason: String?)
 
 /** 받침에 따라 조사를 고른다. */
 fun bat(w: String): Boolean {
