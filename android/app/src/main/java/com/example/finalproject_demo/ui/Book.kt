@@ -1,6 +1,9 @@
 package com.example.finalproject_demo.ui
 
 import androidx.compose.animation.core.Animatable
+import com.example.finalproject_demo.demo.heroImageName
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.RepeatMode
@@ -230,7 +233,9 @@ private fun PuzzlePage(d: Director, done: Boolean) {
 
         fun slot(i: Int) = Offset(boardX + (i % cols) * pw, boardY + (i / cols) * ph)
         // 흩어 놓는 자리 — 왼쪽 아래에 **겹치지 않게** 나란히. 겹쳐 두면 아이가 집을 수가 없다
-        fun home(i: Int) = Offset(wpx * 0.05f + i * (pw * 1.06f), hpx * 0.56f)
+        // 왼쪽 끝은 ◀ 버튼(64dp) 자리 — 조각이 그 밑에 깔리지 않게 비워 둔다 (09-29)
+        val trayX = maxOf(wpx * 0.05f, 96f * density)
+        fun home(i: Int) = Offset(trayX + i * (pw * 1.06f), hpx * 0.56f)
 
         // 맞출 자리 — **완성된 그림을 흐리게** 깔아 어디에 뭘 놓는지 보여 준다.
         // 실패 없는 설계의 절반은 안내다 — 어디에 놓을지 모르면 그건 어려운 게 아니라 막막한 것이다
@@ -305,16 +310,11 @@ private fun PuzzlePage(d: Director, done: Boolean) {
 }
 
 @Composable
-private fun RoundBtn(text: String, bg: Color, size: Int = 46, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(size.dp)
-            .shadow(6.dp, CircleShape, ambientColor = Ink.copy(alpha = 0.3f), spotColor = Ink.copy(alpha = 0.3f))
-            .clip(CircleShape)
-            .background(bg)
-            .noRippleClickable { onClick() },
-        contentAlignment = Alignment.Center,
-    ) { Text(text, fontSize = (size * 0.45).sp, color = Ink, fontWeight = FontWeight.Bold) }
+private fun RoundBtn(text: String, bg: Color, size: Int = 64, onClick: () -> Unit) {
+    // 09-29 디자인 시스템 ⑪ — ◀ ▶ 64dp 펠트 버튼(꾹 눌림)
+    FeltButton(bg, onClick = onClick, modifier = Modifier.size(size.dp), shape = CircleShape) {
+        Text(text, fontSize = (size * 0.42).sp, color = if (bg == FeltCoral) FeltWhite else InkBrown)
+    }
 }
 
 /** 도구별 반응 글자 — 누른 것 바로 위에 뜬다 (HTML 데모와 같은 방식) */
@@ -380,16 +380,24 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
         mod: Modifier = Modifier,
         onHand: (() -> Unit)? = null,
         stand: Float? = null,
+        act: RigMotion? = null,
+        walkIn: Boolean = false,
     ) {
+        // 걸어 들어오기 (09-28) — 쪽이 열리면 화면 왼쪽 밖에서 제자리까지 1.4초. 걷는 동안은 걷기 동작
+        val walk = remember(page) { Animatable(if (walkIn && !motionFrozen) 1f else 0f) }
+        LaunchedEffect(page) { if (walk.value > 0f) walk.animateTo(0f, tween(1400, easing = LinearEasing)) }
+        val screenW = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+        val walking = walk.value > 0f
+        val walkMod = if (walkIn) Modifier.graphicsLayer { translationX = -walk.value * screenW * (xf + 0.12f) } else Modifier
         val body: @Composable () -> Unit = {
             Tappable(
                 text = { reactionFor(s, tool, target) },
                 modifier = Modifier.fillMaxSize(),
                 onTap = { if (tool == "hand" && onHand != null) onHand() else react(target) },
-            ) { ArtView(art, Modifier.fillMaxSize()) }
+            ) { ArtView(art, Modifier.fillMaxSize(), if (walking) RigMotion.WALK else act) }
         }
-        if (stand != null) Stand(xf, wf, stand, floor = hasFloor(s.bgName), modifier = mod, content = body)
-        else Layer(xf, yf, wf, aspect, mod, content = body)
+        if (stand != null) Stand(xf, wf, stand, floor = hasFloor(s.bgName), modifier = walkMod.then(mod), content = body)
+        else Layer(xf, yf, wf, aspect, walkMod.then(mod), content = body)
     }
 
     val kind = s.pageKind(page)
@@ -445,6 +453,14 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
     // 인사와 움직임이 같이 있으면 움직임이 이긴다 — 그네를 타면서 손을 흔드는 그림은 읽기 어렵다
     val poseMod = if (motion != Motion.NONE) motionMod else waveMod
 
+    // 뼈대로 움직이는 동작 (09-28) — 주인공 뼈대가 준비됐으면 몸을 기울여 인사하는 대신 **팔이** 흔든다.
+    // 그네 · 미끄럼틀 · 뛰기처럼 몸 전체가 움직이는 것은 그대로 몸짓(motionMod)으로 둔다
+    val heroAct = heroActFrom(kind, caption, riding)
+    val dinoAct = buddyActFrom(kind, caption)
+    val heroWalks = page > 0 && walksInFrom(kind, caption, riding)
+    val heroRigged = rememberRig(s.heroAttr?.let { heroImageName(it) }) != null
+    val heroPose = if (heroRigged && motion == Motion.NONE) Modifier else poseMod
+
     // ⚠️ 소개 시간은 여기서 재지 않는다 (9/22). 여기서 재면 **표지를 보는 동안 시간이 가 버린다** —
     //    표지(0쪽)에는 배경 자리가 없어서 원이 뜨기도 전에 안내가 끝났다.
     //    이제 `HotspotLayer` 가 원을 실제로 그리는 순간부터 세고, 다 보여 주면 알려 준다.
@@ -493,9 +509,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                     Layer(0.52f, 0.14f, 0.36f, aspect = 1.5f) {
                         Box(
                             Modifier.fillMaxSize()
-                                .shadow(5.dp, RoundedCornerShape(10.dp))
-                                .background(Color.White, RoundedCornerShape(10.dp))
-                                .border(2.dp, Color(0xFFE8DCC8), RoundedCornerShape(10.dp))
+                                .felt(FeltWhite, RoundedCornerShape(14.dp), lift = 5.dp, texture = false)
                                 .padding(8.dp)
                         ) { ArtView(s.sceneArt, Modifier.fillMaxSize()) }
                     }
@@ -504,9 +518,9 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                 if (showRide && riding) {
                     // 탈것 위 — 탈것과 같은 흔들림으로 함께 움직여야 "타고 있다"로 보인다.
                     // 발이 탈것 몸통에 **겹쳐야** 올라탄 것으로 보인다. 띄우면 위에 떠 있는 것처럼 보였다 (9/21)
-                    Char("hero", heroArt, 0.445f, 0.120f, 0.075f, mod = Modifier.offset { IntOffset(0, wobble.roundToInt()) }.then(poseMod))
+                    Char("hero", heroArt, 0.445f, 0.120f, 0.075f, mod = Modifier.offset { IntOffset(0, wobble.roundToInt()) }.then(heroPose), act = heroAct)
                 } else {
-                    Char("hero", heroArt, 0.20f, 0.30f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod), stand = 1f)
+                    Char("hero", heroArt, 0.20f, 0.30f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(heroPose), stand = 1f, act = heroAct, walkIn = heroWalks)
                 }
             }
             PageKind.SHAKE -> {
@@ -515,14 +529,14 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                 // 흔들리는 쪽이 아니면 주인공도 탈것도 가만히 있는다 — 숨쉬듯 까딱이기만 한다
                 val jolt = if (quaking) shake else bob
                 if (showRide) Char("vehicle", s.rideArt, 0.34f, 0.16f, 0.17f, 0.62f, Modifier.offset { IntOffset(if (quaking) jolt.roundToInt() else 0, if (quaking) 0 else jolt.roundToInt()) })
-                Char("hero", heroArt, 0.18f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(if (quaking) (jolt / 2).roundToInt() else 0, if (quaking) 0 else jolt.roundToInt()) }.then(poseMod), stand = 1f)
+                Char("hero", heroArt, 0.18f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(if (quaking) (jolt / 2).roundToInt() else 0, if (quaking) 0 else jolt.roundToInt()) }.then(heroPose), stand = 1f, act = heroAct)
                 // "창밖에서 손을 흔들고 있었어요" — 적혀 있으면 정말 흔든다
                 if (friendShown != null) FadeIn { Char("friend", friendShown, 0.76f, 0.20f, 0.18f, 1f, waveMod, stand = 0.85f) }
             }
             PageKind.MEET, PageKind.TALK -> {
                 Scenery()
                 if (showRide) Char("vehicle", s.rideArt, 0.40f, 0.14f, 0.15f, 0.62f)
-                Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod), stand = 1f)
+                Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(heroPose), stand = 1f, act = heroAct, walkIn = heroWalks)
                 // 인사하는 쪽에서는 친구도 같이 손을 흔든다 — 한쪽만 흔들면 어색하다
                 if (friendShown != null) Char("friend", friendShown, 0.74f, 0.24f, 0.18f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }.then(waveMod), stand = 0.85f)
                 if (s.partnerHelpLine != null && page == last - 1) {
@@ -533,13 +547,13 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                 Scenery(glow = if (s.isDiary) s.diaryGlow else s.hotspots.map { it.key }.toSet())
                 if (showRide) Char("vehicle", s.rideArt, 0.36f, 0.14f, 0.17f, 0.62f, Modifier.offset { IntOffset((wobble * 3).roundToInt(), wobble.roundToInt()) })
                 // 여정 쪽은 늘 "타고 가는 중" 이다 — 옆에 세워 두면 걸어가는 것처럼 보인다
-                if (showRide) Char("hero", heroArt, 0.405f, 0.100f, 0.075f, mod = Modifier.offset { IntOffset((wobble * 3).roundToInt(), wobble.roundToInt()) }.then(poseMod))
-                else Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod), stand = 1f)
+                if (showRide) Char("hero", heroArt, 0.405f, 0.100f, 0.075f, mod = Modifier.offset { IntOffset((wobble * 3).roundToInt(), wobble.roundToInt()) }.then(heroPose), act = heroAct)
+                else Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(heroPose), stand = 1f, act = heroAct, walkIn = heroWalks)
                 if (friendShown != null) Char("friend", friendShown, 0.76f, 0.26f, 0.16f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }, stand = 0.85f)
             }
             PageKind.FAIL -> {
                 Scenery()
-                Char("hero", heroArt, 0.20f, 0.32f, 0.11f, stand = 1f)
+                Char("hero", heroArt, 0.20f, 0.32f, 0.11f, stand = 1f, act = heroAct)
                 // 풀이 죽은 친구 — 살짝 기울고 아래로
                 if (friendShown != null) Char("friend", friendShown, 0.72f, 0.34f, 0.15f, 1f, Modifier.offset { IntOffset(0, 10) }.alpha(0.85f), stand = 0.85f)
                 Text("…", fontSize = 40.sp, color = Color.White, fontWeight = FontWeight.Bold,
@@ -556,9 +570,9 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
             PageKind.TOGETHER -> {
                 Scenery(glow = if (s.isDiary) s.diaryGlow else s.hotspots.map { it.key }.toSet())
                 Box(Modifier.align(Alignment.TopCenter).padding(top = 76.dp).size(110.dp, 50.dp).alpha(twinkle)) { ArtView(Art.Img("prop_sparkle", Art.Emoji("⭐✨⭐")), Modifier.fillMaxSize()) }
-                Char("hero", heroArt, 0.17f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(poseMod), stand = 1f)
+                Char("hero", heroArt, 0.17f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(heroPose), stand = 1f, act = heroAct)
                 if (friendShown != null) Char("friend", friendShown, 0.42f, 0.26f, 0.17f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }, stand = 0.85f)
-                if (showDino) Char("dino", dinoArt, 0.72f, 0.20f, 0.28f, 1.35f, Modifier.offset { IntOffset(0, bob.roundToInt()) }, onHand = { d.send(Reply.Tapped("dino", s.dino.label)) }, stand = 0.92f)
+                if (showDino) Char("dino", dinoArt, 0.72f, 0.20f, 0.28f, 1.35f, Modifier.offset { IntOffset(0, bob.roundToInt()) }, onHand = { d.send(Reply.Tapped("dino", s.dino.label)) }, stand = 0.92f, act = dinoAct)
                 if (s.partnerHelpLine != null) {
                     Layer(0.80f, 0.34f, 0.10f) { ArtView(Art.Img(s.partner.img, Art.Emoji(s.partner.emoji)), Modifier.fillMaxSize()) }
                 }
@@ -572,47 +586,39 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                     .align(Alignment.TopCenter)
                     .padding(top = 46.dp)
                     .widthIn(max = 520.dp)
-                    .shadow(6.dp, RoundedCornerShape(16.dp))
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White.copy(alpha = 0.95f))
-                    .padding(horizontal = 14.dp, vertical = 6.dp)
-            ) { Text("👆 ${s.bookNote}", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center) }
+                    .felt(Wool, RoundedCornerShape(20.dp), lift = 4.dp, stitch = false)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) { Text("👆 ${s.bookNote}", fontSize = 16.sp, color = InkBrown, textAlign = TextAlign.Center) }
         }
 
         if (page > 0) {
             Row(
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(start = 64.dp, end = 64.dp, bottom = 10.dp)
+                    .padding(start = 84.dp, end = 84.dp, bottom = 10.dp)
                     .fillMaxWidth()
-                    .shadow(6.dp, RoundedCornerShape(18.dp))
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFFFFFBF2).copy(alpha = 0.96f))
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    // 09-29 디자인 시스템 ⑪ — 아래 자막 띠: 크림 펠트 + 바느질 · 🔊 다시 듣기
+                    .felt(Wool.copy(alpha = 0.97f), RoundedCornerShape(22.dp), lift = 5.dp)
+                    .padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(s.bookCaption(page), fontSize = 17.sp, lineHeight = 23.sp, color = Ink, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                Text(s.bookCaption(page), fontSize = 19.sp, lineHeight = 25.sp, color = InkBrown, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                 Spacer(Modifier.width(8.dp))
-                Box(Modifier.size(32.dp).noRippleClickable { d.send(Reply.Tapped("speak", "낭독")) }) { ArtView(Art.Img("ic_speaker", Art.Emoji("🔊")), Modifier.fillMaxSize()) }
+                FeltButton(Cheek, onClick = { d.send(Reply.Tapped("speak", "낭독")) }, modifier = Modifier.size(48.dp), shape = CircleShape) {
+                    ArtView(Art.Img("ic_speaker", Art.Emoji("🔊")), Modifier.size(28.dp))
+                }
             }
-            Row(Modifier.align(Alignment.TopStart).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // 미션 도구 — 펠트 원(고른 것은 겨자). 왼쪽 위 🏠 · 🔒(시스템) 뒤에 선다 (09-29)
+            Row(Modifier.align(Alignment.TopStart).padding(start = 136.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(Triple("ic_hand", "✋", "hand"), Triple("ic_hammer", "🔨", "hammer"), Triple("ic_feather", "🪶", "feather"), Triple("ic_magnifier", "🔍", "glass")).forEach { (img, e, k) ->
-                    Box(
-                        Modifier
-                            .size(42.dp)
-                            .shadow(if (tool == k) 6.dp else 2.dp, CircleShape)
-                            .clip(CircleShape)
-                            .background(if (tool == k) Sun else Color.White.copy(alpha = 0.9f))
-                            .border(if (tool == k) 3.dp else 0.dp, Color.White, CircleShape)
-                            .noRippleClickable { tool = k }
-                            .padding(5.dp),
-                        contentAlignment = Alignment.Center,
-                    ) { ArtView(Art.Img(img, Art.Emoji(e)), Modifier.fillMaxSize()) }
+                    FeltButton(if (tool == k) FeltMustard else FeltWhite, onClick = { tool = k }, modifier = Modifier.size(52.dp), shape = CircleShape) {
+                        ArtView(Art.Img(img, Art.Emoji(e)), Modifier.size(34.dp))
+                    }
                 }
             }
             Row(
                 Modifier.align(Alignment.TopEnd).padding(top = 14.dp, end = 76.dp)
-                    .clip(RoundedCornerShape(999.dp)).background(Color.Black.copy(alpha = 0.25f)).padding(horizontal = 10.dp, vertical = 5.dp),
+                    .felt(InkBrown.copy(alpha = 0.55f), RoundedCornerShape(Radius.Round), lift = 2.dp, stitch = false, texture = false).padding(horizontal = 12.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically,
             ) {
                 repeat(last) { i -> Box(Modifier.size(if (i + 1 == page) 10.dp else 7.dp).clip(CircleShape).background(if (i + 1 == page) Sun else Color.White.copy(alpha = 0.7f))) }
@@ -621,16 +627,16 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
             }
         }
         Box(Modifier.align(Alignment.CenterStart).padding(start = 8.dp)) {
-            if (page > 0) RoundBtn("◀", Color.White.copy(alpha = 0.9f)) { d.send(Reply.Tapped("prev", "앞")) }
+            if (page > 0) RoundBtn("◀", Wool) { d.send(Reply.Tapped("prev", "앞")) }
         }
         Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)) {
             val canNext = when (kind) { PageKind.RUB -> stage.m1Done; PageKind.DRAG -> stage.m2Done; else -> true }
             if (page == last) {
-                Box(
-                    Modifier.size(52.dp).shadow(6.dp, CircleShape).clip(CircleShape).background(Sun).noRippleClickable { d.send(Reply.Tapped("next", "다음")) }.padding(7.dp)
-                ) { ArtView(Art.Img("ic_books", Art.Emoji("📚")), Modifier.fillMaxSize()) }
+                FeltButton(FeltMustard, onClick = { d.send(Reply.Tapped("next", "다음")) }, modifier = Modifier.size(Touch.KidMin), shape = CircleShape) {
+                    ArtView(Art.Img("ic_books", Art.Emoji("📚")), Modifier.size(40.dp))
+                }
             } else {
-                RoundBtn("▶", if (canNext) Sun else Color.White.copy(alpha = 0.5f)) { if (canNext) d.send(Reply.Tapped("next", "다음")) }
+                RoundBtn("▶", if (canNext) FeltCoral else WoolCream.copy(alpha = 0.6f)) { if (canNext) d.send(Reply.Tapped("next", "다음")) }
             }
         }
     }
@@ -655,12 +661,10 @@ private fun Cover(d: Director, heroArt: Art) {
     ) {
         Box(
             Modifier
-                .shadow(10.dp, RoundedCornerShape(22.dp))
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFFFFFBF2))
-                .border(4.dp, Sun2, RoundedCornerShape(22.dp))
-                .padding(horizontal = 28.dp, vertical = 10.dp)
-        ) { Text("『${s.title}』", fontSize = 28.sp, color = Ink, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center) }
+                .felt(Wool, RoundedCornerShape(26.dp), lift = 8.dp)
+                .border(4.dp, FeltMustard, RoundedCornerShape(26.dp))
+                .padding(horizontal = 30.dp, vertical = 12.dp)
+        ) { Text("『${s.title}』", fontSize = 30.sp, color = InkBrown, textAlign = TextAlign.Center) }
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(26.dp)) {
             ArtView(heroArt, Modifier.size(96.dp, 134.dp))
@@ -857,10 +861,8 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
                     Modifier
                         .align(Alignment.TopCenter)
                         .padding(top = 58.dp)
-                        .shadow(4.dp, RoundedCornerShape(999.dp))
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(Color.White.copy(alpha = 0.92f))
-                        .padding(horizontal = 14.dp, vertical = 5.dp),
+                        .felt(Wool.copy(alpha = 0.95f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
                 ) {
                     Text(
                         if (blow > 0.22f) "후~~~ 잘한다!" else "🎤 후~ 불어 봐! (손으로 쓸어도 돼)",
@@ -907,7 +909,7 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
             gag?.let { g ->
                 Box(
                     Modifier.offset { IntOffset((wpx * 0.68f).roundToInt(), (hpx * 0.30f).roundToInt()) }
-                        .shadow(4.dp, RoundedCornerShape(999.dp)).clip(RoundedCornerShape(999.dp)).background(Color.White)
+                        .felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) { Text(g, fontSize = 16.sp, color = Coral, fontWeight = FontWeight.Bold) }
             }
@@ -1082,7 +1084,7 @@ private fun DragPage(d: Director, done: Boolean, heroArt: Art, tool: String) {
         gag?.let { g ->
             Box(
                 Modifier.offset { IntOffset(hL.roundToInt(), (hT - 40).roundToInt()) }
-                    .shadow(4.dp, RoundedCornerShape(999.dp)).clip(RoundedCornerShape(999.dp)).background(Color.White)
+                    .felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
                     .padding(horizontal = 12.dp, vertical = 4.dp)
             ) { Text(g, fontSize = 16.sp, color = Coral, fontWeight = FontWeight.Bold) }
         }
@@ -1120,6 +1122,36 @@ fun motionFrom(caption: String): Motion = when {
     listOf("뛰어", "달렸", "달려", "뛰었", "쫓아").any { it in caption } -> Motion.RUN
     else -> Motion.NONE
 }
+
+/**
+ * **쪽에 적힌 대로 뼈대가 움직인다** (09-28) — 주인공의 동작.
+ *
+ * 전에는 그림 한 장을 통째로 기울이고 흔들었다(`waveMod` · `motionMod`). 이제 팔이 따로 움직이니
+ * "손을 흔들었어요" 에는 **정말 손을 흔들고**, 해낸 쪽에서는 두 팔을 번쩍 든다.
+ *
+ * 차례가 중요하다 — 속상한 일이 먼저다. "넘어져서 울었어요" 에 만세를 하면 글과 그림이 반대로 간다.
+ */
+fun heroActFrom(kind: PageKind, caption: String, riding: Boolean): RigMotion = when {
+    kind == PageKind.FAIL || listOf("넘어", "무너", "떨어", "부딪", "울었", "다쳤", "아팠", "속상", "슬펐").any { it in caption } -> RigMotion.SAD
+    wavingFrom(caption) -> RigMotion.WAVE
+    kind == PageKind.TOGETHER || listOf("만세", "기뻐", "기뻤", "신났", "해냈", "웃었", "좋아했").any { it in caption } -> RigMotion.HOORAY
+    !riding && motionFrom(caption) == Motion.RUN -> RigMotion.WALK
+    else -> RigMotion.IDLE
+}
+
+/** 공룡(동행)의 동작 — 함께하는 마지막 쪽에서는 꼬리를 흔들며 반긴다 */
+fun buddyActFrom(kind: PageKind, caption: String): RigMotion = when {
+    kind == PageKind.FAIL || listOf("울었", "속상", "슬펐").any { it in caption } -> RigMotion.SAD
+    kind == PageKind.TOGETHER -> RigMotion.HOORAY
+    else -> RigMotion.IDLE
+}
+
+/**
+ * 주인공이 **걸어 들어오는** 쪽인가 (09-28) — 떠나는 쪽 · 만나는 쪽에서 화면 왼쪽에서 제자리까지 걸어온다.
+ * 탈것에 탄 쪽은 걷지 않는다.
+ */
+fun walksInFrom(kind: PageKind, caption: String, riding: Boolean): Boolean =
+    !riding && (kind == PageKind.DEPART || kind == PageKind.MEET || listOf("걸어", "찾아갔", "다가갔", "다가왔").any { it in caption })
 
 fun ridingFrom(caption: String): Boolean =
     listOf("올라탔", "타고", "탔어", "탔습", "태우").any { it in caption }

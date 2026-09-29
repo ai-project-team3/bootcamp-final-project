@@ -51,6 +51,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -63,6 +64,15 @@ import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import com.example.finalproject_demo.demo.Mood
+import com.example.finalproject_demo.demo.Stage
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
 /** 누를 때 네모난 물결(리플)이 생기지 않는 클릭 — 그림을 누를 때 쓴다 (v0.8) */
 fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
@@ -72,14 +82,13 @@ fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier = composed {
 /** 화면 맨 위 가운데 — 지금 무엇을 하는 화면인가 */
 @Composable
 fun TitleChip(text: String, modifier: Modifier = Modifier, dark: Boolean = false) {
+    // 09-29 디자인 시스템 — 흰 펠트 판 (장면 위에서도 읽히게)
     Box(
         modifier
-            .shadow(6.dp, RoundedCornerShape(999.dp), ambientColor = Ink.copy(alpha = 0.2f), spotColor = Ink.copy(alpha = 0.2f))
-            .clip(RoundedCornerShape(999.dp))
-            .background(if (dark) Color(0xFF3A332C).copy(alpha = 0.92f) else Color.White.copy(alpha = 0.92f))
+            .felt(if (dark) InkBrown.copy(alpha = 0.92f) else FeltWhite.copy(alpha = 0.94f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false, texture = !dark)
             .padding(horizontal = 18.dp, vertical = 5.dp)
     ) {
-        Text(text, fontSize = 16.sp, color = if (dark) Color.White else Ink, fontWeight = FontWeight.Bold)
+        Text(text, fontSize = 16.sp, color = if (dark) FeltWhite else InkBrown)
     }
 }
 
@@ -99,215 +108,127 @@ private fun starPath(cx: Float, cy: Float, r: Float): Path = Path().apply {
  * 진행 막대 — 칸이 찰 때마다 로딩처럼 차오르고, 끝에 별이 있다.
  * 6칸이 다 차면 막대 전체와 별이 색으로 가득 차고 반짝인다 → 곧 동화책이 시작된다.
  * 점수가 아니라 "이야기가 얼마나 모였나"만 보여 준다.
+ *
+ * 09-29 디자인 시스템 「별 모으기 진행」 — 장면 위에서도 읽히게 **흰 펠트 판** 위에 털실 길,
+ * 겨자 펠트가 차오르고 윗면에 윤기 한 줄 · 1.6초마다 빛이 지나간다. **쪽마다 별 구슬**(지난 쪽 흰 별 · 남은 쪽 흐린 별)로
+ * 글자 없이 몇 쪽째인지 센다. 끝의 **리본 달린 메달**은 안쪽부터 차오르고, 다 차면 금빛 · 빛 원과 함께 숨 쉰다.
  */
 @Composable
 fun ProgressTrack(filled: Int, total: Int, modifier: Modifier = Modifier) {
     val frac by animateFloatAsState((filled.toFloat() / total).coerceIn(0f, 1f), tween(700), label = "prog")
     val done = filled >= total
     val inf = rememberInfiniteTransition(label = "prog")
-    val glow by inf.animateFloat(0.85f, 1.12f, infiniteRepeatable(tween(520), RepeatMode.Reverse), label = "glow")
+    val glow by inf.animateFloat(0.9f, 1.1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "glow")
     val shimmer by inf.animateFloat(-0.3f, 1.3f, infiniteRepeatable(tween(1600)), label = "shimmer")
-    Box(modifier.width(280.dp).height(34.dp), contentAlignment = Alignment.CenterStart) {
-        Canvas(Modifier.padding(end = 20.dp).fillMaxWidth().height(16.dp)) {
-            val r = CornerRadius(size.height / 2)
-            drawRoundRect(Color.White.copy(alpha = 0.85f), cornerRadius = r)
-            drawRoundRect(Color(0xFFE3D6BF), cornerRadius = r, style = Stroke(2.dp.toPx()))
-            if (frac > 0f) {
-                val w = size.width * frac
-                drawRoundRect(
-                    Brush.horizontalGradient(listOf(Sun2, Sun, Coral), endX = size.width),
-                    size = Size(w, size.height), cornerRadius = r,
-                )
-                // 차오르는 동안 빛이 지나간다
-                val sx = size.width * shimmer
-                if (sx >= 0f && sx + size.height <= w) drawRect(Color.White.copy(alpha = 0.35f), topLeft = Offset(sx, 0f), size = Size(size.height, size.height))
+    Box(modifier.width(320.dp).height(52.dp), contentAlignment = Alignment.CenterStart) {
+        // 흰 펠트 판
+        Box(
+            Modifier
+                .padding(end = 22.dp)
+                .fillMaxWidth()
+                .height(36.dp)
+                .felt(FeltWhite.copy(alpha = 0.94f), RoundedCornerShape(Radius.Round), lift = 3.dp)
+        ) {
+            Canvas(Modifier.fillMaxSize().padding(start = 14.dp, end = 30.dp)) {
+                val h = 12.dp.toPx()
+                val y = size.height / 2
+                val r = CornerRadius(h / 2)
+                // 털실 길 — 크림 바탕에 나무색 털실 점선
+                drawRoundRect(WoolCream, Offset(0f, y - h / 2), Size(size.width, h), r)
+                drawLine(StageWoodDeep.copy(alpha = 0.45f), Offset(h / 2, y), Offset(size.width - h / 2, y), 2.dp.toPx(),
+                    cap = StrokeCap.Round, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(7.dp.toPx(), 5.dp.toPx())))
+                if (frac > 0f) {
+                    val w = (size.width * frac).coerceAtLeast(h)
+                    drawRoundRect(FeltMustard, Offset(0f, y - h / 2), Size(w, h), r)
+                    // 윗면 윤기 한 줄
+                    drawLine(FeltWhite.copy(alpha = 0.55f), Offset(h / 2, y - h * 0.22f), Offset(w - h / 2, y - h * 0.22f), 2.dp.toPx(), cap = StrokeCap.Round)
+                    val sx = size.width * shimmer
+                    if (sx >= 0f && sx + h <= w) drawRect(FeltWhite.copy(alpha = 0.35f), Offset(sx, y - h / 2), Size(h, h))
+                }
+                // 쪽마다 별 구슬 — 지난 쪽은 흰 별, 남은 쪽은 흐린 별
+                for (i in 1 until total) {
+                    val cx = size.width * i / total
+                    val star = starPath(cx, y, 7.dp.toPx())
+                    if (i <= filled) {
+                        drawPath(star, FeltWhite)
+                        drawPath(star, StageWoodDeep.copy(alpha = 0.55f), style = Stroke(1.2f.dp.toPx()))
+                    } else {
+                        drawPath(star, InkSoft.copy(alpha = 0.28f))
+                    }
+                }
             }
         }
-        // 끝의 별 — 다 차면 금빛으로 채워지고 커졌다 작아졌다
+        // 끝의 메달 — 리본 두 가닥 + 둥근 메달 + 별. 안쪽부터 차오르고 다 차면 숨 쉰다
         Canvas(
             Modifier
                 .align(Alignment.CenterEnd)
-                .size(34.dp)
+                .size(50.dp)
                 .scale(if (done) glow else 1f)
         ) {
             val c = center
-            val p = starPath(c.x, c.y, size.minDimension / 2)
-            if (done) {
-                drawCircle(Sun.copy(alpha = 0.35f), size.minDimension / 2 * 1.1f)
-                drawPath(p, Brush.verticalGradient(listOf(Color(0xFFFFE27A), Sun)))
-                drawPath(p, Color(0xFFD98A00), style = Stroke(2.dp.toPx()))
-            } else {
-                drawPath(p, Color.White)
-                drawPath(p, Color(0xFFD9C8A8), style = Stroke(2.5f.dp.toPx()))
-                // 조금씩 차오르는 별 안쪽
-                if (frac > 0f) drawPath(starPath(c.x, c.y, size.minDimension / 2 * 0.55f * frac), Sun2)
+            val rr = size.minDimension * 0.36f
+            // 리본
+            for (sgn in listOf(-1f, 1f)) {
+                val p = Path().apply {
+                    moveTo(c.x + sgn * rr * 0.25f, c.y + rr * 0.4f)
+                    lineTo(c.x + sgn * rr * 0.85f, c.y + rr * 1.35f)
+                    lineTo(c.x + sgn * rr * 0.45f, c.y + rr * 1.2f)
+                    lineTo(c.x + sgn * rr * 0.2f, c.y + rr * 1.45f)
+                    close()
+                }
+                drawPath(p, if (done) FeltCoral else FeltCoral.copy(alpha = 0.55f))
             }
+            if (done) drawCircle(FeltMustard.copy(alpha = 0.35f), rr * 1.45f, c)
+            drawCircle(if (done) FeltMustard else WoolCream, rr, c)
+            if (!done && frac > 0f) drawCircle(FeltMustard.copy(alpha = 0.85f), rr * frac, c)
+            drawCircle(if (done) Color(0xFFC98A12) else StageWood, rr, c, style = Stroke(2.2f.dp.toPx()))
+            val st = starPath(c.x, c.y, rr * 0.62f)
+            drawPath(st, if (done) FeltWhite else FeltWhite.copy(alpha = 0.9f))
         }
     }
 }
 
 /**
- * 하루 별(재화) — 왼쪽 별 아이콘 + 오른쪽 둥근 모서리 틀(왼쪽 변 없음) 안에 숫자.
+ * 하루 재화 — **오늘 만들 수 있는 책 N권** (09-29 디자인 시스템: 코랄 책 동전 + 흰 펠트 판).
  * 한도가 꺼져 있으면 ∞.
  */
 @Composable
 fun StarWallet(count: Int, unlimited: Boolean, modifier: Modifier = Modifier) {
-    Box(modifier.height(44.dp), contentAlignment = Alignment.CenterStart) {
-        // 틀: 위 · 오른쪽 · 아래만 그린다 (왼쪽 변이 열려 있고, 그 자리에 별이 걸친다)
+    Box(modifier.height(48.dp), contentAlignment = Alignment.CenterStart) {
         Box(
             Modifier
-                .padding(start = 22.dp)
-                .height(34.dp)
-                .widthIn(min = 64.dp)
+                .padding(start = 24.dp)
+                .height(36.dp)
+                .widthIn(min = 68.dp)
+                .felt(FeltWhite.copy(alpha = 0.94f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
         ) {
-            Canvas(Modifier.matchParentSize()) {
-                val sw = 2.5f.dp.toPx()
-                val r = 10.dp.toPx()                 // 둥근 모서리
-                val top = sw / 2
-                val bottom = size.height - sw / 2
-                val right = size.width - sw / 2
-                fun outline(closeLeft: Boolean) = Path().apply {
-                    moveTo(0f, top)
-                    lineTo(right - r, top)
-                    arcTo(androidx.compose.ui.geometry.Rect(right - 2 * r, top, right, top + 2 * r), -90f, 90f, false)
-                    lineTo(right, bottom - r)
-                    arcTo(androidx.compose.ui.geometry.Rect(right - 2 * r, bottom - 2 * r, right, bottom), 0f, 90f, false)
-                    lineTo(0f, bottom)
-                    if (closeLeft) close()        // 칠하기만 닫고, 테두리는 왼쪽 변을 그리지 않는다
-                }
-                drawPath(outline(true), Color.White.copy(alpha = 0.92f))
-                drawPath(outline(false), Color(0xFFD9A441), style = Stroke(sw))
-            }
             Text(
                 if (unlimited) "∞" else "$count",
-                fontSize = 20.sp, color = Ink, fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.CenterEnd).padding(start = 30.dp, end = 16.dp),
+                fontSize = 20.sp, color = InkBrown,
+                modifier = Modifier.align(Alignment.CenterEnd).padding(start = 32.dp, end = 16.dp),
             )
         }
-        // 왼쪽 별
-        Canvas(Modifier.size(44.dp)) {
-            val p = starPath(center.x, center.y, size.minDimension / 2)
-            drawPath(p, Brush.verticalGradient(listOf(Color(0xFFFFE27A), Sun)))
-            drawPath(p, Color(0xFFD98A00), style = Stroke(2.dp.toPx()))
-        }
-    }
-}
-
-
-/**
- * 마스코트 말풍선 — 화면 아래 왼쪽에 떠 있다 (아래 띠를 없애 무대를 넓게 쓴다 · v0.8).
- * 말할 때마다 풍선이 톡 튀어나오고 글자가 한 자씩 써진다. 마스코트는 말하는 동안 콩콩 뛴다.
- */
-@Composable
-fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
-    val s = d.s
-    val id = s.lineId
-    val text = s.line
-    val pop = remember { Animatable(1f) }
-    var shown by remember { mutableIntStateOf(text.length) }
-    LaunchedEffect(id) {
-        shown = 0
-        pop.snapTo(0.6f)
-        pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow))
-    }
-    LaunchedEffect(id, text) {
-        while (shown < text.length) {
-            delay(28)
-            shown++
-        }
-    }
-    val talking = shown < text.length
-    val inf = rememberInfiniteTransition(label = "mascot")
-    val hop by inf.animateFloat(0f, -7f, infiniteRepeatable(tween(180), RepeatMode.Reverse), label = "hop")
-    val tilt by inf.animateFloat(-4f, 4f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "tilt")
-    if (text.isBlank()) return
-    Row(modifier, verticalAlignment = Alignment.Bottom) {
-        Box(
-            Modifier
-                .size(68.dp)
-                .offset { IntOffset(0, if (talking) hop.roundToInt() else 0) }
-                .rotate(if (talking) 0f else tilt)
-        ) { ArtView(Art.Mascot, Modifier.fillMaxSize()) }
-        Spacer(Modifier.width(4.dp))
-        Column(
-            Modifier
-                .padding(bottom = 18.dp)
-                .widthIn(max = 470.dp)
-                .scale(pop.value)
-                .alpha(((pop.value - 0.6f) / 0.4f).coerceIn(0f, 1f))
-                .shadow(8.dp, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 4.dp), ambientColor = Ink.copy(alpha = 0.25f), spotColor = Ink.copy(alpha = 0.25f))
-                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 4.dp))
-                .background(Color.White.copy(alpha = 0.96f))
-                .padding(horizontal = 14.dp, vertical = 7.dp)
-        ) {
-            if (s.speaker != "마스코트") Text(s.speaker, fontSize = 11.sp, color = Coral, fontWeight = FontWeight.Bold)
-            Text(text.take(shown), fontSize = 17.sp, color = Ink, fontWeight = FontWeight.Bold, maxLines = 2, lineHeight = 22.sp)
-        }
-    }
-}
-
-/** 오른쪽 아래에 떠 있는 🎤 · ➡️ (쓸 수 있을 때만 보인다) */
-@Composable
-fun FloatingControls(d: Director, modifier: Modifier = Modifier) {
-    val s = d.s
-    Row(modifier, verticalAlignment = Alignment.Bottom) {
-        if (s.drawEnabled) {
-            Box(
-                Modifier
-                    .padding(end = 10.dp, bottom = 8.dp)
-                    .shadow(6.dp, RoundedCornerShape(999.dp))
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color.White.copy(alpha = 0.95f))
-                    .clickable { d.send(com.example.finalproject_demo.demo.Reply.Tapped("draw", "직접 그리기")) }
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
-            ) { Text("🖍️ 직접 그리기", fontSize = 15.sp, color = Ink) }
-        }
-        if (s.nextEnabled) {
-            Box(
-                Modifier
-                    .padding(end = 10.dp, bottom = 4.dp)
-                    .size(48.dp)
-                    .shadow(6.dp, CircleShape)
-                    .clip(CircleShape)
-                    .background(Sun)
-                    .clickable { d.skip() },
-                contentAlignment = Alignment.Center,
-            ) { ArtView(Art.Img("ic_next", Art.Emoji("➡️")), Modifier.size(30.dp)) }
-        }
-        var askMic by remember { mutableStateOf(false) }
-        var askMicPermission by remember { mutableStateOf(false) }
-        if (s.micEnabled) {
-            val inf = rememberInfiniteTransition(label = "mic")
-            val pulse by inf.animateFloat(1f, 1.14f, infiniteRepeatable(tween(420), RepeatMode.Reverse), label = "pulse")
-            Box(contentAlignment = Alignment.Center) {
-                if (s.micOn) Box(Modifier.size(78.dp).scale(pulse).clip(CircleShape).background(Coral.copy(alpha = 0.25f)))
-                Box(
-                    Modifier
-                        .size(64.dp)
-                        .shadow(10.dp, CircleShape, ambientColor = Coral.copy(alpha = 0.6f), spotColor = Coral.copy(alpha = 0.6f))
-                        .clip(CircleShape)
-                        .background(Brush.verticalGradient(listOf(Coral2, Coral)))
-                        // 처음 누를 때는 **왜 마이크를 쓰는지 먼저 알린다** (출시 체크리스트 §2 · 9/23).
-                        // 한 번 보면 다시 안 뜬다
-                        .clickable { if (ConsentStore.micNoticeShown) d.toggleMic() else askMic = true },
-                    contentAlignment = Alignment.Center,
-                ) { if (s.micOn) Text("⏹", fontSize = 26.sp, color = Color.White) else ArtView(Art.Img("ic_mic", Art.Emoji("🎤")), Modifier.size(38.dp)) }
-            }
-            // 고지가 **먼저**, 그다음 시스템 권한 요청 (스토어 출시 체크리스트 §4 ③).
-            // 권한을 거절해도 마이크 자리는 그대로 둔다 — 대본 앱이라 대본 버튼으로 답할 수 있다
-            if (askMic) {
-                MicNoticeSheet {
-                    askMic = false
-                    askMicPermission = true
-                    d.toggleMic()
+        // 코랄 책 동전
+        Box(Modifier.size(48.dp).felt(FeltCoral, CircleShape, lift = 3.dp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(24.dp)) {
+                val w = size.width; val h = size.height
+                // 펼친 책 — 두 쪽
+                for (sgn in listOf(-1f, 1f)) {
+                    val p = Path().apply {
+                        moveTo(w / 2, h * 0.28f)
+                        lineTo(w / 2 + sgn * w * 0.46f, h * 0.18f)
+                        lineTo(w / 2 + sgn * w * 0.46f, h * 0.82f)
+                        lineTo(w / 2, h * 0.92f)
+                        close()
+                    }
+                    drawPath(p, FeltWhite)
                 }
-            }
-            if (askMicPermission) {
-                MicPermissionRequest { askMicPermission = false }
+                drawLine(FeltCoral, Offset(w / 2, h * 0.3f), Offset(w / 2, h * 0.9f), 1.5f.dp.toPx())
             }
         }
     }
 }
+
 
 /**
  * 누르면 흔들리고 바로 위에 글자가 떠오르는 그림 (HTML 데모와 같은 반응 · v0.8).
@@ -359,20 +280,23 @@ fun Tappable(
                     .wrapContentSize(unbounded = true)
                     .offset { IntOffset(0, (-28 - 46 * rise.value).dp.roundToPx()) }
                     .alpha((1f - rise.value * rise.value).coerceIn(0f, 1f))
-                    .shadow(4.dp, RoundedCornerShape(999.dp))
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color.White)
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
+                    .padding(horizontal = 14.dp, vertical = 5.dp)
             ) {
-                Text(popText, fontSize = 17.sp, color = Coral, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1)
+                Text(popText, fontSize = 18.sp, color = FeltCoral, textAlign = TextAlign.Center, maxLines = 1)
             }
         }
     }
 }
 
-/** 아래 여백 — 떠 있는 말풍선 · 버튼에 가리지 않게 무대 안쪽에 두는 높이 */
-val BottomChrome = 76.dp
-val TopChrome = 80.dp
+/**
+ * 아래 여백 — 오또 나레이션 칸에 가리지 않게 무대 안쪽에 두는 높이.
+ * 09-29 나레이션 칸이 화면 아래 전체 폭(위 여백 30 + 칸 84 + 아래 8 = 122dp)이 되면서 76dp 로는
+ * 주인공 고르기 다섯째 줄 · 카드가 칸 밑에 깔렸다 → 칸 높이에 맞춘다
+ */
+val BottomChrome = 124.dp
+/** 위 여백 — 🏠 · 🔒(10 + 56dp)과 진행 막대 아래 */
+val TopChrome = 72.dp
 
 @Composable
 fun FullHeightSpacer() = Spacer(Modifier.fillMaxHeight())
