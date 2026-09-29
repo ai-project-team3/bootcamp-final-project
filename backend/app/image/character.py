@@ -40,9 +40,40 @@ def template(rig: str) -> bytes | None:
     return p.read_bytes() if p.exists() else None
 
 
+BG_TOL = 16         # how far from that row's background colour still counts as background
+
+
 def _foreground(rgb: np.ndarray) -> np.ndarray:
-    mx, mn = rgb.max(axis=2).astype(int), rgb.min(axis=2).astype(int)
-    return ~((mx - mn < SAT_MAX) & (mn > VAL_MIN))
+    """Background = pale grey **and connected to the frame** through pale grey.
+
+    09-29 live: a princess in a pale pink dress came back with the dress cut away — the old rule
+    (bright + low saturation = background, anywhere) ate every pale part of the body. Now only
+    what can be reached from the border counts, measured against *that row's* background colour
+    (SDXL paints a vertical grey gradient), so pale colour inside the outline survives.
+    """
+    img = rgb.astype(int)
+    mx, mn = img.max(axis=2), img.min(axis=2)
+    pale = (mx - mn < SAT_MAX) & (mn > VAL_MIN)
+    # the background colour of each row, from its two edge pixels
+    row_bg = (img[:, :1, :] + img[:, -1:, :]) // 2
+    near = pale & (np.abs(img - row_bg).max(axis=2) <= BG_TOL)
+    h, w = near.shape
+    bg = np.zeros_like(near)
+    q = deque()
+    for y in range(h):
+        for x in (0, w - 1):
+            if near[y, x] and not bg[y, x]:
+                bg[y, x] = True; q.append((y, x))
+    for x in range(w):
+        for y in (0, h - 1):
+            if near[y, x] and not bg[y, x]:
+                bg[y, x] = True; q.append((y, x))
+    while q:
+        y, x = q.popleft()
+        for ny, nx in ((y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)):
+            if 0 <= ny < h and 0 <= nx < w and near[ny, nx] and not bg[ny, nx]:
+                bg[ny, nx] = True; q.append((ny, nx))
+    return ~bg
 
 
 def _components(mask: np.ndarray) -> list[tuple[int, int, np.ndarray]]:

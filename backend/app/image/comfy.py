@@ -77,14 +77,18 @@ async def background(scene: str) -> bytes:
 
 CHAR_STYLE = (", cut paper collage, layered torn construction paper, flat 2d shapes, warm crayon-box colors, "
               "children's picture book character, isolated on plain pure white background, no shadow, no text")
+# frame · card · backdrop: 09-29 live, the octopus came on a square paper card and was cut out card and all
 CHAR_NEG = ("text, letters, watermark, photo, photorealistic, blurry, ugly, scary, dark, horror, "
-            "background scenery, multiple characters, nudity, blood, weapon, gore")
+            "background scenery, frame, border, card, backdrop, circle behind, colored background, "
+            "multiple characters, nudity, blood, weapon, gore")
 CHAR_POSE = {
     "human": "front view, full body, both arms stretched out diagonally downward away from the body in an A-pose",
     "quad": "side view facing right, full body, standing on four clearly separated legs",
     "blob": "front view, full body, simple round shape",
 }
-CHAR_DENOISE = {"human": 0.85, "quad": 0.8}
+# blob 0.9 — 09-29 live: drawn from nothing, octopus and monster came on beige / grey paper
+# backdrops the cut-out could not remove; a grey round mannequin on white keeps the white
+CHAR_DENOISE = {"human": 0.85, "quad": 0.8, "blob": 0.9}
 
 
 async def upload(png: bytes, name: str) -> str:

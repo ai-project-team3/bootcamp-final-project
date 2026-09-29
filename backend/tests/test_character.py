@@ -59,9 +59,9 @@ def test_an_empty_picture_is_a_cutout_error():
         character.cut_and_fit(b.getvalue())
 
 
-def test_rigs_with_a_pose_have_a_mannequin_and_blob_does_not():
-    assert character.template("human") and character.template("quad")
-    assert character.template("blob") is None
+def test_every_rig_has_a_mannequin():
+    # blob too — without one the model paints a coloured backdrop the cut-out cannot remove (09-29)
+    assert all(character.template(r) for r in ("human", "quad", "blob"))
 
 
 def test_the_img2img_graph_starts_from_the_mannequin():
@@ -69,8 +69,8 @@ def test_the_img2img_graph_starts_from_the_mannequin():
     assert wf["10"]["inputs"]["image"] == "otto_mannequin_human.png"
     assert wf["5"]["inputs"]["latent_image"] == ["11", 0] and wf["5"]["inputs"]["denoise"] == 0.85
     assert "A-pose" in wf["2"]["inputs"]["text"] and "white background" in wf["2"]["inputs"]["text"]
-    blob = comfy.character_workflow("octopus", "blob", 1, None)
-    assert "10" not in blob and blob["5"]["inputs"]["latent_image"] == ["4", 0]
+    blob = comfy.character_workflow("octopus", "blob", 1, "otto_mannequin_blob.png")
+    assert blob["5"]["inputs"]["denoise"] == 0.9
 
 
 @pytest.fixture
