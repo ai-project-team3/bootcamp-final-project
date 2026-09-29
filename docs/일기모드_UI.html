@@ -59,15 +59,11 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .coin{position:absolute;top:2cqw;right:2cqw;background:#fff;border-radius:3cqw;padding:.6cqw 1.6cqw;font-size:1.9cqw;display:flex;gap:.6cqw;align-items:center;box-shadow:0 .5cqw 1cqw rgba(58,42,32,.18);z-index:5}
 .coin b{width:2.6cqw;height:2.6cqw;border-radius:50%;background:var(--coral);display:inline-block}
 
-/* D3: Otto beside the page, the line in a speech bubble (placeholder — later Otto lies down drawing / writing) */
-.d3-otto{position:absolute;left:2cqw;bottom:0;height:33cqw;filter:drop-shadow(0 1cqw 1.2cqw rgba(58,42,32,.25));transform-origin:50% 100%;animation:bob 2.6s ease-in-out infinite;pointer-events:none}
+/* D3: Otto beside the pinned drawing, same height; the line in the usual band (placeholder poses — later Otto lies down drawing / writing) */
+.d3-otto{position:absolute;left:2cqw;top:8.5cqw;height:24cqw;filter:drop-shadow(0 1cqw 1.2cqw rgba(58,42,32,.25));transform-origin:50% 100%;animation:bob 2.6s ease-in-out infinite;pointer-events:none}
 .d3-otto.hop{animation:hop .45s ease-out}
-.frame.asking .band{left:28cqw;right:3cqw;bottom:2cqw;min-height:8cqw;animation:pop .3s ease-out}
-.frame.asking .band::before{content:"";position:absolute;left:-2.4cqw;top:50%;width:2.6cqw;height:3cqw;margin-top:-1.5cqw;background:var(--sky);clip-path:polygon(100% 0,0 55%,100% 100%)}
-.frame.asking .band .face{display:none}
-.frame.asking .band .line{font-size:2.7cqw}
-.frame.asking .echo{display:none}   /* Otto's bubble already says it */
-.frame.asking .page-card{left:27cqw;right:3cqw;top:8.5cqw;bottom:12.5cqw;width:auto;aspect-ratio:auto;padding:1.4cqw;transform:rotate(.8deg)}   /* fills the space between Otto and the right edge */
+.frame.asking .echo{display:none}   /* the band already says it */
+.frame.asking .page-card{left:24.5cqw;right:3cqw;top:8.5cqw;height:24cqw;bottom:auto;width:auto;aspect-ratio:auto;padding:1.4cqw;transform:rotate(.8deg)}   /* fills the space between Otto and the right edge */
 .frame.asking .page-card img{position:absolute;left:1.4cqw;top:1.4cqw;width:calc(100% - 2.8cqw);height:calc(100% - 2.8cqw)}
 /* narration band */
 .frame.drawing .band{left:1.2cqw;right:auto;bottom:1.2cqw;max-width:62cqw;min-height:0;gap:1.2cqw;padding:.6cqw 2cqw .6cqw .6cqw;border-width:.4cqw;border-radius:4cqw;cursor:pointer;transition:max-width .35s ease, padding .35s ease, opacity .35s ease;overflow:hidden}
