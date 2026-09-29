@@ -818,6 +818,11 @@ class DemoState {
      */
     val slotBy = mutableStateMapOf<String, String>()
 
+    /** 동화 모드의 서버 판정이 정한 다음 질문과 생략 칸. 일기·협업의 질문 순서에는 쓰지 않는다. */
+    var storyNextSlot by mutableStateOf<String?>(null)
+    val storyUnneededSlots = mutableStateListOf<String>()
+    val storyReady: Boolean get() = mode == StoryMode.STORY && endReason == "story_ready"
+
     // ── 함께 하는 사람
     var partnerKey by mutableStateOf("mom")
     val partner: Partner get() = partner(partnerKey)
@@ -1218,7 +1223,8 @@ class DemoState {
     fun resetStory() {
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
-        slots.clear(); slotBy.clear(); partnerHelp = null; partnerHelpLine = null
+        slots.clear(); slotBy.clear(); storyNextSlot = null; storyUnneededSlots.clear()
+        partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY
         diaryStart = 0L; diaryTimeUp = false; mascotPicks = 0; endReason = null
