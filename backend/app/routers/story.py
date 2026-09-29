@@ -49,11 +49,12 @@ KIND_MEANING = {
 }
 
 # docs/미션_구상.md §3 — the situation the page must end on, so the child's hands can
-# solve it next. Never the result: the app adds "불이 다 꺼졌어요" after the mission.
+# solve it next. Never the result: what the page says after the mission is the app's
+# (today a banner, not the caption — 최민우 09-29, Scenes.kt).
 MISSION_SETUP = {
     "A1": "물대포로 끄기 — 불이나 연기가 번진 상황",
     "A2": "도형 블록 넣기 — 블록이나 장난감이 흩어진 상황",
-    "A3": "그림 퍼즐 — 그림이 조각나 흩어진 상황",
+    "A3": "그림 퍼즐 — 아이가 이 쪽 그림을 조각 맞춰 완성한다",
     "A4": "손잡이 돌려 잠그기 — 물이 넘치거나 새는 상황",
     "A5": "쌓기 — 쌓은 것이 무너진 상황",
     "A6": "문지르기 — 무언가 묻거나 덮여 가려진 상황",
@@ -70,14 +71,24 @@ MISSION_SETUP = {
 }
 
 
+# Missions played on the page itself, not on a problem in the story. Setting one up as
+# "a situation" would put an event in the book that never happened (최민우 09-29: the
+# puzzle is the scene picture cut into pieces, not something that broke in the story).
+NO_SITUATION = {"A3", "B2", "D3"}
+
+
 def plan(req: StoryRequest) -> str:
     """The page list as the model reads it. Takes the place of the fixed scene order."""
     lines = [f"[쪽 목록] 정확히 {len(req.pages)}쪽. 이 차례와 개수를 그대로 따른다 — 위 장면 구성보다 우선한다."]
     for i, pg in enumerate(req.pages, 1):
-        line = f"{i} {pg.kind} : {KIND_MEANING[pg.kind]}"
-        if pg.mission:
-            line += (f" · 미션 {pg.mission} {MISSION_SETUP[pg.mission]}. 이 상황으로 끝내고 풀지 않는다."
-                     " 미션 이름 · 도구 이름 · '직전' 같은 설명 말은 쓰지 않고 이야기 속 장면으로만 보여 준다")
+        if pg.mission in NO_SITUATION:
+            line = (f"{i} {pg.kind} : 이야기를 한 걸음 잇는 평범한 장면 · 미션 {pg.mission} {MISSION_SETUP[pg.mission]}."
+                    " 문장에는 미션 · 조각 · 퍼즐 이야기를 넣지 않고 새 사건도 만들지 않는다")
+        else:
+            line = f"{i} {pg.kind} : {KIND_MEANING[pg.kind]}"
+            if pg.mission:
+                line += (f" · 미션 {pg.mission} {MISSION_SETUP[pg.mission]}. 이 상황으로 끝내고 풀지 않는다."
+                         " 미션 이름 · 도구 이름 · '직전' 같은 설명 말은 쓰지 않고 이야기 속 장면으로만 보여 준다")
         lines.append(line)
     if req.mode != "story":
         lines.append("있었던 일이다. 미션 쪽도 칸에 있는 일로만 쓰고, 없던 일을 지어내지 않는다.")

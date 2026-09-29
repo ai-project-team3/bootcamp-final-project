@@ -66,6 +66,20 @@ def test_the_prompt_gets_the_plan_and_the_mission_setup_not_the_result():
     assert "풀지 않는다" in text
 
 
+def test_a_puzzle_page_gets_no_invented_situation():
+    """A3 is the scene picture in pieces, not something that broke in the story."""
+    req = StoryRequest(slots={}, pages=[Page(kind="DEPART"), Page(kind="DRAG", mission="A3")])
+    line = story_route.user(req).splitlines()[-1]
+    assert "미션 A3" in line and "새 사건도 만들지 않는다" in line
+    assert "풀기 직전" not in line and "풀지 않는다" not in line
+
+
+def test_the_page_count_is_not_the_apis_business():
+    """6-8 is today's templates; the API only checks the answer matches the plan."""
+    pages = [Page(kind="TALK")] * 12
+    assert story_route.check(_book(12), "story", pages) is None
+
+
 def test_a_diary_plan_forbids_inventing():
     req = StoryRequest(mode="diary", slots={"place": "놀이터"}, pages=[Page(kind="DEPART"), Page(kind="TOGETHER")])
     assert "지어내지 않는다" in story_route.user(req)

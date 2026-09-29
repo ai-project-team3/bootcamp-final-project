@@ -42,8 +42,10 @@ class StoryRequest(BaseModel):
     template: Optional[str] = None
     level: Optional[str] = None
     # the page plan, in order. When given, the book has exactly these pages;
-    # when absent, the old shape (story: six · diary/coop: 3-6) for old callers
-    pages: Optional[list[Page]] = Field(default=None, min_length=1, max_length=10)
+    # when absent, the old shape (story: six · diary/coop: 3-6) for old callers.
+    # Today's templates run 6-8 pages, but that is the app's choice, not the API's
+    # (최민우 09-29). The cap only stops a runaway request from buying a huge book.
+    pages: Optional[list[Page]] = Field(default=None, min_length=1, max_length=30)
 
 
 class StoryResult(BaseModel):
