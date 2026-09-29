@@ -1504,11 +1504,16 @@ private suspend fun Director.sceneEnd() {
     }
     say("책 다 만들었다! 고생했어~~")
     buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
-    awaitValue("shelf")
+    while (true) {
+        awaitValue("shelf")
+        if (s.mode != StoryMode.STORY || saveFinishedStory()) break
+        say("책을 기기에 저장하지 못했어. 다시 눌러 줘.")
+    }
     mark("end")
-    s.shelf.add(0, ShelfBook(s.title ?: s.autoTitleFor(), s.themeKey, s.bgName, pages = s.pageCount, fresh = true))
+    if (s.mode != StoryMode.STORY)
+        s.shelf.add(0, ShelfBook(s.title ?: s.autoTitleFor(), s.themeKey, s.bgName, pages = s.pageCount, fresh = true))
     event("session_end", "duration" to "15분", "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
-    log("책장에 꽂기 → 책장 화면으로 (다시 읽기는 아직 없음 — 꽂히는 것까지) · 확정 그림은 폰 소품함에, 서버에는 아무것도 안 남김 (⭐26)")
+    log("책장에 꽂기 → 동화책 자막과 쪽 종류를 기기에 저장 · 서버에는 저장하지 않음 (⭐26)")
     go(Scene.SHELF)
 }
 
@@ -1532,13 +1537,30 @@ private suspend fun Director.sceneShelf() {
         buttons(DemoBtn("◀ 돌아가기") { send(Reply.Tapped("home", "돌아가기")) })
     }
     while (true) {
-        when (awaitValue("home", "parent", "book")) {
+        val tapped = awaitReply() as? Reply.Tapped ?: continue
+        when (tapped.value) {
             "home" -> { if (fromEnd) goHome() else go(Scene.ADULT); return }
             "parent" -> {
                 if (pinGate("parent")) { go(Scene.PARENT); return }
                 s.stage = Stage.Shelf(fromEnd)
             }
-            else -> log("책을 눌렀음 — 다시 읽기는 아직 없다 (살짝 흔들리기만)")
+            "book" -> {
+                val book = savedStory(tapped.label) ?: continue
+                var page = 0
+                s.line = ""
+                buttons()
+                while (true) {
+                    s.stage = Stage.SavedStory(book, page)
+                    val action = (awaitReply() as? Reply.Tapped)?.value ?: continue
+                    when (action) {
+                        "next" -> if (page < book.pages.size) page++
+                        "prev" -> if (page > 0) page--
+                        "close" -> break
+                    }
+                }
+                s.stage = Stage.Shelf(fromEnd)
+                say("우리가 만든 책들이야!")
+            }
         }
     }
 }

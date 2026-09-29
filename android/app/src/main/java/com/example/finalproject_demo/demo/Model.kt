@@ -538,8 +538,8 @@ fun diaryPlaceBg(place: String?): String {
 }
 
 
-/** 책장에 꽂힌 책 한 권 (책장에서 다시 읽기는 아직 없다 — 꽂히는 것까지) */
-data class ShelfBook(val title: String, val themeKey: String, val bgName: String, val pages: Int = 6, val fresh: Boolean = false)
+/** 책장에 꽂힌 책 한 권. 저장된 동화만 [savedStoryId]로 다시 읽을 수 있다. */
+data class ShelfBook(val title: String, val themeKey: String, val bgName: String, val pages: Int = 6, val fresh: Boolean = false, val savedStoryId: String? = null)
 
 /** 부모 모드 그림체 견본 4종 (결정안건 부록 6) */
 data class ArtStyle(val key: String, val name: String, val img: String, val ready: Boolean)
@@ -608,6 +608,9 @@ sealed interface Stage {
 
     /** 책장 — fromEnd = 방금 만든 책을 꽂는 중 */
     data class Shelf(val fromEnd: Boolean) : Stage
+
+    /** 저장된 동화는 완성된 자막을 그대로 읽는다. 미션을 다시 실행하지 않는다. */
+    data class SavedStory(val book: SavedStoryBook, val index: Int) : Stage
 
     /** 비밀번호 4자리 — purpose: "parent"(부모 모드) · "start"(이야기 시작) */
     data class Pin(val purpose: String, val typed: Int = 0) : Stage
@@ -1188,11 +1191,8 @@ class DemoState {
     /** 시작 화면에 한 번 띄우는 안내 (하루 별 0 등) */
     var notice by mutableStateOf<String?>(null)
 
-    /** 책장 — 지난 책 2권 + 오늘 만든 책 */
-    val shelf = mutableStateListOf(
-        ShelfBook("문어랑 바닷속 숨바꼭질", "sea", "bg_sea", 7),
-        ShelfBook("기차 타고 공룡 나라", "dino", "bg_dino", 6),
-    )
+    /** 실제 완성된 책만 들어간다. 동화책은 기기 저장소에서 시작할 때 복원한다. */
+    val shelf = mutableStateListOf<ShelfBook>()
 
     /** S10에서 "또 만날래"로 고른 친구 — 다음 이야기의 확인 카드 후보가 된다 (⭐26) */
     val keptFriends = mutableStateListOf<String>()
@@ -1268,8 +1268,6 @@ class DemoState {
         heroes += Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9)))
         heroes += Hero("빨간 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
         shelf.clear()
-        shelf += ShelfBook("문어랑 바닷속 숨바꼭질", "sea", "bg_sea", 7)
-        shelf += ShelfBook("기차 타고 공룡 나라", "dino", "bg_dino", 6)
         limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null
         keptFriends.clear(); usedVariants.clear()
         partnerKey = "mom"

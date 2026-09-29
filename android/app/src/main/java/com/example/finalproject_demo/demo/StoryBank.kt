@@ -1027,5 +1027,9 @@ fun DemoState.pageKind(i: Int): PageKind = if (i == 0) PageKind.COVER else templ
 
 fun DemoState.bookCaption(i: Int): String =
     if (i == 0) title ?: "우리 책"
-    else if (!isDiary && !storyCaptions.isNullOrEmpty()) storyCaptions?.getOrNull(i - 1).orEmpty()
+    else if (!isDiary && !storyCaptions.isNullOrEmpty()) {
+        val caption = storyCaptions?.getOrNull(i - 1).orEmpty()
+        val result = storyMissionResult(i)
+        if (result == null) caption else "$caption $result"
+    }
     else template?.pages?.getOrNull(i - 1)?.text?.invoke(this) ?: ""

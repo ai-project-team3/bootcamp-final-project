@@ -62,9 +62,34 @@ data class Question(
     val silent: Boolean = false,
 )
 
-class Director(private val scope: CoroutineScope) {
+class Director(private val scope: CoroutineScope, private val storyBookStore: StoryBookStore? = null) {
 
     val s = DemoState()
+    private val savedStories = mutableListOf<SavedStoryBook>()
+
+    init { reloadSavedStories() }
+
+    private fun reloadSavedStories() {
+        savedStories.clear()
+        savedStories += storyBookStore?.load().orEmpty()
+        s.shelf.addAll(0, savedStories.map { it.onShelf() })
+    }
+
+    private fun SavedStoryBook.onShelf(fresh: Boolean = false) =
+        ShelfBook(title, themeKey, bgName, pages.size, fresh, id)
+
+    /** 실패한 저장은 책장에 성공한 것처럼 표시하지 않는다. */
+    fun saveFinishedStory(): Boolean {
+        val book = s.completedStoryBook() ?: return false
+        return try {
+            storyBookStore?.save(book)
+            savedStories.add(0, book)
+            s.shelf.add(0, book.onShelf(fresh = true))
+            true
+        } catch (_: Exception) { false }
+    }
+
+    fun savedStory(id: String): SavedStoryBook? = savedStories.firstOrNull { it.id == id }
     private var job: Job? = null
     private val input = Channel<Reply>(Channel.BUFFERED)
 
@@ -252,6 +277,7 @@ class Director(private val scope: CoroutineScope) {
             val speed = s.speed
             val timer = s.timerOn
             s.reset()
+            reloadSavedStories()
             s.persona = persona
             s.speed = speed
             s.timerOn = timer

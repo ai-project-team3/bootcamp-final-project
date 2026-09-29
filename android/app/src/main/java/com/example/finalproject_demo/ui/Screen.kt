@@ -558,6 +558,8 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
 
             is Stage.Shelf -> ShelfView(d, stage)
 
+            is Stage.SavedStory -> SavedStoryView(d, stage)
+
             is Stage.Pin -> PinView(d, stage)
 
             // 보호자 동의는 **첫 실행**에서 이미 받는다 (`MainActivity`). 여기서 또 묻지 않는다

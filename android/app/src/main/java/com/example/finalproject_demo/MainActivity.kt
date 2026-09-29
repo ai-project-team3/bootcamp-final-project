@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +33,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.LocalStoryBookStore
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.ui.Bg
@@ -84,7 +86,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun DemoApp() {
     val scope = rememberCoroutineScope()
-    val d = remember { Director(scope) }
+    val context = LocalContext.current
+    val d = remember { Director(scope, LocalStoryBookStore(context)) }
     var drawerOpen by remember { mutableStateOf(false) }
     var splash by remember { mutableStateOf(true) }
     val s = d.s
