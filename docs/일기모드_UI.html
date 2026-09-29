@@ -189,6 +189,11 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .say-opts button b{font-weight:500}
 .say-opts button span{display:block;font-size:11.5px;color:var(--muted)}
 .say-opts .none{grid-column:1/-1;color:var(--muted);font-size:13px}
+.sayname{grid-column:1/-1;display:grid;gap:4px;padding:8px;border:1px solid var(--accent);border-radius:8px;background:var(--accent-soft)}
+.sayname label{font-size:12px;color:var(--muted)}
+.sayname div{display:flex;gap:6px}
+.sayname input{flex:1;min-width:0;font:inherit;font-size:14px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+.sayname button{font:inherit;font-size:13px;padding:5px 12px;border:none;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer}
 table.t{width:100%;border-collapse:collapse;font-size:12.5px}
 table.t th{font-weight:500;color:var(--muted);text-align:left;padding:4px;border-bottom:1px solid var(--line);font-size:11.5px}
 table.t td{padding:5px 4px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -363,7 +368,7 @@ const Q = {
 // ── state ──
 let S;
 function fresh(){
-  S = {scr:'d0', strokes:[], pieces:[], apart:[], slots:{}, storyAsked:{}, nextPiece:1,
+  S = {scr:'d0', strokes:[], pieces:[], apart:[], slots:{}, lines:{}, storyAsked:{}, nextPiece:1,
        wbAsked:0, afterAsked:0, utter:0, cur:null, retried:false, lastPen:0, lastQ:0, qAt:0,
        queue:[], sel:[], pages:[], page:0, log:[], nextId:1, sampleStep:0};
 }
@@ -441,10 +446,21 @@ function show(scr){
   document.querySelectorAll('.scr').forEach(e => e.classList.toggle('on', e.id === 's-'+scr));
   $('steps').innerHTML = STEPS.map(([k,n]) => `<button data-go="${k}" ${k===scr?'aria-current="step"':''}>${n}</button>`).join('');
 }
-function opts(list){
-  $('opts').innerHTML = list.length ? list.map((o,i) => `<button data-i="${i}" class="${o.wide?'wide':''}"><b>${o.label}</b>${o.hint?`<span>${o.hint}</span>`:''}</button>`).join('')
-                                    : '<p class="none">지금은 아이가 말할 차례가 아니다.</p>';
-  $('opts').onclick = e => { const b = e.target.closest('button'); if (b) list[+b.dataset.i].run(); };
+let optsAt = 0;
+function opts(list, sayName){
+  optsAt = Date.now();
+  const form = sayName ? `<form class="sayname" id="sayname"><label for="sayname-in">🗣 아이가 한 말 (직접 입력)</label><div><input id="sayname-in" type="text" maxlength="12" placeholder="예: 우리 집 강아지" autocomplete="off"><button type="submit">말하기</button></div></form>` : '';
+  $('opts').innerHTML = form + (list.length ? list.map((o,i) => `<button data-i="${i}" class="${o.wide?'wide':''}"><b>${o.label}</b>${o.hint?`<span>${o.hint}</span>`:''}</button>`).join('')
+                                    : (sayName ? '' : '<p class="none">지금은 아이가 말할 차례가 아니다.</p>'));
+  $('opts').onclick = e => {
+    const b = e.target.closest('button[data-i]'); if (!b) return;
+    if (Date.now() - optsAt < 350) return;   // the panel just changed under the pointer
+    list[+b.dataset.i].run();
+  };
+  if (sayName){
+    $('sayname').onsubmit = e => { e.preventDefault(); const v = $('sayname-in').value.trim().replace(/(이야|야|이에요|예요)[.!?]*$/, ''); if (v) sayName(v); };
+    setTimeout(() => { try { $('sayname-in').focus({preventScroll:true}); } catch(_){} }, 0);
+  }
 }
 
 // ── D0 ──
@@ -509,7 +525,7 @@ const SAMPLE = [
 function addSample(){
   if (S.sampleStep >= SAMPLE.length) return;
   const t = Date.now();
-  for (const s of SAMPLE[S.sampleStep].strokes){ const st = {id:S.nextId++, t, c:s.c, w:s.w, p:s.p.map(q => [...q])}; S.strokes.push(st); assignStroke(st); }
+  for (const s of SAMPLE[S.sampleStep].strokes){ const st = {id:S.nextId++, t, sample:true, c:s.c, w:s.w, p:s.p.map(q => [...q])}; S.strokes.push(st); assignStroke(st); }
   S.sampleStep++; S.lastPen = Date.now(); redraw(); renderObjs(); drawingOpts();
 }
 
@@ -522,8 +538,11 @@ function goD1(){
 function drawingOpts(){
   if (S.scr !== 'd1' || S.cur) return;
   const list = [];
-  if (S.sampleStep < SAMPLE.length) list.push({label:`✏️ 예시 그리기 ${S.sampleStep+1}/${SAMPLE.length}: ${SAMPLE[S.sampleStep].hint}`, hint:'한 번에 한 묶음. 직접 그려도 된다', wide:true, run:addSample});
-  list.push({label:'⏩ 5초 건너뛰기', hint:'바로 다음 질문을 받는다', run:() => { S.lastQ = 0; S.lastPen = 0; tick(); }});
+  const handDrawn = S.strokes.some(st => !st.sample);
+  const waiting = objects().some(o => !o.name && !o.asked) || objects().some(o => { const g = growthOf(o.pc); return g && g.outside; });
+  if (!handDrawn && S.sampleStep < SAMPLE.length) list.push({label:`✏️ 예시 그리기 ${S.sampleStep+1}/${SAMPLE.length}: ${SAMPLE[S.sampleStep].hint}`, hint:'직접 그리기 시작하면 이 버튼은 사라진다', wide:true, run:addSample});
+  if (!S.strokes.length) list.push({label:'✏️ 왼쪽 화이트보드에 직접 그려 보기', hint:'그리고 손을 떼면 잠시 뒤 오또가 묻는다', wide:true, run:() => {}});
+  list.push({label: waiting ? '✋ 붓을 멈춘다 — 오또가 지금 묻는다' : '⏩ 다음 질문 받기', hint: waiting ? '기다리지 않고 바로 "이건 뭐야?"' : '이야기 질문을 앞당긴다', wide:true, run:() => { S.lastQ = 0; S.lastPen = 0; tick(); }});
   list.push({label:'👆 [다 그렸어]', run:() => $('btn-done').click()});
   opts(list);
 }
@@ -565,7 +584,7 @@ function askObject(o){
   const list = NAMES.map(n => ({label:`🗣 "${iya(n)}!"`, run:() => objAnswer(n)}));
   list.push({label:'🗣 "몰라"', run:() => objAnswer(null, 'dunno')});
   list.push({label:'🤐 (말 없이 계속 그림)', run:() => objAnswer(null, 'silent')});
-  opts(list);
+  opts(list, n => objAnswer(n));
 }
 function objAnswer(name, kind){
   const o = pieceOf(S.cur.obj.key) || S.cur.obj;
@@ -587,7 +606,7 @@ function askGrowth(o, g){
   NAMES.filter(n => n !== o.name).forEach(n => list.push({label:`🗣 "새로 그렸어, ${iya(n)}"`, run:() => growAnswer(n)}));
   list.push({label:'🗣 "새로 그렸어, 땅이야"', run:() => growAnswer('땅')});
   list.push({label:'🗣 "몰라"', run:() => growAnswer(null, true)});
-  opts(list);
+  opts(list, n => growAnswer(n === o.name ? null : n));
 }
 function growAnswer(name, dunno){
   const {obj, extra} = S.cur; const pc = obj.pc; S.cur = null; S.lastQ = Date.now(); S.utter++;
@@ -610,7 +629,7 @@ function askStory(q){
   const text = q.ask();
   band(text, 'listen'); drawRings();
   log(`붓 멈춤 · 새 조각 없음 → 이야기 질문: "${text}" (${q.slot})`);
-  opts(storyOpts(q, 'wb'));
+  opts(storyOpts(q, 'wb'), t => storyAnswer(q, 'wb', 'typed', t));
 }
 function storyOpts(q, phase){
   return [
@@ -620,13 +639,14 @@ function storyOpts(q, phase){
     {label:`🗣 "${OFFTOPIC}"`, hint:'딴 얘기 → extra 원문', wide:true, run:() => storyAnswer(q, phase, 'off')},
   ];
 }
-function storyAnswer(q, phase, kind){
+function storyAnswer(q, phase, kind, typed){
   S.cur = null; S.lastQ = Date.now();
   let echo = null;
-  if (kind === 'ok'){ S.utter++; S.slots[q.slot] = q.value; echo = q.echo; band(q.echo, 'talk'); log(`아이: "${q.say}" → ${q.slot} (child)`); }
+  if (kind === 'ok'){ S.utter++; S.slots[q.slot] = q.value; S.lines[q.slot] = null; echo = q.echo; band(q.echo, 'talk'); log(`아이: "${q.say}" → ${q.slot} (child)`); }
+  else if (kind === 'typed'){ S.utter++; S.slots[q.slot] = typed; S.lines[q.slot] = typed; echo = `${typed.replace(/[.!?]+$/, '')}, 그랬구나!`; band(echo, 'talk'); log(`아이: "${typed}" → ${q.slot} (child)`); }
   else if (kind === 'off'){ S.utter++; S.slots.other = OFFTOPIC; echo = '공룡 봤구나!'; band('공룡 봤구나! 멋지다.', 'talk'); log('딴 얘기 → extra 원문 (child). 따라가지 않는다'); }
   else if (kind === 'dunno' && phase === 'd3' && !S.retried && q.easy){
-    S.utter++; S.retried = true; S.cur = {kind:'story', q}; band(q.easy, 'listen'); log(`"몰라" → 한 번만 쉽게: "${q.easy}"`); opts(storyOpts(q, 'd3')); return;
+    S.utter++; S.retried = true; S.cur = {kind:'story', q}; band(q.easy, 'listen'); log(`"몰라" → 한 번만 쉽게: "${q.easy}"`); opts(storyOpts(q, 'd3'), t => storyAnswer(q, 'd3', 'typed', t)); return;
   } else {
     if (kind === 'dunno') S.utter++;
     band(phase === 'wb' ? '괜찮아, 계속 그려 봐.' : '괜찮아, 생각 안 나도 돼.', 'talk');
@@ -758,11 +778,11 @@ $('btn-cutgo').onclick = () => {
   closeCutter(); S.sel = [np.id]; renderTray(); renderObjs();
   log(`선 ${sel.length}개를 떼어 새 조각으로${pc.name ? ` · 남은 쪽은 「${pc.name}」 그대로` : ''}. 둘은 다시 안 붙는다`);
   band('떼어 냈어! 이건 뭐야?', 'listen');
-  const list = [...NAMES, '땅'].map(n => ({label:`🗣 "${iya(n)}!"`, run:() => {
-    nameObject(pieceOf(np.id), n); S.utter++; S.sel = [];
-    log(`아이: "${iya(n)}" → 떼어 낸 조각 이름 ${n} (child)`); band(`${n}였구나!`, 'talk'); renderTray(); renderObjs(); renderMeter(); d2Opts(); }}));
+  const nameCut = n => { nameObject(pieceOf(np.id), n); S.utter++; S.sel = [];
+    log(`아이: "${iya(n)}" → 떼어 낸 조각 이름 ${n} (child)`); band(`${n}였구나!`, 'talk'); renderTray(); renderObjs(); renderMeter(); d2Opts(); };
+  const list = [...NAMES, '땅'].map(n => ({label:`🗣 "${iya(n)}!"`, run:() => nameCut(n)}));
   list.push({label:'🗣 "몰라"', run:() => { S.utter++; S.sel = []; log('"몰라" → 이름 없이 둔다'); band('괜찮아!', 'talk'); renderTray(); renderMeter(); d2Opts(); }});
-  opts(list);
+  opts(list, nameCut);
 };
 $('btn-split').onclick = () => { if (S.sel.length === 1) openCutter(S.sel[0]); };
 function d2Opts(){
@@ -807,13 +827,13 @@ function nextD3(){
     log(`그린 뒤 질문 ${S.afterAsked}/3: 이름 없는 조각 "이건 뭐였어?"`);
     const list = NAMES.map(n => ({label:`🗣 "${iya(n)}!"`, run:() => { S.utter++; nameObject(o, n); S.cur = null; log(`아이: "${iya(n)}" → 조각 이름 (child)`); renderObjs(); renderMeter(); afterD3(`${n}였구나!`); }}));
     list.push({label:'🗣 "몰라"', run:() => { S.utter++; S.cur = null; log('"몰라" → 이름 없이 책에 싣는다 (그림은 아이 것이다)'); renderMeter(); afterD3(null); }});
-    opts(list); return;
+    opts(list, n => { S.utter++; nameObject(o, n); S.cur = null; log(`아이: "${iya(n)}" → 조각 이름 (child)`); renderObjs(); renderMeter(); afterD3(`${n}였구나!`); }); return;
   }
   const q = item.q; S.cur = {kind:'story', q}; S.retried = false; setD3Bg(null);
   const text = q === Q.place ? q.askAfter : (S.storyAsked[q.slot] && q.easy ? q.easy : q.ask());
   band(text, 'listen');
   log(`그린 뒤 질문 ${S.afterAsked}/3: "${text}" (${q.slot}${['place','problem'].includes(q.slot)?' · 필수':' · 선택'})`);
-  opts(storyOpts(q, 'd3'));
+  opts(storyOpts(q, 'd3'), t => storyAnswer(q, 'd3', 'typed', t));
 }
 function afterD3(echo){
   setD3Bg(null);
@@ -831,15 +851,18 @@ function goD4(){
 }
 
 // ── D5: one page per filled slot · pieces named in the sentence come on stage ──
+// naive -어요체 for the prototype only; the real sentence comes from /story (guidelines/7 §5-1)
+function yo(t){ t = t.trim().replace(/[.!?]+$/, ''); if (/요$/.test(t)) return t + '.'; if (/거야$/.test(t)) return t.replace(/거야$/, '거예요.'); if (/(어|아|해|워|와|지)$/.test(t)) return t + '요.'; return t + '.'; }
 function hadTrouble(){ return /무너|싸우|넘어|울|속상|다쳤/.test(S.slots.problem || ''); }
 function buildPages(){
   const sl = S.slots, os = objects(), bg = PLACE_BG[sl.place] || null, P = [];
   const named = os.filter(o => o.name).map(o => o.name);
   if (S.strokes.length) P.push({full:true, text: named.length ? `나는 오늘 ${named.join(', ')}${batchim(named[named.length-1])?'을':'를'} 그렸어요.` : '내가 오늘 그린 그림이에요.'});
-  if (sl.place)    P.push({bg, all:true, text:`나는 오늘 ${sl.place}에 갔어요.`});
-  if (sl.problem)  P.push({bg, text:'모래성을 쌓았는데 와르르 무너졌어요.', act:{'모래성':'topple'}});
-  if (sl.solution) P.push({bg, text:(hadTrouble() ? '마침내 ' : '그러고 나서 ') + '친구랑 다시 쌓았어요.', act:{'친구':'hop', '모래성':'bob'}, also:['모래성']});
-  if (sl.keep)     P.push({bg, text:'내일 또 모래성을 만들고 싶어요.', act:{'모래성':'bob'}});
+  const L = S.lines;
+  if (sl.place)    P.push({bg, all:true, text: L.place ? `나는 오늘 ${L.place.replace(/(에|에서)?[.!?]*$/, '')}에 갔어요.` : `나는 오늘 ${sl.place}에 갔어요.`});
+  if (sl.problem)  P.push(L.problem ? {bg, text:yo(L.problem)} : {bg, text:'모래성을 쌓았는데 와르르 무너졌어요.', act:{'모래성':'topple'}});
+  if (sl.solution) P.push(L.solution ? {bg, text:(hadTrouble() ? '마침내 ' : '그러고 나서 ') + yo(L.solution)} : {bg, text:(hadTrouble() ? '마침내 ' : '그러고 나서 ') + '친구랑 다시 쌓았어요.', act:{'친구':'hop', '모래성':'bob'}, also:['모래성']});
+  if (sl.keep)     P.push(L.keep ? {bg, text:yo(L.keep)} : {bg, text:'내일 또 모래성을 만들고 싶어요.', act:{'모래성':'bob'}});
   if (!sl.solution && P.length) P[P.length-1].tail = '그 뒤에 어떻게 되었는지는 아직 듣지 못했어요.';
   return P;
 }
