@@ -20,7 +20,7 @@ DRAW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "sr
 REF = os.path.join(DRAW, "otto_face_talk.png")
 # 전신 자세(apose)는 전신 그림에서 시작하고, 「같은 틀(얼굴 가까이)」 대신 전신을 유지하라고 한다
 REF_FULL = os.environ.get("OTTO_REF_FULL") or os.path.join(DRAW, "mascot.png")
-FULL = {"apose", "side"}
+FULL = {"apose", "side", "side_m"}
 KEEP_FULL = ("Keep the exact same kitten character: orange and cream fluffy fur, teal-green felt hood with cat ears and blue trim, "
              "round yellow gold button, pink paw pads, striped orange tail, big glossy eyes. Same soft plush 3D render style and "
              "lighting. Full body, centered, plain pure white background.")
@@ -52,6 +52,12 @@ FACES = {
             "Show one arm hanging straight down at the side with the paw near the hip, the two legs straight and slightly apart "
             "front and back with a clear gap between them, the striped tail sticking out straight behind to the left. "
             "The head also in profile facing right, eye and cheek visible, hood with cat ears. Show the whole body from ears to feet.",
+    # 09-29 기존 마스코트 그대로의 옆모습 — 얼굴 · 후드 · 털 무늬 · 비율을 바꾸지 말라고 강하게
+    "side_m": "Rotate this exact same kitten to a side profile view facing right, as if turning 90 degrees, standing upright "
+              "on two legs mid-stride. Keep its face, hood, ears, cape, gold button, fur pattern, colors and body proportions "
+              "exactly the same as in the image, only change the viewing angle and pose. The near arm hangs down along the side "
+              "with the paw near the hip, the two legs slightly apart front and back with a gap between them, the striped tail "
+              "pointing out behind to the left. Show the whole body from ears to feet.",
 }
 
 
