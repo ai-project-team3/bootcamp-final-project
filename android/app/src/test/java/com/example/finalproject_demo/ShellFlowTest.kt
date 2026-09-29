@@ -131,8 +131,18 @@ class ShellFlowTest {
         waitText("오또랑 새 동화 만들래?"); shot("13_room_ask_story")
         tap("아니")
         compose.waitUntil(5_000) { count("오또랑 새 동화 만들래?") == 0 }
+        // 부모님이 준비한 이야기가 없으면 소파는 부모님께 부탁하라고 한다 — 버튼은 「알겠어!」 하나 (09-29)
         tap("같이 만들기")
-        waitText("엄마 아빠랑 같이 책 만들래?"); shot("14_room_ask_coop")
+        waitText("아직 준비된 이야기가 없어!"); shot("14_room_ask_coop_empty")
+        assertEquals(0, count("아니"))
+        tap("알겠어!")
+        compose.waitUntil(5_000) { count("아직 준비된 이야기가 없어!") == 0 }
+        // 준비해 두면 🎁 표시가 붙고, 무슨 이야기인지 알려 준다
+        director.s.parentQuestions.addAll(listOf("소방관은 어디서 일할까?", "거기서 무슨 일을 할까?", "왜 그 일이 필요할까?", "일이 다 끝나면 어떻게 될까?"))
+        director.s.coopPick = com.example.finalproject_demo.demo.CoopPick("job", "소방관", "soon")
+        compose.waitForIdle()
+        tap("같이 만들기")
+        waitText("부모님이 준비한 이야기 들어 볼래?"); waitText("‘소방관’ 이야기 · 부모님이 골라 뒀어요"); shot("14_room_ask_coop")
     }
 
     @Test
@@ -224,5 +234,24 @@ class ShellFlowTest {
         finger("모두 동의해요")
         finger("동의하고 계속")
         waitText("마이크를 켜 주세요")
+    }
+
+    /** 방에서 오또를 누르면 리액션 말이 뜨고, 다시 누르면 다른 리액션 (09-29) */
+    @Test
+    fun pokingOttoMakesHimReact() {
+        onboard()
+        val lines = listOf("야호! 폴짝!", "빙글빙글~", "랄라~ 같이 춤출래?", "헤헤, 간지러워!", "안녕! 나 오또야", "너 좋아!")
+        fun shown() = lines.filter { count(it) > 0 }
+        compose.onNode(hasContentDescription("오또")).performClick()
+        compose.waitForIdle()
+        val first = shown()
+        assertEquals("오또를 눌렀는데 리액션 말이 없다", 1, first.size)
+        shot("17_poke")
+        compose.mainClock.advanceTimeBy(200)
+        compose.onNode(hasContentDescription("오또")).performClick()
+        compose.waitForIdle()
+        val second = shown()
+        assertEquals(1, second.size)
+        assertTrue("같은 리액션이 연달아 나왔다", first != second)
     }
 }
