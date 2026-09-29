@@ -26,6 +26,24 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
     }
 }
 
+suspend fun Director.askStory(
+    question: Question, askedSlot: String?,
+    request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
+): Reply {
+    val reply = ask(question)
+    if (!Server.liveFor(s.mode) || reply !is Reply.Spoke) return reply
+    val response = s.exchangeStoryTurn(askedSlot, question.text, reply.text, request)
+    s.storyServerQuestion = response?.line?.question
+    val line = response?.line ?: return reply
+    val reaction = listOfNotNull(line.ack.takeIf(String::isNotBlank), line.expand?.takeIf(String::isNotBlank))
+        .joinToString(" ")
+    if (reaction.isNotBlank()) {
+        say(reaction)
+        pause(600)
+    }
+    return reply
+}
+
 suspend fun DemoState.exchangeStoryTurn(
     askedSlot: String?, question: String, utterance: String,
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
