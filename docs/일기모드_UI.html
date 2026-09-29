@@ -62,7 +62,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 /* narration band */
 .frame.drawing .band{left:1.2cqw;right:auto;bottom:1.2cqw;max-width:62cqw;min-height:0;gap:1.2cqw;padding:.6cqw 2cqw .6cqw .6cqw;border-width:.4cqw;border-radius:4cqw;cursor:pointer;transition:max-width .35s ease, padding .35s ease, opacity .35s ease;overflow:hidden}
 .frame.drawing .band .face{width:5.4cqw;height:5.4cqw;border-width:.4cqw}
-.frame.drawing .band .line{font-size:2.2cqw;line-height:1.3}
+.frame.drawing .band .line{font-size:2.2cqw;line-height:1.3;flex:none;width:max-content;max-width:52cqw}   /* fixed width: the text doesn't reflow while the bubble opens */
 .frame.drawing .band.tuck{max-width:7cqw;padding:.6cqw;opacity:.9}
 .frame.drawing .band.tuck .line,.frame.drawing .band.tuck .vbar{display:none}
 .frame.drawing .band.tuck::after{display:none}
@@ -109,7 +109,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #rings{position:absolute;inset:0;pointer-events:none;z-index:2}
 .fx{position:absolute;pointer-events:none;z-index:3}
 .fx img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
-.fx.pung img.old{animation:pungOut .3s ease-in forwards}
+.fx.pung img.old{animation:pungOut .08s ease-in forwards}
 .fx.pung img.new{transform-origin:50% 90%;animation:mochi .95s ease-in-out both;z-index:3}   /* in front of the cloud so the wobble shows */
 .fx.boing img{transform-origin:50% 100%;animation:boing 1s ease-out}
 .burst{position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none;z-index:2}
@@ -1319,7 +1319,7 @@ function morph(key, before, kind){
   if (kind === 'boing') return setTimeout(done, 1050);
   burst(el, size);
   const bd = $('board'); bd.classList.remove('shake'); void bd.offsetWidth; bd.classList.add('shake');
-  setTimeout(() => { const n = document.createElement('img'); n.className = 'new'; n.src = after; n.alt = ''; el.querySelector('img.old').remove(); el.prepend(n); }, 360);
+  setTimeout(() => { const n = document.createElement('img'); n.className = 'new'; n.src = after; n.alt = ''; el.querySelector('img.old').remove(); el.prepend(n); }, 70);   // the swap lands with the burst, not after it
   setTimeout(() => { done(); bd.classList.remove('shake'); }, 1350);
 }
 function closePick(msg){
