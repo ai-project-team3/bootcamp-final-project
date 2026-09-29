@@ -131,7 +131,6 @@ td:first-child{white-space:nowrap}
   <nav class="flow" aria-label="화면 순서">
     <a href="#d0"><b>D0 시작</b><span>그려볼래?</span></a><span class="arrow">→</span>
     <a href="#d1"><b>D1 그리며 묻기</b><span>조각마다 이건 뭐야?</span></a><span class="arrow">→</span>
-    <a href="#d2"><b>D2 오려 내기</b><span>조각 스티커</span></a><span class="arrow">→</span>
     <a href="#d3"><b>D3 빈 칸만 묻기</b><span>최대 2~3개</span></a><span class="arrow">→</span>
     <a href="#d4"><b>D4 책 만드는 중</b><span><code>/story</code></span></a><span class="arrow">→</span>
     <a href="#d5"><b>D5 그림일기</b><span>3~6쪽</span></a><span class="arrow">→</span>
@@ -249,22 +248,10 @@ td:first-child{white-space:nowrap}
       <dt>3 무엇이 저장되나</dt><dd><ul><li>획을 위치로 묶은 <strong>조각</strong>마다 아이가 말한 이름 → <code>extra</code>(<code>whiteboard</code>) <span class="tag t-child">child</span></li><li>이야기 질문의 답 → <code>place</code> · <code>problem</code> · <code>solution</code> <span class="tag t-child">child</span></li><li>⚠️ 인식한 낱말은 <strong>어느 칸에도 안 들어간다</strong>(규칙 5). 질문 문구에만 쓴다. "집처럼 보이네"에 "모래성이야"라고 하면 모래성이다</li></ul></dd>
       <dt>4 어느 서버</dt><dd><ul><li><code>/stt</code> → <code>/judge</code>(<code>mode: diary</code>) → 가변 대사는 <code>/tts</code></li><li>나중: 폰 안 ML Kit AutoDraw → <strong>낱말만</strong> Jev(무엇을 물을까 · 다 그렸나). 그림은 폰을 안 떠난다</li></ul></dd>
       <dt>5 갈림길</dt><dd><ul><li>「몰라」 → "그래, 계속 그려 봐." 더 묻지 않는다</li><li>무응답 → 그리기로 돌아간다. 같은 질문을 다시 하지 않는다</li><li>딴 얘기 → <code>extra</code>에 원문. 되받아 주고 따라가지 않는다</li><li>아이가 "아니, 블록이야"라고 바로잡으면 그 말을 따른다</li></ul></dd>
-      <dt>6 끝</dt><dd>[다 그렸어] → D2 · 질문 수는 정하지 않고 <strong>간격(붓 멈춤 + 5초)</strong>으로만 조절한다. 그림이 중심이고 질문은 그 사이에 낀다</dd>
+      <dt>6 끝</dt><dd>"다 그렸어" → <strong>바로 D3</strong>(오려 내기 화면은 09-29에 뺐다 — 조각은 그리는 동안 대화로 이미 나뉘고 이름이 붙는다). 저장: 원본 획 전체 → <code>sceneDrawing</code> · 조각 = 획 묶음 + 원래 위치(폰에만) · 이벤트 <code>make</code>(<code>kind: draw</code>). 빈 화이트보드면 그림 없는 날로 D3 · 질문 수는 정하지 않고 <strong>간격(붓 멈춤 + 5초)</strong>으로만 조절한다. 그림이 중심이고 질문은 그 사이에 낀다</dd>
     </dl>
   </article>
 
-  <article class="screen" id="d2">
-    <div class="screen-head"><span class="sid">D2</span><h3>오려 내기</h3><span class="tag t-now">이번 주</span></div>
-    <div class="say">"그린 것들을 오려 봤어! 붙어 있어야 하는 건 두 개를 눌러서 붙여 줘."<small>마스코트 · 고정 대사 · 조각이 스티커처럼 한 줄로 놓이고 아이가 붙인 이름표가 달린다</small></div>
-    <dl class="six">
-      <dt>1 누가 말하나</dt><dd>마스코트</dd>
-      <dt>2 무엇으로 답하나</dt><dd>조각 두 개 누르기 → [붙이기] (잘못 나뉜 것만. 안 해도 된다)</dd>
-      <dt>3 무엇이 저장되나</dt><dd>원본 획 전체 → <code>sceneDrawing</code> · 조각 = 획 묶음 + 원래 위치 (폰에만) · 이벤트 <code>make</code>(<code>kind: draw</code>)</dd>
-      <dt>4 어느 서버</dt><dd>없음. 오리기는 폰 안에서 하고 그림은 서버로 안 간다(차별점 1). AI가 다시 그리지 않는다</dd>
-      <dt>5 갈림길</dt><dd>빈 화이트보드로 [다 그렸어] → 그림 없는 날로 보고 D3</dd>
-      <dt>6 끝</dt><dd>D3 (이름 없는 조각 하나 + 빈 필수 칸만)</dd>
-    </dl>
-  </article>
 
   <article class="screen" id="d3">
     <div class="screen-head"><span class="sid">D3</span><h3>빈 필수 칸만 묻기 · 최대 2~3개</h3><span class="tag t-now">이번 주</span></div>
@@ -347,7 +334,7 @@ td:first-child{white-space:nowrap}
     <li><b>그리는 중 질문 타이밍</b><p>프로토타입은 붓 멈춤 1.6초 · 질문 사이 5초 · 답 없이 10초 그리면 거둠. 3~7세에게 맞는 값은 조카(10/3) 관찰로 정한다. 나중에 Jev 「다 그렸나」가 멈춤 판단을 돕는다.</p></li>
     <li><b>폰 안 인식이 되나</b><p>AutoDraw가 3~7세 낙서를 얼마나 알아보는지 아직 안 쟀다. 안 되면 D1은 늘 "무엇을 그렸어?"로 연다. 흐름은 그대로 선다.</p></li>
     <li><b>조각 나누기와 쪽마다 등장</b><p>조각을 위치로 묶는 방식이 겹친 그림에서 얼마나 틀리나, 아이가 [붙이기]를 할 수 있나. 문장에 나온 조각만 그 쪽에 나오는 규칙(이름 맞추기)으로 충분한가. 움직임(무너짐 · 뛰기)을 누가 고르나 — 조장 Jev 자리 · 무대는 치영.</p></li>
-    <li><b>✨ 아이 그림을 생성 그림으로 바꿔 보기 (09-29 조장과 이야기 — 차별점 1을 푸는 방향 · 문서 수정은 추후)</b><p>아이가 원하면 조각을 「펠트 인형」 · 「동화책 그림」 모습으로 만들어 고르게 한다. 그리는 중(D1)이든 오려 내기(D2)든 "강아지 멋지게 그려줘"라고 하면 <strong>뒤에서 만들고 아이는 계속 그린다</strong> — 기다리는 화면이 없다. 다 되면 이름표에 ✨, 누르면 옆에 작은 고르기 칸. <strong>차별점 1 「아이가 만든 건 AI가 다시 그리지 않는다」를 푸는 일</strong>이고 조각 그림이 우리 서버로 간다 — 제품 설명 · 처리방침 · Play 양식을 같이 고쳐야 한다. 지킬 선: 원본이 늘 기본값 · 책 1쪽은 늘 원본 · 안전 검사 통과한 결과만(규칙 8) · 부모 기록엔 「아이가 고른 생성 그림」으로 표시하고 원본도 보관.</p></li>
+    <li><b>✨ 아이 그림을 생성 그림으로 바꿔 보기 (09-29 조장과 이야기 — 차별점 1을 푸는 방향 · 문서 수정은 추후)</b><p>아이가 원하면 조각을 「펠트 인형」 · 「동화책 그림」 모습으로 만들어 고르게 한다. 그리는 중(D1)에 "너도 그려줘"라고 하거나 오또가 "나도 그려볼까?"에 "응" 하면 <strong>뒤에서 만들고 아이는 계속 그린다</strong> — 기다리는 화면이 없다. 다 되면 이름표에 ✨, 누르면 옆에 작은 고르기 칸. <strong>차별점 1 「아이가 만든 건 AI가 다시 그리지 않는다」를 푸는 일</strong>이고 조각 그림이 우리 서버로 간다 — 제품 설명 · 처리방침 · Play 양식을 같이 고쳐야 한다. 지킬 선: 원본이 늘 기본값 · 책 1쪽은 늘 원본 · 안전 검사 통과한 결과만(규칙 8) · 부모 기록엔 「아이가 고른 생성 그림」으로 표시하고 원본도 보관.</p></li>
     <li><b>다 그린 뒤 빈 칸 묻기(D3)의 화면 — 오또 새 동작 에셋 필요 (09-29)</b><p>지금 프로토타입은 <strong>있는 서 있는 자세(<code>listen</code> · <code>talk</code>)를 임시로</strong> 세우고 말풍선으로 묻는다. 나중에 <strong>오또가 엎드려서 그림 그리는 동작 · 일기 쓰는 동작</strong> 에셋을 만들어, 오또가 아이 옆에서 같이 일기를 쓰며 묻는 자연스러운 화면으로 바꾼다. 지금 있는 오또 에셋(<code>design/assets/poses/</code> · <code>android/.../drawable/otto_pose_*</code>)은 전부 <strong>서 있는 전신 9가지</strong>(call · listen · phone · point · talk · think · walk · wave · yawn)와 얼굴 표정뿐이라 엎드린 동작은 새로 만들어야 한다. <strong>추후 개발:</strong> ① 엎드려 크레용으로 그리는 오또 ② 엎드려 공책에 쓰는 오또 ③ (있으면) 엎드린 채 고개 들고 아이를 보는 오또 — 지금 자세들과 같은 3D 펠트 스타일.</p></li>
   </ul>
 </section>
