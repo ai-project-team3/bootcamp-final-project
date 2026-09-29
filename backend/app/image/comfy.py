@@ -64,8 +64,66 @@ async def _cancel(base: str, pid: str) -> None:
 
 async def background(scene: str) -> bytes:
     """PNG bytes. Raises ComfyError; the caller owns the deadline and cancelling cancels the job."""
+    return await run(workflow(scene, random.randrange(2 ** 31)))
+
+
+# ── characters: img2img from a posed mannequin (docs/캐릭터_생성_규격.md §8) ──────────
+#
+# 치영's 09-28 experiment (Krea2): starting from a mannequin keeps the pose the rig needs
+# (A-pose arms apart from the body · four separated legs). 09-29 on this PC's SDXL + Lightning:
+# a *coloured* mannequin kept its blue shirt whatever the child asked for, so the templates
+# are colourless grey; denoise 0.85 (human) gave the asked-for character and kept the arms out,
+# 0.8 (four legs) keeps the legs apart. Two samples each — measure more before trusting it.
+
+CHAR_STYLE = (", cut paper collage, layered torn construction paper, flat 2d shapes, warm crayon-box colors, "
+              "children's picture book character, isolated on plain pure white background, no shadow, no text")
+# frame · card · backdrop: 09-29 live, the octopus came on a square paper card and was cut out card and all
+CHAR_NEG = ("text, letters, watermark, photo, photorealistic, blurry, ugly, scary, dark, horror, "
+            "background scenery, frame, border, card, backdrop, circle behind, colored background, "
+            "multiple characters, nudity, blood, weapon, gore")
+CHAR_POSE = {
+    "human": "front view, full body, both arms stretched out diagonally downward away from the body in an A-pose",
+    "quad": "side view facing right, full body, standing on four clearly separated legs",
+    "blob": "front view, full body, simple round shape",
+}
+# blob 0.9 — 09-29 live: drawn from nothing, octopus and monster came on beige / grey paper
+# backdrops the cut-out could not remove; a grey round mannequin on white keeps the white
+CHAR_DENOISE = {"human": 0.85, "quad": 0.8, "blob": 0.9}
+
+
+async def upload(png: bytes, name: str) -> str:
+    """Put a picture in ComfyUI's input folder; returns the name LoadImage wants."""
     base = settings.comfy_url.rstrip("/")
-    wf = workflow(scene, random.randrange(2 ** 31))
+    try:
+        async with httpx.AsyncClient(timeout=10) as http:
+            r = await http.post(f"{base}/upload/image", files={"image": (name, png, "image/png")},
+                                data={"overwrite": "true"})
+    except httpx.HTTPError as e:
+        raise ComfyError(f"upload network: {type(e).__name__}") from e
+    if r.status_code != 200:
+        raise ComfyError(f"upload HTTP {r.status_code}")
+    j = r.json()
+    return (j["subfolder"] + "/" if j.get("subfolder") else "") + j["name"]
+
+
+def character_workflow(subject: str, rig: str, seed: int, template: str | None) -> dict:
+    wf = workflow("", seed)
+    wf["2"]["inputs"]["text"] = f"a cute {subject} puppet, {CHAR_POSE[rig]}{CHAR_STYLE}"
+    wf["3"]["inputs"]["text"] = CHAR_NEG
+    wf["7"]["inputs"]["filename_prefix"] = "otto/char"
+    if template is None:                       # blob: nothing to keep, plain text-to-image
+        wf["4"]["inputs"].update({"width": 1024, "height": 1024})
+        return wf
+    wf["10"] = {"class_type": "LoadImage", "inputs": {"image": template}}
+    wf["11"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["10", 0], "vae": ["1", 2]}}
+    wf["5"]["inputs"].update({"latent_image": ["11", 0], "denoise": CHAR_DENOISE[rig]})
+    del wf["4"]
+    return wf
+
+
+async def run(wf: dict) -> bytes:
+    """Queue one graph and return its first PNG. Cancelling cancels the ComfyUI job."""
+    base = settings.comfy_url.rstrip("/")
     pid = None
     try:
         async with httpx.AsyncClient(timeout=10) as http:

@@ -209,6 +209,24 @@ object Server {
         } catch (e: Exception) { warn("/image parse", e); null }
     }
 
+    /** A generated character: 640² PNG with a transparent background, feet on the 93% line, and its skeleton kind. */
+    data class Character(val png: ByteArray, val rig: String)   // rig: human · quad · blob
+
+    /**
+     * A character from what the child said ("빨간 드레스 입은 공주"), posed so it can be rigged
+     * (docs/캐릭터_생성_규격.md) and safety-checked (rule 8). **Null = use a preset doll.**
+     * About 7-8 s warm — start it the moment the description is known, not when it is needed.
+     * [description] must be name-masked.
+     */
+    suspend fun character(description: String, mode: String = "story"): Character? {
+        val body = JSONObject().put("kind", "character").put("description", description).put("mode", mode)
+        val j = postJson("/image", body, readMs = 16_000) ?: return null
+        return try {
+            if (j.optBoolean("preset", true)) { Log.i(TAG, "/image character preset: ${j.optString("reason")}"); null }
+            else Character(android.util.Base64.decode(j.getString("png_base64"), android.util.Base64.DEFAULT), j.getString("rig"))
+        } catch (e: Exception) { warn("/image character parse", e); null }
+    }
+
     // ── /stt ───────────────────────────────────────────────────────
 
     /**
