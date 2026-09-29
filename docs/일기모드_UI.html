@@ -303,7 +303,8 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
         <h2>이 프로토타입의 규칙</h2>
         <ul class="rules">
           <li><b>그리는 중에도 묻는다. 단, 선과 선 사이 짧은 틈에만.</b> 선이 두 개쯤 쌓이면 "지금 그리는 건 뭐야?" — 계속 그려도 되고 아무 때나 답하면 된다. 긋는 중에는 끼어들지 않고 질문 사이는 그리는 중 3초 · 멈춘 뒤 5초</li>
-          <li><b>선이 떨어진 곳에서 새로 시작하면</b> 앞 조각이 끝난 것으로 보고 "강아지 다 그렸구나!". <b>그리기를 멈추면</b> 이름 없는 조각을 묻고, 없으면 칭찬한 뒤 이야기 질문으로 넘어간다</li>
+          <li><b>다른 곳으로 옮겨 그려도 앞 조각을 "다 그렸다"고 보지 않는다.</b> 돌아와 그 조각 안쪽에 이어 그리면 "다시 강아지 그리는구나!" — 그 선은 그 조각의 것이다. 바깥으로 크게 뻗는 선(땅 등)만 "더 그린 거야, 새로 그린 거야?"로 묻는다. 물어본 조각을 두고 옮겨 가면 "아까 그리던 건 뭐야?"</li>
+          <li><b>그리기를 멈추면</b> 이름 없는 조각을 묻고, 없으면 이번에 그린 것들을 한꺼번에 칭찬("강아지랑 우리 집 멋지다!")한 뒤 이야기 질문으로 넘어간다</li>
           <li><b>조각은 선의 위치로 묶는다.</b> 가까운 선끼리 한 조각이다. 단, 이름을 받은 두 조각을 한 선이 같이 건드려도 둘을 합치지 않는다. 그 선은 더 많이 겹친 쪽에만 붙는다</li>
           <li><b>무엇인지는 대화로 정한다.</b> 새 조각엔 "이건 뭐야?", 이름 받은 조각이 바깥으로 커지면 "모래성에 더 그린 거야, 새로 그린 거야?". "새로 그렸어, 땅이야"면 이름 뒤에 그은 선만 떼어 새 조각이 된다. 안쪽에만 더 그리면 묻지 않는다(문 · 창문)</li>
           <li><b>그래도 잘못 묶이면 D2에서 자른다.</b> 스티커 하나 → [✂️ 자르기] → 떼어 낼 선을 톡 누르거나 동그라미로 감싸기 → [떼어 내기] → 오또가 "이건 뭐야?". 둘을 고르면 [붙이기]</li>
@@ -420,7 +421,7 @@ const bgView = () => null;
 const pieceOf = key => { const p = S.pieces.find(p => p.id === key); return p ? view(p) : null; };
 function nameObject(o, name){ o.pc.name = name; o.pc.namedIds = [...o.pc.ids]; }
 const pieceIdOf = sid => { const p = S.pieces.find(p => p.ids.includes(sid)); return p ? p.id : null; };
-function finishPiece(pc){ if (pc && pc.open){ pc.open = false; pc.namedIds = [...pc.ids]; } }
+function finishPiece(pc){ if (pc && pc.open){ pc.open = false; pc.namedIds = pc.ids.filter(id => !strokeById(id).loose); } }
 const enoughInk = o => o.strokes.length >= 2 || area(o.box) >= 8000;
 const mainName = () => { const os = objects().filter(o => o.name); if (!os.length) return null; return os.sort((a,b) => area(b.box)-area(a.box))[0].name; };
 
@@ -504,21 +505,52 @@ cv.addEventListener('pointermove', e => { if (!pen) return; pen.p.push(lpos(e));
 const up = () => {
   if (!pen) return;
   const before = S.curPiece;
-  assignStroke(pen); S.curPiece = pieceIdOf(pen.id); pen = null; S.lastPen = Date.now();
-  if (before && before !== S.curPiece){ const prev = pieceOf(before); if (prev) onNewPiece(prev); }
+  const st = pen; assignStroke(st); S.curPiece = pieceIdOf(st.id); pen = null; S.lastPen = Date.now();
+  onSwitch(before, st);
   redraw(); renderObjs(); drawingOpts();
 };
-// the child started a line away from the piece they were drawing → that piece is done
-function onNewPiece(prev){
-  finishPiece(prev.pc);
-  if (S.cur && S.cur.kind === 'obj' && pieceIdOf(S.cur.sid) === prev.key) return;   // still waiting for its name
-  if (prev.name){
-    if (!S.cur){ band(`${prev.name} 다 그렸구나!`, 'talk'); }
-    S.praised[prev.key] = true;
-    log(`선이 떨어진 곳에서 새로 시작 → 「${prev.name}」 완성으로 보고 반응`);
-  } else if (!prev.asked){
-    log('선이 떨어진 곳에서 새로 시작 → 앞 조각은 이름이 없다. 그림을 멈추면 묻는다');
+// how much of a line falls outside a piece's other lines (0 = all inside)
+function outsideShare(st, pc){
+  const others = pieceStrokes(pc).filter(o => o.id !== st.id);
+  if (!others.length) return 1;
+  const b = grow(boxOf(others.flatMap(o => o.p)), 10);
+  return st.p.filter(([x,y]) => x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1).length / st.p.length;
+}
+function onSwitch(before, st){
+  if (before && before === S.curPiece){
+    const cur = pieceOf(S.curPiece);
+    if (cur && cur.name && cur.pc.open && outsideShare(st, cur.pc) > 0.5){
+      const others = boxOf(cur.strokes.filter(o => o.id !== st.id).flatMap(o => o.p)), sb = boxOf(st.p);
+      if (sb.x1 - sb.x0 > (others.x1 - others.x0) * 0.8 || sb.y1 - sb.y0 > (others.y1 - others.y0) * 0.8){
+        st.loose = true;
+        log(`「${cur.name}」을 그리다 그보다 넓게 바깥으로 뻗은 선 → 바로 붙이지 않고 멈추면 같은 건지 묻는다`);
+      }
+    }
+    return;
   }
+  if (!before) return;
+  const prev = pieceOf(before), cur = pieceOf(S.curPiece);
+  if (prev) leavePiece(prev);
+  if (!cur || cur.strokes.length < 2) return;                 // a brand-new piece
+  // the line joined a piece drawn earlier: coming back to it, or something new touching it?
+  if (outsideShare(st, cur.pc) <= 0.3){
+    cur.pc.open = true;                                        // back to it: more lines are its own
+    if (cur.name && !S.cur) band(`다시 ${cur.name} 그리는구나!`, 'talk');
+    log(`앞서 그리던 조각으로 돌아옴${cur.name ? ` → 「${cur.name}」 다시 열기` : ''}. 이어 그린 선은 그 조각의 것`);
+  } else if (cur.name){
+    log(`「${cur.name}」에 닿았지만 바깥으로 크게 뻗은 선 → 멈추면 같은 건지 묻는다`);
+  }
+}
+// the child moved to another place on the board. The piece may not be done — they can come back —
+// so nothing is praised yet; that waits until the drawing stops.
+function leavePiece(prev){
+  finishPiece(prev.pc);
+  if (S.cur && S.cur.kind === 'obj' && pieceIdOf(S.cur.sid) === prev.key && S.cur.during){
+    S.cur.during = false; band('아까 그리던 건 뭐야?', 'listen');
+    log('물어본 조각을 두고 다른 곳을 그린다 → "아까 그리던 건 뭐야?"로 바꿔 묻는다');
+    return;
+  }
+  log(`다른 곳으로 옮겨 그림 → 「${prev.name || '이름 없는 조각'}」은 잠시 둔다. 돌아와도 된다`);
 }
 cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 
@@ -550,8 +582,8 @@ function addSample(){
   if (S.sampleStep >= SAMPLE.length) return;
   const t = Date.now();
   for (const s of SAMPLE[S.sampleStep].strokes){ const st = {id:S.nextId++, t, sample:true, c:s.c, w:s.w, p:s.p.map(q => [...q])}; S.strokes.push(st); assignStroke(st); }
-  const before = S.curPiece; S.curPiece = pieceIdOf(S.strokes[S.strokes.length-1].id);
-  if (before && before !== S.curPiece){ const prev = pieceOf(before); if (prev) onNewPiece(prev); }
+  const before = S.curPiece, last = S.strokes[S.strokes.length-1]; S.curPiece = pieceIdOf(last.id);
+  onSwitch(before, last);
   S.sampleStep++; S.lastPen = Date.now() - BETWEEN_MS; redraw(); renderObjs(); drawingOpts();
 }
 
@@ -603,10 +635,13 @@ function tick(){
     if (g && g.outside) return askGrowth(o, g);
     if (g) { o.pc.namedIds = [...o.pc.ids]; log(`「${o.name}」 안쪽에 더 그림 → 그대로 ${o.name}의 일부로 둔다`); }
   }
-  if (cp && cp.name && !S.praised[cp.key]){
-    S.praised[cp.key] = true; S.lastQ = now - GAP_MS + 2500;
-    band(`${cp.name} 멋지다! 또 그리고 싶은 거 있으면 그려 봐.`, 'talk');
-    log(`그리기를 멈춤 → 「${cp.name}」 완성 반응`);
+  const fresh2 = os.filter(o => o.name && !S.praised[o.key]);
+  if (fresh2.length){
+    fresh2.forEach(o => { S.praised[o.key] = true; });
+    const names = fresh2.map(o => o.name), said = names.slice(0, -1).map(irang).concat(names.slice(-1)).join(' ');
+    S.lastQ = now - GAP_MS + 2500;
+    band(`${said} 멋지다! 또 그리고 싶은 거 있으면 그려 봐.`, 'talk');
+    log(`그리기를 멈춤 → 이번에 그린 「${names.join('」 「')}」 완성 반응`);
     return;
   }
   const named = os.filter(o => o.name).length;
@@ -635,9 +670,9 @@ function objAnswer(name, kind){
   if (name){
     S.utter++; nameObject(o, name);
     if (o.key === S.curPiece) o.pc.open = true;   // lines still to come on this piece belong to it
-    const drawing = Date.now() - S.lastPen < IDLE_MS;
+    const drawing = Date.now() - S.lastPen < IDLE_MS, here = o.key === S.curPiece;
     if (!drawing) S.praised[o.key] = true;
-    band(drawing ? `${name} 그리는구나! 계속 그려 봐.` : `${name}! 멋지다.`, 'talk');
+    band(!here ? `아, ${name}${batchim(name) ? '이었' : '였'}구나!` : drawing ? `${name} 그리는구나! 계속 그려 봐.` : `${name}! 멋지다.`, 'talk');
     log(`아이: "${iya(name)}" → 조각 이름 ${name} (child) ${o.guess.conf>=0.6 && o.guess.label!==name ? ` · 인식 「${o.guess.label}」은 버린다` : ''}`);
   } else if (kind === 'dunno'){ S.utter++; band('그래, 계속 그려 봐.', 'talk'); log('아이: "몰라" → 이 조각은 더 안 묻는다. D3에서 한 번 더 기회'); }
   else { band('계속 그려 봐!', 'talk'); log('무응답 → 그리기로'); }
@@ -656,6 +691,7 @@ function askGrowth(o, g){
 }
 function growAnswer(name, dunno){
   const {obj, extra} = S.cur; const pc = obj.pc; S.cur = null; S.lastQ = Date.now(); S.utter++;
+  extra.forEach(id => { const x = strokeById(id); if (x) x.loose = false; });
   if (!name){
     pc.namedIds = [...pc.ids];
     band(dunno ? '그래, 계속 그려 봐.' : `${pc.name}에 그렸구나!`, 'talk');
@@ -663,7 +699,7 @@ function growAnswer(name, dunno){
   } else {
     pc.ids = pc.ids.filter(id => !extra.includes(id));
     const np = newPiece(extra, {name, namedIds:[...extra], asked:true});
-    S.apart.push([pc.id, np.id]);
+    S.apart.push([pc.id, np.id]); S.praised[np.id] = true;
     band(`${name}! 따로 떼어 둘게.`, 'talk');
     log(`아이: "새로 그렸어, ${iya(name)}" → 이름 뒤에 그은 선만 떼어 새 조각 「${name}」 (child). 둘은 다시 안 붙는다`);
   }
