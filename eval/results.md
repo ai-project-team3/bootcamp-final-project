@@ -2355,6 +2355,25 @@ Jev 재채점은 09-22 값(88.6%)을 정확히 재현한다.
   2. 소리를 낼 수 없는 단위 테스트에서도 목소리를 청했다(가짜 주소로 연결 시도 · Windows 는 거절에 약 2초). `Voice.canSpeak` 이 아니면 청하지 않는다
 - 교훈: **병합 전에 전체 테스트**를 돌린다(`AGENTS.md`). 하나씩 · 짝으로 통과는 병합 조건이 아니다. 그리고 가설을 고친 뒤 **다시 전체를 돌려** 원인이었는지 확인한다 — 이번에 첫 가설(목소리 요청)은 틀렸다.
 
+**저녁 — 반씩 나눠 좁히기 (민우 새 커밋 `cdcc579` 포함 · 여전히 7개 실패)**
+
+| 돌린 묶음 | 태블릿 테스트 |
+|---|---|
+| `S*` 전체 + 태블릿 | ❌ 재현 |
+| `Story*` 만 + 태블릿 | ✅ |
+| `Scene/Screen/Server/ShellFlow` + 태블릿 | ✅ |
+| `ShellFlowTest` + `Story*` + 태블릿 | ❌ |
+| `ScreenShotTest` + `Story*` + 태블릿 | ❌ |
+| `ShellFlowTest` + `StoryFlowTest` + 태블릿 | ✅ |
+| `ShellFlowTest` + `StoryLiveAskTest` + 태블릿 | ❌ (2) |
+| `ShellFlowTest` + `StoryImageStoreTest` + 태블릿 | ❌ (1) |
+| `ShellFlowTest` + `StoryBook*` + 태블릿 | ❌ (1) |
+
+- **재현 조건 (최소)**: 화면을 그리는 테스트(`ShellFlowTest` 또는 `ScreenShotTest`) → 민우의 새 테스트 중 하나(`StoryLiveAskTest` · `StoryImageStoreTest` · `StoryBook*`) → 화면 테스트. 민우 코드가 없는 main 에서는 같은 순서로 통과한다
+- **틀린 가설 둘째**: 「실제 앱 화면을 띄우는 테스트가 `Voice` 를 붙여 두어 뒤 테스트가 가짜 재생기에서 영원히 기다린다」 — Robolectric 에서 `Voice.attach` 를 막아도 **똑같이 실패**. 되돌렸다
+- 공통점 후보(확인 안 함): 세 테스트 모두 Robolectric 에서 **앱 파일 저장소(`filesDir`)나 전역 상태(`Server.liveModes`)** 를 만진다 · `ShellFlowTest` 는 `MainActivity` 를 띄워 민우가 바꾼 `DemoApp`(저장된 책 · 이미지 저장소를 여는 곳)을 지난다
+- 상태: **병합 보류 · 민우에게 최소 재현 조건을 넘김.** 조장 로컬 브랜치는 main 으로 되돌렸다
+
 ### 같은 날 — 캐릭터 생성 (`/image` kind=character): 세 번 만에
 
 목표: 아이가 말한 등장인물을 **뼈대를 붙일 수 있는 자세로** 그려, 투명 배경 · 발 93% · 640 으로 오려 준다(치영 규격 `docs/캐릭터_생성_규격.md`). 치영의 09-28 방법(마네킹 틀에서 img2img)을 이 PC 모델(SDXL + Lightning 8스텝)로 옮겼다.
