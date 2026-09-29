@@ -336,9 +336,9 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
         <div class="say-opts" id="opts"></div>
       </div>
       <div class="card">
-        <h2>✨ 제안: 그림 바꿔 보기 <small>조장 결정 전</small></h2>
-        <label class="gen"><input type="checkbox" id="gen-on"> D2에서 [✨ 바꿔 보기] 켜기</label>
-        <p class="note">⚠️ 차별점 1(아이가 만든 건 AI가 다시 그리지 않는다)을 바꾸는 기능이다. 켜면 조각 그림이 우리 서버로 간다 — 처리방침 · Play 양식을 같이 고쳐야 한다. 원본이 늘 기본값이고, 책 1쪽은 늘 원본이며, 생성 결과는 안전 검사를 통과한 것만 보인다. 여기 보이는 「생성」은 아이 선을 가공한 시연용 자리 표시다.</p>
+        <h2>✨ 그림 바꿔 보기 <small>09-29 조장과 이야기 · 문서는 추후</small></h2>
+        <label class="gen"><input type="checkbox" id="gen-on" checked> D2에서 바꿔 보기 켜기</label>
+        <p class="note">차별점 1을 푸는 방향이다(아이 그림을 AI가 다시 그릴 수 있게). 조각 그림이 우리 서버로 가므로 처리방침 · Play 양식은 문서 정리 때 같이 고친다. 지키는 선: 원본이 늘 기본값 · 책 1쪽은 늘 원본 · 안전 검사 통과한 결과만. 여기 「생성」은 아이 선을 가공한 시연용 자리 표시다.</p>
       </div>
       <div class="card">
         <h2>그림 조각 <small>이름은 아이 말만</small></h2>
@@ -788,8 +788,21 @@ function goD2(){
   S.cur = null;
   if (!S.strokes.length){ log('빈 화이트보드 → 그림 없는 날'); return goD3(); }
   show('d2'); S.sel = []; renderTray();
-  band('그린 것들을 오려 봤어! 잘못 잘린 게 있으면 눌러서 고쳐 줘.', 'talk');
   log(`원본 획을 조각 ${objects().length}개${bgView() ? ' + 배경' : ''}으로 오림 (폰 안) · 원본 전체도 sceneDrawing 에 그대로`);
+  const named = objects().filter(o => o.name);
+  if (S.genOn && named.length && !S.lookAsked){
+    S.lookAsked = true;
+    band('그린 것들을 오려 봤어! 이 중에 다른 모습으로 바꿔 보고 싶은 거 있어?', 'listen');
+    log('아이 희망을 한 번 묻는다 — 바꾸지 않아도 된다');
+    opts([
+      {label:'🗣 "아니, 그대로 좋아!"', hint:'원본 그대로 간다', wide:true, run:() => { S.utter++; log('아이: "그대로 좋아" → 원본 그대로'); band('좋아, 내가 그린 그대로 갈게! 잘못 잘린 게 있으면 눌러서 고쳐 줘.', 'talk'); d2Opts(); }},
+      ...named.map(o => ({label:`🗣 "${o.name} 바꿔 줘!"`, run:() => { S.utter++; log(`아이: "${o.name} 바꿔 줘" → 그 조각만`); S.sel = [o.key]; renderTray(); openLooks(o.key); }})),
+    ], t => { const o = named.find(x => t.includes(x.name)); S.utter++;
+      if (o){ log(`아이: "${t}" → 「${o.name}」`); S.sel = [o.key]; renderTray(); openLooks(o.key); }
+      else { log(`아이: "${t}" → 바꿀 조각을 못 찾음 · 그대로`); band('그래, 그대로 갈게! 바꾸고 싶으면 그림을 눌러 줘.', 'talk'); d2Opts(); } });
+    return;
+  }
+  band('그린 것들을 오려 봤어! 잘못 잘린 게 있으면 눌러서 고쳐 줘.', 'talk');
   d2Opts();
 }
 function renderTray(){
@@ -803,8 +816,8 @@ function renderTray(){
 }
 
 // ── ✨ proposal: offer generated looks for a piece; the child's own lines stay the default ──
-// ⚠️ This changes differentiator 1 ("what the child made is not redrawn by AI") and sends the drawing
-// to our server. Shown here for the lead to decide. Placeholders stand in for the image model.
+// Loosens differentiator 1 (09-29, lead agreed in talk; docs to follow) and sends the piece to our
+// server. Placeholders stand in for the image model.
 const LOOKS = [
   {id:'orig', name:'내가 그린 그대로', note:'기본 · 늘 첫 번째'},
   {id:'felt', name:'펠트 인형', note:'(시연) 생성 자리'},
@@ -979,7 +992,7 @@ function d2Opts(){
   const list = [];
   if (S.sel.length === 2) list.push({label:'👆 [붙이기]', wide:true, run:() => $('btn-merge').click()});
   if (S.sel.length === 1) list.push({label:'👆 [✂️ 자르기]', hint:'가위 화면에서 떼어 낼 선을 고른다', wide:true, run:() => $('btn-split').click()});
-  if (S.sel.length === 1 && S.genOn) list.push({label:'🗣 "이거 멋지게 바꿔 줘!" → [✨ 바꿔 보기]', hint:'제안 기능 · 아이가 원할 때만', wide:true, run:() => $('btn-look').click()});
+  if (S.sel.length === 1 && S.genOn) list.push({label:'🗣 "이거 멋지게 바꿔 줘!" → [✨ 바꿔 보기]', hint:'아이가 원할 때만', wide:true, run:() => $('btn-look').click()});
   if (!S.sel.length) list.push({label:'👆 조각을 눌러 고르기', hint:'하나 → 자르기 · 둘 → 붙이기. 잘못 묶인 게 있을 때만', wide:true, run:() => { const os = objects(); if (os.length){ S.sel = [os[0].key]; renderTray(); d2Opts(); } }});
   list.push({label:'⏭ 다음', hint:'이름 없는 조각 · 빈 필수 칸만 묻는다', wide:true, run:goD3});
   opts(list);
@@ -1139,7 +1152,7 @@ $('btn-done').onclick = () => { log('[다 그렸어]'); goD2(); };
 $('btn-skip').onclick = () => { S.strokes = []; S.cur = null; redraw(); renderObjs(); log('[그리기 싫어] → 말로 한다'); goD3(); };
 $('btn-shelf').onclick = () => { band('책장에 꽂았어! 또 만나.', 'talk'); log('책장에 꽂음 → 홈'); opts([{label:'↺ 처음부터', wide:true, run:start}]); };
 $('btn-reset').onclick = start;
-$('gen-on').onchange = e => { S.genOn = e.target.checked; log(S.genOn ? '✨ 제안 기능 켬 (조장 결정 전)' : '✨ 제안 기능 끔'); if (S.scr === 'd2'){ renderTray(); d2Opts(); } };
+$('gen-on').onchange = e => { S.genOn = e.target.checked; log(S.genOn ? '✨ 그림 바꿔 보기 켬' : '✨ 그림 바꿔 보기 끔'); if (S.scr === 'd2'){ renderTray(); d2Opts(); } };
 function demoFill(){
   while (S.sampleStep < SAMPLE.length) addSample();
   const os = objects(); const nm = ['양동이','모래성','친구','해'];
