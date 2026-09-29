@@ -48,6 +48,7 @@ import com.example.finalproject_demo.ui.PuppetTypography
 import com.example.finalproject_demo.ui.ConsentStore
 import com.example.finalproject_demo.ui.FeelPrefs
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.Voice
 import androidx.compose.ui.platform.LocalContext
 import com.example.finalproject_demo.ui.GuardianConsentScreen
 import com.example.finalproject_demo.ui.SplashScreen
@@ -75,6 +76,7 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra("server")?.let { Server.base = it.trimEnd('/') }
         // 어느 모드를 서버로 돌릴지 — 없으면 전부 대본 (`-e live story,diary,coop` 또는 `all`)
         intent?.getStringExtra("live")?.let { Server.liveModes = Server.parseLive(it) }
+        Voice.attach(this)        // 진짜 마이크 · 마스코트 목소리 — 서버 모드에서만 쓴다 (net/Voice.kt)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
