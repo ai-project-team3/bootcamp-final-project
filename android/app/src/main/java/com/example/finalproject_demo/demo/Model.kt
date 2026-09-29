@@ -119,6 +119,19 @@ val PARTNERS = listOf(
 
 fun partner(key: String) = PARTNERS.firstOrNull { it.key == key } ?: PARTNERS.first()
 
+/**
+ * 진짜 마이크로 들은 말에서 호칭을 찾는다 (09-29 S25+).
+ * 대본 답에는 `value = "mom"` 꼬리표가 붙어 오지만 받아쓴 글자에는 없다 — 그래서 「엄마」를 맞게
+ * 받아써도 「다시 한번 말해 줄래?」가 끝없이 돌았다. 긴 이름부터 본다(「할아버지」가 「아버지」에 먹히지 않게).
+ */
+private val PARTNER_WORDS = listOf(
+    "할아버지" to "grandpa", "할부지" to "grandpa", "할머니" to "grandma", "할미" to "grandma",
+    "어머니" to "mom", "엄마" to "mom", "아버지" to "dad", "아빠" to "dad",
+    "이모" to "aunt", "친구" to "friend",
+)
+
+fun partnerKeyIn(text: String): String? = PARTNER_WORDS.firstOrNull { (word, _) -> word in text }?.second
+
 /** 아이가 그림판에 그린 선 하나. 좌표는 0~1로 정규화. */
 /**
  * 아이가 그린 선 하나. [pts]는 그림판 크기로 나눈 0~1 좌표, [w]는 **그림판 폭에 대한 붓 굵기**다.

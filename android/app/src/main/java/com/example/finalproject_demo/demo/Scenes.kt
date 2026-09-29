@@ -577,7 +577,7 @@ private suspend fun Director.scenePartner() {
             is Reply.Spoke -> {
                 s.micOn = false
                 childSays(r.text)
-                key = r.value.takeIf { v -> PARTNERS.any { it.key == v } }
+                key = r.value.takeIf { v -> PARTNERS.any { it.key == v } } ?: partnerKeyIn(r.text)
                 if (key == null) { say("다시 한번 말해 줄래?"); pause(1200) }
                 else log("Whisper \"${r.text}\" → 호칭 사전과 맞춤 → ${partner(key).name}")
             }
