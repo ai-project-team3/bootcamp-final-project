@@ -264,7 +264,7 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
           <div class="sys"><span>🏠</span><span class="lock">🔒</span></div>
           <div class="crayons" id="crayons"></div>
           <div class="board-wrap" id="board"><canvas id="cv"></canvas><div class="board-hint" id="hint">오늘 있었던 일을 그려 봐</div><div id="rings"></div></div>
-          <button class="felt mustard ask-btn" id="btn-ask"><img src="img/diary_ui/face_talk.png" alt=""><span>너도<br>그려 줘</span></button>
+          <button class="felt mustard ask-btn" id="btn-ask"><img src="img/diary_ui/face_talk.png" alt=""><span>너도<br>그려줘</span></button>
           <button class="felt coral done-btn" id="btn-done">다 그렸어</button>
           <button class="felt cream skip-btn" id="btn-skip">그리기 싫어</button>
         </section>
@@ -338,7 +338,7 @@ table.t td.k{font-family:var(--mono);font-size:11.5px;white-space:nowrap;color:v
           <li><b>그래도 잘못 묶이면 D2에서 자른다.</b> 스티커 하나 → [✂️ 자르기] → 떼어 낼 선을 톡 누르거나 동그라미로 감싸기 → [떼어 내기] → 오또가 "이건 뭐 그린 거야?". 둘을 고르면 [붙이기]</li>
           <li><b>인식 낱말은 질문 문구에만 쓴다(규칙 5).</b> 조각 이름은 아이가 말한 것만 붙는다. "집처럼 보이네"에 "모래성이야"라고 하면 모래성이다</li>
           <li><b>책은 아이 그림을 다시 그리지 않는다(차별점 1).</b> 원본 선을 오려서 옮기고 돌리고 키울 뿐이다. 오리기는 폰 안에서 한다</li>
-    <li><b>[너도 그려 줘]를 누르면 오또가 "나도 강아지 그려 볼까?"</b> — "응!"이면 "나도 그려 보고 보여줄게! 너도 더 그리고 있어." 이름이 없으면 먼저 "이거 뭐 그린 거야?". 말로 "강아지 멋지게 그려 줘"라고 해도 된다</li>
+    <li><b>[너도 그려줘]를 누르면 오또가 "나도 강아지 그려 볼까?"</b> — "응!"이면 "나도 그려 보고 보여줄게! 너도 더 그리고 있어." 이름이 없으면 먼저 "이거 뭐 그린 거야?". 말로 "강아지 멋지게 그려줘"라고 해도 된다</li>
           <li><b>오또 그림은 뒤에서 만든다.</b> 화면은 그대로이고 아이는 계속 그린다. 다 되면 이름표에 ✨가 붙고 오또가 멈춘 틈에 알려 준다. ✨를 누르면 옆에 작은 고르기 칸 — 원본이 첫 번째. 8초 넘으면 "조금 뒤에 올 거야", 15초면 원본 그대로</li>
           <li>인식은 여기서 간단한 모양 규칙으로 흉내 냈다. 실제는 폰 안 ML Kit AutoDraw → 낱말만 Jev (확신 0.6 미만이면 "이건 뭐 그린 거야?"로 연다)</li>
         </ul>
@@ -509,7 +509,7 @@ function opts(list, sayName){
 
 // ── D0 ──
 function goD0(){
-  show('d0'); band('오늘 있었던 일을 그려 볼래? 생각나는 것부터 그려 줘.', 'talk');
+  show('d0'); band('오늘 있었던 일을 그려볼래? 생각나는 것부터 그려줘.', 'talk');
   opts([{label:'👆 [그릴래]', wide:true, run:() => $('btn-draw').click()}, {label:'👆 [그림 없이 말할래]', wide:true, run:() => $('btn-talk').click()}]);
 }
 
@@ -655,11 +655,11 @@ function drawingOpts(){
   list.push({label:'👆 [다 그렸어]', run:() => $('btn-done').click()});
   if (S.genOn){
     const named = objects().filter(o => o.name);
-    if (S.strokes.length) list.push({label:'👆 [너도 그려 줘] 누르기', hint:'방금 그린 걸 오또도 그려 볼지 묻는다', wide:true, run:() => $('btn-ask').click()});
+    if (S.strokes.length) list.push({label:'👆 [너도 그려줘] 누르기', hint:'방금 그린 걸 오또도 그려 볼지 묻는다', wide:true, run:() => $('btn-ask').click()});
     named.filter(lookReady).forEach(o => list.push({label:`👆 ✨ 「${o.name}」 이름표 누르기`, hint:'옆에 고르기 칸이 뜬다. 계속 그릴 수 있다', wide:true, run:() => openPick(o.key)}));
     named.filter(o => !S.gen[o.key]).forEach((o, i) => {
-      list.push({label:`🗣 "${o.name} 멋지게 그려 줘!"`, hint:'뒤에서 만든다. 그동안 계속 그린다', run:() => { S.utter++; requestLook(o); }});
-      if (i === 0) list.push({label:`🗣 "${o.name} 그려 줘" (시연: 느린 생성)`, hint:'8초 안내 → 15초면 원본', run:() => { S.utter++; requestLook(o, true); }});
+      list.push({label:`🗣 "${o.name} 멋지게 그려줘!"`, hint:'뒤에서 만든다. 그동안 계속 그린다', run:() => { S.utter++; requestLook(o); }});
+      if (i === 0) list.push({label:`🗣 "${o.name} 그려줘" (시연: 느린 생성)`, hint:'8초 안내 → 15초면 원본', run:() => { S.utter++; requestLook(o, true); }});
     });
   }
   opts(list, S.genOn ? t => {
@@ -849,7 +849,7 @@ function renderTray(){
   $('btn-split').classList.toggle('on', S.sel.length === 1);
   const one = S.sel.length === 1 ? pieceOf(S.sel[0]) : null, g = one && S.gen[one.key];
   $('btn-look').classList.toggle('on', !!one && S.genOn && !(g && g.state === 'making'));
-  $('btn-look').textContent = g && g.state === 'ready' ? '✨ 오또 그림 보기' : '✨ 너도 그려 줘';
+  $('btn-look').textContent = g && g.state === 'ready' ? '✨ 오또 그림 보기' : '✨ 너도 그려줘';
 }
 
 // ── ✨ proposal: offer generated looks for a piece; the child's own lines stay the default ──
@@ -910,7 +910,7 @@ function askTarget(){
   const os = objects().filter(o => o.name); return os[os.length - 1] || null;
 }
 function askToDraw(o){
-  if (!o){ band('먼저 뭐든 그려 줘! 그럼 나도 따라 그려 볼게.', 'talk'); return; }
+  if (!o){ band('먼저 뭐든 그려줘! 그럼 나도 따라 그려 볼게.', 'talk'); return; }
   const g = S.gen[o.key];
   if (g && (g.state === 'making' || g.state === 'ready')){ requestLook(o); return; }
   S.utter++;
@@ -918,7 +918,7 @@ function askToDraw(o){
     o.pc.asked = true;
     S.cur = {kind:'obj', obj:o, sid:o.strokes[0].id, during:false, genAfter:true, point:true}; S.qAt = Date.now();
     band('이거 뭐 그린 거야? 알려 주면 나도 그려 볼게!', 'listen'); drawRings();
-    log('[너도 그려 줘] → 이름이 없는 조각이라 먼저 묻는다. 이름을 들으면 바로 그리기 시작');
+    log('[너도 그려줘] → 이름이 없는 조각이라 먼저 묻는다. 이름을 들으면 바로 그리기 시작');
     const list = NAMES.map(n => ({label:`🗣 "${iya(n)}!"`, run:() => objAnswer(n)}));
     list.push({label:'🗣 "몰라"', run:() => objAnswer(null, 'dunno')});
     opts(list, n => objAnswer(n));
@@ -926,11 +926,11 @@ function askToDraw(o){
   }
   S.cur = {kind:'offer', obj:o}; S.qAt = Date.now();
   band(`나도 ${eul(o.name)} 그려 볼까?`, 'listen'); drawRings();
-  log(`[너도 그려 줘] → 방금 그린 「${o.name}」을 오또도 그려 볼지 묻는다`);
+  log(`[너도 그려줘] → 방금 그린 「${o.name}」을 오또도 그려 볼지 묻는다`);
   const others = objects().filter(x => x.name && x.key !== o.key && !S.gen[x.key]);
   opts([
-    {label:'🗣 "응! 그려 줘"', wide:true, run:() => offerAnswer(o)},
-    ...others.map(x => ({label:`🗣 "아니, ${eul(x.name)} 그려 줘"`, run:() => offerAnswer(x)})),
+    {label:'🗣 "응! 그려줘"', wide:true, run:() => offerAnswer(o)},
+    ...others.map(x => ({label:`🗣 "아니, ${eul(x.name)} 그려줘"`, run:() => offerAnswer(x)})),
     {label:'🗣 "아니, 괜찮아"', run:() => offerAnswer(null)},
   ], t => {
     const x = objects().find(y => y.name && t.includes(y.name));
@@ -940,7 +940,7 @@ function askToDraw(o){
 function offerAnswer(o){
   S.cur = null; S.lastQ = Date.now();
   if (!o){ band('알았어! 계속 그려 봐.', 'talk'); log('"괜찮아" → 그리지 않는다'); }
-  else { log(`아이: "그려 줘" → 「${o.name}」`); requestLook(o); }
+  else { log(`아이: "그려줘" → 「${o.name}」`); requestLook(o); }
   drawRings(); if (S.scr === 'd1') drawingOpts(); else d2Opts();
 }
 function say(t, key){ if (!S.cur) band(t, 'talk'); else S.notices.push({t, key}); }
@@ -1098,7 +1098,7 @@ function d2Opts(){
   const list = [];
   if (S.sel.length === 2) list.push({label:'👆 [붙이기]', wide:true, run:() => $('btn-merge').click()});
   if (S.sel.length === 1) list.push({label:'👆 [✂️ 자르기]', hint:'가위 화면에서 떼어 낼 선을 고른다', wide:true, run:() => $('btn-split').click()});
-  if (S.sel.length === 1 && S.genOn){ const o = pieceOf(S.sel[0]); if (o && o.name && !S.gen[o.key]) list.push({label:`🗣 "${o.name} 멋지게 그려 줘!"`, hint:'뒤에서 만든다. 그동안 계속 고칠 수 있다', wide:true, run:() => requestLook(o)}); }
+  if (S.sel.length === 1 && S.genOn){ const o = pieceOf(S.sel[0]); if (o && o.name && !S.gen[o.key]) list.push({label:`🗣 "${o.name} 멋지게 그려줘!"`, hint:'뒤에서 만든다. 그동안 계속 고칠 수 있다', wide:true, run:() => requestLook(o)}); }
   objects().filter(lookReady).forEach(o => list.push({label:`👆 반짝이는 「${o.name}」 누르기`, hint:'새 모습 고르기', wide:true, run:() => openPick(o.key)}));
   if (!S.sel.length) list.push({label:'👆 조각을 눌러 고르기', hint:'하나 → 자르기 · 둘 → 붙이기. 잘못 묶인 게 있을 때만', wide:true, run:() => { const os = objects(); if (os.length){ S.sel = [os[0].key]; renderTray(); d2Opts(); } }});
   list.push({label:'⏭ 다음', hint:'이름 없는 조각 · 빈 필수 칸만 묻는다', wide:true, run:goD3});
