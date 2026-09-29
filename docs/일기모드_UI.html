@@ -907,7 +907,7 @@ function nextD3(){
   if (item.kind === 'obj'){
     const o = objects().find(x => x.key === item.key); if (!o){ S.afterAsked--; return nextD3(); }
     S.cur = {kind:'obj', obj:o}; setD3Bg(o); band('이건 뭐 그린 거야?', 'listen');
-    log(`그린 뒤 질문 ${S.afterAsked}/3: 이름 없는 조각 "이건 뭐였어?"`);
+    log(`그린 뒤 질문 ${S.afterAsked}/3: 이름 없는 조각 "이건 뭐 그린 거야?"`);
     const list = NAMES.map(n => ({label:`🗣 "${iya(n)}!"`, run:() => { S.utter++; nameObject(o, n); S.cur = null; log(`아이: "${iya(n)}" → 조각 이름 (child)`); renderObjs(); renderMeter(); afterD3(`${n}였구나!`); }}));
     list.push({label:'🗣 "몰라"', run:() => { S.utter++; S.cur = null; log('"몰라" → 이름 없이 책에 싣는다 (그림은 아이 것이다)'); renderMeter(); afterD3(null); }});
     opts(list, n => { S.utter++; nameObject(o, n); S.cur = null; log(`아이: "${iya(n)}" → 조각 이름 (child)`); renderObjs(); renderMeter(); afterD3(`${n}였구나!`); }); return;
