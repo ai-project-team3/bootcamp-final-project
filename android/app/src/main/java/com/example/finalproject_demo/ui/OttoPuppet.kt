@@ -54,22 +54,23 @@ private val PARTS = listOf(
 
 /**
  * **옆모습** 부위 — 걸을 때만 쓴다 (09-29 사용자 — 「정면을 보고 팔다리만 흔드는 게 아니라 옆을 보고 실제로 걷는 것처럼」).
- * 오른쪽을 비스듬히 보는 전신 한 장(ComfyUI)을 `tools/otto_puppet_side.py` 로 잘랐다.
- * 순서(뒤 → 앞): 뒷팔 · 꼬리 · 뒷다리 · 앞다리 · 몸 · 앞팔
+ * **기존 마스코트를 옆으로 돌린 그림**(ComfyUI Kontext · `tools/gen_faces.py side_m`)을 `tools/otto_puppet_side.py` 로 잘랐다.
+ * 순서(뒤 → 앞): 꼬리 · 뒷다리 · 앞다리 · 뒷팔 · 몸 · 앞팔(소매째)
  */
 private val SIDE = listOf(
-    Part("otto_side_arm_far", 0.6328f, 0.6133f),
-    Part("otto_side_tail", 0.3760f, 0.7520f),
-    Part("otto_side_leg_far", 0.5615f, 0.7715f),
-    Part("otto_side_leg_near", 0.4639f, 0.7734f),
+    Part("otto_side_tail", 0.3828f, 0.7422f),
+    Part("otto_side_leg_far", 0.5957f, 0.7959f),
+    Part("otto_side_leg_near", 0.4668f, 0.7812f),
+    Part("otto_side_arm_far", 0.6836f, 0.6250f),
     Part("otto_side_body", 0.5f, 0.5f),
-    Part("otto_side_arm_near", 0.4414f, 0.5352f),
+    Part("otto_side_arm_near", 0.5586f, 0.5713f),
 )
 
 /** 옆모습 걷기 — 다리를 앞뒤로 번갈아, 팔은 **소매째 어깨에서** 다리와 반대로 크게 흔들고, 몸은 걸음마다 통통 · 살짝 앞으로 기운다 */
 private fun sideWalk(t: Float): PoseOut {
     val k = sin(t * 8f)
-    val a = floatArrayOf(22 * k, 10 * sin(t * 4f), -18 * k, 18 * k, 0f, -26 * k)
+    // tail, leg_far, leg_near, arm_far, body, arm_near — 팔은 다리와 반대로
+    val a = floatArrayOf(10 * sin(t * 4f), -18 * k, 18 * k, 18 * k, 0f, -20 * k)
     return PoseOut(a, -5 * abs(sin(t * 8f)), tilt = 3f)
 }
 
