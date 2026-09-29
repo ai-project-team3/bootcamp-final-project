@@ -5,6 +5,7 @@ import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.StoryPrompt
 import com.example.finalproject_demo.demo.nextStoryPrompt
 import com.example.finalproject_demo.demo.recordTemplateAnswer
+import com.example.finalproject_demo.demo.storyEndCondition
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -21,6 +22,14 @@ class StoryPromptTest {
         s.turn = 1
         s.storyNextSlot = "reaction"
         assertEquals("reaction", s.nextStoryPrompt()?.slot)
+    }
+
+    @Test
+    fun fixedProblemProbeDoesNotReadAnUnrelatedServerQuestion() {
+        val s = DemoState()
+        s.turn = 1
+        s.storyNextSlot = "cause"
+        assertEquals("어떤 일이 생겼어?", s.nextStoryPrompt("왜 그랬어?")?.text)
     }
 
     @Test
@@ -55,5 +64,17 @@ class StoryPromptTest {
         s.endReason = null
         s.mode = StoryMode.DIARY
         assertNull(s.nextStoryPrompt())
+    }
+
+    @Test
+    fun storyEndsOnlyForTheThreeSpecifiedReasons() {
+        val s = DemoState()
+        s.turn = 40
+        assertNull(s.storyEndCondition(0, 14 * 60 * 1000L))
+        assertEquals("time_limit", s.storyEndCondition(0, 15 * 60 * 1000L))
+        s.mascotPicks = 2
+        assertEquals("mascot_pick", s.storyEndCondition(0, 0))
+        s.endReason = "story_ready"
+        assertEquals("story_ready", s.storyEndCondition(0, 0))
     }
 }

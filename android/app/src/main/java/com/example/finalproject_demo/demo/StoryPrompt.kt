@@ -29,7 +29,7 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null): StoryPrompt? {
     }
     val server = storyNextSlot?.takeIf { it in CORE_QUESTIONS && open(it) }
     val slot = probe ?: server
-    if (slot != null) return StoryPrompt(slot, serverQuestion?.takeIf { it.isNotBlank() } ?: CORE_QUESTIONS.getValue(slot))
+    if (slot != null) return StoryPrompt(slot, serverQuestion?.takeIf { slot == server && it.isNotBlank() } ?: CORE_QUESTIONS.getValue(slot))
 
     // 템플릿 고유 질문은 12개 공통 칸이 아니다. 답을 앱 책의 해당 칸에만 둔다.
     val local = template?.let { (it.plot + it.ending).firstOrNull(::open) }
@@ -39,6 +39,15 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null): StoryPrompt? {
     val missing = listOf("place", "problem", "reaction", "cause", "solution").firstOrNull(::open)
     if (missing != null) return StoryPrompt(missing, CORE_QUESTIONS.getValue(missing))
     return StoryPrompt(null, "이야기를 조금 더 들려줄래?")
+}
+
+/** 턴 수는 종료 조건이 아니다. 서버 완료, 연속 대리 선택, 경과 시간만 본다. */
+fun DemoState.storyEndCondition(startedAtMs: Long, nowMs: Long): String? = when {
+    mode != StoryMode.STORY -> null
+    storyReady -> "story_ready"
+    mascotPicks >= 2 -> "mascot_pick"
+    nowMs - startedAtMs >= 15 * 60 * 1000L -> "time_limit"
+    else -> null
 }
 
 /** 실제 아이의 답만 채운다. 빈칸을 넘긴 사실은 아이가 말했다는 기록으로 남기지 않는다. */
