@@ -43,6 +43,9 @@ object Voice {
 
     @Volatile private var ctx: Context? = null
 
+    /** Can this process make sound? False in unit tests (never attached) — then no `/tts` is even asked for. */
+    val canSpeak: Boolean get() = ctx != null
+
     /** `MainActivity.onCreate`, next to `Server.base`. Loads the VAD model in the background right away. */
     fun attach(context: Context) {
         ctx = context.applicationContext
