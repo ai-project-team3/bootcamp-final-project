@@ -104,9 +104,8 @@ class DiaryFlowTest {
         // ── 첫 번째 이야기 — 책까지
         d.go(Scene.ADULT)
         assertTrue("시작 화면이 안 떴다", d.tap("오늘 있었던 일로"))
-        assertTrue("도감이 안 떴다", await { s.scene == Scene.BESTIARY } != null)
-        assertTrue("첫 이야기에서 주인공을 못 골랐다", d.tap("카드를 탭"))
-        assertTrue("질문으로 안 왔다", await { s.scene == Scene.DIARY } != null)
+        // 그림일기는 주인공을 고르지 않는다 — 방에서 바로 D0 (docs/일기모드_UI.html)
+        assertTrue("그림일기로 바로 안 왔다", await { s.scene == Scene.DIARY } != null)
         d.answerAll("🗣", max = 30)
         // 그림일기(09-30) — 책은 일기 장면 안에서 읽고 선물로 간다
         assertTrue(
@@ -130,10 +129,8 @@ class DiaryFlowTest {
         assertTrue("도감이 비었다 — 주인공이 하나도 없으면 고를 수가 없다", s.heroes.isNotEmpty())
 
         assertTrue("두 번째 이야기를 못 시작했다", d.tap("오늘 있었던 일로"))
-        assertTrue("두 번째 이야기에서 도감이 안 떴다", await { s.scene == Scene.BESTIARY } != null)
-        assertTrue("도감에 카드 버튼이 없다 (버튼=${s.buttons.map { it.label }})", d.tap("카드를 탭"))
         assertTrue(
-            "⚠️ 도감에서 안 넘어간다 — 주인공을 골랐는데 장면이 ${s.scene} 그대로다",
+            "⚠️ 두 번째 그림일기가 시작되지 않는다 — 장면이 ${s.scene} 그대로다",
             await(8_000) { s.scene == Scene.DIARY } != null,
         )
     }
@@ -171,7 +168,7 @@ class DiaryFlowTest {
         d.go(Scene.ADULT)
         assertTrue("시작 화면이 안 떴다", d.tap("오늘 있었던 일로"))
         // 9/21 요청 — 일기 모드는 "누구랑 같이 만들래?"를 묻지 않는다
-        assertTrue("도감으로 바로 오지 않았다", await { s.scene == Scene.BESTIARY } != null)
+        assertTrue("그림일기로 바로 오지 않았다", await { s.scene == Scene.DIARY } != null)
         assertEquals("함께할 사람을 물었다", StoryMode.DIARY, s.mode)
         assertFalse("함께할 사람 화면을 거쳤다", s.done.contains("partner"))
 
@@ -278,7 +275,7 @@ class DiaryFlowTest {
         val s = d.s
         d.go(Scene.ADULT)
         assertTrue(d.tap("오늘 있었던 일로"))
-        assertTrue(await { s.scene == Scene.BESTIARY } != null)
+        assertTrue(await { s.scene == Scene.DIARY } != null)
         assertTrue("story_start 에 mode=diary 가 없다", "mode=diary" in s.events.first { it.startsWith("story_start") })
 
         d.go(Scene.ADULT)
