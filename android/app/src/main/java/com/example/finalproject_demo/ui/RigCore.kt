@@ -396,9 +396,15 @@ object RigBuilder {
         if (hint == RigHint.AUTO || hint == RigHint.HUMAN) {
             humanRig(argb, w, h, anyHands = hint == RigHint.HUMAN)?.let { if (passes(it, "①사람형")) return it }
         }
-        bodyPart(argb, w, h, allowArms = true, hint = hint)
-            ?.let { merge(w, h, listOf(it), null) }
-            ?.let { if (passes(it, "②가지")) return it }
+        // ② 튀어나온 가지 — 다리를 둘 넘게 못 찾았고 다리가 있는 몸(네발 · 사람)이면 「배 아래 선」으로 다리를 떼어 한 번 더
+        val plain = bodyPart(argb, w, h, allowArms = true, hint = hint)
+        val needLegs = hint == RigHint.QUAD || hint == RigHint.HUMAN
+        val legsOf = { p: Part? -> p?.bones?.count { it.role == LimbRole.LEG } ?: 0 }
+        val carved = if (needLegs && legsOf(plain) < 2) bodyPart(argb, w, h, allowArms = true, hint = hint, carveLegs = true) else null
+        for (p in listOfNotNull(if (legsOf(carved) > legsOf(plain)) carved else null, plain)) {
+            val m = merge(w, h, listOf(p), null) ?: continue
+            if (passes(m, if (p === carved) "②가지(배 아래)" else "②가지")) return m
+        }
         return calmRig(argb, w, h)
     }
 
@@ -486,7 +492,7 @@ object RigBuilder {
 
     // ── 가. 튀어나온 가지 ─────────────────────────────────────────
 
-    private fun bodyPart(argb: IntArray, w: Int, h: Int, allowArms: Boolean, hint: RigHint = RigHint.AUTO): Part? {
+    private fun bodyPart(argb: IntArray, w: Int, h: Int, allowArms: Boolean, hint: RigHint = RigHint.AUTO, carveLegs: Boolean = false): Part? {
         val f = max(1, ceil(max(w, h) / ANALYSIS.toDouble()).toInt())
         val aw = w / f; val ah = h / f
         val n = aw * ah
@@ -520,6 +526,13 @@ object RigBuilder {
         for (i in 0 until n) if (sLab[i] > 0 && din[i] >= 0.75f * dMax) keep[sLab[i]] = true
         val dSeed = chamfer(aw, ah, edge = false) { sLab[it] > 0 && keep[sLab[it]] }
         val core = BooleanArray(n) { mask[it] && dSeed[it] <= r + 1.5f }
+        // 다리 따로 떼기 (09-30 · 생성 캐릭터) — 짧고 굵은 다리(아기 공룡 · 강아지 · 사자)는 「두꺼운 곳 = 몸통」에 먹혀
+        // 가지로 안 나왔다. 그림을 **아래에서부터 한 줄씩** 올라가며 가로로 두 덩어리 이상 갈라지는 구간(다리 사이 틈)을
+        // 다리로 보고 몸통에서 뺀다 — 굵기와 상관없다. 다만 옆모습 네발짐승은 앞 · 뒷다리가 겹쳐 **묶음 둘**로만 나온다 →
+        // 원래 방식으로 다리를 둘 넘게 못 찾았을 때만 부른다([build])
+        if (carveLegs) bellyLine(mask, aw, my0, my1)?.let { belly ->
+            for (y in belly..my1) for (x in 0 until aw) core[y * aw + x] = false
+        }
 
         // 3. 가지
         val prot = BooleanArray(n) { mask[it] && !core[it] }
@@ -559,8 +572,17 @@ object RigBuilder {
         // 몸 종류 힌트 (09-30 · 서버가 알려 준다)
         //   네발형 — 몸 가운데 높이에서 아래로 뻗은 것도 **다리**다(옆모습 네발짐승의 앞다리가 팔로 잡혔다)
         //   덩어리형 — 팔 · 다리가 없다. 촉수 · 끝부분은 살랑이기만 한다(OTHER)
-        if (hint == RigHint.QUAD) limbs.filter { it.role == LimbRole.ARM }.forEach { it.role = LimbRole.LEG }
+        // 네발형 — 아래로 뻗은 것 가운데 **끝이 땅(그림 아래 끝)에 닿는 것만** 다리. 코끼리 코처럼 공중에 떠 있으면 살랑이는 부분
+        if (hint == RigHint.QUAD) limbs.filter { it.role == LimbRole.ARM || it.role == LimbRole.LEG }.forEach {
+            it.role = if (it.tipY >= my1 - 0.12f * mH) LimbRole.LEG else LimbRole.OTHER
+        }
         if (hint == RigHint.BLOB) limbs.filter { it.role == LimbRole.ARM || it.role == LimbRole.LEG }.forEach { it.role = LimbRole.OTHER }
+        //   사람형 — 몸 가운데 높이(몸통 25~70%)에서 뻗은 가지는 방향과 상관없이 **팔**(한 팔만 들었거나 좌우 높이가 달라도).
+        //   귀 · 모자 끝처럼 머리 꼭대기에서 난 것은 붙은 높이로 뺀다
+        if (hint == RigHint.HUMAN) limbs.filter { it.role != LimbRole.LEG && it.length >= 0.12f * mH }.forEach {
+            val yb = (it.baseY - cy0) / coreH
+            if (yb in 0.25f..0.7f) it.role = LimbRole.ARM
+        }
         // 양쪽에 같은 높이로 옆으로 뻗은 것 한 쌍 → 팔 (옆으로 벌린 로봇 팔)
         val tails = limbs.filter { it.role == LimbRole.TAIL }
         val armsOk = hint != RigHint.QUAD && hint != RigHint.BLOB
@@ -573,7 +595,7 @@ object RigBuilder {
         for (role in listOf(LimbRole.TAIL, LimbRole.NECK)) limbs.filter { it.role == role }
             .sortedByDescending { it.length }.drop(1).forEach { it.role = LimbRole.OTHER }
         val arms = limbs.filter { it.role == LimbRole.ARM }
-        val human = allowArms && armsOk && arms.size == 2 && arms[0].side != arms[1].side
+        val human = allowArms && armsOk && (arms.size == 2 && arms[0].side != arms[1].side || hint == RigHint.HUMAN && arms.isNotEmpty())
         if (!human) arms.forEach { it.role = if (it.length >= 0.18f * mH) LimbRole.TAIL else LimbRole.OTHER }
         limbs.filter { it.role == LimbRole.TAIL }.sortedByDescending { it.length }.drop(1).forEach { it.role = LimbRole.OTHER }
         // 사람 다리는 두 개로 **나뉘어 있을 때만** — 한 덩어리면 걸을 수 없다
@@ -582,6 +604,7 @@ object RigBuilder {
         if (twoLegged && legs.size != 2) legs.forEach { it.role = LimbRole.OTHER }
         val kind = when {
             hint == RigHint.BLOB -> "blob"
+            hint == RigHint.HUMAN -> "human"      // 서버가 사람형이라고 했다 — 팔을 못 찾아도 네발형으로 부르지 않는다
             human -> "human"
             !allowArms && hint != RigHint.QUAD -> "human"
             limbs.count { it.role == LimbRole.LEG } >= 2 -> "quad"
@@ -682,6 +705,28 @@ object RigBuilder {
         // 뒤 → 앞: 가지(몸 가중치가 작은 삼각형)를 먼저 그려 몸 뒤로 — 관절 이음매를 몸이 덮는다
         val order = tris.sortedBy { tr -> (rootW[tr[0]] + rootW[tr[1]] + rootW[tr[2]]) / 3f }
         return Part(kind, bones, rest, Array(m) { wB[it]!! }, Array(m) { wV[it]!! }, order, 0f)
+    }
+
+    /**
+     * 배 아래 선 — 그림 아래에서 위로 올라가며 **가로로 두 덩어리 이상** 갈라지는 줄이 이어지는 맨 위 줄.
+     * 다리 사이 틈이 있는 구간이다. 발끝 몇 줄은 붙어 있어도 된다(발이 맞닿은 그림). 다리 구간이 키의 6~45% 가 아니면 null
+     */
+    private fun bellyLine(mask: BooleanArray, aw: Int, my0: Int, my1: Int): Int? {
+        val mH = my1 - my0 + 1
+        fun split(y: Int): Boolean {
+            var runs = 0; var len = 0; var gap = 99
+            for (x in 0 until aw) {
+                if (mask[y * aw + x]) { if (len == 0 && gap >= 2) runs++; len++; gap = 0 } else { if (len > 0) len = 0; gap++ }
+            }
+            return runs >= 2
+        }
+        var y = my1
+        var skipped = 0
+        while (y > my0 && !split(y) && skipped < (0.05f * mH).toInt() + 1) { y--; skipped++ }
+        if (!split(y)) return null
+        while (y > my0 && split(y - 1)) y--
+        val legH = my1 - y + 1
+        return if (legH >= 0.06f * mH && legH <= 0.45f * mH) y else null
     }
 
     /** 가지가 하나도 없는 몸 — 뼈는 root 하나. 몸 층을 그리는 데만 쓴다 */

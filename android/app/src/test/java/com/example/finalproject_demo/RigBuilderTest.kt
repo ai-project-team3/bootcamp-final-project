@@ -124,6 +124,39 @@ class RigBuilderTest {
     }
 
     /**
+     * **생성 캐릭터 22장 — 몸 종류대로 뼈대가 붙는가** (09-30 · `src/test/resources/rig_corpus`, 서버와 같은 마네킹 · 자세 · 오려 내기).
+     *
+     * - 사람형 10: 사람형 · 팔 둘 (한 팔만 든 토끼 · 좌우 높이가 다른 할머니 포함)
+     * - 네발형 6: 네발형 · 다리 둘 이상 (짧고 굵은 다리의 아기 공룡 · 강아지 · 사자 포함) · 코끼리 코는 다리가 아니다
+     * - 덩어리형 6: 덩어리형 · 팔 · 다리 없음
+     * - 전부: 찢어짐이 기준([RigBuilder.MAX_TEAR]) 안
+     */
+    @Test
+    fun 생성_캐릭터는_몸_종류대로_뼈대가_붙는다() {
+        val files = File("src/test/resources/rig_corpus").listFiles { f -> f.name.endsWith(".webp") }?.sorted().orEmpty()
+        assertEquals("검사 그림 22장이 있어야 한다", 22, files.size)
+        val bad = ArrayList<String>()
+        for (f in files) {
+            val bmp = BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+            val px = IntArray(bmp.width * bmp.height); bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+            val hint = RigHint.of(f.name.substringBefore("__"))
+            val m = RigBuilder.build(px, bmp.width, bmp.height, hint)
+            if (m == null) { bad += "${f.name}: 뼈대 없음"; continue }
+            val arms = m.bones.count { it.role == LimbRole.ARM && it.parent == 0 }
+            val legs = m.bones.count { it.role == LimbRole.LEG }
+            val tear = tearScore(m)
+            val ok = when (hint) {
+                RigHint.HUMAN -> m.kind == "human" && arms == 2
+                RigHint.QUAD -> m.kind == "quad" && legs >= 2 && arms == 0
+                RigHint.BLOB -> m.kind == "blob" && arms == 0 && legs == 0
+                RigHint.AUTO -> true
+            } && tear <= RigBuilder.MAX_TEAR
+            if (!ok) bad += "${f.name}: ${m.kind} 팔 $arms 다리 $legs 찢어짐 ${"%.3f".format(tear)}"
+        }
+        assertEquals("몸 종류대로 안 붙은 그림: " + bad.joinToString(" / "), 0, bad.size)
+    }
+
+    /**
      * **생성 캐릭터 모음**(`tools/gen_rig_corpus.py` — 서버와 같은 마네킹 · 자세 · 오려 내기)으로 뼈대를 붙여 본다 (09-30).
      * 파일 이름 앞이 몸 종류(`human__` · `quad__` · `blob__`) — 서버가 보내는 힌트 그대로 넣는다.
      * 확인표 `build/rig_auto/corpus.png` · 줄마다 결과 `corpus.txt`. 폴더는 시스템 속성 `rig.corpus` 로 바꾼다
