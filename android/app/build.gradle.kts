@@ -122,14 +122,3 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
-
-// ── every test class in a fresh JVM (09-29) ───────────────────────────────────────────
-// Robolectric screen tests leaked into each other: after ShellFlowTest or ScreenShotTest, *any* later
-// Robolectric test that wrote Compose state made every screen test after it fail with "Compose did
-// not get idle (60 s)" — reproduced on main with a test doing only `mutableStateOf(0).value = 1`.
-// No leaked recomposer, window, thread or login state was found; the root cause is still open
-// (eval/results.md 09-29). A fresh JVM per class makes the order irrelevant; three run at once.
-tasks.withType<Test>().configureEach {
-    forkEvery = 1
-    maxParallelForks = 3
-}
