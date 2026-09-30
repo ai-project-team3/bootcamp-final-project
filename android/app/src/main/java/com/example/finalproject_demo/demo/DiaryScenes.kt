@@ -289,7 +289,7 @@ private suspend fun Director.diaryDrawStep() {
 }
 
 /** 모인 답변으로 책을 만든다 — **책은 언제나 나온다** (일기 §5 · 구현대본 §5) */
-private suspend fun Director.finishDiary() {
+internal suspend fun Director.finishDiary() {
     buttons()
     inputs(false, false)
     s.parentCard = null; s.parentAsk = null
@@ -332,6 +332,7 @@ private suspend fun Director.finishDiary() {
     mark("diary")
     val why = when (s.endReason) {
         "timeout" -> "15분 경과"
+        "parent_stop" -> "부모 「그만하기」 (#36)"
         else -> "story_ready (기승전결 네 자리)"
     }
     val tails = COOP_STEPS.filterNot { it.required }.count { s.slots[it.bookKey] != null }

@@ -103,6 +103,30 @@ class ShellFlowTest {
         waitText("그림일기"); shot("11_room")
     }
 
+    /** 같이 만들기 도중 부모 「그만하기」 (#36) — 협업에서만 보이고, 확인 창을 거쳐야 멈춘다 */
+    @Test
+    fun theParentStopButtonShowsOnlyInCoopAndAsksFirst() {
+        onboard()
+        val d = director
+        compose.runOnIdle {
+            d.s.parentQuestions.addAll(listOf("소방관은 어디서 일할까?", "거기서 무슨 일을 할까?", "왜 그 일이 필요할까?", "일이 다 끝나면 어떻게 될까?"))
+            d.s.mode = com.example.finalproject_demo.demo.StoryMode.COOP
+        }
+        d.go(com.example.finalproject_demo.demo.Scene.DIARY)
+        waitText("그만하기"); shot("20_coop_stop_button")
+
+        tap("그만하기")
+        waitText("이야기를 여기서 마칠까?"); shot("21_coop_stop_ask")
+        tap("계속하기")                           // 잘못 눌렀으면 그대로 이어 간다
+        compose.waitUntil(5_000) { count("이야기를 여기서 마칠까?") == 0 }
+        assertEquals(null, d.s.endReason)
+
+        tap("그만하기"); tap("마치기")
+        compose.waitUntil(8_000) { d.s.endReason == "parent_stop" }
+        compose.waitUntil(8_000) { count("그만하기") == 0 }
+        shot("22_coop_stopped")
+    }
+
     @Test
     fun onboardingMustBeFinishedAndSetupReachesTheFlow() {
         onboard()
