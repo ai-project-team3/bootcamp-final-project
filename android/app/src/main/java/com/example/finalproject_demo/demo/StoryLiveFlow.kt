@@ -71,7 +71,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 event("slot_filled", "slot" to prompt.slot, "value" to value, "source" to by)
             }
             s.mascotPicks = if (by == "mascot") s.mascotPicks + 1 else 0
-            syncStoryPresentation()
+            s.syncStoryPresentation()
             if (by != "mascot") judge(variant, reply, question.text)
             updateBackground()
             if (!friendDrawingPrepared && !s.slots["newcomer"].isNullOrBlank()) {
@@ -106,7 +106,8 @@ private fun Director.liveVariant(prompt: StoryPrompt): QVariant {
 }
 
 /** Project confirmed slots into the existing book/world fields; never fill missing child facts. */
-private fun Director.syncStoryPresentation() {
+internal fun DemoState.syncStoryPresentation() {
+    val s = this
     s.slots["place"]?.takeIf(String::isNotBlank)?.let { place ->
         val theme = THEMES.firstOrNull { it.key == place || it.label == place }
         s.themeKey = theme?.key ?: "dino"
@@ -116,12 +117,43 @@ private fun Director.syncStoryPresentation() {
     }
     s.problem = s.slots["problem"]
     s.cause = s.slots["cause"]
-    s.cause?.let { s.causeLine = it }
+    s.cause?.let {
+        s.causeLine = it
+        s.causeKind = storyCauseKind(it)
+    }
     s.newcomer = s.slots["newcomer"]
     s.newcomer?.let { s.newcomerKind = it }
     s.slots["name"]?.takeIf(String::isNotBlank)?.let { s.friendName = it }
     s.solution = s.slots["solution"]
-    s.solution?.let { s.solutionLine = it }
+    s.solution?.let {
+        s.solutionLine = it
+        storySolutionProp(it)?.let { (kind, item) -> s.solutionKey = kind; s.solutionItem = item }
+    }
     s.sound = s.slots["sound"]
     s.sound?.let { s.soundLine = it }
+}
+
+private fun storyCauseKind(text: String): String = when {
+    listOf("길을 잃", "길이 헷갈", "길을 못").any { it in text } -> "lost"
+    listOf("배고", "배가 고", "먹고 싶").any { it in text } -> "hungry"
+    listOf("아파", "아팠", "다쳤", "다쳐").any { it in text } -> "hurt"
+    "장난" in text -> "prank"
+    listOf("힘이 세", "힘자랑", "힘을 자랑").any { it in text } -> "strong"
+    listOf("인사", "안녕").any { it in text } -> "hello"
+    listOf("외로", "외롭", "심심", "친구가 없").any { it in text } -> "lonely"
+    listOf("놀고 싶", "같이 놀").any { it in text } -> "play"
+    else -> "unknown"
+}
+
+private fun storySolutionProp(text: String): Pair<String, String>? = when {
+    "딸기" in text -> "share" to "strawberry"
+    "초대" in text -> "invite" to "invite"
+    "풍선" in text -> "play" to "balloon"
+    "반창고" in text -> "help" to "bandaid"
+    "그림책" in text || "책을" in text -> "share" to "picturebook"
+    "블록" in text -> "help" to "block"
+    "노래" in text || "춤" in text -> "dance" to "note"
+    "돌" in text || "보석" in text -> "gift" to "gem"
+    "별" in text -> "star" to "star"
+    else -> null
 }
