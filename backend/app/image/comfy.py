@@ -9,6 +9,7 @@ them and the timing and the look are no longer the measured ones.
 routers/image.py runs the check.
 """
 import asyncio
+import base64
 import random
 import urllib.parse
 
@@ -121,9 +122,23 @@ def character_workflow(subject: str, rig: str, seed: int, template: str | None) 
     return wf
 
 
+async def _forget(base: str, pid: str) -> None:
+    """Drop the history entry — for a redraw it holds the child's drawing (in the prompt) and the result."""
+    try:
+        async with httpx.AsyncClient(timeout=3) as http:
+            await http.post(f"{base}/history", json={"delete": [pid]})
+    except Exception:
+        pass
+
+
 async def run(wf: dict) -> bytes:
-    """Queue one graph and return its first PNG. Cancelling cancels the ComfyUI job."""
+    """Queue one graph and return its first PNG. Cancelling cancels the ComfyUI job.
+
+    A graph that returns its picture through OttoReturnImageB64 (the redraw) is read from the
+    history entry, and that entry is deleted whatever happens — nothing of it stays on PC2.
+    """
     base = settings.comfy_url.rstrip("/")
+    in_memory = any(n["class_type"] == "OttoReturnImageB64" for n in wf.values())
     pid = None
     try:
         async with httpx.AsyncClient(timeout=10) as http:
@@ -140,6 +155,8 @@ async def run(wf: dict) -> bytes:
             if entry.get("status", {}).get("status_str") == "error":
                 raise ComfyError("generation failed")
             for node in entry["outputs"].values():
+                for b64 in node.get("otto_png", []):
+                    return base64.b64decode(b64)
                 for img in node.get("images", []):
                     v = await http.get(f"{base}/view?{urllib.parse.urlencode(img)}")
                     return v.content
@@ -149,7 +166,33 @@ async def run(wf: dict) -> bytes:
         if pid:
             await asyncio.shield(_cancel(base, pid))
         raise
+    finally:
+        if in_memory and pid:
+            await asyncio.shield(_forget(base, pid))
     raise ComfyError("no image in output")
+
+
+# ── redraw: the child's own drawing → an Otto drawing (issue #32 · guidelines/1 §1-5) ───
+#
+# The drawing goes in as base64 (comfy_nodes/otto_memory.py) — never /upload/image, which
+# would leave it in ComfyUI's input folder. Same cut-paper style as the characters.
+
+# 09-30, three drawn-by-script pieces × 0.6~0.95: at 0.6~0.8 a line drawing on white comes
+# back as itself; from 0.9 it becomes an Otto drawing that keeps the layout — but only on
+# some seeds. Six samples, no real child drawings yet — eval/results.md 09-30 before changing.
+REDRAW_DENOISE = 0.9
+
+
+def redraw_workflow(subject: str, seed: int, drawing_b64: str, denoise: float = REDRAW_DENOISE) -> dict:
+    wf = workflow("", seed)
+    wf["2"]["inputs"]["text"] = f"a cute {subject}, full view{CHAR_STYLE}"
+    wf["3"]["inputs"]["text"] = CHAR_NEG
+    wf["10"] = {"class_type": "OttoLoadImageB64", "inputs": {"png_base64": drawing_b64}}
+    wf["11"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["10", 0], "vae": ["1", 2]}}
+    wf["5"]["inputs"].update({"latent_image": ["11", 0], "denoise": denoise})
+    wf["7"] = {"class_type": "OttoReturnImageB64", "inputs": {"images": ["6", 0]}}
+    del wf["4"]
+    return wf
 
 
 async def warm_up() -> None:

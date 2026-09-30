@@ -227,6 +227,23 @@ object Server {
         } catch (e: Exception) { warn("/image character parse", e); null }
     }
 
+    /**
+     * 「오또가 대신 그려 주기」(issue #32): one piece the child **chose** to have redrawn → an Otto
+     * drawing, 640² PNG, transparent, centred, safety-checked (rule 8). **Null = keep the child's own.**
+     * [png] = the piece with a transparent background, cropped to what was drawn. It goes to our
+     * server only — never to an outside company, never kept (guidelines/1 §1-5). Call it only when
+     * the child picks it; the original stays the default. About 4 s warm. [description] must be name-masked.
+     */
+    suspend fun redraw(png: ByteArray, description: String, mode: String = "diary"): ByteArray? {
+        val body = JSONObject().put("kind", "redraw").put("description", description).put("mode", mode)
+            .put("png_base64", android.util.Base64.encodeToString(png, android.util.Base64.NO_WRAP))
+        val j = postJson("/image", body, readMs = 16_000) ?: return null
+        return try {
+            if (j.optBoolean("preset", true)) { Log.i(TAG, "/image redraw preset: ${j.optString("reason")}"); null }
+            else android.util.Base64.decode(j.getString("png_base64"), android.util.Base64.DEFAULT)
+        } catch (e: Exception) { warn("/image redraw parse", e); null }
+    }
+
     // ── /stt ───────────────────────────────────────────────────────
 
     /**
@@ -282,7 +299,8 @@ object Server {
 
     private suspend fun postJson(path: String, body: JSONObject, readMs: Int = 15_000): JSONObject? {
         val (code, bytes) = post(path, body.toString().toByteArray(), JSON, readMs) ?: return null
-        if (code != 200) { Log.w(TAG, "$path $code ${bytes.decodeToString()}"); return null }
+        // capped: a 422 echoes the request back, and a redraw request holds the child's drawing
+        if (code != 200) { Log.w(TAG, "$path $code ${bytes.decodeToString().take(300)}"); return null }
         return try { JSONObject(bytes.decodeToString()) } catch (e: Exception) { warn("$path json", e); null }
     }
 
