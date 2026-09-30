@@ -36,7 +36,7 @@ fun Director.diaryEnded(): Boolean {
 }
 
 /** 기승전결 네 자리가 다 찼나 — 모든 질문을 다 물은 뒤에만 본다 */
-private fun Director.diaryReadyNow(): Boolean = DIARY_REQUIRED.all { diaryFilled(it.slot) }
+private fun Director.diaryReadyNow(): Boolean = COOP_REQUIRED.all { diaryFilled(it.slot) }
 
 /** 답에서 칸 값 꺼내기. "몰라"처럼 값이 없는 답은 빈 문자열이다 */
 private fun diaryValueOf(r: Reply): String = when (r) {
@@ -125,11 +125,11 @@ suspend fun Director.sceneDiary() {
     if (!s.isCoop) { pictureDiary(); return }
     s.stage = diaryStage()
     coopIntro(c)                                // 협업 쪽은 CoopScenes.kt
-    log("${DIARY_STEPS.size}걸음 — 기승전결 네 자리(필수)와 꼬리질문 ${DIARY_STEPS.size - DIARY_REQUIRED.size}. 꼬리질문 답은 기존 슬롯의 `extra` 등에 쌓여 책의 재료가 된다")
+    log("${COOP_STEPS.size}걸음 — 기승전결 네 자리(필수)와 꼬리질문 ${COOP_STEPS.size - COOP_REQUIRED.size}. 꼬리질문 답은 기존 슬롯의 `extra` 등에 쌓여 책의 재료가 된다")
     log("⚠️ 일기 질문은 동화 모드보다 어렵다 — 상상이 아니라 기억을 꺼내야 한다. 같은 아이가 낮은 수준으로 나올 수 있다 (일기 §4-5 · 수준 공유 여부는 §7-3 열린 항목)")
     pause(1700)
 
-    for (step in DIARY_STEPS) {
+    for (step in COOP_STEPS) {
         if (diaryEnded()) break
         if (!step.ask(s)) {
             log("[${step.part} · ${step.bookKey}] 건너뜀 — 앞의 답에 물을 데가 없다 (소크라틱: 아이가 한 말에서 다음 질문이 나온다)")
@@ -294,7 +294,7 @@ private suspend fun Director.finishDiary() {
     inputs(false, false)
     s.parentCard = null; s.parentAsk = null
     if (s.endReason == null) s.endReason = "story_ready"
-    val bySelf = DIARY_REQUIRED.count { s.slotBy[it.bookKey] == "child" || s.slotBy[it.bookKey] == "card" }
+    val bySelf = COOP_REQUIRED.count { s.slotBy[it.bookKey] == "child" || s.slotBy[it.bookKey] == "card" }
     val hasChildSeed = s.slotBy.values.any { it == "child" || it == "card" }
 
     // 필수 네 칸을 못 채워도 꼬리질문에 아이의 답이 있으면 그 말을 재료로 책을 만든다 (일기 §5 · §7-4).
@@ -322,7 +322,7 @@ private suspend fun Director.finishDiary() {
     }
 
     // 빈 자리는 LLM이 이야기로 메운다. 메운 자리는 by: mascot 이다 (일기 §5 · §5-1)
-    DIARY_REQUIRED.forEach { st ->
+    COOP_REQUIRED.forEach { st ->
         if (!diaryFilled(st.slot)) {
             val a = st.mascot?.invoke(s) ?: return@forEach
             setDiarySlot(st.slot, st.bookKey, diarySlotOf(a.value), diaryLineOf(a.value), "mascot")
@@ -334,7 +334,7 @@ private suspend fun Director.finishDiary() {
         "timeout" -> "15분 경과"
         else -> "story_ready (기승전결 네 자리)"
     }
-    val tails = DIARY_STEPS.filterNot { it.required }.count { s.slots[it.bookKey] != null }
+    val tails = COOP_STEPS.filterNot { it.required }.count { s.slots[it.bookKey] != null }
     log("일기 모드 끝 — 끝난 조건: $why · 아이 · 카드가 채운 필수 칸 $bySelf/4 · 꼬리질문으로 더 모은 문장 ${tails}개 (이만큼 마스코트가 메울 자리가 줄었다)")
     coopFinishLog()                             // 협업 쪽은 CoopScenes.kt (진웅)
     say("오늘 이야기가 다 모였어! 이제 동화책으로 만들어 줄게.")

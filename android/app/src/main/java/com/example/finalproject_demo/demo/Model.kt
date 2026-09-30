@@ -974,9 +974,12 @@ class DemoState {
      * 끝나는 조건([diaryReady] · `story_ready`)은 여전히 [filled] · [reqCount] 가 정한다.
      * 여기서 바꾸는 것은 **보이는 막대뿐**이다 — 기승전결 네 자리라는 규격은 그대로다 (일기 §3).
      */
+    /** The step list this story walks — co-op has its own copy (`CoopSteps.kt` · #36) */
+    private val questionSteps: List<DiaryStep> get() = if (isCoop) COOP_STEPS else DIARY_STEPS
+
     val askTotal: Int
         get() = (
-            if (isDiary) DIARY_STEPS.count { it.ask(this) }.coerceAtLeast(reqCount)
+            if (isDiary) questionSteps.count { it.ask(this) }.coerceAtLeast(reqCount)
             // 템플릿은 3턴째에 정해진다. 그전에는 **가장 많은 경우(3)로 잡아 둔다** —
             // 0으로 두면 3턴째에 분모가 6 → 9로 늘면서 막대가 **뒤로 물러난다** (9/22)
             else reqCount + (if (templateKey == null) 3 else extraAskSlots.size)
@@ -1021,7 +1024,7 @@ class DemoState {
             endReason != null -> askTotal
             isDiary -> maxOf(
                 stepsDone,
-                DIARY_STEPS.count { it.ask(this) && !slots[it.bookKey].isNullOrBlank() },
+                questionSteps.count { it.ask(this) && !slots[it.bookKey].isNullOrBlank() },
             ).coerceAtMost(askTotal)
             else -> reqSlots.count { it != null } + extraAskSlots.count { !slots[it].isNullOrBlank() }
         }
