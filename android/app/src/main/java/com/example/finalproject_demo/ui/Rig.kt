@@ -93,6 +93,35 @@ fun loadMeshRig(context: Context, name: String): MeshRig? = runCatching {
     MeshRig(RigMesh(j.getString("kind"), c.getDouble(0).toFloat(), c.getDouble(1).toFloat(), bones, rest, tex, wBone, wVal, idx), bmp)
 }.getOrNull()
 
+/** 뼈대 기준 크기 — `RigBuilder` 의 문턱값 · 동작 각도가 512 캔버스로 맞춰져 있다 */
+const val RIG_CANVAS = 512
+
+/**
+ * **공용 입구** (09-30) — 그림 한 장(앱에 든 것이든 서버가 생성한 것이든)에 뼈대를 붙인다. 못 붙이면 null.
+ * 긴 변이 [RIG_CANVAS] 보다 크면 줄여서 붙인다(서버 캐릭터는 640 — 문턱값이 512 기준이다). 작으면 그대로.
+ */
+fun buildMeshRig(src: Bitmap, hint: RigHint = RigHint.AUTO): MeshRig? {
+    val bmp0 = if (src.config == Bitmap.Config.ARGB_8888) src else src.copy(Bitmap.Config.ARGB_8888, false)
+    val long = maxOf(bmp0.width, bmp0.height)
+    val bmp = if (long > RIG_CANVAS) {
+        val k = RIG_CANVAS.toFloat() / long
+        Bitmap.createScaledBitmap(bmp0, maxOf(1, (bmp0.width * k).toInt()), maxOf(1, (bmp0.height * k).toInt()), true)
+    } else bmp0
+    val px = IntArray(bmp.width * bmp.height)
+    bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+    val mesh = RigBuilder.build(px, bmp.width, bmp.height, hint) ?: return null
+    // 팔을 떼어 냈으면 [몸 층 | 팔 층] 그림판을 그린다
+    val tex = mesh.atlas?.let { Bitmap.createBitmap(it, mesh.atlasW, bmp.height, Bitmap.Config.ARGB_8888) } ?: bmp
+    return MeshRig(mesh, tex)
+}
+
+/** 서버가 보낸 PNG 바이트 → 뼈대. 그림을 못 읽으면 null */
+fun buildMeshRig(png: ByteArray, hint: RigHint = RigHint.AUTO): MeshRig? {
+    val bmp = BitmapFactory.decodeByteArray(png, 0, png.size, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+        ?: return null
+    return buildMeshRig(bmp, hint)
+}
+
 /** 앱에 든 그림(`res/drawable/<name>`)을 읽어 **그 자리에서** 뼈대를 붙인다. 못 붙이면 null */
 fun buildMeshRig(context: Context, name: String): MeshRig? {
     @Suppress("DiscouragedApi")
@@ -100,12 +129,7 @@ fun buildMeshRig(context: Context, name: String): MeshRig? {
     if (id == 0) return null
     val opt = BitmapFactory.Options().apply { inScaled = false; inPreferredConfig = Bitmap.Config.ARGB_8888 }
     val bmp = BitmapFactory.decodeResource(context.resources, id, opt) ?: return null
-    val px = IntArray(bmp.width * bmp.height)
-    bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
-    val mesh = RigBuilder.build(px, bmp.width, bmp.height) ?: return null
-    // 팔을 떼어 냈으면 [몸 층 | 팔 층] 그림판을 그린다
-    val tex = mesh.atlas?.let { Bitmap.createBitmap(it, mesh.atlasW, bmp.height, Bitmap.Config.ARGB_8888) } ?: bmp
-    return MeshRig(mesh, tex)
+    return buildMeshRig(bmp)
 }
 
 /**
@@ -134,14 +158,25 @@ object RigCache {
     fun peek(name: String): MeshRig? = done[name]
 
     fun prefetch(context: Context, name: String) {
-        if (motionFrozen || name.isEmpty() || !started.add(name)) return
         val app = context.applicationContext
+        run(name) { buildMeshRig(app, name) }
+    }
+
+    /**
+     * **서버가 생성한 캐릭터** (09-30 · `Server.character()` 결과) — 받은 PNG 와 몸 종류로 뒤에서 뼈대를 붙인다.
+     * [key] 는 부르는 쪽이 정하는 이름(예: `"gen:친구1"`). 같은 key 는 한 번만 만든다 — 새 그림이면 새 key 를 쓴다.
+     * 다 되면 [peek] (key) 로 꺼낸다. 못 붙이면 null 이고, 부르는 쪽은 그 PNG 를 그림 한 장으로 그리면 된다.
+     */
+    fun prefetch(key: String, png: ByteArray, hint: RigHint) = run(key) { buildMeshRig(png, hint) }
+
+    private fun run(key: String, make: () -> MeshRig?) {
+        if (motionFrozen || key.isEmpty() || !started.add(key)) return
         pool.execute {
             val t0 = System.nanoTime()
-            val rig = runCatching { buildMeshRig(app, name) }.getOrNull()
+            val rig = runCatching { make() }.getOrNull()
             val ms = (System.nanoTime() - t0) / 1_000_000
-            android.util.Log.i("Rig", "$name → ${rig?.kind ?: "실패"} · 뼈 ${rig?.mesh?.bones?.size ?: 0} · 점 ${rig?.mesh?.vertexCount ?: 0} · ${ms}ms")
-            main.post { done[name] = rig; timings[name] = ms }
+            android.util.Log.i("Rig", "$key → ${rig?.kind ?: "실패"} · 뼈 ${rig?.mesh?.bones?.size ?: 0} · 점 ${rig?.mesh?.vertexCount ?: 0} · ${ms}ms")
+            main.post { done[key] = rig; timings[key] = ms }
         }
     }
 }

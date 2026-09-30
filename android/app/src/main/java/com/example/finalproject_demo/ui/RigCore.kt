@@ -53,6 +53,19 @@ fun roleOf(name: String): LimbRole? = when {
     else -> LimbRole.OTHER
 }
 
+/**
+ * 그림이 어떤 몸인가 — 서버가 캐릭터를 생성할 때 LLM 이 고른 값(`/image kind=character` 의 `rig`)을 그대로 받는다 (09-30).
+ * [AUTO] 는 모를 때(앱에 든 그림) — 그림만 보고 정한다.
+ */
+enum class RigHint(val key: String) {
+    HUMAN("human"), QUAD("quad"), BLOB("blob"), AUTO("");
+
+    companion object {
+        /** 서버 문자열 → 힌트. 모르는 값이면 [AUTO] */
+        fun of(key: String?): RigHint = entries.firstOrNull { it.key == key && it != AUTO } ?: AUTO
+    }
+}
+
 /** 그물 — 점 · 그림 좌표 · 가중치 · 삼각형. 그림(Bitmap)은 `Rig.kt` 의 `MeshRig` 가 들고 있다 */
 class RigMesh(
     val kind: String,            // human · quad · blob
@@ -305,11 +318,6 @@ object RigBuilder {
     /** 팔 떼어 내기가 어디서 멈췄나 — 검사가 본다 */
     @Volatile var why = ""
 
-    /**
-     * 손이 살색이 아니어도 사람 팔로 떼어 낸다 (09-29 시험 — 마스코트 오또). 오또의 앞발은 크림 · 분홍이고 소매는 청록이라
-     * 「소매 끝 = 손 색 비율이 넘는 자리」는 그대로 통한다. 기본은 꺼 둔다 — 돌고래 지느러미 · 로봇 팔이 찢어진 규칙이다
-     */
-    @Volatile var anyHands = false
 
     /** 그물 한 벌 — 몸 · 팔마다 따로 만들어 합친다 */
     private class Part(
@@ -324,10 +332,18 @@ object RigBuilder {
         val tex: FloatArray? = null,  // 점마다 그림 좌표가 제자리와 다를 때 (소매 속 위팔은 소매 끝 살색을 늘여 쓴다)
     )
 
-    fun build(input: IntArray, w: Int, h: Int): RigMesh? {
+    /**
+     * 그림 한 장 → 뼈대 그물. 못 붙이면 null(부르는 쪽은 그림 한 장으로 그린다).
+     *
+     * @param hint 서버가 알려 준 몸 종류. [RigHint.HUMAN] 이면 **손이 살색이 아니어도**(털 · 장갑 · 로봇 손) 사람 팔로 떼어 낸다 —
+     *   살색 규칙은 돌고래 지느러미 · 로봇 팔을 사람 팔로 잘못 떼어 찢던 것을 막으려고 둔 것인데, 생성 서버가 「사람형」이라고
+     *   이미 알려 주면 그 걱정이 없다. [RigHint.AUTO] 는 전처럼 그림만 보고 정한다
+     */
+    fun build(input: IntArray, w: Int, h: Int, hint: RigHint = RigHint.AUTO): RigMesh? {
+        val anyHands = hint == RigHint.HUMAN
         val argb = cleanHalo(input)
         // 사람형(팔 둘 · 손이 몸 아래쪽 절반)이면 팔을 떼어 낸다 — 팔이 몸에서 떨어진 A-포즈든, 붙어 있든 같은 길
-        attachedArms(argb, w, h)?.let { (arms, under) ->
+        attachedArms(argb, w, h, anyHands)?.let { (arms, under) ->
             // 팔을 떼어 낸 몸으로 다시 — 다리 · 꼬리 같은 가지는 그대로 찾는다. 손은 이미 없다
             val body = bodyPart(under, w, h, allowArms = false) ?: rootOnly(under, w, h)
             val armOnly = IntArray(w * h)
@@ -666,7 +682,7 @@ object RigBuilder {
      *   소매 끝 = 팔 축을 따라가며 **살색 비율이 60% 를 넘는 첫 자리** (살색 = 손 쪽 25% 의 평균 색)
      *   팔꿈치 = (소매 끝 + 0.8) / 2 — 드러난 팔(소매 끝 ~ 손목)의 한가운데
      */
-    private fun attachedArms(argb: IntArray, w: Int, h: Int): Pair<List<ArmLayer>, IntArray>? {
+    private fun attachedArms(argb: IntArray, w: Int, h: Int, anyHands: Boolean = false): Pair<List<ArmLayer>, IntArray>? {
         val n = w * h
         val sc = w / 512f
         var by0 = h; var by1 = 0; var sx = 0.0; var cnt = 0

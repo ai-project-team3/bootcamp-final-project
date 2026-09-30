@@ -2,6 +2,8 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.PageKind
 import com.example.finalproject_demo.ui.LimbRole
+import com.example.finalproject_demo.ui.RigHint
+import com.example.finalproject_demo.ui.buildMeshRig
 import com.example.finalproject_demo.ui.buddyActFrom
 import com.example.finalproject_demo.ui.heroActFrom
 import com.example.finalproject_demo.ui.ridingFrom
@@ -13,6 +15,7 @@ import com.example.finalproject_demo.ui.poseAt
 import com.example.finalproject_demo.ui.skin
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -101,6 +104,24 @@ class RigBuilderTest {
         assertEquals(RigMotion.HOORAY, buddyActFrom(PageKind.TOGETHER, ""))
     }
 
+    /**
+     * **공용 입구** (09-30) — 서버가 보내는 모양(640² PNG 바이트 + 몸 종류)을 그대로 넣어도 뼈대가 붙는가.
+     * 앱 주인공 그림을 640 으로 늘려 PNG 로 만든 것을 「서버가 보낸 캐릭터」로 쓴다
+     */
+    @Test
+    fun 서버가_보낸_640_PNG도_받아서_뼈대를_붙인다() {
+        val src = BitmapFactory.decodeFile(File(drawable, "body_red_pants.png").path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+        val big = Bitmap.createScaledBitmap(src, 640, 640, true)
+        val png = java.io.ByteArrayOutputStream().also { big.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+        val rig = buildMeshRig(png, RigHint.HUMAN)
+        assertTrue("640 PNG 에 뼈대가 안 붙었다", rig != null)
+        assertEquals("human", rig!!.kind)
+        assertEquals("512 캔버스로 줄여 붙여야 한다", 512f, rig.mesh.canvasW, 0.5f)
+        assertEquals(RigHint.HUMAN, RigHint.of("human"))
+        assertEquals(RigHint.AUTO, RigHint.of("모르는값"))
+        assertEquals("깨진 바이트는 null", null, buildMeshRig(byteArrayOf(1, 2, 3), RigHint.HUMAN))
+    }
+
     @Test
     fun 확인표를_그린다() {
         sheet("heroes", heroes)
@@ -123,21 +144,20 @@ class RigBuilderTest {
         val cols = poses + listOf("꼬리" to { m: RigMesh -> poseAt(m.bones, RigMotion.TAIL, 0.4f).first })
         sheet("otto", otto, cell = 260, cols = cols)
         // 손 색 규칙을 풀면 — 지금 그림 · A-포즈 시험 그림(있으면)
-        RigBuilder.anyHands = true
-        try {
-            sheet("otto_anyhands", otto, cell = 260, cols = cols)
+        run {
+            sheet("otto_anyhands", otto, cell = 260, cols = cols, meshOf = { _, i -> RigBuilder.build(i.px, i.w, i.h, RigHint.HUMAN) })
             // 시험 그림 폴더(ComfyUI 결과) — 시스템 속성 `otto.trial` 로 바꿀 수 있다
             val trial = File(System.getProperty("otto.trial") ?: File(System.getProperty("user.home"),
                 "AppData/Local/Temp/claude/C--dev-final-project/344838c4-f7ce-48e6-9be7-ad3985d432f5/scratchpad/apose2").path)
             val ap = trial.listFiles { f -> f.name.startsWith("apose_") && f.name.endsWith(".png") }?.sorted().orEmpty()
-            if (ap.isNotEmpty()) sheet("otto_apose", ap.map { it.path }, cell = 300, cols = cols, imgOf = { path ->
+            if (ap.isNotEmpty()) sheet("otto_apose", ap.map { it.path }, cell = 300, cols = cols, meshOf = { _, i -> RigBuilder.build(i.px, i.w, i.h, RigHint.HUMAN) }, imgOf = { path ->
                 val bmp = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
                 val sc = 512f / maxOf(bmp.width, bmp.height)
                 val b2 = Bitmap.createScaledBitmap(bmp, (bmp.width * sc).toInt(), (bmp.height * sc).toInt(), true)
                 val px = IntArray(b2.width * b2.height); b2.getPixels(px, 0, b2.width, 0, 0, b2.width, b2.height)
                 Img(b2.width, b2.height, px)
             })
-        } finally { RigBuilder.anyHands = false }
+        }
     }
 
     /** 시험 그림 하나를 시간에 따라 움직여 프레임으로 떨군다 (`build/rig_auto/frames/<동작>_<번호>.png`) — GIF 로 묶어 본다 */
@@ -151,8 +171,7 @@ class RigBuilderTest {
         val b2 = Bitmap.createScaledBitmap(bmp, (bmp.width * sc).toInt(), (bmp.height * sc).toInt(), true)
         val w = b2.width; val h = b2.height
         val px = IntArray(w * h); b2.getPixels(px, 0, w, 0, 0, w, h)
-        RigBuilder.anyHands = true
-        val m = try { RigBuilder.build(px, w, h) } finally { RigBuilder.anyHands = false } ?: return
+        val m = RigBuilder.build(px, w, h, RigHint.HUMAN) ?: return
         val dir = File(outDir, "frames").apply { mkdirs() }
         for (motion in listOf(RigMotion.IDLE, RigMotion.WAVE, RigMotion.TAIL, RigMotion.WALK, RigMotion.HOORAY)) {
             for (k in 0 until 24) {
