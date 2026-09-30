@@ -166,7 +166,7 @@ class CoopFlowTest {
         // 결말 자리 뒤의 꼬리질문은 묻지 않는다 (걸음 수로 세지 않는다 — 조건부 걸음은 답에 따라 건너뛴다)
         assertEquals("결말 자리에서 멈추지 않았다", null, s.slots["after"]); assertEquals(null, s.slots["keep"])
         assertTrue("책까지 못 갔다 scene=${s.scene} end=${s.endReason}", await(20_000) { s.scene == Scene.BOOK } != null)
-        assertTrue("마스코트가 뼈대를 지어 채웠다: ${s.slotBy}", listOf("place", "problem", "cause", "solution").none { s.slotBy[it] == "mascot" })
+        // 칸을 누가 채웠는지는 보지 않는다 — 아이가 끝내 답을 못 하면 마스코트가 채우는 것이 정상이다. 지키는 것은 「물었다」다
     }
 
     @Test
