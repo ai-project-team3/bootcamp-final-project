@@ -8,6 +8,7 @@ import kotlinx.coroutines.*
 suspend fun Director.liveStoryConversation() = coroutineScope {
     var imagePlace: String? = null
     var imageJob: Job? = null
+    var friendDrawingPrepared = false
 
     fun updateBackground() {
         val place = s.slots["place"]?.takeIf(String::isNotBlank) ?: return
@@ -77,6 +78,10 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             if (by != "mascot") judge(variant, reply, question.text)
             syncStoryPresentation()
             updateBackground()
+            if (!friendDrawingPrepared && !s.slots["newcomer"].isNullOrBlank()) {
+                prepareStoryFriendDrawing()
+                friendDrawingPrepared = true
+            }
             // The third conversation turn chooses the local template. An early server finish
             // still needs a page plan, but does not force extra questions just to reach turn 3.
             if (s.templateKey == null && (s.turn >= 3 || s.storyReady)) decideTemplate("서버 대화")

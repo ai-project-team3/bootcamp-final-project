@@ -4,6 +4,8 @@ import com.example.finalproject_demo.demo.*
 import com.example.finalproject_demo.net.Server
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.test.core.app.ApplicationProvider
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -28,6 +30,8 @@ class StoryLiveFlowTest {
         val imageStarted = CountDownLatch(1)
         val nextTurnArrived = CountDownLatch(1)
         val overlapped = AtomicBoolean(false)
+        var drawingOffered = false
+        val original = Stroke(Color.Blue, listOf(Offset(0.1f, 0.2f), Offset(0.5f, 0.7f)), 0.02f)
         val png = ByteArrayOutputStream().apply output@{
             Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888).apply {
                 eraseColor(android.graphics.Color.GREEN)
@@ -46,6 +50,8 @@ class StoryLiveFlowTest {
                     JSONObject().put("judge", JSONObject()
                         .put("reason", "ok").put("slot_1", slot)
                         .put("value_1", body.getString("utterance"))
+                        .put("slot_2", if (slot == "place") "newcomer" else JSONObject.NULL)
+                        .put("value_2", if (slot == "place") "문어" else JSONObject.NULL)
                         .put("next_slot", if (slot == "place") "problem" else "reaction")
                         .put("story_ready", ready))
                         .put("line", JSONObject().put("ack", "들려줘서 고마워!")
@@ -75,7 +81,11 @@ class StoryLiveFlowTest {
             d.go(Scene.PLACE)
             val feeder = launch {
                 while (isActive) {
-                    if (d.s.micEnabled) d.send(Reply.Spoke("숲에서 친구를 만나 같이 놀았어"))
+                    if (d.s.stage is Stage.DrawPad) {
+                        drawingOffered = true
+                        if (d.s.drawing.isEmpty()) d.s.drawing += original
+                        d.send(Reply.Tapped("done", "완료"))
+                    } else if (d.s.micEnabled) d.send(Reply.Spoke("숲에서 친구를 만나 같이 놀았어"))
                     delay(40)
                 }
             }
@@ -90,6 +100,10 @@ class StoryLiveFlowTest {
             assertNotNull("the generated background must be available in the book", d.s.storyBackground)
             assertArrayEquals(png, File(d.s.storyBackground!!.removePrefix("local:")).readBytes())
             assertTrue("the next conversation turn must proceed while the image request is pending", overlapped.get())
+            assertTrue("a named newcomer needs an original drawing or chosen preset", drawingOffered)
+            assertEquals(listOf(original), d.s.drawing.toList())
+            assertTrue(d.s.friendArt is Art.ChildDrawing)
+            assertFalse("original strokes must stay on the device", server.requests.any { it.second.toString().contains("points") })
         } finally {
             scope.cancel()
             Server.base = null
