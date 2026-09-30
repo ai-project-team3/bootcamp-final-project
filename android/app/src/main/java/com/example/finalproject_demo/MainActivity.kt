@@ -117,7 +117,10 @@ fun DemoApp() {
       // 처음 설정(스플래시 · 로그인 · 동의 …)이 끝나기 전에는 흐름 화면을 그리지 않는다 (09-29).
       // 설정 창(Dialog)이 뜨기 한순간 전에 **뒤의 옛 첫 화면이 비쳐** 켤 때 화면이 이상해 보였다
       if (com.example.finalproject_demo.ui.shell.Shell.step == com.example.finalproject_demo.ui.shell.Step.APP) {
-        StageView(d, Modifier.fillMaxSize())
+        // Stage.Adult is Otto's room, which OttoShell draws on top of everything. Drawing the old start
+        // screen (AdultScreen) under it kept its logo bob running: the hidden screen made the whole window
+        // redraw 60 times a second — ~140% CPU idle on a Galaxy S10 5G (eval/results.md 09-30)
+        if (s.stage != Stage.Adult) StageView(d, Modifier.fillMaxSize())
 
         // 맨 위 가운데 — 별 모으기 진행만 (09-29 디자인 시스템: 화면 이름 칩은 없다 — 아이는 글을 못 읽는다)
         // 필수 칸은 동화 모드 6개 · 일기 모드 기승전결 네 자리 (일기 설계 §2-1)
