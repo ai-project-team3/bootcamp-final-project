@@ -54,6 +54,8 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.ShelfBook
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.restoreStoryBook
+import com.example.finalproject_demo.demo.playStorySound
+import kotlinx.coroutines.isActive
 import kotlin.math.roundToInt
 
 /** 선반 윗면의 높이(화면 비율) — bg_shelf 그림의 선반 두 칸에 맞춘다 */
@@ -196,6 +198,11 @@ fun SavedStoryView(d: Director, stage: Stage.SavedStory) {
     if (book.visuals != null) {
         val scope = rememberCoroutineScope()
         val reader = remember(book.id) { Director(scope).apply { s.restoreStoryBook(book) } }
+        LaunchedEffect(reader, book.id) {
+            while (isActive) {
+                if ((reader.awaitReply() as? Reply.Tapped)?.value == "dino") reader.playStorySound(book)
+            }
+        }
         Box(Modifier.fillMaxSize()) {
             BookPageView(reader, Stage.BookPage(page, m1Done = true, m2Done = true), savedBook = book, onReply = { reply ->
                 val action = reply as? Reply.Tapped
@@ -208,10 +215,12 @@ fun SavedStoryView(d: Director, stage: Stage.SavedStory) {
             Box(Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 12.dp)) {
                 ShelfButton("📚 책장", Sun, Ink) { d.send(Reply.Tapped("close", "책장")) }
             }
+            StorySoundReplay(reader, book, page)
         }
         return
     }
     Box(Modifier.fillMaxSize().background(Color(0xFF2E2A26))) {
+        StorySoundReplay(d, book, page)
         AssetImage(book.bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
             Box(Modifier.fillMaxSize().background(Sun2))
         }
