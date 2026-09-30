@@ -6,6 +6,8 @@ import com.example.finalproject_demo.demo.Question
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.askStory
+import com.example.finalproject_demo.demo.judge
+import com.example.finalproject_demo.demo.pick
 import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -68,14 +70,15 @@ class StoryLiveAskTest {
         var calls = 0
         try {
             val job = launch {
-                d.askStory(Question("어떤 일이 생겼어?", Kind.EASY), "problem") {
+                val reply = d.askStory(Question("어떤 일이 생겼어?", Kind.EASY), "problem") {
                     calls++
                     Server.TurnResult(
                         Server.Verdict("ok", listOf("problem" to "길을 잃었다"), "reaction", null,
-                            false, false, null, false, false, false, null),
+                            false, false, null, false, true, false, null),
                         Server.Line("길을 잃었구나", null, "그다음에는 어떻게 했어?"),
                     )
                 }
+                d.judge(d.s.pick("reaction"), reply, "어떤 일이 생겼어?")
             }
             withTimeout(3_000) { while (!d.s.micEnabled) delay(5) }
             val answer = launch { answerAfterVoice(job, d, "길을 잃었어") }
@@ -86,6 +89,8 @@ class StoryLiveAskTest {
             assertEquals("reaction", d.s.storyNextSlot)
             assertEquals("그다음에는 어떻게 했어?", d.s.storyServerQuestion)
             assertTrue(d.s.line.contains("길을 잃었구나"))
+            assertEquals("길을 잃었어", d.s.notes.single().a)
+            assertTrue(d.s.notes.single().s1)
         } finally {
             Server.liveModes = emptySet()
             Server.base = null

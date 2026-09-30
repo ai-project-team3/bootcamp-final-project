@@ -34,14 +34,22 @@ suspend fun Director.askStory(
     if (!Server.liveFor(s.mode) || reply !is Reply.Spoke) return reply
     val response = s.exchangeStoryTurn(askedSlot, question.text, reply.text, request)
     s.storyServerQuestion = response?.line?.question
-    val line = response?.line ?: return reply
-    val reaction = listOfNotNull(line.ack.takeIf(String::isNotBlank), line.expand?.takeIf(String::isNotBlank))
+    val line = response?.line
+    val reaction = listOfNotNull(line?.ack?.takeIf(String::isNotBlank), line?.expand?.takeIf(String::isNotBlank))
         .joinToString(" ")
     if (reaction.isNotBlank()) {
         say(reaction)
         pause(600)
     }
-    return reply
+    // Real STT replies carry no scripted Answer. Keep the child's exact words for the
+    // existing recorder and attach only the signals the server actually returned.
+    val verdict = response?.verdict
+    return reply.copy(answer = Answer(
+        text = reply.text,
+        reason = verdict?.s1Reason == true,
+        el = if (verdict?.s2Addition == true) setOf("추가") else emptySet(),
+        emo = verdict?.emotion.orEmpty(),
+    ))
 }
 
 suspend fun DemoState.exchangeStoryTurn(
