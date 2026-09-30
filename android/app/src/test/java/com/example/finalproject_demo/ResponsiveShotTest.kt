@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.Stage
+import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.ui.ConsentStore
 import com.example.finalproject_demo.ui.shell.Shell
 import com.example.finalproject_demo.ui.shell.Step
@@ -146,9 +147,8 @@ abstract class ResponsiveShotTest(private val size: String) {
         shot("21_story_world")
         compose.runOnIdle { d.s.stage = Stage.HeroBuilder(com.example.finalproject_demo.ui.HeroAttr()); d.s.scene = Scene.PARTNER }
         shot("22_story_hero")
-        // 책은 앞 두 쪽만 — 모든 쪽 · 모든 크기는 BookSizesTest(책 쪽 검사)가 본다 (09-30 팀원 제안).
-        // 4:3 마지막 쪽의 음수 padding 충돌(Book.kt Stand)은 그쪽 수정(offset)으로 막는다
-        for (p in listOf(0, 1)) {
+        // 책 모든 쪽 — 4:3 마지막 쪽에서 음수 padding 으로 앱이 죽던 것(Book.kt Stand · 09-30)이 다시 생기지 않게
+        for (p in 0..d.s.pageCount) {
             compose.runOnIdle { d.s.scene = Scene.BOOK; d.s.progressVisible = false; d.s.line = ""; d.s.stage = Stage.BookPage(p) }
             shot("23_book_page_$p")
         }
