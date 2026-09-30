@@ -85,6 +85,13 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+/**
+ * 계산한 자리에 놓기 — 음수면 padding 이 앱을 죽인다(09-30 · 4:3 태블릿 마지막 쪽 · 치영).
+ * 0 이상은 전처럼 padding(흔들림 · 자세 변형의 기준점이 그대로), 음수인 만큼만 offset 으로 민다.
+ */
+private fun Modifier.safeAt(x: Dp, y: Dp): Modifier =
+    padding(start = x.coerceAtLeast(0.dp), top = y.coerceAtLeast(0.dp)).offset(x = minOf(x, 0.dp), y = minOf(y, 0.dp))
+
 /** 화면 비율로 자리 잡기 (책 쪽 안에서) */
 @Composable
 private fun Layer(xf: Float, yf: Float, wf: Float, aspect: Float = 0.75f, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
@@ -92,7 +99,7 @@ private fun Layer(xf: Float, yf: Float, wf: Float, aspect: Float = 0.75f, modifi
         val w = maxWidth * wf
         Box(
             modifier
-                .padding(start = maxWidth * xf, top = maxHeight * yf)
+                .safeAt(maxWidth * xf, maxHeight * yf)
                 .width(w)
                 .height(w / aspect)
         ) { content() }
@@ -156,7 +163,7 @@ private fun Stand(
             val shH = wide * 0.13f
             Box(
                 Modifier
-                    .padding(start = left + (wide - shW) / 2, top = feet - shH * 0.35f)
+                    .safeAt(left + (wide - shW) / 2, feet - shH * 0.35f)
                     .width(shW)
                     .height(shH)
                     .then(modifier)
@@ -175,7 +182,7 @@ private fun Stand(
                 }
             }
         }
-        Box(modifier.padding(start = left, top = top).width(wide).height(tall)) { content() }
+        Box(modifier.safeAt(left, top).width(wide).height(tall)) { content() }
     }
 }
 
