@@ -25,10 +25,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Mood
@@ -80,6 +85,8 @@ fun Narration(
     expr: Expr = Expr.NONE,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
+    val density = LocalDensity.current
+    var trailingW by remember { mutableIntStateOf(0) }
     Box(modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp, top = 6.dp)) {
         // 칸 — 얼굴보다 낮다. 얼굴 자리(왼쪽 84dp)는 비워 두고 글씨는 칸 **아래쪽**에 붙인다 (09-30 사용자 그림)
         Box(Modifier.fillMaxWidth().align(Alignment.BottomStart)) {
@@ -97,8 +104,8 @@ fun Narration(
                     Text(line, fontSize = 22.sp, color = InkBrown, lineHeight = 29.sp, maxLines = 2)
                 }
                 if (trailing != null) {
-                    Spacer(Modifier.width(10.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), content = trailing)
+                    // 버튼 자리만 비워 둔다 — 버튼은 칸 밖 층에 얹혀 칸 높이를 밀어 올리지 않는다
+                    Spacer(Modifier.width(10.dp + with(density) { trailingW.toDp() }))
                 } else {
                     if (state == OttoState.TALK) {
                         Box(Modifier.size(46.dp).felt(Cheek, CircleShape, lift = 3.dp, stitch = false), contentAlignment = Alignment.Center) { Text("🔊", fontSize = 20.sp) }
@@ -115,6 +122,13 @@ fun Narration(
                 Text(mode.icon, fontSize = 13.sp); Spacer(Modifier.width(6.dp))
                 ParentText { Text(mode.label, fontSize = 13.sp, color = FeltWhite, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) }
             }
+        }
+        // 녹음 · 그리기 버튼 — 얼굴처럼 칸 오른쪽 끝 밑선에 맞추고, 위로는 칸 밖으로 솟는다 (칸이 모양대로 잘라내지 않게 칸 밖 층)
+        if (trailing != null) {
+            Row(
+                Modifier.align(Alignment.BottomEnd).padding(end = 10.dp, bottom = 6.dp).onSizeChanged { trailingW = it.width },
+                verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp), content = trailing,
+            )
         }
         // 오또 얼굴 — 칸 왼쪽 끝에 **밑선을 맞춰** 올라앉고 위로는 칸 밖으로 솟는다. 파동은 얼굴과 같은 중심에서 퍼진다
         OttoFace(state, Modifier.align(Alignment.BottomStart).size(FaceSize), burst = burst, burstId = burstId, expr = expr, pulse = true)
