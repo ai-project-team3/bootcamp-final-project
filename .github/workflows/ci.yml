@@ -29,7 +29,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
       - name: Make gradlew executable
         working-directory: android
         run: chmod +x gradlew
