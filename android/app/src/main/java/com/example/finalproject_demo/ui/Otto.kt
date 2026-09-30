@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -119,6 +120,7 @@ fun exprFor(text: String, mood: Mood): Expr {
  * @param burstId 이 번호가 바뀔 때마다 [burst] 가 다시 터진다 (같은 반응이 연달아 와도)
  * @param expr    표정 — 말하는 중 · 가만있을 때만 얼굴 그림을 바꾼다(듣는 중 · 생각하는 중은 그 얼굴 그대로)
  * @param pulse   말하는 중 · 듣는 중 · 기다리는 중이면 테두리 색 파동을 얼굴 둘레에 퍼뜨린다
+ * @param frame   이 모양 안에서만 얼굴이 뛰고 기운다 (틀 밖으로 안 나가게). 없으면 자르지 않는다
  */
 @Composable
 fun OttoFace(
@@ -128,6 +130,7 @@ fun OttoFace(
     burstId: Int = 0,
     expr: Expr = Expr.NONE,
     pulse: Boolean = false,
+    frame: Shape? = null,
 ) {
     val inf = rememberInfiniteTransition(label = "otto")
     val hop by inf.animateFloat(0f, -5f, infiniteRepeatable(tween(200), RepeatMode.Reverse), label = "hop")
@@ -215,6 +218,8 @@ fun OttoFace(
     val pulsing = pulse && (state == OttoState.TALK || state == OttoState.LISTEN || state == OttoState.WAIT)
 
     Box(modifier) {
+        // [frame] 이 있으면 얼굴은 그 틀 안에서만 뛰고 기운다 — 틀 밖으로 삐져나오지 않게 (나레이션 칸 09-30)
+        Box(if (frame != null) Modifier.fillMaxSize().clip(frame) else Modifier.fillMaxSize()) {
         // 얼굴과 파동을 **한 상자**에 — 뛰고 기울어도 파동이 얼굴 정중앙에 붙어 다닌다
         Box(
             Modifier
@@ -247,6 +252,7 @@ fun OttoFace(
                     .clip(CircleShape)
                     .background(WoolCream),
             ) { AssetImage(face, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { ArtView(Art.Mascot, Modifier.fillMaxSize()) } }
+        }
         }
 
         // 머리 위 「…」 — 기다릴 때와 생각할 때. 점이 하나씩 차오른다
