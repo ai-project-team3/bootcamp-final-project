@@ -244,10 +244,13 @@ fun Director.stopCoopByParent() {
     }
 }
 
-/** 15분이 지나 끝날 때의 한 줄 — 협업은 부모가 질문을 고르는 시간이 들어가 더 빨리 닿는다 (협업 §9-3). */
-fun DemoState.coopTimeUpNote(): String =
-    if (isCoop) "15분 경과 → 끝. ⚠️ 협업 모드는 부모가 질문을 고르는 시간이 들어가 15분에 더 빨리 닿는다 (협업 §9-3)"
-    else "15분 경과 → 끝. ⚠️ 15분은 동화 모드 기준이라 취침 루틴에는 길 수 있다 (일기 §7-5)"
+/**
+ * 부모가 넣은 질문을 **다 물었나** — 협업이 끝나는 조건 (09-30 확정 · guidelines/2 §1-1 · #36).
+ * 빈 줄은 세지 않는다. 사다리로 다시 묻는 자리는 부모 질문을 한 번만 쓰므로 `parentQIndex` 는 쓴 수 그대로다.
+ * 걸음이 건너뛰어져 못 물은 질문이 있으면 참이 되지 않고, 그때는 열한 걸음이 끝나며 자연히 마무리된다.
+ */
+val DemoState.coopQuestionsAllAsked: Boolean
+    get() = isCoop && hasCoopQuestions && parentQIndex >= parentQuestions.count { it.isNotBlank() }
 
 /** 책 이름 — 협업이면 "같이 지은"을 붙인다. */
 fun coopBookName(s: DemoState): String =

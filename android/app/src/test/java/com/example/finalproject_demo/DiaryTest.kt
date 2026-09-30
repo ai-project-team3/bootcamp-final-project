@@ -494,16 +494,17 @@ class DiaryTest {
         assertTrue("협업은 네 자리가 다 차면 story_ready", s.diaryReady)
     }
 
-    /** 09-30 끝나는 규칙 — story_ready 하나. mascot_pick 2회는 끝이 아니다 · 15분은 협업에만 남는다(#36 전까지) */
+    /** 09-30 끝나는 규칙 — story_ready 하나. mascot_pick 2회는 끝이 아니다 · 시간으로는 어느 모드도 끝나지 않는다(협업 #36 확정) */
     @Test
-    fun onlyCoopStopsAtFifteenMinutesAndMascotPicksNeverEndTheStory() {
+    fun noModeStopsOnTimeAndMascotPicksNeverEndTheStory() {
         val coop = com.example.finalproject_demo.demo.Director(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob()))
         coop.s.mode = StoryMode.COOP
         coop.s.mascotPicks = 2
         assertFalse("mascot_pick 2회로 끝났다", coop.diaryEnded())
+        coop.s.diaryStart = 1L                   // 아주 오래전에 시작했다
         coop.s.diaryTimeUp = true
-        assertTrue("협업의 15분이 사라졌다", coop.diaryEnded())
-        assertEquals("timeout", coop.s.endReason)
+        assertFalse("협업이 시간으로 끝났다 — 부모 질문을 다 물으면 끝난다(#36)", coop.diaryEnded())
+        assertEquals(null, coop.s.endReason)
 
         val diary = com.example.finalproject_demo.demo.Director(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob()))
         diary.s.mode = StoryMode.DIARY
