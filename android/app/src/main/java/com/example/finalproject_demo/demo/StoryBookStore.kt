@@ -14,6 +14,7 @@ data class SavedStoryBook(
     val bgName: String,
     val pages: List<SavedStoryPage>,
     val visuals: SavedStoryVisuals? = null,
+    val soundClipId: String? = null,
 )
 
 /** 완성된 동화만 저장한다. 진행 중인 이야기와 다른 모드의 책은 이 저장소의 범위 밖이다. */
@@ -50,6 +51,7 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
                         obj.getString("id"), obj.getString("title"), obj.getString("themeKey"),
                         obj.getString("bgName"), pages,
                         obj.optJSONObject("visuals")?.let { runCatching { storyVisualsFromJson(it) }.getOrNull() },
+                        if (obj.isNull("soundClipId")) null else obj.optString("soundClipId").takeIf(String::isNotBlank),
                     )
                 } catch (_: Exception) { null }
             }
@@ -67,7 +69,8 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
             array.put(JSONObject()
                 .put("id", entry.id).put("title", entry.title)
                 .put("themeKey", entry.themeKey).put("bgName", entry.bgName)
-                .put("pages", pages).put("visuals", entry.visuals?.toJson() ?: JSONObject.NULL))
+                .put("pages", pages).put("visuals", entry.visuals?.toJson() ?: JSONObject.NULL)
+                .put("soundClipId", entry.soundClipId ?: JSONObject.NULL))
         }
         check(prefs.edit().putString("books", array.toString()).commit()) { "동화책을 저장하지 못했습니다" }
     }
