@@ -1,5 +1,12 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.nameMask
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+
 /*
  * 그림일기 한 바퀴 (일기 모드 · 협업 제외) — docs/일기모드_흐름.html D0 → D1 → D3 → D4 → D5 → D6.
  *
@@ -17,7 +24,7 @@ package com.example.finalproject_demo.demo
  *   - 아이 말은 `r.text` 에서 읽는다. 서버 모드의 답에는 대본 값(`value`)이 없다 (AGENTS.md)
  *
  * 화면은 `DiaryBoard`(D1 · 붓이 멈추면 `pause` 를 보낸다) · `DiaryAsk`(D3) · `DiaryPaper`(D5) — `ui/DiaryViews.kt`.
- * ⚠️ 아직 **대본**이다 — 오또 그림은 서버가 붙기 전까지 그림 글자이고, 시연 버튼으로도 붓 멈춤을 낼 수 있다.
+ * 오또 그림은 서버 모드면 `/image` redraw(#32 · `DiaryRedraw.kt`), 대본이면 그림 글자다. 시연 버튼으로도 붓 멈춤을 낼 수 있다.
  */
 
 /** 그리는 동안 묻는 질문 수 · 오또가 그려 주겠다고 하는 수 · 다 그린 뒤 묻는 수 */
@@ -66,11 +73,11 @@ internal const val DONE_CHECK_EVERY = 2
  * 질문은 흐름을 막지 않는다 — 답이 없으면 같은 질문을 다시 하지 않고 그리기로 돌아간다.
  * 그림판 옆 버튼은 없다 — 물을 것이 떨어지면 오또가 멈춘 틈에 「다 그렸어?」라고 묻는다 (docs/일기모드_UI.html 규칙)
  */
-private suspend fun Director.drawWhileTalking(day: DiaryDay) {
+private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
     var asked = 0
     var offers = 0
     var quiet = 0                                // 물을 것 없이 지나간 멈춤 수
-    val waiting = mutableListOf<DiaryPiece>()     // 오또가 그리고 있는 조각 — 다음 멈춤에 보여 준다
+    val waiting = mutableListOf<OttoOrder>()      // 오또가 그리고 있는 조각 — 다 되면 다음 멈춤에 보여 준다
     val askedPieces = mutableSetOf<Int>()        // 한 번 물은 조각은 다시 묻지 않는다(답이 없었어도)
     say("좋아! 다 그리면 알려 줘.")
     while (true) {
@@ -81,9 +88,12 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) {
         // [그리기 싫어](skip)도 그리기를 끝낸다 — 시연 서랍 · 말로 끝낼 때
         if (awaitValue("pause", "done", "skip") != "pause") break
 
-        // 기다리던 오또 그림이 먼저다 — 아이가 부탁한 것이라
-        val ready = waiting.removeFirstOrNull()
-        if (ready != null) { showOttoDrawing(day, ready); continue }
+        // 다 그려진 오또 그림이 먼저다 — 아이가 부탁한 것이라. 아직 그리는 중이면 기다리지 않고 지나간다
+        val ready = waiting.firstOrNull { it.art?.isCompleted != false }
+        if (ready != null) {
+            waiting -= ready
+            if (receiveOttoDrawing(day, ready)) continue
+        }
 
         day.catchUp(s.drawing)
         val piece = pieceBeingDrawn(day)?.takeIf { it.id !in askedPieces }
@@ -94,7 +104,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) {
             if (finished) break
             if (name == null || offers >= OTTO_OFFERS) continue
             when (offerOttoDrawing(name)) {
-                "yes" -> { offers++; waiting += day.pieces.first { it.id == piece.id } }
+                "yes" -> { offers++; waiting += orderOttoDrawing(this, day.pieces.first { it.id == piece.id }, name) }
                 "done" -> break
             }
             continue
@@ -107,11 +117,55 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) {
         quiet = 0
         if (askDoneDrawing()) break
     }
-    if (waiting.isNotEmpty()) log("아직 그리는 중인 오또 그림 ${waiting.size}장은 버린다 — 다 그렸으니 기다리게 하지 않는다")
+    if (waiting.isNotEmpty()) {
+        waiting.forEach { it.art?.cancel() }
+        log("아직 그리는 중인 오또 그림 ${waiting.size}장은 버린다 — 다 그렸으니 기다리게 하지 않는다")
+    }
     keepBoard()
     if (s.sceneDrawing.isEmpty() && day.pieces.all { it.strokes.isEmpty() }) log("그린 것이 없다 → 그림 없는 날")
     say("다 그렸구나!")
     pause(900)
+}
+
+/** 오또에게 부탁한 그림 한 장 — [art] 가 null 이면 대본(서버 없음) · 그림 글자로 보여 준다 */
+private class OttoOrder(val pieceId: Int, val art: Deferred<ByteArray?>?)
+
+/**
+ * 「응」 — 서버 모드면 그 조각만 PNG 로 만들어 뒤에서 `/image` redraw 를 부른다. 아이는 계속 그린다(기다리는 화면 없음).
+ * 조각 이름은 가려서 보낸다(규칙 6).
+ */
+private fun Director.orderOttoDrawing(scope: CoroutineScope, piece: DiaryPiece, name: String): OttoOrder {
+    if (!Server.liveFor(s.mode)) return OttoOrder(piece.id, null)
+    val png = pieceToPng(piece, s.drawingAspect)
+    if (png == null) {
+        log("오또 그림 부탁 — 조각에 선이 없다. 원본 그대로")
+        return OttoOrder(piece.id, scope.async { null })
+    }
+    val words = s.nameMask().mask(name)
+    log("오또 그림 부탁 → /image redraw (조각 PNG ${png.size / 1024} KB · 우리 서버까지만 · 서버는 쓰고 지운다)")
+    return OttoOrder(piece.id, scope.async { requestRedraw(png, words) })
+}
+
+/**
+ * 부탁한 그림이 왔다. 그림이면 조각에 붙이고 고르게 한다(참).
+ * 서버가 못 그렸으면(검사 · 늦음 · 실패) 원본 그대로 두고 짧게만 알린다 — 프리셋으로 바꾸지 않는다(참).
+ */
+private suspend fun Director.receiveOttoDrawing(day: DiaryDay, order: OttoOrder): Boolean {
+    val i = day.pieces.indexOfFirst { it.id == order.pieceId }
+    if (i < 0) return false
+    val job = order.art ?: run { showOttoDrawing(day, day.pieces[i]); return true }
+    val png = job.await()
+    event("image_request", "type" to "redraw", "result" to if (png != null) "generated" else "original")
+    if (png == null) {
+        log("오또 그림이 안 왔다(검사 · 늦음 · 실패) → 아이 원본 그대로")
+        say("앗, 이번엔 내가 잘 못 그렸어. 네 그림이 최고야!")
+        pause(700)
+        return true
+    }
+    day.pieces[i] = day.pieces[i].copy(ottoPng = png)
+    s.images++
+    showOttoDrawing(day, day.pieces[i])
+    return true
 }
 
 /** 마지막 획이 붙은 조각 — 이름이 아직 없을 때만 물을 거리다 */
