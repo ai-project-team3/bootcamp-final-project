@@ -19,7 +19,7 @@ Discord 알림용이고 테스트·빌드와 무관하다. 브랜치는 `main` +
 ## 결정된 범위
 
 - CI: 테스트(백엔드 pytest, 안드로이드 Gradle 유닛테스트) + 빌드 산출물 확인(안드로이드 debug APK, 서명 없음)
-- CD: **백엔드 자동 배포 포함** — `release` 브랜치 병합 시 실제 GPU PC(PC1, 이 문서 작성 PC)에 상시 설치된
+- CD: **백엔드 자동 배포 포함** — `release` 브랜치 병합 시 실제 GPU PC(PC1 = 조장 뒷자리 공용 PC — **조장 PC 가 아니다**, `docs/서버_세팅.md`)에 상시 설치된
   self-hosted GitHub Actions 러너가 코드를 pull하고 백엔드 프로세스를 재시작한다
 - 범위 밖: 안드로이드 서명·Play Console 자동 업로드(조장 수동 원칙 유지), ComfyUI(PC2) 자동 배포,
   GPU 연동 실통합 테스트, 린트/포맷 검사, 자동 롤백

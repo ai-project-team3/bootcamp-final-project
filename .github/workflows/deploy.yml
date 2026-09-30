@@ -1,3 +1,4 @@
+# PC1 = the shared PC behind the lead's desk — not the lead's own PC (docs/서버_세팅.md)
 name: Deploy backend (PC1)
 
 on:
