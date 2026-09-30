@@ -36,9 +36,12 @@ class StoryTestServer(private val respond: (String, JSONObject) -> JSONObject) :
                     }
                     val body = runCatching { JSONObject(raw.decodeToString()) }.getOrDefault(JSONObject())
                     requests += path to body
-                    val response = respond(path, body).toString().toByteArray()
+                    // This fixture implements JSON routes, not audio synthesis. A prior
+                    // Activity test may attach Voice; never pretend JSON bytes are audio.
+                    val status = if (path == "/tts") "503 Service Unavailable" else "200 OK"
+                    val response = if (path == "/tts") "".toByteArray() else respond(path, body).toString().toByteArray()
                     connection.getOutputStream().apply {
-                        write("HTTP/1.1 200 OK\r\nContent-Length: ${response.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                        write("HTTP/1.1 $status\r\nContent-Length: ${response.size}\r\nConnection: close\r\n\r\n".toByteArray())
                         write(response)
                         flush()
                     }
