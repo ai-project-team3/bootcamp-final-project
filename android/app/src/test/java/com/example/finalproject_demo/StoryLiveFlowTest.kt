@@ -2,6 +2,15 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.*
 import com.example.finalproject_demo.net.Server
+import android.content.Context
+import android.graphics.Bitmap
+import androidx.test.core.app.ApplicationProvider
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.Base64
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -16,10 +25,23 @@ import org.robolectric.annotation.Config
 class StoryLiveFlowTest {
     @Test
     fun actualStoryEntryFollowsVerdictsAndStopsAsSoonAsTheServerIsReady() = runBlocking {
+        val imageStarted = CountDownLatch(1)
+        val nextTurnArrived = CountDownLatch(1)
+        val overlapped = AtomicBoolean(false)
+        val png = ByteArrayOutputStream().apply output@{
+            Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888).apply {
+                eraseColor(android.graphics.Color.GREEN)
+                compress(Bitmap.CompressFormat.PNG, 100, this@output)
+            }
+        }.toByteArray()
         val server = StoryTestServer { path, body ->
             when (path) {
                 "/turn" -> {
                     val slot = body.getString("asked_slot")
+                    if (slot == "problem") {
+                        overlapped.set(imageStarted.await(2, TimeUnit.SECONDS))
+                        nextTurnArrived.countDown()
+                    }
                     val ready = slot == "reaction"
                     JSONObject().put("judge", JSONObject()
                         .put("reason", "ok").put("slot_1", slot)
@@ -35,11 +57,17 @@ class StoryLiveFlowTest {
                         .put("kind", pages.getJSONObject(i).getString("kind"))
                         .put("caption", "${i + 1}번째 실제 생성 문장이에요.")) }
                 })
+                "/image" -> {
+                    imageStarted.countDown()
+                    nextTurnArrived.await(2, TimeUnit.SECONDS)
+                    JSONObject().put("preset", false).put("png_base64", Base64.getEncoder().encodeToString(png))
+                }
                 else -> JSONObject().put("preset", true)
             }
         }
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
-        val d = Director(scope)
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val d = Director(scope, LocalStoryBookStore(context), StoryImageStore(context))
         d.s.speed = 0.01
         Server.base = server.base
         Server.liveModes = setOf(StoryMode.STORY)
@@ -59,6 +87,9 @@ class StoryLiveFlowTest {
             assertTrue(d.s.bookCaption(1).contains("실제 생성 문장"))
             assertEquals(3, d.s.notes.size)
             assertNull("scene skipping must not invent a cause", d.s.cause)
+            assertNotNull("the generated background must be available in the book", d.s.storyBackground)
+            assertArrayEquals(png, File(d.s.storyBackground!!.removePrefix("local:")).readBytes())
+            assertTrue("the next conversation turn must proceed while the image request is pending", overlapped.get())
         } finally {
             scope.cancel()
             Server.base = null

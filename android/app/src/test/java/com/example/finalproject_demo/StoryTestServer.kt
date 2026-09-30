@@ -16,7 +16,8 @@ class StoryTestServer(private val respond: (String, JSONObject) -> JSONObject) :
         thread(isDaemon = true) {
             while (!server.isClosed) {
                 val socket = try { server.accept() } catch (_: Exception) { break }
-                socket.use { connection ->
+                thread(isDaemon = true) { socket.use { connection ->
+                    connection.soTimeout = 5_000
                     val input = connection.getInputStream()
                     val header = StringBuilder()
                     while (!header.endsWith("\r\n\r\n")) {
@@ -45,7 +46,7 @@ class StoryTestServer(private val respond: (String, JSONObject) -> JSONObject) :
                         write(response)
                         flush()
                     }
-                }
+                } }
             }
         }
     }

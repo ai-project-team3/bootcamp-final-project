@@ -1,9 +1,39 @@
 package com.example.finalproject_demo.demo
 
-import kotlinx.coroutines.withTimeoutOrNull
+import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.nameMask
+import kotlinx.coroutines.*
 
 /** The live conversation enters here once; script scenes remain available with the switch off. */
-suspend fun Director.liveStoryConversation() {
+suspend fun Director.liveStoryConversation() = coroutineScope {
+    var imagePlace: String? = null
+    var imageJob: Job? = null
+
+    fun updateBackground() {
+        val place = s.slots["place"]?.takeIf(String::isNotBlank) ?: return
+        if (imagePlace == place) return
+        imagePlace = place
+        imageJob?.cancel()
+        s.storyBackground = null
+        val mask = s.nameMask()
+        imageJob = launch {
+            val reminder = launch {
+                delay(8_000)
+                if (s.place == place) {
+                    s.line += "\n배경 그림은 조금 뒤에 올 거야!"
+                    log("배경 생성 8초 경과 · 대화는 계속 진행")
+                }
+            }
+            try {
+                val png = withTimeoutOrNull(15_000) { Server.image(mask.mask(place), "story") }
+                val saved = png?.let { withContext(Dispatchers.IO) { saveStoryImage(it) } }
+                if (s.place == place) {
+                    s.storyBackground = saved
+                    log(if (saved == null) "배경 생성 실패 또는 15초 경과 → 프리셋 유지" else "대화 중 생성 배경 저장 · 무대와 책에 연결")
+                }
+            } finally { reminder.cancel() }
+        }
+    }
     if (s.storyStartedAtMs == 0L) s.storyStartedAtMs = System.currentTimeMillis()
     val remaining = (15 * 60 * 1000L - (System.currentTimeMillis() - s.storyStartedAtMs)).coerceAtLeast(1)
     val completed = withTimeoutOrNull(remaining) {
@@ -47,6 +77,7 @@ suspend fun Director.liveStoryConversation() {
             s.mascotPicks = if (by == "mascot") s.mascotPicks + 1 else 0
             if (by != "mascot") judge(variant, reply, question.text)
             syncStoryPresentation()
+            updateBackground()
             // The third conversation turn chooses the local template. An early server finish
             // still needs a page plan, but does not force extra questions just to reach turn 3.
             if (s.templateKey == null && (s.turn >= 3 || s.storyReady)) decideTemplate("서버 대화")
@@ -56,6 +87,12 @@ suspend fun Director.liveStoryConversation() {
     }
     if (completed == null) s.endReason = "time_limit"
     if (s.templateKey == null) decideTemplate("대화 종료")
+    if (imageJob?.isCompleted == false) {
+        inputs(false, false)
+        buttons()
+        s.stage = Stage.Making("이야기 그림을 마무리하는 중…")
+    }
+    imageJob?.join()
     log("동화 대화 종료: ${s.endReason} · ${s.turn}턴 · 실제 판정으로 채운 칸 ${s.slots.keys}")
     go(Scene.MAKING)
 }
