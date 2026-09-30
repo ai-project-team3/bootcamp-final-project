@@ -35,6 +35,8 @@ fun DemoState.completedStoryBook(): SavedStoryBook? {
 class LocalStoryBookStore(context: Context) : StoryBookStore {
     private val prefs = context.applicationContext.getSharedPreferences("story_books", Context.MODE_PRIVATE)
 
+    init { recoverStorySounds(load()) }
+
     override fun load(): List<SavedStoryBook> {
         val raw = prefs.getString("books", null) ?: return emptyList()
         return try {

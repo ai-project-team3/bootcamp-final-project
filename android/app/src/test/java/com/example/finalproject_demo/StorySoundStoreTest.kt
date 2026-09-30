@@ -95,4 +95,59 @@ class StorySoundStoreTest {
         assertFalse("Abandoned story audio must not accumulate in the session folder", clip.file.exists())
         assertNull(state.storySoundClip)
     }
+
+    @Test fun abandoningAFailedBookSaveRemovesItsRecording() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        try {
+            val d = Director(scope, failingStore())
+            d.s.templateKey = "C"
+            d.s.storySoundClip = ChildSound.record()!!
+            assertFalse(d.saveFinishedStory())
+            val kept = d.s.storySoundClip!!
+            d.s.resetStory()
+            assertFalse("A failed book must not retain raw audio after abandonment", kept.file.exists())
+        } finally { scope.cancel() }
+    }
+
+    @Test fun restartingAfterFailedSaveCleansOnlyThePendingStoryRecording() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        try {
+            val otherMode = ChildSound.keep(ChildSound.record()!!, "coop-book")!!
+            val d = Director(scope, failingStore())
+            d.s.templateKey = "C"
+            d.s.storySoundClip = ChildSound.record()!!
+            assertFalse(d.saveFinishedStory())
+            val orphan = d.s.storySoundClip!!
+            ChildSound.discardSession()
+            assertTrue(LocalStoryBookStore(context).load().isEmpty())
+            assertFalse("Startup must recover an interrupted story save", orphan.file.exists())
+            assertTrue("Other modes own their recordings independently", otherMode.file.exists())
+        } finally { scope.cancel() }
+    }
+
+    @Test fun restartingAfterMetadataWasCommittedPreservesTheRecording() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        try {
+            val backing = LocalStoryBookStore(context)
+            val store = object : StoryBookStore {
+                override fun load() = backing.load()
+                override fun save(book: SavedStoryBook) {
+                    backing.save(book)
+                    error("process stopped after metadata commit")
+                }
+            }
+            val d = Director(scope, store)
+            d.s.templateKey = "C"
+            d.s.storySoundClip = ChildSound.record()!!
+            assertFalse(d.saveFinishedStory())
+            ChildSound.discardSession()
+            val saved = LocalStoryBookStore(context).load().single()
+            assertNotNull(ChildSound.find(saved.id, saved.soundClipId!!))
+        } finally { scope.cancel() }
+    }
+
+    private fun failingStore() = object : StoryBookStore {
+        override fun load() = emptyList<SavedStoryBook>()
+        override fun save(book: SavedStoryBook) { error("disk unavailable") }
+    }
 }

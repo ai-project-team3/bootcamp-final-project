@@ -1169,6 +1169,7 @@ class DemoState {
     var soundLine by mutableStateOf("뿌우우우웅!")
     var storySoundClip: com.example.finalproject_demo.sound.ChildSound.SoundClip? = null
     var storySoundBookId: String? = null
+    var storySoundSaved = false
     var storySoundAttempted = false
 
     val th: Theme get() = theme(themeKey)

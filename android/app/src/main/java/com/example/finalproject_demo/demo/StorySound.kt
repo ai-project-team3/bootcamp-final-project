@@ -4,23 +4,56 @@ import com.example.finalproject_demo.sound.ChildSound
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import java.io.File
+
+private fun soundSaveMarker(bookId: String): File? {
+    require(bookId.matches(Regex("[A-Za-z0-9_-]+")))
+    return ChildSound.root?.let { File(it, "story_pending/$bookId.pending") }
+}
+
+/** Recover only interrupted story transactions; other modes' recordings have no story marker. */
+internal fun recoverStorySounds(books: List<SavedStoryBook>) {
+    val root = ChildSound.root ?: return
+    val savedIds = books.map { it.id }.toSet()
+    File(root, "story_pending").listFiles()?.filter { it.isFile && it.extension == "pending" }?.forEach { marker ->
+        val id = marker.nameWithoutExtension
+        if (id.matches(Regex("[A-Za-z0-9_-]+"))) {
+            if (id !in savedIds) ChildSound.deleteBook(id)
+            marker.delete()
+        }
+    }
+}
 
 /** Keep the recording before saving its reference. Retries reuse the book that already owns it. */
 internal fun DemoState.keepStorySound(book: SavedStoryBook): Boolean {
     val clip = storySoundClip ?: return book.soundClipId == null
     if (storySoundBookId == book.id) return ChildSound.find(book.id, clip.id) != null
+    val marker = soundSaveMarker(book.id) ?: return false
+    check(marker.parentFile!!.isDirectory || marker.parentFile!!.mkdirs())
+    marker.writeText(clip.id)
     val kept = ChildSound.keep(clip, book.id) ?: return false
     storySoundClip = kept
     storySoundBookId = book.id
     return true
 }
 
+internal fun DemoState.commitStorySound() {
+    storySoundSaved = true
+    storySoundBookId?.let { soundSaveMarker(it)?.delete() }
+}
+
 /** Resetting an unfinished story must not remove a recording owned by a completed book. */
 internal fun DemoState.clearStorySound() {
-    if (storySoundBookId == null) storySoundClip?.let(ChildSound::cancel)
+    val owner = storySoundBookId
+    if (owner == null) storySoundClip?.let(ChildSound::cancel)
+    else if (!storySoundSaved) {
+        ChildSound.deleteBook(owner)
+        soundSaveMarker(owner)?.delete()
+    }
     storySoundClip = null
     storySoundBookId = null
     storySoundAttempted = false
+    storySoundSaved = false
 }
 
 /** Creative sounds never pass through ask(), STT, or the language verdict. */
@@ -100,6 +133,7 @@ suspend fun Director.recordStorySound() {
                         if (s.storySoundBookId == null) s.storySoundClip?.let(ChildSound::cancel)
                         s.storySoundClip = pending
                         s.storySoundBookId = null
+                        s.storySoundSaved = false
                         s.storySoundAttempted = true
                         // A description of the activity is safe to send; audio bytes and paths are not slots.
                         s.slots["sound"] = "친구의 소리를 직접 만들었어요"
