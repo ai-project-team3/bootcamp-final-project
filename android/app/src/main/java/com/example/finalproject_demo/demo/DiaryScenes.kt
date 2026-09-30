@@ -15,25 +15,14 @@ import com.example.finalproject_demo.ui.HeroAttr
 // ── 끝나는 조건 ────────────────────────────────────────────────
 
 /**
- * 협업 모드의 질문 흐름을 멈추는 조건 (09-30 조장 · guidelines/2 §1-1).
+ * 협업 모드의 질문 흐름을 멈추는 조건 (09-30 확정 · guidelines/2 §1-1 · #36).
  *
  * 끝나는 조건은 `story_ready` 하나다. 「`mascot_pick` 2회 연속이면 끝」은 없앴다 — 마스코트는 칸을 채울 뿐
- * 이야기를 닫지 않는다. 시간은 모드마다 다르다: **협업은 정해질 때까지 15분 그대로**(치영과 확인 중 · #36),
+ * 이야기를 닫지 않는다. **협업은 시간으로 끊지 않는다** — 부모가 넣은 질문을 다 물으면 마무리하고
+ * (`coopQuestionsAllAsked` · 아래 루프), 부모 「그만하기」로 언제든 끝낸다(`stopCoopByParent`).
  * 일기(그림일기)는 이 함수를 쓰지 않고 30분쯤 마무리를 한 번 제안한다(`PictureDiary.kt`).
  */
-fun Director.diaryEnded(): Boolean {
-    if (s.endReason != null) return true
-    if (!s.isCoop) return false
-    val over15 = s.diaryTimeUp || (s.diaryStart > 0L && System.currentTimeMillis() - s.diaryStart >= 15 * 60 * 1000)
-    if (over15) {
-        s.endReason = "timeout"
-        log(
-            s.coopTimeUpNote()
-        )
-        return true
-    }
-    return false
-}
+fun Director.diaryEnded(): Boolean = s.endReason != null
 
 /** 기승전결 네 자리가 다 찼나 — 모든 질문을 다 물은 뒤에만 본다 */
 private fun Director.diaryReadyNow(): Boolean = COOP_REQUIRED.all { diaryFilled(it.slot) }
@@ -139,11 +128,18 @@ suspend fun Director.sceneDiary() {
         // 진행 막대는 **지나온 걸음 수**로 찬다 (9/22). 칸이 찼는지로 세면, 아이가 답하지 않은
         // 선택 질문이 하나라도 있으면 마지막 질문까지 가도 막대가 끝까지 가지 않는다
         s.stepsDone++
+        // 부모가 넣은 질문을 다 물었으면 남은 꼬리질문은 묻지 않는다 — 부모가 길이를 정한 셈이다 (09-30 확정 · #36)
+        if (s.coopQuestionsAllAsked) {
+            log("부모가 넣은 질문 ${s.parentQIndex}개를 다 물었다 → 남은 꼬리질문은 건너뛰고 마무리한다 (#36)")
+            break
+        }
     }
     if (s.endReason == null && diaryReadyNow()) {
         s.endReason = "story_ready"
         log("기승전결 네 자리가 다 찼다 → story_ready (일기 §3)")
     }
+    // 네 자리가 덜 찼는데 부모 질문이 끝났다 — 빈 자리는 마무리에서 마스코트가 메운다
+    if (s.endReason == null && s.coopQuestionsAllAsked) s.endReason = "questions_done"
     diaryEnded()
     if (s.endReason == "story_ready") diaryDrawStep()
     finishDiary()
@@ -183,7 +179,6 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
                 if (!s.isCoop) step.demoAnswer(s)?.let { a ->
                     add(DemoBtn("🎬 오늘 이야기 시연 답 — \"${a.text}\"") { send(Reply.Spoke(a.text, a.value, a)) })
                 }
-                add(DemoBtn("⏱ (시연) 15분 지난 것으로 — 끝나는 조건 셋째") { s.diaryTimeUp = true; send(Reply.Silent) })
             },
             id = v.id,
         )
@@ -331,7 +326,7 @@ internal suspend fun Director.finishDiary() {
     }
     mark("diary")
     val why = when (s.endReason) {
-        "timeout" -> "15분 경과"
+        "questions_done" -> "부모 질문을 다 물음 (#36)"
         "parent_stop" -> "부모 「그만하기」 (#36)"
         else -> "story_ready (기승전결 네 자리)"
     }
