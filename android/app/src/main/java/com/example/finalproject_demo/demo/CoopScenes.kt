@@ -249,12 +249,21 @@ fun Director.stopCoopByParent() {
 }
 
 /**
- * 부모가 넣은 질문을 **다 물었나** — 협업이 끝나는 조건 (09-30 확정 · guidelines/2 §1-1 · #36).
- * 빈 줄은 세지 않는다. 사다리로 다시 묻는 자리는 부모 질문을 한 번만 쓰므로 `parentQIndex` 는 쓴 수 그대로다.
- * 걸음이 건너뛰어져 못 물은 질문이 있으면 참이 되지 않고, 그때는 열한 걸음이 끝나며 자연히 마무리된다.
+ * 부모가 준비한 것을 **다 물었나** — 협업이 끝나는 조건 (09-30 확정 · guidelines/2 §1-1 · #36).
+ *
+ * 두 가지가 다 참이어야 한다 (09-30 흐름 개정):
+ * - **뼈대 네 자리를 다 물었다** — 부모 질문은 꼬리질문 자리에 끼워지므로 앞쪽에서 먼저 떨어질 수 있다.
+ *   그때 바로 끝내면 「무슨 일 · 왜 · 어떻게 됐나」를 묻지도 않고 마스코트가 지어 채운다.
+ *   템플릿만 골랐으면 이 네 자리가 부모가 준비한 전부다
+ * - **부모가 적은 질문을 다 물었다** — 빈 줄은 세지 않는다. 사다리로 다시 묻는 자리는 부모 질문을 한 번만 쓰므로
+ *   `parentQIndex` 는 쓴 수 그대로다. 걸음이 건너뛰어져 못 물은 질문이 있으면 참이 되지 않고, 그때는 열한 걸음이 끝나며 마무리된다.
+ *
+ * 준비한 것이 없는 옛 흐름(띠)에서는 참이 되지 않는다.
  */
 val DemoState.coopQuestionsAllAsked: Boolean
-    get() = isCoop && hasCoopQuestions && parentQIndex >= parentQuestions.count { it.isNotBlank() }
+    get() = isCoop && coopReady &&
+        COOP_PART_SLOTS.all { "diary_$it" in coopTrack.askedSteps } &&
+        parentQIndex >= parentQuestions.count { it.isNotBlank() }
 
 /** 책 이름 — 협업이면 "같이 지은"을 붙인다. */
 fun coopBookName(s: DemoState): String =
