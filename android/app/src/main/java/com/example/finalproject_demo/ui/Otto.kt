@@ -295,8 +295,10 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
     val s = d.s
     val id = s.lineId
     val text = s.line
-    val pop = remember { Animatable(1f) }
-    var shown by remember { mutableIntStateOf(text.length) }
+    // 처음부터 「튀어나오기 전」 상태로 — 전에는 다 보인 상태(투명도 1 · 글자 전부)로 한 프레임 그렸다가
+    // 아래 LaunchedEffect 가 되돌려서, 나레이션이 뜰 때마다 문장 전체가 번쩍 보였다 사라졌다 (09-30 사용자 제보)
+    val pop = remember { Animatable(0.6f) }
+    var shown by remember { mutableIntStateOf(0) }
     LaunchedEffect(id) {
         shown = 0
         pop.snapTo(0.6f)
