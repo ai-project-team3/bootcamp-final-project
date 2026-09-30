@@ -70,6 +70,8 @@ import java.util.Calendar
 enum class Pose(val file: String) {
     WAVE("otto_pose_wave"), PHONE("otto_pose_phone"), POINT("otto_pose_point"), WALK("otto_pose_walk"),
     TALK("otto_pose_talk"), LISTEN("otto_pose_listen"), THINK("otto_pose_think"), YAWN("otto_pose_yawn"), CALL("otto_pose_call"),
+    /** 09-30 #38 그림일기 D3 — 아이 옆에 엎드려 같이 쓰는 오또: 크레용으로 그리기 · 공책에 쓰기 · 고개 들고 보기 */
+    LIE_DRAW("otto_pose_lie_draw"), LIE_WRITE("otto_pose_lie_write"), LIE_LOOK("otto_pose_lie_look"),
 }
 
 @Composable

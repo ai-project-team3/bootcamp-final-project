@@ -110,11 +110,19 @@ private fun linkFor(prev: String, next: String): String = when {
     else -> "그러고 나서"
 }
 
+/**
+ * 「어긋난 일」 낱말 — 무너짐 · 다툼 · 싸움 · 넘어짐 · 울음 · 아픔 · 뺏김 · 못 함.
+ * `eval/story_prompt_diary.md` 규칙 4 가 이 목록과 **같게** 적혀 있다. 한쪽을 고치면 다른 쪽도 고친다.
+ */
+internal val TROUBLE_WORDS = listOf("무너", "다툼", "싸", "넘어", "속상", "아픔", "아팠", "울", "뺏", "못 ")
+
+/** 아이가 말한 마음 중 「어긋난 날」로 읽는 것 — 같은 프롬프트 규칙 4 의 마음 낱말 */
+internal val TROUBLE_FEELINGS = setOf("속상했", "화났", "무서웠", "아팠", "슬펐")
+
 /** 아이 말에 일이 어긋난 낌새가 있나 — 있으면 "왜 그랬을까?", 없으면 "왜 제일 좋았어?" */
 private fun DemoState.hadTrouble(): Boolean {
     val p = problem.orEmpty() + slots["detail"].orEmpty()
-    return listOf("무너", "다툼", "싸", "넘어", "속상", "아픔", "아팠", "울", "뺏", "못 ").any { it in p } ||
-        feelings.any { it in setOf("속상했", "화났", "무서웠", "아팠", "슬펐") }
+    return TROUBLE_WORDS.any { it in p } || feelings.any { it in TROUBLE_FEELINGS }
 }
 
 /**
@@ -580,7 +588,7 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
 }
 
 /** 문장 끝에 마침표를 붙인다 (이미 있으면 그대로) */
-private fun sentence(v: String): String = if (v.isNotEmpty() && v.last() in ".!?") v else "$v."
+internal fun sentence(v: String): String = if (v.isNotEmpty() && v.last() in ".!?") v else "$v."
 
 /**
  * 잇는 말을 앞에 붙인다 — "그런데", "그래서", "그때" …
@@ -590,7 +598,7 @@ private fun sentence(v: String): String = if (v.isNotEmpty() && v.last() in ".!?
  */
 private val LINKERS = listOf("그런데", "그래서", "그리고", "그때", "그러고", "그러자", "알고 보니", "하지만", "마침내")
 
-private fun joinWith(linker: String, line: String): String {
+internal fun joinWith(linker: String, line: String): String {
     val t = line.trimStart()
     if (linker.isEmpty() || t.isEmpty()) return t
     if (LINKERS.any { t.startsWith(it) }) return t

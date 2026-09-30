@@ -3,8 +3,6 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
-import com.example.finalproject_demo.demo.bookCaption
-import com.example.finalproject_demo.demo.pageCount
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -12,8 +10,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -112,10 +108,10 @@ class DiaryFlowTest {
         assertTrue("첫 이야기에서 주인공을 못 골랐다", d.tap("카드를 탭"))
         assertTrue("질문으로 안 왔다", await { s.scene == Scene.DIARY } != null)
         d.answerAll("🗣", max = 30)
-        if (s.buttons.any { "안 그릴래" in it.label }) d.tap("안 그릴래")
+        // 그림일기(09-30) — 책은 일기 장면 안에서 읽고 선물로 간다
         assertTrue(
-            "책으로 안 넘어갔다 (장면=${s.scene})",
-            await(10_000) { s.scene == Scene.MAKING || s.scene == Scene.BOOK } != null,
+            "그림일기로 안 넘어갔다 (장면=${s.scene})",
+            await(10_000) { s.buttons.any { "다음 쪽" in it.label || "다 읽었어" in it.label } } != null,
         )
 
         // ── 책을 **끝까지 넘겨** 시작 화면으로 돌아간다.
@@ -185,117 +181,8 @@ class DiaryFlowTest {
         assertTrue("동화 모드가 함께할 사람을 안 묻는다", await { s.scene == Scene.PARTNER } != null)
     }
 
-    @Test
-    fun aChildWhoTalksFillsAllFourPartsAndManyTails() = run { d ->
-        val s = d.s
-        d.go(Scene.ADULT)
-        assertTrue(d.tap("오늘 있었던 일로"))
-        assertTrue(await { s.scene == Scene.BESTIARY } != null)
-        assertTrue(d.tap("카드를 탭"))
-        assertTrue("S3′ 로 안 왔다", await { s.scene == Scene.DIARY } != null)
-        assertEquals("일기 모드의 필수 칸은 기승전결 네 자리", 4, s.reqCount)
-
-        val turns = d.answerAll()
-        // 스무고개처럼 늘린 결과 — 네 질문이 아니라 여덟 번 이상 주고받는다
-        assertTrue("주고받은 횟수가 ${turns}번뿐 — 8~12턴이 안 나온다", turns >= 8)
-
-        assertTrue("그리기 물음이나 책 만들기로 안 넘어갔다", await(8_000) {
-            s.scene == Scene.MAKING || s.scene == Scene.BOOK || s.buttons.any { "안 그릴래" in it.label }
-        } != null)
-        if (s.buttons.any { "안 그릴래" in it.label }) d.tap("안 그릴래")
-        assertTrue("책 만들기로 안 넘어갔다 scene=${s.scene} end=${s.endReason} filled=${s.filled} line=${s.line} btn=${s.buttons.map{it.label}}", await(8_000) { s.scene == Scene.MAKING || s.scene == Scene.BOOK } != null)
-
-        assertEquals("네 자리가 다 찼다", 4, s.filled)
-        assertEquals("story_ready", s.endReason)
-        // 꼬리질문이 실제로 책 문장을 더했는가 — 질문을 늘린 이유가 이것이다
-        val tails = listOf("companion", "detail", "reaction", "said", "after", "keep").count { s.slots[it] != null }
-        assertTrue("꼬리질문으로 모은 문장이 ${tails}개뿐", tails >= 3)
-        assertTrue("쪽 수가 6~8 밖", s.pageCount in 6..8)
-        assertTrue("아이 말이 인용으로 남지 않았다", s.quotes.isNotEmpty())
-        // 배경이 아이가 말한 곳을 따라갔는가
-        assertNotEquals("배경이 상상 세계 그대로다", "bg_space", s.bgName)
-    }
-
-    @Test
-    fun diaryDemoAnswersTellOneConsistentDayThroughTheBook() = run { d ->
-        val s = d.s
-        s.mode = StoryMode.DIARY
-        d.go(Scene.DIARY)
-        assertTrue(d.tap("그림 없이 이야기할래"))
-        assertTrue(await { s.buttons.any { "🎬 오늘 이야기 시연 답" in it.label } } != null)
-
-        val turns = d.answerAll("🎬 오늘 이야기 시연 답")
-        assertEquals("시연 답이 모든 질문을 끝까지 잇지 못했다", 11, turns)
-        assertTrue(await { s.buttons.any { "안 그릴래" in it.label } } != null)
-        assertTrue(d.tap("안 그릴래"))
-        assertTrue(await(8_000) { s.scene == Scene.MAKING || s.scene == Scene.BOOK } != null)
-
-        assertEquals("어린이집", s.place)
-        assertEquals("민준이", s.companionKind)
-        assertEquals("블록이 무너짐", s.problem)
-        assertEquals("너무 높이 쌓아서", s.cause)
-        assertEquals("다시 쌓았어", s.solution)
-        assertEquals("story_ready", s.endReason)
-        assertTrue(listOf("place", "problem", "cause", "solution").all { s.slotBy[it] == "child" })
-
-        val book = (1..s.pageCount).joinToString(" ") { s.bookCaption(it) }
-        assertTrue("아이의 블록 이야기가 책에 없다", "블록" in book && "무너" in book)
-        assertTrue("친구가 책에 없다", "민준이" in book)
-        assertTrue("해결 장면이 책에 없다", "다시 쌓" in book)
-    }
-
-    @Test
-    fun silenceWalksTheLadderThenEndsOnTwoMascotPicks() = run { d ->
-        val s = d.s
-        s.mode = StoryMode.DIARY
-        d.go(Scene.DIARY)
-        assertTrue(await { s.scene == Scene.DIARY } != null)
-        assertTrue(d.tap("그림 없이 이야기할래"))
-
-        val asked = mutableSetOf<String>()
-        var guard = 0
-        while (s.scene == Scene.DIARY && s.endReason == null && guard++ < 40) {
-            if (await(1_500) { s.buttons.any { "대답 없음" in it.label } } == null) break
-            asked += s.line
-            s.buttons.first { "대답 없음" in it.label }.onClick()
-            delay(30)
-        }
-
-        assertTrue("사다리가 질문을 바꾸지 않았다 (물어본 질문 ${asked.size}개)", asked.size >= 4)
-        assertTrue("카드를 띄웠다 — 일기 모드는 사다리 뒤에 그림 3장을 붙이지 않는다", s.modeCard == 0)
-        assertEquals("mascot_pick 2회 연속이 끝나는 조건이다", "mascot_pick", s.endReason)
-        assertTrue(s.mascotPicks >= 2)
-        assertTrue("완전 무응답 갈림길이 안 나왔다", await { s.buttons.any { "오늘은 여기까지" in it.label } } != null)
-        assertFalse("모르는 장소를 아는 것처럼 되물었다", s.log.any { "혹시 오늘 있었던 곳일까" in it })
-        assertTrue("마스코트가 채운 말이 아이 인용으로 새어 나갔다", s.quotes.isEmpty())
-        assertEquals("마스코트가 채운 것은 주고받기로 세지 않는다", 0, s.modeVoice)
-    }
-
-    @Test
-    fun anOptionalChildAnswerStillBecomesTheSeedOfABook() = run { d ->
-        val s = d.s
-        s.mode = StoryMode.DIARY
-        // A child can answer a follow-up while the four required slots remain unanswered.
-        s.slots["detail"] = "블록을 높이높이 쌓아 올렸어요"
-        s.slotBy["detail"] = "child"
-        d.go(Scene.DIARY)
-        assertTrue(await { s.scene == Scene.DIARY } != null)
-        assertTrue(d.tap("그림 없이 이야기할래"))
-
-        var guard = 0
-        while (s.scene == Scene.DIARY && s.endReason == null && guard++ < 30) {
-            if (await(1_500) { s.buttons.any { "대답 없음" in it.label } } == null) break
-            if (!d.push("대답 없음")) break
-        }
-
-        assertEquals("mascot_pick", s.endReason)
-        assertTrue("아이의 꼬리 답이 있는데도 씨앗이 0개라며 종료했다", await(8_000) {
-            s.scene == Scene.MAKING || s.scene == Scene.BOOK
-        } != null)
-        assertTrue("아이가 말한 꼬리 답이 책에서 사라졌다", (1..s.pageCount).any {
-            "블록을 높이높이" in s.bookCaption(it)
-        })
-    }
+    // 일기 모드의 질문 · 책 흐름은 그림일기로 바뀌었다(09-30) — 검사는 PictureDiaryFlowTest 가 한다.
+    // 열한 걸음 · 네 자리 · 마스코트가 메우기는 협업 모드의 길로 남았고 아래 협업 검사가 지킨다.
 
     // ── 2. 부모 협업 모드 ────────────────────────────────────────
 

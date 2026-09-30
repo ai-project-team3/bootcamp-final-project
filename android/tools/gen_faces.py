@@ -20,7 +20,7 @@ DRAW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "sr
 REF = os.path.join(DRAW, "otto_face_talk.png")
 # 전신 자세(apose)는 전신 그림에서 시작하고, 「같은 틀(얼굴 가까이)」 대신 전신을 유지하라고 한다
 REF_FULL = os.environ.get("OTTO_REF_FULL") or os.path.join(DRAW, "mascot.png")
-FULL = {"apose", "side", "side_m"}
+FULL = {"apose", "side", "side_m", "lie_draw", "lie_write", "lie_look"}
 KEEP_FULL = ("Keep the exact same kitten character: orange and cream fluffy fur, teal-green felt hood with cat ears and blue trim, "
              "round yellow gold button, pink paw pads, striped orange tail, big glossy eyes. Same soft plush 3D render style and "
              "lighting. Full body, centered, plain pure white background.")
@@ -58,6 +58,16 @@ FACES = {
               "exactly the same as in the image, only change the viewing angle and pose. The near arm hangs down along the side "
               "with the paw near the hip, the two legs slightly apart front and back with a gap between them, the striped tail "
               "pointing out behind to the left. Show the whole body from ears to feet.",
+    # 09-30 #38 그림일기 D3 — 아이 옆에 엎드려 같이 일기를 쓰는 오또 (전신 · 옆에서 본 모습)
+    "lie_draw": "Change the pose: the kitten lies on its tummy on the floor, seen from the side facing right, legs bent up behind "
+                "it, happily drawing on a sheet of paper with a chunky orange crayon held in one paw, looking down at the paper, "
+                "tail curled up. Keep the hood, cape and gold button. Show the whole body.",
+    "lie_write": "Change the pose: the kitten lies on its tummy on the floor, seen from the side facing right, legs bent up behind "
+                 "it, writing in a small open notebook with a pencil held in one paw, concentrating with a small smile, tail "
+                 "curled up. Keep the hood, cape and gold button. Show the whole body.",
+    "lie_look": "Change the pose: the kitten lies on its tummy on the floor, seen from the side facing right, chin resting on "
+                "both paws, head lifted and looking toward the viewer with a warm curious smile, legs bent up behind it, tail "
+                "curled up. Keep the hood, cape and gold button. Show the whole body.",
 }
 
 
