@@ -588,7 +588,7 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
 }
 
 /** 문장 끝에 마침표를 붙인다 (이미 있으면 그대로) */
-private fun sentence(v: String): String = if (v.isNotEmpty() && v.last() in ".!?") v else "$v."
+internal fun sentence(v: String): String = if (v.isNotEmpty() && v.last() in ".!?") v else "$v."
 
 /**
  * 잇는 말을 앞에 붙인다 — "그런데", "그래서", "그때" …
@@ -598,7 +598,7 @@ private fun sentence(v: String): String = if (v.isNotEmpty() && v.last() in ".!?
  */
 private val LINKERS = listOf("그런데", "그래서", "그리고", "그때", "그러고", "그러자", "알고 보니", "하지만", "마침내")
 
-private fun joinWith(linker: String, line: String): String {
+internal fun joinWith(linker: String, line: String): String {
     val t = line.trimStart()
     if (linker.isEmpty() || t.isEmpty()) return t
     if (LINKERS.any { t.startsWith(it) }) return t
