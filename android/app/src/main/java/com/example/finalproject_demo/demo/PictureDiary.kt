@@ -282,6 +282,7 @@ private suspend fun Director.offerWrapUp(): Boolean {
 
 internal class PictureQuestion(val key: String, val ask: (DemoState) -> String, val easy: String)
 
+/** 필수 칸 — `DemoState.reqSlots`(일기 = place · problem, #29)와 같은 둘. 여기는 책 문장 키로 본다 */
 internal val PICTURE_REQUIRED = listOf("place", "problem")
 
 /** 다 그린 뒤 묻는 칸 — 이 차례로, 빈 것만 */
