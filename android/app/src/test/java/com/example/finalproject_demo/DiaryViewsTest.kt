@@ -220,6 +220,22 @@ class DiaryViewsTest {
         assertTrue("날씨가 그림의 해에서 켜지지 않았다", d.s.diaryDay.weather == DiaryWeather.SUN)
     }
 
+    /** 서버가 준 오또 그림(정사각형 PNG)은 납작한 선 조각에 붙어도 쪼그라들지 않는다 — 조각의 긴 변만 한 정사각형 */
+    @Test
+    fun ottosDrawingOnAFlatPieceIsNotSquashed() {
+        val d = director()
+        d.s.drawing += line(Color(0xFFE8604C), .60f, .60f, .85f, .66f)       // 선 하나 — 폭은 넓고 높이는 거의 없다
+        val day = d.s.newDiaryDay()
+        day.catchUp(d.s.drawing)
+        val bmp = android.graphics.Bitmap.createBitmap(64, 64, android.graphics.Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(bmp).drawCircle(32f, 32f, 28f, android.graphics.Paint().apply { color = android.graphics.Color.rgb(242, 149, 90) })
+        val png = java.io.ByteArrayOutputStream().also { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+        day.pieces[0] = day.pieces[0].copy(name = "엄마", look = PieceLook.OTTO, ottoPng = png)
+        d.s.stage = DiaryBoard()
+        show(d)
+        snap("diary_board_otto_flat_piece")
+    }
+
     /** D0 — 방에서 손 흔드는 오또 · [그릴래!] · [그림 없이 말할래] (docs/일기모드_UI.html) */
     @Test
     fun theStartAsksToDrawOrTalkInTheRoom() {

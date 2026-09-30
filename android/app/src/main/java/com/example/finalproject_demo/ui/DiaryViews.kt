@@ -455,12 +455,14 @@ private fun OttoArt(piece: DiaryPiece, modifier: Modifier) {
 private fun OttoLook(piece: DiaryPiece, b: BoardBox, crop: BoardBox, wDp: Float, hDp: Float, alpha: Float = 1f) {
     val pop = remember(piece.id, piece.look) { Animatable(0.4f) }
     LaunchedEffect(piece.id, piece.look) { pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessLow)) }
-    val x = (b.left - crop.left) / crop.width * wDp
-    val y = (b.top - crop.top) / crop.height * hDp
+    // 오또 그림은 정사각형(640²)이다 — 조각이 납작한 선이어도 쪼그라들지 않게 조각의 긴 변만 한 정사각형을 조각 가운데에
     val w = b.width / crop.width * wDp
     val h = b.height / crop.height * hDp
+    val side = maxOf(w, h, 24f)
+    val x = ((b.left + b.right) / 2f - crop.left) / crop.width * wDp - side / 2f
+    val y = ((b.top + b.bottom) / 2f - crop.top) / crop.height * hDp - side / 2f
     Box(
-        Modifier.offset(x = x.dp, y = y.dp).size(maxOf(w, 24f).dp, maxOf(h, 24f).dp).alpha(alpha)
+        Modifier.offset(x = x.dp, y = y.dp).size(side.dp).alpha(alpha)
             .graphicsLayer { scaleX = 2f - pop.value; scaleY = pop.value }
     ) { OttoArt(piece, Modifier.fillMaxSize()) }
 }
