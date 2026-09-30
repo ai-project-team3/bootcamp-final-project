@@ -22,10 +22,28 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.json.JSONArray
+import org.json.JSONObject
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class StoryBookStoreTest {
+    @Test
+    fun reopenedBookKeepsItsLocalSoundReferenceWhenStoredAgain() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("story_books", Context.MODE_PRIVATE)
+        val rawBook = JSONObject().put("id", "sound-book").put("title", "친구의 소리")
+            .put("themeKey", "sea").put("bgName", "bg_sea").put("soundClipId", "local-clip-1")
+            .put("pages", JSONArray().put(JSONObject().put("kind", "TOGETHER").put("caption", "같이 놀았어요.")))
+        prefs.edit().putString("books", JSONArray().put(rawBook).toString()).commit()
+
+        val reopened = LocalStoryBookStore(context).load().single()
+        LocalStoryBookStore(context).save(reopened)
+
+        val stored = JSONArray(prefs.getString("books", null)).getJSONObject(0)
+        assertEquals("local-clip-1", stored.optString("soundClipId"))
+    }
+
     @Test
     fun savedBookKeepsGeneratedHeroAndOriginalChildStrokesAfterAnotherSession() {
         val context = ApplicationProvider.getApplicationContext<Context>()

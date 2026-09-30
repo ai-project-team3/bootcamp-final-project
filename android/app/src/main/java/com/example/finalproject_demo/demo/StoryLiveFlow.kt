@@ -41,6 +41,10 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             val end = s.storyEndCondition(s.storyStartedAtMs, System.currentTimeMillis())
             if (end != null) { s.endReason = end; break }
             val prompt = s.nextStoryPrompt(s.storyServerQuestion) ?: break
+            if (prompt.slot == "sound" && !s.storySoundAttempted) {
+                recordStorySound()
+                continue
+            }
             s.stage = Stage.World(listOf(
                 WorldItem(s.storyHeroArt, 0.25f, 0.32f, 0.11f, depth = 1f),
                 WorldItem(s.friendArt, 0.72f, 0.32f, 0.13f, depth = 0.9f),
@@ -84,6 +88,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         true
     }
     if (s.templateKey == null) decideTemplate("대화 종료")
+    if (!s.storySoundAttempted) recordStorySound()
     if (imageJob?.isCompleted == false) {
         inputs(false, false)
         buttons()

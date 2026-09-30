@@ -91,7 +91,10 @@ class Director(
     fun saveFinishedStory(): Boolean {
         val book = s.completedStoryBook() ?: return false
         return try {
+            if (book.soundClipId != null && storyBookStore == null) return false
+            if (!s.keepStorySound(book)) return false
             storyBookStore?.save(book)
+            s.commitStorySound()
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))
             true
