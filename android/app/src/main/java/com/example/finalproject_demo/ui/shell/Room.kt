@@ -330,7 +330,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                 ConfirmDialog(
                     "🎁", "아직 준비된 이야기가 없어!", title = t.title, art = t.art, accent = t.color,
                     detail = "부모님한테 이야기를 골라 달라고 부탁해 볼까?",
-                    note = "부모님은 🔒 → 협업 질문에서 골라요",
+                    note = "부모님은 🔒 → 같이 만들기에서 골라요",
                     no = null, yes = "✓" to "알겠어!",
                     onNo = {}, onYes = { asking = false; target = null; scope.launch { walkX.animateTo(HOME_X, tween(500)); paws.clear() } },
                     modifier = Modifier.align(Alignment.Center),

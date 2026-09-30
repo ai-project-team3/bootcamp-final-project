@@ -160,7 +160,7 @@ class ShellFlowTest {
         compose.mainClock.advanceTimeBy(600)
         compose.waitUntil(5_000) { director.s.scene == com.example.finalproject_demo.demo.Scene.PARENT }
         shot("15b_parent")
-        listOf("협업 질문" to "coop", "업적" to "ach", "설정" to "set", "계정" to "acct").forEach { (t, k) ->
+        listOf("같이 만들기" to "coop", "업적" to "ach", "설정" to "set", "계정" to "acct").forEach { (t, k) ->
             tap(t); compose.mainClock.advanceTimeBy(400); shot("15c_parent_$k")
         }
         tap("부모 비밀번호"); compose.mainClock.advanceTimeBy(400); shot("15d_pin_change")
