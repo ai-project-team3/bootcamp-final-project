@@ -302,6 +302,80 @@ fun tearScore(mesh: RigMesh): Float {
     return worst
 }
 
+/**
+ * **떨어져 남는 조각** (09-30) — 동작을 크게 돌린 그림을 실제로 칠해(¼ 크기) **떨어진 덩어리**를 센다.
+ * 쉬는 자세보다 넓이 0.15% 이상인 덩어리가 늘면 그 수를, 아니면 0.
+ *
+ * [tearScore] 는 삼각형이 접히는지만 본다. 팔 층을 떼어 낼 때 소매 · 손 조각이 몸 층에 남으면(마법사 · 땋은 머리 소녀),
+ * 팔을 들 때 **원래 자리에 조각이 둥둥 뜬다** — 접히는 삼각형이 없어 점수에는 안 잡혔다.
+ *
+ * @param tex 그물이 그림을 가져오는 그림판(떼어 낸 팔이 있으면 [RigMesh.atlas], 없으면 원래 그림) · [texW] 는 그 폭
+ */
+fun strayPieces(mesh: RigMesh, tex: IntArray, texW: Int, texH: Int): Int {
+    if (mesh.bones.size <= 1) return 0
+    val rest = pieces(mesh, mesh.rest, tex, texW, texH)
+    var worst = 0
+    for ((motion, time) in TEAR_POSES) {
+        skin(mesh, poseAt(mesh.bones, motion, time).first)
+        worst = max(worst, pieces(mesh, mesh.out, tex, texW, texH) - rest)
+    }
+    mesh.rest.copyInto(mesh.out)
+    return worst
+}
+
+/** 그물을 [pts] 자리에 칠해 넓이 0.15% 이상인 덩어리 수 (¼ 크기 · 알파 절반 넘는 곳) */
+private fun pieces(mesh: RigMesh, pts: FloatArray, tex: IntArray, texW: Int, texH: Int): Int {
+    val k = 4
+    val cw = (mesh.canvasW / k).toInt() + 8; val ch = (mesh.canvasH / k).toInt() + 8
+    val pad = 4
+    val cov = BooleanArray(cw * ch)
+    val idx = mesh.indices; val uv = mesh.tex
+    for (t in 0 until idx.size / 3) {
+        val a = idx[3 * t].toInt(); val b = idx[3 * t + 1].toInt(); val c = idx[3 * t + 2].toInt()
+        val ax = pts[2 * a] / k + pad; val ay = pts[2 * a + 1] / k + pad
+        val bx = pts[2 * b] / k + pad; val by = pts[2 * b + 1] / k + pad
+        val cx = pts[2 * c] / k + pad; val cy = pts[2 * c + 1] / k + pad
+        val d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+        if (abs(d) < 1e-6f) continue
+        val x0 = max(0, min(ax, min(bx, cx)).toInt()); val x1 = min(cw - 1, max(ax, max(bx, cx)).toInt() + 1)
+        val y0 = max(0, min(ay, min(by, cy)).toInt()); val y1 = min(ch - 1, max(ay, max(by, cy)).toInt() + 1)
+        for (y in y0..y1) for (x in x0..x1) {
+            val px = x + 0.5f; val py = y + 0.5f
+            val l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / d
+            val l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / d
+            val l3 = 1f - l1 - l2
+            if (l1 < 0f || l2 < 0f || l3 < 0f) continue
+            val u = (l1 * uv[2 * a] + l2 * uv[2 * b] + l3 * uv[2 * c]).toInt()
+            val v = (l1 * uv[2 * a + 1] + l2 * uv[2 * b + 1] + l3 * uv[2 * c + 1]).toInt()
+            if (u !in 0 until texW || v !in 0 until texH) continue
+            if ((tex[v * texW + u] ushr 24) > 127) cov[y * cw + x] = true
+        }
+    }
+    // 8방향 덩어리
+    val lab = IntArray(cw * ch); var n = 0
+    val sizes = ArrayList<Int>()
+    val q = IntArray(cw * ch)
+    var total = 0
+    for (i in cov.indices) if (cov[i]) total++
+    if (total == 0) return 0
+    for (i in cov.indices) {
+        if (!cov[i] || lab[i] != 0) continue
+        n++; var head = 0; var tail = 0; q[tail++] = i; lab[i] = n; var size = 0
+        while (head < tail) {
+            val p = q[head++]; size++
+            val x = p % cw; val y = p / cw
+            for (dy in -1..1) for (dx in -1..1) {
+                val nx = x + dx; val ny = y + dy
+                if (nx !in 0 until cw || ny !in 0 until ch) continue
+                val j = ny * cw + nx
+                if (cov[j] && lab[j] == 0) { lab[j] = n; q[tail++] = j }
+            }
+        }
+        sizes += size
+    }
+    return sizes.count { it >= 0.0015f * total }
+}
+
 /** 찢어짐을 잴 때 돌려 보는 자세 — 동작마다 가장 크게 벌어지는 순간 */
 private val TEAR_POSES = listOf(
     RigMotion.WAVE to 1.3f, RigMotion.WAVE to 1.55f, RigMotion.HOORAY to 1.0f,
@@ -394,7 +468,7 @@ object RigBuilder {
         //   ① 사람형 팔 떼어 내기(사람형이거나 모를 때) → ② 튀어나온 가지(몸 종류에 맞게) → ③ 몸 전체만 들썩이기
         // 각 단계는 [tearScore] 로 검사한다. ③은 뼈가 root 하나라 찢어질 수 없다 — 어떤 그림이 와도 깨진 모습은 안 나온다
         if (hint == RigHint.AUTO || hint == RigHint.HUMAN) {
-            humanRig(argb, w, h, anyHands = hint == RigHint.HUMAN)?.let { if (passes(it, "①사람형")) return it }
+            humanRig(argb, w, h, anyHands = hint == RigHint.HUMAN)?.let { if (passes(it, "①사람형", argb, w, h)) return it }
         }
         // ② 튀어나온 가지 — 다리를 둘 넘게 못 찾았고 다리가 있는 몸(네발 · 사람)이면 「배 아래 선」으로 다리를 떼어 한 번 더
         val plain = bodyPart(argb, w, h, allowArms = true, hint = hint)
@@ -403,17 +477,21 @@ object RigBuilder {
         val carved = if (needLegs && legsOf(plain) < 2) bodyPart(argb, w, h, allowArms = true, hint = hint, carveLegs = true) else null
         for (p in listOfNotNull(if (legsOf(carved) > legsOf(plain)) carved else null, plain)) {
             val m = merge(w, h, listOf(p), null) ?: continue
-            if (passes(m, if (p === carved) "②가지(배 아래)" else "②가지")) return m
+            if (passes(m, if (p === carved) "②가지(배 아래)" else "②가지", argb, w, h)) return m
         }
         return calmRig(argb, w, h)
     }
 
-    /** 이 뼈대를 써도 되나 — 찢어짐 점수가 기준 안이면. 떨어지면 [why] 에 적는다 */
-    private fun passes(m: RigMesh, stage: String): Boolean {
+    /**
+     * 이 뼈대를 써도 되나 — 찢어짐 점수가 기준 안이고, 움직여도 **떨어져 남는 조각**이 생기지 않으면.
+     * 떨어지면 [why] 에 적는다. [argb] 는 원래 그림(떼어 낸 팔이 없을 때 그물이 쓰는 그림)
+     */
+    private fun passes(m: RigMesh, stage: String, argb: IntArray, w: Int, h: Int): Boolean {
         val tear = tearScore(m)
-        if (tear <= MAX_TEAR) return true
-        why += " $stage 찢어짐 ${"%.3f".format(tear)}"
-        return false
+        if (tear > MAX_TEAR) { why += " $stage 찢어짐 ${"%.3f".format(tear)}"; return false }
+        val stray = m.atlas?.let { strayPieces(m, it, m.atlasW, h) } ?: strayPieces(m, argb, w, h)
+        if (stray > 0) { why += " $stage 조각 $stray"; return false }
+        return true
     }
 
     /**

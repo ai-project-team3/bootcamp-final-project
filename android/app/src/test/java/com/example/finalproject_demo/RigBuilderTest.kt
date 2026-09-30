@@ -163,7 +163,7 @@ class RigBuilderTest {
      */
     @Test
     fun 생성_캐릭터_모음() {
-        val dir = File(System.getProperty("rig.corpus") ?: File(System.getProperty("user.home"),
+        val dir = File(System.getProperty("rig.corpus") ?: System.getenv("RIG_CORPUS") ?: File(System.getProperty("user.home"),
             "AppData/Local/Temp/claude/C--dev-final-project/344838c4-f7ce-48e6-9be7-ad3985d432f5/scratchpad/rigcorpus").path)
         val files = dir.listFiles { f -> f.name.endsWith(".png") && f.name.contains("__") }?.sorted().orEmpty()
         if (files.isEmpty()) return
