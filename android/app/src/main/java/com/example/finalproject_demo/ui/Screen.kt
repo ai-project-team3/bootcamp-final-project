@@ -129,7 +129,8 @@ fun ArtView(art: Art, modifier: Modifier = Modifier, motion: RigMotion? = null) 
         Art.Rocket -> AssetImage("rocket", modifier) { FigureView(Rocket, modifier) }
         Art.Mascot -> AssetImage("mascot", modifier) { FigureView(Mascot, modifier) }
         is Art.ChildDrawing -> ChildDrawingView(art.strokes, art.preset, modifier, art.aspect)
-        is Art.Img -> AssetImage(art.name, modifier) { ArtView(art.fallback, modifier) }
+        is Art.Img -> if (art.rig != null) StoryCharacterImage(art, modifier, motion)
+            else AssetImage(art.name, modifier) { ArtView(art.fallback, modifier) }
     }
 }
 
