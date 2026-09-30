@@ -56,7 +56,7 @@ import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.DemoState
-import com.example.finalproject_demo.demo.hasCoopQuestions
+import com.example.finalproject_demo.demo.coopReady
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.bat
@@ -105,7 +105,7 @@ private data class PTab(val key: String, val art: String, val emoji: String, val
 
 private val PTABS = listOf(
     PTab("rec", "pi_record", "📋", "오늘의 기록", "오늘 아이가 한 말 그대로 · 만든 책 · 이야기한 방식"),
-    PTab("coop", "pi_coop", "🤝", "같이 만들기", "소파에서 같이 만들 때 오또가 대신 물을 질문을 미리 넣어 둬요"),
+    PTab("coop", "pi_coop", "🤝", "같이 만들기", "소파에서 같이 만들 이야기를 고르고, 더 물어볼 질문을 적어 둬요"),
     PTab("ach", "pi_achieve", "🏅", "업적", "아이가 한 일로만 받는 선물과 해결 방법 도감"),
     PTab("set", "pi_settings", "⚙️", "설정", "하루 한도 · 시작할 때 확인 · 그림체 · 소리 · 동의"),
     PTab("acct", "pi_account", "👤", "계정", "로그인 · 부모 비밀번호 · 처음 설정 다시 보기 · 탈퇴"),
@@ -498,26 +498,29 @@ private fun Dots(n: Int) {
     }
 }
 
-/** 질문 자리 — 앞 네 줄은 기승전결(일기 §2-1), 그 뒤는 자유. 부모에게는 「기승전결」 대신 묻는 말로 보여 준다 */
+/** 기승전결 네 자리 — 부모에게는 「기승전결」 대신 묻는 말로 보여 준다 (템플릿 질문 0~3과 같은 순서) */
 private val COOP_PARTS = listOf("어디", "무슨 일", "왜", "어떻게 됐나")
-private const val COOP_MAX = 6          // 6쪽 책에 장면이 6개다 (구현설계 §1-③)
 
-/** 추천 — 지금은 대본이다. 나중에 LLM이 "찬 칸을 보고" 추천한다 (guidelines/9 §9-5 "추천하는 정도로만") */
-private val COOP_SUGGESTIONS = listOf(
-    "오늘 어디 갔었어?",
-    "거기서 무슨 일이 있었어?",
-    "왜 그랬을까?",
-    "그래서 어떻게 됐어?",
-    "오늘 제일 재밌었던 게 뭐였어?",
-    "누구랑 같이 있었어?",
+/**
+ * 부모가 더 적을 수 있는 질문 수 — 꼬리질문 자리에 끼워 묻는데, 조건 없이 늘 묻는 꼬리질문 자리가 다섯이다
+ * (`CoopSteps.kt` · companion · detail · try · after · keep). 더 받으면 못 묻고 끝나는 질문이 생긴다
+ */
+const val COOP_MAX = 5
+
+/** 추천 — 지금은 대본이다. 나중에 LLM이 고른 이야기를 보고 추천한다 (guidelines/9 §9-5 "추천하는 정도로만") */
+val COOP_SUGGESTIONS = listOf(
+    "제일 재밌었던 게 뭐였어?",
+    "거기서 누구를 만났어?",
+    "그때 어떤 기분이 들었어?",
+    "다음엔 뭐 해 보고 싶어?",
 )
 
 /**
- * 같이 만들기(옛 이름 협업 질문) — **부모가 이야기 전에 질문을 적어 두는 곳** (구현설계 §2-1 · 부모협업모드_설계 §0 9/22 개정).
- * 이 화면이 협업 모드의 절반이다 — 나머지 절반은 마스코트가 이 질문을 아이에게 읽어 주는 것(CoopScenes).
+ * 같이 만들기(옛 이름 협업 질문) — **부모가 이야기를 고르고, 더 물어볼 질문을 적어 두는 곳** (09-30 개정).
+ * 이 화면이 협업 모드의 절반이다 — 나머지 절반은 오또가 일반 모드처럼 묻되 고른 이야기에 맞추는 것(CoopScenes).
  *
- * - 자리는 지금 **위치**로 정한다 (0~3 = 어디·무슨 일·왜·어떻게, 4~ = 자유). 홀더가 `List<String>` 이라서다.
- *   `ParentQuestion(part, text)` 로 바뀌면(조장 요청) 이 위치 규칙은 필드로 옮긴다
+ * - 템플릿은 **맥락**이다 — 질문 줄을 채우지 않는다. 오또가 기승전결 네 자리에서 그 맥락으로 묻는다
+ * - 적은 질문은 **끼워 넣는 것**이다 — 네 자리가 아니라 꼬리질문 자리에 적은 순서대로 들어간다
  * - 글자만 받는다. 음성 입력은 안 한다 (구현설계 §1-⑤)
  * - 귀띔은 [questionHint] — 막지도 점수를 매기지도 않는다 (§1-⑥ · 설계 §7)
  * - 빈 줄은 그대로 둔다. 읽는 쪽(CoopScenes)이 빈 줄을 건너뛴다
@@ -533,17 +536,17 @@ private fun CoopQuestionsTab(c: CoopDraft) {
     }
 
     PCard(Modifier.fillMaxWidth()) {
-        Text(if (c.hasSaved) "저장된 이야기를 고치는 중이에요" else "오늘 아이에게 물어볼 것을 적어 두세요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
-        Text("템플릿을 고르거나 질문을 적은 뒤 아래 [저장하기]를 눌러야 확정돼요. 저장하면 아이가 오또의 방에서 소파(같이 만들기)를 누를 때 마스코트가 이 순서대로 대신 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
+        Text(if (c.hasSaved) "저장된 이야기를 고치는 중이에요" else "오늘 아이와 만들 이야기를 골라 두세요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
+        Text("이야기를 고르거나 질문을 적은 뒤 아래 [저장하기]를 눌러야 확정돼요. 아이가 오또의 방에서 소파(같이 만들기)를 누르면 오또가 평소처럼 물어보되, 고른 이야기에 맞춰 묻고 적어 둔 질문도 중간에 끼워 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
     }
 
     CoopTemplateCards(c)
 
-    Section("질문", "네 자리를 먼저 채우고, 더 있으면 [＋]")
-    val rows = maxOf(COOP_PARTS.size, qs.size)
+    Section("더 물어볼 질문 (선택)", "오또가 이야기 중간에 적은 순서대로 끼워서 물어봐요 · ${COOP_MAX}개까지")
+    val rows = maxOf(1, qs.size)
     for (i in 0 until rows) {
         val text = qs.getOrNull(i) ?: ""
-        val label = COOP_PARTS.getOrNull(i) ?: "자유"
+        val label = "질문 ${i + 1}"
         PCard(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(label, fontSize = 13.sp, color = PSub, modifier = Modifier.width(72.dp))
@@ -552,7 +555,7 @@ private fun CoopQuestionsTab(c: CoopDraft) {
                     onValueChange = { set(i, it) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    placeholder = { Text("예: ${COOP_SUGGESTIONS.getOrElse(i) { COOP_SUGGESTIONS.last() }}", fontSize = 14.sp, color = PSub.copy(alpha = 0.6f)) },
+                    placeholder = { Text("예: ${COOP_SUGGESTIONS[i % COOP_SUGGESTIONS.size]}", fontSize = 14.sp, color = PSub.copy(alpha = 0.6f)) },
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = PBg, unfocusedContainerColor = PBg,
                         focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
@@ -610,7 +613,7 @@ private fun CoopQuestionsTab(c: CoopDraft) {
         Column {
             listOf(
                 "ⓘ 넣은 질문에 점수를 매기지 않아요. 아이가 더 길게 답할 만한 방법만 귀띔해요.",
-                "ⓘ 질문이 모자라면 마스코트가 이야기에 맞춰 이어서 물어봐요.",
+                "ⓘ 질문을 안 적어도 괜찮아요. 오또가 고른 이야기에 맞춰 처음부터 끝까지 물어봐요.",
                 "ⓘ 아이 말은 마이크로 받고, 이름은 가린 뒤에야 밖으로 나가요.",
             ).forEach { Text(it, fontSize = 11.sp, color = PSub) }
         }
@@ -619,14 +622,13 @@ private fun CoopQuestionsTab(c: CoopDraft) {
 
 /**
  * 템플릿으로 준비하기 — **장소 · 직업 · 스포츠 → 요소 하나(직접 쓰기 포함) → 고른 이유** (09-29 · [COOP_KINDS]).
- * 고를 때마다 네 자리가 채워진다. 채우기만 한다 — 홀더(`parentQuestions`)와 마스코트가 읽는 흐름(CoopScenes)은 그대로다.
- * 채운 뒤에도 아래 입력 줄은 열려 있어 줄 단위로 고칠 수 있고, 요소 · 이유를 바꾸면 **손으로 고친 줄은 그대로** 둔다([refillBlank]).
- * 고른 것은 초안([CoopDraft])에만 담기고, [저장하기]를 눌러야 `s.coopPick` 에 남는다 — 오또가 「‘소방관’ 이야기야」라고 소개할 때 쓴다.
+ * 고른 것은 **이야기의 맥락**이다 (09-30) — 질문 줄(`parentQuestions`)은 건드리지 않는다. 오또가 기승전결 네 자리에서
+ * 이 맥락에 맞춰 묻고([templateQuestions]), 부모에게는 그 질문을 미리 보여 준다([CoopTemplatePreview]).
+ * 고른 것은 초안([CoopDraft])에만 담기고, [저장하기]를 눌러야 `s.coopPick` 에 남는다.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CoopTemplateCards(c: CoopDraft) {
-    val qs = c.qs
     val pick = c.pick
     var kindKey by remember { mutableStateOf(pick?.kind) }
     var typing by remember { mutableStateOf(false) }
@@ -634,20 +636,14 @@ private fun CoopTemplateCards(c: CoopDraft) {
     var err by remember { mutableStateOf<String?>(null) }
     val kind = kindKey?.let { coopKind(it) }
 
-    fun reasonOf(p: CoopPick?) = p?.reason?.let { r -> CoopReason.entries.firstOrNull { it.key == r } }
+    fun reasonOf(p: CoopPick?) = p?.reasonOrNull()
 
-    /** 고른 것을 네 줄로 — 처음이면 네 줄을 갈고, 이미 템플릿으로 채웠으면 손대지 않은 줄만 바꾼다 */
+    /** 고른 것을 초안에 — 맥락만 담는다. 적어 둔 질문은 그대로 */
     fun apply(k: CoopKind, name: String, reason: CoopReason?) {
-        val old = c.pick
-        val oldLines = old?.let { o -> coopKind(o.kind)?.questions(o.name, reasonOf(o)) }
-        val newLines = k.questions(name, reason)
-        val cur = qs.toList()
-        val lines = if (oldLines != null && cur.isNotEmpty()) refillBlank(cur, oldLines, newLines) else fillFromTemplate(cur, newLines)
-        qs.clear(); qs.addAll(lines)
         c.pick = CoopPick(k.key, name, reason?.key)
     }
 
-    Section("템플릿으로 준비하기", "고르면 아래 네 자리가 채워져요 · [저장하기]로 확정")
+    Section("이야기 고르기", "고르면 오또가 이 이야기에 맞춰 물어봐요 · [저장하기]로 확정")
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         COOP_KINDS.forEach { k ->
             val on = kind?.key == k.key
@@ -715,11 +711,32 @@ private fun CoopTemplateCards(c: CoopDraft) {
         }
     }
     Text("안 고르면 상상 이야기로 물어봐요.", fontSize = 11.sp, color = PSub, modifier = Modifier.padding(top = 4.dp))
+
+    CoopTemplatePreview(picked)
+}
+
+/** 고른 이야기로 오또가 네 자리에서 물을 질문 — 미리 보기. 지금은 틀에 이름을 끼운 대본, LLM이 붙으면 아이 답에 맞춰 달라진다 */
+@Composable
+private fun CoopTemplatePreview(pick: CoopPick) {
+    val lines = pick.templateQuestions()
+    if (lines.isEmpty()) return
+    Section("오또가 이렇게 물어봐요", "이야기 뼈대 네 자리 · 아이가 어려워하면 쉬운 말로 바꿔 물어요")
+    PCard(Modifier.fillMaxWidth()) { CoopTemplateLines(lines) }
+}
+
+@Composable
+private fun CoopTemplateLines(lines: List<String>) {
+    lines.forEachIndexed { i, q ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(COOP_PARTS.getOrNull(i) ?: "", fontSize = 12.sp, color = PSub, modifier = Modifier.width(72.dp))
+            Text("“$q”", fontSize = 14.sp, color = Ink, modifier = Modifier.weight(1f))
+        }
+    }
 }
 
 /**
  * 같이 만들기 **초안** (09-30 사용자 요청 — 고르자마자 확정되던 것을 [저장하기]로 확정하게).
- * 템플릿 · 질문 줄은 여기에만 쓰고, [save] 할 때 `s.parentQuestions` · `s.coopPick` 으로 옮긴다.
+ * 고른 이야기 · 질문 줄은 여기에만 쓰고, [save] 할 때 `s.coopPick` · `s.parentQuestions` 로 옮긴다.
  * 그래서 저장하기 전에는 소파에 🎁 가 붙지 않고, 부모 모드를 나가면 저장 안 한 초안은 버려진다.
  * 저장한 뒤에는 [CoopSavedCard] 가 보이고, 거기서 [edit](수정) · [delete](삭제)를 한다.
  */
@@ -727,13 +744,14 @@ private class CoopDraft(private val s: DemoState) {
     val qs = mutableStateListOf<String>()
     var pick by mutableStateOf<CoopPick?>(null)
     /** 저장된 것이 없으면 처음부터 고치는 화면, 있으면 저장된 카드부터 */
-    var editing by mutableStateOf(!s.hasCoopQuestions)
+    var editing by mutableStateOf(!s.coopReady)
     var askDelete by mutableStateOf(false)
 
     init { load() }
 
-    val hasSaved: Boolean get() = s.hasCoopQuestions
-    val filled: Boolean get() = qs.any { it.isNotBlank() }
+    val hasSaved: Boolean get() = s.coopReady
+    /** 이야기를 골랐거나 질문을 하나라도 적었나 */
+    val filled: Boolean get() = pick != null || qs.any { it.isNotBlank() }
     val dirty: Boolean get() = qs.toList() != s.parentQuestions.toList() || pick != s.coopPick
     /** 저장할 수 있나 — 바뀐 게 있고, 비어 있지 않을 때 (다 지우고 싶으면 [삭제하기]) */
     val canSave: Boolean get() = dirty && filled
@@ -742,13 +760,13 @@ private class CoopDraft(private val s: DemoState) {
 
     fun edit() { load(); askDelete = false; editing = true }
 
-    fun cancel() { load(); editing = !s.hasCoopQuestions }
+    fun cancel() { load(); editing = !s.coopReady }
 
     fun save() {
         if (!canSave) return
         s.parentQuestions.clear(); s.parentQuestions.addAll(qs.dropLastWhile { it.isBlank() })
         s.parentQIndex = 0
-        s.coopPick = pick.takeIf { filled }
+        s.coopPick = pick
         load(); editing = false
     }
 
@@ -777,13 +795,22 @@ private fun CoopSavedCard(c: CoopDraft) {
             }
         }
         Spacer(Modifier.height(12.dp))
-        Text("아이가 소파를 누르면 오또가 이 순서대로 물어봐요", fontSize = 13.sp, color = PSub)
-        Spacer(Modifier.height(6.dp))
-        c.qs.forEachIndexed { i, q ->
-            if (q.isBlank()) return@forEachIndexed
-            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(COOP_PARTS.getOrNull(i) ?: "자유", fontSize = 12.sp, color = PSub, modifier = Modifier.width(72.dp))
-                Text("“$q”", fontSize = 14.sp, color = Ink, modifier = Modifier.weight(1f))
+        val lines = pick?.templateQuestions().orEmpty()
+        if (lines.isNotEmpty()) {
+            Text("오또가 이야기 뼈대 네 자리에서 이렇게 물어봐요", fontSize = 13.sp, color = PSub)
+            Spacer(Modifier.height(6.dp))
+            CoopTemplateLines(lines)
+        }
+        val mine = c.qs.filter { it.isNotBlank() }
+        if (mine.isNotEmpty()) {
+            if (lines.isNotEmpty()) Spacer(Modifier.height(10.dp))
+            Text("적어 둔 질문 · 이야기 중간에 이 순서로 끼워 물어봐요", fontSize = 13.sp, color = PSub)
+            Spacer(Modifier.height(6.dp))
+            mine.forEachIndexed { i, q ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("질문 ${i + 1}", fontSize = 12.sp, color = PSub, modifier = Modifier.width(72.dp))
+                    Text("“$q”", fontSize = 14.sp, color = Ink, modifier = Modifier.weight(1f))
+                }
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -799,7 +826,7 @@ private fun CoopSavedCard(c: CoopDraft) {
             Box(Modifier.bringIntoViewRequester(bring).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFDECE8)).padding(12.dp)) {
                 Column {
                     Text("저장된 이야기를 지울까요?", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
-                    Text("지우면 소파의 🎁 표시가 없어지고, 질문을 처음부터 다시 적어야 해요.", fontSize = 12.sp, color = PSub)
+                    Text("지우면 소파의 🎁 표시가 없어지고, 이야기를 처음부터 다시 골라야 해요.", fontSize = 12.sp, color = PSub)
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         PButton("아니요", PSub, Modifier.weight(1f), outline = true) { c.askDelete = false }

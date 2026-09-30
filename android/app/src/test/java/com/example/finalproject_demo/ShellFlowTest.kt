@@ -162,7 +162,6 @@ class ShellFlowTest {
         tap("알겠어!")
         compose.waitUntil(5_000) { count("아직 준비된 이야기가 없어!") == 0 }
         // 준비해 두면 🎁 표시가 붙고, 무슨 이야기인지 알려 준다
-        director.s.parentQuestions.addAll(listOf("소방관은 어디서 일할까?", "거기서 무슨 일을 할까?", "왜 그 일이 필요할까?", "일이 다 끝나면 어떻게 될까?"))
         director.s.coopPick = com.example.finalproject_demo.demo.CoopPick("job", "소방관", "soon")
         compose.waitForIdle()
         tap("같이 만들기")
