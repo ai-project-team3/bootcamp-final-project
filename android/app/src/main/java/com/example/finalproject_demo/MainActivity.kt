@@ -114,6 +114,8 @@ fun DemoApp() {
 
     val pinStage = s.stage as? Stage.Pin
     val bubbleHidden = s.scene in setOf(Scene.ADULT, Scene.BOOK, Scene.PARENT) || pinStage != null
+    // 그림일기 화면은 대사 칸 · 별 막대를 스스로 그린다 (D1 작은 말풍선 · D3 별 둘 · D5 없음 — ui/DiaryViews.kt)
+    val diaryOwnsChrome = s.stage is com.example.finalproject_demo.demo.DiaryStage
 
     Box(Modifier.fillMaxSize().background(Bg)) {
       // 처음 설정(스플래시 · 로그인 · 동의 …)이 끝나기 전에는 흐름 화면을 그리지 않는다 (09-29).
@@ -127,7 +129,7 @@ fun DemoApp() {
         // 맨 위 가운데 — 별 모으기 진행만 (09-29 디자인 시스템: 화면 이름 칩은 없다 — 아이는 글을 못 읽는다)
         // 필수 칸은 동화 모드 6개 · 일기 모드 기승전결 네 자리 (일기 설계 §2-1)
         // 막대는 **물은 질문 수**로 찬다 (9/22). 끝나는 조건은 여전히 filled/reqCount 가 정한다 (Model.askTotal)
-        if (s.progressVisible && pinStage == null) ProgressTrack(s.askDone, s.askTotal, Modifier.align(Alignment.TopCenter).padding(top = 4.dp))
+        if (s.progressVisible && pinStage == null && !diaryOwnsChrome) ProgressTrack(s.askDone, s.askTotal, Modifier.align(Alignment.TopCenter).padding(top = 4.dp))
 
         // 왼쪽 위 = 시스템 — 🏠 방으로 · 🔒 부모 문(2초). 방 · 부모 · 책장은 자기 버튼이 있어 뺀다
         val kidScreen = pinStage == null && s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF)
@@ -161,7 +163,7 @@ fun DemoApp() {
         //
         // 이제 Column으로 쌓는다 — 위가 마스코트 말풍선, 아래가 부모 띠. 겹칠 수가 없다.
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
-            if (!bubbleHidden) MascotBubble(d, Modifier.padding(start = 8.dp, bottom = 6.dp))
+            if (!bubbleHidden && !diaryOwnsChrome) MascotBubble(d, Modifier.padding(start = 8.dp, bottom = 6.dp))
             // 아이 화면 위에 덮지 않고 아래에 띠로 붙는다: 아이는 위 그림을, 부모는 아래 글자를 본다
             if (pinStage == null) ParentBand(d)
         }
