@@ -94,6 +94,17 @@ class ParentViewTest {
         }
         val demo = "🎬 오늘 이야기 시연 답"
         if (await(2_000) { s.buttons.any { demo in it.label } } != null) answerAll(demo) else answerAll()
+        if (s.mode == StoryMode.DIARY) {
+            // 그림일기(09-30) — 책을 일기 장면 안에서 끝까지 넘기면 선물로 간다
+            var guard = 0
+            while (s.scene == Scene.DIARY && guard++ < 40) {
+                val b = s.buttons.firstOrNull { "😄" in it.label } ?: s.buttons.firstOrNull { "다음 쪽" in it.label || "다 읽었어" in it.label }
+                if (b == null) { delay(20); continue }
+                b.onClick(); delay(30)
+            }
+            assertTrue("그림일기 끝까지 못 갔다 scene=${s.scene} end=${s.endReason}", await(20_000) { s.scene == Scene.END } != null)
+            return
+        }
         if (await(3_000) { s.buttons.any { "안 그릴래" in it.label } } != null) tap("안 그릴래")
         assertTrue("책까지 못 갔다 scene=${s.scene} end=${s.endReason}", await(20_000) { s.scene == Scene.BOOK } != null)
     }

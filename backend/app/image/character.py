@@ -34,6 +34,35 @@ class CutoutError(Exception):
     pass
 
 
+DRAWING = 1024      # SDXL's square
+DRAWING_FILL = 0.8  # the drawing takes up this much of the square, white around it
+
+
+def prepare_drawing(png: bytes) -> bytes:
+    """The child's piece (transparent background, only what was drawn) → 1024² RGB on white.
+
+    Transparent pixels become white so img2img sees paper, not black. Raises CutoutError on
+    something that is not a picture. Runs in memory; the caller keeps no copy.
+    """
+    try:
+        im = Image.open(io.BytesIO(png))
+        im.load()
+    except Exception as e:
+        raise CutoutError(f"not a picture: {type(e).__name__}") from e
+    im = im.convert("RGBA")
+    box = im.getchannel("A").getbbox()
+    if not box:
+        raise CutoutError("empty drawing")
+    im = im.crop(box)
+    w, h = im.size
+    scale = DRAWING * DRAWING_FILL / max(w, h)
+    im = im.resize((max(1, round(w * scale)), max(1, round(h * scale))), Image.LANCZOS)
+    paper = Image.new("RGBA", (DRAWING, DRAWING), (255, 255, 255, 255))
+    paper.alpha_composite(im, ((DRAWING - im.width) // 2, (DRAWING - im.height) // 2))
+    out = io.BytesIO(); paper.convert("RGB").save(out, "PNG")
+    return out.getvalue()
+
+
 def template(rig: str) -> bytes | None:
     """The grey mannequin for this rig, or None (blob has no pose to keep)."""
     p = TEMPLATES / f"{rig}.png"
@@ -120,8 +149,11 @@ def _fill_holes(blob: np.ndarray) -> np.ndarray:
     return blob | ~outside
 
 
-def cut_and_fit(png: bytes) -> bytes:
-    """Generated PNG (white-ish background) → 640² RGBA, feet on the 93% line. Raises CutoutError."""
+def cut_and_fit(png: bytes, centered: bool = False) -> bytes:
+    """Generated PNG (white-ish background) → 640² RGBA, feet on the 93% line. Raises CutoutError.
+
+    centered: a redrawn piece of a diary drawing (a house, a sun) has no feet and no rig —
+    it goes in the middle instead, no wider or taller than 90%."""
     im = Image.open(io.BytesIO(png)).convert("RGB")
     small = im.resize((256, 256), Image.BILINEAR)           # find the blob small, apply it large
     mask = _foreground(np.asarray(small))
@@ -147,11 +179,12 @@ def cut_and_fit(png: bytes) -> bytes:
 
     # fit: feet on 93%, no taller than the headroom allows, no wider than 75%
     w, h = doll.size
-    scale = min(SIZE * (FEET - TOP) / h, SIZE * MAX_W / w)
+    scale = (min(SIZE * 0.9 / h, SIZE * 0.9 / w) if centered
+             else min(SIZE * (FEET - TOP) / h, SIZE * MAX_W / w))
     doll = doll.resize((max(1, round(w * scale)), max(1, round(h * scale))), Image.LANCZOS)
     canvas = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
     x = (SIZE - doll.width) // 2
-    y = round(SIZE * FEET) - doll.height
+    y = (SIZE - doll.height) // 2 if centered else round(SIZE * FEET) - doll.height
     canvas.alpha_composite(doll, (x, y))
     out = io.BytesIO(); canvas.save(out, "PNG")
     return out.getvalue()

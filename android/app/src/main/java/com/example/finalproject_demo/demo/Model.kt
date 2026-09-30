@@ -952,16 +952,16 @@ class DemoState {
 
     /**
      * 필수 칸 — 동화 모드는 6개(장소 · 문제 · 까닭 · 등장인물 · 소리 · 해결, 구현대본 §2),
-     * 일기 모드는 **기승전결 네 자리**(장소 · 문제 · 까닭 · 해결, 일기 설계 §2-1).
+     * 일기 모드는 **장소 · 문제 둘**(그림일기 · 09-30 조장 확정 #29), 협업 모드는 **기승전결 네 자리**(장소 · 문제 · 까닭 · 해결).
      *
      * 일기 모드가 묻지 않는 칸: `sound`(공룡 소리는 상상 세계의 것) · `adult` · `companion` (§2-2).
      * 새 칸 이름은 만들지 않는다 — 판정 스키마의 슬롯 12종 안에서 끝낸다 (guidelines/2 §1-1).
      */
     val reqSlots: List<String?>
-        get() = if (isDiary) listOf(place, problem, cause, solution)
+        get() = if (mode == StoryMode.DIARY) listOf(place, problem) else if (isDiary) listOf(place, problem, cause, solution)
         else listOf(place, problem, cause, newcomer, sound, solution)
 
-    val reqCount: Int get() = if (isDiary) 4 else 6
+    val reqCount: Int get() = if (mode == StoryMode.DIARY) 2 else if (isDiary) 4 else 6
     val filled: Int get() = reqSlots.count { it != null }
 
     /**

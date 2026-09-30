@@ -544,6 +544,7 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
             }
 
             is Stage.DrawPad -> DrawPadView(d, stage.forAnswer)
+            is com.example.finalproject_demo.demo.DiaryStage -> DiaryStageView(d, stage)   // 그림일기 화면 (#28 · ui/DiaryViews.kt)
 
             is Stage.MouthTap -> Centered {
                 Box(

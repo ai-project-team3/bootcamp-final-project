@@ -184,6 +184,21 @@
 - 실측(09-29, 모델이 올라간 뒤): 로봇 · 공룡 · 문어 · 괴물 모두 깔끔 · **6.6~8.2초**. 서버를 막 켠 직후는 준비 그림과 겹쳐 13초에 걸릴 수 있다 → 프리셋. 한 종류 두세 장만 봤다 — 믿기 전에 더 뽑아 본다
 - 앱: `Server.character(description, mode)` → `Character(png, rig)` 또는 null
 
+**오또가 대신 그려 주기 (`kind: redraw` · 09-30 · 이슈 #32)** — 일기 화이트보드에서 아이가 **고른** 조각 하나를 오또 그림으로 다시 그린다.
+
+```json
+요청  { "kind": "redraw", "description": "우리 집", "png_base64": "iVBOR...", "mode": "diary" }
+응답  { "preset": false, "reason": "ok", "scene": "small red house with a blue roof", "rig": null, "png_base64": "iVBOR..." }
+      { "preset": true,  "reason": "check: flagged", "png_base64": null }
+```
+- 보내는 것: 조각 한 장(**배경 투명 · 그린 부분만** · base64 400만 자 이하) + 조각 이름(**이름을 가린** 글자)
+- 받는 것: **640×640 · 배경 투명 · 가운데** 놓인 그림. 뼈대(`rig`)는 없다 — 책에서 조각은 움직임 효과만 받는다
+- 만드는 법: 조각 이름 → 캐릭터와 같은 주문 LLM(글자만 · 그림은 안 보냄) → 흰 종이 위에 올린 조각에서 **img2img(세기 0.9)** → 오려 내기 → **안전 검사(만든 그림만)**
+- **아이 원본을 지키는 법** (`guidelines/1` §1-5): ComfyUI 기본 입출력(`/upload/image` · `SaveImage`)은 **PC2 디스크에 파일을 남긴다** → 그림을 요청 안에 실어 보내고 결과도 메모리로 받는 노드 둘(`backend/comfy_nodes/otto_memory.py`)을 쓰고, 받자마자 ComfyUI 기록을 지운다. 로그 · 오류 메시지에도 그림을 찍지 않는다. **이 노드가 없는 ComfyUI 면 프리셋**(원본은 그때도 디스크에 안 남는다)
+- 실패는 전부 `preset: true` — 앱은 **아이 원본을 그대로** 쓴다
+- 실측(09-30, 조장 PC · 모델이 올라간 뒤): **3.8~4.9초**. 세기 0.6~0.8 은 선 그림이 **그대로 돌아온다**, 0.9 부터 오또 그림이 되지만 **씨앗(seed)에 따라 선 그림으로 남기도 한다** — 스크립트로 그린 조각 3개 × 6장뿐, **진짜 아이 그림으로 다시 재야 한다**(`eval/results.md` 09-30)
+- 앱: `Server.redraw(png, description, mode)` → `ByteArray?` (null = 원본 유지)
+
 ---
 
 ## 3-4. `POST /stt` — 말소리 구간만
