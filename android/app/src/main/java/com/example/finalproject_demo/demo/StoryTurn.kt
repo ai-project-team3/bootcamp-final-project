@@ -59,29 +59,39 @@ suspend fun Director.askStory(
     ))
 }
 
-suspend fun DemoState.exchangeStoryTurn(
-    askedSlot: String?, question: String, utterance: String,
-    by: String = "child",
+suspend fun DemoState.exchangeTurn(
+    mode: String, askedSlot: String?, question: String, utterance: String,
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult? {
-    if (mode != StoryMode.STORY || utterance.isBlank()) return null
+    if (utterance.isBlank()) return null
     val mask = nameMask()
     val response = request(Server.Turn(
-        mode = "story",
+        mode = mode,
         slots = mask.maskSlots(slots),
         askedSlot = askedSlot?.takeIf { it in Server.SLOTS },
         question = mask.mask(question),
         utterance = mask.mask(utterance),
         turn = turn,
-        template = templateKey,
+        template = if (mode == "story") templateKey else null,
         level = level.name.lowercase(),
     )) ?: return null
     val verdict = response.verdict?.copy(
         fills = response.verdict.fills.map { (slot, value) -> slot to mask.unmask(value) },
     )
-    verdict?.let { applyStoryVerdict(it, by) }
     val line = response.line?.let {
         Server.Line(mask.unmask(it.ack), it.expand?.let(mask::unmask), it.question?.let(mask::unmask))
     }
     return Server.TurnResult(verdict, line)
+}
+
+/** Story owns how to apply the result; other modes use exchangeTurn without changing their state. */
+suspend fun DemoState.exchangeStoryTurn(
+    askedSlot: String?, question: String, utterance: String,
+    by: String = "child",
+    request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
+): Server.TurnResult? {
+    if (mode != StoryMode.STORY) return null
+    return exchangeTurn("story", askedSlot, question, utterance, request)?.also { response ->
+        response.verdict?.let { applyStoryVerdict(it, by) }
+    }
 }
