@@ -1,0 +1,45 @@
+name: Deploy backend (PC1)
+
+on:
+  push:
+    branches: [release]
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, pc1]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify .env exists
+        run: |
+          if (-not (Test-Path ".env")) {
+            Write-Error ".env not found at repo root — copy it before deploying (see docs/서버_세팅.md)"
+            exit 1
+          }
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: py -m pip install -r requirements.txt
+
+      - name: Stop existing backend
+        run: .\scripts\deploy\stop_backend.ps1
+
+      - name: Start backend
+        run: .\scripts\deploy\start_backend.ps1
+
+      - name: Health check
+        run: |
+          $ok = $false
+          $result = $null
+          for ($i = 0; $i -lt 15; $i++) {
+            try {
+              $result = Invoke-RestMethod -Uri http://127.0.0.1:8010/health -TimeoutSec 3
+              if ($result.status -eq "ok" -and $result.mock -eq $false) { $ok = $true; break }
+            } catch {}
+            Start-Sleep -Seconds 2
+          }
+          if (-not $ok) {
+            Write-Error "backend did not come up healthy within 30s"
+            exit 1
+          }
+          Write-Host "backend healthy: mock=$($result.mock)"
