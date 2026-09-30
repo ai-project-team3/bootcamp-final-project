@@ -41,12 +41,11 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null): StoryPrompt? {
     return StoryPrompt(null, "이야기를 조금 더 들려줄래?")
 }
 
-/** 턴 수는 종료 조건이 아니다. 서버 완료, 연속 대리 선택, 경과 시간만 본다. */
+/** 시간과 대리 선택 횟수로 끝내지 않는다. story_ready만 책 제작을 시작한다. */
+@Suppress("UNUSED_PARAMETER")
 fun DemoState.storyEndCondition(startedAtMs: Long, nowMs: Long): String? = when {
     mode != StoryMode.STORY -> null
     storyReady -> "story_ready"
-    mascotPicks >= 2 -> "mascot_pick"
-    nowMs - startedAtMs >= 15 * 60 * 1000L -> "time_limit"
     else -> null
 }
 

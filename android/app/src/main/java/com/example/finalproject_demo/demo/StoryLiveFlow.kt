@@ -35,8 +35,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         }
     }
     if (s.storyStartedAtMs == 0L) s.storyStartedAtMs = System.currentTimeMillis()
-    val remaining = (15 * 60 * 1000L - (System.currentTimeMillis() - s.storyStartedAtMs)).coerceAtLeast(1)
-    val completed = withTimeoutOrNull(remaining) {
+    run {
         while (true) {
             val end = s.storyEndCondition(s.storyStartedAtMs, System.currentTimeMillis())
             if (end != null) { s.endReason = end; break }
@@ -66,7 +65,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 s.slots["extra"] = additions.joinToString("; ")
                 s.slotBy["extra"] = by
                 event("slot_filled", "slot" to "extra", "of" to prompt.slot, "value" to value, "source" to by)
-            } else if (by != "child" && prompt.slot != null) {
+            } else if (by != "child" && prompt.slot != null && s.slots[prompt.slot].isNullOrBlank()) {
                 // A visible card or an audible mascot choice is a real choice, not child speech.
                 s.slots[prompt.slot] = value
                 s.slotBy[prompt.slot] = by
@@ -85,7 +84,6 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         }
         true
     }
-    if (completed == null) s.endReason = "time_limit"
     if (s.templateKey == null) decideTemplate("대화 종료")
     if (imageJob?.isCompleted == false) {
         inputs(false, false)

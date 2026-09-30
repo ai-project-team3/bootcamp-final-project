@@ -12,6 +12,7 @@ import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -33,6 +34,38 @@ class StoryLiveAskTest {
         while (job.isActive) {
             d.send(Reply.Spoke(answer))
             delay(100)
+        }
+    }
+
+    @Test
+    fun chosenAndMascotAnswersReachTheServerWithoutBecomingChildSpeech() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope)
+        d.s.speed = 0.01
+        Server.base = "http://127.0.0.1:1"
+        Server.liveModes = setOf(StoryMode.STORY)
+        try {
+            for (mascot in listOf(false, true)) {
+                var sent: Server.Turn? = null
+                val job = launch {
+                    val reply = d.askStory(Question("어디로 갈까?", Kind.EASY), "place") {
+                        sent = it
+                        Server.TurnResult(Server.Verdict("ok", listOf("place" to "숲"), "problem", null,
+                            false, false, null, false, true, true, null), null)
+                    }
+                    assertTrue(reply is Reply.Tapped)
+                }
+                val answer = launch {
+                    while (job.isActive) { d.send(Reply.Tapped("forest", "숲", byMascot = mascot)); delay(40) }
+                }
+                withTimeout(8_000) { job.join() }
+                answer.cancelAndJoin()
+                assertEquals("숲", sent?.utterance)
+                assertEquals(if (mascot) "mascot" else "card", d.s.slotBy["place"])
+                assertEquals("problem", d.s.storyNextSlot)
+            }
+        } finally {
+            Server.liveModes = emptySet(); Server.base = null; scope.cancel()
         }
     }
 

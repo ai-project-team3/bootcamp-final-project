@@ -31,8 +31,14 @@ suspend fun Director.askStory(
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Reply {
     val reply = ask(question)
-    if (!Server.liveFor(s.mode) || reply !is Reply.Spoke) return reply
-    val response = s.exchangeStoryTurn(askedSlot, question.text, reply.text, request)
+    if (!Server.liveFor(s.mode)) return reply
+    val utterance = when (reply) {
+        is Reply.Spoke -> reply.text
+        is Reply.Tapped -> reply.label
+        else -> return reply
+    }
+    val by = if (reply is Reply.Spoke) "child" else if ((reply as Reply.Tapped).byMascot) "mascot" else "card"
+    val response = s.exchangeStoryTurn(askedSlot, question.text, utterance, by, request)
     s.storyServerQuestion = response?.line?.question
     val line = response?.line
     val reaction = listOfNotNull(line?.ack?.takeIf(String::isNotBlank), line?.expand?.takeIf(String::isNotBlank))
@@ -43,6 +49,7 @@ suspend fun Director.askStory(
     }
     // Real STT replies carry no scripted Answer. Keep the child's exact words for the
     // existing recorder and attach only the signals the server actually returned.
+    if (reply !is Reply.Spoke) return reply
     val verdict = response?.verdict
     return reply.copy(answer = Answer(
         text = reply.text,
@@ -54,6 +61,7 @@ suspend fun Director.askStory(
 
 suspend fun DemoState.exchangeStoryTurn(
     askedSlot: String?, question: String, utterance: String,
+    by: String = "child",
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult? {
     if (mode != StoryMode.STORY || utterance.isBlank()) return null
@@ -71,7 +79,7 @@ suspend fun DemoState.exchangeStoryTurn(
     val verdict = response.verdict?.copy(
         fills = response.verdict.fills.map { (slot, value) -> slot to mask.unmask(value) },
     )
-    verdict?.let { applyStoryVerdict(it, "child") }
+    verdict?.let { applyStoryVerdict(it, by) }
     val line = response.line?.let {
         Server.Line(mask.unmask(it.ack), it.expand?.let(mask::unmask), it.question?.let(mask::unmask))
     }

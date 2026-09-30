@@ -67,13 +67,13 @@ class StoryPromptTest {
     }
 
     @Test
-    fun storyEndsOnlyForTheThreeSpecifiedReasons() {
+    fun onlyStoryReadyEndsTheStoryEvenAfterLongPlayAndRepeatedMascotChoices() {
         val s = DemoState()
         s.turn = 40
         assertNull(s.storyEndCondition(0, 14 * 60 * 1000L))
-        assertEquals("time_limit", s.storyEndCondition(0, 15 * 60 * 1000L))
+        assertNull(s.storyEndCondition(0, 60 * 60 * 1000L))
         s.mascotPicks = 2
-        assertEquals("mascot_pick", s.storyEndCondition(0, 0))
+        assertNull(s.storyEndCondition(0, 0))
         s.endReason = "story_ready"
         assertEquals("story_ready", s.storyEndCondition(0, 0))
     }
