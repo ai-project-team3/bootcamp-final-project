@@ -85,7 +85,9 @@ android {
                 // 기준 그림을 `app/screens` 에 두고 **검사할 때마다 대조**한다.
                 //   ./gradlew recordRoborazziDebug  → 기준 그림을 새로 찍는다 (화면을 일부러 바꿨을 때)
                 //   ./gradlew test                  → 기준과 달라지면 실패하고 build/screens 에 차이를 남긴다
-                it.systemProperty("roborazzi.test.verify", "true")
+                // 기준 그림은 조장 Windows PC에서 찍었다 — 다른 OS(예: CI의 Linux 러너)는 폰트·안티앨리어싱이
+                // 달라 항상 "is changed"로 실패한다. CI는 -ProborazziVerify=false 로 대조만 끈다.
+                it.systemProperty("roborazzi.test.verify", (findProperty("roborazziVerify") as String?) ?: "true")
             }
         }
     }
