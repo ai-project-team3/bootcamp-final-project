@@ -23,8 +23,9 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
     if (verdict.storyReady) endReason = "story_ready"
     storyNextSlot = verdict.nextSlot?.takeIf {
         !storyReady && it in Server.SLOTS && it != "extra" &&
-            it !in storyUnneededSlots && slots[it].isNullOrBlank()
+            it !in storyUnneededSlots && (slots[it].isNullOrBlank() || verdict.unclear)
     }
+    storyClarificationSlot = storyNextSlot?.takeIf { verdict.unclear }
 }
 
 suspend fun Director.askStory(
