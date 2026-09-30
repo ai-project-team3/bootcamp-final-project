@@ -59,6 +59,14 @@ _uploaded: dict[str, str] = {}          # rig → name in ComfyUI's input folder
 async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
     if req.kind == "background":
         return await comfy.background(scene)
+    if req.kind == "redraw":
+        # the child's drawing lives only in this call: decoded, sent to ComfyUI through
+        # memory (comfy_nodes/otto_memory.py), history entry deleted in comfy.run
+        drawing = await asyncio.to_thread(character.prepare_drawing, base64.b64decode(req.png_base64))
+        raw = await comfy.run(comfy.redraw_workflow(scene, random.randrange(2 ** 31),
+                                                    base64.b64encode(drawing).decode()))
+        del drawing
+        return await asyncio.to_thread(character.cut_and_fit, raw, True)
     tmpl = character.template(rig)
     if tmpl is not None and rig not in _uploaded:
         _uploaded[rig] = await comfy.upload(tmpl, f"otto_mannequin_{rig}.png")
@@ -69,13 +77,15 @@ async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
 async def _draw(req: ImageRequest) -> ImageResult:
     t0 = time.monotonic()
     field = "place" if req.kind == "background" else "description"
+    # a redraw orders its subject like a character does — only the words, never the drawing
+    order = "background" if req.kind == "background" else "character"
     try:
-        raw = await complete(system(req.kind), f"mode:{req.mode}\n{field}:{req.words}", schema(req.kind),
+        raw = await complete(system(order), f"mode:{req.mode}\n{field}:{req.words}", schema(order),
                              name=f"image_{req.kind}", effort=settings.llm_effort_judge, max_output_tokens=200)
     except LLMError as e:
         return preset(f"scene llm: {e}")
     scene = (raw.get("scene") or raw.get("subject") or "").strip()
-    rig = raw.get("rig") if req.kind == "character" else None
+    rig = raw.get("rig") if req.kind == "character" else None       # a redraw is not rigged
     if not raw.get("safe") or not scene:
         return preset("not drawable")
     # the scene words are ours now, but check them too: they go into an unfiltered model
@@ -88,8 +98,10 @@ async def _draw(req: ImageRequest) -> ImageResult:
         return preset(f"comfy: {e}", scene)
     except character.CutoutError as e:
         return preset(f"cutout: {e}", scene)
+    except (ValueError, TypeError):              # bad base64 — say nothing about the content
+        return preset("bad drawing", scene)
     t2 = time.monotonic()
-    ok, why = await check.is_safe(png)
+    ok, why = await check.is_safe(png)          # the generated picture only — never the child's
     log.info("image %s scene %.2fs draw %.2fs check %.2fs", req.kind, t1 - t0, t2 - t1, time.monotonic() - t2)
     if not ok:
         return preset(f"check: {why}", scene)
@@ -102,6 +114,8 @@ async def image(req: ImageRequest) -> ImageResult:
     if is_blocked(req.words):
         return preset(f"blocked word in {'place' if req.kind == 'background' else 'description'}")
     if settings.mock:
+        if req.kind == "redraw":                 # hand the drawing back: the app wires the path, no GPU
+            return ImageResult(preset=False, reason="mock", scene="mock scene", png_base64=req.png_base64)
         return ImageResult(preset=False, reason="mock", scene="mock scene",
                            rig="human" if req.kind == "character" else None,
                            png_base64=base64.b64encode(_MOCK_PNG).decode())
