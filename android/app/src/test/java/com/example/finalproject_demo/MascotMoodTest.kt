@@ -75,9 +75,7 @@ class MascotMoodTest {
         val s = d.s
         d.go(Scene.ADULT)
         assertTrue("시작 화면이 안 떴다", d.tap("오늘 있었던 일로"))
-        assertTrue("도감이 안 떴다", await { s.scene == Scene.BESTIARY } != null)
-        assertTrue("주인공을 못 골랐다", d.tap("카드를 탭"))
-        assertTrue("질문으로 안 왔다", await { s.scene == Scene.DIARY } != null)
+        assertTrue("그림일기로 바로 안 왔다", await { s.scene == Scene.DIARY } != null)
         if (await(2_000) { s.buttons.any { "그림 없이 이야기할래" in it.label } } != null) d.tap("그림 없이 이야기할래")
 
         // `tap` 을 쓰지 않는다 — 사다리 칸마다 「여전히 대답 없음」 이 떠서 버튼이 사라질 때까지 누르면 질문 끝까지 넘어간다.

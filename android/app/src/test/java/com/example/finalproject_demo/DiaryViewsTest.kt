@@ -3,8 +3,6 @@ package com.example.finalproject_demo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -15,11 +13,13 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
-import androidx.compose.ui.unit.dp
 import com.example.finalproject_demo.demo.BRUSH_PAUSE_MS
 import com.example.finalproject_demo.demo.DiaryAsk
 import com.example.finalproject_demo.demo.DiaryBoard
 import com.example.finalproject_demo.demo.DiaryFeel
+import com.example.finalproject_demo.demo.DiaryGift
+import com.example.finalproject_demo.demo.DiaryStart
+import com.example.finalproject_demo.demo.DiaryStitch
 import com.example.finalproject_demo.demo.DiaryPaper
 import com.example.finalproject_demo.demo.DiaryWeather
 import com.example.finalproject_demo.demo.Director
@@ -32,7 +32,6 @@ import com.example.finalproject_demo.demo.catchUp
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.newDiaryDay
 import com.example.finalproject_demo.ui.Bg
-import com.example.finalproject_demo.ui.MascotBubble
 import com.example.finalproject_demo.ui.StageView
 import com.example.finalproject_demo.ui.diaryAskPose
 import com.example.finalproject_demo.ui.shell.Pose
@@ -97,10 +96,8 @@ class DiaryViewsTest {
     private fun show(d: Director) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
-            Box(Modifier.fillMaxSize().background(Bg)) {
-                StageView(d)
-                MascotBubble(d, Modifier.align(Alignment.BottomStart).padding(8.dp))
-            }
+            // 일기 화면은 대사 칸을 스스로 그린다(D1 작은 말풍선 · D5 없음) — 앱 틀의 칸은 얹지 않는다
+            Box(Modifier.fillMaxSize().background(Bg)) { StageView(d) }
         }
         compose.mainClock.advanceTimeBy(2_500)
     }
@@ -221,5 +218,45 @@ class DiaryViewsTest {
         compose.mainClock.advanceTimeBy(6_000)
         snap("diary_paper_drawing")
         assertTrue("날씨가 그림의 해에서 켜지지 않았다", d.s.diaryDay.weather == DiaryWeather.SUN)
+    }
+
+    /** D0 — 방에서 손 흔드는 오또 · [그릴래!] · [그림 없이 말할래] (docs/일기모드_UI.html) */
+    @Test
+    fun theStartAsksToDrawOrTalkInTheRoom() {
+        val d = director()
+        d.s.newDiaryDay()
+        d.s.stage = DiaryStart
+        d.say("오늘 있었던 일을 그려 볼래? 생각나는 것부터 그려 줘.")
+        show(d)
+        snap("diary_start")
+        assertEquals("draw", (d.replyTo { compose.onNodeWithTag("diary-draw").performClick() } as? Reply.Tapped)?.value)
+        assertEquals("skip", (d.replyTo { compose.onNodeWithTag("diary-talk").performClick() } as? Reply.Tapped)?.value)
+    }
+
+    /** D4 — 흐린 아이 그림 위 「그림일기를 꿰매는 중…」 */
+    @Test
+    fun theBookIsStitchedOverTheDrawing() {
+        val d = director()
+        drawDay(d)
+        d.s.keepSceneDrawing()
+        d.s.stage = DiaryStitch
+        d.say("그림일기를 만들고 있어. 조금만 기다려 줘!")
+        show(d)
+        compose.onNodeWithText("그림일기를 꿰매는 중…").assertExists()
+        snap("diary_stitch")
+    }
+
+    /** D6 — 아이 그림이 표지인 책 · [책장에 꽂기] */
+    @Test
+    fun theDiaryIsGivenAsABookWithTheChildsDrawingOnTheCover() {
+        val d = director()
+        drawDay(d)
+        d.s.title = "우리 집 앞에서"
+        d.s.stage = DiaryGift
+        d.say("오늘 그림일기가 완성됐어! 책장에 꽂아 줄래?")
+        show(d)
+        compose.onNodeWithTag("d6-book").assertExists()
+        snap("diary_gift")
+        assertEquals("shelf", (d.replyTo { compose.onNodeWithTag("d6-shelf").performClick() } as? Reply.Tapped)?.value)
     }
 }

@@ -281,7 +281,9 @@ private suspend fun Director.sceneAdult() {
     // 일기 · 협업 모드는 "누구랑 같이 만들래?"를 묻지 않는다 (9/21 사용자 요청).
     // 재료가 아이의 실제 하루라 **오늘 누구와 있었는지는 이야기 안에서 묻는 것**이 자연스럽고(질문 2번),
     // 협업 모드는 옆에 있는 사람이 곧 질문하는 사람이라 따로 고를 이유가 없다.
-    if (s.isDiary) go(if (s.firstDay) Scene.MAKEHERO else Scene.BESTIARY) else go(Scene.PARTNER)
+    // 그림일기는 주인공을 고르지 않는다 — 주인공은 그림을 그리는 아이 자신이다 (docs/일기모드_UI.html · 방 → D0)
+    if (s.mode == StoryMode.DIARY) go(Scene.DIARY)
+    else if (s.isDiary) go(if (s.firstDay) Scene.MAKEHERO else Scene.BESTIARY) else go(Scene.PARTNER)
 }
 
 // ── 장면 2 · 도감 (⭐8 주인공 4칸 + 점선 ＋ 버튼) ──────────────────

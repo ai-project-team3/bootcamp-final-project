@@ -63,8 +63,8 @@ class FlowShotTest {
             throw it
         }
         compose.waitUntil(8_000) { d.s.scene != Scene.ADULT }
-        // 그림일기(09-30)는 일기 장면 안에서 책을 끝까지 읽고 선물(END)로 간다 — 동화 · 협업은 책(BOOK)에서 멈춘다
-        val bookScene = if (dir == "diary") Scene.END else Scene.BOOK
+        // 그림일기(09-30)는 일기 장면 안에서 책을 끝까지 읽고 책 선물(D6)에서 멈춘다 — 동화 · 협업은 책(BOOK)에서 멈춘다
+        val atEnd = { if (dir == "diary") d.s.stage is com.example.finalproject_demo.demo.DiaryGift else d.s.scene == Scene.BOOK }
         var last = ""
         var n = 0
         var micShot = false
@@ -89,11 +89,11 @@ class FlowShotTest {
                     compose.runOnIdle { d.s.micOn = false }
                 }
             }
-            if (d.s.scene == bookScene) break
+            if (atEnd()) break
             val b = pick(bs) ?: continue
             compose.runOnIdle { b.onClick() }
         }
-        assertTrue("$dir: 책까지 못 갔다 — ${d.s.scene} · ${d.s.buttons.map { it.label }}", d.s.scene == bookScene)
+        assertTrue("$dir: 책까지 못 갔다 — ${d.s.scene} · ${d.s.buttons.map { it.label }}", atEnd())
     }
 
     @Test fun storyLap() = lap("story", "동화 만들기")

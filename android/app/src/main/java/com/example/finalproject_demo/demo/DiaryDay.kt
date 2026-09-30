@@ -66,11 +66,11 @@ enum class DiaryWeather(val emoji: String, val label: String, private val drawn:
  * 오늘 기분 — 그림일기 마지막 줄. 아이가 마음을 말하지 않았을 때만 얼굴을 눌러 채운다(`by: card`).
  * 문장은 「오늘은」까지 써 두고 얼굴이 뒤를 채운다.
  */
-enum class DiaryFeel(val emoji: String, val line: String) {
-    EXCITED("😄", "오늘은 참 신났어요."),
-    GOOD("🙂", "오늘은 참 좋았어요."),
-    UPSET("😢", "오늘은 조금 속상했어요."),
-    TIRED("😴", "오늘은 조금 피곤했어요."),
+enum class DiaryFeel(val emoji: String, val line: String, val word: String) {
+    EXCITED("😄", "오늘은 참 신났어요.", "신나"),
+    GOOD("🙂", "오늘은 참 좋았어요.", "좋아"),
+    UPSET("😢", "오늘은 조금 속상했어요.", "속상해"),
+    TIRED("😴", "오늘은 조금 피곤했어요.", "피곤해"),
 }
 
 /** 화면이 읽는 것(조각 · 날씨 · 기분)은 Compose 상태라 바뀌면 그림판 · 그림일기가 다시 그려진다 */
@@ -82,6 +82,9 @@ class DiaryDay {
     var weatherBy by mutableStateOf<String?>(null)
 
     var feel by mutableStateOf<DiaryFeel?>(null)
+
+    /** 오또가 지금 「뭐 그린 거야?」라고 묻는 조각 — 그림판이 그 조각에 고리를 띄운다 */
+    var askingPiece by mutableStateOf<Int?>(null)
 
     /**
      * 서버 대화 호출(`/turn`) 수 — **세기만 하고 막지 않는다.**

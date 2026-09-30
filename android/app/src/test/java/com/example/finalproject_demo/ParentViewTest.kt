@@ -1,5 +1,6 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.DiaryGift
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -97,12 +98,12 @@ class ParentViewTest {
         if (s.mode == StoryMode.DIARY) {
             // 그림일기(09-30) — 책을 일기 장면 안에서 끝까지 넘기면 선물로 간다
             var guard = 0
-            while (s.scene == Scene.DIARY && guard++ < 40) {
+            while (s.scene == Scene.DIARY && s.stage !is DiaryGift && guard++ < 40) {
                 val b = s.buttons.firstOrNull { "😄" in it.label } ?: s.buttons.firstOrNull { "다음 쪽" in it.label || "다 읽었어" in it.label }
                 if (b == null) { delay(20); continue }
                 b.onClick(); delay(30)
             }
-            assertTrue("그림일기 끝까지 못 갔다 scene=${s.scene} end=${s.endReason}", await(20_000) { s.scene == Scene.END } != null)
+            assertTrue("그림일기 끝까지 못 갔다 scene=${s.scene} end=${s.endReason}", await(20_000) { s.stage is DiaryGift } != null)
             return
         }
         if (await(3_000) { s.buttons.any { "안 그릴래" in it.label } } != null) tap("안 그릴래")
@@ -203,8 +204,6 @@ class ParentViewTest {
             val s = d.s
             d.go(Scene.ADULT)
             assertTrue(d.tap("오늘 있었던 일로"))
-            assertTrue(await { s.scene == Scene.BESTIARY } != null)
-            assertTrue(d.tap("카드를 탭"))
             assertTrue(await { s.scene == Scene.DIARY } != null)
             d.diaryToBook()
         }
