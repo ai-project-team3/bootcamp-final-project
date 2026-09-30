@@ -1,8 +1,13 @@
 package com.example.finalproject_demo.net
 
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.example.finalproject_demo.demo.StoryMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
@@ -15,10 +20,11 @@ import java.net.URL
  * spec §3-0: *the app does not stop on an error.* A dead server must feel like a quiet
  * mascot, not a crash.
  *
- * **Off until an address is set** ([base] = null). The demo, the tests and every screenshot
- * run without a server exactly as before. Turn it on:
- * - emulator: `adb shell am start -n kr.clap.otto/com.example.finalproject_demo.MainActivity -e server http://10.0.2.2:8010`
- * - phone on USB: `adb reverse tcp:8010 tcp:8010`, then `-e server http://127.0.0.1:8010`
+ * **Off until an address is set** ([base] = null) **and** a mode is switched on ([liveModes]).
+ * The demo, the tests and every screenshot run without a server exactly as before. Turn it on:
+ * - emulator: `adb shell am start -n kr.clap.otto/com.example.finalproject_demo.MainActivity -e server http://10.0.2.2:8010 -e live all`
+ * - phone on USB: `adb reverse tcp:8010 tcp:8010`, then `-e server http://127.0.0.1:8010 -e live story`
+ * - or open the demo drawer and tap 「서버 연결」 per mode
  *
  * Owners of what goes through it: input `/stt` (조장 — 09-28 · was 민우), judge `/judge` (치영 · 민우 for the diary),
  * voice `/tts` (진웅), book `/story` (조장). This file is 조장's: ask before changing its shape.
@@ -26,6 +32,31 @@ import java.net.URL
 object Server {
     @Volatile var base: String? = null
     val on: Boolean get() = base != null
+
+    // ── mode switches (09-29) ──────────────────────────────────────
+    //
+    // Each mode owner guards every server call with `Server.liveFor(s.mode)`. A mode that is
+    // not switched on runs its script exactly as before — so a half-wired mode can be merged
+    // without breaking the other two ("merge regardless of quality", 09-29 mentoring).
+    // **Default: all off.** Turn on with `-e live story,diary,coop` (or `all`) next to
+    // `-e server …`, or per mode from the demo drawer.
+
+    /** Modes that go through the server. Compose state so the demo drawer redraws. */
+    var liveModes: Set<StoryMode> by mutableStateOf(emptySet())
+
+    /** True only when there is an address **and** this mode is switched on. */
+    fun liveFor(mode: StoryMode): Boolean = on && mode in liveModes
+
+    fun toggle(mode: StoryMode) {
+        liveModes = if (mode in liveModes) liveModes - mode else liveModes + mode
+    }
+
+    /** `"story,diary"` · `"all"` · null → the set. Unknown words are ignored (a typo must not switch a mode on). */
+    fun parseLive(arg: String?): Set<StoryMode> {
+        val words = arg.orEmpty().split(',', ' ').map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+        if ("all" in words) return StoryMode.entries.toSet()
+        return StoryMode.entries.filter { it.name.lowercase() in words }.toSet()
+    }
 
     /** Slot names, closed list (guidelines/2 §1-1). The server gets all twelve, empty ones as null. */
     val SLOTS = listOf(
@@ -92,12 +123,54 @@ object Server {
         emotion = str(j, "emotion"),
     )
 
+    // ── /turn ──────────────────────────────────────────────────────
+
+    /** What the mascot says after the child (guidelines/7 §3). Placeholders `{주인공}` · `{친구n}` stay — unmask on the phone. */
+    data class Line(val ack: String, val expand: String?, val question: String?)
+
+    /** Either half may be null — fill it from the script. [question] is null when [ask] was false or the story is ready. */
+    data class TurnResult(val verdict: Verdict?, val line: Line?)
+
+    /**
+     * One turn: the verdict, then the mascot's three pieces, in one round trip (~3.3s, 09-29).
+     * [ask] = false when the parent wrote the next question (coop) — the mascot only reacts.
+     */
+    suspend fun turn(t: Turn, ask: Boolean = true): TurnResult? {
+        val body = JSONObject()
+            .put("mode", t.mode)
+            .put("slots", slotsJson(t.slots))
+            .put("asked_slot", t.askedSlot ?: JSONObject.NULL)
+            .put("template", t.template ?: JSONObject.NULL)
+            .put("level", t.level ?: JSONObject.NULL)
+            .put("turn", t.turn)
+            .put("question", t.question)
+            .put("utterance", t.utterance)
+            .put("ask", ask)
+        val j = postJson("/turn", body, readMs = 20_000) ?: return null
+        return try {
+            TurnResult(
+                verdict = j.optJSONObject("judge")?.let { parseVerdict(it) },
+                line = j.optJSONObject("line")?.let { Line(it.getString("ack"), str(it, "expand"), str(it, "question")) },
+            )
+        } catch (e: Exception) { warn("/turn parse", e); null }
+    }
+
     // ── /story ─────────────────────────────────────────────────────
 
-    /** Book text. Null = keep the app's own template book. Captions still carry `{주인공}` · `{친구n}` — unmask on the phone. */
+    /** One page of the book plan: a `PageKind` name and the mission on it (`docs/미션_구상.md` §3 id), if any. */
+    data class Page(val kind: String, val mission: String? = null)
+
+    /**
+     * Book text. Null = keep the app's own template book. Captions still carry `{주인공}` · `{친구n}` — unmask on the phone.
+     *
+     * [pages] (09-29): the template's pages in order. When given, the answer has exactly one caption
+     * per page, in that order — so a mission stays on the page the app put it. Mission pages end on the
+     * setup ("불이 번졌어요"); the result line is still the app's to add.
+     */
     suspend fun story(
         mode: String, slots: Map<String, String?>, slotBy: Map<String, String> = emptyMap(),
         keep: String? = null, template: String? = null, level: String? = null,
+        pages: List<Page>? = null,
     ): List<String>? {
         val body = JSONObject()
             .put("mode", mode)
@@ -106,11 +179,52 @@ object Server {
             .put("keep", keep ?: JSONObject.NULL)
             .put("template", template ?: JSONObject.NULL)
             .put("level", level ?: JSONObject.NULL)
+        if (pages != null) body.put("pages", JSONArray().apply {
+            pages.forEach { put(JSONObject().put("kind", it.kind).put("mission", it.mission ?: JSONObject.NULL)) }
+        })
         val j = postJson("/story", body, readMs = 60_000) ?: return null
         return try {
             val a = j.getJSONArray("scenes")
-            List(a.length()) { a.getJSONObject(it).getString("caption") }
+            val caps = List(a.length()) { a.getJSONObject(it).getString("caption") }
+            // the server already refuses a wrong count; checking again costs nothing and keeps missions in place
+            if (pages != null && caps.size != pages.size) { Log.w(TAG, "/story ${caps.size} pages, want ${pages.size}"); null } else caps
         } catch (e: Exception) { warn("/story parse", e); null }
+    }
+
+    // ── /image ─────────────────────────────────────────────────────
+
+    /**
+     * A background for the place the child named, drawn and safety-checked on our GPU (rule 8).
+     * PNG bytes, or **null = use the preset** — the server said preset (blocked, not a place, slow,
+     * flagged), or the call failed. Call it the moment the place slot fills, in the background;
+     * the 8 s "조금 뒤에 올 거야" and the 15 s preset line stay the caller's. [place] must be name-masked.
+     */
+    suspend fun image(place: String, mode: String = "story"): ByteArray? {
+        val body = JSONObject().put("kind", "background").put("place", place).put("mode", mode)
+        // the server gives up at 13 s and answers preset, so 16 s only covers the network
+        val j = postJson("/image", body, readMs = 16_000) ?: return null
+        return try {
+            if (j.optBoolean("preset", true)) { Log.i(TAG, "/image preset: ${j.optString("reason")}"); null }
+            else android.util.Base64.decode(j.getString("png_base64"), android.util.Base64.DEFAULT)
+        } catch (e: Exception) { warn("/image parse", e); null }
+    }
+
+    /** A generated character: 640² PNG with a transparent background, feet on the 93% line, and its skeleton kind. */
+    data class Character(val png: ByteArray, val rig: String)   // rig: human · quad · blob
+
+    /**
+     * A character from what the child said ("빨간 드레스 입은 공주"), posed so it can be rigged
+     * (docs/캐릭터_생성_규격.md) and safety-checked (rule 8). **Null = use a preset doll.**
+     * About 7-8 s warm — start it the moment the description is known, not when it is needed.
+     * [description] must be name-masked.
+     */
+    suspend fun character(description: String, mode: String = "story"): Character? {
+        val body = JSONObject().put("kind", "character").put("description", description).put("mode", mode)
+        val j = postJson("/image", body, readMs = 16_000) ?: return null
+        return try {
+            if (j.optBoolean("preset", true)) { Log.i(TAG, "/image character preset: ${j.optString("reason")}"); null }
+            else Character(android.util.Base64.decode(j.getString("png_base64"), android.util.Base64.DEFAULT), j.getString("rig"))
+        } catch (e: Exception) { warn("/image character parse", e); null }
     }
 
     // ── /stt ───────────────────────────────────────────────────────

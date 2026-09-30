@@ -263,7 +263,11 @@ class StoryTextTest {
                 (book + s.title!!).forEach { line ->
                     pages++
                     bad.filter { it in line }.forEach { b -> problems += "[${t.code}/${p.key}/$th] '$b' in: $line" }
-                    if (p.honor && s.partnerHelpLine != null && line.contains(p.name) && !line.contains("께서") && !line.contains("께 ")) {
+                    // 「선생님」은 템플릿 D 에서 **아이가 맡는 직업**이기도 하다(「의사 선생님이 되기로」 · 「선생님 지호」) —
+                    // 함께 하는 사람으로서의 선생님(09-29 추가)과 헷갈리지 않게 그 말은 빼고 본다
+                    val aboutPartner = line.replace("의사 선생님", "").replace("선생님이 되기로", "")
+                        .replace("선생님 ${s.childName}", "")
+                    if (p.honor && s.partnerHelpLine != null && aboutPartner.contains(p.name) && !line.contains("께서") && !line.contains("께 ")) {
                         problems += "[${t.code}/${p.key}] 높임말 누락: $line"
                     }
                 }

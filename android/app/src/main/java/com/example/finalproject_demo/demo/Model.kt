@@ -115,9 +115,77 @@ val PARTNERS = listOf(
     Partner("grandma", "할머니", "ic_p_grandma", "👵", adult = true, honor = true),
     Partner("grandpa", "할아버지", "ic_p_grandpa", "👴", adult = true, honor = true),
     Partner("friend", "친구", "ic_p_friend", "👧", adult = false, honor = false),
+    // 09-29 S25+: 「삼촌」을 정확히 받아써도 목록에 없어 무한 반복했다. 종류는 아이콘 · 말투를 정하고,
+    // 아이가 실제로 부른 말(고모 · 형 · 민수 …)은 [DemoState.partnerCall] 로 따로 들고 간다
+    Partner("uncle", "삼촌", "ic_p_dad", "👨", adult = true, honor = false),
+    Partner("teacher", "선생님", "ic_p_aunt", "🧑‍🏫", adult = true, honor = true),
+    Partner("sibling", "언니", "ic_p_friend", "🧒", adult = false, honor = false),
 )
 
 fun partner(key: String) = PARTNERS.firstOrNull { it.key == key } ?: PARTNERS.first()
+
+/**
+ * 진짜 마이크로 들은 말에서 호칭을 찾는다 (09-29 S25+).
+ * 대본 답에는 `value = "mom"` 꼬리표가 붙어 오지만 받아쓴 글자에는 없다 — 그래서 「엄마」를 맞게
+ * 받아써도 「다시 한번 말해 줄래?」가 끝없이 돌았다. 긴 이름부터 본다(「할아버지」가 「아버지」에 먹히지 않게).
+ */
+private val PARTNER_WORDS = listOf(
+    // 긴 말부터 — 「외할아버지」가 「할아버지」로, 「할아버지」가 「아버지」로 먹히지 않게
+    "외할아버지" to "grandpa", "친할아버지" to "grandpa", "할아버지" to "grandpa", "할부지" to "grandpa",
+    "외할머니" to "grandma", "친할머니" to "grandma", "할머니" to "grandma", "할미" to "grandma",
+    "큰아빠" to "uncle", "작은아빠" to "uncle", "큰아버지" to "uncle", "작은아버지" to "uncle",
+    "이모부" to "uncle", "고모부" to "uncle", "외삼촌" to "uncle", "삼촌" to "uncle",
+    "큰엄마" to "aunt", "작은엄마" to "aunt", "외숙모" to "aunt", "숙모" to "aunt", "고모" to "aunt", "이모" to "aunt",
+    "어머니" to "mom", "엄마" to "mom", "아버지" to "dad", "아빠" to "dad",
+    "선생님" to "teacher", "쌤" to "teacher",
+    "언니" to "sibling", "누나" to "sibling", "오빠" to "sibling", "형아" to "sibling", "형" to "sibling", "동생" to "sibling",
+    "친구" to "friend",
+)
+
+fun partnerKeyIn(text: String): String? = partnerIn(text)?.first
+
+/** 아이가 「혼자」 · 「몰라」 같은 말을 했을 때 이름으로 잡지 않는다 */
+private val NOT_A_NAME = setOf("몰라", "없어", "아무도", "혼자", "나", "나랑", "응", "아니", "싫어", "그냥", "몰라요", "없어요")
+
+/**
+ * 「누구랑?」에 대한 답 → (종류, 부를 말). 부를 말은 아이가 쓴 말 그대로다 — 「고모」라 했으면 고모.
+ * 아는 호칭이 없고 짧은 이름 하나로 보이면(「민수」 · 「지민이랑!」) **친구 이름**으로 받는다.
+ * 친구 이름은 이름 가리기 목록에 들어간다([DemoState.nameMask]) — 규칙 6.
+ */
+fun partnerIn(text: String): Pair<String, String>? {
+    PARTNER_WORDS.firstOrNull { (word, _) -> word in text }?.let { (word, key) ->
+        return key to (if (key == "friend") "친구" else word)
+    }
+    val word = text.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
+        .trimEnd('!', '.', '?', '~', ',')
+        .removeSuffix("이랑").removeSuffix("랑").removeSuffix("하고").removeSuffix("이요").removeSuffix("요")
+        .removeSuffix("이야").removeSuffix("야").removeSuffix("아")
+    val looksLikeName = text.trim().split(Regex("\\s+")).size <= 2 && word.length in 2..3 &&
+        word.all { it in '가'..'힣' } && word !in NOT_A_NAME
+    return if (looksLikeName) "friend" to word else null
+}
+
+/**
+ * 진짜 마이크로 들은 말에서 주인공 모습(머리 · 옷 색 · 안경)을 찾는다 (09-29 S25+).
+ * 대본 답의 꼬리표(`"F25C4C"` · `"hair:long"`)가 받아쓴 글자에는 없어서, 「드레스」라고 답하자
+ * 빈 꼬리표를 색으로 바꾸다 **앱이 죽었다.** 못 찾으면 null — 부르는 쪽은 모습을 그대로 둔다.
+ * [key] 가 있으면 그 부분만, 없으면(「어디를 바꿀까?」) 셋 다 본다.
+ */
+private val HERO_WORDS: Map<String, List<Pair<String, String>>> = mapOf(
+    "glasses" to listOf("동글" to "round", "동그란" to "round", "네모" to "square",
+        "안 써" to "none", "안써" to "none", "싫어" to "none", "없어" to "none"),
+    "hair" to listOf("짧" to "short", "길" to "long", "긴" to "long", "묶" to "tied"),
+    "shirt" to listOf("빨" to "F25C4C", "파랑" to "3F7BD9", "파란" to "3F7BD9", "하늘" to "3F7BD9",
+        "노랑" to "F9B233", "노란" to "F9B233", "초록" to "4CAF50", "녹색" to "4CAF50",
+        "분홍" to "F48FB1", "핑크" to "F48FB1", "보라" to "9C6ADE", "주황" to "F28C28",
+        "까만" to "333333", "검은" to "333333", "검정" to "333333", "하얀" to "F5F5F5", "흰" to "F5F5F5"),
+)
+
+fun heroValueIn(key: String?, text: String): Pair<String, String>? {
+    val keys = if (key != null) listOf(key) else listOf("glasses", "hair", "shirt")
+    for (k in keys) HERO_WORDS[k]?.firstOrNull { (word, _) -> word in text }?.let { return k to it.second }
+    return null
+}
 
 /** 아이가 그림판에 그린 선 하나. 좌표는 0~1로 정규화. */
 /**
@@ -538,8 +606,8 @@ fun diaryPlaceBg(place: String?): String {
 }
 
 
-/** 책장에 꽂힌 책 한 권 (책장에서 다시 읽기는 아직 없다 — 꽂히는 것까지) */
-data class ShelfBook(val title: String, val themeKey: String, val bgName: String, val pages: Int = 6, val fresh: Boolean = false)
+/** 책장에 꽂힌 책 한 권. 저장된 동화만 [savedStoryId]로 다시 읽을 수 있다. */
+data class ShelfBook(val title: String, val themeKey: String, val bgName: String, val pages: Int = 6, val fresh: Boolean = false, val savedStoryId: String? = null)
 
 /** 부모 모드 그림체 견본 4종 (결정안건 부록 6) */
 data class ArtStyle(val key: String, val name: String, val img: String, val ready: Boolean)
@@ -608,6 +676,9 @@ sealed interface Stage {
 
     /** 책장 — fromEnd = 방금 만든 책을 꽂는 중 */
     data class Shelf(val fromEnd: Boolean) : Stage
+
+    /** 저장된 동화는 완성된 자막을 그대로 읽는다. 미션을 다시 실행하지 않는다. */
+    data class SavedStory(val book: SavedStoryBook, val index: Int) : Stage
 
     /** 비밀번호 4자리 — purpose: "parent"(부모 모드) · "start"(이야기 시작) */
     data class Pin(val purpose: String, val typed: Int = 0) : Stage
@@ -846,9 +917,17 @@ class DemoState {
      */
     val slotBy = mutableStateMapOf<String, String>()
 
+    /** 동화 모드의 서버 판정이 정한 다음 질문과 생략 칸. 일기·협업의 질문 순서에는 쓰지 않는다. */
+    var storyNextSlot by mutableStateOf<String?>(null)
+    var storyServerQuestion by mutableStateOf<String?>(null)
+    val storyUnneededSlots = mutableStateListOf<String>()
+    val storyReady: Boolean get() = mode == StoryMode.STORY && endReason == "story_ready"
+
     // ── 함께 하는 사람
     var partnerKey by mutableStateOf("mom")
-    val partner: Partner get() = partner(partnerKey)
+    /** 아이가 실제로 부른 말(「고모」 · 「형」 · 「민수」). null 이면 종류 이름(엄마 · 삼촌 …) */
+    var partnerCall by mutableStateOf<String?>(null)
+    val partner: Partner get() = partner(partnerKey).let { p -> partnerCall?.let { p.copy(name = it) } ?: p }
     val pn: String get() = partner.name
 
     // ── 이야기 칸 6개 (진행 막대는 칸이 찼나 하는 표시일 뿐, 점수가 아님)
@@ -981,6 +1060,8 @@ class DemoState {
     /** 아이가 말한 장소 그대로. 프리셋 유형에 없으면 배경을 새로 만든다 (구현대본 §6) */
     var placeLabel by mutableStateOf<String?>(null)
     var generatedBg by mutableStateOf(false)
+    /** 서버 PNG를 앱 전용 파일에 보관한 뒤 이 책이 끝날 때까지 사용한다. */
+    var storyBackground by mutableStateOf<String?>(null)
     // 일기 모드의 장소는 아이가 말한 실제 장소다. 아직 못 들었으면 상상 세계 이름("우주")이 새어 나오지 않게 막는다
     val placeName: String get() = placeLabel ?: if (isDiary) "오늘 있었던 곳" else th.label
 
@@ -994,6 +1075,7 @@ class DemoState {
     val bgName: String
         get() = when {
             isDiary -> diaryPlaceBg(placeLabel)
+            mode == StoryMode.STORY && storyBackground != null -> storyBackground!!
             generatedBg -> "bg_snow"
             else -> "bg_$themeKey"
         }
@@ -1074,6 +1156,8 @@ class DemoState {
     var solutionLine by mutableStateOf("같이 별을 땄어요")
     var m1Result by mutableStateOf<String?>(null)
     var m2Result by mutableStateOf<String?>(null)
+    /** Server-written story scenes. Null keeps the existing template book for the scripted demo. */
+    var storyCaptions by mutableStateOf<List<String>?>(null)
     var bookPage by mutableStateOf(0)
 
     /** 책 화면 위쪽 안내 한 줄 (책은 전체 화면이라 마스코트 말풍선 대신 여기에) */
@@ -1220,11 +1304,8 @@ class DemoState {
     /** 시작 화면에 한 번 띄우는 안내 (하루 별 0 등) */
     var notice by mutableStateOf<String?>(null)
 
-    /** 책장 — 지난 책 2권 + 오늘 만든 책 */
-    val shelf = mutableStateListOf(
-        ShelfBook("문어랑 바닷속 숨바꼭질", "sea", "bg_sea", 7),
-        ShelfBook("기차 타고 공룡 나라", "dino", "bg_dino", 6),
-    )
+    /** 실제 완성된 책만 들어간다. 동화책은 기기 저장소에서 시작할 때 복원한다. */
+    val shelf = mutableStateListOf<ShelfBook>()
 
     /** S10에서 "또 만날래"로 고른 친구 — 다음 이야기의 확인 카드 후보가 된다 (⭐26) */
     val keptFriends = mutableStateListOf<String>()
@@ -1255,7 +1336,8 @@ class DemoState {
     fun resetStory() {
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
-        slots.clear(); slotBy.clear(); partnerHelp = null; partnerHelpLine = null
+        slots.clear(); slotBy.clear(); storyNextSlot = null; storyServerQuestion = null; storyUnneededSlots.clear()
+        partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY
         diaryStart = 0L; diaryTimeUp = false; mascotPicks = 0; endReason = null
@@ -1269,14 +1351,14 @@ class DemoState {
         nextLevel = null; levelAtStart = level
         templateKey = null; attribute = null; causeKind = "lonely"; notes.clear(); levelWhy = ""
         askedThisStory.clear()
-        themeKey = "space"; placeLabel = null; generatedBg = false
+        themeKey = "space"; placeLabel = null; generatedBg = false; storyBackground = null
         mentioned.clear()
         newcomerKind = "외계인"; newcomerEmoji = "👽"
         dinoKey = "horn"; solutionKey = "play"; solutionItem = "star"
         drawing.clear(); drawnPreset = 0; mouth = null
         sceneDrawing.clear(); sceneDrawingAspect = 1f
         friendName = "{친구1}"; causeLine = "친구가 없어서 심심했어"; soundLine = "뿌우우우웅!"
-        solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; bookPage = 0; bookNote = ""
+        solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; storyCaptions = null; bookPage = 0; bookNote = ""
         turn = 0; s1streak = 0; s1count = 0; noAnswerStreak = 0
         mood = Mood.NONE
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
@@ -1301,11 +1383,10 @@ class DemoState {
         heroes += Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9)))
         heroes += Hero("빨간 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
         shelf.clear()
-        shelf += ShelfBook("문어랑 바닷속 숨바꼭질", "sea", "bg_sea", 7)
-        shelf += ShelfBook("기차 타고 공룡 나라", "dino", "bg_dino", 6)
         limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null
         keptFriends.clear(); usedVariants.clear()
         partnerKey = "mom"
+        partnerCall = null
         firstDay = false
     }
 }

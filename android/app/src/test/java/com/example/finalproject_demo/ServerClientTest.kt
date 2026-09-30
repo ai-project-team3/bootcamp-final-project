@@ -106,6 +106,46 @@ class ServerClientTest {
         assertEquals("child", sent.getJSONObject("slot_by").getString("place"))
         assertTrue("slot_by keeps only the twelve names", !sent.getJSONObject("slot_by").has("keep"))
         assertEquals("또 갈래", sent.getString("keep"))
+        assertTrue("no plan → no pages field (old shape)", !sent.has("pages"))
+    }
+
+    @Test
+    fun imageGivesPngBytesAndPresetMeansNull() = runBlocking {
+        json("/image", """{"preset":false,"reason":"ok","scene":"a beach","png_base64":"iVBORw0KGgo="}""")
+        val png = Server.image("바닷가")!!
+        assertEquals(0x89.toByte(), png[0])
+        assertEquals("바닷가", JSONObject(seen.getValue("/image")).getString("place"))
+
+        json("/image", """{"preset":true,"reason":"check: flagged","scene":"x","png_base64":null}""")
+        assertNull("a flagged picture must never reach the screen", Server.image("동굴"))
+    }
+
+    @Test
+    fun characterGivesPngAndRigAndPresetMeansNull() = runBlocking {
+        json("/image", """{"preset":false,"reason":"ok","scene":"robot","rig":"human","png_base64":"iVBORw0KGgo="}""")
+        val c = Server.character("파란 눈 로봇")!!
+        assertEquals("human", c.rig)
+        assertEquals(0x89.toByte(), c.png[0])
+        val sent = JSONObject(seen.getValue("/image"))
+        assertEquals("character", sent.getString("kind"))
+        assertEquals("파란 눈 로봇", sent.getString("description"))
+
+        json("/image", """{"preset":true,"reason":"cutout: nothing but background","scene":"x","png_base64":null}""")
+        assertNull(Server.character("유령"))
+    }
+
+    @Test
+    fun storySendsThePagePlanAndRefusesAShortBook() = runBlocking {
+        val plan = listOf(Server.Page("DEPART"), Server.Page("RUB", "A1"), Server.Page("TOGETHER"))
+        json("/story", """{"scenes":[{"index":1,"caption":"a","keywords":"x"},{"index":2,"caption":"b","keywords":"x"},{"index":3,"caption":"c","keywords":"x"}]}""")
+        assertEquals(listOf("a", "b", "c"), Server.story("story", emptyMap(), pages = plan))
+        val sent = JSONObject(seen.getValue("/story")).getJSONArray("pages")
+        assertEquals("RUB", sent.getJSONObject(1).getString("kind"))
+        assertEquals("A1", sent.getJSONObject(1).getString("mission"))
+        assertTrue(sent.getJSONObject(0).isNull("mission"))
+
+        json("/story", """{"scenes":[{"index":1,"caption":"a","keywords":"x"}]}""")
+        assertNull("a page short would move the missions", Server.story("story", emptyMap(), pages = plan))
     }
 
     @Test
@@ -119,6 +159,20 @@ class ServerClientTest {
     fun ttsReturnsTheAudioBytes() = runBlocking {
         answer["/tts"] = 200 to byteArrayOf(0x49, 0x44, 0x33)
         assertEquals(3, Server.tts("놀이터 갔구나!")!!.size)
+    }
+
+    @Test
+    fun turnReturnsVerdictAndLineAndEitherMayBeMissing() = runBlocking {
+        json("/turn", """{"judge":$VERDICT,"line":{"ack":"놀이터구나!","expand":null,"question":"거기서 뭐 했어?"}}""")
+        val r = Server.turn(turn(), ask = false)!!
+        assertEquals(false, JSONObject(seen.getValue("/turn")).getBoolean("ask"))
+        assertEquals("reaction", r.verdict!!.nextSlot)
+        assertEquals(Server.Line("놀이터구나!", null, "거기서 뭐 했어?"), r.line)
+
+        json("/turn", """{"judge":null,"line":{"ack":"그랬구나!","expand":null,"question":null}}""")
+        val half = Server.turn(turn())!!
+        assertNull(half.verdict)
+        assertNull(half.line!!.question)
     }
 
     private fun turn() = Server.Turn("diary", mapOf("place" to null), "place", "오늘 어디 갔었어?", "놀이터 갔어")

@@ -54,10 +54,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -195,13 +193,12 @@ private fun PuzzlePage(d: Director, done: Boolean) {
     val view = LocalView.current   // 효과음과 같이 진동 (Sfx · 09-25)
     val s = d.s
     val density = LocalDensity.current.density
-    val picId = assetId(s.bgName)
+    val pic = assetBitmap(s.bgName)
     // 그림이 없으면 퍼즐을 낼 수 없다 — 건네주기로 물러난다 (없는 것을 만들어 내지 않는다)
-    if (picId == 0) {
+    if (pic == null) {
         DragPage(d, done, Art.HeroArt(s.heroAttr ?: HeroAttr()), "hand")
         return
     }
-    val pic = ImageBitmap.imageResource(picId)
     val cols = if (s.m1Result == "helped") 2 else 2
     val rows = if (s.m1Result == "helped") 1 else 2
     val count = cols * rows

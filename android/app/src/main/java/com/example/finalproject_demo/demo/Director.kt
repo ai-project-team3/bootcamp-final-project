@@ -1,10 +1,15 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.Voice
+import com.example.finalproject_demo.net.nameMask
+import com.example.finalproject_demo.ui.ConsentStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -62,9 +67,44 @@ data class Question(
     val silent: Boolean = false,
 )
 
-class Director(private val scope: CoroutineScope) {
+class Director(
+    private val scope: CoroutineScope,
+    private val storyBookStore: StoryBookStore? = null,
+    private val storyImageStore: StoryImageStore? = null,
+) {
 
     val s = DemoState()
+    private val savedStories = mutableListOf<SavedStoryBook>()
+
+    init { reloadSavedStories() }
+
+    private fun reloadSavedStories() {
+        savedStories.clear()
+        savedStories += storyBookStore?.load().orEmpty()
+        s.shelf.addAll(0, savedStories.map { it.onShelf() })
+    }
+
+    private fun SavedStoryBook.onShelf(fresh: Boolean = false) =
+        ShelfBook(title, themeKey, bgName, pages.size, fresh, id)
+
+    /** 실패한 저장은 책장에 성공한 것처럼 표시하지 않는다. */
+    fun saveFinishedStory(): Boolean {
+        val book = s.completedStoryBook() ?: return false
+        return try {
+            storyBookStore?.save(book)
+            savedStories.add(0, book)
+            s.shelf.add(0, book.onShelf(fresh = true))
+            true
+        } catch (_: Exception) { false }
+    }
+
+    fun savedStory(id: String): SavedStoryBook? = savedStories.firstOrNull { it.id == id }
+
+    fun keepStoryBackground(png: ByteArray): Boolean {
+        val path = storyImageStore?.save(png) ?: return false
+        s.storyBackground = path
+        return true
+    }
     private var job: Job? = null
     private val input = Channel<Reply>(Channel.BUFFERED)
 
@@ -107,7 +147,21 @@ class Director(private val scope: CoroutineScope) {
         while (input.tryReceive().isSuccess) { /* 이전 장면의 입력 버리기 */ }
     }
 
-    suspend fun pause(ms: Long) = delay((ms * s.speed).toLong())
+    /**
+     * 장면 사이 쉬는 시간. 대본은 「이 정도면 말이 끝났겠지」로 ms 를 정해 두었다.
+     * 서버 모드에서는 **진짜 목소리가 끝날 때까지** 먼저 기다리고, 남은 시간만 쉰다 (09-29 S25+) —
+     * 전에는 화면이 목소리보다 앞서 달려가서 대사 세 개가 「후루룩」 넘어가고, 🎤 를 누를 때마다
+     * 밀린 대사가 버려져 뒤로 갈수록 목소리가 안 들렸다.
+     */
+    suspend fun pause(ms: Long) {
+        val total = (ms * s.speed).toLong()
+        if (!Server.liveFor(s.mode)) { delay(total); return }
+        val t0 = System.currentTimeMillis()
+        awaitVoice()
+        // 최소 쉬는 틈도 속도를 따른다 — 고정 250ms 는 테스트의 빨리 감기(speed 0.01)를 무시해서, 질문이
+        // 준비되기 전에 온 답이 버려지고(ask 는 그 전 입력을 버린다) 서버 모드 테스트가 멈췄다(09-29 StoryLiveAskTest)
+        delay(maxOf(total - (System.currentTimeMillis() - t0), (250 * s.speed).toLong()))
+    }
 
     /**
      * 말풍선에 한 줄 띄운다.
@@ -125,12 +179,49 @@ class Director(private val scope: CoroutineScope) {
         s.line = text
         s.lineId++
         if (who == "마스코트" && surprise.containsMatchIn(text)) feel(Mood.SURPRISED)
+        if (who == "마스코트") speakLive(text)
     }
 
     /** 마스코트 기분을 켠다 — 얼굴이 그에 맞게 움직인다 ([Mood]) */
     fun feel(m: Mood) {
         s.mood = m
         s.moodId++
+    }
+
+    /**
+     * 서버 모드면 마스코트 말을 **목소리로도** 낸다(`/tts` · 09-29).
+     * 이름은 보호자가 「이름 읽기」에 동의했을 때만 소리로 나간다 — 아니면 「우리 친구」(규칙 6 개정).
+     * 목소리가 실패해도 말풍선은 이미 떴다 — 조용한 마스코트일 뿐 멈추지 않는다.
+     *
+     * **대사는 줄을 서서 끝까지 읽는다** (09-29 S25+). 전에는 새 대사가 앞 대사를 끊어서
+     * 「받아주기 → 질문」이 연달아 오면 앞말이 반쯤 잘렸다. 지금은 목소리를 **먼저 받아 두고**
+     * (기다리는 동안 다음 것을 받는다) 앞 대사가 끝나면 튼다. 아이 차례는 [awaitVoice] 뒤에 온다.
+     */
+    private var voiceJob: Job? = null
+
+    private fun speakLive(text: String) {
+        // 소리를 낼 수 없으면(단위 테스트 — Voice 가 붙지 않았다) 목소리를 청하지도 않는다.
+        // 들리지 않을 목소리 때문에 가짜 서버 주소로 대사마다 연결을 시도할 까닭이 없다
+        if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
+        val line = s.nameMask().speakable(text, ConsentStore.nameVoiceAgreed)
+        val before = voiceJob
+        val audio = scope.async { Server.tts(line) }          // 앞 대사를 읽는 동안 미리 받는다
+        voiceJob = scope.launch {
+            before?.join()
+            audio.await()?.let { Voice.playAndWait(it) }
+        }
+    }
+
+    /** 마스코트가 하던 말을 끝낼 때까지 기다린다 — 서버 모드가 아니면 바로 돌아온다 */
+    suspend fun awaitVoice() {
+        voiceJob?.join()
+    }
+
+    /** 목소리를 지금 멈추고 줄 선 대사도 버린다 — 🎤 가 눌렸다(마스코트 소리가 녹음에 섞이면 안 된다) */
+    private fun hushVoice() {
+        voiceJob?.cancel()
+        voiceJob = null
+        Voice.stopPlaying()
     }
 
     /**
@@ -190,6 +281,7 @@ class Director(private val scope: CoroutineScope) {
      */
     fun toggleMic() {
         if (!s.micEnabled) return
+        if (Server.liveFor(s.mode)) { liveMic(); return }
         if (!s.micOn) {
             s.micOn = true
             s.countdown = null
@@ -201,6 +293,38 @@ class Director(private val scope: CoroutineScope) {
         val a = s.pickAnswer(q.spoken) ?: Answer("응", lv = 1)
         log("🎤 끔 — 녹음 끝 → 글자로: \"${a.text}\" (더미 답 ${q.spoken.size}개 중 · 아이 흉내: ${s.profile.label})")
         send(Reply.Spoke(a.text, a.value, a))
+    }
+
+    // ── 진짜 마이크 (서버 모드일 때만 · 09-29 오케스트레이터 ①) ────────────
+    //
+    // 🎤 누름 → 녹음 → 말이 끝나면 VAD 가 0.3초 뒤 스스로 끊는다(⏹ 로 먼저 끊어도 된다)
+    // → 우리 서버 `/stt` → 들은 글자를 대본 답과 **같은 모양**(`Reply.Spoke`)으로 흐름에 넣는다.
+    // 그래서 장면 코드는 대본인지 진짜인지 모른다. 글자는 **실명 그대로**다 — 서버로 다시
+    // 보낼 때는 모드 담당자가 `s.nameMask().mask(...)` 를 거친다(규칙 6).
+    // 아무것도 못 들었거나(빈 글자) 서버가 실패하면 **무응답**으로 보낸다 — 무응답 흐름(⭐5)이 이어받는다.
+
+    @Volatile private var stopMic = false
+    private var micJob: Job? = null
+
+    private fun liveMic() {
+        if (s.micOn) { stopMic = true; return }            // ⏹ — 녹음을 여기서 끊는다
+        stopMic = false
+        hushVoice()                                       // 마스코트 소리가 녹음에 들어가지 않게
+        s.micOn = true
+        s.countdown = null
+        log("🎤 켬 — 진짜 녹음 · 말이 끝나면 저절로 끊는다 (VAD 0.3초)")
+        micJob = scope.launch {
+            val audio = Voice.listen { stopMic }
+            s.micOn = false
+            if (audio == null) { log("🎤 아무것도 못 들음 → 무응답"); send(Reply.Silent); return@launch }
+            log("🎤 끝 → 우리 서버로 받아쓰기 (${audio.size / 1024}KB)")
+            val text = Voice.transcribe(audio)
+            when {
+                text == null -> { log("받아쓰기 실패 → 무응답으로 넘김"); send(Reply.Silent) }
+                text.isBlank() -> { log("받아쓰기: 들을 말이 없음 → 무응답"); send(Reply.Silent) }
+                else -> { log("받아쓰기: \"$text\""); send(Reply.Spoke(text)) }
+            }
+        }
     }
 
     /** ➡️ 말 없이 넘김 = 무응답 */
@@ -298,6 +422,7 @@ class Director(private val scope: CoroutineScope) {
             val speed = s.speed
             val timer = s.timerOn
             s.reset()
+            reloadSavedStories()
             s.persona = persona
             s.speed = speed
             s.timerOn = timer
@@ -369,8 +494,13 @@ class Director(private val scope: CoroutineScope) {
     suspend fun askSlot(slot: String, tweak: (Question) -> Question = { it }): Pair<QVariant, Reply> {
         val v = s.pick(slot)
         log("질문 은행 [$slot] ${v.id} — ${v.probe} · 지금 수준 ${s.level.label}")
-        val q = tweak(v.toQuestion(s))
-        val r = ask(q)
+        val q = tweak(v.toQuestion(s)).let { local ->
+            val serverText = s.storyServerQuestion?.takeIf {
+                Server.liveFor(s.mode) && s.mode == StoryMode.STORY && s.storyNextSlot == slot && it.isNotBlank()
+            }
+            if (serverText == null) local else local.copy(text = serverText)
+        }
+        val r = if (s.mode == StoryMode.STORY) askStory(q, slot) else ask(q)
         judge(v, r, q.text)
         return v to r
     }
@@ -403,7 +533,8 @@ class Director(private val scope: CoroutineScope) {
         scripted += q.extra
         buttons(*scripted.toTypedArray())
 
-        pause(1200) // 마스코트 말이 끝나면(TTS 종료) 아이 차례
+        // 마스코트 말이 끝나면(TTS 종료) 아이 차례 — 서버 모드는 **진짜 목소리가 끝날 때까지** 기다린다 (09-29 S25+)
+        if (Server.liveFor(s.mode)) { awaitVoice(); pause(300) } else pause(1200)
         val sec = when (q.kind) { Kind.EASY -> 5.0; Kind.HARD -> 8.0; Kind.CHOICE -> 7.0 }
         val first = waitReply(sec)
 

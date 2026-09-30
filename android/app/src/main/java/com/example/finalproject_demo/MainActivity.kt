@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +33,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.LocalStoryBookStore
+import com.example.finalproject_demo.demo.StoryImageStore
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.ui.Bg
@@ -45,7 +48,7 @@ import com.example.finalproject_demo.ui.PuppetTypography
 import com.example.finalproject_demo.ui.ConsentStore
 import com.example.finalproject_demo.ui.FeelPrefs
 import com.example.finalproject_demo.net.Server
-import androidx.compose.ui.platform.LocalContext
+import com.example.finalproject_demo.net.Voice
 import com.example.finalproject_demo.ui.GuardianConsentScreen
 import com.example.finalproject_demo.ui.SplashScreen
 import com.example.finalproject_demo.ui.StageView
@@ -72,6 +75,9 @@ class MainActivity : ComponentActivity() {
         FeelPrefs.load(this)      // 효과음 · 진동 켬/끔 (부모 설정 · 09-25)
         // 서버는 주소를 줄 때만 켠다 — 없으면 지금처럼 대본으로 돈다 (net/Server.kt)
         intent?.getStringExtra("server")?.let { Server.base = it.trimEnd('/') }
+        // 어느 모드를 서버로 돌릴지 — 없으면 전부 대본 (`-e live story,diary,coop` 또는 `all`)
+        intent?.getStringExtra("live")?.let { Server.liveModes = Server.parseLive(it) }
+        Voice.attach(this)        // 진짜 마이크 · 마스코트 목소리 — 서버 모드에서만 쓴다 (net/Voice.kt)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         // 풀스크린 — 카메라 구멍(노치) 쪽까지 그린다 (09-29). 가로 화면에서 한쪽에 검은 띠가 남지 않게
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
@@ -96,8 +102,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun DemoApp() {
     val scope = rememberCoroutineScope()
-    val d = remember { Director(scope) }
-    (LocalContext.current as? MainActivity)?.director = d
+    val context = LocalContext.current
+    val d = remember { Director(scope, LocalStoryBookStore(context), StoryImageStore(context)) }
+    (context as? MainActivity)?.director = d
     var drawerOpen by remember { mutableStateOf(false) }
     val s = d.s
 

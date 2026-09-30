@@ -88,6 +88,8 @@ import com.example.finalproject_demo.demo.Persona
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.Stage
+import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.demo.PEN_W
 import com.example.finalproject_demo.demo.dinoKind
 import com.example.finalproject_demo.demo.heroImageName
@@ -574,6 +576,8 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
             is Stage.Gifts -> GiftsView(d, stage)
 
             is Stage.Shelf -> ShelfView(d, stage)
+
+            is Stage.SavedStory -> SavedStoryView(d, stage)
 
             is Stage.Pin -> PinView(d, stage)
 
@@ -1181,6 +1185,14 @@ private fun DrawerControls(d: Director) {
         }
     }
     Text("함께 하는 사람: ${s.partner.emoji} ${s.pn} (시작 화면 다음에 묻는다)", fontSize = 12.sp, color = Color(0xFFE8DCC8))
+    Spacer(Modifier.height(8.dp))
+    // 모드별 서버 스위치 (09-29 · net/Server.kt) — 꺼진 모드는 지금처럼 대본으로 돈다
+    Text("서버 연결 — ${Server.base ?: "주소 없음 (-e server 로 켠다)"}", fontSize = 13.sp, color = Muted)
+    Row {
+        listOf(StoryMode.STORY to "동화", StoryMode.DIARY to "일기", StoryMode.COOP to "협업").forEach { (m, label) ->
+            DrawerChip("🔌 $label", m in Server.liveModes) { Server.toggle(m) }
+        }
+    }
     Spacer(Modifier.height(8.dp))
     Text("마이크 · 시간", fontSize = 13.sp, color = Muted)
     Row {

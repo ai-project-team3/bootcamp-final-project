@@ -3,6 +3,7 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.DemoBtn
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
+import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.bookCaption
 import com.example.finalproject_demo.demo.pageCount
@@ -104,6 +105,34 @@ class StoryFlowTest {
         } finally {
             sup.cancel()
         }
+    }
+
+    @Test
+    fun eightRepliesDoNotEndAnUnfinishedStory() = run { d ->
+        d.s.turn = 8
+        d.go(Scene.DRAW)
+
+        assertTrue("그림 장면이나 자동 종료까지 도달하지 못했다", await {
+            d.s.stage is Stage.DrawPad || d.s.scene == Scene.MAKING
+        } != null)
+        assertEquals("여덟 번째 답 뒤에 이야기를 강제로 끝냈다", Scene.DRAW, d.s.scene)
+        assertTrue("아이에게 다음 이야기 행동을 보여 주지 않았다", d.s.stage is Stage.DrawPad)
+    }
+
+    @Test
+    fun generatedStoryWithNineScenesCanBeReadToTheEnd() = run { d ->
+        d.s.storyCaptions = (1..9).map { "아이의 이야기 $it 쪽이에요." }
+        d.go(Scene.BOOK)
+        assertTrue("책 화면이 열리지 않았다", await { d.s.stage is Stage.BookPage } != null)
+
+        var clicks = 0
+        while (d.s.bookPage < 9 && clicks++ < 30) {
+            assertTrue("다음 쪽으로 넘기지 못했다", d.step() != null)
+        }
+        assertEquals("생성된 마지막 장면에 닿지 못했다", 9, d.s.bookPage)
+        assertEquals("마지막 장면의 아이 이야기가 사라졌다", "아이의 이야기 9 쪽이에요.", d.s.bookCaption(9))
+        assertTrue("마지막 장면에서 책을 덮지 못했다", d.step() != null)
+        assertTrue("마지막 장면 뒤로 넘어가지 못했다", await { d.s.scene == Scene.FRIENDS } != null)
     }
 
     /** 동화 모드를 책이 펼쳐질 때까지 민다 */

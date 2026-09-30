@@ -1,0 +1,12 @@
+{
+  "name": "character_order",
+  "description": "등장인물 그림 주문. 구현은 backend/app/routers/image.py, 프롬프트는 eval/character_prompt.md, API 는 guidelines/3_API_명세.md §3-3-1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["safe", "rig", "subject"],
+  "properties": {
+    "safe": { "type": "boolean" },
+    "rig": { "type": "string", "enum": ["human", "quad", "blob"] },
+    "subject": { "type": ["string", "null"] }
+  }
+}
