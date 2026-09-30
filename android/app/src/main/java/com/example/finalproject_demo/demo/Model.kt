@@ -212,7 +212,7 @@ sealed interface Art {
     data class ChildDrawing(val strokes: List<Stroke>, val preset: Int, val aspect: Float = 1f) : Art
 
     /** ComfyUI로 만든 그림(res/drawable/<name>). 없으면 fallback으로 그린다. */
-    data class Img(val name: String, val fallback: Art) : Art
+    data class Img(val name: String, val fallback: Art, val rig: String? = null) : Art
 }
 
 data class Card(val label: String, val art: Art, val value: String)
@@ -688,7 +688,7 @@ sealed interface Stage {
 /** S10에 늘어놓는 친구 한 명. keep=null 이면 아직 고르지 않음 */
 data class RateItem(val id: String, val name: String, val art: Art, val keep: Boolean? = null)
 
-data class Hero(val name: String, val attr: HeroAttr)
+data class Hero(val name: String, val attr: HeroAttr, val image: String? = null, val rig: String? = null)
 
 /** 옷 색 → 생성 그림 이름 조각 */
 fun shirtKey(c: Color): String = when (c) {
@@ -1246,6 +1246,8 @@ class DemoState {
     val redrawMax = 2
     var dinoColor by mutableStateOf(Color(0xFF6FC276))
     var heroAttr by mutableStateOf<HeroAttr?>(null)
+    var storyHeroImage by mutableStateOf<String?>(null)
+    var storyHeroRig by mutableStateOf<String?>(null)
 
     val heroes = mutableStateListOf(
         // 둘이 한눈에 달라 보여야 한다 — 안경만 다르면 도감에서 같은 아이로 보인다 (9/21)
@@ -1364,7 +1366,7 @@ class DemoState {
         mood = Mood.NONE
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
-        heroAttr = null
+        heroAttr = null; storyHeroImage = null; storyHeroRig = null
         achievements.clear(); reactions = 0
         log.clear(); done.clear(); events.clear()
         heroTries.clear()

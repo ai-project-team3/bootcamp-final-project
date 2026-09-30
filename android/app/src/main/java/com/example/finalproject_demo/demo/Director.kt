@@ -101,10 +101,11 @@ class Director(
     fun savedStory(id: String): SavedStoryBook? = savedStories.firstOrNull { it.id == id }
 
     fun keepStoryBackground(png: ByteArray): Boolean {
-        val path = storyImageStore?.save(png) ?: return false
+        val path = saveStoryImage(png) ?: return false
         s.storyBackground = path
         return true
     }
+    fun saveStoryImage(png: ByteArray): String? = storyImageStore?.save(png)
     private var job: Job? = null
     private val input = Channel<Reply>(Channel.BUFFERED)
 

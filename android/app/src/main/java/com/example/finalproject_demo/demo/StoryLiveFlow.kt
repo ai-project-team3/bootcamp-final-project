@@ -1,6 +1,5 @@
 package com.example.finalproject_demo.demo
 
-import com.example.finalproject_demo.ui.HeroAttr
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** The live conversation enters here once; script scenes remain available with the switch off. */
@@ -13,7 +12,7 @@ suspend fun Director.liveStoryConversation() {
             if (end != null) { s.endReason = end; break }
             val prompt = s.nextStoryPrompt(s.storyServerQuestion) ?: break
             s.stage = Stage.World(listOf(
-                WorldItem(Art.HeroArt(s.heroAttr ?: HeroAttr()), 0.25f, 0.32f, 0.11f, depth = 1f),
+                WorldItem(s.storyHeroArt, 0.25f, 0.32f, 0.11f, depth = 1f),
                 WorldItem(s.friendArt, 0.72f, 0.32f, 0.13f, depth = 0.9f),
             ))
             val variant = liveVariant(prompt)

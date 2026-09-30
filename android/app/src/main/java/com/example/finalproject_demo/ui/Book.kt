@@ -2,6 +2,7 @@ package com.example.finalproject_demo.ui
 
 import androidx.compose.animation.core.Animatable
 import com.example.finalproject_demo.demo.heroImageName
+import com.example.finalproject_demo.demo.storyHeroArt
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -349,7 +350,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
     val s = d.s
     val page = stage.index
     var tool by remember { mutableStateOf("hand") }
-    val heroArt = Art.HeroArt(s.heroAttr ?: HeroAttr())
+    val heroArt = s.storyHeroArt
     val dinoArt = Art.DinoArt(s.dinoColor, s.dinoKey)
 
     fun react(target: String) = d.send(Reply.Tapped("tool:$tool:$target", tool))
