@@ -1,5 +1,6 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.COOP_STEPS
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
@@ -104,6 +105,33 @@ class CoopFlowTest {
         assertTrue("빈 필수 칸을 메우지 않았다: ${s.slotBy}", listOf("problem", "cause", "solution").all { s.slotBy[it] == "mascot" })
         assertTrue("멈춘 질문의 답이 칸에 새어 들어갔다", s.slots.values.none { "stop" in it })
         assertTrue("이야기가 끝났는데 부모 질문이 남아 있다", s.parentQuestions.isEmpty())
+    }
+
+    /** 협업은 부모가 넣은 질문을 다 물으면 끝난다 (09-30 확정 · guidelines/2 §1-1 · #36) — 남은 꼬리질문은 묻지 않는다 */
+    @Test
+    fun coopEndsWhenTheParentsQuestionsRunOut() = run { d ->
+        val s = d.s
+        val lines = listOf("소방관은 어디서 일할까?", "거기서 무슨 일을 할까?", "왜 그 일이 필요할까?", "일이 다 끝나면 어떻게 될까?")
+        d.startCoopWith(*lines.toTypedArray())
+
+        val askedTexts = mutableListOf<String>()
+        var guard = 0
+        while (s.scene == Scene.DIARY && guard++ < 40) {
+            if (await(2_000) { s.buttons.any { "🎲" in it.label } } == null) break
+            askedTexts += d.asked()
+            if (!d.push("🎲")) break
+            delay(40)
+        }
+        if (await(3_000) { s.buttons.any { "안 그릴래" in it.label } } != null) d.tap("안 그릴래")
+
+        assertTrue("부모 질문을 다 안 물었다: $askedTexts", lines.all { it in askedTexts })
+        // 넷째 줄(결말 자리) 뒤의 꼬리질문 「다 끝나고 뭐 했어」 · 「내일 또 하고 싶은 거」는 묻지 않는다.
+        // ⚠️ 질문 글로 세지 않는다 — 결말 자리에서 답이 칸을 못 채우면 사다리 한 칸 아래 쉬운 말로 다시 묻는다(같은 걸음)
+        val solutionAt = COOP_STEPS.indexOfFirst { it.bookKey == "solution" }
+        assertEquals("결말 자리 뒤의 걸음까지 갔다", solutionAt + 1, s.stepsDone)
+        assertEquals(null, s.slots["after"]); assertEquals(null, s.slots["keep"])
+        assertTrue("책까지 못 갔다 scene=${s.scene} end=${s.endReason}", await(20_000) { s.scene == Scene.BOOK } != null)
+        assertEquals(4, s.partnerTurns)
     }
 
     @Test
