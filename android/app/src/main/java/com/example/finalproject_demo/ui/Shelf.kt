@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,6 +53,7 @@ import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.ShelfBook
 import com.example.finalproject_demo.demo.Stage
+import com.example.finalproject_demo.demo.restoreStoryBook
 import kotlin.math.roundToInt
 
 /** 선반 윗면의 높이(화면 비율) — bg_shelf 그림의 선반 두 칸에 맞춘다 */
@@ -191,6 +193,24 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
 fun SavedStoryView(d: Director, stage: Stage.SavedStory) {
     val book = stage.book
     val page = stage.index
+    if (book.visuals != null) {
+        val scope = rememberCoroutineScope()
+        val reader = remember(book.id) { Director(scope).apply { s.restoreStoryBook(book) } }
+        Box(Modifier.fillMaxSize()) {
+            BookPageView(reader, Stage.BookPage(page, m1Done = true, m2Done = true), savedBook = book, onReply = { reply ->
+                val action = reply as? Reply.Tapped
+                when (action?.value) {
+                    "speak" -> reader.say(if (page == 0) book.title else book.pages[page - 1].caption)
+                    "next" -> d.send(if (page == book.pages.size) Reply.Tapped("close", "책장") else reply)
+                    "prev" -> d.send(reply)
+                }
+            })
+            Box(Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 12.dp)) {
+                ShelfButton("📚 책장", Sun, Ink) { d.send(Reply.Tapped("close", "책장")) }
+            }
+        }
+        return
+    }
     Box(Modifier.fillMaxSize().background(Color(0xFF2E2A26))) {
         AssetImage(book.bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
             Box(Modifier.fillMaxSize().background(Sun2))

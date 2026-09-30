@@ -2,6 +2,7 @@ package com.example.finalproject_demo.ui
 
 import androidx.compose.animation.core.Animatable
 import com.example.finalproject_demo.demo.heroImageName
+import com.example.finalproject_demo.demo.storyHeroArt
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -76,6 +77,7 @@ import com.example.finalproject_demo.demo.pageKind
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Stage
+import com.example.finalproject_demo.demo.SavedStoryBook
 import com.example.finalproject_demo.demo.bookCaption
 import com.example.finalproject_demo.demo.eun
 import com.example.finalproject_demo.demo.mission1
@@ -350,14 +352,14 @@ private fun reactionFor(s: DemoState, tool: String, target: String, objName: Str
  * 세계 배경 위에 확정 그림(주인공 · 아이 그림 · 공룡), 배경 속 것은 그 자리가 반응한다. 누르면 그 자리 위에 반응 글자.
  */
 @Composable
-fun BookPageView(d: Director, stage: Stage.BookPage) {
+fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? = null, onReply: (Reply) -> Unit = d::send) {
     val s = d.s
     val page = stage.index
     var tool by remember { mutableStateOf("hand") }
-    val heroArt = Art.HeroArt(s.heroAttr ?: HeroAttr())
+    val heroArt = s.storyHeroArt
     val dinoArt = Art.DinoArt(s.dinoColor, s.dinoKey)
 
-    fun react(target: String) = d.send(Reply.Tapped("tool:$tool:$target", tool))
+    fun react(target: String) = onReply(Reply.Tapped("tool:$tool:$target", tool))
 
     val inf = rememberInfiniteTransition(label = "book")
     val wobble by inf.animateFloat(-6f, 6f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "wobble")
@@ -402,8 +404,8 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
         else Layer(xf, yf, wf, aspect, walkMod.then(mod), content = body)
     }
 
-    val kind = s.pageKind(page)
-    val last = s.pageCount
+    val kind = if (page == 0) PageKind.COVER else savedBook?.pages?.getOrNull(page - 1)?.kind ?: s.pageKind(page)
+    val last = savedBook?.pages?.size ?: s.pageCount
 
     /**
      * **쪽에 적힌 대로 움직인다** (9/21).
@@ -414,7 +416,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
      *
      * "기차가 흔들렸어요"처럼 사람이 흔든 것이 아닌 문장은 인사로 읽지 않는다 — `손`·`인사`·`안녕`이 같이 있어야 한다.
      */
-    val caption = if (page > 0) s.bookCaption(page) else ""
+    val caption = if (page > 0) savedBook?.pages?.getOrNull(page - 1)?.caption ?: s.bookCaption(page) else ""
     val riding = ridingFrom(caption)
     val waving = wavingFrom(caption)
     // 소리말과 흔들림도 자막에서 읽는다 (9/22) — 쪽 종류가 아니라 **적힌 내용**이 정한다
@@ -460,7 +462,8 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
     val heroAct = heroActFrom(kind, caption, riding)
     val dinoAct = buddyActFrom(kind, caption)
     val heroWalks = page > 0 && walksInFrom(kind, caption, riding)
-    val heroRigged = rememberRig(s.heroAttr?.let { heroImageName(it) }) != null
+    val heroRigged = if (s.storyHeroImage != null) RigCache.peek(s.storyHeroImage!!) != null
+        else rememberRig(s.heroAttr?.let { heroImageName(it) }) != null
     val heroPose = if (heroRigged && motion == Motion.NONE) Modifier else poseMod
 
     // ⚠️ 소개 시간은 여기서 재지 않는다 (9/22). 여기서 재면 **표지를 보는 동안 시간이 가 버린다** —
@@ -604,9 +607,9 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
                     .padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(s.bookCaption(page), fontSize = 19.sp, lineHeight = 25.sp, color = InkBrown, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                Text(caption, fontSize = 19.sp, lineHeight = 25.sp, color = InkBrown, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                 Spacer(Modifier.width(8.dp))
-                FeltButton(Cheek, onClick = { d.send(Reply.Tapped("speak", "낭독")) }, modifier = Modifier.size(48.dp), shape = CircleShape) {
+                FeltButton(Cheek, onClick = { onReply(Reply.Tapped("speak", "낭독")) }, modifier = Modifier.size(48.dp), shape = CircleShape) {
                     ArtView(Art.Img("ic_speaker", Art.Emoji("🔊")), Modifier.size(28.dp))
                 }
             }
@@ -629,16 +632,16 @@ fun BookPageView(d: Director, stage: Stage.BookPage) {
             }
         }
         Box(Modifier.align(Alignment.CenterStart).padding(start = 8.dp)) {
-            if (page > 0) RoundBtn("◀", Wool) { d.send(Reply.Tapped("prev", "앞")) }
+            if (page > 0) RoundBtn("◀", Wool) { onReply(Reply.Tapped("prev", "앞")) }
         }
         Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)) {
             val canNext = when (kind) { PageKind.RUB -> stage.m1Done; PageKind.DRAG -> stage.m2Done; else -> true }
             if (page == last) {
-                FeltButton(FeltMustard, onClick = { d.send(Reply.Tapped("next", "다음")) }, modifier = Modifier.size(Touch.KidMin), shape = CircleShape) {
+                FeltButton(FeltMustard, onClick = { onReply(Reply.Tapped("next", "다음")) }, modifier = Modifier.size(Touch.KidMin), shape = CircleShape) {
                     ArtView(Art.Img("ic_books", Art.Emoji("📚")), Modifier.size(40.dp))
                 }
             } else {
-                RoundBtn("▶", if (canNext) FeltCoral else WoolCream.copy(alpha = 0.6f)) { if (canNext) d.send(Reply.Tapped("next", "다음")) }
+                RoundBtn("▶", if (canNext) FeltCoral else WoolCream.copy(alpha = 0.6f)) { if (canNext) onReply(Reply.Tapped("next", "다음")) }
             }
         }
     }
