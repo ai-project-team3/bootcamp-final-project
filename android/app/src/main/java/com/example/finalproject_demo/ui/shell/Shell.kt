@@ -31,6 +31,9 @@ object Shell {
     /** 이야기 도중 🏠 를 눌러 「방으로 갈까?」를 묻는 중 */
     var askHome by mutableStateOf(false)
 
+    /** 같이 만들기 도중 부모 「그만하기」를 눌러 「이야기를 여기서 마칠까?」를 묻는 중 (#36) */
+    var askStop by mutableStateOf(false)
+
     /** 처음 설정(로그인 · 동의 · 마이크 · 튜토리얼)을 끝냈나 */
     var onboarded by mutableStateOf(false)
         private set

@@ -16,8 +16,8 @@ package com.example.finalproject_demo.demo
  *   - 끝나는 조건은 `story_ready` 와 질문이 떨어졌을 때. 15분으로 끝내지 않고, 30분쯤 마무리를 **한 번** 제안한다 (09-30 조장)
  *   - 아이 말은 `r.text` 에서 읽는다. 서버 모드의 답에는 대본 값(`value`)이 없다 (AGENTS.md)
  *
- * ⚠️ 지금은 **대본**이다(09-30 목표). 붓 멈춤 · 오또 그림 도착은 시연 버튼이 대신하고, D1 · D5 전용 화면은
- * #28 이 풀리면 붙인다. 그 전까지 그리는 동안에는 그림판(`DrawPad`)을 떠나지 않는다 — 떠나면 아이가 그리던 획이 사라진다.
+ * 화면은 `DiaryBoard`(D1 · 붓이 멈추면 `pause` 를 보낸다) · `DiaryAsk`(D3) · `DiaryPaper`(D5) — `ui/DiaryViews.kt`.
+ * ⚠️ 아직 **대본**이다 — 오또 그림은 서버가 붙기 전까지 그림 글자이고, 시연 버튼으로도 붓 멈춤을 낼 수 있다.
  */
 
 /** 그리는 동안 묻는 질문 수 · 오또가 그려 주겠다고 하는 수 · 다 그린 뒤 묻는 수 */
@@ -35,7 +35,8 @@ suspend fun Director.pictureDiary() {
     log("그림일기 — 그리는 동안 짧게 묻고, 다 그리면 빈 칸만 ${ASK_AFTER_DRAWING}번까지 묻는다. 빈 칸은 메우지 않는다 (흐름 HTML)")
 
     when (startDrawing()) {
-        "draw" -> drawWhileTalking(day)
+        "draw" -> drawWhileTalking(day, pausedAlready = false)
+        "pause" -> drawWhileTalking(day, pausedAlready = true)
         "skip" -> log("그림 없이 말로 — D3 로 바로 간다")
         else -> log("묻기 전에 다 그렸다 → D3")
     }
@@ -45,16 +46,19 @@ suspend fun Director.pictureDiary() {
 
 // ── D0 ─────────────────────────────────────────────────────────
 
-/** 그릴까? — 그림판을 먼저 띄워 두고 묻는다. 대답이 없으면 재촉하지 않고 그대로 그리게 둔다. draw · skip · done */
+/**
+ * 그릴까? — 그림판을 먼저 띄워 두고 묻는다. 대답이 없으면 재촉하지 않고 그대로 그리게 둔다.
+ * draw · skip · done · pause(대답 없이 바로 그리기 시작해 붓이 멈췄다)
+ */
 private suspend fun Director.startDrawing(): String {
-    s.stage = Stage.DrawPad()
+    s.stage = DiaryBoard()
     inputs(false, false)
     say("오늘 있었던 일 하나를 그려 볼래? 생각나는 것부터 그려 줘.")
     buttons(
         DemoBtn("🖍 그릴래") { send(Reply.Tapped("draw", "그릴래")) },
         DemoBtn("🙅 그림 없이 이야기할래") { send(Reply.Tapped("skip", "그림 없이")) },
     )
-    val v = awaitValue("draw", "skip", "done")
+    val v = awaitValue("draw", "skip", "done", "pause")
     when (v) {
         "skip" -> s.drawing.clear()
         "done" -> { keepBoard(); if (s.sceneDrawing.isEmpty()) log("빈 화이트보드 → 그림 없는 날") }
@@ -68,29 +72,38 @@ private suspend fun Director.startDrawing(): String {
  * 그리는 동안. 붓이 멈출 때마다 새 조각이 생기고, 이름 없는 조각이면 묻는다.
  * 질문은 흐름을 막지 않는다 — 답이 없으면 같은 질문을 다시 하지 않고 그리기로 돌아간다.
  */
-private suspend fun Director.drawWhileTalking(day: DiaryDay) {
+private suspend fun Director.drawWhileTalking(day: DiaryDay, pausedAlready: Boolean) {
     var asked = 0
     var offers = 0
     val waiting = mutableListOf<DiaryPiece>()     // 오또가 그리고 있는 조각 — 다음 멈춤에 보여 준다
-    say("좋아! 다 그리면 알려 줘.")
+    var paused = pausedAlready
+    val askedPieces = mutableSetOf<Int>()        // 한 번 물은 조각은 다시 묻지 않는다(답이 없었어도)
+    if (!paused) say("좋아! 다 그리면 알려 줘.")
     while (true) {
         buttons(
             DemoBtn("✏️ (시연) 붓이 멈춤 — 조각 하나를 그렸다") { send(Reply.Tapped("pause", "멈춤")) },
             DemoBtn("✅ 다 그렸어") { send(Reply.Tapped("done", "완료")) },
         )
         // 그림판의 [그리기 싫어](skip)도 그리기를 끝낸다 — 무시하면 아이가 눌러도 아무 일이 없다
-        if (awaitValue("pause", "done", "skip") != "pause") break
+        if (!paused && awaitValue("pause", "done", "skip") != "pause") break
+        paused = false
 
         // 기다리던 오또 그림이 먼저다 — 아이가 부탁한 것이라
         val ready = waiting.removeFirstOrNull()
         if (ready != null) { showOttoDrawing(day, ready); continue }
 
-        val piece = newPiece(day)
+        day.catchUp(s.drawing)
+        val piece = pieceBeingDrawn(day)
+        if (piece == null || piece.id in askedPieces) {
+            log("붓 멈춤 — 방금 그린 조각은 이름이 있거나 이미 물었다. 묻지 않는다")
+            continue
+        }
         if (asked >= ASK_WHILE_DRAWING) {
             log("붓 멈춤 — 이번 판에 물을 만큼 물었다(${ASK_WHILE_DRAWING}번). 그리기를 지켜본다")
             continue
         }
         asked++
+        askedPieces += piece.id
         val (name, finished) = askPieceName(day, piece)
         if (finished) break
         if (name == null || offers >= OTTO_OFFERS) continue
@@ -106,12 +119,10 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) {
     pause(900)
 }
 
-/** 붓이 멈춘 자리까지를 한 조각으로 묶는다. 위치로 나누는 것은 화이트보드 화면(#28 뒤)이 한다 */
-private fun Director.newPiece(day: DiaryDay): DiaryPiece {
-    val used = day.pieces.sumOf { it.strokes.size }
-    val piece = DiaryPiece(id = day.pieces.size, strokes = s.drawing.drop(used))
-    day.pieces += piece
-    return piece
+/** 마지막 획이 붙은 조각 — 이름이 아직 없을 때만 물을 거리다 */
+private fun Director.pieceBeingDrawn(day: DiaryDay): DiaryPiece? {
+    val lastStroke = s.drawing.lastOrNull() ?: return null
+    return day.pieces.firstOrNull { lastStroke in it.strokes }?.takeIf { it.name == null }
 }
 
 /**
@@ -169,12 +180,14 @@ private suspend fun Director.offerOttoDrawing(name: String): String {
 /** 오또 그림이 왔다 — 보여 주고 아이가 고른다. 원본이 기본값이다 */
 private suspend fun Director.showOttoDrawing(day: DiaryDay, piece: DiaryPiece) {
     val name = piece.name ?: return
+    s.stage = DiaryBoard(pick = piece.id)
     say("짠! 나도 ${name}${eul(name)} 그려 봤어! 어떤 게 좋아?")
     buttons(
         DemoBtn("🖍 내 그림으로") { send(Reply.Tapped("orig", "내 그림")) },
         DemoBtn("✨ 오또 그림으로 ${ottoEmoji(name)}") { send(Reply.Tapped("otto", "오또 그림")) },
     )
     val pick = awaitValue("orig", "otto")
+    s.stage = DiaryBoard()
     val i = day.pieces.indexOfFirst { it.id == piece.id }
     val look = if (pick == "otto") PieceLook.OTTO else PieceLook.ORIGINAL
     day.pieces[i] = day.pieces[i].copy(look = look)
@@ -190,9 +203,10 @@ private suspend fun Director.showOttoDrawing(day: DiaryDay, piece: DiaryPiece) {
     pause(900)
 }
 
-/** 그림판의 획을 책에 쓸 그림으로 옮긴다 */
+/** 그림판의 획을 책에 쓸 그림으로 옮긴다 — 조각에 아직 안 붙은 획도 붙여 둔다 */
 private fun Director.keepBoard() {
     if (s.drawing.isEmpty()) return
+    s.diaryDay.catchUp(s.drawing)
     s.keepSceneDrawing()
     s.reactions++
     event("make", "kind" to "draw")
@@ -205,6 +219,7 @@ private fun Director.keepBoard() {
  * 질문 순서는 서버가 붙으면 판정의 `next_slot` 이 정한다(목요일). 지금은 이 차례다.
  */
 private suspend fun Director.askEmptySlots() {
+    s.stage = DiaryAsk
     val queue = PICTURE_QUESTIONS.filter { s.slots[it.key].isNullOrBlank() }.toMutableList()
     var asked = 0
     var wrapOffered = false
@@ -335,7 +350,7 @@ private suspend fun Director.readPictureDiary(day: DiaryDay) {
         val p = pages[i]
         val last = i == pages.lastIndex
         val caption = listOfNotNull(p.text, p.tail, p.closing ?: if (p.asksFeel) "$FEEL_LEAD …" else null).joinToString(" ")
-        s.stage = Stage.Show(pageArt(), caption)
+        s.stage = DiaryPaper(i)
         say(caption)
         val b = mutableListOf<DemoBtn>()
         if (i == 0 && day.weather == null) DiaryWeather.entries.forEach { w ->
@@ -367,9 +382,6 @@ private suspend fun Director.readPictureDiary(day: DiaryDay) {
         }
     }
 }
-
-/** 쪽 그림 — 지금은 아이 그림 한 장 전체. 조각이 앞으로 나오는 쪽 화면은 #28 뒤에 붙인다 */
-private fun Director.pageArt(): Art = if (s.sceneDrawing.isNotEmpty()) s.sceneArt else Art.Emoji("📔")
 
 // ── 말 → 조각 이름 ──────────────────────────────────────────────
 

@@ -1,5 +1,9 @@
 package com.example.finalproject_demo.demo
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import java.util.WeakHashMap
 
 /*
@@ -69,14 +73,15 @@ enum class DiaryFeel(val emoji: String, val line: String) {
     TIRED("😴", "오늘은 조금 피곤했어요."),
 }
 
+/** 화면이 읽는 것(조각 · 날씨 · 기분)은 Compose 상태라 바뀌면 그림판 · 그림일기가 다시 그려진다 */
 class DiaryDay {
-    val pieces = mutableListOf<DiaryPiece>()
+    val pieces = mutableStateListOf<DiaryPiece>()
 
     /** 날씨와 누가 골랐나 — `drawing`(그림에서 알아봄) · `card`(아이가 누름) */
-    var weather: DiaryWeather? = null
-    var weatherBy: String? = null
+    var weather by mutableStateOf<DiaryWeather?>(null)
+    var weatherBy by mutableStateOf<String?>(null)
 
-    var feel: DiaryFeel? = null
+    var feel by mutableStateOf<DiaryFeel?>(null)
 
     /**
      * 서버 대화 호출(`/turn`) 수 — **세기만 하고 막지 않는다.**

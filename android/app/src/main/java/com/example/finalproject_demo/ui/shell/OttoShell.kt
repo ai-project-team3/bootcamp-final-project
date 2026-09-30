@@ -17,6 +17,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.stopCoopByParent
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.net.Accounts
 import com.example.finalproject_demo.ui.ConsentStore
@@ -49,6 +50,19 @@ fun OttoShell(d: Director) {
             Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {
                 // 나가도 만들던 이야기는 기억해 둔다 — 방에서 같은 물건을 누르면 「이어서 할까?」
                 ConfirmDialog("🏠", "방으로 갈까?", onNo = { Shell.askHome = false }, onYes = { Shell.askHome = false; d.leaveToRoom() })
+            }
+        }
+        // 같이 만들기 도중 부모 「그만하기」 (#36) — 멈추면 지금까지 모인 답으로 책을 만든다
+        if (Shell.askStop) Shield(onBack = { Shell.askStop = false }) {
+            Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {
+                ConfirmDialog(
+                    "✋", "이야기를 여기서 마칠까?",
+                    detail = "지금까지 한 이야기로 책을 만들어요",
+                    note = "부모님이 누르는 버튼이에요",
+                    no = "▶" to "계속하기", yes = "📖" to "마치기",
+                    onNo = { Shell.askStop = false },
+                    onYes = { Shell.askStop = false; d.stopCoopByParent() },
+                )
             }
         }
         return

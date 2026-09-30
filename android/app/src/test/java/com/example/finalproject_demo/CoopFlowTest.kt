@@ -3,6 +3,7 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.demo.stopCoopByParent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -80,6 +81,37 @@ class CoopFlowTest {
         assertTrue("마스코트가 부모 질문을 안 읽었다: ${d.asked()}", await(8_000) { d.asked() == "오늘 어디 갔었어?" } != null)
         assertTrue("부모 띠가 떴다 — 마스코트가 읽는 흐름에서는 띠가 없다", s.parentCard == null)
         assertTrue("마이크가 안 켜졌다", s.micEnabled)
+    }
+
+    /** 부모 「그만하기」 (#36) — 묻던 질문을 거두고, 모인 답으로 책까지 간다. 아이가 한 답은 그대로 남는다 */
+    @Test
+    fun theParentCanStopEarlyAndTheBookIsStillMade() = run { d ->
+        val s = d.s
+        d.startCoopWith("오늘 어디 갔었어?", "거기서 무슨 일이 있었어?", "왜 그랬을까?", "그래서 어떻게 됐어?")
+        assertTrue(await(8_000) { d.asked() == "오늘 어디 갔었어?" } != null)
+        assertTrue(d.push("🎲"))
+        // 다음 걸음이 떠서 답을 기다리는 중에 멈춘다 (둘째 걸음은 꼬리질문 「누구랑」이다 — 부모 둘째 줄은 셋째 걸음)
+        assertTrue("다음 질문을 안 물었다: ${d.asked()}", await(8_000) { s.buttons.any { "🎲" in it.label } && s.slotBy["place"] == "child" } != null)
+
+        d.stopCoopByParent()
+        assertEquals("parent_stop", s.endReason)
+        d.stopCoopByParent()                    // 두 번 눌러도 한 번만
+        assertTrue("멈춘 뒤 마스코트가 알리지 않았다: ${s.line}", await(5_000) { "여기까지" in s.line } != null)
+
+        if (await(3_000) { s.buttons.any { "안 그릴래" in it.label } } != null) d.tap("안 그릴래")
+        assertTrue("책까지 못 갔다 scene=${s.scene} end=${s.endReason}", await(20_000) { s.scene == Scene.BOOK } != null)
+        assertEquals("아이가 한 답이 바뀌었다", "child", s.slotBy["place"])
+        assertTrue("빈 필수 칸을 메우지 않았다: ${s.slotBy}", listOf("problem", "cause", "solution").all { s.slotBy[it] == "mascot" })
+        assertTrue("멈춘 질문의 답이 칸에 새어 들어갔다", s.slots.values.none { "stop" in it })
+        assertTrue("이야기가 끝났는데 부모 질문이 남아 있다", s.parentQuestions.isEmpty())
+    }
+
+    @Test
+    fun stopDoesNothingOutsideCoop() = run { d ->
+        d.go(Scene.ADULT)
+        assertTrue(await { d.s.scene == Scene.ADULT } != null)
+        d.stopCoopByParent()
+        assertEquals(null, d.s.endReason)
     }
 
     @Test

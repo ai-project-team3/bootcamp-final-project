@@ -365,6 +365,22 @@ class Director(
     }
 
     /**
+     * Stops the running scene and runs [next] in its place, in the same scene — e.g. a parent ending co-op
+     * early (#36). A plain [go] would restart the scene from its first line.
+     */
+    fun replaceScene(next: suspend () -> Unit) {
+        scope.launch {
+            job?.cancelAndJoin()
+            drain()
+            currentQ = null
+            s.buttons.clear()
+            s.countdown = null
+            inputs(mic = false, next = false)
+            job = scope.launch { next() }
+        }
+    }
+
+    /**
      * 처음 화면으로 — 책장 · 부모 설정 · 하루 별은 그대로 둔다.
      * 방금 만든 이야기는 새 이야기를 시작할 때 지운다 (그 전까지 부모 모드에서 오늘의 기록으로 볼 수 있게).
      */
