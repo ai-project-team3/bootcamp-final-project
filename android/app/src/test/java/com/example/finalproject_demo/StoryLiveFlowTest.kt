@@ -85,6 +85,8 @@ class StoryLiveFlowTest {
                         drawingOffered = true
                         if (d.s.drawing.isEmpty()) d.s.drawing += original
                         d.send(Reply.Tapped("done", "완료"))
+                    } else if ((d.s.stage as? Stage.CardsRow)?.cards?.any { it.value == "sound:skip" } == true) {
+                        d.send(Reply.Tapped("sound:skip", "소리 없이 계속"))
                     } else if (d.s.micEnabled) d.send(Reply.Spoke("숲에서 친구를 만나 같이 놀았어"))
                     delay(40)
                 }
