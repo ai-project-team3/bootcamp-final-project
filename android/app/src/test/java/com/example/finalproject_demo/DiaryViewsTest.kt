@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.unit.dp
 import com.example.finalproject_demo.demo.BRUSH_PAUSE_MS
+import com.example.finalproject_demo.demo.DiaryAsk
 import com.example.finalproject_demo.demo.DiaryBoard
 import com.example.finalproject_demo.demo.DiaryFeel
 import com.example.finalproject_demo.demo.DiaryPaper
@@ -33,6 +34,8 @@ import com.example.finalproject_demo.demo.newDiaryDay
 import com.example.finalproject_demo.ui.Bg
 import com.example.finalproject_demo.ui.MascotBubble
 import com.example.finalproject_demo.ui.StageView
+import com.example.finalproject_demo.ui.diaryAskPose
+import com.example.finalproject_demo.ui.shell.Pose
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.RoborazziTaskType
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -151,6 +154,39 @@ class DiaryViewsTest {
         }
         assertEquals("a stroke goes into the drawing as soon as it is drawn", 1, d.s.drawing.size)
         assertEquals("pause", (r as? Reply.Tapped)?.value)
+    }
+
+    /** D3 — 다 그린 뒤: 엎드린 오또 옆에 아이 그림을 꽂아 두고 아래 대사 칸으로 묻는다 (docs/review/일기모드_0930 A) */
+    @Test
+    fun afterDrawingOttoLiesBesideThePinnedDrawing() {
+        val d = director()
+        drawDay(d)
+        d.s.diaryDay.pieces[2] = d.s.diaryDay.pieces[2].copy(look = PieceLook.OTTO)
+        d.s.keepSceneDrawing()
+        d.s.stage = DiaryAsk
+        d.say("오늘 어디 갔었어?")
+        show(d)
+        compose.onNodeWithTag("d3-otto").assertExists()
+        compose.onNodeWithTag("d3-card").assertExists()
+        snap("diary_ask")
+    }
+
+    @Test
+    fun aDayWithoutDrawingHasNoEmptyCard() {
+        val d = director()
+        d.s.newDiaryDay()
+        d.s.stage = DiaryAsk
+        d.say("오늘 어디 갔었어?")
+        show(d)
+        compose.onNodeWithTag("d3-otto").assertExists()
+        compose.onNodeWithTag("d3-card").assertDoesNotExist()
+        snap("diary_ask_no_drawing")
+    }
+
+    @Test
+    fun ottoLooksUpWhileAskingAndWritesWhileListening() {
+        assertEquals(Pose.LIE_LOOK, diaryAskPose(listening = false))
+        assertEquals(Pose.LIE_WRITE, diaryAskPose(listening = true))
     }
 
     @Test

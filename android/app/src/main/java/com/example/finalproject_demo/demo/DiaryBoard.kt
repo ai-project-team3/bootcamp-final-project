@@ -11,11 +11,17 @@ package com.example.finalproject_demo.demo
  * 좌표는 모두 화이트보드 크기에 대한 비율(0~1)이다 — x 는 폭, y 는 높이 기준. 화이트보드의 폭/높이는 [DemoState.drawingAspect].
  */
 
-/** 그림판 화면 둘 — 그리는 판(D1)과 그림일기 한 쪽(D5) */
+/** 그림판 화면 셋 — 그리는 판(D1) · 다 그린 뒤 묻기(D3) · 그림일기 한 쪽(D5) */
 data class DiaryBoard(
     /** 오또 그림이 와서 「어떤 게 좋아?」를 고르는 조각 id. null 이면 그리기만 */
     val pick: Int? = null,
 ) : DiaryStage
+
+/**
+ * 다 그린 뒤 빈 칸을 묻는 화면(D3) — 엎드린 오또 옆에 아이 그림을 꽂아 두고, 묻는 말은 늘 쓰는 아래 대사 칸으로.
+ * 그림판을 내린다 — 이제 그리는 때가 아니라 말하는 때다
+ */
+data object DiaryAsk : DiaryStage
 
 data class DiaryPaper(val index: Int) : DiaryStage
 

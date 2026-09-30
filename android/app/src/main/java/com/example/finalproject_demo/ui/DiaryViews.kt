@@ -64,6 +64,8 @@ import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.BRUSH_PAUSE_MS
 import com.example.finalproject_demo.demo.BoardBox
 import com.example.finalproject_demo.demo.Card
+import com.example.finalproject_demo.demo.DemoState
+import com.example.finalproject_demo.demo.DiaryAsk
 import com.example.finalproject_demo.demo.DiaryBoard
 import com.example.finalproject_demo.demo.DiaryFeel
 import com.example.finalproject_demo.demo.DiaryPage
@@ -84,12 +86,14 @@ import com.example.finalproject_demo.demo.cropFor
 import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.ottoEmoji
+import com.example.finalproject_demo.ui.shell.Otto
+import com.example.finalproject_demo.ui.shell.Pose
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 import com.example.finalproject_demo.demo.Stroke as DrawStroke
 
 /**
- * 그림일기 화면 (docs/일기모드_흐름.html) — 조각 화이트보드(D1) · 그림일기 한 쪽(D5).
+ * 그림일기 화면 (docs/일기모드_흐름.html) — 조각 화이트보드(D1) · 다 그린 뒤 묻기(D3) · 그림일기 한 쪽(D5).
  *
  * `StageView` 가 [DiaryStage] 를 여기로 넘긴다(#28). 이 파일과 [DiaryStage] 는 일기 모드(박진웅) 것이라
  * 그림일기 화면을 더해도 `Screen.kt` 를 다시 고치지 않는다.
@@ -98,6 +102,7 @@ import com.example.finalproject_demo.demo.Stroke as DrawStroke
 fun DiaryStageView(d: Director, stage: DiaryStage) {
     when (stage) {
         is DiaryBoard -> DiaryBoardView(d, stage)
+        DiaryAsk -> DiaryAskView(d)
         is DiaryPaper -> DiaryPaperView(d, stage)
     }
 }
@@ -261,6 +266,51 @@ private fun DrawScope.drawBoardStroke(s: DrawStroke, crop: BoardBox) {
     drawPath(p, s.color, style = Stroke(w, cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
+// ── D3 다 그린 뒤 묻기 ──────────────────────────────────────────
+
+/** 엎드린 오또 — 물을 때는 고개 들고 아이를 보고, 아이가 말하는 동안은 공책에 받아 적는다 */
+internal fun diaryAskPose(listening: Boolean): Pose = if (listening) Pose.LIE_WRITE else Pose.LIE_LOOK
+
+/**
+ * 다 그린 뒤 빈 칸 묻기 — 왼쪽에 엎드린 오또, 오른쪽에 아이 그림을 꽂은 카드(둘이 같은 높이).
+ * 묻는 말은 아래 대사 칸이 맡는다 — 카드 · 오또 모두 대사 칸 위에서 멈춘다(리뷰 0930 A).
+ * 그림 없는 날에는 빈 카드를 세우지 않는다.
+ */
+@Composable
+private fun DiaryAskView(d: Director) {
+    val s = d.s
+    val pieces = bookPieces(s)
+    Row(
+        Modifier.fillMaxSize().padding(start = 12.dp, end = 20.dp, top = TopChrome - 6.dp, bottom = BottomChrome),
+        verticalAlignment = Alignment.Bottom,
+        // 그림 없는 날은 오또 혼자 — 구석이 아니라 가운데에서 묻는다
+        horizontalArrangement = if (pieces.isEmpty()) Arrangement.Center else Arrangement.Start,
+    ) {
+        Otto(diaryAskPose(s.micOn), Modifier.fillMaxHeight().testTag("d3-otto"))
+        if (pieces.isEmpty()) return@Row
+        Spacer(Modifier.width(12.dp))
+        Box(Modifier.weight(1f).fillMaxHeight()) {
+            BoxWithConstraints(
+                Modifier.fillMaxSize().padding(top = 10.dp)
+                    .graphicsLayer { rotationZ = -0.6f }
+                    .felt(FeltWhite, RoundedCornerShape(R), lift = 6.dp, texture = false)
+                    .padding(14.dp)
+                    .testTag("d3-card")
+            ) {
+                // 그린 부분만 카드 비율로 잘라 꽉 채운다 — 화이트보드의 빈 곳은 버린다
+                val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)
+                pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
+            }
+            Box(Modifier.align(Alignment.TopCenter).size(22.dp).felt(Coral, CircleShape, lift = 2.dp, stitch = false))
+        }
+    }
+}
+
+/** 책에 들어갈 조각 — 묶인 조각이 없으면 화이트보드 그림 한 덩어리 */
+private fun bookPieces(s: DemoState): List<DiaryPiece> = s.diaryDay.pieces.toList().ifEmpty {
+    if (s.sceneDrawing.isEmpty()) emptyList() else listOf(DiaryPiece(0, s.sceneDrawing.toList()))
+}
+
 // ── D5 그림일기 한 쪽 ───────────────────────────────────────────
 
 /**
@@ -333,9 +383,7 @@ private fun SheetHead(d: Director, weather: DiaryWeather?) {
 @Composable
 private fun PicturePanel(d: Director, page: DiaryPage, modifier: Modifier) {
     val s = d.s
-    val pieces = s.diaryDay.pieces.toList().ifEmpty {
-        if (s.sceneDrawing.isEmpty()) emptyList() else listOf(DiaryPiece(0, s.sceneDrawing.toList()))
-    }
+    val pieces = bookPieces(s)
     BoxWithConstraints(modifier.border(2.dp, InkSoft.copy(alpha = 0.4f), RoundedCornerShape(8.dp)).background(Color.White, RoundedCornerShape(8.dp))) {
         if (pieces.isEmpty()) {
             Text("✏️", fontSize = 40.sp, modifier = Modifier.align(Alignment.Center).alpha(0.4f))

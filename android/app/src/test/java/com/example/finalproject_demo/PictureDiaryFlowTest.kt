@@ -3,6 +3,7 @@ package com.example.finalproject_demo
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.ASK_AFTER_DRAWING
+import com.example.finalproject_demo.demo.DiaryAsk
 import com.example.finalproject_demo.demo.DiaryBoard
 import com.example.finalproject_demo.demo.DiaryPageKind
 import com.example.finalproject_demo.demo.DiaryPaper
@@ -176,6 +177,7 @@ class PictureDiaryFlowTest {
         assertTrue(d.push("다 그렸어"))
         assertTrue("다 그린 뒤 빈 칸을 묻지 않았다", await { s.line == "오늘 어디 갔었어?" } != null)
         assertTrue("그림이 책에 쓸 자리로 옮겨지지 않았다", s.sceneDrawing.size == 2 && s.drawing.isEmpty())
+        assertTrue("D3 에 그림판이 그대로 떠 있다 — 엎드린 오또와 그림 카드여야 한다", s.stage is DiaryAsk)
     }
 
     /** 그림판의 [그리기 싫어]는 그리는 도중에도 먹어야 한다 (09-22 일기 · 협업에서 눌러도 멎던 것과 같은 자리) */

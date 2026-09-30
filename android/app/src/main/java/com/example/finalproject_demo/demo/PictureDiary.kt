@@ -16,7 +16,7 @@ package com.example.finalproject_demo.demo
  *   - 끝나는 조건은 `story_ready` 와 질문이 떨어졌을 때. 15분으로 끝내지 않고, 30분쯤 마무리를 **한 번** 제안한다 (09-30 조장)
  *   - 아이 말은 `r.text` 에서 읽는다. 서버 모드의 답에는 대본 값(`value`)이 없다 (AGENTS.md)
  *
- * 화면은 `DiaryBoard`(D1 · 붓이 멈추면 `pause` 를 보낸다) · `DiaryPaper`(D5) — `ui/DiaryViews.kt`.
+ * 화면은 `DiaryBoard`(D1 · 붓이 멈추면 `pause` 를 보낸다) · `DiaryAsk`(D3) · `DiaryPaper`(D5) — `ui/DiaryViews.kt`.
  * ⚠️ 아직 **대본**이다 — 오또 그림은 서버가 붙기 전까지 그림 글자이고, 시연 버튼으로도 붓 멈춤을 낼 수 있다.
  */
 
@@ -219,6 +219,7 @@ private fun Director.keepBoard() {
  * 질문 순서는 서버가 붙으면 판정의 `next_slot` 이 정한다(목요일). 지금은 이 차례다.
  */
 private suspend fun Director.askEmptySlots() {
+    s.stage = DiaryAsk
     val queue = PICTURE_QUESTIONS.filter { s.slots[it.key].isNullOrBlank() }.toMutableList()
     var asked = 0
     var wrapOffered = false
