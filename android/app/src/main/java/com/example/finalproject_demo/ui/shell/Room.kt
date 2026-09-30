@@ -56,6 +56,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.res.imageResource
+import kotlin.math.roundToInt
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Director
@@ -153,10 +157,71 @@ private enum class Poke(val move: OttoMove, val line: String, val millis: Long, 
 private const val OTTO = 160f
 private const val HOME_X = 244f
 
-/** 디자인 좌표(800×360) → 이 화면의 dp */
-private class Grid(val w: Dp, val h: Dp) {
-    fun x(v: Float) = w * (v / 800f)
-    fun y(v: Float) = h * (v / 360f)
+/*
+ * 디자인 좌표(800×360) → 이 화면의 dp.
+ *
+ * 09-30 기기 맞춤: 좌표를 **배경 그림(room_bg · 1344×768)에 붙인다.** 전에는 가로 · 세로를 따로 늘려서
+ * 태블릿(세로가 긴 화면)에서 배경과 가구가 서로 다르게 늘어나 이름표 · 오또가 벽 · 바닥에서 떨어졌다.
+ *  - 기준 폰(갤럭시 S10 · 868×411dp)에서 배경을 가로에 맞춰 그렸을 때의 자리를 그림 픽셀로 바꿔 둔다 → 기준 폰은 전과 똑같다
+ *  - 배경은 **가로에 맞춘다** — 물건이 양끝까지 있어 좌우를 자를 수 없다
+ *  - 세로가 남으면(태블릿) 그림을 바닥에 붙이고, 위는 줄무늬 벽을 늘려 채운다([RoomBackground])
+ *  - 세로가 모자라면(긴 폰) 가운데를 보이되 물건이 있는 줄(창문 위 ~ 소파 아래)은 꼭 들어오게
+ */
+private const val IMG_W = 1344f
+private const val IMG_H = 768f
+private const val REF_W = 868f
+private const val REF_H = 411f
+private const val REF_S = REF_W / IMG_W
+private val REF_OY = (REF_H - IMG_H * REF_S) / 2
+private fun imgX(v: Float) = v / 800f * REF_W / REF_S
+private fun imgY(v: Float) = (v / 360f * REF_H - REF_OY) / REF_S
+/** 꼭 보여야 하는 줄 — 창문 위 · 소파 아래(이름표 · 발자국 포함) */
+private val NEED_TOP = imgY(10f)
+private val NEED_BOTTOM = imgY(345f)
+/** 세로가 남을 때 늘리는 줄무늬 벽 — 위 가랜드 아래부터 걸레받이 위까지 (그림 픽셀) */
+private const val WALL_TOP = 90f
+private const val WALL_BOTTOM = 545f
+
+private class Grid(w: Dp, h: Dp) {
+    /** 그림 1px 이 몇 dp 인가 · 그림 왼쪽 위가 화면 어디인가 */
+    val s: Float = minOf(w.value / IMG_W, h.value / (NEED_BOTTOM - NEED_TOP))
+    val ox: Float = (w.value - IMG_W * s) / 2
+    val oy: Float = (IMG_H * s).let { ih ->
+        if (ih <= h.value) h.value - ih
+        else ((h.value - ih) / 2).coerceIn(-NEED_TOP * s, h.value - NEED_BOTTOM * s)
+    }
+    /** 자리 */
+    fun x(v: Float) = (ox + imgX(v) * s).dp
+    fun y(v: Float) = (oy + imgY(v) * s).dp
+    /** 길이 */
+    fun dx(v: Float) = (imgX(v) * s).dp
+    fun dy(v: Float) = (v / 360f * REF_H / REF_S * s).dp
+}
+
+/** 방 배경 — [Grid] 와 같은 배율 · 같은 자리. 위에 남는 곳은 가랜드는 맨 위에 두고 줄무늬 벽만 늘린다 */
+@Composable
+private fun RoomBackground(g: Grid, fallback: @Composable () -> Unit) {
+    val id = com.example.finalproject_demo.ui.assetId("room_bg")
+    if (id == 0) { fallback(); return }
+    val img = androidx.compose.ui.graphics.ImageBitmap.imageResource(id)
+    Canvas(Modifier.fillMaxSize()) {
+        val k = density
+        val s = g.s * k; val ox = g.ox * k; val oy = g.oy * k
+        val w = (IMG_W * s).roundToInt()
+        fun slice(sy0: Float, sy1: Float, dy0: Float, dy1: Float) = drawImage(
+            img,
+            srcOffset = IntOffset(0, (sy0 * img.height / IMG_H).roundToInt()),
+            srcSize = IntSize(img.width, ((sy1 - sy0) * img.height / IMG_H).roundToInt()),
+            dstOffset = IntOffset(ox.roundToInt(), dy0.roundToInt()),
+            dstSize = IntSize(w, (dy1 - dy0).roundToInt().coerceAtLeast(1)),
+        )
+        if (oy <= 0f) slice(0f, IMG_H, oy, oy + IMG_H * s)
+        else {
+            slice(0f, WALL_TOP, 0f, WALL_TOP * s)
+            slice(WALL_TOP, WALL_BOTTOM, WALL_TOP * s, oy + WALL_BOTTOM * s)
+            slice(WALL_BOTTOM, IMG_H, oy + WALL_BOTTOM * s, oy + IMG_H * s)
+        }
+    }
 }
 
 @Composable
@@ -223,7 +288,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
     BoxWithConstraints(Modifier.fillMaxSize().background(Wool)) {
         val g = Grid(maxWidth, maxHeight)
         // 벽지 · 바닥 · 러그 — ComfyUI 그림(room_bg). 없으면 펠트 도형으로 그린다
-        AssetImage("room_bg", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { Canvas(Modifier.fillMaxSize()) {
+        RoomBackground(g) { Canvas(Modifier.fillMaxSize()) {
             val sx = size.width / 800f; val sy = size.height / 360f
             for (i in 0 until 13) drawRect(WoolCream.copy(alpha = 0.5f), Offset((20 + i * 64) * sx, 0f), Size(22 * sx, 262 * sy))
             drawRect(StageWood, Offset(0f, 262 * sy), Size(size.width, size.height - 262 * sy))
@@ -236,7 +301,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
             // 만들다 멈춘 이야기가 있는 물건 — 털실 뭉치 표시 (여기서 이어 갈 수 있다)
             val resumable = !tutorial && s.paused != null && modeOf(t.value) == s.mode
             Box(
-                Modifier.offset(g.x(t.x), g.y(t.y)).width(g.x(t.w)).height(g.y(t.h))
+                Modifier.offset(g.x(t.x), g.y(t.y)).width(g.dx(t.w)).height(g.dy(t.h))
                     .alpha(if (tutorial && t != Thing.THEATER) 0.35f else 1f)
                     .noRippleClickable { pick(t) }
             ) {
@@ -268,7 +333,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
         // 발자국
         paws.forEach { px -> Text("🐾", fontSize = 18.sp, modifier = Modifier.offset(g.x(px), g.y(318f)).alpha(0.55f)) }
         // 오또
-        Box(Modifier.offset(g.x(walkX.value), g.y(if (target != null) 330f - OTTO - 6f else 330f - OTTO)).size(g.y(OTTO)).semantics { contentDescription = "오또" }.noRippleClickable { pokeOtto() }) {
+        Box(Modifier.offset(g.x(walkX.value), g.y(if (target != null) 330f - OTTO - 6f else 330f - OTTO)).size(g.dy(OTTO)).semantics { contentDescription = "오또" }.noRippleClickable { pokeOtto() }) {
             // 09-29 뼈대로 움직이는 오또 인형 — 걸을 땐 다리 · 팔을 번갈아, 물을 땐 그 물건을 가리키고,
             // 권할 땐 손을 흔들고, 평소엔 숨 쉬며 꼬리를 흔든다. 보는 방향은 가는 쪽 · 가리키는 쪽
             val walking = moving || walkX.isRunning
@@ -330,7 +395,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                 ConfirmDialog(
                     "🎁", "아직 준비된 이야기가 없어!", title = t.title, art = t.art, accent = t.color,
                     detail = "부모님한테 이야기를 골라 달라고 부탁해 볼까?",
-                    note = "부모님은 🔒 → 협업 질문에서 골라요",
+                    note = "부모님은 🔒 → 같이 만들기에서 골라요",
                     no = null, yes = "✓" to "알겠어!",
                     onNo = {}, onYes = { asking = false; target = null; scope.launch { walkX.animateTo(HOME_X, tween(500)); paws.clear() } },
                     modifier = Modifier.align(Alignment.Center),
@@ -606,5 +671,17 @@ fun KidTopBar(d: Director, modifier: Modifier = Modifier) {
         FeltButton(WoolCream, onClick = { Shell.askHome = true }, modifier = Modifier.size(56.dp), shape = CircleShape) { Text("🏠", fontSize = 24.sp) }
         Spacer(Modifier.width(10.dp))
         LockDoor { d.openParent() }
+        // 같이 만들기 중에만 — 부모 「그만하기」 (#36). 어른 글씨로 작게, 누르면 확인 창을 한 번 더 거친다(아이가 잘못 누르지 않게)
+        val s = d.s
+        if (s.isCoop && s.scene == com.example.finalproject_demo.demo.Scene.DIARY && s.endReason == null) {
+            Spacer(Modifier.width(10.dp))
+            Box(
+                Modifier.height(44.dp)
+                    .felt(FeltWhite.copy(alpha = 0.94f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
+                    .clickable { Shell.askStop = true }
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) { ParentText { Text("✋ 그만하기", fontSize = 14.sp, color = InkBrown, fontWeight = FontWeight.Bold) } }
+        }
     }
 }
