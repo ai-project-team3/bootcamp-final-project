@@ -12,6 +12,12 @@ import java.util.WeakHashMap
  * 여기에는 그림일기에만 있는 것만 둔다: 조각 · 날씨 · 오늘 기분 · 서버 호출 수.
  */
 
+/**
+ * 그림일기 화면 — `Stage` 의 일기 몫. 종류는 이 안에만 더한다(`Model.kt` 의 `Stage` 를 고치지 않는다).
+ * 그리는 쪽은 `ui/DiaryViews.kt` 의 `DiaryStageView` 다 (#28).
+ */
+sealed interface DiaryStage : Stage
+
 /** 조각이 책에서 보이는 모습. 기본은 늘 아이 원본이다 (차별점 1 완화의 선 — #33) */
 enum class PieceLook { ORIGINAL, OTTO }
 
