@@ -48,6 +48,8 @@ suspend fun Director.runScene(scene: Scene) {
 
 /** 장면을 건너뛰어 들어왔을 때 앞 장면의 결과를 채워 둔다 (아이가 고른 값은 건드리지 않는다). */
 fun Director.seedFor(scene: Scene) {
+    // Live stories have actual verdicts. Drawer defaults must never invent their answers.
+    if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) return
     val order = Scene.entries.indexOf(scene)
     fun after(target: Scene, fill: () -> Unit) {
         if (order > Scene.entries.indexOf(target) && order <= Scene.entries.indexOf(Scene.END)) fill()
@@ -651,6 +653,10 @@ private val BASE_WHO = QVariant(
 // ── 장면 3 · 어디로 갈까 (고정 1턴) → 거기엔 뭐가 있을까 (배경 속 것이 반짝) ──
 
 private suspend fun Director.scenePlace() {
+    if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
+        liveStoryConversation()
+        return
+    }
     val c = s.childName
     s.stage = Stage.HeroShow(s.heroAttr ?: HeroAttr(), "")
     val q = BASE_PLACE.toQuestion(s).copy(choices = basePlaceCards(), noCards = false, easierAsk = "어디로 갈까?", hint = null)
