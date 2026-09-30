@@ -1,3 +1,4 @@
+# PC1 = the shared PC behind the lead's desk — not the lead's own PC (docs/서버_세팅.md)
 name: Deploy backend (PC1)
 
 on:
@@ -10,12 +11,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify .env exists
+      # The keys live OUTSIDE the checkout: checkout runs `git clean -ffdx`, which deletes
+      # ignored files — a .env copied into the work folder would be gone on the next deploy.
+      - name: Bring .env from C:\otto\.env
         run: |
-          if (-not (Test-Path ".env")) {
-            Write-Error ".env not found at repo root — copy it before deploying (see docs/서버_세팅.md)"
+          if (-not (Test-Path "C:\otto\.env")) {
+            Write-Error "C:\otto\.env not found - copy it there by USB once (see docs/서버_세팅.md)"
             exit 1
           }
+          Copy-Item "C:\otto\.env" ".env" -Force
 
       - name: Install backend dependencies
         working-directory: backend
@@ -25,6 +29,10 @@ jobs:
         run: .\scripts\deploy\stop_backend.ps1
 
       - name: Start backend
+        # The runner kills every process a job started when the job ends (orphan cleanup),
+        # found through RUNNER_TRACKING_ID. Blank it so the backend outlives the job.
+        env:
+          RUNNER_TRACKING_ID: ""
         run: .\scripts\deploy\start_backend.ps1
 
       - name: Health check

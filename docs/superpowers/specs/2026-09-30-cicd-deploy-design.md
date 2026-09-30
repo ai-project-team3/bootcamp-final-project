@@ -19,7 +19,7 @@ Discord 알림용이고 테스트·빌드와 무관하다. 브랜치는 `main` +
 ## 결정된 범위
 
 - CI: 테스트(백엔드 pytest, 안드로이드 Gradle 유닛테스트) + 빌드 산출물 확인(안드로이드 debug APK, 서명 없음)
-- CD: **백엔드 자동 배포 포함** — `release` 브랜치 병합 시 실제 GPU PC(PC1, 이 문서 작성 PC)에 상시 설치된
+- CD: **백엔드 자동 배포 포함** — `release` 브랜치 병합 시 실제 GPU PC(PC1 = 조장 뒷자리 공용 PC — **조장 PC 가 아니다**, `docs/서버_세팅.md`)에 상시 설치된
   self-hosted GitHub Actions 러너가 코드를 pull하고 백엔드 프로세스를 재시작한다
 - 범위 밖: 안드로이드 서명·Play Console 자동 업로드(조장 수동 원칙 유지), ComfyUI(PC2) 자동 배포,
   GPU 연동 실통합 테스트, 린트/포맷 검사, 자동 롤백
@@ -95,9 +95,15 @@ steps:
 2. `[세션]` 일반 PowerShell(관리자 불필요)에서 GitHub가 안내하는 다운로드·압축 해제·`config.cmd` 명령 실행,
    `--labels pc1,backend-deploy` 지정, 토큰은 사람이 붙여넣는다
 3. `[사람]` 관리자 PowerShell에서 GitHub가 안내하는 서비스 설치 스크립트로 Windows 서비스 등록(PC 재부팅 시
-   자동 시작)
-4. `[사람]` 러너의 작업 폴더(`C:\actions-runner\_work\<repo>\<repo>\.env`)에 USB로 `.env`를 1회 복사
-   (현재 수동 절차와 동일 — 세션은 `.env` 내용을 읽지 않는다)
+   자동 시작). **서비스 계정은 PC1 의 평소 로그인 계정** — 기본값 `NETWORK SERVICE` 는 그 계정의 파이썬 ·
+   패키지 · 받아쓰기 모델(`~/.cache/huggingface`)을 못 본다
+4. `[사람]` USB로 `.env`를 **`C:\otto\.env`** 에 1회 복사(세션은 `.env` 내용을 읽지 않는다). 배포할 때 워크플로가
+   레포 루트로 복사한다 — **러너 작업 폴더에 두지 않는다**: `actions/checkout` 이 매번 `git clean -ffdx` 로
+   무시된 파일까지 지워서 두 번째 배포부터 `.env` 가 사라진다 (09-30 조장 세션 수정)
+5. 백엔드 시작 단계는 `RUNNER_TRACKING_ID` 를 비운다 — 러너는 작업이 끝날 때 그 작업이 띄운 프로세스를 정리해서,
+   비우지 않으면 헬스체크 직후 백엔드가 꺼진다 (09-30 수정 · 실기기 확인 전)
+
+PC별 전체 순서는 `docs/서버_세팅.md` 「PC별 작업 순서」 PC1 절.
 
 ## 안전 규칙
 
