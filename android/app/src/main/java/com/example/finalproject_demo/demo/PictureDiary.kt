@@ -34,83 +34,78 @@ suspend fun Director.pictureDiary() {
     s.diaryTimeUp = false
     log("그림일기 — 그리는 동안 짧게 묻고, 다 그리면 빈 칸만 ${ASK_AFTER_DRAWING}번까지 묻는다. 빈 칸은 메우지 않는다 (흐름 HTML)")
 
-    when (startDrawing()) {
-        "draw" -> drawWhileTalking(day, pausedAlready = false)
-        "pause" -> drawWhileTalking(day, pausedAlready = true)
-        "skip" -> log("그림 없이 말로 — D3 로 바로 간다")
-        else -> log("묻기 전에 다 그렸다 → D3")
-    }
+    s.progressVisible = false        // 위쪽 별 막대는 일기 화면이 따로 그린다 (D3 별 두 개)
+    if (startDrawing() == "draw") drawWhileTalking(day) else log("그림 없이 말로 — D3 로 바로 간다")
     askEmptySlots()
     finishPictureDiary(day)
 }
 
 // ── D0 ─────────────────────────────────────────────────────────
 
-/**
- * 그릴까? — 그림판을 먼저 띄워 두고 묻는다. 대답이 없으면 재촉하지 않고 그대로 그리게 둔다.
- * draw · skip · done · pause(대답 없이 바로 그리기 시작해 붓이 멈췄다)
- */
+/** 그릴까? — 방에서 오또가 손 흔들며 묻는다. [그릴래!] · [그림 없이 말할래] (docs/일기모드_UI.html D0) */
 private suspend fun Director.startDrawing(): String {
-    s.stage = DiaryBoard()
+    s.stage = DiaryStart
     inputs(false, false)
-    say("오늘 있었던 일 하나를 그려 볼래? 생각나는 것부터 그려 줘.")
+    say("오늘 있었던 일을 그려 볼래? 생각나는 것부터 그려 줘.")
     buttons(
         DemoBtn("🖍 그릴래") { send(Reply.Tapped("draw", "그릴래")) },
         DemoBtn("🙅 그림 없이 이야기할래") { send(Reply.Tapped("skip", "그림 없이")) },
     )
-    val v = awaitValue("draw", "skip", "done", "pause")
-    when (v) {
-        "skip" -> s.drawing.clear()
-        "done" -> { keepBoard(); if (s.sceneDrawing.isEmpty()) log("빈 화이트보드 → 그림 없는 날") }
-    }
+    val v = awaitValue("draw", "skip")
+    if (v == "skip") s.drawing.clear() else s.stage = DiaryBoard()
     return v
 }
 
 // ── D1 ─────────────────────────────────────────────────────────
 
+/** 물을 것이 없는 멈춤이 이만큼 쌓이면 「다 그렸어?」 — 매번 묻지 않는다(지켜보는 틈을 둔다) */
+internal const val DONE_CHECK_EVERY = 2
+
 /**
  * 그리는 동안. 붓이 멈출 때마다 새 조각이 생기고, 이름 없는 조각이면 묻는다.
  * 질문은 흐름을 막지 않는다 — 답이 없으면 같은 질문을 다시 하지 않고 그리기로 돌아간다.
+ * 그림판 옆 버튼은 없다 — 물을 것이 떨어지면 오또가 멈춘 틈에 「다 그렸어?」라고 묻는다 (docs/일기모드_UI.html 규칙)
  */
-private suspend fun Director.drawWhileTalking(day: DiaryDay, pausedAlready: Boolean) {
+private suspend fun Director.drawWhileTalking(day: DiaryDay) {
     var asked = 0
     var offers = 0
+    var quiet = 0                                // 물을 것 없이 지나간 멈춤 수
     val waiting = mutableListOf<DiaryPiece>()     // 오또가 그리고 있는 조각 — 다음 멈춤에 보여 준다
-    var paused = pausedAlready
     val askedPieces = mutableSetOf<Int>()        // 한 번 물은 조각은 다시 묻지 않는다(답이 없었어도)
-    if (!paused) say("좋아! 다 그리면 알려 줘.")
+    say("좋아! 다 그리면 알려 줘.")
     while (true) {
         buttons(
             DemoBtn("✏️ (시연) 붓이 멈춤 — 조각 하나를 그렸다") { send(Reply.Tapped("pause", "멈춤")) },
             DemoBtn("✅ 다 그렸어") { send(Reply.Tapped("done", "완료")) },
         )
-        // 그림판의 [그리기 싫어](skip)도 그리기를 끝낸다 — 무시하면 아이가 눌러도 아무 일이 없다
-        if (!paused && awaitValue("pause", "done", "skip") != "pause") break
-        paused = false
+        // [그리기 싫어](skip)도 그리기를 끝낸다 — 시연 서랍 · 말로 끝낼 때
+        if (awaitValue("pause", "done", "skip") != "pause") break
 
         // 기다리던 오또 그림이 먼저다 — 아이가 부탁한 것이라
         val ready = waiting.removeFirstOrNull()
         if (ready != null) { showOttoDrawing(day, ready); continue }
 
         day.catchUp(s.drawing)
-        val piece = pieceBeingDrawn(day)
-        if (piece == null || piece.id in askedPieces) {
-            log("붓 멈춤 — 방금 그린 조각은 이름이 있거나 이미 물었다. 묻지 않는다")
+        val piece = pieceBeingDrawn(day)?.takeIf { it.id !in askedPieces }
+        if (piece != null && asked < ASK_WHILE_DRAWING) {
+            asked++
+            askedPieces += piece.id
+            val (name, finished) = askPieceName(day, piece)
+            if (finished) break
+            if (name == null || offers >= OTTO_OFFERS) continue
+            when (offerOttoDrawing(name)) {
+                "yes" -> { offers++; waiting += day.pieces.first { it.id == piece.id } }
+                "done" -> break
+            }
             continue
         }
-        if (asked >= ASK_WHILE_DRAWING) {
-            log("붓 멈춤 — 이번 판에 물을 만큼 물었다(${ASK_WHILE_DRAWING}번). 그리기를 지켜본다")
-            continue
-        }
-        asked++
-        askedPieces += piece.id
-        val (name, finished) = askPieceName(day, piece)
-        if (finished) break
-        if (name == null || offers >= OTTO_OFFERS) continue
-        when (offerOttoDrawing(name)) {
-            "yes" -> { offers++; waiting += day.pieces.first { it.id == piece.id } }
-            "done" -> break
-        }
+        log(
+            if (piece != null) "붓 멈춤 — 이번 판에 물을 만큼 물었다(${ASK_WHILE_DRAWING}번). 그리기를 지켜본다"
+            else "붓 멈춤 — 방금 그린 조각은 이름이 있거나 이미 물었다. 묻지 않는다"
+        )
+        if (++quiet < DONE_CHECK_EVERY) continue
+        quiet = 0
+        if (askDoneDrawing()) break
     }
     if (waiting.isNotEmpty()) log("아직 그리는 중인 오또 그림 ${waiting.size}장은 버린다 — 다 그렸으니 기다리게 하지 않는다")
     keepBoard()
@@ -137,7 +132,8 @@ private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pai
         spoken = PIECE_ANSWERS,
         id = "diary_piece",
     )
-    val r = ask(q)
+    day.askingPiece = piece.id
+    val r = try { ask(q) } finally { day.askingPiece = null }
     if (r is Reply.Tapped && (r.value == "done" || r.value == "skip")) return null to true
     val name = (r as? Reply.Spoke)?.let { pieceNameFrom(it) }
     if (name == null) {
@@ -157,15 +153,15 @@ private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pai
     return name to false
 }
 
-/** 「나도 ○○ 그려볼까?」 — 응이면 뒤에서 그리고 아이는 계속 그린다. 기다리는 화면이 없다. yes · no · done */
+/**
+ * 「나도 ○○ 그려볼까?」 — 응이면 뒤에서 그리고 아이는 계속 그린다. 기다리는 화면이 없다. yes · no · done
+ * 말로 답한다(마이크) — 누를 버튼이 화면에 없기 때문이다. 못 알아들었거나 말이 없으면 「아니」로 둔다
+ */
 private suspend fun Director.offerOttoDrawing(name: String): String {
-    say("나도 ${name}${eul(name)} 그려볼까?")
-    buttons(
-        DemoBtn("🗣 \"응!\"") { send(Reply.Tapped("yes", "응")) },
-        DemoBtn("🗣 \"아니\"") { send(Reply.Tapped("no", "아니")) },
-        DemoBtn("✅ 다 그렸어") { send(Reply.Tapped("done", "완료")) },
-    )
-    val v = awaitValue("yes", "no", "done", "skip").let { if (it == "skip") "done" else it }
+    val v = askYesNo(
+        "나도 ${name}${eul(name)} 그려볼까?", "diary_offer",
+        yes = Answer("응!", "yes", lv = 1), no = Answer("아니, 내 그림이 좋아.", "no", lv = 1),
+    ).let { if (it == "yes" || it == "done") it else "no" }
     when (v) {
         "yes" -> {
             say("나도 그려 볼게! 너도 더 그리고 있어!")
@@ -175,6 +171,48 @@ private suspend fun Director.offerOttoDrawing(name: String): String {
     }
     if (v != "done") pause(600)
     return v
+}
+
+/** 물을 것이 떨어졌다 — 「다 그렸어? 더 그릴 거 있어?」 참이면 그리기를 끝낸다. 말이 없으면 계속 그리게 둔다 */
+private suspend fun Director.askDoneDrawing(): Boolean {
+    val v = askYesNo(
+        "다 그렸어? 더 그릴 거 있어?", "diary_done",
+        yes = Answer("응, 다 그렸어!", "yes", lv = 1), no = Answer("더 그릴래!", "no", lv = 1),
+    )
+    if (v == "no") { say("좋아, 더 그려 봐!"); pause(600) }
+    return v == "yes" || v == "done"
+}
+
+private val DONE = Regex("다 그렸|끝났|그만 그릴|그리기 싫")
+private val YES = Regex("^\\s*(응|어|그래|좋아|네|예|웅)|그려 ?줘")
+private val NO = Regex("아니|싫어|안 ?돼|더 그릴|아직")
+
+/** 아이 말 → done · yes · no · null(모르겠다). 「다 그렸어」가 먼저, 그다음 「아니」 — 「아니, 좋아」는 no */
+internal fun yesNoOf(text: String): String? = when {
+    DONE.containsMatchIn(text) -> "done"
+    NO.containsMatchIn(text) -> "no"
+    YES.containsMatchIn(text) -> "yes"
+    else -> null
+}
+
+/**
+ * 예/아니 질문 — 마이크로 듣는다. 대본 답은 값(yes · no)이 붙어 오고, 서버 모드의 말은 글자로 가른다.
+ * 돌려주는 값: yes · no · done(시연 서랍 [다 그렸어]) · skip · silent · unclear
+ */
+private suspend fun Director.askYesNo(text: String, id: String, yes: Answer, no: Answer): String {
+    val q = Question(
+        text = text,
+        kind = Kind.EASY,
+        noCards = true,
+        spoken = listOf(yes, no),
+        extra = listOf(DemoBtn("✅ 다 그렸어") { send(Reply.Tapped("done", "완료")) }),
+        id = id,
+    )
+    return when (val r = ask(q)) {
+        is Reply.Tapped -> r.value
+        is Reply.Spoke -> r.answer?.value?.takeIf { it.isNotBlank() } ?: yesNoOf(r.text) ?: "unclear"
+        else -> "silent"
+    }
 }
 
 /** 오또 그림이 왔다 — 보여 주고 아이가 고른다. 원본이 기본값이다 */
@@ -326,7 +364,9 @@ private suspend fun Director.finishPictureDiary(day: DiaryDay) {
 
     // D4
     say("오늘 이야기가 다 모였어! 이제 그림일기로 만들어 줄게.")
-    s.stage = Stage.Making("그림일기를 만드는 중…")
+    pause(900)
+    s.stage = DiaryStitch
+    say("그림일기를 만들고 있어. 조금만 기다려 줘!")
     pause(1500)
     day.weatherFromDrawing()
     s.title = s.slots["title"]?.takeIf { it.isNotBlank() } ?: s.diaryTitle()
@@ -337,9 +377,25 @@ private suspend fun Director.finishPictureDiary(day: DiaryDay) {
     readPictureDiary(day)
 
     // D6
-    say("그림일기 다 만들었다!")
-    pause(1200)
-    go(Scene.END)
+    giveDiaryBook()
+}
+
+/**
+ * D6 — 오늘 그림일기를 책으로 준다. 표지는 아이 그림이다. [책장에 꽂기] → 책장.
+ * 동화 모드의 선물(해결 방법 도감 · 무지개 크레용)은 주지 않는다 — 일기는 오늘 한 일이 곧 선물이다
+ */
+private suspend fun Director.giveDiaryBook() {
+    s.stage = DiaryGift
+    say("오늘 그림일기가 완성됐어! 책장에 꽂아 줄래?")
+    buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
+    awaitValue("shelf")
+    buttons()
+    mark("end")
+    val pages = buildDiaryBook(s.diaryBookInput()).size
+    s.shelf.add(0, ShelfBook(s.title ?: s.autoTitleFor(), s.themeKey, s.bgName, pages = pages, fresh = true))
+    event("session_end", "duration" to "15분", "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
+    log("책장에 꽂기 → 그림일기는 기기에만 둔다 · 서버에는 저장하지 않음")
+    go(Scene.SHELF)
 }
 
 /** 한 쪽씩 넘긴다. 마지막 줄이 비었으면(오늘 기분을 말하지 않았다) 얼굴을 눌러 채운다 */
