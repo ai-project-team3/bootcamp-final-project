@@ -21,12 +21,16 @@ data class SavedStoryVisuals(
     val friendName: String,
     val solutionLine: String,
     val placeLabel: String?,
+    val newcomerKind: String = "외계인",
+    val soundLine: String = "뿌우우우웅!",
+    val causeLine: String = "친구가 없어서 심심했어",
 )
 
 fun DemoState.captureStoryVisuals() = SavedStoryVisuals(
     templateKey!!, persona, Hero(childName, heroAttr ?: HeroAttr(), storyHeroImage, storyHeroRig),
     drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
     dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
+    newcomerKind, soundLine, causeLine,
 )
 
 /** Build a separate reading state; reopening a book must not overwrite the current conversation. */
@@ -52,6 +56,9 @@ fun DemoState.restoreStoryBook(book: SavedStoryBook): Boolean {
     solutionItem = visual.solutionItem
     friendName = visual.friendName
     solutionLine = visual.solutionLine
+    newcomerKind = visual.newcomerKind
+    soundLine = visual.soundLine
+    causeLine = visual.causeLine
     // The stored captions already include mission results. Do not append them twice.
     m1Result = null
     m2Result = null
@@ -76,6 +83,7 @@ internal fun SavedStoryVisuals.toJson(): JSONObject {
         .put("solutionKey", solutionKey).put("solutionItem", solutionItem)
         .put("friendName", friendName).put("solutionLine", solutionLine)
         .put("placeLabel", placeLabel ?: JSONObject.NULL)
+        .put("newcomerKind", newcomerKind).put("soundLine", soundLine).put("causeLine", causeLine)
 }
 
 internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
@@ -100,6 +108,8 @@ internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
         obj.getString("dinoKey"), Color(obj.getInt("dinoColor")),
         obj.getString("solutionKey"), obj.getString("solutionItem"), obj.getString("friendName"),
         obj.getString("solutionLine"), obj.nullableString("placeLabel"),
+        obj.optString("newcomerKind", "외계인"), obj.optString("soundLine", "뿌우우우웅!"),
+        obj.optString("causeLine", "친구가 없어서 심심했어"),
     )
 }
 

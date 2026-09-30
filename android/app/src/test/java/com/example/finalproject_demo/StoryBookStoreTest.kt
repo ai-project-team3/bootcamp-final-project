@@ -9,6 +9,8 @@ import com.example.finalproject_demo.demo.SavedStoryBook
 import com.example.finalproject_demo.demo.SavedStoryPage
 import com.example.finalproject_demo.demo.completedStoryBook
 import com.example.finalproject_demo.demo.useGeneratedStory
+import com.example.finalproject_demo.demo.restoreStoryBook
+import com.example.finalproject_demo.demo.mission1
 import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.ui.HeroAttr
 import androidx.compose.ui.geometry.Offset
@@ -37,6 +39,9 @@ class StoryBookStoreTest {
             drawingAspect = 1.6f
             dinoKey = "trex"
             dinoColor = Color.Magenta
+            newcomerKind = "문어"
+            soundLine = "뽀글뽀글!"
+            causeLine = "길을 잃어서"
             useGeneratedStory(template!!.pages.indices.map { "${it + 1}쪽 저장할 문장" })
             m1Result = "solo"
             m2Result = "solo"
@@ -56,6 +61,11 @@ class StoryBookStoreTest {
         assertEquals(1.6f, reopened.visuals!!.drawingAspect, 0.00001f)
         assertEquals(Color.Magenta, reopened.visuals!!.dinoColor)
         assertEquals(book, reopened)
+        val reader = DemoState()
+        reader.restoreStoryBook(reopened)
+        assertEquals(state.mission1(), reader.mission1())
+        assertEquals("뽀글뽀글!", reader.soundLine)
+        assertEquals("길을 잃어서", reader.causeLine)
     }
 
     @Test
