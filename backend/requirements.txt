@@ -5,6 +5,9 @@ pydantic-settings
 python-multipart
 httpx
 faster-whisper
+# character cut-out and fitting (app/image/character.py)
+pillow
+numpy
 # Windows GPU: cuBLAS/cuDNN wheels (the server puts them on the DLL path)
 nvidia-cublas-cu12; sys_platform == "win32"
 nvidia-cudnn-cu12==9.*; sys_platform == "win32"
