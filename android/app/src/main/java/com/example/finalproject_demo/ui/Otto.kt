@@ -327,7 +327,7 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
         expr = exprFor(text, s.mood),
         trailing = if (controls) { {
             if (s.drawEnabled) DrawButton(d)
-            if (s.micEnabled) MicButton(d)
+            if (s.micEnabled) MicButton(d, size = 96.dp)  // 나레이션 줄 오른쪽 — 얼굴 자리(100dp)와 무게를 맞춘다
         } } else null,
     )
 }

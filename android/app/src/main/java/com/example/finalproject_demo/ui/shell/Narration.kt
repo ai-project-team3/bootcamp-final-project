@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -77,19 +78,20 @@ enum class NarrationMode(val color: Color, val label: String, val icon: String) 
 }
 
 /**
- * **나레이션 칸** — 화면 아래 전체 폭 한 줄: **[오또 얼굴] [오또가 하는 말] [녹음 버튼]** 이 모두 칸 **안**에 있다 (09-29 사용자 요청).
+ * **나레이션 칸** — 화면 아래 전체 폭 한 줄: **[오또 얼굴 + 오또가 하는 말]** 칸과, 그 오른쪽 칸 밖의 **[녹음 버튼]**.
  *
- * 전에는 얼굴이 칸 왼쪽 위로 걸쳐 나오고 🎤 · ➡️ 는 칸 밖 오른쪽 아래에 떠 있어서, 무대 위 버튼과 겹치기 쉬웠다.
+ * 09-29 에는 버튼까지 칸 안에 넣었다가, 09-30 칸이 얼굴을 감싸는 펠트 모양이 되면서 버튼은 칸 밖 오른쪽으로 뺐다 (사용자 요청).
+ * 버튼은 칸과 같은 줄 · 얼굴과 같은 높이 가운데라 무대 위 버튼과 겹치지 않는다.
  *
  *   얼굴 테두리 = 상태 — 분홍 말함 · 청록 들음 · 겨자 생각. **말할 때도 들을 때처럼** 테두리 색 파동이 얼굴 둘레로 퍼진다
  *   얼굴 그림 = 표정 — [Expr] (기쁨 · 깜짝 · 속상 · 궁금 · 뿌듯). 표정마다 움직임도 다르다
  *   칸 테두리 = 모드 — 빨강 이야기 만들기 · 파랑 오늘 이야기 · 청록 같이 만들기
  *
- * 09-30 — 칸이 얼굴 · 버튼을 동그랗게 감싸고, 가운데 글씨 띠는 글씨에 딱 맞게 얇다([NarrationShape]). 모드 딱지는 없앴다 (테두리 색만 모드).
+ * 09-30 — 칸이 얼굴을 동그랗게 감싸고 (녹음 · 그리기 버튼은 칸 밖 오른쪽), 가운데 글씨 띠는 글씨에 딱 맞게 얇다([NarrationShape]). 모드 딱지는 없앴다 (테두리 색만 모드).
  * 칸은 펠트로 오려 붙인 모양 — 모드 색 펠트 테두리 + 크림 펠트 천 + 바느질 점선 ([drawFeltBox]).
  * 높이는 위 여백 4 + 둥근 자리 100(얼굴 84 + 테두리 띠 8×2) + 아래 8 = 112dp — 무대 안쪽 아래 여백(`BottomChrome` 116dp)이 이것에 맞춘다.
  *
- * @param trailing 칸 오른쪽 끝에 넣을 버튼들(녹음 · 그리기). 없으면 말하는 중 🔊 · 듣는 중 목소리 막대를 보인다
+ * @param trailing 칸 밖 오른쪽에 세울 버튼들(녹음 · 그리기). 없으면 말하는 중 🔊 · 듣는 중 목소리 막대를 보인다
  */
 @Composable
 fun Narration(
@@ -104,17 +106,16 @@ fun Narration(
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val density = LocalDensity.current
-    var trailingW by remember { mutableIntStateOf(0) }
     var barH by remember { mutableIntStateOf(0) }
-    val rightW = if (trailing != null && trailingW > 0) maxOf(Bulge, with(density) { trailingW.toDp() } + (EdgeBand + 6.dp) * 2) else 0.dp
     val barHdp = with(density) { barH.toDp() }
-    val shape = remember(rightW, barHdp) { NarrationShape(Bulge, barHdp, rightW) }
+    val shape = remember(barHdp) { NarrationShape(Bulge, barHdp) }
     val creamImg = ImageBitmap.imageResource(R.drawable.narration_felt)
     val fiberImg = ImageBitmap.imageResource(R.drawable.felt_texture)
     val cream = remember(creamImg) { ShaderBrush(ImageShader(creamImg, TileMode.Repeated, TileMode.Repeated)) }
     val fibers = remember(fiberImg) { ShaderBrush(ImageShader(fiberImg, TileMode.Repeated, TileMode.Repeated)) }
-    Box(modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp, top = 4.dp)) {
-        // 칸 — 왼쪽 얼굴 · 오른쪽 버튼을 동그랗게 감싸고, 가운데 글씨 띠는 글씨에 딱 맞게 얇다 (09-30 사용자 그림)
+    Row(modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    // 칸 — 왼쪽 얼굴을 동그랗게 감싸고, 글씨 띠는 글씨에 딱 맞게 얇다 (09-30 사용자 그림)
+    Box(Modifier.weight(1f)) {
         Box(Modifier.matchParentSize().shadow(6.dp, shape, ambientColor = Felt.ShadowColor, spotColor = Felt.ShadowColor).drawBehind { drawFeltBox(shape, mode.color, cream, fibers) })
         // 글씨 띠 — 칸 밑에 붙는다. 이 높이가 띠 높이다
         Row(
@@ -122,7 +123,7 @@ fun Narration(
                 .fillMaxWidth()
                 .align(Alignment.BottomStart)
                 .onSizeChanged { barH = it.height }
-                .padding(start = Bulge + 8.dp, end = if (rightW > 0.dp) rightW + 8.dp else 16.dp, top = 10.dp, bottom = 7.dp),
+                .padding(start = Bulge + 8.dp, end = 20.dp, top = 10.dp, bottom = 7.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             Column(Modifier.weight(1f)) {
@@ -136,26 +137,26 @@ fun Narration(
                 if (state == OttoState.LISTEN) VoiceBars()
             }
         }
-        // 녹음 · 그리기 버튼 — 오른쪽 둥근 자리 가운데
-        if (trailing != null) {
-            Row(
-                Modifier.align(Alignment.BottomEnd).height(Bulge).padding(end = EdgeBand + 6.dp).onSizeChanged { trailingW = it.width },
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), content = trailing,
-            )
-        }
         // 오또 얼굴 — 왼쪽 둥근 자리 가운데. 파동은 얼굴과 같은 중심에서 퍼진다
         Box(Modifier.align(Alignment.BottomStart).size(Bulge), contentAlignment = Alignment.Center) {
             OttoFace(state, Modifier.size(FaceSize), burst = burst, burstId = burstId, expr = expr, pulse = true)
         }
     }
+    // 녹음 · 그리기 버튼 — 칸 **밖** 오른쪽에 따로 선다 (09-30 사용자 요청).
+    // 화면 아래 여백 = 화면 오른쪽 여백이 되게 밑에 붙인다. 이 줄 밑에는 부르는 쪽 여백(약 6dp)이 더 있어서
+    // 그만큼 내린다 — 실물폰(S10)에서 오른쪽 · 아래 틈을 재어 맞췄다 (09-30)
+    if (trailing != null) {
+        Spacer(Modifier.width(12.dp))
+        Row(Modifier.align(Alignment.Bottom).offset(y = 2.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp), content = trailing)
+    }
+    }
 }
 
 /**
- * 칸 모양 — 왼쪽 동그라미(얼굴) + 가운데 얇은 띠(글씨) + 오른쪽 둥근 자리(버튼)를 한 줄로 이은 윤곽.
- * 셋 다 밑선이 같고, 동그라미들만 띠 위로 솟는다. 동그라미와 띠가 만나는 곳은 꺾이지 않게 부드럽게 휜다.
- * [right] 가 0 이면 띠가 오른쪽 끝까지 가서 둥글게 끝난다
+ * 칸 모양 — 왼쪽 동그라미(얼굴) + 글씨 띠를 한 줄로 이은 윤곽. 밑선이 같고 동그라미만 띠 위로 솟는다.
+ * 동그라미와 띠가 만나는 곳은 꺾이지 않게 부드럽게 휘고, 띠 오른쪽 끝은 둥글다
  */
-private class NarrationShape(val bulge: Dp, val bar: Dp, val right: Dp) : Shape {
+private class NarrationShape(val bulge: Dp, val bar: Dp) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline =
         Outline.Generic(path(size, 0f, density))
 
@@ -164,7 +165,6 @@ private class NarrationShape(val bulge: Dp, val bar: Dp, val right: Dp) : Shape 
         val w = size.width; val h = size.height
         val d = bulge.toPx().coerceAtMost(h); val cy = h - d / 2
         val b = bar.toPx().coerceIn(d * 0.2f, d * 0.85f)
-        val r = right.toPx()
         val rad = d / 2 - inset
         val top = h - b + inset
         val bottom = h - inset
@@ -173,27 +173,14 @@ private class NarrationShape(val bulge: Dp, val bar: Dp, val right: Dp) : Shape 
         val meet = Math.toDegrees(kotlin.math.atan2((top - cy).toDouble(), dx.toDouble())).toFloat() // 만나는 곳의 각도 (위쪽이라 음수)
         val ease = 22f  // 부드럽게 휘기 시작하는 각도 폭
         val lcx = d / 2
+        val er = (bottom - top) / 2
         Path().apply {
             moveTo(lcx, bottom)
             // 왼쪽 동그라미 — 아래 → 왼쪽 → 위 → 띠와 만나기 조금 전까지 (시계 방향)
             arcTo(Rect(lcx - rad, cy - rad, lcx + rad, cy + rad), 90f, (360f + meet - ease) - 90f, false)
             quadraticTo(lcx + dx, top, lcx + dx + fillet, top)
-            if (r > 0f) {
-                val rcx = w - r + d / 2
-                lineTo(rcx - dx - fillet, top)
-                val a0 = 180f - meet + ease   // 오른쪽 둥근 자리 — 띠와 만난 곳 조금 뒤부터
-                val ax = rcx + rad * kotlin.math.cos(Math.toRadians(a0.toDouble())).toFloat()
-                val ay = cy + rad * kotlin.math.sin(Math.toRadians(a0.toDouble())).toFloat()
-                quadraticTo(rcx - dx, top, ax, ay)
-                arcTo(Rect(rcx - rad, cy - rad, rcx + rad, cy + rad), a0, 270f - a0, false)
-                val ecx = w - d / 2
-                lineTo(ecx, cy - rad)
-                arcTo(Rect(ecx - rad, cy - rad, ecx + rad, cy + rad), 270f, 180f, false)
-            } else {
-                val er = (bottom - top) / 2
-                lineTo(w - inset - er, top)
-                arcTo(Rect(w - inset - er * 2, top, w - inset, bottom), 270f, 180f, false)
-            }
+            lineTo(w - inset - er, top)
+            arcTo(Rect(w - inset - er * 2, top, w - inset, bottom), 270f, 180f, false)
             close()
         }
     }
@@ -224,7 +211,7 @@ private val FaceSize = 84.dp
 /** 모드 색 펠트 테두리 띠 두께 */
 private val EdgeBand = 8.dp
 
-/** 얼굴 · 버튼이 앉는 둥근 자리 — 테두리 띠가 얼굴 원 바로 바깥을 딱 맞게 감싼다 */
+/** 얼굴이 앉는 둥근 자리 — 테두리 띠가 얼굴 원 바로 바깥을 딱 맞게 감싼다 */
 private val Bulge = FaceSize + EdgeBand * 2
 
 /** 아이 목소리 막대 — 들리는 동안 출렁 */
