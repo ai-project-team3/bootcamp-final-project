@@ -61,10 +61,6 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             }
             if (prompt.templateOnly) {
                 s.recordTemplateAnswer(prompt, value, by)
-                val additions = (s.template?.let { it.plot + it.ending }.orEmpty())
-                    .mapNotNull { slot -> s.slots[slot]?.let { "$slot: $it" } }
-                s.slots["extra"] = additions.joinToString("; ")
-                s.slotBy["extra"] = by
                 event("slot_filled", "slot" to "extra", "of" to prompt.slot, "value" to value, "source" to by)
             } else if (by != "child" && prompt.slot != null && s.slots[prompt.slot].isNullOrBlank()) {
                 // A visible card or an audible mascot choice is a real choice, not child speech.
@@ -75,8 +71,8 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 event("slot_filled", "slot" to prompt.slot, "value" to value, "source" to by)
             }
             s.mascotPicks = if (by == "mascot") s.mascotPicks + 1 else 0
-            if (by != "mascot") judge(variant, reply, question.text)
             syncStoryPresentation()
+            if (by != "mascot") judge(variant, reply, question.text)
             updateBackground()
             if (!friendDrawingPrepared && !s.slots["newcomer"].isNullOrBlank()) {
                 prepareStoryFriendDrawing()

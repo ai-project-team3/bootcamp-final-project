@@ -39,6 +39,9 @@ suspend fun Director.askStory(
     }
     val by = if (reply is Reply.Spoke) "child" else if ((reply as Reply.Tapped).byMascot) "mascot" else "card"
     val response = s.exchangeStoryTurn(askedSlot, question.text, utterance, by, request)
+    response?.verdict?.fills?.filter { it.first in Server.SLOTS && it.second.isNotBlank() }?.forEach { (slot, value) ->
+        event("slot_filled", "slot" to slot, "value" to value, "source" to by)
+    }
     s.storyServerQuestion = response?.line?.question
     val line = response?.line
     val reaction = listOfNotNull(line?.ack?.takeIf(String::isNotBlank), line?.expand?.takeIf(String::isNotBlank))
@@ -67,7 +70,7 @@ suspend fun DemoState.exchangeTurn(
     val mask = nameMask()
     val response = request(Server.Turn(
         mode = mode,
-        slots = mask.maskSlots(slots),
+        slots = mask.maskSlots(if (mode == "story") storyServerInput().slots else slots),
         askedSlot = askedSlot?.takeIf { it in Server.SLOTS },
         question = mask.mask(question),
         utterance = mask.mask(utterance),

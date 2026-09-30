@@ -1403,10 +1403,11 @@ private suspend fun Director.sceneMaking() {
     if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
         s.stage = Stage.Making("이야기 문장을 쓰는 중… (${t.pages.size}쪽)")
         val mask = s.nameMask()
+        val storyInput = s.storyServerInput()
         val captions = Server.story(
             mode = "story",
-            slots = mask.maskSlots(s.slots),
-            slotBy = s.slotBy,
+            slots = mask.maskSlots(storyInput.slots),
+            slotBy = storyInput.sources,
             template = t.key,
             level = s.level.name.lowercase(),
             pages = s.storyPagePlan(),
