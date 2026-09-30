@@ -7,7 +7,7 @@
   - 오려 내기 · 640² · 발 93% 선 — 서버 코드(backend/app/image/character.py 의 cut_and_fit)를 그대로 부른다
 다른 것: 모델. 서버는 SDXL + Lightning 인데 이 PC 에는 없어 krea2 turbo 로 그린다 → 화풍은 조금 다를 수 있다.
 
-    python tools/gen_rig_corpus.py OUT_DIR [--only human|quad|blob] [--n N]
+    python tools/gen_rig_corpus.py OUT_DIR [--only human|quad|blob] [--n N] [--set hard]
 결과: OUT_DIR/<rig>__<번호>_<subject>.png (640 투명) · raw/ 에 원본
 """
 import json
@@ -49,6 +49,18 @@ SUBJECTS = {
              "white pony with a rainbow mane", "baby grey elephant with big ears", "little yellow lion cub with a fluffy mane"],
     "blob": ["pink octopus with curly tentacles", "happy snowman with a carrot nose", "blue jellyfish with long ribbons",
              "fluffy white cloud with a smiling face", "yellow star with rosy cheeks", "round orange goldfish"],
+}
+
+
+# 까다로운 모음 (--set hard) — 날개 · 긴 옷 · 든 물건 · 큰 모자 · 긴 목 · 다리 없는 몸
+HARD = {
+    "human": ["fairy girl with sparkly butterfly wings and a wand", "old wizard in a long starry robe and a tall pointy hat",
+              "little boy holding a red balloon on a string", "chef with a very tall white hat and an apron",
+              "ballerina girl in a puffy pink tutu", "knight kid in shiny armor with a round shield",
+              "little bird standing like a person with wing hands", "girl with very long braided hair and a backpack"],
+    "quad": ["small purple dragon with little wings", "baby giraffe with a very long neck", "green turtle with a round shell",
+             "spotted dalmatian dog wagging its tail"],
+    "blob": ["mermaid with a long teal tail", "friendly white ghost with wavy bottom", "snail with a spiral shell", "red crab with big claws"],
 }
 
 
@@ -108,6 +120,7 @@ if __name__ == "__main__":
     out = sys.argv[1]
     args = sys.argv[2:]
     only = args[args.index("--only") + 1] if "--only" in args else None
+    subjects = HARD if "--set" in args and args[args.index("--set") + 1] == "hard" else SUBJECTS
     n = int(args[args.index("--n") + 1]) if "--n" in args else 99
     for _ in range(90):
         try:
@@ -116,7 +129,7 @@ if __name__ == "__main__":
             time.sleep(5)
     os.makedirs(os.path.join(out, "raw"), exist_ok=True)
     tpl = {r: upload(os.path.join(TEMPLATES, f"{r}.png"), f"rigtpl_{r}.png") for r in CHAR_POSE}
-    for rig, subs in SUBJECTS.items():
+    for rig, subs in subjects.items():
         if only and rig != only:
             continue
         for i, subject in enumerate(subs[:n]):
