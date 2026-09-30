@@ -261,6 +261,54 @@ fun skin(mesh: RigMesh, raw: FloatArray) {
 }
 
 /**
+ * **찢어짐 점수** (09-30) — 동작을 가장 크게 돌렸을 때 그림이 **접히거나(삼각형이 뒤집힘) · 거의 사라지거나 ·
+ * 크게 늘어나는** 넓이의 비율(0~1). 동작마다 재어 가장 나쁜 값을 돌려준다.
+ *
+ * 생성 캐릭터는 모양이 다 달라서 가지를 잘못 잡을 수 있다(꼬리 끝을 손으로, 드레스 자락을 다리로 …).
+ * 그런 뼈대는 움직이면 그림이 찢어진다 — 뼈대를 만든 뒤 이 점수로 **써도 되는지** 가른다([RigBuilder.build]).
+ * 재고 나면 [RigMesh.out] 은 쉬는 자리로 돌려 둔다.
+ */
+fun tearScore(mesh: RigMesh): Float {
+    val idx = mesh.indices; val r = mesh.rest; val o = mesh.out
+    val nt = idx.size / 3
+    if (nt == 0 || mesh.bones.size <= 1) return 0f
+    val a0 = FloatArray(nt); val e0 = FloatArray(nt)
+    var total = 0f
+    fun edge(p: FloatArray, i: Int, j: Int) = hypot(p[2 * i] - p[2 * j], p[2 * i + 1] - p[2 * j + 1])
+    for (t in 0 until nt) {
+        val i = idx[3 * t].toInt(); val j = idx[3 * t + 1].toInt(); val k = idx[3 * t + 2].toInt()
+        a0[t] = (r[2 * j] - r[2 * i]) * (r[2 * k + 1] - r[2 * i + 1]) - (r[2 * k] - r[2 * i]) * (r[2 * j + 1] - r[2 * i + 1])
+        e0[t] = max(edge(r, i, j), max(edge(r, j, k), edge(r, k, i)))
+        total += abs(a0[t])
+    }
+    if (total <= 0f) return 0f
+    var worst = 0f
+    for ((motion, time) in TEAR_POSES) {
+        skin(mesh, poseAt(mesh.bones, motion, time).first)
+        var bad = 0f
+        for (t in 0 until nt) {
+            if (a0[t] == 0f) continue
+            val i = idx[3 * t].toInt(); val j = idx[3 * t + 1].toInt(); val k = idx[3 * t + 2].toInt()
+            val a1 = (o[2 * j] - o[2 * i]) * (o[2 * k + 1] - o[2 * i + 1]) - (o[2 * k] - o[2 * i]) * (o[2 * j + 1] - o[2 * i + 1])
+            val e1 = max(edge(o, i, j), max(edge(o, j, k), edge(o, k, i)))
+            val folded = a0[t] * a1 <= 0f
+            val squashed = abs(a1) < 0.25f * abs(a0[t])
+            val stretched = e1 > 2.2f * e0[t]
+            if (folded || squashed || stretched) bad += abs(a0[t])
+        }
+        worst = max(worst, bad / total)
+    }
+    r.copyInto(o)
+    return worst
+}
+
+/** 찢어짐을 잴 때 돌려 보는 자세 — 동작마다 가장 크게 벌어지는 순간 */
+private val TEAR_POSES = listOf(
+    RigMotion.WAVE to 1.3f, RigMotion.WAVE to 1.55f, RigMotion.HOORAY to 1.0f,
+    RigMotion.WALK to 0.2f, RigMotion.WALK to 0.62f, RigMotion.TAIL to 0.35f, RigMotion.TAIL to 0.6f, RigMotion.SAD to 1.0f,
+)
+
+/**
  * **그림만 보고** 뼈대를 붙인다 (09-28) — 틀도 좌표표도 없이.
  *
  * ```
@@ -340,24 +388,60 @@ object RigBuilder {
      *   이미 알려 주면 그 걱정이 없다. [RigHint.AUTO] 는 전처럼 그림만 보고 정한다
      */
     fun build(input: IntArray, w: Int, h: Int, hint: RigHint = RigHint.AUTO): RigMesh? {
-        val anyHands = hint == RigHint.HUMAN
+        why = ""
         val argb = cleanHalo(input)
-        // 사람형(팔 둘 · 손이 몸 아래쪽 절반)이면 팔을 떼어 낸다 — 팔이 몸에서 떨어진 A-포즈든, 붙어 있든 같은 길
-        attachedArms(argb, w, h, anyHands)?.let { (arms, under) ->
-            // 팔을 떼어 낸 몸으로 다시 — 다리 · 꼬리 같은 가지는 그대로 찾는다. 손은 이미 없다
-            val body = bodyPart(under, w, h, allowArms = false) ?: rootOnly(under, w, h)
-            val armOnly = IntArray(w * h)
-            // 거의 투명한 가장자리(불투명도 60 미만)는 팔 층에 넣지 않는다 — 어깨에서 늘어나면 옅은 선 조각으로 남는다
-            for (a in arms) for (i in a.region.indices) if (a.region[i] && (argb[i] ushr 24) >= 60) armOnly[i] = argb[i]
-            val atlas = IntArray(2 * w * h)
-            for (y in 0 until h) {
-                System.arraycopy(under, y * w, atlas, y * 2 * w, w)
-                System.arraycopy(armOnly, y * w, atlas, y * 2 * w + w, w)
-            }
-            // 그리는 순서 (시연 도구와 같다): 맨살 팔 → 몸 → 소매. 팔이 몸 뒤로 들어가고, 소매가 어깨 이음매를 덮는다
-            return merge(w, h, arms.map { armPart(it, argb, w, h) } + body, atlas, kind = "human")
+        // 생성 캐릭터는 모양이 다 달라 가지를 잘못 잡을 수 있다 → **쉬운 쪽으로 내려가며** 찢어지지 않는 첫 뼈대를 쓴다 (09-30)
+        //   ① 사람형 팔 떼어 내기(사람형이거나 모를 때) → ② 튀어나온 가지(몸 종류에 맞게) → ③ 몸 전체만 들썩이기
+        // 각 단계는 [tearScore] 로 검사한다. ③은 뼈가 root 하나라 찢어질 수 없다 — 어떤 그림이 와도 깨진 모습은 안 나온다
+        if (hint == RigHint.AUTO || hint == RigHint.HUMAN) {
+            humanRig(argb, w, h, anyHands = hint == RigHint.HUMAN)?.let { if (passes(it, "①사람형")) return it }
         }
-        return bodyPart(argb, w, h, allowArms = true)?.let { merge(w, h, listOf(it), null) }
+        bodyPart(argb, w, h, allowArms = true, hint = hint)
+            ?.let { merge(w, h, listOf(it), null) }
+            ?.let { if (passes(it, "②가지")) return it }
+        return calmRig(argb, w, h)
+    }
+
+    /** 이 뼈대를 써도 되나 — 찢어짐 점수가 기준 안이면. 떨어지면 [why] 에 적는다 */
+    private fun passes(m: RigMesh, stage: String): Boolean {
+        val tear = tearScore(m)
+        if (tear <= MAX_TEAR) return true
+        why += " $stage 찢어짐 ${"%.3f".format(tear)}"
+        return false
+    }
+
+    /**
+     * 찢어짐 기준 — 앱에 든 주인공 27장 · 공룡 · 친구들(사용자가 「잘 된다」고 확인한 뼈대)이 0.008~0.068 (09-30 `tear.txt`).
+     * 그 위로 조금 여유를 둔다
+     */
+    const val MAX_TEAR = 0.10f
+
+    /** ① 사람형 — 팔을 몸에서 떼어 팔 층 · 몸 층으로. 팔을 못 찾으면 null */
+    private fun humanRig(argb: IntArray, w: Int, h: Int, anyHands: Boolean): RigMesh? {
+        val (arms, under) = attachedArms(argb, w, h, anyHands) ?: return null
+        // 팔을 떼어 낸 몸으로 다시 — 다리 · 꼬리 같은 가지는 그대로 찾는다. 손은 이미 없다
+        val body = bodyPart(under, w, h, allowArms = false) ?: rootOnly(under, w, h)
+        val armOnly = IntArray(w * h)
+        // 거의 투명한 가장자리(불투명도 60 미만)는 팔 층에 넣지 않는다 — 어깨에서 늘어나면 옅은 선 조각으로 남는다
+        for (a in arms) for (i in a.region.indices) if (a.region[i] && (argb[i] ushr 24) >= 60) armOnly[i] = argb[i]
+        val atlas = IntArray(2 * w * h)
+        for (y in 0 until h) {
+            System.arraycopy(under, y * w, atlas, y * 2 * w, w)
+            System.arraycopy(armOnly, y * w, atlas, y * 2 * w + w, w)
+        }
+        // 그리는 순서 (시연 도구와 같다): 맨살 팔 → 몸 → 소매. 팔이 몸 뒤로 들어가고, 소매가 어깨 이음매를 덮는다
+        return merge(w, h, arms.map { armPart(it, argb, w, h) } + body, atlas, kind = "human")
+    }
+
+    /**
+     * ③ 마지막 — 가지를 하나도 흔들지 않고 **몸 전체만** 들썩인다(뼈 root 하나). 절대 찢어지지 않는다.
+     * 그림이 너무 작거나 비었으면 null
+     */
+    private fun calmRig(argb: IntArray, w: Int, h: Int): RigMesh? {
+        why += " ③몸만"
+        val solid = argb.count { (it ushr 24) > 8 }
+        if (solid < 200) return null
+        return runCatching { merge(w, h, listOf(rootOnly(argb, w, h)), null, kind = "blob") }.getOrNull()
     }
 
     /**
@@ -402,7 +486,7 @@ object RigBuilder {
 
     // ── 가. 튀어나온 가지 ─────────────────────────────────────────
 
-    private fun bodyPart(argb: IntArray, w: Int, h: Int, allowArms: Boolean): Part? {
+    private fun bodyPart(argb: IntArray, w: Int, h: Int, allowArms: Boolean, hint: RigHint = RigHint.AUTO): Part? {
         val f = max(1, ceil(max(w, h) / ANALYSIS.toDouble()).toInt())
         val aw = w / f; val ah = h / f
         val n = aw * ah
@@ -472,9 +556,15 @@ object RigBuilder {
                 else -> LimbRole.OTHER
             }
         }
+        // 몸 종류 힌트 (09-30 · 서버가 알려 준다)
+        //   네발형 — 몸 가운데 높이에서 아래로 뻗은 것도 **다리**다(옆모습 네발짐승의 앞다리가 팔로 잡혔다)
+        //   덩어리형 — 팔 · 다리가 없다. 촉수 · 끝부분은 살랑이기만 한다(OTHER)
+        if (hint == RigHint.QUAD) limbs.filter { it.role == LimbRole.ARM }.forEach { it.role = LimbRole.LEG }
+        if (hint == RigHint.BLOB) limbs.filter { it.role == LimbRole.ARM || it.role == LimbRole.LEG }.forEach { it.role = LimbRole.OTHER }
         // 양쪽에 같은 높이로 옆으로 뻗은 것 한 쌍 → 팔 (옆으로 벌린 로봇 팔)
         val tails = limbs.filter { it.role == LimbRole.TAIL }
-        for (a in tails) for (b in tails) if (a !== b && a.side != b.side && abs(a.baseY - b.baseY) < 0.15f * coreH) {
+        val armsOk = hint != RigHint.QUAD && hint != RigHint.BLOB
+        if (armsOk) for (a in tails) for (b in tails) if (a !== b && a.side != b.side && abs(a.baseY - b.baseY) < 0.15f * coreH) {
             a.role = LimbRole.ARM; b.role = LimbRole.ARM
         }
         // 팔은 쪽마다 가장 긴 것 하나, 꼬리 · 목은 하나
@@ -483,7 +573,7 @@ object RigBuilder {
         for (role in listOf(LimbRole.TAIL, LimbRole.NECK)) limbs.filter { it.role == role }
             .sortedByDescending { it.length }.drop(1).forEach { it.role = LimbRole.OTHER }
         val arms = limbs.filter { it.role == LimbRole.ARM }
-        val human = allowArms && arms.size == 2 && arms[0].side != arms[1].side
+        val human = allowArms && armsOk && arms.size == 2 && arms[0].side != arms[1].side
         if (!human) arms.forEach { it.role = if (it.length >= 0.18f * mH) LimbRole.TAIL else LimbRole.OTHER }
         limbs.filter { it.role == LimbRole.TAIL }.sortedByDescending { it.length }.drop(1).forEach { it.role = LimbRole.OTHER }
         // 사람 다리는 두 개로 **나뉘어 있을 때만** — 한 덩어리면 걸을 수 없다
@@ -491,8 +581,9 @@ object RigBuilder {
         val twoLegged = human || !allowArms
         if (twoLegged && legs.size != 2) legs.forEach { it.role = LimbRole.OTHER }
         val kind = when {
+            hint == RigHint.BLOB -> "blob"
             human -> "human"
-            !allowArms -> "human"
+            !allowArms && hint != RigHint.QUAD -> "human"
             limbs.count { it.role == LimbRole.LEG } >= 2 -> "quad"
             else -> "blob"
         }

@@ -3,6 +3,7 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.PageKind
 import com.example.finalproject_demo.ui.LimbRole
 import com.example.finalproject_demo.ui.RigHint
+import com.example.finalproject_demo.ui.tearScore
 import com.example.finalproject_demo.ui.buildMeshRig
 import com.example.finalproject_demo.ui.buddyActFrom
 import com.example.finalproject_demo.ui.heroActFrom
@@ -120,6 +121,52 @@ class RigBuilderTest {
         assertEquals(RigHint.HUMAN, RigHint.of("human"))
         assertEquals(RigHint.AUTO, RigHint.of("모르는값"))
         assertEquals("깨진 바이트는 null", null, buildMeshRig(byteArrayOf(1, 2, 3), RigHint.HUMAN))
+    }
+
+    /**
+     * **생성 캐릭터 모음**(`tools/gen_rig_corpus.py` — 서버와 같은 마네킹 · 자세 · 오려 내기)으로 뼈대를 붙여 본다 (09-30).
+     * 파일 이름 앞이 몸 종류(`human__` · `quad__` · `blob__`) — 서버가 보내는 힌트 그대로 넣는다.
+     * 확인표 `build/rig_auto/corpus.png` · 줄마다 결과 `corpus.txt`. 폴더는 시스템 속성 `rig.corpus` 로 바꾼다
+     */
+    @Test
+    fun 생성_캐릭터_모음() {
+        val dir = File(System.getProperty("rig.corpus") ?: File(System.getProperty("user.home"),
+            "AppData/Local/Temp/claude/C--dev-final-project/344838c4-f7ce-48e6-9be7-ad3985d432f5/scratchpad/rigcorpus").path)
+        val files = dir.listFiles { f -> f.name.endsWith(".png") && f.name.contains("__") }?.sorted().orEmpty()
+        if (files.isEmpty()) return
+        fun img(path: String): Img {
+            val bmp = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+            val sc = 512f / maxOf(bmp.width, bmp.height)
+            val b2 = Bitmap.createScaledBitmap(bmp, (bmp.width * sc).toInt(), (bmp.height * sc).toInt(), true)
+            val px = IntArray(b2.width * b2.height); b2.getPixels(px, 0, b2.width, 0, 0, b2.width, b2.height)
+            return Img(b2.width, b2.height, px)
+        }
+        val cols = poses + listOf("꼬리" to { m: RigMesh -> poseAt(m.bones, RigMotion.TAIL, 0.4f).first })
+        sheet("corpus", files.map { it.path }, cell = 240, cols = cols, imgOf = { img(it) },
+            meshOf = { path, i -> RigBuilder.build(i.px, i.w, i.h, RigHint.of(File(path).name.substringBefore("__"))) })
+        // 찢어짐 점수까지 한 줄씩
+        val sb = StringBuilder()
+        for (f in files) {
+            val i = img(f.path)
+            val hint = RigHint.of(f.name.substringBefore("__"))
+            val m = RigBuilder.build(i.px, i.w, i.h, hint)
+            sb.appendLine("${f.name}: 힌트 ${hint.key} → ${m?.kind} · 뼈 ${m?.bones?.drop(1)?.joinToString { it.name }} · " +
+                "찢어짐 ${m?.let { "%.3f".format(tearScore(it)) }} ·${RigBuilder.why}")
+        }
+        File(outDir, "corpus_tear.txt").writeText(sb.toString())
+        println(sb)
+    }
+
+    /** 앱에 든 그림들의 찢어짐 점수 — 사용자가 「잘 된다」고 확인한 뼈대들이 기준선이다 (`build/rig_auto/tear.txt`) */
+    @Test
+    fun 찢어짐_점수_기준선() {
+        val sb = StringBuilder()
+        for (n in heroes + others) {
+            val m = build(load(n)) ?: run { sb.appendLine("$n: 뼈대 없음"); null } ?: continue
+            sb.appendLine("$n: ${m.kind} · 뼈 ${m.bones.size - 1} · 찢어짐 ${"%.4f".format(tearScore(m))}")
+        }
+        File(outDir, "tear.txt").writeText(sb.toString())
+        println(sb)
     }
 
     @Test
