@@ -11,7 +11,15 @@ package com.example.finalproject_demo.demo
  * 좌표는 모두 화이트보드 크기에 대한 비율(0~1)이다 — x 는 폭, y 는 높이 기준. 화이트보드의 폭/높이는 [DemoState.drawingAspect].
  */
 
-/** 그림판 화면 셋 — 그리는 판(D1) · 다 그린 뒤 묻기(D3) · 그림일기 한 쪽(D5) */
+/*
+ * 그림일기 화면 여섯 — docs/일기모드_UI.html 의 D0 · D1 · D3 · D4 · D5 · D6.
+ * 공용 화면(`Stage.Making` · `Stage.Gifts`)을 빌리지 않는다 — 일기만의 모양이라서.
+ */
+
+/** D0 — 방에서 손 흔드는 오또 옆에 [그릴래!] · [그림 없이 말할래] */
+data object DiaryStart : DiaryStage
+
+/** D1 — 그리는 판 */
 data class DiaryBoard(
     /** 오또 그림이 와서 「어떤 게 좋아?」를 고르는 조각 id. null 이면 그리기만 */
     val pick: Int? = null,
@@ -23,7 +31,14 @@ data class DiaryBoard(
  */
 data object DiaryAsk : DiaryStage
 
+/** D4 — 「그림일기를 꿰매는 중…」 */
+data object DiaryStitch : DiaryStage
+
+/** D5 — 그림일기 한 쪽 */
 data class DiaryPaper(val index: Int) : DiaryStage
+
+/** D6 — 아이 그림이 표지인 오늘 그림일기 → [책장에 꽂기] */
+data object DiaryGift : DiaryStage
 
 /** 붓이 이만큼 멈추면 오또가 말을 건다 (프로토타입 1.6초 · 3~7세 값은 조카 관찰로 정한다 — 흐름 HTML 「정해야 할 것」) */
 const val BRUSH_PAUSE_MS = 1_600L
