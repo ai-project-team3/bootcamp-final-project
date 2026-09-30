@@ -66,8 +66,6 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 // A visible card or an audible mascot choice is a real choice, not child speech.
                 s.slots[prompt.slot] = value
                 s.slotBy[prompt.slot] = by
-                s.storyNextSlot = null
-                s.storyServerQuestion = null
                 event("slot_filled", "slot" to prompt.slot, "value" to value, "source" to by)
             }
             s.mascotPicks = if (by == "mascot") s.mascotPicks + 1 else 0

@@ -3,7 +3,7 @@ package com.example.finalproject_demo.demo
 /** The child chooses the newcomer's appearance. Original strokes never enter an AI request. */
 suspend fun Director.prepareStoryFriendDrawing() {
     val newcomer = s.slots["newcomer"]?.takeIf(String::isNotBlank) ?: return
-    if (s.drawing.isNotEmpty()) return
+    if (s.drawing.isNotEmpty() || "draw" in s.done) return
     inputs(false, false)
     s.stage = Stage.DrawPad()
     say("${newcomer}${eun(newcomer)} 어떻게 생겼을까? 크레용으로 그려 줄래?")
