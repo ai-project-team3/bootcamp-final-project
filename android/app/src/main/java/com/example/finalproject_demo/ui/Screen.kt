@@ -289,7 +289,7 @@ private fun FrontGround(bgName: String) {
         val bandTop = feetNear - full * 0.09f
         Box(
             Modifier
-                .padding(top = bandTop)
+                .offset(y = bandTop)          // may go below 0 on a short screen — padding would throw (#41)
                 .fillMaxWidth()
                 .height(bandH)
                 .clipToBounds()

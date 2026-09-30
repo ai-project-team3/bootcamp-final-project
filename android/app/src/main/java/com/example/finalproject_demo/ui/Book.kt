@@ -93,8 +93,11 @@ private fun Layer(xf: Float, yf: Float, wf: Float, aspect: Float = 0.75f, modifi
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = maxWidth * wf
         Box(
-            modifier
-                .padding(start = maxWidth * xf, top = maxHeight * yf)
+            // place first, then the caller's modifier: a scale in it (DRAG friend 0.62) then shrinks
+            // about the figure's own centre, not about the corner of the page (#41)
+            Modifier
+                .offset(x = maxWidth * xf, y = maxHeight * yf)   // offset, not padding: padding < 0 crashes
+                .then(modifier)
                 .width(w)
                 .height(w / aspect)
         ) { content() }
@@ -158,7 +161,7 @@ private fun Stand(
             val shH = wide * 0.13f
             Box(
                 Modifier
-                    .padding(start = left + (wide - shW) / 2, top = feet - shH * 0.35f)
+                    .offset(x = left + (wide - shW) / 2, y = feet - shH * 0.35f)
                     .width(shW)
                     .height(shH)
                     .then(modifier)
@@ -177,7 +180,9 @@ private fun Stand(
                 }
             }
         }
-        Box(modifier.padding(start = left, top = top).width(wide).height(tall)) { content() }
+        // offset, not padding: at the page's edge (RUB xf 0.14 on a 16:10 tablet) left < 0, and a
+        // negative padding throws — the app closed on the first mission (#41)
+        Box(Modifier.offset(x = left, y = top).then(modifier).width(wide).height(tall)) { content() }
     }
 }
 
