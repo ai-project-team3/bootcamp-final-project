@@ -220,7 +220,6 @@ fun SavedStoryView(d: Director, stage: Stage.SavedStory) {
         return
     }
     Box(Modifier.fillMaxSize().background(Color(0xFF2E2A26))) {
-        StorySoundReplay(d, book, page)
         AssetImage(book.bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
             Box(Modifier.fillMaxSize().background(Sun2))
         }
@@ -241,6 +240,7 @@ fun SavedStoryView(d: Director, stage: Stage.SavedStory) {
             if (page > 0) ShelfButton("◀ 앞 쪽", Sun, Ink) { d.send(Reply.Tapped("prev", "앞")) }
             if (page < book.pages.size) ShelfButton("다음 쪽 ▶", Sun, Ink) { d.send(Reply.Tapped("next", "다음")) }
         }
+        StorySoundReplay(d, book, page)
     }
 }
 

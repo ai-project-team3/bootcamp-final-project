@@ -3,6 +3,12 @@ package com.example.finalproject_demo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onRoot
+import com.github.takahirom.roborazzi.RoborazziOptions
+import com.github.takahirom.roborazzi.RoborazziTaskType
+import com.github.takahirom.roborazzi.captureRoboImage
+import android.graphics.BitmapFactory
+import android.graphics.Color
 import com.example.finalproject_demo.demo.*
 import com.example.finalproject_demo.sound.ChildSound
 import com.example.finalproject_demo.ui.SavedStoryView
@@ -20,8 +26,40 @@ import java.nio.file.Files
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w868dp-h411dp-land-420dpi")
+@OptIn(com.github.takahirom.roborazzi.ExperimentalRoborazziApi::class)
 class SavedStorySoundTest {
     @get:Rule val compose = createComposeRule()
+
+    @Test fun aLegacyBooksSoundButtonIsVisibleAboveItsBackground() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val previousFrozen = motionFrozen
+        val imageFile = Files.createTempFile("legacy_sound_control", ".png").toFile()
+        try {
+            motionFrozen = true
+            val book = DemoState().apply { templateKey = "C" }.completedStoryBook()!!
+                .copy(visuals = null, soundClipId = "local-clip")
+            compose.setContent { SavedStoryView(Director(scope), Stage.SavedStory(book, 1)) }
+            val bounds = compose.onNodeWithText("🔊 내가 만든 소리").fetchSemanticsNode().boundsInRoot
+            compose.onRoot().captureRoboImage(imageFile.path,
+                roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record))
+            val pixels = BitmapFactory.decodeFile(imageFile.path)
+            var visibleButtonPixels = 0
+            var total = 0
+            for (y in bounds.top.toInt() until bounds.bottom.toInt()) {
+                for (x in bounds.left.toInt() until bounds.right.toInt()) {
+                    val color = pixels.getPixel(x, y)
+                    if (Color.red(color) > 178 && Color.green(color) > 102 && Color.blue(color) < 102) visibleButtonPixels++
+                    total++
+                }
+            }
+            assertTrue("The sound control must be painted above the legacy book background",
+                visibleButtonPixels > total / 3)
+        } finally {
+            motionFrozen = previousFrozen
+            scope.cancel()
+            imageFile.delete()
+        }
+    }
 
     @Test fun aReopenedBookOffersItsSoundWithoutUsingTheCurrentStory() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
