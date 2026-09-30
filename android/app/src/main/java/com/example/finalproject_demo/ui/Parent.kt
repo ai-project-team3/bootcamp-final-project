@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -32,6 +33,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,6 +55,7 @@ import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.hasCoopQuestions
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Stage
@@ -125,6 +128,8 @@ fun ParentView(d: Director, tab: String) = ParentText { ParentViewBody(d, tab) }
 private fun ParentViewBody(d: Director, tab: String) {
     val s = d.s
     val cur = PTABS.firstOrNull { it.key == tab } ?: PTABS.first()
+    // 같이 만들기 초안 — 탭을 오가도 남고, 부모 모드를 나가면 버린다 (저장 버튼 아래 고정 줄이 같이 쓴다)
+    val coop = remember(s) { CoopDraft(s) }
     // 부모 설정에서 바꾼 값은 폰에 남긴다 — 전에는 앱을 다시 켜면 처음 설정 값으로 돌아갔다 (09-29)
     LaunchedEffect(s.limitOn, s.dailyLimit, s.pinToStart, s.artStyle) {
         if (com.example.finalproject_demo.ui.shell.Shell.onboarded) {
@@ -208,13 +213,15 @@ private fun ParentViewBody(d: Director, tab: String) {
                     .padding(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 22.dp)
             ) {
                 when (cur.key) {
-                    "coop" -> CoopQuestionsTab(d)
+                    "coop" -> CoopQuestionsTab(coop)
                     "ach" -> AchievementsTab(d)
                     "set" -> SettingsTab(d)
                     "acct" -> com.example.finalproject_demo.ui.shell.AccountTab(d)
                     else -> RecordTab(d)
                 }
             }
+            // 저장 줄은 스크롤 밖에 고정 — 템플릿을 고른 자리에서도, 질문 줄을 고친 자리에서도 바로 누른다
+            if (cur.key == "coop" && coop.editing) CoopSaveBar(coop)
         }
     }
 }
@@ -516,9 +523,9 @@ private val COOP_SUGGESTIONS = listOf(
  * - 빈 줄은 그대로 둔다. 읽는 쪽(CoopScenes)이 빈 줄을 건너뛴다
  */
 @Composable
-private fun CoopQuestionsTab(d: Director) {
-    val s = d.s
-    val qs = s.parentQuestions
+private fun CoopQuestionsTab(c: CoopDraft) {
+    if (!c.editing) { CoopSavedCard(c); return }
+    val qs = c.qs
 
     fun set(i: Int, text: String) {
         while (qs.size <= i) qs.add("")
@@ -526,18 +533,11 @@ private fun CoopQuestionsTab(d: Director) {
     }
 
     PCard(Modifier.fillMaxWidth()) {
-        Text("오늘 아이에게 물어볼 것을 적어 두세요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
-        Text("아이가 오또의 방에서 소파(같이 만들기)를 누르면 마스코트가 이 순서대로 대신 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
-        if (s.hasCoopQuestions) {
-            Spacer(Modifier.height(6.dp))
-            Text(
-                s.coopPick?.let { "✓ ‘${it.name}’ 이야기가 준비됐어요. 소파에 🎁 표시가 붙어요." } ?: "✓ 질문이 준비됐어요. 소파에 🎁 표시가 붙어요.",
-                fontSize = 13.sp, color = PMint, fontWeight = FontWeight.Bold,
-            )
-        }
+        Text(if (c.hasSaved) "저장된 이야기를 고치는 중이에요" else "오늘 아이에게 물어볼 것을 적어 두세요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
+        Text("템플릿을 고르거나 질문을 적은 뒤 아래 [저장하기]를 눌러야 확정돼요. 저장하면 아이가 오또의 방에서 소파(같이 만들기)를 누를 때 마스코트가 이 순서대로 대신 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
     }
 
-    CoopTemplateCards(d)
+    CoopTemplateCards(c)
 
     Section("질문", "네 자리를 먼저 채우고, 더 있으면 [＋]")
     val rows = maxOf(COOP_PARTS.size, qs.size)
@@ -621,14 +621,13 @@ private fun CoopQuestionsTab(d: Director) {
  * 템플릿으로 준비하기 — **장소 · 직업 · 스포츠 → 요소 하나(직접 쓰기 포함) → 고른 이유** (09-29 · [COOP_KINDS]).
  * 고를 때마다 네 자리가 채워진다. 채우기만 한다 — 홀더(`parentQuestions`)와 마스코트가 읽는 흐름(CoopScenes)은 그대로다.
  * 채운 뒤에도 아래 입력 줄은 열려 있어 줄 단위로 고칠 수 있고, 요소 · 이유를 바꾸면 **손으로 고친 줄은 그대로** 둔다([refillBlank]).
- * 무엇을 골랐는지는 `s.coopPick` 에 남는다 — 오또가 「‘소방관’ 이야기야」라고 소개할 때 쓴다.
+ * 고른 것은 초안([CoopDraft])에만 담기고, [저장하기]를 눌러야 `s.coopPick` 에 남는다 — 오또가 「‘소방관’ 이야기야」라고 소개할 때 쓴다.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CoopTemplateCards(d: Director) {
-    val s = d.s
-    val qs = s.parentQuestions
-    val pick = s.coopPick
+private fun CoopTemplateCards(c: CoopDraft) {
+    val qs = c.qs
+    val pick = c.pick
     var kindKey by remember { mutableStateOf(pick?.kind) }
     var typing by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf("") }
@@ -639,16 +638,16 @@ private fun CoopTemplateCards(d: Director) {
 
     /** 고른 것을 네 줄로 — 처음이면 네 줄을 갈고, 이미 템플릿으로 채웠으면 손대지 않은 줄만 바꾼다 */
     fun apply(k: CoopKind, name: String, reason: CoopReason?) {
-        val old = s.coopPick
+        val old = c.pick
         val oldLines = old?.let { o -> coopKind(o.kind)?.questions(o.name, reasonOf(o)) }
         val newLines = k.questions(name, reason)
         val cur = qs.toList()
         val lines = if (oldLines != null && cur.isNotEmpty()) refillBlank(cur, oldLines, newLines) else fillFromTemplate(cur, newLines)
         qs.clear(); qs.addAll(lines)
-        s.coopPick = CoopPick(k.key, name, reason?.key)
+        c.pick = CoopPick(k.key, name, reason?.key)
     }
 
-    Section("템플릿으로 준비하기", "고르면 아래 네 자리가 채워져요")
+    Section("템플릿으로 준비하기", "고르면 아래 네 자리가 채워져요 · [저장하기]로 확정")
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         COOP_KINDS.forEach { k ->
             val on = kind?.key == k.key
@@ -716,6 +715,137 @@ private fun CoopTemplateCards(d: Director) {
         }
     }
     Text("안 고르면 상상 이야기로 물어봐요.", fontSize = 11.sp, color = PSub, modifier = Modifier.padding(top = 4.dp))
+}
+
+/**
+ * 같이 만들기 **초안** (09-30 사용자 요청 — 고르자마자 확정되던 것을 [저장하기]로 확정하게).
+ * 템플릿 · 질문 줄은 여기에만 쓰고, [save] 할 때 `s.parentQuestions` · `s.coopPick` 으로 옮긴다.
+ * 그래서 저장하기 전에는 소파에 🎁 가 붙지 않고, 부모 모드를 나가면 저장 안 한 초안은 버려진다.
+ * 저장한 뒤에는 [CoopSavedCard] 가 보이고, 거기서 [edit](수정) · [delete](삭제)를 한다.
+ */
+private class CoopDraft(private val s: DemoState) {
+    val qs = mutableStateListOf<String>()
+    var pick by mutableStateOf<CoopPick?>(null)
+    /** 저장된 것이 없으면 처음부터 고치는 화면, 있으면 저장된 카드부터 */
+    var editing by mutableStateOf(!s.hasCoopQuestions)
+    var askDelete by mutableStateOf(false)
+
+    init { load() }
+
+    val hasSaved: Boolean get() = s.hasCoopQuestions
+    val filled: Boolean get() = qs.any { it.isNotBlank() }
+    val dirty: Boolean get() = qs.toList() != s.parentQuestions.toList() || pick != s.coopPick
+    /** 저장할 수 있나 — 바뀐 게 있고, 비어 있지 않을 때 (다 지우고 싶으면 [삭제하기]) */
+    val canSave: Boolean get() = dirty && filled
+
+    private fun load() { qs.clear(); qs.addAll(s.parentQuestions); pick = s.coopPick }
+
+    fun edit() { load(); askDelete = false; editing = true }
+
+    fun cancel() { load(); editing = !s.hasCoopQuestions }
+
+    fun save() {
+        if (!canSave) return
+        s.parentQuestions.clear(); s.parentQuestions.addAll(qs.dropLastWhile { it.isBlank() })
+        s.parentQIndex = 0
+        s.coopPick = pick.takeIf { filled }
+        load(); editing = false
+    }
+
+    fun delete() { s.clearParentQuestions(); load(); askDelete = false; editing = true }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+/** 저장된 이야기 — 무엇을 골랐나 · 오또가 물을 순서 · [수정하기] [삭제하기] */
+@Composable
+private fun CoopSavedCard(c: CoopDraft) {
+    val pick = c.pick
+    val kind = pick?.let { coopKind(it.kind) }
+    PCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (kind != null) AssetImage(coopKindArt(kind), Modifier.size(56.dp)) { Text(kind.emoji, fontSize = 26.sp) }
+            else AssetImage("pi_coop", Modifier.size(56.dp)) { Text("🤝", fontSize = 26.sp) }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("✓ 저장됐어요 · 소파에 🎁 표시가 붙어요", fontSize = 12.sp, color = PMint, fontWeight = FontWeight.Bold)
+                Text(
+                    if (pick != null && kind != null) "${kind.title} · ‘${pick.name}’ ${kind.arc}" else "직접 적은 질문",
+                    fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold,
+                )
+                val reason = pick?.reason?.let { r -> CoopReason.entries.firstOrNull { it.key == r } }
+                if (kind != null) Text(reason?.let { "고른 이유 · ${kind.reasonLabels[it]}" } ?: "고른 이유 없음 · 상상 이야기로 물어봐요", fontSize = 12.sp, color = PSub)
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Text("아이가 소파를 누르면 오또가 이 순서대로 물어봐요", fontSize = 13.sp, color = PSub)
+        Spacer(Modifier.height(6.dp))
+        c.qs.forEachIndexed { i, q ->
+            if (q.isBlank()) return@forEachIndexed
+            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(COOP_PARTS.getOrNull(i) ?: "자유", fontSize = 12.sp, color = PSub, modifier = Modifier.width(72.dp))
+                Text("“$q”", fontSize = 14.sp, color = Ink, modifier = Modifier.weight(1f))
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        if (!c.askDelete) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PButton("✏️ 수정하기", PAccent, Modifier.weight(1f)) { c.edit() }
+                PButton("🗑 삭제하기", Curtain, Modifier.weight(1f), outline = true) { c.askDelete = true }
+            }
+        } else {
+            // 되돌릴 수 없으니 한 번 더 묻는다 — 시스템 창 대신 카드 안에서. 화면 아래로 잘리지 않게 끌어올린다
+            val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+            LaunchedEffect(Unit) { bring.bringIntoView() }
+            Box(Modifier.bringIntoViewRequester(bring).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFDECE8)).padding(12.dp)) {
+                Column {
+                    Text("저장된 이야기를 지울까요?", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
+                    Text("지우면 소파의 🎁 표시가 없어지고, 질문을 처음부터 다시 적어야 해요.", fontSize = 12.sp, color = PSub)
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PButton("아니요", PSub, Modifier.weight(1f), outline = true) { c.askDelete = false }
+                        PButton("지우기", Curtain, Modifier.weight(1f)) { c.delete() }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 고치는 동안 아래에 고정되는 줄 — 상태 한 줄 · [취소] · [저장하기] */
+@Composable
+private fun CoopSaveBar(c: CoopDraft) {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(PLine))
+    Row(
+        Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 22.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            when {
+                c.canSave -> "저장하지 않은 변경이 있어요 · 저장해야 소파에 🎁가 붙어요"
+                !c.filled -> "템플릿을 고르거나 질문을 하나 이상 적어 주세요"
+                else -> "바뀐 것이 없어요"
+            },
+            fontSize = 13.sp, color = if (c.canSave) PAccent else PSub, modifier = Modifier.weight(1f),
+        )
+        if (c.hasSaved) {
+            PButton("취소", PSub, Modifier.width(96.dp), outline = true) { c.cancel() }
+            Spacer(Modifier.width(10.dp))
+        }
+        PButton("저장하기", PMint, Modifier.width(140.dp), enabled = c.canSave) { c.save() }
+    }
+}
+
+@Composable
+private fun PButton(text: String, color: Color, modifier: Modifier = Modifier, outline: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(Radius.Round)
+    Box(
+        modifier
+            .height(44.dp)
+            .alpha(if (enabled) 1f else 0.4f)
+            .then(if (outline) Modifier.clip(shape).background(Color.White).border(1.5.dp, color, shape) else Modifier.felt(color, shape, lift = 2.dp, texture = false))
+            .clickable(enabled = enabled) { onClick() },
+        contentAlignment = Alignment.Center,
+    ) { Text(text, fontSize = 15.sp, color = if (outline) color else Color.White, fontWeight = FontWeight.Bold) }
 }
 
 @Composable
