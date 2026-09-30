@@ -54,7 +54,11 @@ class StoryCharacterTest {
             val feeder = launch {
                 while (isActive) {
                     if (d.s.stage is Stage.CardsRow) d.send(Reply.Tapped("voice", "말로 만들기"))
-                    if (d.s.micEnabled) d.send(Reply.Spoke("긴 머리에 빨간 드레스를 입고 안경은 안 써"))
+                    if (d.s.micEnabled) when {
+                        "옷" in d.s.line && "머리" !in d.s.line -> d.send(Reply.Tapped("F9B233", "노란 옷"))
+                        "안경" in d.s.line && "머리" !in d.s.line -> d.send(Reply.Tapped("square", "네모 안경"))
+                        else -> d.send(Reply.Spoke("긴 머리에 빨간 드레스를 입고 안경은 안 써"))
+                    }
                     delay(40)
                 }
             }
@@ -67,6 +71,8 @@ class StoryCharacterTest {
             val request = server.requests.single { it.first == "/image" }.second
             assertEquals("character", request.getString("kind"))
             assertTrue(request.getString("description").contains("드레스"))
+            assertTrue("the latest card choice must also reach generation", request.getString("description").contains("F9B233"))
+            assertTrue(request.getString("description").contains("square"))
             assertFalse(request.getString("description").contains(d.s.childName))
             d.send(Reply.Tapped("ok", "좋아"))
             withTimeout(5_000) { while (d.s.scene != Scene.BESTIARY) delay(10) }

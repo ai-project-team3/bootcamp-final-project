@@ -349,6 +349,7 @@ private suspend fun Director.sceneMakeHero() {
     var fixes = 0
     val c = s.childName
     val descriptions = mutableListOf<String>()
+    val confirmedChoices = linkedMapOf<String, String>()
     val generatedTries = mutableListOf<Pair<String?, String?>>()
     var generatedImage: String? = null
     var generatedRig: String? = null
@@ -413,7 +414,9 @@ private suspend fun Director.sceneMakeHero() {
         generatedImage = null
         generatedRig = null
         if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
-            val description = descriptions.joinToString("; ").ifBlank { heroName() }
+            val description = descriptions.joinToString("; ").ifBlank { heroName() } +
+                if (confirmedChoices.isNotEmpty()) "\nLatest confirmed choices override earlier descriptions: " +
+                    confirmedChoices.entries.joinToString("; ") { "${it.key}=${it.value}" } else ""
             val mask = s.nameMask()
             val character = withTimeoutOrNull(15_000) { Server.character(mask.mask(description), mode = "story") }
             if (character != null) {
@@ -476,6 +479,7 @@ private suspend fun Director.sceneMakeHero() {
     )
 
     fun apply(key: String, v: String) {
+        confirmedChoices[key] = v
         attr = when (key) {
             "hair" -> attr.copy(hair = v)
             "glasses" -> attr.copy(glasses = v)
