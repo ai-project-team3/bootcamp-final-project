@@ -27,7 +27,8 @@ fun DemoState.completedStoryBook(): SavedStoryBook? {
     if (mode != StoryMode.STORY || template == null || pageCount == 0) return null
     val pages = (1..pageCount).map { SavedStoryPage(pageKind(it), bookCaption(it)) }
     if (pages.any { it.caption.isBlank() }) return null
-    return SavedStoryBook(UUID.randomUUID().toString(), title ?: autoTitleFor(), themeKey, bgName, pages, captureStoryVisuals())
+    return SavedStoryBook(storySoundBookId ?: UUID.randomUUID().toString(), title ?: autoTitleFor(),
+        themeKey, bgName, pages, captureStoryVisuals(), storySoundClip?.id)
 }
 
 /** 앱 내부 저장소에만 보관한다. 저장 시 전체 배열을 한 번에 교체해 중간 상태를 남기지 않는다. */
