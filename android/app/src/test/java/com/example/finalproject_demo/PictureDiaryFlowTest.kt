@@ -3,13 +3,14 @@ package com.example.finalproject_demo
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.ASK_AFTER_DRAWING
+import com.example.finalproject_demo.demo.DiaryBoard
 import com.example.finalproject_demo.demo.DiaryPageKind
+import com.example.finalproject_demo.demo.DiaryPaper
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.NOT_HEARD_AFTER
 import com.example.finalproject_demo.demo.PieceLook
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
-import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.buildDiaryBook
@@ -82,12 +83,12 @@ class PictureDiaryFlowTest {
     fun aTalkingDayAsksAtMostThreeThingsAndBecomesAPictureDiary() = run { d ->
         val s = d.s
         d.go(Scene.DIARY)
-        assertTrue("D0 에 그림판이 먼저 떠야 한다", await { s.stage is Stage.DrawPad } != null)
+        assertTrue("D0 에 그림판이 먼저 떠야 한다", await { s.stage is DiaryBoard } != null)
         assertTrue(d.push("그림 없이 이야기할래"))
 
         // 남아 있는 옛 버튼을 한 번 더 누를 수 있어 누른 수가 아니라 **물은 수**(stepsDone)로 센다
         var guard = 0
-        while (s.stage !is Stage.Show && guard++ < 20) {
+        while (s.stage !is DiaryPaper && guard++ < 20) {
             if (await(2_000) { s.buttons.any { "🎬 오늘 이야기 시연 답" in it.label } } == null) break
             d.push("🎬 오늘 이야기 시연 답")
         }
@@ -97,7 +98,7 @@ class PictureDiaryFlowTest {
         assertTrue("빈 칸을 마스코트가 메웠다: ${s.slotBy}", s.slotBy.values.none { it == "mascot" })
         assertNull("세 번을 넘겨 내일 이야기까지 물었다", s.slots["keep"])
 
-        assertTrue("그림일기로 안 왔다", await { s.stage is Stage.Show && "나는 오늘" in (s.stage as Stage.Show).caption } != null)
+        assertTrue("그림일기로 안 왔다", await { s.stage is DiaryPaper && "나는 오늘" in s.line } != null)
         val book = buildDiaryBook(s.diaryBookInput())
         assertEquals(
             listOf("나는 오늘 어린이집에 갔어요.", "높이 쌓은 블록이 와르르 무너졌어요.", "마침내 다시 쌓은 블록은 이번엔 무너지지 않았어요."),
@@ -157,7 +158,7 @@ class PictureDiaryFlowTest {
         s.drawing += stroke(0.1f)
         assertTrue(d.push("붓이 멈춤"))
         assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
-        assertTrue("그림판을 떠났다 — 아이가 그리던 획이 사라진다", s.stage is Stage.DrawPad)
+        assertTrue("그림판을 떠났다 — 아이가 그리던 획이 사라진다", s.stage is DiaryBoard)
         assertTrue(d.push("우리 집이야"))
         assertTrue(await { "우리 집이구나" in s.line } != null)
         assertEquals("우리 집", s.diaryDay.pieces.single().name)
@@ -170,7 +171,7 @@ class PictureDiaryFlowTest {
         assertTrue("오또 그림이 오지 않았다", await { "짠!" in s.line } != null)
         assertTrue(d.push("오또 그림으로"))
         assertEquals(PieceLook.OTTO, s.diaryDay.pieces.first().look)
-        assertTrue(s.stage is Stage.DrawPad)
+        assertTrue(s.stage is DiaryBoard)
 
         assertTrue(d.push("다 그렸어"))
         assertTrue("다 그린 뒤 빈 칸을 묻지 않았다", await { s.line == "오늘 어디 갔었어?" } != null)
@@ -196,7 +197,7 @@ class PictureDiaryFlowTest {
         d.go(Scene.DIARY)
         assertTrue(d.push("그릴래"))
         repeat(2) { i ->
-            s.drawing += stroke(0.1f * i)
+            s.drawing += stroke(0.1f + 0.3f * i)
             assertTrue(d.push("붓이 멈춤"))
             assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
             assertTrue(d.push("대답 없음"))
@@ -204,7 +205,7 @@ class PictureDiaryFlowTest {
             assertTrue(await { s.buttons.any { "붓이 멈춤" in it.label } } != null)
         }
         val lines = s.lineId
-        s.drawing += stroke(0.7f)
+        s.drawing += stroke(0.75f)
         // 이번에는 오또가 말을 걸지 않는 것이 맞다 — 말이 바뀌기를 기다리는 push 대신 기록이 남을 때까지 누른다
         assertTrue(await {
             s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick()
@@ -223,11 +224,11 @@ class PictureDiaryFlowTest {
         s.drawing += stroke(0.2f)
         assertTrue(d.push("다 그렸어"))
         var guard = 0
-        while (s.scene == Scene.DIARY && s.stage !is Stage.Show && guard++ < 30) {
+        while (s.scene == Scene.DIARY && s.stage !is DiaryPaper && guard++ < 30) {
             if (await(1_500) { s.buttons.any { "대답 없음" in it.label } } == null) continue
             d.push("대답 없음")
         }
-        assertTrue(await { (s.stage as? Stage.Show)?.caption?.startsWith("내가 오늘 그린 그림이에요.") == true } != null)
+        assertTrue(await { s.stage is DiaryPaper && s.line.startsWith("내가 오늘 그린 그림이에요.") } != null)
         val book = buildDiaryBook(s.diaryBookInput())
         assertEquals(listOf(DiaryPageKind.DRAWING), book.map { it.kind })
         assertFalse("그림만 있는 날에 「아직 듣지 못했어요」를 붙였다", book.single().tail == NOT_HEARD_AFTER)
