@@ -11,6 +11,7 @@ import com.example.finalproject_demo.demo.bookCaption
 import com.example.finalproject_demo.demo.diaryGiveItem
 import com.example.finalproject_demo.demo.diaryLineOf
 import com.example.finalproject_demo.demo.diaryPlaceBg
+import com.example.finalproject_demo.demo.diaryEnded
 import com.example.finalproject_demo.demo.diaryTemplate
 import com.example.finalproject_demo.demo.diarySlotOf
 import com.example.finalproject_demo.demo.isSequential
@@ -491,6 +492,24 @@ class DiaryTest {
         s.fillAll()
         assertEquals(4, s.filled)
         assertTrue("협업은 네 자리가 다 차면 story_ready", s.diaryReady)
+    }
+
+    /** 09-30 끝나는 규칙 — story_ready 하나. mascot_pick 2회는 끝이 아니다 · 15분은 협업에만 남는다(#36 전까지) */
+    @Test
+    fun onlyCoopStopsAtFifteenMinutesAndMascotPicksNeverEndTheStory() {
+        val coop = com.example.finalproject_demo.demo.Director(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob()))
+        coop.s.mode = StoryMode.COOP
+        coop.s.mascotPicks = 2
+        assertFalse("mascot_pick 2회로 끝났다", coop.diaryEnded())
+        coop.s.diaryTimeUp = true
+        assertTrue("협업의 15분이 사라졌다", coop.diaryEnded())
+        assertEquals("timeout", coop.s.endReason)
+
+        val diary = com.example.finalproject_demo.demo.Director(kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob()))
+        diary.s.mode = StoryMode.DIARY
+        diary.s.diaryStart = 1L                  // 아주 오래전에 시작했다
+        diary.s.diaryTimeUp = true
+        assertFalse("일기가 시간으로 끝났다 — 30분쯤 마무리를 제안할 뿐이다", diary.diaryEnded())
     }
 
     @Test

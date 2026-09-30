@@ -14,15 +14,16 @@ import com.example.finalproject_demo.ui.HeroAttr
 
 // ── 끝나는 조건 ────────────────────────────────────────────────
 
-/** 끝나는 조건 셋 — 동화 모드와 **같은 셋**을 쓴다. 새로 만들지 않았다 (guidelines/2 §1-1 · 일기 §3) */
+/**
+ * 협업 모드의 질문 흐름을 멈추는 조건 (09-30 조장 · guidelines/2 §1-1).
+ *
+ * 끝나는 조건은 `story_ready` 하나다. 「`mascot_pick` 2회 연속이면 끝」은 없앴다 — 마스코트는 칸을 채울 뿐
+ * 이야기를 닫지 않는다. 시간은 모드마다 다르다: **협업은 정해질 때까지 15분 그대로**(치영과 확인 중 · #36),
+ * 일기(그림일기)는 이 함수를 쓰지 않고 30분쯤 마무리를 한 번 제안한다(`PictureDiary.kt`).
+ */
 fun Director.diaryEnded(): Boolean {
     if (s.endReason != null) return true
-    // mascot_pick 을 먼저 본다 — 마스코트가 메워서 네 자리가 "찬" 것을 story_ready 로 읽으면 기록이 거짓이 된다
-    if (s.mascotPicks >= 2) {
-        s.endReason = "mascot_pick"
-        log("mascot_pick 2회 연속 = 사다리가 다 떨어진 지점 → 모인 답변으로 책을 만든다 (일기 §3 · §5)")
-        return true
-    }
+    if (!s.isCoop) return false
     val over15 = s.diaryTimeUp || (s.diaryStart > 0L && System.currentTimeMillis() - s.diaryStart >= 15 * 60 * 1000)
     if (over15) {
         s.endReason = "timeout"
@@ -330,7 +331,6 @@ private suspend fun Director.finishDiary() {
     }
     mark("diary")
     val why = when (s.endReason) {
-        "mascot_pick" -> "mascot_pick 2회 연속"
         "timeout" -> "15분 경과"
         else -> "story_ready (기승전결 네 자리)"
     }
