@@ -74,12 +74,23 @@ fun boxOf(strokes: List<Stroke>): BoardBox? {
  * 1. 방금 그리던 조각(마지막 조각)이 **이름이 없고** 가까우면 거기에 — 떼어 그린 머리 · 몸 · 팔이 한 조각이 된다
  * 2. 아니면 가까운 **이름 없는** 조각에
  * 3. 아니면 새 조각. 이름 붙은 조각은 가까워도 빨아들이지 않는다
+ *
+ * 0. 단, **크레용을 바꿔 방금 그리던 조각에 이어 그리면** 그 조각이다 — 그새 이름이 붙었어도.
+ *    색을 고르는 데 오래 걸리면 그 사이 오또가 묻고 이름이 붙는다(10-01 진웅). 새 색으로 이어 긋는 선도
+ *    다른 데에 그을 때까지 그 조각에 붙는다
  */
 fun DiaryDay.addStroke(stroke: Stroke): Int {
     val b = boxOf(listOf(stroke)) ?: return -1
     fun near(p: DiaryPiece) = boxOf(p.strokes)?.grow(PIECE_GAP)?.touches(b) == true
+    val prev = lastStroke
+    val prevPiece = prev?.let { p -> pieces.firstOrNull { p in it.strokes } }
+    val recolored = prev != null && prev.color != stroke.color
+    val keepOn = prevPiece?.takeIf { it.name != null && near(it) && (recolored || it.id == continuing) }
+    continuing = keepOn?.id
+    lastStroke = stroke
     val last = pieces.lastOrNull()
-    val target = last?.takeIf { it.name == null && near(it) }
+    val target = keepOn
+        ?: last?.takeIf { it.name == null && near(it) }
         ?: pieces.lastOrNull { it.name == null && near(it) }
     if (target == null) {
         val p = DiaryPiece(id = (pieces.maxOfOrNull { it.id } ?: -1) + 1, strokes = listOf(stroke))

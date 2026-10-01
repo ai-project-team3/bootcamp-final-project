@@ -108,6 +108,10 @@ class DiaryDay {
      */
     val sameSaying = mutableSetOf<String>()
 
+    /** 마지막으로 붙인 획 · 색을 바꿔 이어 그리는 중인 조각 — [addStroke] 가 본다 */
+    internal var lastStroke: Stroke? = null
+    internal var continuing: Int? = null
+
     var turnCalls = 0
     var turnBudget: Int? = null
 
