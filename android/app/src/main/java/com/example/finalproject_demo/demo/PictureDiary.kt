@@ -607,7 +607,9 @@ private suspend fun Director.askEmptySlotsLive() {
             if (fillSlot !in Server.SLOTS || value.isBlank()) return@forEachIndexed
             // 첫 칸의 책 문장은 아이가 한 말 그대로 — 판정의 요약이 아니다(차별점 「오늘 아이가 한 말 그대로」)
             val line = if (i == 0) r.text.trim() else value.trim()
-            setDiarySlot(fillSlot, bookKeyOf(fillSlot, key), value.trim(), line, "child")
+            val bookKey = bookKeyOf(fillSlot, key)
+            setDiarySlot(fillSlot, bookKey, value.trim(), line, "child")
+            if (i > 0) day.sameSaying += bookKey else day.sameSaying -= bookKey
         }
         if (v.fills.isEmpty()) {
             if (easyTried != key && step != null) {
@@ -750,7 +752,8 @@ internal const val DIARY_STORY_WAIT_MS = 30_000L
  */
 private suspend fun Director.writeDiaryBook(day: DiaryDay) {
     val mask = s.nameMask()
-    val slots = mask.maskSlots(Server.SLOTS.associateWith { s.slots[it] })
+    // 한 말의 둘째 칸은 빼고 보낸다 — 첫 칸에 아이 말 그대로 있다([DiaryDay.sameSaying])
+    val slots = mask.maskSlots(Server.SLOTS.associateWith { if (it in day.sameSaying) null else s.slots[it] })
     val keep = s.slots["keep"]?.takeIf(String::isNotBlank)?.let(mask::mask)
     val t0 = System.currentTimeMillis()
     val written = withTimeoutOrNull(DIARY_STORY_WAIT_MS) { requestDiaryStory(slots, s.slotBy.toMap(), keep) }

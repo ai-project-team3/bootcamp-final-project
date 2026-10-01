@@ -149,6 +149,33 @@ class DiaryLiveTurnTest {
         }
     }
 
+    /**
+     * 한 말이 두 칸을 채우면 둘째 칸(판정의 요약)은 책 · `/story` 에 다시 보내지 않는다.
+     * 10-01 실기기: 「뽀삐가 미끄럼틀에서 넘어져서 울었어」 → reaction 「울었다」 → 책이 「나는 울었어요」를 지어냈다
+     */
+    @Test
+    fun theSecondSlotOfOneSayingIsNotWrittenAgain() {
+        var sent: Map<String, String?>? = null
+        live(
+            { t ->
+                if (t.getString("asked_slot") == "place") turn(listOf("place" to "놀이터"), "problem", "놀이터에 갔구나!", "놀이터에서 무슨 일이 있었어?")
+                else turn(listOf("problem" to "뽀삐가 미끄럼틀에서 넘어졌다", "reaction" to "울었다"), null, "그랬구나!", null, ready = true)
+            },
+            { slots, _, _ -> sent = slots; null },
+        ) { d ->
+            val s = d.s
+            d.toQuestions()
+            assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+            d.answer("놀이터 갔어") { s.line == "놀이터에서 무슨 일이 있었어?" }
+            d.answer("뽀삐가 미끄럼틀에서 넘어져서 울었어") { s.stage is DiaryPaper }
+            assertEquals("판정 상태에는 남는다", "울었다", s.slots["reaction"])
+            assertEquals("뽀삐가 미끄럼틀에서 넘어져서 울었어", sent?.get("problem"))
+            assertEquals("둘째 칸을 /story 에 보냈다", null, sent?.get("reaction"))
+            val book = buildDiaryBook(s.diaryBookInput()).map { it.text }
+            assertTrue("앱 책에 「울었다」 쪽이 따로 생겼다 — $book", book.none { it.startsWith("울었") })
+        }
+    }
+
     @Test
     fun whenTheBookServerFailsTheAppWritesTheBook() {
         live({ turn(listOf("place" to "놀이터"), null, "놀이터에 갔구나!", null, ready = true) }) { d ->

@@ -102,6 +102,12 @@ class DiaryDay {
      * 서버 대화 호출(`/turn`) 수 — **세기만 하고 막지 않는다.**
      * 상한을 둘지 · 얼마로 둘지는 #30 에서 정한다. 정해지면 [turnBudget] 에 넣는다(null = 제한 없음).
      */
+    /**
+     * 한 말이 두 칸을 채웠을 때 둘째 칸(책 키). 그 말은 첫 칸에 아이 말 그대로 이미 들어가므로 책 · `/story` 에는 다시 보내지 않는다 —
+     * 판정의 요약(「울었다」)은 주어가 빠져 책이 「나는 울었어요」로 지어냈다(10-01 실기기 · 뽀삐가 울었는데). 판정 상태(`slots`)에는 남긴다
+     */
+    val sameSaying = mutableSetOf<String>()
+
     var turnCalls = 0
     var turnBudget: Int? = null
 

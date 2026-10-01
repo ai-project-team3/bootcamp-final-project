@@ -79,7 +79,8 @@ const val NOT_HEARD_THERE = "거기서 있었던 일은 아직 듣지 못했어�
 const val FEEL_LEAD = "오늘은"
 
 fun DemoState.diaryBookInput(): DiaryBookInput = DiaryBookInput(
-    lines = DiaryPageKind.entries.mapNotNull { k -> slots[k.bookKey]?.trim()?.takeIf(String::isNotEmpty)?.let { k.bookKey to it } }.toMap(),
+    lines = DiaryPageKind.entries.filter { it.bookKey !in diaryDay.sameSaying }
+        .mapNotNull { k -> slots[k.bookKey]?.trim()?.takeIf(String::isNotEmpty)?.let { k.bookKey to it } }.toMap(),
     by = slotBy.toMap(),
     pieceNames = diaryDay.pieceNames,
     hasDrawing = sceneDrawing.isNotEmpty() || diaryDay.pieces.isNotEmpty(),
