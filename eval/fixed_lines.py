@@ -1,7 +1,8 @@
 """Every line the mascot can say that is written in the app — the list to bake into audio once.
 
-Why (10-01): in server mode every mascot line went to TypeCast, fixed lines too, and a free
-month (15,000 characters) was gone in about ten sessions. Lines written in the app never
+Why (10-01): in server mode every mascot line went to TypeCast, fixed lines too, and the free
+credit ran out during the team's testing (how many sessions that was is not measured — the
+server logs characters per /tts call since 10-01 18:51; count those). Lines written in the app never
 change, so they are baked once per voice and played from the app; only lines the server
 writes (/turn ack · expand · question, /story captions) need TypeCast.
 
