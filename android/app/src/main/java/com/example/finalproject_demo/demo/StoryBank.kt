@@ -1021,13 +1021,14 @@ fun DemoState.autoTitleFor(): String {
 
 /** 표지 · 쪽 수 · 자막 */
 val DemoState.pageCount: Int get() =
-    if (!isDiary && !storyCaptions.isNullOrEmpty()) storyCaptions!!.size else (template?.pages?.size ?: 6)
+    if ((!isDiary || isCoop) && !storyCaptions.isNullOrEmpty()) storyCaptions!!.size else (template?.pages?.size ?: 6)
 
 fun DemoState.pageKind(i: Int): PageKind = if (i == 0) PageKind.COVER else template?.pages?.getOrNull(i - 1)?.kind ?: PageKind.TOGETHER
 
 fun DemoState.bookCaption(i: Int): String =
     if (i == 0) title ?: "우리 책"
-    else if (!isDiary && !storyCaptions.isNullOrEmpty()) {
+    // 협업 책도 서버가 쓴 문장을 쓴다(`coopWriteBook` · #47). 그림일기는 자기 책(`DiaryBook.kt`)이다
+    else if ((!isDiary || isCoop) && !storyCaptions.isNullOrEmpty()) {
         val caption = storyCaptions?.getOrNull(i - 1).orEmpty()
         val result = storyMissionResult(i)
         if (result == null) caption else "$caption $result"

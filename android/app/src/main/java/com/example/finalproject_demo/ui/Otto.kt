@@ -32,7 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -65,6 +64,7 @@ import kotlin.math.roundToInt
  * 얼굴 테두리 색으로 **차례**를 알린다 — 말하는 중 분홍 [Cheek] · 듣는 중 청록 [FeltTeal] · 생각하는 중 겨자 [FeltMustard].
  * 말할 때도 들을 때처럼 테두리 색 파동이 퍼진다(09-29 사용자 요청 — 전에는 들을 때만 파동이 있었다).
  * 파동은 얼굴과 **같은 상자**에서 같이 움직여, 얼굴이 기울거나 뛰어도 중심이 어긋나지 않는다.
+ * (10-01 에 잠깐 껐다가 사용자 요청으로 그대로 되살렸다. 옛 모양이 번쩍인 원인은 띠 안 🔊 가 붙었다 떨어지며 띠 길이가 바뀐 것이었다)
  */
 
 enum class OttoState(val ring: Color, val face: String) {
@@ -120,7 +120,7 @@ fun exprFor(text: String, mood: Mood): Expr {
  * @param burstId 이 번호가 바뀔 때마다 [burst] 가 다시 터진다 (같은 반응이 연달아 와도)
  * @param expr    표정 — 말하는 중 · 가만있을 때만 얼굴 그림을 바꾼다(듣는 중 · 생각하는 중은 그 얼굴 그대로)
  * @param pulse   말하는 중 · 듣는 중 · 기다리는 중이면 테두리 색 파동을 얼굴 둘레에 퍼뜨린다
- * @param frame   이 모양 안에서만 얼굴이 뛰고 기운다 (틀 밖으로 안 나가게). 없으면 자르지 않는다
+ * @param onLift  얼굴이 위아래로 움직인 만큼(px, 위가 음수)을 매 프레임 알린다 — 나레이션 띠가 얼굴을 따라 휘게
  */
 @Composable
 fun OttoFace(
@@ -130,7 +130,7 @@ fun OttoFace(
     burstId: Int = 0,
     expr: Expr = Expr.NONE,
     pulse: Boolean = false,
-    frame: Shape? = null,
+    onLift: ((Float) -> Unit)? = null,
 ) {
     val inf = rememberInfiniteTransition(label = "otto")
     val hop by inf.animateFloat(0f, -5f, infiniteRepeatable(tween(200), RepeatMode.Reverse), label = "hop")
@@ -218,13 +218,15 @@ fun OttoFace(
     val pulsing = pulse && (state == OttoState.TALK || state == OttoState.LISTEN || state == OttoState.WAIT)
 
     Box(modifier) {
-        // [frame] 이 있으면 얼굴은 그 틀 안에서만 뛰고 기운다 — 틀 밖으로 삐져나오지 않게 (나레이션 칸 09-30)
-        Box(if (frame != null) Modifier.fillMaxSize().clip(frame) else Modifier.fillMaxSize()) {
         // 얼굴과 파동을 **한 상자**에 — 뛰고 기울어도 파동이 얼굴 정중앙에 붙어 다닌다
         Box(
             Modifier
                 .fillMaxSize()
-                .offset { IntOffset(0, (baseY * density.density + jump.value).roundToInt()) }
+                .offset {
+                    val y = (baseY * density.density + jump.value).roundToInt()
+                    onLift?.invoke(y.toFloat())
+                    IntOffset(0, y)
+                }
                 .graphicsLayer {
                     scaleX = sx.value * baseScale; scaleY = sy.value * baseScale
                     rotationZ = baseTilt + shake.value
@@ -252,7 +254,6 @@ fun OttoFace(
                     .clip(CircleShape)
                     .background(WoolCream),
             ) { AssetImage(face, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { ArtView(Art.Mascot, Modifier.fillMaxSize()) } }
-        }
         }
 
         // 머리 위 「…」 — 기다릴 때와 생각할 때. 점이 하나씩 차오른다
@@ -288,7 +289,7 @@ fun OttoFace(
 
 /**
  * 오또 말풍선 → **나레이션 칸** (화면 아래 전체 폭). 말할 때마다 톡 튀어나오고 글자가 한 자씩 써진다.
- * 녹음 버튼 · 그리기 버튼은 칸 **안** 오른쪽에 들어간다 (09-29 사용자 요청).
+ * 녹음 버튼 · 그리기 버튼은 칸 오른쪽 끝에 따로 선다 (09-30 사용자 요청).
  */
 @Composable
 fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
@@ -317,7 +318,8 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
         s.micOn -> OttoState.LISTEN
         talking -> OttoState.TALK
         s.stage is Stage.Making -> OttoState.THINK
-        s.mood == Mood.WAITING -> OttoState.WAIT
+        // 말을 다 했고 마이크를 쓸 수 있으면 아이 답을 기다리는 중이다 — 불빛을 켠다 (10-01 사용자 요청)
+        s.mood == Mood.WAITING || s.micEnabled -> OttoState.WAIT
         else -> OttoState.IDLE
     }
     val mode = when {
@@ -326,9 +328,10 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
         else -> NarrationMode.STORY
     }
     // 오또가 할 말이 없는 차례(같이 만들기에서 어른이 묻는 차례 등)에도 칸이 비지 않게 — 아이에게 차례를 알린다
-    val line = if (text.isBlank()) "네 차례야! 마이크를 누르고 말해 봐" else text.take(shown)
+    val full = if (text.isBlank()) "네 차례야! 마이크를 누르고 말해 봐" else text
+    val line = if (text.isBlank()) full else text.take(shown)
     Narration(
-        mode = mode, state = state, line = line,
+        mode = mode, state = state, line = line, fullLine = full,
         modifier = modifier.alpha(((pop.value - 0.6f) / 0.4f).coerceIn(0f, 1f)),
         speaker = if (s.speaker != "마스코트") s.speaker else null,
         burst = s.mood, burstId = s.moodId,

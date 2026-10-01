@@ -177,6 +177,25 @@ class CoopFlowTest {
         assertEquals(null, d.s.endReason)
     }
 
+    /**
+     * 고른 이야기면 **답도 그 이야기 것**이다 (10-01) — "소방관은 어디서 일할까?" 에 시연 답이 "어린이집!" 이면 안 된다.
+     * 시연 서랍의 🗣 답 · 칸에 들어간 값 · 책 문장이 다 그 이야기에서 나온다.
+     */
+    @Test
+    fun aPickedStoryAnswersInItsOwnWordsToo() = run { d ->
+        val s = d.s
+        d.startCoopWith(pick = firefighter)
+        assertTrue(await(8_000) { d.asked() == firefighter.templateQuestions()[0] } != null)
+        assertTrue("시연 답이 그 이야기 것이 아니다: ${s.buttons.map { it.label }}", await(3_000) { s.buttons.any { "큰 건물!" in it.label } } != null)
+        assertTrue("일기 답이 섞였다", s.buttons.none { "어린이집" in it.label })
+
+        d.walkToBook()
+        val places = setOf("큰 건물", "밖", "사람 많은 곳", "바쁜 곳", "소방관이 일하는 곳")
+        assertTrue("칸 값이 그 이야기 것이 아니다: ${s.place}", s.place in places)
+        // 꼬리질문 답까지 — 「블록을 높이높이 쌓아 올렸어요」 같은 일기 문장이 소방관 이야기 책에 들어가면 안 된다
+        assertTrue("일기 문장이 책에 들어갔다: ${s.slots}", s.slots.values.none { "어린이집" in it || "블록" in it || "미끄럼틀" in it })
+    }
+
     /** 템플릿만 골랐다 — 오또가 네 자리를 그 이야기의 말로 묻고, 나머지는 일반 모드처럼 앱 질문 */
     @Test
     fun aPickedStoryAsksTheFourPartsInItsOwnWords() = run { d ->

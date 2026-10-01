@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.templateQuestions
 
 /**
@@ -264,6 +266,107 @@ val DemoState.coopQuestionsAllAsked: Boolean
     get() = isCoop && coopReady &&
         COOP_PART_SLOTS.all { "diary_$it" in coopTrack.askedSteps } &&
         parentQIndex >= parentQuestions.count { it.isNotBlank() }
+
+// ── 진짜 마이크 답 → 칸 값 (#47 · 10-01) ─────────────────────────────
+
+/**
+ * 진짜 마이크로 들은 답인가. 대본 답은 `value`(칸 값)와 [Answer] 꼬리표를 달고 오고,
+ * 받아쓰기 답은 글자(`text`)만 있다 (`AGENTS.md` 「진짜 마이크 답에는 대본 꼬리표가 없다」).
+ */
+internal fun Reply.Spoke.isLiveSpeech(): Boolean = value.isEmpty() && answer == null
+
+/** 칸에 넣지 않는 짧은 말 — 「몰라」 · 「글쎄」 · 「응」. 이때는 사다리를 한 칸 내려가 쉬운 말로 다시 묻는다 */
+private val NON_ANSWER_STARTS = listOf("몰라", "모르겠", "모름", "글쎄", "기억 안", "기억이 안", "생각 안", "생각이 안", "잘 모르")
+private val NON_ANSWER_WORDS = setOf("응", "어", "음", "아니", "네", "예", "없어", "몰라요", "싫어")
+
+internal fun isNonAnswer(text: String): Boolean {
+    val t = text.trim().trimEnd('.', '!', '?', '~', ' ')
+    if (t.isEmpty() || t in NON_ANSWER_WORDS) return true
+    // 짧은 말에서만 본다 — 「친구가 없어서 슬펐어」 같은 긴 답을 「몰라」로 버리면 안 된다
+    return t.length <= 10 && NON_ANSWER_STARTS.any { t.startsWith(it) }
+}
+
+/**
+ * 협업 질문에 아이가 **진짜 말로** 답했을 때 이 걸음의 칸 값 (#47 1번 · 2번).
+ *
+ * - 서버를 켰으면 `/turn`(`exchangeTurn("coop", …)`)이 **내용을 보고** 칸을 고른다. 이 걸음의 칸이 채워지면 그 값을 쓰고,
+ *   다른 뼈대 칸이 함께 나왔으면(「놀이터 갔는데 친구가 밀었어」) 비어 있는 것만 같이 채운다.
+ *   이 걸음 칸이 안 나오면 null — 질문에 맞는 답이 아니었으니 사다리로 다시 묻는다
+ *   (부모가 바꾼 질문 「좋아하는 색은?」의 「빨강」이 `problem` 에 들어가지 않는다)
+ * - 꼬리질문 자리(`extra`)는 아이 말 그대로 둔다 — 서버가 줄인 값보다 원문이 책 재료다
+ * - 서버가 없거나 응답이 없으면 **아이 말 그대로** 쓴다. 대본 값을 읽던 때(`r.value`)는 진짜 답이 늘 비어
+ *   마스코트가 칸을 지어냈다 — 그 버그가 1번이다
+ * - 「몰라」류는 null
+ */
+internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r: Reply.Spoke): String? {
+    val text = r.text.trim()
+    if (isNonAnswer(text)) return null
+    if (!Server.liveFor(s.mode)) return text
+    val asked = step.slot.takeIf { it in Server.SLOTS && it != "extra" }
+    val verdict = s.exchangeTurn("coop", asked, question, text)?.verdict
+    if (verdict == null) {
+        log("[${step.bookKey}] /turn 응답 없음 → 아이 말 그대로 칸에 넣는다")
+        return text
+    }
+    if (verdict.reason == "blocked_by_filter") {
+        log("[${step.bookKey}] 서버 안전 판정으로 이 답은 책 재료에서 뺀다 → 다시 묻는다")
+        return null
+    }
+    val fills = verdict.fills.filter { (slot, v) -> slot in Server.SLOTS && slot != "extra" && v.isNotBlank() }
+    fills.filter { (slot, _) -> slot != step.slot && slot in COOP_SKELETON && !diaryFilled(slot) }.forEach { (slot, v) ->
+        setDiarySlot(slot, slot, v.trim(), v.trim(), "child")
+        log("아이 말에 [$slot] 도 들어 있었다 → 비어 있던 그 칸도 채운다 (/turn)")
+    }
+    if (asked == null) return text
+    return fills.firstOrNull { it.first == step.slot }?.second?.trim().also {
+        if (it == null) log("[${step.slot}] /turn 이 이 칸을 못 찾았다 — 질문에 맞는 답이 아니었다 → 사다리")
+    }
+}
+
+private val COOP_SKELETON = setOf("place", "problem", "cause", "solution")
+
+// ── 책 문장 — /story (#47 2번 · 10-01) ──────────────────────────────
+
+/** 꼬리질문으로 모은 문장 — 서버에는 `extra` 한 칸으로 보낸다. 맺음(`keep`)은 따로 간다 */
+private val COOP_TAIL_KEYS = listOf("detail", "said", "try", "after")
+
+/**
+ * 서버를 켰으면 협업 책 문장을 `/story`(`mode: "coop"`)로 받는다. 지금 책은 틀 문장(`diaryTemplate()`) 빈칸 채우기라 딱딱하다.
+ *
+ * 책의 모양(쪽 수 · 차례)은 앱이 정한다 — 협업 책 틀의 쪽 목록을 `pages` 로 보내 **정확히 그 수만큼** 받는다.
+ * 받은 문장은 `storyCaptions` 에 담고 책은 그 문장으로 그린다(`StoryBank.kt` `bookCaption`).
+ * 실패하거나 수가 안 맞으면 지금 틀 문장 그대로다. 이름은 보낼 때 가리고 받은 글에서 되돌린다(규칙 6).
+ */
+suspend fun Director.coopWriteBook() {
+    if (!s.isCoop || !Server.liveFor(s.mode)) return
+    val pages = s.template?.pages ?: return
+    s.stage = Stage.Making("이야기 문장을 쓰는 중… (${pages.size}쪽)")
+    val mask = s.nameMask()
+    val tails = COOP_TAIL_KEYS.mapNotNull { s.slots[it]?.takeIf(String::isNotBlank) }
+    val slots = mapOf(
+        "place" to s.place, "problem" to s.problem, "cause" to s.cause, "solution" to s.solution,
+        "reaction" to s.reaction, "companion" to s.friend,
+        "extra" to tails.joinToString(" / ").ifBlank { null },
+    )
+    val captions = Server.story(
+        mode = "coop",
+        slots = mask.maskSlots(slots),
+        slotBy = s.slotBy.filterKeys { it in Server.SLOTS },
+        keep = s.slots["keep"]?.takeIf(String::isNotBlank)?.let(mask::mask),
+        level = s.level.name.lowercase(),
+        pages = pages.map { Server.Page(it.kind.name) },
+    )?.map(mask::unmask)
+    if (s.useCoopCaptions(captions)) log("서버가 쓴 협업 책 문장 ${pages.size}쪽을 받음 (/story)")
+    else log("협업 책 문장 생성 실패 또는 쪽 수 불일치 → 틀 문장 그대로")
+}
+
+/** 쪽 수가 맞고 빈 문장이 없을 때만 쓴다 — 하나라도 어긋나면 틀 문장 책 */
+fun DemoState.useCoopCaptions(captions: List<String>?): Boolean {
+    val expected = template?.pages?.size
+    val valid = isCoop && expected != null && captions != null && captions.size == expected && captions.all { it.isNotBlank() }
+    storyCaptions = if (valid) captions!!.toList() else null
+    return valid
+}
 
 /** 책 이름 — 협업이면 "같이 지은"을 붙인다. */
 fun coopBookName(s: DemoState): String =

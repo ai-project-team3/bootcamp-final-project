@@ -163,7 +163,9 @@ private fun diaryDrawAnswer(@Suppress("UNUSED_PARAMETER") step: DiaryStep): Answ
  */
 private suspend fun Director.askDiaryStep(step: DiaryStep) {
     val v = step.variant
-    var rungs = step.rungs(s)
+    // 협업에서 고른 이야기가 있으면 사다리 · 시연 답 · 마스코트 채움을 그 이야기 것으로 — 뼈대는 요소별, 꼬리질문은 시제별 (CoopTemplatePack.kt)
+    val pack = s.coopPartPack(step)
+    var rungs = pack?.rungs ?: step.rungs(s)
     log("일기 질문 [${step.part} · ${step.bookKey}] 사다리 ${rungs.size}칸 — ${step.probe} · 지금 수준 ${s.level.label}")
     while (true) {
         val q = Question(
@@ -172,8 +174,8 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
             // 사다리 뒤에 그림 3장을 붙이지 않는다 — 일기에서 그림 3장은 앱이 아이 하루를 추측해 보여 주는 것이 된다 (일기 §7-6)
             noCards = true,
             ladder = rungs.drop(1),
-            fallback = step.mascot?.invoke(s),
-            spoken = v.answers(s),
+            fallback = if (pack != null) pack.mascot else step.mascot?.invoke(s),
+            spoken = pack?.answers ?: v.answers(s),
             drawAnswer = diaryDrawAnswer(step),
             extra = buildList {
                 if (!s.isCoop) step.demoAnswer(s)?.let { a ->
@@ -193,11 +195,15 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
             return
         }
 
-        val value = diaryValueOf(r)
+        // 진짜 마이크 답은 대본 값(`value`)이 비어 있다 — 글자에서 칸 값을 얻는다 (#47 · CoopScenes.kt)
+        val live = (r as? Reply.Spoke)?.takeIf { it.isLiveSpeech() }
+        val value = if (live != null) coopLiveValue(step, q.text, live).orEmpty() else diaryValueOf(r)
         if (value.isNotEmpty()) {
             s.mascotPicks = 0                       // 연속이 끊긴다
             val by = if (r is Reply.Spoke) "child" else "card"
-            setDiarySlot(step.slot, step.bookKey, diarySlotOf(value), diaryLineOf(value), by)
+            // 말 그대로의 답은 `칸|문장` 꼴이 아니다 — 문장 자리에도 같은 말을 넣어야 꼬리질문 답이 책에 남는다
+            if (live != null) setDiarySlot(step.slot, step.bookKey, value, value, by)
+            else setDiarySlot(step.slot, step.bookKey, diarySlotOf(value), diaryLineOf(value), by)
             (r as? Reply.Spoke)?.answer?.let { afterDiaryAnswer(step, it) }
             if (!step.required) mark("diarytail")
             if (r is Reply.Tapped) log("그림으로 답함 → mode: draw 로 남기고 by 는 card. 수준 신호로 세지 않는다 (일기 §5-1)")
@@ -207,7 +213,7 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
 
         // 말은 했는데 칸이 안 찼다 ("몰라") — 사다리에 남은 칸이 있으면 질문을 바꿔 다시 묻는다
         if (rungs.size <= 1) {
-            val fb = step.mascot?.invoke(s)
+            val fb = if (pack != null) pack.mascot else step.mascot?.invoke(s)
             if (fb == null) {
                 // 꼬리질문은 마스코트가 지어내지 않는다 — 없으면 없는 대로 간다
                 log("[${step.bookKey}] 끝까지 안 나옴 → 지어내지 않고 넘어간다 (벌점 · 아쉬움 표현 없음 · 구현대본 §5)")
