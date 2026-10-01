@@ -66,14 +66,15 @@ class Settings(BaseSettings):
     # (eval/bench_tts_tempo.py) settles it
     typecast_emotion: str = "happy"      # a preset name, or "smart" (reads the neighbouring lines)
     typecast_tempo: float = 0.95
-    openai_tts_model: str = "gpt-4o-mini-tts"
-    # 10-01 round 2 (eval/bench_tts_openai_voices2.py): OpenAI recommends marin/cedar for quality;
-    # short, direct, English instructions; no "sound like a six-year-old" — an adult voice told to
-    # be a child came out machine-like to the 조장. OpenAI has no child voice at all.
-    openai_tts_voice: str = "marin"
-    openai_tts_instructions: str = ("Native Korean speaker. Warm, bright and friendly, like a cheerful "
-                                    "animated character. Natural conversational rhythm with small pauses. "
-                                    "Not too fast, not exaggerated.")
+    # 10-01 조장 pick: sage on the pinned snapshot with a short "playful" instruction — the only
+    # combination that rose into a child's pitch range (median F0 ~262-296 Hz vs ~210 on the current
+    # model with the same words · eval/voice_pitch.py, eval/bench_tts_openai_voices3.py). OpenAI has
+    # no child voice; the snapshot follows "playful, like talking with a young child" by going higher.
+    # ⚠️ a pinned snapshot can be retired — bake the fixed lines while it exists
+    openai_tts_model: str = "gpt-4o-mini-tts-2025-03-20"
+    openai_tts_voice: str = "sage"
+    openai_tts_instructions: str = ("Warm, friendly and playful. Speak naturally, like talking with a young child. "
+                                    "Not too fast.")
     image_warmup: bool = True            # draw one picture at start so models are loaded
     # rule 8: our image model has no safety filter — every picture is checked
     moderation_model: str = "omni-moderation-latest"

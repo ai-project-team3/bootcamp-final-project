@@ -42,9 +42,9 @@ def test_typecast_speaks_siwoo_happy_a_little_slower(monkeypatch):
     assert body["prompt"]["emotion_preset"] == "happy" and body["output"]["audio_tempo"] == 0.95
 
 
-def test_a_refused_typecast_falls_back_to_openai_marin(monkeypatch):
+def test_a_refused_typecast_falls_back_to_openai_sage_0320(monkeypatch):
     """403 UNUSUAL_ACTIVITY_DETECTED / 402 out of credit must not silence the mascot."""
     seen = _fake(monkeypatch, 403)
     out = asyncio.run(tts_route.speak(tts_route.TtsRequest(text="안녕")))
     assert out.body == b"OAmp3" and out.headers["X-Otto-TTS"] == "openai"
-    assert seen[1][0].endswith("/audio/speech") and seen[1][1]["voice"] == "marin"
+    assert seen[1][0].endswith("/audio/speech") and seen[1][1]["voice"] == "sage" and seen[1][1]["model"] == "gpt-4o-mini-tts-2025-03-20"
