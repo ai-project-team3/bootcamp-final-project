@@ -237,7 +237,8 @@ class Director(
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text, ConsentStore.nameVoiceAgreed)
         val before = voiceJob
-        val audio = scope.async { Server.tts(line) }.also { queueVoice(it) }   // 앞 대사를 읽는 동안 미리 받는다
+        // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
+        val audio = scope.async { Voice.baked(line) ?: Server.tts(line) }.also { queueVoice(it) }
         voiceJob = queueVoice(scope.launch {
             before?.join()
             audio.await()?.let { Voice.playAndWait(it) }
