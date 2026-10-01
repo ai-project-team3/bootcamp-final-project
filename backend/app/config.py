@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     image_lora: str = "sdxl_lightning_8step_lora.safetensors"
     # under the app's 15 s preset line (rule 8), so the answer lands before the app gives up
     image_deadline_s: float = 13.0
+    # Every server deadline sits under the phone's wait (net/Server.kt), so the server answers
+    # first — a verdict, a fallback or an error — instead of the phone giving up mid-call (10-01).
+    turn_deadline_s: float = 25.0        # phone waits 30 s · judge ≤ 18 s, the line gets what is left
+    judge_deadline_s: float = 18.0
+    story_deadline_s: float = 55.0       # phone waits 60 s · effort high: 10-01 a book passed 30 s → 502
+    tts_deadline_s: float = 15.0         # phone waits 20 s
     image_warmup: bool = True            # draw one picture at start so models are loaded
     # rule 8: our image model has no safety filter — every picture is checked
     moderation_model: str = "omni-moderation-latest"

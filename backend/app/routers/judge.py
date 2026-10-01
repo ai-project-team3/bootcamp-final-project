@@ -56,7 +56,7 @@ async def run(req: JudgeRequest) -> JudgeResult:
     if settings.mock:
         return enforce(mock(req), req)
     raw = await complete(judge_prompt.system(), judge_prompt.user(req), judge_prompt.schema(),
-                         effort=settings.llm_effort_judge)
+                         effort=settings.llm_effort_judge, timeout_s=settings.judge_deadline_s)
     return enforce(JudgeResult.model_validate(raw), req)
 
 

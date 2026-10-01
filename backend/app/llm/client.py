@@ -7,6 +7,7 @@ misses the bar in 노션 「오늘 모델검증 역할」 §5.
 Provider is a setting. Only OpenAI is wired: gpt-6-luna won the 09-25
 measurement. Adding another provider is a branch here, not a change in callers.
 """
+import asyncio
 import json
 
 import httpx
@@ -36,8 +37,12 @@ def _output_text(body: dict) -> str:
 
 
 async def complete(system: str, user: str, schema: dict, *, effort: str,
-                   name: str = "judge", max_output_tokens: int = 768) -> dict:
-    """Structured output. Schema compliance is enforced (strict json_schema), not requested."""
+                   name: str = "judge", max_output_tokens: int = 768, timeout_s: float = 30.0) -> dict:
+    """Structured output. Schema compliance is enforced (strict json_schema), not requested.
+
+    [timeout_s] is the **whole** call. httpx's own timeout is per phase (connect · each read),
+    so a slow trickle could run past it; each route passes a deadline under the app's wait
+    (10-01: /story with effort high passed 30 s and the phone got 502)."""
     if settings.llm_provider != "openai":
         raise LLMError(f"provider not wired: {settings.llm_provider}")
     if not settings.openai_api_key:
@@ -60,12 +65,14 @@ async def complete(system: str, user: str, schema: dict, *, effort: str,
         payload["reasoning"] = {"effort": effort}
 
     try:
-        async with httpx.AsyncClient(timeout=30) as http:
-            r = await http.post(
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_s, connect=5)) as http:
+            r = await asyncio.wait_for(http.post(
                 f"{settings.openai_base_url.rstrip('/')}/responses",
                 headers={"Authorization": f"Bearer {settings.openai_api_key}"},
                 json=payload,
-            )
+            ), timeout=timeout_s)
+    except asyncio.TimeoutError as e:
+        raise LLMError(f"over {timeout_s:.0f}s") from e
     except httpx.HTTPError as e:
         raise LLMError(f"network: {type(e).__name__}") from e
     if r.status_code != 200:
