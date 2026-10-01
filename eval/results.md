@@ -2576,3 +2576,34 @@ main(민우 코드 없음)에 `ShzProbeTest`(순서상 `ShellFlowTest` 와 태�
 - LLM · 안전 검사를 넣은 전체 시간(크레딧 필요 · `tools/bench_character.py` 로 바로 다시)
 - 폰에서 뼈대 시간
 - 네발형 색 · 자세를 같이 얻는 방법(색 입힌 마네킹 · ControlNet · 프롬프트) — 서버 쪽 결정
+
+## 10-01 — 도메인 서버로 실기기 한 바퀴 (치영)
+
+조장이 서버를 IP 에서 도메인(`https://otto-back.shelldocs.cloud`, Cloudflare 앞단)으로 옮긴 뒤 첫 실기기 확인.
+갤럭시 S10 5G · `0.3-closed` 디버그 빌드 · `-e server https://otto-back.shelldocs.cloud/ -e live all` · 15:47~16:08 · 사람이 직접 말함.
+
+**PC 에서 먼저 — 기능 다섯 개 다 산다** (앱과 같은 `Dalvik` User-Agent)
+
+| 호출 | 결과 | 시간 |
+|---|---|---|
+| `/health` | `ok` · `mock:false` | 0.3초 |
+| `/tts` 「소방관은 어디서 일할까?」 | mp3 100KB | 1.0초 |
+| `/stt` ← 위 목소리 | 「소방관은 어디서 일할까?」 그대로 | 3.1초 |
+| `/turn` coop 「불난 집에서 일해」 | `place` = 「불난 집」 · 다음 `problem` · ack 「불난 집에서 일하는구나.」 | 5.9초 |
+| `/image` 배경 「바닷가」 | `preset: false` — PC2 까지 닿음 | 8.3초 |
+| `/story` coop 6쪽 · diary 1쪽 (502 뒤 재현) | 둘 다 200 | 12.7초 · 7.5초 |
+
+**폰 — 앱 로그** (앱은 서버 호출이 **실패할 때만** 남긴다 — `Server.kt` `postJson` · `stt` · `tts`. 성공 횟수와 시간은 로그로 못 센다)
+
+| | |
+|---|---|
+| 앱 | 21분 동안 같은 프로세스 — 다시 켜지지 않아 서버 주소 · 모드 유지 |
+| 🎤 | **19번** · 누른 뒤 마이크 열림 31~84ms(대부분 30~40ms) |
+| `/stt` · `/turn` · `/tts` · `/image` 실패 | **0** |
+| `/story` 실패 | **1** — 16:05:50 `502 error code: 502` |
+| 앱 죽음 · 오류 | 없음 |
+
+- **`/story` 502 는 Cloudflare 가 낸 것**(`error code: 502` 는 Cloudflare 문구) — 뒤의 백엔드에서 제대로 된 답을 못 받았다. 바로 다시 보낸 같은 형식은 정상이라 **한 번 튄 것**으로 본다. 그때 백엔드가 다시 켜졌는지는 PC1 서버 로그를 봐야 한다(못 봄). 앱은 안 멈추고 그 책은 틀 문장으로 간다.
+- ⚠️ **Cloudflare 는 파이썬 기본 User-Agent(`Python-urllib`)를 403 `error code: 1010` 으로 막는다.** 앱(`Dalvik`) · curl · OkHttp 는 통과. 파이썬으로 서버를 시험할 때는 User-Agent 를 넣는다.
+- 성공 쪽은 로그가 없어서 **눈으로 본 것**으로 확인해야 한다 — 오또 목소리 · 받아쓴 글자 · 책 문장이 말한 대로인지.
+- 앱에는 기본 서버 주소가 없다(`MainActivity.kt` 의 `-e server` 뿐) — 폰을 PC 에 안 꽂고 쓰려면 도메인을 기본값으로 넣어야 한다(`Server.kt` 는 조장 파일).
