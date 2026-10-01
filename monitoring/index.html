@@ -8,13 +8,13 @@
   :root {
     --bg: #faf7f2; --card: #fff; --ink: #2b2620; --muted: #857b6e;
     --line: #e7e0d6; --bar: #e8b84b; --bar-soft: #f3e2b4;
-    --ok: #4a8f5b; --warn: #c9962c; --bad: #c0503f;
+    --ok: #4a8f5b; --warn: #c9962c; --bad: #c0503f; --sel: #2b2620; --selInk: #faf7f2;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #1f1b17; --card: #2a2520; --ink: #f0e9df; --muted: #a39687;
       --line: #3a332c; --bar: #e8b84b; --bar-soft: #4a3f2a;
-      --ok: #7cc08c; --warn: #e0b253; --bad: #e2796a;
+      --ok: #7cc08c; --warn: #e0b253; --bad: #e2796a; --sel: #e8b84b; --selInk: #2b2620;
     }
   }
   * { box-sizing: border-box; }
@@ -22,16 +22,31 @@
     margin: 0; padding: 20px 16px 40px; background: var(--bg); color: var(--ink);
     font: 15px/1.5 -apple-system, "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
   }
-  .wrap { max-width: 920px; margin: 0 auto; }
+  .wrap { max-width: 960px; margin: 0 auto; }
   h1 { font-size: 19px; margin: 0 0 4px; }
   .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
-  .cards { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+  .cards { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
   .card {
     background: var(--card); border: 1px solid var(--line); border-radius: 12px;
     padding: 12px 14px; min-width: 120px; flex: 1 1 120px;
   }
   .card .k { color: var(--muted); font-size: 12px; }
   .card .v { font-size: 22px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .filters .lbl { color: var(--muted); font-size: 12px; margin-right: 2px; }
+  .chip {
+    font: inherit; font-size: 13px; font-variant-numeric: tabular-nums;
+    padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--card); color: var(--ink); cursor: pointer;
+  }
+  .chip:hover { border-color: var(--muted); }
+  .chip[aria-pressed="true"] { background: var(--sel); color: var(--selInk); border-color: var(--sel); }
+  .search {
+    font: inherit; font-size: 13px; padding: 5px 11px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink); min-width: 160px;
+  }
+
   table { width: 100%; border-collapse: collapse; background: var(--card);
           border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
   th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); }
@@ -39,11 +54,12 @@
   tr:last-child td { border-bottom: 0; }
   td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .ep { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; }
-  .barcell { width: 34%; }
+  .barcell { width: 28%; }
   .bar { height: 8px; border-radius: 4px; background: var(--bar-soft); overflow: hidden; }
   .bar > i { display: block; height: 100%; background: var(--bar); }
   .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px;
           font-variant-numeric: tabular-nums; border: 1px solid var(--line); }
+  .pill.hit { border-color: currentColor; font-weight: 600; }
   .s2 { color: var(--ok); } .s4 { color: var(--warn); } .s5 { color: var(--bad); }
   .muted { color: var(--muted); }
   tr.hasErr td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
@@ -58,15 +74,23 @@
   <div class="cards">
     <div class="card"><div class="k">전체 요청</div><div class="v" id="total">—</div></div>
     <div class="card"><div class="k">앱 요청</div><div class="v" id="appTotal">—</div></div>
+    <div class="card"><div class="k">실패</div><div class="v" id="errTotal">—</div></div>
     <div class="card"><div class="k">가동 시간</div><div class="v" id="uptime">—</div></div>
-    <div class="card"><div class="k">상태 코드</div><div class="v" id="status">—</div></div>
+  </div>
+
+  <div class="filters">
+    <span class="lbl">상태 코드</span>
+    <button class="chip" id="chipAll" aria-pressed="true" data-code="">전체</button>
+    <button class="chip" id="chipErr" aria-pressed="false" data-code="errors">실패 4xx·5xx</button>
+    <span id="codeChips"></span>
+    <input class="search" id="q" type="search" placeholder="엔드포인트 검색 (예: story)" autocomplete="off">
   </div>
 
   <table>
     <thead>
       <tr>
         <th>엔드포인트</th>
-        <th class="n">호출</th>
+        <th class="n" id="thCount">호출</th>
         <th class="barcell">앱 트래픽 비중</th>
         <th class="n">평균 응답</th>
         <th>상태</th>
@@ -79,9 +103,14 @@
 </div>
 
 <script>
-// Endpoints the app actually calls. The share column is out of these, so my own /health polling
-// and bot traffic on "/" do not distort the ratio the team cares about.
+// Endpoints the app actually calls. The share column is out of these, so /health polling and
+// bot traffic on "/" do not distort the ratio the team cares about.
 const APP = new Set(["/stt", "/tts", "/turn", "/story", "/image", "/judge"]);
+
+// "" = every endpoint · "errors" = any 4xx/5xx · "502" etc. = that code only
+let filter = "";
+let query = "";
+let last = null;
 
 const fmtUptime = s => {
   if (s < 60) return s + "초";
@@ -91,28 +120,67 @@ const fmtUptime = s => {
 
 const statusClass = code => code[0] === "2" ? "s2" : code[0] === "5" ? "s5" : "s4";
 
+// How many calls on this endpoint match the current filter
+function matched(e) {
+  if (filter === "") return e.count;
+  if (filter === "errors") return e.errors;
+  return (e.status || {})[filter] || 0;
+}
+
+function setFilter(code) {
+  filter = code;
+  document.getElementById("chipAll").setAttribute("aria-pressed", String(code === ""));
+  document.getElementById("chipErr").setAttribute("aria-pressed", String(code === "errors"));
+  document.querySelectorAll("#codeChips .chip").forEach(c =>
+    c.setAttribute("aria-pressed", String(c.dataset.code === code)));
+  if (last) render(last);
+}
+
+function renderCodeChips(d) {
+  const want = Object.keys(d.status).sort().join(",");
+  const el = document.getElementById("codeChips");
+  if (el.dataset.codes === want) return;          // rebuild only when the set changes
+  el.dataset.codes = want;
+  el.innerHTML = Object.entries(d.status).sort().map(([c, n]) =>
+    `<button class="chip ${statusClass(c)}" data-code="${c}"
+       aria-pressed="${filter === c}">${c} · ${n}</button>`).join(" ");
+  el.querySelectorAll(".chip").forEach(c =>
+    c.addEventListener("click", () => setFilter(c.dataset.code)));
+}
+
 function render(d) {
+  last = d;
   const appRows = d.endpoints.filter(e => APP.has(e.path));
   const appTotal = appRows.reduce((a, e) => a + e.count, 0);
+  const errTotal = d.endpoints.reduce((a, e) => a + e.errors, 0);
 
   document.getElementById("total").textContent = d.total.toLocaleString();
   document.getElementById("appTotal").textContent = appTotal.toLocaleString();
+  document.getElementById("errTotal").innerHTML = errTotal
+    ? `<span class="s5">${errTotal.toLocaleString()}</span>` : "0";
   document.getElementById("uptime").textContent = fmtUptime(d.uptime_s);
-  document.getElementById("status").innerHTML = Object.entries(d.status).length
-    ? Object.entries(d.status).map(([c, n]) =>
-        `<span class="pill ${statusClass(c)}">${c} · ${n}</span>`).join(" ")
-    : "—";
+  renderCodeChips(d);
 
-  const rows = d.endpoints.map(e => {
+  // When a code is picked, the count column and the sort follow that code — "which endpoint
+  // fails most" is the question, and total calls would bury a rare 502 under a busy 200.
+  const filtered = d.endpoints
+    .filter(e => matched(e) > 0)
+    .filter(e => !query || (e.method + " " + e.path).toLowerCase().includes(query))
+    .sort((a, b) => matched(b) - matched(a));
+
+  document.getElementById("thCount").textContent =
+    filter === "" ? "호출" : filter === "errors" ? "실패" : filter + " 건수";
+
+  const rows = filtered.map(e => {
     const isApp = APP.has(e.path);
-    const share = isApp && appTotal ? e.count / appTotal : 0;
-    const pct = (share * 100).toFixed(1);
-    const codes = Object.entries(e.status || {})
-      .map(([c, n]) => `<span class="pill ${statusClass(c)}">${c}·${n}</span>`).join(" ");
+    const pct = (isApp && appTotal ? e.count / appTotal * 100 : 0).toFixed(1);
+    const codes = Object.entries(e.status || {}).map(([c, n]) =>
+      `<span class="pill ${statusClass(c)}${c === filter ? " hit" : ""}">${c}·${n}</span>`).join(" ");
     const failRate = e.count ? (e.errors / e.count * 100).toFixed(0) : 0;
     return `<tr${e.errors ? ' class="hasErr"' : ""}>
       <td class="ep">${e.method} ${e.path}${isApp ? "" : ' <span class="muted">(앱 외)</span>'}</td>
-      <td class="n">${e.count.toLocaleString()}</td>
+      <td class="n">${matched(e).toLocaleString()}${
+        filter !== "" ? ` <span class="muted">/ ${e.count.toLocaleString()}</span>` : ""}</td>
       <td class="barcell">${isApp
         ? `<div class="bar"><i style="width:${pct}%"></i></div><span class="muted">${pct}%</span>`
         : '<span class="muted">—</span>'}</td>
@@ -120,9 +188,18 @@ function render(d) {
       <td>${codes}${e.errors ? ` <span class="s5">실패 ${failRate}%</span>` : ""}</td>
     </tr>`;
   });
+
+  const empty = filter === "" && !query ? "아직 요청이 없습니다" : "조건에 맞는 엔드포인트가 없습니다";
   document.getElementById("rows").innerHTML =
-    rows.length ? rows.join("") : '<tr><td colspan="5" class="muted">아직 요청이 없습니다</td></tr>';
+    rows.length ? rows.join("") : `<tr><td colspan="5" class="muted">${empty}</td></tr>`;
 }
+
+document.getElementById("chipAll").addEventListener("click", () => setFilter(""));
+document.getElementById("chipErr").addEventListener("click", () => setFilter("errors"));
+document.getElementById("q").addEventListener("input", e => {
+  query = e.target.value.trim().toLowerCase();
+  if (last) render(last);
+});
 
 async function tick() {
   const foot = document.getElementById("foot");
