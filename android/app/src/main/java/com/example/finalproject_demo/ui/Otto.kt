@@ -61,10 +61,10 @@ import kotlin.math.roundToInt
 /*
  * 오또(마스코트) — 얼굴 · 표정 · 나레이션 칸 · 녹음 버튼 (09-29 · Chrome.kt 에서 옮김)
  *
- * 상태 색 — 말하는 중 분홍 [Cheek] · 듣는 중 청록 [FeltTeal] · 생각하는 중 겨자 [FeltMustard]. 이 색으로 얼굴 둘레에 파동을 퍼뜨릴 수 있다([OttoFace] 의 pulse).
+ * 얼굴 테두리 색으로 **차례**를 알린다 — 말하는 중 분홍 [Cheek] · 듣는 중 청록 [FeltTeal] · 생각하는 중 겨자 [FeltMustard].
+ * 말할 때도 들을 때처럼 테두리 색 파동이 퍼진다(09-29 사용자 요청 — 전에는 들을 때만 파동이 있었다).
  * 파동은 얼굴과 **같은 상자**에서 같이 움직여, 얼굴이 기울거나 뛰어도 중심이 어긋나지 않는다.
- * 10-01 — 불빛(청록 테두리 + 파동)은 답을 기다릴 때 · 녹음 중일 때만 켠다. 말하는 동안만 분홍 테두리 · 파동 · 🔊 가
- * 붙었다 떨어져서 「옛 나레이션이 먼저 떴다가 바뀐다」로 보였다 (사용자 제보) — 말하는 중에는 아무것도 붙이지 않는다.
+ * (10-01 에 잠깐 껐다가 사용자 요청으로 그대로 되살렸다. 옛 모양이 번쩍인 원인은 띠 안 🔊 가 붙었다 떨어지며 띠 길이가 바뀐 것이었다)
  */
 
 enum class OttoState(val ring: Color, val face: String) {
@@ -119,7 +119,7 @@ fun exprFor(text: String, mood: Mood): Expr {
  * @param burst   한 번 터지는 반응. [Mood.CHEER] 면 폴짝 뛰며 반짝임, [Mood.SURPRISED] 면 움찔 커졌다 부르르
  * @param burstId 이 번호가 바뀔 때마다 [burst] 가 다시 터진다 (같은 반응이 연달아 와도)
  * @param expr    표정 — 말하는 중 · 가만있을 때만 얼굴 그림을 바꾼다(듣는 중 · 생각하는 중은 그 얼굴 그대로)
- * @param pulse   듣는 중 · 기다리는 중이면 테두리 색 파동을 얼굴 둘레에 퍼뜨린다
+ * @param pulse   말하는 중 · 듣는 중 · 기다리는 중이면 테두리 색 파동을 얼굴 둘레에 퍼뜨린다
  */
 @Composable
 fun OttoFace(
@@ -213,10 +213,7 @@ fun OttoFace(
             }
         }
     }
-    // 불빛(청록 테두리 + 파동)은 **답을 기다릴 때 · 녹음 중일 때만** 켠다 — 그동안 계속 켜져 있는 상태라 번쩍이지 않는다.
-    // 말하는 동안에는 켜지 않는다: 말할 때만 분홍 테두리가 붙었다 떨어져서 옛 나레이션처럼 보였다 (10-01)
-    val glowing = state == OttoState.LISTEN || state == OttoState.WAIT
-    val pulsing = pulse && glowing
+    val pulsing = pulse && (state == OttoState.TALK || state == OttoState.LISTEN || state == OttoState.WAIT)
 
     Box(modifier) {
         // 얼굴과 파동을 **한 상자**에 — 뛰고 기울어도 파동이 얼굴 정중앙에 붙어 다닌다
@@ -246,7 +243,9 @@ fun OttoFace(
                     .fillMaxSize()
                     .shadow(Felt.ShadowY, CircleShape, ambientColor = Felt.ShadowColor, spotColor = Felt.ShadowColor)
                     .clip(CircleShape)
-                    .then(if (glowing) Modifier.background(state.ring).padding(4.dp).clip(CircleShape) else Modifier)
+                    .background(state.ring)
+                    .padding(4.dp)
+                    .clip(CircleShape)
                     .background(WoolCream),
             ) { AssetImage(face, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { ArtView(Art.Mascot, Modifier.fillMaxSize()) } }
         }
