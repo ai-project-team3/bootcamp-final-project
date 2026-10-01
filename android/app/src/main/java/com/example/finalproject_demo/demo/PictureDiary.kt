@@ -773,10 +773,37 @@ private suspend fun Director.readPictureDiary(day: DiaryDay) {
                 event("utterance", "speaker" to "child", "mode" to "card", "text" to r.label)
                 log("오늘 기분을 얼굴로 골랐다 → by: card (주고받기에는 세고, 수준 신호 · 인용에는 안 넣는다)")
             }
+            r.value == "title" -> askTitle()
             r.value == "prev" -> i = (i - 1).coerceAtLeast(0)
             r.value == "next" -> if (last) return else i++
         }
     }
+}
+
+/**
+ * 제목을 눌렀다 — 「이 일기 제목은 뭐로 할까?」 아이가 말한 그대로 제목 칸(`title` · 아이 출처)에 넣는다.
+ * 말이 없거나 「몰라」면 지금 제목 그대로
+ */
+private suspend fun Director.askTitle() {
+    val names = s.diaryDay.pieceNames
+    val q = Question(
+        text = "이 일기 제목은 뭐로 할까?",
+        kind = Kind.EASY,
+        noCards = true,
+        spoken = names.take(2).map { Answer("$it 일기", lv = 1) } + Answer("신나는 하루", lv = 1),
+        id = "diary_title",
+    )
+    val r = ask(q)
+    val t = (r as? Reply.Spoke)?.text?.trim()?.trimEnd('.', '!', '?', '~')?.trim()
+    if (t.isNullOrEmpty() || dontKnow(t)) { log("제목을 못 들었다 → 지금 제목 그대로"); return }
+    s.slots["title"] = t
+    s.slotBy["title"] = "child"
+    s.title = t
+    quote(r.text)
+    event("slot_filled", "slot" to "title", "value" to t, "source" to "child")
+    log("제목 「$t」 — 아이 말 그대로 (title · child)")
+    say("『$t』! 좋은 제목이다!")
+    pause(900)
 }
 
 // ── 말 → 조각 이름 ──────────────────────────────────────────────

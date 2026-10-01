@@ -358,4 +358,22 @@ class PictureDiaryFlowTest {
         assertEquals("네가 먼저 탔구나!", echoBack("내가 먼저 탔어!"))
         assertEquals("재미있어, 그랬구나!", echoBack("재미있어"))
     }
+
+    /** D5 — 제목을 누르면 「이 일기 제목은 뭐로 할까?」, 아이 말 그대로 제목 칸에(아이 출처) */
+    @Test
+    fun tappingTheTitleAsksForOneInTheChildsWords() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그림 없이 이야기할래"))
+        var guard = 0
+        while (s.stage !is DiaryPaper && guard++ < 20) {
+            if (await(2_000) { s.buttons.any { "🎬 오늘 이야기 시연 답" in it.label } } == null) break
+            d.push("🎬 오늘 이야기 시연 답")
+        }
+        assertTrue(await { s.stage is DiaryPaper } != null)
+        assertTrue(await { d.send(Reply.Tapped("title", "제목")); s.line == "이 일기 제목은 뭐로 할까?" } != null)
+        assertTrue(d.push("신나는 하루"))
+        assertTrue(await { s.title == "신나는 하루" } != null)
+        assertEquals("child", s.slotBy["title"])
+    }
 }

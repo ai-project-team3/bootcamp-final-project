@@ -1,5 +1,7 @@
 package com.example.finalproject_demo
 
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.click
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +31,7 @@ import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.catchUp
+import com.example.finalproject_demo.demo.cropFor
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.newDiaryDay
 import com.example.finalproject_demo.ui.Bg
@@ -274,5 +277,29 @@ class DiaryViewsTest {
         compose.onNodeWithTag("d6-book").assertExists()
         snap("diary_gift")
         assertEquals("shelf", (d.replyTo { compose.onNodeWithTag("d6-shelf").performClick() } as? Reply.Tapped)?.value)
+    }
+
+    /** D5 — 조각을 톡 하면 도구대로 한마디(✋ 「우리 집 톡!」), 날씨를 누르면 그 날씨를 그린 조각이 「☀️ 해!」, 제목을 누르면 오또가 묻는다 */
+    @Test
+    fun aPagesPiecesTitleAndWeatherAnswerTaps() {
+        val d = director()
+        drawDay(d)
+        d.s.title = "우리 집 앞에서"
+        d.s.stage = DiaryPaper(0)
+        d.say("나는 오늘 우리 집, 나, 해를 그렸어요.")
+        show(d)
+        // 집 가운데(판 좌표 0.2 · 0.55)를 그림 칸 좌표로 — 그림 칸은 그린 부분만 3:1 로 잘라 보인다
+        val crop = cropFor(d.s.diaryDay.pieces.flatMap { it.strokes }, d.s.drawingAspect)
+        val fx = (0.2f - crop.left) / crop.width
+        val fy = (0.55f - crop.top) / crop.height
+        compose.onNodeWithTag("d5-picture").performTouchInput { click(Offset(width * fx, height * fy)) }
+        compose.mainClock.advanceTimeBy(200)                     // 한마디는 1.5초 떠 있다 — 그 안에 본다
+        compose.onNodeWithTag("d5-said").assertTextContains("우리 집 톡!")
+        assertEquals("wx:SUN", (d.replyTo { compose.onNodeWithTag("wx-${DiaryWeather.SUN.name}").performClick() } as? Reply.Tapped)?.value)
+        compose.mainClock.advanceTimeBy(200)
+        compose.onNodeWithTag("d5-said").assertTextContains("☀️ 해!")
+        assertEquals("title", (d.replyTo { compose.onNodeWithTag("d5-title").performClick() } as? Reply.Tapped)?.value)
+        compose.onNodeWithTag("d5-lines").performClick()          // 다시 쓰고 다시 움직인다 — 멈추지 않으면 된다
+        compose.mainClock.advanceTimeBy(500)
     }
 }

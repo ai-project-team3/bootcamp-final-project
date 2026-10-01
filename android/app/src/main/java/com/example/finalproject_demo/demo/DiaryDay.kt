@@ -55,6 +55,9 @@ enum class DiaryWeather(val emoji: String, val label: String, private val drawn:
     RAIN("☔", "비", Regex("비|우산|빗")),
     SNOW("⛄", "눈", Regex("눈사람|눈이|눈싸움"));
 
+    /** 이 이름의 조각이 이 날씨를 그린 것인가 — 날씨를 누르면 그 조각이 반짝인다 */
+    fun drew(name: String): Boolean = drawn.containsMatchIn(name)
+
     companion object {
         /** 이름 붙은 조각에서 고른다. 없으면 null — 아이에게 누르게 한다 */
         fun fromPieces(names: List<String>): DiaryWeather? =
