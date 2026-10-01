@@ -1,5 +1,6 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
@@ -60,6 +61,42 @@ class CoopLiveAnswerTest {
         assertTrue(tap("카드를 탭"))
         assertNotNull(await { s.scene == Scene.DIARY })
         assertNotNull("첫 질문에서 마이크가 안 켜졌다", await { s.micEnabled })
+    }
+
+    /** 고른 이야기만 두고(부모 질문 없이) 첫 질문까지 */
+    private suspend fun Director.toFirstQuestionWith(pick: CoopPick) {
+        go(Scene.ADULT)
+        assertTrue(tap("같이 만들기"))
+        assertNotNull(await { s.scene == Scene.BESTIARY })
+        s.coopPick = pick
+        assertTrue(tap("카드를 탭"))
+        assertNotNull(await { s.scene == Scene.DIARY })
+        assertNotNull("첫 질문에서 마이크가 안 켜졌다", await { s.micEnabled })
+    }
+
+    /**
+     * 가짜 /turn — 물은 칸을 아이 말로 채우고, [next] 에 따라 다음 칸 · LLM 질문을 돌려준다.
+     * [next] 는 물은 칸 → (다음 칸, 질문)
+     */
+    private fun llmServer(next: Map<String, Pair<String, String>>) = StoryTestServer { path, body ->
+        if (path != "/turn") JSONObject() else {
+            val asked = body.optString("asked_slot").takeIf { it.isNotBlank() && it != "null" }
+            val judge = JSONObject().put("reason", "ok")
+            if (asked != null) judge.put("slot_1", asked).put("value_1", body.optString("utterance"))
+            val n = asked?.let(next::get)
+            if (n != null) judge.put("next_slot", n.first)
+            val out = JSONObject().put("judge", judge)
+            if (n != null) out.put("line", JSONObject().put("ack", "그랬구나!").put("question", n.second))
+            out
+        }
+    }
+
+    /** 이번 걸음의 질문이 바뀔 때까지 같은 답을 한다. 바뀐 뒤의 질문을 돌려준다 */
+    private suspend fun Director.answer(text: String): String {
+        val before = s.line
+        withTimeoutOrNull(10_000) { while (s.line == before || !s.micEnabled) { send(Reply.Spoke(text)); delay(60) } }
+        assertNotNull("다음 질문으로 안 넘어갔다: ${s.line}", await { s.micEnabled })
+        return s.line
     }
 
     /** 받아쓰기처럼 글자만 보낸다 — 마이크가 듣는 동안 계속 */
@@ -150,6 +187,58 @@ class CoopLiveAnswerTest {
             assertTrue("이미 찬 「무슨 일」을 또 물었다: $asked", asked.none { "무슨 일" in it })
             assertEquals("앞 답이 덮였다", "친구가 밀었어", d.s.problem)
             assertEquals("child", d.s.slotBy["problem"])
+        } finally { server.close() }
+    }
+
+    /**
+     * #53 A — 서버를 켰으면 협업도 **서버 LLM 이 앞 답을 보고 만든 질문**을 묻는다. 단 꼬리질문 자리에서는 부모 질문이 먼저다.
+     * (고른 이야기가 없으면 일기형이라 서버 프롬프트의 과거형과 맞는다)
+     */
+    @Test
+    fun withTheServerTheMascotAsksTheLlmQuestionButParentQuestionsComeFirst() = run { d ->
+        val server = llmServer(mapOf(
+            "place" to ("companion" to "놀이터에 누구랑 갔어?"),          // 둘째 걸음은 부모 질문 자리 → 이 질문은 버려진다
+            "companion" to ("problem" to "엄마랑 놀이터에서 뭐 하고 놀았어?"),
+        ))
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestion()
+            assertEquals("부모 질문이 LLM 질문에 밀렸다", "오늘 제일 재밌었던 게 뭐였어?", d.answer("놀이터"))
+            assertEquals("셋째 걸음에서 LLM 질문을 안 물었다", "엄마랑 놀이터에서 뭐 하고 놀았어?", d.answer("엄마랑"))
+        } finally { server.close() }
+    }
+
+    /** 고른 이유가 「다녀왔어요」면 서버 질문(과거형)과 맞아서 쓴다. 그리고 /turn 에 고른 이야기가 실린다 (#53 B) */
+    @Test
+    fun aPastStoryUsesTheLlmQuestionAndSendsThePickedStory() = run { d ->
+        val server = llmServer(mapOf("place" to ("companion" to "소방서에서 누구를 제일 먼저 만났어?")))
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "done"))
+            assertEquals("서버 LLM 질문을 안 물었다", "소방서에서 누구를 제일 먼저 만났어?", d.answer("쉬는 방"))
+            val turn = server.requests.first { it.first == "/turn" }.second
+            assertEquals("같이 만들기 · 직업 · 소방관 · 체험했어요(지난 일)", turn.optString("template"))
+        } finally { server.close() }
+    }
+
+    /**
+     * 「곧 해요」 · 「좋아해요」는 서버가 시제를 가르기 전까지(#53 C) **대본**으로 묻는다 —
+     * 서버 프롬프트가 협업을 과거형으로 물어 「소방관 체험에서 뭐 했어?」가 나가면 안 된다
+     */
+    @Test
+    fun aFutureStoryKeepsTheScriptUntilTheServerKnowsTheTense() = run { d ->
+        val server = llmServer(mapOf("place" to ("companion" to "거기서 누구를 만났어?")))
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+            val next = d.answer("큰 건물")
+            assertTrue("곧 해요인데 서버 질문을 썼다: $next", next != "거기서 누구를 만났어?")
+            assertEquals("대본(곧 해요) 질문이 아니다", "누구랑 같이 갈 거야?", next)
+            val turn = server.requests.first { it.first == "/turn" }.second
+            assertEquals("같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)", turn.optString("template"))
         } finally { server.close() }
     }
 
