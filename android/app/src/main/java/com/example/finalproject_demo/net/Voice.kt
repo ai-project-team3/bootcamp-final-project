@@ -43,8 +43,12 @@ object Voice {
 
     @Volatile private var ctx: Context? = null
 
-    /** Can this process make sound? False in unit tests (never attached) — then no `/tts` is even asked for. */
-    val canSpeak: Boolean get() = ctx != null
+    /**
+     * Can this process make sound? False in unit tests — then no `/tts` is even asked for.
+     * Screen tests start MainActivity, which attaches; Robolectric's MediaPlayer never reports the
+     * end, so a baked line (no server in the way) waited forever and hung the suite (10-01 #50 민우).
+     */
+    val canSpeak: Boolean get() = ctx != null && android.os.Build.FINGERPRINT != "robolectric"
 
     // ── lines baked into the app (10-01) ──────────────────────────
     //
