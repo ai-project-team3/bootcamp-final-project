@@ -923,7 +923,7 @@ private suspend fun Director.sceneCause() {
     go(Scene.DRAW)
 }
 
-// ── 장면 6 · 그림판 (아이 그림 원본 그대로 · 이름 · 입 위치) ───────
+// ── 장면 6 · 그림판 (아이 그림 원본 그대로 · 이름) ───────
 
 private suspend fun Director.sceneDraw() {
     val nc = s.newcomerKind
@@ -967,11 +967,7 @@ private suspend fun Director.sceneDraw() {
     }
     s.newcomer = "${s.friendName} (아이 그림)"
 
-    s.stage = Stage.MouthTap(s.friendArt)
-    say("${s.friendName}${eun(s.friendName)} 어디로 말할까? 입을 콕 눌러 줘.")
-    buttons(DemoBtn("🖐 입 위치 탭") { send(Reply.Tapped("mouth", "입")) })
-    awaitValue("mouth")
-    log("입 위치 1점만 저장 → 말할 때 그 자리만 움직임 (얼굴 인식 아님)")
+    // 아이 그림에 입 위치를 찍어 붙이던 단계는 없앴다 (10-01 사용자 요청) — 이름을 정하면 바로 이야기로 간다
     mark("draw")
     pause(900)
     go(Scene.PLOT)

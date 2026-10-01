@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageShader
 import androidx.compose.ui.graphics.PathEffect
@@ -100,7 +101,10 @@ fun Narration(
             Row(
                 Modifier
                     .padding(start = FaceSize / 2)
-                    .drawBehind { drawFeltPill(mode.color, cream, fibers, lift.floatValue) }
+                    // 띠 전체가 오또 움직임의 절반만큼 같이 오르내리고, 나머지 절반은 얼굴 쪽에서 완만하게 이어받는다 —
+                    // 끝만 휘면 끌려오는 것처럼 보였다 (10-01 사용자 제보). 글씨는 조금만 움직여 읽기에 지장이 없다
+                    .graphicsLayer { translationY = lift.floatValue * BandShare }
+                    .drawBehind { drawFeltPill(mode.color, cream, fibers, lift.floatValue * (1f - BandShare)) }
                     .padding(start = FaceSize / 2 + 10.dp, end = 22.dp, top = 10.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -130,11 +134,11 @@ fun Narration(
  * 테두리 가운데로 흰 바느질 점선이 돈다. 띠 자기 크기로만 그려서 첫 프레임부터 모양이 맞다.
  *
  * 띠 왼쪽 둥근 끝의 중심은 얼굴 중심 아래(띠 왼쪽 가장자리)에 둔다 — 둥근 끝이 얼굴 원 안에 숨고 밑선이 얼굴 맨 아래에서
- * 접선으로 이어진다. 얼굴이 [lift] 만큼 뛰면 왼쪽 끝도 그만큼 올라가고, 얼굴 오른쪽 조금 너머까지 부드럽게 휘어
- * 원래 높이로 돌아온다 — 천 띠가 얼굴에 붙어 따라 당겨지는 것처럼 (10-01 사용자 요청). 글씨 있는 곳은 움직이지 않는다
+ * 접선으로 이어진다. 띠 전체는 오또 움직임의 [BandShare] 만큼 같이 움직이고, 남은 [lift] 는 왼쪽 끝에서 받아
+ * 얼굴 너비 1.3 배쯤에 걸쳐 완만하게 0 이 된다 — 띠와 오또가 한 덩어리로 오르내리는 것처럼 (10-01 사용자 요청)
  */
 private fun DrawScope.drawFeltPill(edge: Color, cream: ShaderBrush, fibers: ShaderBrush, lift: Float) {
-    val bend = (FaceSize / 2 + 18.dp).toPx()   // 얼굴 중심부터 여기까지만 휜다
+    val bend = (FaceSize * 1.3f).toPx()        // 얼굴 중심부터 여기까지 완만하게 휜다
     fun follow(x: Float): Float {              // 얼굴 쪽 1 → bend 너머 0 (부드럽게)
         val t = (x / bend).coerceIn(0f, 1f)
         return lift * (1f - t * t * (3f - 2f * t))
@@ -176,6 +180,9 @@ private fun DrawScope.drawFeltPill(edge: Color, cream: ShaderBrush, fibers: Shad
 
 /** 오또 얼굴 — 전에 얼굴을 감싸던 둥근 자리(100dp)와 같은 크기 */
 private val FaceSize = 100.dp
+
+/** 띠 전체가 오또 움직임을 따라가는 몫 — 나머지는 얼굴 쪽 휨이 받는다 */
+private const val BandShare = 0.5f
 
 /** 모드 색 펠트 테두리 두께 */
 private val EdgeBand = 7.dp

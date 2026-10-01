@@ -18,7 +18,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -547,30 +546,6 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
 
             is Stage.DrawPad -> DrawPadView(d, stage.forAnswer)
             is com.example.finalproject_demo.demo.DiaryStage -> DiaryStageView(d, stage)   // 그림일기 화면 (#28 · ui/DiaryViews.kt)
-
-            is Stage.MouthTap -> Centered {
-                Box(
-                    Modifier
-                        .size(210.dp)
-                        .pointerInput(Unit) {
-                            detectTapGestures { p ->
-                                d.s.mouth = Offset(p.x / size.width, p.y / size.height)
-                                d.send(Reply.Tapped("mouth", "입"))
-                            }
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    ArtView(stage.art, Modifier.fillMaxSize())
-                    d.s.mouth?.let { m ->
-                        Text(
-                            "👄", fontSize = 26.sp,
-                            modifier = Modifier.align(Alignment.TopStart).offset {
-                                IntOffset((m.x * 210.dp.toPx() - 30).roundToInt(), (m.y * 210.dp.toPx() - 30).roundToInt())
-                            }
-                        )
-                    }
-                }
-            }
 
             is Stage.BookPage -> BookPageView(d, stage)
 

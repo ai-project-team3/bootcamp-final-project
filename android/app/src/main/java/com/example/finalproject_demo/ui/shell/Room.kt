@@ -681,17 +681,19 @@ fun KidTopBar(d: Director, modifier: Modifier = Modifier) {
         FeltButton(WoolCream, onClick = { Shell.askHome = true }, modifier = Modifier.size(56.dp), shape = CircleShape) { Text("🏠", fontSize = 24.sp) }
         Spacer(Modifier.width(10.dp))
         LockDoor { d.openParent() }
-        // 같이 만들기 중에만 — 부모 「그만하기」 (#36). 어른 글씨로 작게, 누르면 확인 창을 한 번 더 거친다(아이가 잘못 누르지 않게)
+        // 같이 만들기 중에만 — 부모 「그만하기」 (#36). 누르면 확인 창을 한 번 더 거친다(아이가 잘못 누르지 않게).
+        // 10-01 — 옆 🏠 · 🔒 와 같은 펠트 버튼(크림 펠트 · 바느질 · 같은 높이 56dp · 누르면 꾹)에 ComfyUI 펠트 손바닥 그림.
+        // 글씨는 어른용 고딕 그대로 — 어른이 누르는 버튼이다
         val s = d.s
         if (s.isCoop && s.scene == com.example.finalproject_demo.demo.Scene.DIARY && s.endReason == null) {
             Spacer(Modifier.width(10.dp))
-            Box(
-                Modifier.height(44.dp)
-                    .felt(FeltWhite.copy(alpha = 0.94f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
-                    .clickable { Shell.askStop = true }
-                    .padding(horizontal = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) { ParentText { Text("✋ 그만하기", fontSize = 14.sp, color = InkBrown, fontWeight = FontWeight.Bold) } }
+            FeltButton(WoolCream, onClick = { Shell.askStop = true }, modifier = Modifier.height(56.dp), shape = RoundedCornerShape(Radius.Round)) {
+                Row(Modifier.padding(start = 10.dp, end = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AssetImage("ic_parent_stop", Modifier.size(36.dp)) { Text("✋", fontSize = 22.sp) }
+                    Spacer(Modifier.width(6.dp))
+                    ParentText { Text("그만하기", fontSize = 15.sp, color = InkBrown, fontWeight = FontWeight.Bold) }
+                }
+            }
         }
     }
 }

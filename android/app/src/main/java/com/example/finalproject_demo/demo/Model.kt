@@ -659,7 +659,6 @@ sealed interface Stage {
 
     /** forAnswer = 질문에 그림으로 답하는 중 (새 친구 그리기와 달리 등장인물 칸을 건드리지 않는다) */
     data class DrawPad(val forAnswer: Boolean = false) : Stage
-    data class MouthTap(val art: Art) : Stage
     data class BookPage(val index: Int, val m1Done: Boolean = false, val m2Done: Boolean = false) : Stage
 
     /** S10 친구 평가 — 오늘 만난 친구마다 [또 만날래 💛] [안녕 👋] */
@@ -1155,7 +1154,6 @@ class DemoState {
         sceneDrawingAspect = drawingAspect
         drawing.clear()
     }
-    var mouth by mutableStateOf<Offset?>(null)
     var friendName by mutableStateOf("{친구1}")
     var causeLine by mutableStateOf("친구가 없어서 심심했어")
     var solutionLine by mutableStateOf("같이 별을 땄어요")
@@ -1367,7 +1365,7 @@ class DemoState {
         mentioned.clear()
         newcomerKind = "외계인"; newcomerEmoji = "👽"
         dinoKey = "horn"; solutionKey = "play"; solutionItem = "star"
-        drawing.clear(); drawnPreset = 0; mouth = null
+        drawing.clear(); drawnPreset = 0
         sceneDrawing.clear(); sceneDrawingAspect = 1f
         friendName = "{친구1}"; causeLine = "친구가 없어서 심심했어"; soundLine = "뿌우우우웅!"
         solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; storyCaptions = null; bookPage = 0; bookNote = ""
