@@ -43,6 +43,12 @@ data object DiaryGift : DiaryStage
 /** 붓이 이만큼 멈추면 오또가 말을 건다 (프로토타입 1.6초 · 3~7세 값은 조카 관찰로 정한다 — 흐름 HTML 「정해야 할 것」) */
 const val BRUSH_PAUSE_MS = 1_600L
 
+/**
+ * 크레용을 바꾼 뒤 기다리는 시간 — 색을 고르는 것은 「이어서 그린다」는 뜻이라 [BRUSH_PAUSE_MS] 보다 길게 둔다.
+ * 10-01 실기기: 한 조각을 그리다 색을 바꾸러 가는 사이 1.6초가 지나 오또가 다 그린 조각으로 알고 물었다
+ */
+const val COLOR_PAUSE_MS = 3_000L
+
 /** 이만큼 떨어져 있으면 다른 조각이다 (화이트보드 폭 · 높이의 비율) */
 internal const val PIECE_GAP = 0.06f
 

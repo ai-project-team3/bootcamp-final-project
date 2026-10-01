@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +76,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.BRUSH_PAUSE_MS
+import com.example.finalproject_demo.demo.COLOR_PAUSE_MS
 import com.example.finalproject_demo.demo.BoardBox
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.DiaryAsk
@@ -246,11 +248,15 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
     var box by remember { mutableStateOf(IntSize(1, 1)) }
     val live = remember { mutableStateListOf<Offset>() }
     var strokes by remember { mutableIntStateOf(0) }
+    // 판을 만질 때마다(획 시작 · 획 끝 · 크레용) 붓 멈춤 시계를 다시 건다. 크레용을 바꿨으면 더 오래 기다린다
+    var touched by remember { mutableIntStateOf(0) }
+    var quietFor by remember { mutableLongStateOf(BRUSH_PAUSE_MS) }
 
-    // 붓 멈춤 — 마지막 획 뒤로 조용하면 알린다
-    LaunchedEffect(strokes) {
+    // 붓 멈춤 — 마지막으로 만진 뒤로 조용하면 알린다
+    LaunchedEffect(touched) {
         if (strokes == 0) return@LaunchedEffect
-        delay(BRUSH_PAUSE_MS)
+        delay(quietFor)
+        if (live.isNotEmpty()) return@LaunchedEffect          // 아직 긋는 중 — 천천히 긋는 선을 잘라 묻지 않는다
         // 오또가 지켜보는 중에만 — 묻는 중 · 고르는 중 · 아이가 말하는 중(녹음)에는 보내지 않는다
         if (day.watching && !s.micOn && stage.pick == null) d.send(Reply.Tapped("pause", "붓 멈춤"))
     }
@@ -269,7 +275,8 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                                 .shadow(cq * 0.4f, CircleShape)
                                 .background(c, CircleShape)
                                 .border(cq * 0.35f, Color.White.copy(alpha = 0.9f), CircleShape)
-                                .clickable { color = c }
+                                .clickable { color = c; quietFor = COLOR_PAUSE_MS; touched++ }
+                                .testTag("crayon-${DIARY_CRAYONS.indexOf(c)}")
                         )
                     }
                 }
@@ -284,7 +291,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                 .testTag("diary-board")
                 .pointerInput(color) {
                     detectDragGestures(
-                        onDragStart = { p -> live.clear(); live += p },
+                        onDragStart = { p -> live.clear(); live += p; touched++ },
                         onDrag = { change, _ -> live += change.position; change.consume() },
                         onDragEnd = {
                             if (live.size >= 2) {
@@ -292,7 +299,10 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                                 strokes++
                             }
                             live.clear()
+                            quietFor = BRUSH_PAUSE_MS
+                            touched++
                         },
+                        onDragCancel = { live.clear(); quietFor = BRUSH_PAUSE_MS; touched++ },
                     )
                 }
         ) {
