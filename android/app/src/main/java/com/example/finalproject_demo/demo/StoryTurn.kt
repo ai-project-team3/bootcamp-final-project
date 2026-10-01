@@ -23,8 +23,9 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
     if (verdict.storyReady) endReason = "story_ready"
     storyNextSlot = verdict.nextSlot?.takeIf {
         !storyReady && it in Server.SLOTS && it != "extra" &&
-            it !in storyUnneededSlots && slots[it].isNullOrBlank()
+            it !in storyUnneededSlots && (slots[it].isNullOrBlank() || verdict.unclear)
     }
+    storyClarificationSlot = storyNextSlot?.takeIf { verdict.unclear }
 }
 
 suspend fun Director.askStory(
@@ -43,7 +44,41 @@ suspend fun Director.askStory(
         else -> return reply
     }
     val by = if (reply is Reply.Spoke) "child" else if ((reply as Reply.Tapped).byMascot) "mascot" else "card"
-    var response = s.exchangeStoryTurn(askedSlot, question.text, utterance, by, request)
+    val response = exchangeStoryTurnWithRetry(askedSlot, question.text, utterance, by, request)
+    if (response.verdict!!.reason == "blocked_by_filter") {
+        log("서버 안전 판정으로 답을 책 재료에서 제외 · 다른 이야기로 이어가기")
+        currentQuestion = question.copy(text = "다른 생각도 들려줄래? ${question.text}")
+        continue
+    }
+    response.verdict.fills.filter { it.first in Server.SLOTS && it.second.isNotBlank() }.forEach { (slot, value) ->
+        event("slot_filled", "slot" to slot, "value" to value, "source" to by)
+    }
+    s.storyServerQuestion = response.line?.question
+    val line = response.line
+    val reaction = listOfNotNull(line?.ack?.takeIf(String::isNotBlank), line?.expand?.takeIf(String::isNotBlank))
+        .joinToString(" ")
+    if (reaction.isNotBlank()) {
+        say(reaction)
+        pause(600)
+    }
+    // Real STT replies carry no scripted Answer. Keep the child's exact words for the
+    // existing recorder and attach only the signals the server actually returned.
+    if (reply !is Reply.Spoke) return reply
+    val verdict = response.verdict
+    return reply.copy(answer = Answer(
+        text = reply.text,
+        reason = verdict.s1Reason,
+        el = if (verdict.s2Addition) setOf("추가") else emptySet(),
+        emo = verdict.emotion.orEmpty(),
+    ))
+    }
+}
+
+private suspend fun Director.exchangeStoryTurnWithRetry(
+    askedSlot: String?, question: String, utterance: String, by: String,
+    request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
+): Server.TurnResult {
+    var response = s.exchangeStoryTurn(askedSlot, question, utterance, by, request)
     while (response?.verdict == null) {
         inputs(false, false)
         s.stage = Stage.Confirm(Art.Mascot, "다시 연결", "방으로")
@@ -56,35 +91,19 @@ suspend fun Director.askStory(
         }
         s.stage = Stage.Making("이야기를 다시 연결하는 중…")
         buttons()
-        response = s.exchangeStoryTurn(askedSlot, question.text, utterance, by, request)
+        response = s.exchangeStoryTurn(askedSlot, question, utterance, by, request)
     }
-    if (response.verdict!!.reason == "blocked_by_filter") {
-        log("서버 안전 판정으로 답을 책 재료에서 제외 · 다른 이야기로 이어가기")
-        currentQuestion = question.copy(text = "다른 생각도 들려줄래? ${question.text}")
-        continue
-    }
-    response?.verdict?.fills?.filter { it.first in Server.SLOTS && it.second.isNotBlank() }?.forEach { (slot, value) ->
-        event("slot_filled", "slot" to slot, "value" to value, "source" to by)
-    }
-    s.storyServerQuestion = response?.line?.question
-    val line = response?.line
-    val reaction = listOfNotNull(line?.ack?.takeIf(String::isNotBlank), line?.expand?.takeIf(String::isNotBlank))
-        .joinToString(" ")
-    if (reaction.isNotBlank()) {
-        say(reaction)
-        pause(600)
-    }
-    // Real STT replies carry no scripted Answer. Keep the child's exact words for the
-    // existing recorder and attach only the signals the server actually returned.
-    if (reply !is Reply.Spoke) return reply
-    val verdict = response?.verdict
-    return reply.copy(answer = Answer(
-        text = reply.text,
-        reason = verdict?.s1Reason == true,
-        el = if (verdict?.s2Addition == true) setOf("추가") else emptySet(),
-        emo = verdict?.emotion.orEmpty(),
-    ))
-    }
+    return response
+}
+
+/** Notify the server of a local activity/choice, never its recording or a fabricated spoken reply. */
+internal suspend fun Director.notifyStorySoundChoice(prompt: StoryPrompt) {
+    if (!Server.liveFor(s.mode) || !s.storySoundAttempted || s.storyReady) return
+    val recorded = s.storySoundClip != null
+    val utterance = if (recorded) "친구의 소리를 직접 만들었어요" else "친구의 소리는 소리 없이 넘어갈래"
+    val response = exchangeStoryTurnWithRetry("sound", prompt.text, utterance, if (recorded) "child" else "card")
+    s.storyServerQuestion = response.line?.question
+    response.line?.ack?.takeIf(String::isNotBlank)?.let { say(it); pause(600) }
 }
 
 suspend fun DemoState.exchangeTurn(

@@ -27,7 +27,9 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null): StoryPrompt? {
         turn < 2 && open("problem") -> "problem"
         else -> null
     }
-    val server = storyNextSlot?.takeIf { it in CORE_QUESTIONS && open(it) }
+    val server = storyNextSlot?.takeIf {
+        it in CORE_QUESTIONS && it !in storyUnneededSlots && (open(it) || it == storyClarificationSlot)
+    }
     val slot = probe ?: server
     if (slot != null) return StoryPrompt(slot, serverQuestion?.takeIf { slot == server && it.isNotBlank() } ?: CORE_QUESTIONS.getValue(slot))
 

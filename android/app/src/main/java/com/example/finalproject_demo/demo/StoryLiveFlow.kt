@@ -43,6 +43,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             val prompt = s.nextStoryPrompt(s.storyServerQuestion) ?: break
             if (prompt.slot == "sound" && !s.storySoundAttempted) {
                 recordStorySound()
+                notifyStorySoundChoice(prompt)
                 continue
             }
             s.stage = Stage.World(listOf(

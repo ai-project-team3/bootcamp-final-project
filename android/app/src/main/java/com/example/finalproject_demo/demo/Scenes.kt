@@ -1558,7 +1558,7 @@ private suspend fun Director.sceneFriends() {
         mutableListOf(RateItem("friend", s.friendCallName, s.friendArt))
     } else {
         mutableListOf(
-            RateItem("friend", s.friendName, s.friendArt),
+            RateItem("friend", s.friendCallName, s.friendArt),
             RateItem("dino", s.dino.name, Art.DinoArt(s.dinoColor, s.dinoKey)),
         )
     }
