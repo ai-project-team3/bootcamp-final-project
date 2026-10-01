@@ -1,6 +1,7 @@
 # GPU 백엔드 컨테이너. 빌드 컨텍스트는 레포 루트:
 #   docker build -f backend/Dockerfile -t otto-backend .
-#   docker run --gpus all --env-file C:\otto\.env -p 8010:8010 otto-backend
+#   docker run --gpus all --env-file C:\otto\.env -p 8000:8010 otto-backend
+#   (team server: host 8000 -> container 8010 · 10-01 PR #49 · scripts/deploy/start_backend.ps1)
 #
 # backend/app/llm/judge_prompt.py 등이 eval/*.md · *.json · prompt_block.py를 REPO/"eval"
 # 경로로 직접 읽는다("측정값과 서빙 프롬프트가 어긋나지 않게") — backend/만으론 안 되고 eval/도 같이 필요하다.
