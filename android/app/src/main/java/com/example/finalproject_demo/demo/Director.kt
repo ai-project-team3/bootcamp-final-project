@@ -28,6 +28,10 @@ enum class Kind { EASY, HARD, CHOICE }
  * - CHOICE(모호한 말 확인): "공룡!" 처럼 뜻이 여럿인 말을 되물을 때만 카드 3장을 바로 띄운다.
  * - 말로 답한 것만 수준 신호다. 탭 · 그림 · 마스코트가 채운 것은 세지 않는다.
  */
+/** Set only by the test run that lists the app's own lines (`Director.dumpSpoken`) */
+private val SPEECH_DUMP: String? = System.getenv("OTTO_SPEECH_DUMP")
+private val SPEECH_DUMP_LOCK = Any()
+
 data class Question(
     val text: String,
     val kind: Kind,
@@ -183,7 +187,19 @@ class Director(
         s.line = text
         s.lineId++
         if (who == "마스코트" && surprise.containsMatchIn(text)) feel(Mood.SURPRISED)
-        if (who == "마스코트") speakLive(text)
+        if (who == "마스코트") { dumpSpoken(text); speakLive(text) }
+    }
+
+    /**
+     * Writes each mascot line to the file named by `OTTO_SPEECH_DUMP`, only when it is set — the
+     * test suite runs with it to list every line the app itself can say, to bake into audio once
+     * (eval/fixed_lines.py · 10-01: fixed lines going to TypeCast every time used up the month).
+     * The app never has the variable, so this does nothing there.
+     */
+    private fun dumpSpoken(text: String) {
+        val path = SPEECH_DUMP ?: return
+        val line = s.nameMask().speakable(text, named = false)   // what TypeCast would get
+        synchronized(SPEECH_DUMP_LOCK) { java.io.File(path).appendText(line.replace('\n', ' ') + "\n") }
     }
 
     /** 마스코트 기분을 켠다 — 얼굴이 그에 맞게 움직인다 ([Mood]) */

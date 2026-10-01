@@ -55,6 +55,18 @@ class Settings(BaseSettings):
     judge_deadline_s: float = 18.0
     story_deadline_s: float = 55.0       # phone waits 60 s · effort high: 10-01 a book passed 30 s → 502
     tts_deadline_s: float = 15.0         # phone waits 20 s
+    # Who makes the mascot's voice. 10-01: TypeCast answered 403 UNUSUAL_ACTIVITY_DETECTED on the
+    # new key (the free account ran out, the next free account was flagged) — OpenAI for now, the
+    # vendor already in the privacy policy, same key. Back to "typecast" once that account is sorted.
+    tts_provider: str = "openai"         # openai | typecast
+    openai_tts_model: str = "gpt-4o-mini-tts"
+    # 10-01 round 2 (eval/bench_tts_openai_voices2.py): OpenAI recommends marin/cedar for quality;
+    # short, direct, English instructions; no "sound like a six-year-old" — an adult voice told to
+    # be a child came out machine-like to the 조장. OpenAI has no child voice at all.
+    openai_tts_voice: str = "marin"
+    openai_tts_instructions: str = ("Native Korean speaker. Warm, bright and friendly, like a cheerful "
+                                    "animated character. Natural conversational rhythm with small pauses. "
+                                    "Not too fast, not exaggerated.")
     image_warmup: bool = True            # draw one picture at start so models are loaded
     # rule 8: our image model has no safety filter — every picture is checked
     moderation_model: str = "omni-moderation-latest"

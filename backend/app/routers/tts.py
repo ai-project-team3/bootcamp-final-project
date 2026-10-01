@@ -38,6 +38,8 @@ def _silence_wav(seconds: float = 0.3, rate: int = 16000) -> bytes:
 async def speak(req: TtsRequest) -> Response:
     if settings.mock:
         return Response(_silence_wav(), media_type="audio/wav")
+    if settings.tts_provider == "openai":
+        return await _openai(req)
     if not settings.typecast_api_key:
         raise HTTPException(502, "missing TYPECAST_API_KEY")
     prompt = {"emotion_type": "smart"}
@@ -58,4 +60,22 @@ async def speak(req: TtsRequest) -> Response:
         raise HTTPException(502, f"tts network: {type(e).__name__}") from e
     if r.status_code != 200:
         raise HTTPException(502, f"tts HTTP {r.status_code}")
+    return Response(r.content, media_type="audio/mpeg")
+
+
+async def _openai(req: TtsRequest) -> Response:
+    """OpenAI speech (10-01 stand-in for TypeCast · settings.tts_provider). Same mp3 back,
+    so the phone does not change. voice_id is a TypeCast id and is ignored here."""
+    if not settings.openai_api_key:
+        raise HTTPException(502, "missing OPENAI_API_KEY")
+    body = {"model": settings.openai_tts_model, "voice": settings.openai_tts_voice, "input": req.text,
+            "instructions": settings.openai_tts_instructions, "response_format": "mp3"}
+    try:
+        async with httpx.AsyncClient(timeout=settings.tts_deadline_s) as http:   # phone waits 20 s
+            r = await http.post(f"{settings.openai_base_url.rstrip('/')}/audio/speech", json=body,
+                                headers={"Authorization": f"Bearer {settings.openai_api_key}"})
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"tts network: {type(e).__name__}") from e
+    if r.status_code != 200:
+        raise HTTPException(502, f"tts openai HTTP {r.status_code}")
     return Response(r.content, media_type="audio/mpeg")
