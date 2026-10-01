@@ -66,7 +66,8 @@ class NameMaskTest {
     @Test
     fun withoutConsentTheChildIsYouAndAFriendIsThatFriend() {
         assertEquals("너와 함께 갈 친구는 누구일까?", m.speakable("{주인공}와 함께 갈 친구는 누구일까?", named = false))
-        assertEquals("어디로 갈래?", m.speakable("{주인공}아, 어디로 갈래?", named = false))     // calling the child: left out
+        assertEquals("친구야, 어디로 갈래?", m.speakable("{주인공}아, 어디로 갈래?", named = false))   // calling the child
+        assertEquals("친구야! 같이 가자", m.speakable("{주인공}야! 같이 가자", named = false))
         assertEquals("그 친구가 너를 불렀어.", m.speakable("{친구1}가 {주인공}를 불렀어.", named = false))
         assertEquals("네가 먼저 해 볼래?", m.speakable("{주인공}이가 먼저 해 볼래?", named = false))
     }
