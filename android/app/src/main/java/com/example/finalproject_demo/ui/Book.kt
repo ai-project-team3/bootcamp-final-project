@@ -584,12 +584,12 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
             }
         }
 
-        // 위쪽 안내 한 줄 (마스코트 말풍선 대신)
+        // 위쪽 안내 한 줄 (마스코트 말풍선 대신). 책장을 넘기는 중(page > 0)에는 맨 위 가운데에 도구가 있어 그 아래로 내린다
         if (s.bookNote.isNotBlank()) {
             Box(
                 Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 46.dp)
+                    .padding(top = if (page > 0) 76.dp else 46.dp)
                     .widthIn(max = 520.dp)
                     .felt(Wool, RoundedCornerShape(20.dp), lift = 4.dp, stitch = false)
                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -613,21 +613,24 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                     ArtView(Art.Img("ic_speaker", Art.Emoji("🔊")), Modifier.size(28.dp))
                 }
             }
-            // 미션 도구 — 펠트 원(고른 것은 겨자). 왼쪽 위 🏠 · 🔒(시스템) 뒤에 선다 (09-29)
-            Row(Modifier.align(Alignment.TopStart).padding(start = 136.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 미션 도구 — 펠트 원(고른 것은 겨자). **맨 위 가운데** (10-01 사용자 요청 — 전에는 왼쪽 위 🏠 · 🔒 뒤)
+            Row(Modifier.align(Alignment.TopCenter).padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(Triple("ic_hand", "✋", "hand"), Triple("ic_hammer", "🔨", "hammer"), Triple("ic_feather", "🪶", "feather"), Triple("ic_magnifier", "🔍", "glass")).forEach { (img, e, k) ->
                     FeltButton(if (tool == k) FeltMustard else FeltWhite, onClick = { tool = k }, modifier = Modifier.size(52.dp), shape = CircleShape) {
                         ArtView(Art.Img(img, Art.Emoji(e)), Modifier.size(34.dp))
                     }
                 }
             }
+            // 페이지 진행도 — 왼쪽 위 🏠 · 🔒(시스템) 바로 뒤에 붙인다 (10-01 사용자 요청 — 전에는 오른쪽 위).
+            // 🏠 · 🔒 는 12 + 56 + 10 + 56 = 134dp 까지 — 그 사이 간격(10dp)만큼 띄운다
             Row(
-                Modifier.align(Alignment.TopEnd).padding(top = 14.dp, end = 76.dp)
-                    .felt(InkBrown.copy(alpha = 0.55f), RoundedCornerShape(Radius.Round), lift = 2.dp, stitch = false, texture = false).padding(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically,
+                Modifier.align(Alignment.TopStart).padding(top = 24.dp, start = 144.dp)
+                    .felt(InkBrown.copy(alpha = 0.55f), RoundedCornerShape(Radius.Round), lift = 2.dp, stitch = false, texture = false).padding(horizontal = 10.dp, vertical = 6.dp),
+                // 가운데 도구와 붙지 않게 조금 날씬하게 — 점 · 간격을 줄였다 (태블릿 · 4:3 에서 거의 맞닿았다)
+                horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically,
             ) {
-                repeat(last) { i -> Box(Modifier.size(if (i + 1 == page) 10.dp else 7.dp).clip(CircleShape).background(if (i + 1 == page) Sun else Color.White.copy(alpha = 0.7f))) }
-                Spacer(Modifier.width(6.dp))
+                repeat(last) { i -> Box(Modifier.size(if (i + 1 == page) 9.dp else 6.dp).clip(CircleShape).background(if (i + 1 == page) Sun else Color.White.copy(alpha = 0.7f))) }
+                Spacer(Modifier.width(5.dp))
                 Text("$page/$last", fontSize = 12.sp, color = Color.White)
             }
         }
