@@ -130,5 +130,19 @@ private val dayByState = WeakHashMap<DemoState, DiaryDay>()
 val DemoState.diaryDay: DiaryDay
     get() = dayByState[this] ?: DiaryDay().also { dayByState[this] = it }
 
+/** 책장에 꽂힌 그림일기의 표지 — 그날 아이가 그린 조각 그대로(오또 그림을 고른 조각은 그 모습). [aspect] 는 화이트보드 폭/높이 */
+data class DiaryCover(val pieces: List<DiaryPiece>, val aspect: Float)
+
+private val coversByState = WeakHashMap<DemoState, MutableMap<String, DiaryCover>>()
+
+/**
+ * 책 제목 → 표지. 앱을 켜 둔 동안만 남는다 — 기기에 저장하는 것은 책장 저장(#37)이 정한다.
+ * 책장 화면은 [hasDiaryCover] 로 물어 있으면 아이 그림 표지를 그린다
+ */
+val DemoState.diaryCovers: MutableMap<String, DiaryCover>
+    get() = coversByState.getOrPut(this) { mutableMapOf() }
+
+fun DemoState.hasDiaryCover(title: String): Boolean = diaryCovers[title]?.pieces?.isNotEmpty() == true
+
 /** 그림일기를 새로 시작한다 — 지난 판의 조각 · 날씨 · 기분 · 호출 수를 버린다 */
 fun DemoState.newDiaryDay(): DiaryDay = DiaryDay().also { dayByState[this] = it }

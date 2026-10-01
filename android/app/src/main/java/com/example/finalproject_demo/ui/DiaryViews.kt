@@ -100,6 +100,7 @@ import com.example.finalproject_demo.demo.boxOf
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.cropFor
 import com.example.finalproject_demo.demo.diaryBookInput
+import com.example.finalproject_demo.demo.diaryCovers
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.ottoEmoji
 import com.example.finalproject_demo.ui.shell.Otto
@@ -993,5 +994,20 @@ private fun DiaryGiftView(d: Director, cq: Dp) {
                 .testTag("d6-shelf"),
             contentAlignment = Alignment.Center,
         ) { Text("📚 책장에 꽂기", fontSize = (cq.value * 3f).sp, color = Color.White) }
+    }
+}
+
+// ── 책장 표지 ────────────────────────────────────────────────────
+
+/**
+ * 책장에 꽂힌 그림일기의 표지 — 그날 아이가 그린 조각(오또 그림을 고른 조각은 그 모습)을 흰 종이에.
+ * `Shelf.kt` 가 [hasDiaryCover] 로 물어 그림일기 책이면 장소 그림 대신 이것을 그린다
+ */
+@Composable
+fun DiaryShelfCover(s: DemoState, title: String, modifier: Modifier = Modifier) {
+    val cover = s.diaryCovers[title] ?: return
+    BoxWithConstraints(modifier.background(Color.White).padding(4.dp).testTag("diary-shelf-cover")) {
+        val crop = cropFor(cover.pieces.flatMap { it.strokes }, cover.aspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)
+        cover.pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
     }
 }

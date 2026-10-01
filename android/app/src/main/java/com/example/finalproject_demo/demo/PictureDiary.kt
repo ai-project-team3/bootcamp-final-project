@@ -765,7 +765,11 @@ private suspend fun Director.giveDiaryBook() {
     buttons()
     mark("end")
     val pages = buildDiaryBook(s.diaryBookInput()).size
-    s.shelf.add(0, ShelfBook(s.title ?: s.autoTitleFor(), s.themeKey, s.bgName, pages = pages, fresh = true))
+    val title = s.title ?: s.autoTitleFor()
+    // 표지는 오늘 그린 그림 — 조각이 없으면 화이트보드 한 덩어리
+    val coverPieces = s.diaryDay.pieces.toList().ifEmpty { if (s.sceneDrawing.isEmpty()) emptyList() else listOf(DiaryPiece(0, s.sceneDrawing.toList())) }
+    if (coverPieces.isNotEmpty()) s.diaryCovers[title] = DiaryCover(coverPieces, s.drawingAspect)
+    s.shelf.add(0, ShelfBook(title, s.themeKey, s.bgName, pages = pages, fresh = true))
     event("session_end", "duration" to "15분", "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
     log("책장에 꽂기 → 그림일기는 기기에만 둔다 · 서버에는 저장하지 않음")
     go(Scene.SHELF)
