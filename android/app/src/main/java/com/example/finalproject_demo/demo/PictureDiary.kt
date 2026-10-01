@@ -109,13 +109,21 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
                     Heard.DONE -> break
                     Heard.DRAW_ME -> {
                         day.catchUp(s.drawing)
-                        val target = day.pieces.lastOrNull { s.drawing.lastOrNull() in it.strokes } ?: day.pieces.lastOrNull()
-                        if (target != null && waiting.none { it.pieceId == target.id }) {
-                            say("나도 그려볼게! 더 그리고 있어!")
-                            offers++
-                            waiting += orderOttoDrawing(this, target, target.name ?: "아이가 그린 그림")
-                            pause(600)
-                        } else say("그림을 먼저 그려 줘! 그다음에 나도 그려 볼게.")
+                        // 「강아지 그려줘」면 강아지를 — 이름을 안 불렀으면 방금 그리던 조각
+                        val target = day.namedIn(r.text, except = -1)
+                            ?: day.pieces.lastOrNull { s.drawing.lastOrNull() in it.strokes } ?: day.pieces.lastOrNull()
+                        val what = target?.name?.let { "${you(it)}${eul(you(it))} " }.orEmpty()
+                        when {
+                            target == null -> say("그림을 먼저 그려 줘! 그다음에 나도 그려 볼게.")
+                            waiting.any { it.pieceId == target.id } -> say("나도 지금 ${what}그리고 있어! 조금만 기다려 줘.")
+                            target.ottoPng != null -> say("벌써 ${what}그렸어! 반짝이는 이름표를 눌러 봐.")
+                            else -> {
+                                say("나도 ${what}그려볼게! 더 그리고 있어!")
+                                offers++
+                                waiting += orderOttoDrawing(this, target, target.name ?: "아이가 그린 그림")
+                                pause(600)
+                            }
+                        }
                     }
                     Heard.NAMED, Heard.OTHER -> {}
                 }

@@ -72,6 +72,17 @@ class PictureDiaryFlowTest {
         }
     }
 
+    /** 그리는 중 **묻지 않았는데** 하는 말 — 오또가 듣고 있을 때 한 번 보내고, [until] 이 안 오면 1.5초 뒤에만 다시 */
+    private suspend fun Director.tell(text: String, until: () -> Boolean) {
+        repeat(4) {
+            await { s.micEnabled }
+            delay(100)
+            send(Reply.Spoke(text))
+            if (await(1_500) { until() } != null) return
+        }
+        assertTrue("「$text」 뒤가 오지 않았다 — 말=${s.line}", until())
+    }
+
     private suspend fun Director.readToTheEnd() {
         var guard = 0
         while (s.scene == Scene.DIARY && s.stage !is DiaryGift && guard++ < 30) {
@@ -312,7 +323,7 @@ class PictureDiaryFlowTest {
         assertEquals("강아지", s.diaryDay.pieces.single().name)
         assertTrue(await { s.buttons.any { "너도 그려줘" in it.label } } != null)
         assertTrue(d.push("너도 그려줘"))
-        assertTrue("「너도 그려줘」에 바로 그리지 않았다", await { "나도 그려볼게" in s.line } != null)
+        assertTrue("「너도 그려줘」에 바로 그리지 않았다", await { "나도 강아지를 그려볼게" in s.line } != null)
         s.drawing += stroke(0.6f)
         assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); "짠!" in s.line } != null)
         assertTrue(d.push("내 그림으로"))
@@ -340,6 +351,27 @@ class PictureDiaryFlowTest {
         assertEquals("나무", you("나무"))
         assertEquals("우리 집", you("우리 집"))
         assertEquals("나비", you("나비"))
+    }
+
+    /** 「강아지 그려줘」 — 마지막에 그린 조각이 아니라 부른 조각을. 이미 그리는 중이면 다시 주문하지 않고 그렇다고 말한다 (프로토타입) */
+    @Test
+    fun drawMeAimsAtThePieceTheChildNames() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("강아지")
+        assertTrue(await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        s.drawing += stroke(0.7f)                                    // 멀리 — 마지막 조각은 이쪽
+        assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("해야")
+        assertTrue(await { s.line == "나도 해를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        d.tell("강아지 그려줘") { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" }
+        d.tell("강아지 그려줘") { s.line == "나도 지금 강아지를 그리고 있어! 조금만 기다려 줘." }
     }
 
     @Test
