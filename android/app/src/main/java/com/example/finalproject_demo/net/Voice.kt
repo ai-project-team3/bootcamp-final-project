@@ -123,6 +123,9 @@ object Voice {
             rec = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, RATE,
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, RATE * 2 * 2))
             if (rec.state != AudioRecord.STATE_INITIALIZED) return@withContext null
+            recording = true
+            // nothing of the mascot may be in the child's answer — the player lives on the main thread
+            android.os.Handler(android.os.Looper.getMainLooper()).post { stopPlaying() }
             rec.startRecording()
             val opened = System.currentTimeMillis()
             val vad = vad()                                  // normally already loaded at app start
@@ -143,6 +146,7 @@ object Voice {
             Log.w(TAG, "record failed: ${e.javaClass.simpleName} ${e.message}")
             return@withContext null
         } finally {
+            recording = false
             rec?.let { runCatching { it.stop() }; it.release() }
             // the VAD stays loaded for the next press
         }
@@ -166,6 +170,7 @@ object Voice {
     // ── out ────────────────────────────────────────────────────────
 
     private var player: MediaPlayer? = null
+    @Volatile private var recording = false
     private var done: (() -> Unit)? = null
 
     /**
@@ -175,6 +180,10 @@ object Voice {
      */
     suspend fun playAndWait(audio: ByteArray) {
         val c = ctx ?: return
+        // 10-01 evening: a line queued before 🎤 (fetched late from /tts) started playing *during* the
+        // recording, so the mascot's voice went into the child's answer and the transcript fell apart.
+        // While the mic is open, nothing plays.
+        if (recording) { Log.i(TAG, "a mascot line arrived while recording — not played"); return }
         withContext(Dispatchers.Main) {
             suspendCancellableCoroutine { cont ->
                 val finish = { if (cont.isActive) cont.resume(Unit) }
