@@ -163,7 +163,9 @@ private fun diaryDrawAnswer(@Suppress("UNUSED_PARAMETER") step: DiaryStep): Answ
  */
 private suspend fun Director.askDiaryStep(step: DiaryStep) {
     val v = step.variant
-    var rungs = step.rungs(s)
+    // 협업에서 고른 이야기가 있으면 사다리 · 시연 답 · 마스코트 채움을 그 이야기 것으로 — 뼈대는 요소별, 꼬리질문은 시제별 (CoopTemplatePack.kt)
+    val pack = s.coopPartPack(step)
+    var rungs = pack?.rungs ?: step.rungs(s)
     log("일기 질문 [${step.part} · ${step.bookKey}] 사다리 ${rungs.size}칸 — ${step.probe} · 지금 수준 ${s.level.label}")
     while (true) {
         val q = Question(
@@ -172,8 +174,8 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
             // 사다리 뒤에 그림 3장을 붙이지 않는다 — 일기에서 그림 3장은 앱이 아이 하루를 추측해 보여 주는 것이 된다 (일기 §7-6)
             noCards = true,
             ladder = rungs.drop(1),
-            fallback = step.mascot?.invoke(s),
-            spoken = v.answers(s),
+            fallback = if (pack != null) pack.mascot else step.mascot?.invoke(s),
+            spoken = pack?.answers ?: v.answers(s),
             drawAnswer = diaryDrawAnswer(step),
             extra = buildList {
                 if (!s.isCoop) step.demoAnswer(s)?.let { a ->
@@ -211,7 +213,7 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
 
         // 말은 했는데 칸이 안 찼다 ("몰라") — 사다리에 남은 칸이 있으면 질문을 바꿔 다시 묻는다
         if (rungs.size <= 1) {
-            val fb = step.mascot?.invoke(s)
+            val fb = if (pack != null) pack.mascot else step.mascot?.invoke(s)
             if (fb == null) {
                 // 꼬리질문은 마스코트가 지어내지 않는다 — 없으면 없는 대로 간다
                 log("[${step.bookKey}] 끝까지 안 나옴 → 지어내지 않고 넘어간다 (벌점 · 아쉬움 표현 없음 · 구현대본 §5)")
