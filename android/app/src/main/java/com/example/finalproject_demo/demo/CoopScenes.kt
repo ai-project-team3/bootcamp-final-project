@@ -85,6 +85,12 @@ private val DemoState.coopTrack: CoopTrack
 
 private fun DemoState.newCoopTrack() { trackByState[this] = CoopTrack() }
 
+/**
+ * 묻지 않고 지나간 뼈대 걸음을 「물은 것」으로 친다 — 앞 답에서 이미 찬 칸이라 건너뛴 걸음 (10-01).
+ * 안 치면 [coopQuestionsAllAsked] 가 네 자리를 다 물었다고 보지 않아 남은 꼬리질문을 끝까지 묻는다.
+ */
+internal fun DemoState.coopCoverPart(stepId: String) { coopTrack.askedSteps += stepId }
+
 /** 이 이야기에서 템플릿 · 부모 질문에 아이가 한 답들 — 부모 리포트가 읽는다. 이야기가 끝나도 남는다(다음 이야기가 시작되면 새로) */
 val DemoState.coopAsked: List<CoopAsked> get() = trackByState[this]?.asked.orEmpty()
 
