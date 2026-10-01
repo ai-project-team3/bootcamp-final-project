@@ -193,11 +193,15 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
             return
         }
 
-        val value = diaryValueOf(r)
+        // 진짜 마이크 답은 대본 값(`value`)이 비어 있다 — 글자에서 칸 값을 얻는다 (#47 · CoopScenes.kt)
+        val live = (r as? Reply.Spoke)?.takeIf { it.isLiveSpeech() }
+        val value = if (live != null) coopLiveValue(step, q.text, live).orEmpty() else diaryValueOf(r)
         if (value.isNotEmpty()) {
             s.mascotPicks = 0                       // 연속이 끊긴다
             val by = if (r is Reply.Spoke) "child" else "card"
-            setDiarySlot(step.slot, step.bookKey, diarySlotOf(value), diaryLineOf(value), by)
+            // 말 그대로의 답은 `칸|문장` 꼴이 아니다 — 문장 자리에도 같은 말을 넣어야 꼬리질문 답이 책에 남는다
+            if (live != null) setDiarySlot(step.slot, step.bookKey, value, value, by)
+            else setDiarySlot(step.slot, step.bookKey, diarySlotOf(value), diaryLineOf(value), by)
             (r as? Reply.Spoke)?.answer?.let { afterDiaryAnswer(step, it) }
             if (!step.required) mark("diarytail")
             if (r is Reply.Tapped) log("그림으로 답함 → mode: draw 로 남기고 by 는 card. 수준 신호로 세지 않는다 (일기 §5-1)")
