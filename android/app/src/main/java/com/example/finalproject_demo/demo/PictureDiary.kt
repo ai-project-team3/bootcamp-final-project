@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 
 /*
  * 그림일기 한 바퀴 (일기 모드 · 협업 제외) — docs/일기모드_흐름.html D0 → D1 → D3 → D4 → D5 → D6.
@@ -537,7 +538,7 @@ private suspend fun Director.finishPictureDiary(day: DiaryDay) {
     pause(900)
     s.stage = DiaryStitch
     say("그림일기를 만들고 있어. 조금만 기다려 줘!")
-    pause(1500)
+    if (Server.liveFor(s.mode)) writeDiaryBook(day) else pause(1500)
     day.weatherFromDrawing()
     s.title = s.slots["title"]?.takeIf { it.isNotBlank() } ?: s.diaryTitle()
     event("book", "template" to "그림일기", "pages" to pages.size, "title" to s.title)
@@ -548,6 +549,37 @@ private suspend fun Director.finishPictureDiary(day: DiaryDay) {
 
     // D6
     giveDiaryBook()
+}
+
+/** 책 문장을 부르는 곳 — 테스트가 서버 없이 바꿔 끼운다. (가린 칸 · 출처 · 맺음 원문) → 쪽 문장 */
+internal var requestDiaryStory: suspend (Map<String, String?>, Map<String, String>, String?) -> List<String>? = { slots, by, keep ->
+    Server.story("diary", slots, by, keep = keep)
+}
+
+/** 책을 기다리는 한도 — 꿰매는 화면이라 아이는 기다리지만, 넘으면 앱 문장으로 간다 */
+internal const val DIARY_STORY_WAIT_MS = 30_000L
+
+/**
+ * D4 — `/story`(diary)로 책 문장을 받는다. 이름은 가려서 보내고 받은 문장에서 푼다(규칙 6).
+ * 실패 · 너무 늦음 · 빈 답이면 앱 문장으로 짠 책 그대로 — 멈추지 않는다.
+ * ⚠️ 서버는 일기를 3~6쪽만 받는다 — 칸이 적은 날은 서버가 버리고 앱 문장이 된다(#39)
+ */
+private suspend fun Director.writeDiaryBook(day: DiaryDay) {
+    val mask = s.nameMask()
+    val slots = mask.maskSlots(Server.SLOTS.associateWith { s.slots[it] })
+    val keep = s.slots["keep"]?.takeIf(String::isNotBlank)?.let(mask::mask)
+    val t0 = System.currentTimeMillis()
+    val written = withTimeoutOrNull(DIARY_STORY_WAIT_MS) { requestDiaryStory(slots, s.slotBy.toMap(), keep) }
+        ?.map(mask::unmask)?.filter(String::isNotBlank)
+    val ms = System.currentTimeMillis() - t0
+    if (written.isNullOrEmpty()) {
+        log("책 문장 서버가 답하지 않았다(${ms}ms) → 앱 문장으로 짠 책")
+        event("story_request", "mode" to "diary", "result" to "template")
+        return
+    }
+    day.written = written
+    event("story_request", "mode" to "diary", "result" to "generated", "pages" to written.size)
+    log("책 문장 ${written.size}쪽 — /story diary (${ms}ms)")
 }
 
 /**

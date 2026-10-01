@@ -7,6 +7,10 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.diaryDay
+import com.example.finalproject_demo.demo.DiaryPaper
+import com.example.finalproject_demo.demo.buildDiaryBook
+import com.example.finalproject_demo.demo.diaryBookInput
+import com.example.finalproject_demo.demo.requestDiaryStory
 import com.example.finalproject_demo.demo.requestDiaryTurn
 import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.CoroutineScope
@@ -36,17 +40,24 @@ class DiaryLiveTurnTest {
     private fun verdict(fills: List<Pair<String, String>>, next: String?, ready: Boolean = false, s1: Boolean = false) =
         Server.Verdict("ok", fills, next, null, ready, false, null, false, s1, false, null)
 
-    private fun live(fake: suspend (Server.Turn) -> Server.TurnResult?, block: suspend (Director) -> Unit) = runBlocking {
+    private fun live(
+        fake: suspend (Server.Turn) -> Server.TurnResult?,
+        story: suspend (Map<String, String?>, Map<String, String>, String?) -> List<String>? = { _, _, _ -> null },
+        block: suspend (Director) -> Unit,
+    ) = runBlocking {
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
         val d = Director(scope)
         d.s.speed = 0.01
         d.s.mode = StoryMode.DIARY
         val real = requestDiaryTurn
+        val realStory = requestDiaryStory
+        requestDiaryStory = story
         Server.base = "http://127.0.0.1:1"
         Server.liveModes = setOf(StoryMode.DIARY)
         requestDiaryTurn = fake
         try { block(d) } finally {
             requestDiaryTurn = real
+            requestDiaryStory = realStory
             Server.liveModes = emptySet()
             Server.base = null
             scope.cancel()
@@ -61,8 +72,15 @@ class DiaryLiveTurnTest {
         assertTrue(await { if (s.stage is DiaryStart) send(Reply.Tapped("skip", "그림 없이")); s.stage == DiaryAsk } != null)
     }
 
+    /** 오또가 듣기 시작하면(마이크) 한 번 보낸다. 1.5초 안에 진행이 없을 때만 다시 — 남은 답이 다음 질문에 들어가지 않게 */
     private suspend fun Director.answer(text: String, until: () -> Boolean) {
-        assertTrue("「$text」 뒤가 오지 않았다 — 말=${s.line}", await { send(Reply.Spoke(text)); until() } != null)
+        repeat(4) {
+            assertTrue("오또가 듣지 않는다 — 말=${s.line}", await { s.micEnabled } != null)
+            delay(100)
+            send(Reply.Spoke(text))
+            if (await(1_500) { until() } != null) return
+        }
+        assertTrue("「$text」 뒤가 오지 않았다 — 말=${s.line}", until())
     }
 
     @Test
@@ -104,6 +122,35 @@ class DiaryLiveTurnTest {
             d.answer("어린이집 갔어") { s.line == "거기서 무슨 일이 있었어?" }
             assertEquals("어린이집 갔어", s.slots["place"])
             assertEquals("child", s.slotBy["place"])
+        }
+    }
+
+    /** D4 — 서버가 쓴 책 문장으로 그림일기가 짜인다. 이름은 가려서 보냈다가 받은 문장에서 푼다 */
+    @Test
+    fun theBookIsWrittenByTheServer() {
+        var sent: Map<String, String?>? = null
+        live(
+            { Server.TurnResult(verdict(listOf("place" to "놀이터"), null, ready = true), Server.Line("놀이터에 갔구나!", null, null)) },
+            { slots, _, _ -> sent = slots; listOf("나는 오늘 놀이터에 갔어요.", "그 뒤에 어떻게 되었는지는 아직 듣지 못했어요.", "재미있었어요.") },
+        ) { d ->
+            val s = d.s
+            d.toQuestions()
+            assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+            d.answer("놀이터 갔어") { s.stage is DiaryPaper }
+            assertEquals("놀이터 갔어", sent?.get("place"))
+            assertEquals("나는 오늘 놀이터에 갔어요.", buildDiaryBook(s.diaryBookInput()).first().text)
+        }
+    }
+
+    @Test
+    fun whenTheBookServerFailsTheAppWritesTheBook() {
+        live({ Server.TurnResult(verdict(listOf("place" to "놀이터"), null, ready = true), null) }) { d ->
+            val s = d.s
+            d.toQuestions()
+            assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+            d.answer("놀이터 갔어") { s.stage is DiaryPaper }
+            assertEquals(null, s.diaryDay.written)
+            assertEquals("앱이 아이 말로 짠 문장", "나는 오늘 놀이터 갔어요.", buildDiaryBook(s.diaryBookInput()).first().text)
         }
     }
 }

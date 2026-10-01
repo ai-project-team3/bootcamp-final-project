@@ -181,4 +181,30 @@ class DiaryBookTest {
             }
         }
     }
+
+    /** 서버(`/story` diary)가 쓴 쪽 — 그림 쪽 뒤를 서버 쪽으로 짠다. 서버가 「일 · 마음」을 합쳐 4쪽이어도 맺음은 끝 */
+    @Test
+    fun theServersPagesFollowTheDrawingPage() {
+        val written = listOf(
+            "나는 오늘 어린이집에 갔어요.",
+            "블록을 높이 쌓았는데 탑이 와르르 무너졌어요. 너무 속상했어요.",
+            "마침내 다시 쌓았어요.",
+            "내일은 더 높이 쌓을 거예요.",
+        )
+        val book = buildDiaryBook(bigDay.copy(written = written))
+        assertEquals(listOf("나는 오늘 블록, 탑, 나를 그렸어요.") + written, book.map { it.text })
+        assertEquals(
+            listOf(DiaryPageKind.DRAWING, DiaryPageKind.PLACE, DiaryPageKind.PROBLEM, DiaryPageKind.REACTION, DiaryPageKind.KEEP),
+            book.map { it.kind },
+        )
+        assertTrue("서버 쪽에 앱의 「아직 듣지 못했어요」를 덧붙였다", book.none { it.tail != null })
+        assertFalse("마음을 말한 날인데 오늘 기분을 또 묻는다", book.last().asksFeel)
+    }
+
+    @Test
+    fun aDayWithoutFeelingsStillAsksTheFeelingAfterTheServersPages() {
+        val book = buildDiaryBook(smallDay.copy(written = listOf("나는 오늘 놀이터에 갔어요.", "미끄럼틀을 탔어요.", "그 뒤에 어떻게 되었는지는 아직 듣지 못했어요.")))
+        assertEquals(4, book.size)
+        assertTrue(book.last().asksFeel)
+    }
 }

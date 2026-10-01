@@ -83,6 +83,9 @@ class DiaryDay {
 
     var feel by mutableStateOf<DiaryFeel?>(null)
 
+    /** 서버(`/story` diary)가 쓴 책 쪽 문장 — 이름은 이미 풀었다. null 이면 앱 문장으로 짠다 */
+    var written by mutableStateOf<List<String>?>(null)
+
     /** 오또가 지금 「뭐 그린 거야?」라고 묻는 조각 — 그림판이 그 조각에 고리를 띄운다 */
     var askingPiece by mutableStateOf<Int?>(null)
 
