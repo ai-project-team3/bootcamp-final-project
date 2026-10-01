@@ -6,6 +6,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /*
@@ -163,8 +165,11 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             asked++
             askedPieces += piece.id
             val linesBefore = s.drawing.size
-            val (name, finished) = askPieceName(day, piece)
-            if (finished) break
+            val answer = askPieceName(day, piece)
+            if (answer.finished) break
+            // 다른 조각을 그리러 갔다 — 이 조각은 안 물은 것으로 두고(나중에 · D3), 다음 멈춤에 지금 그리는 조각을 먼저 묻는다
+            if (answer.movedOn) { asked--; askedPieces -= piece.id; continue }
+            val name = answer.name
             if (name == null || offers >= OTTO_OFFERS) continue
             // 답하는 사이 새 선을 긋기 시작했으면 그리기를 끊지 않는다 — 제안은 물을 것 없는 다음 멈춤에
             if (s.drawing.size > linesBefore) {
@@ -175,6 +180,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             when (offerAndOrder(this, day, waiting, piece.id, name)) {
                 "yes" -> offers++
                 "done" -> break
+                MOVED_ON -> held = piece.id to name             // 묻는 사이 다른 걸 그리러 갔다 — 조용한 멈춤에 다시
             }
             continue
         }
@@ -184,6 +190,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             when (offerAndOrder(this, day, waiting, h.first, h.second)) {
                 "yes" -> offers++
                 "done" -> break
+                MOVED_ON -> held = h
             }
             continue
         }
@@ -290,34 +297,92 @@ private fun Director.pieceBeingDrawn(day: DiaryDay): DiaryPiece? {
     return day.pieces.firstOrNull { lastStroke in it.strokes }?.takeIf { it.name == null }
 }
 
+/** 조각을 물은 결과 — 붙은 이름 · 그리기를 끝냈나 · 다른 조각으로 넘어가 거뒀나(그 조각은 나중에 다시 물을 수 있다) */
+private data class PieceAnswer(val name: String?, val finished: Boolean = false, val movedOn: Boolean = false)
+
 /**
  * 「지금 그리는 건 뭐야?」 — 아이가 붙인 이름만 조각 이름이 된다.
- * 둘째 값이 참이면 묻는 사이에 아이가 [다 그렸어]를 눌렀다 — 그리기를 끝낸다.
+ * [PieceAnswer.finished] 면 묻는 사이에 아이가 [다 그렸어]를 눌렀다 — 그리기를 끝낸다.
  */
-private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pair<String?, Boolean> {
+private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): PieceAnswer {
     // 이름 붙은 조각에 닿게 그렸으면 — 거기에 더 그린 건지, 새로 그린 건지를 먼저 묻는다(프로토타입 규칙)
     val neighbor = day.namedNeighborOf(piece)
     val r = if (neighbor != null) askMoreOrNew(day, piece, neighbor) else {
         val q = Question(text = "우와, 지금 그리는 건 뭐야?", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_piece", waitSec = D1_WAIT_SEC)
         day.askingPiece = piece.id
-        try { ask(q) } finally { day.askingPiece = null }
+        try { askWhileDrawing(q, day, about = piece.id) } finally { day.askingPiece = null }
     }
-    if (r is Reply.Tapped && (r.value == "done" || r.value == "skip")) return null to true
+    if (r is Reply.Tapped && (r.value == "done" || r.value == "skip")) return PieceAnswer(null, finished = true)
+    if (r is Reply.Tapped && r.value == MOVED_ON) return PieceAnswer(null, movedOn = true)
     if (neighbor != null && r is Reply.Spoke && addedTo(r)) {
         day.mergeInto(piece.id, neighbor.id)
         say("${you(neighbor.name.orEmpty())}에 더 그렸구나!")
         log("「${neighbor.name}」에 더 그린 선 → 그 조각에 합친다 (아이 말)")
         pause(700)
-        return neighbor.name to false
+        return PieceAnswer(neighbor.name)
     }
     val name = (r as? Reply.Spoke)?.let { nameThePiece(day, piece, it) }
     if (name == null) {
         say(if (r is Reply.Spoke) "그래, 계속 그려 봐." else "계속 그려 봐!")
         log("조각 이름을 못 들었다 → 이름 없이 둔다. 다시 묻지 않는다")
-        return null to false
+        return PieceAnswer(null)
     }
-    return name to false
+    return PieceAnswer(name)
 }
+
+/** D1 질문을 조용히 거둔 까닭 — 아이가 다른 조각을 그리기 시작했다 · 손을 놓고 말이 없었다 */
+internal const val MOVED_ON = "@moved_on"
+internal const val WENT_QUIET = "@quiet"
+
+/**
+ * 그리면서 묻는 D1 질문 — `ask()` 대신 **손의 움직임**으로 기다린다 (10-01 진웅 · 안 A).
+ * 1. 묻는 조각([about])을 계속 그리면 질문을 열어 두고 시간을 세지 않는다
+ * 2. 다른 조각을 그리기 시작하면 조용히 거둔다([MOVED_ON]) — 지금 그리는 그림에 대한 질문이 먼저다
+ * 3. 손을 놓고 [Question.waitSec] 동안 말이 없으면 거둔다([WENT_QUIET]). 말하는 중(마이크)에는 세지 않는다
+ *
+ * 아이가 한 말만 주고받기로 센다(`acceptSpoken`) — 거둔 것은 답이 아니라 세지 않는다(규칙 5).
+ * `ask()` 로 거두면 「괜찮아, 다음에 같이 생각해 보자!」가 나오거나(무응답) 탭으로 세어져서 따로 둔다.
+ */
+private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: Int?): Reply = coroutineScope {
+    val linesAtAsk = s.drawing.size                     // 오또가 묻는 말을 하는 사이에 그은 선도 본다
+    say(q.text)
+    inputs(mic = true, next = true)
+    val answers = q.spoken.map { a -> DemoBtn("🗣 \"${a.text}\"") { send(Reply.Spoke(a.text, a.value, a)) } }
+    buttons(*(answers + DemoBtn("🤐 대답 없음") { send(Reply.Silent) } + q.extra).toTypedArray())
+    if (Server.liveFor(s.mode)) { awaitVoice(); pause(300) } else pause(1200)
+    val waitMs = ((q.waitSec ?: D1_WAIT_SEC) * 1000).toLong()
+    val watch = launch {
+        var seen = linesAtAsk
+        var quietMs = 0L
+        while (true) {
+            delay((WATCH_STEP_MS * s.speed).toLong().coerceAtLeast(1))
+            if (s.micOn) { quietMs = 0; continue }
+            if (s.drawing.size > seen) {
+                val fresh = s.drawing.subList(seen, s.drawing.size).toList()
+                seen = s.drawing.size
+                day.catchUp(s.drawing)
+                val sameOne = about != null && fresh.all { st -> day.pieces.firstOrNull { st in it.strokes }?.id == about }
+                if (!sameOne) { send(Reply.Tapped(MOVED_ON, "다른 조각을 그림")); return@launch }
+                quietMs = 0
+                continue
+            }
+            quietMs += WATCH_STEP_MS
+            if (quietMs >= waitMs) { send(Reply.Tapped(WENT_QUIET, "조용함")); return@launch }
+        }
+    }
+    val r = try { awaitReply() } finally { watch.cancel() }
+    when {
+        r is Reply.Spoke -> acceptSpoken(r.text)
+        r is Reply.Tapped && r.value == MOVED_ON -> { s.line = ""; log("「${q.text}」 — 다른 조각을 그리기 시작했다 → 조용히 거둔다(지금 그리는 그림이 먼저)") }
+        r is Reply.Tapped && r.value == WENT_QUIET -> log("「${q.text}」 — 손을 놓고 ${waitMs / 1000}초 말이 없었다 → 거둔다")
+        r is Reply.Tapped -> acceptTap(r)
+    }
+    inputs(mic = false, next = false)
+    r
+}
+
+/** 손의 움직임을 보는 간격 */
+private const val WATCH_STEP_MS = 100L
 
 /** 「○○에 더 그린 거야, 새로 그린 거야?」 — [piece] 를 가리키며 묻는다 */
 private suspend fun Director.askMoreOrNew(day: DiaryDay, piece: DiaryPiece, named: DiaryPiece): Reply {
@@ -330,7 +395,7 @@ private suspend fun Director.askMoreOrNew(day: DiaryDay, piece: DiaryPiece, name
         waitSec = D1_WAIT_SEC,
     )
     day.askingPiece = piece.id
-    return try { ask(q) } finally { day.askingPiece = null }
+    return try { askWhileDrawing(q, day, about = piece.id) } finally { day.askingPiece = null }
 }
 
 /** 대본 답의 값 — 「거기에 더 그렸어」 */
@@ -396,7 +461,13 @@ private suspend fun Director.offerOttoDrawing(name: String): String {
     val v = askYesNo(
         "나도 ${you(name)}${eul(you(name))} 그려볼까?", "diary_offer",
         yes = Answer("응!", "yes", lv = 1), no = Answer("아니, 내 그림이 좋아.", "no", lv = 1),
-    ).let { if (it == "yes" || it == "done") it else "no" }
+    ).let {
+        when (it) {
+            "yes", "done", MOVED_ON -> it        // 묻는 사이 다른 걸 그리러 갔으면 아무 말 없이 — 부른 쪽이 다음에 다시 묻는다
+            WENT_QUIET, "silent" -> "quiet"      // 말이 없었다 — 「아니」로 두되 「네 그림이 최고야」는 하지 않는다
+            else -> "no"
+        }
+    }
     when (v) {
         "yes" -> {
             say("나도 그려 볼게! 너도 더 그리고 있어!")
@@ -404,11 +475,11 @@ private suspend fun Director.offerOttoDrawing(name: String): String {
         }
         "no" -> say("좋아, 네 그림이 최고야!")
     }
-    if (v != "done") pause(600)
+    if (v == "yes" || v == "no") pause(600)
     return v
 }
 
-/** 물을 것이 떨어졌다 — 「다 그렸어? 더 그릴 거 있어?」 참이면 그리기를 끝낸다. 말이 없으면 계속 그리게 둔다 */
+/** 물을 것이 떨어졌다 — 「다 그렸어? 더 그릴 거 있어?」 참이면 그리기를 끝낸다. 말이 없거나 다시 그리기 시작하면 계속 그리게 둔다 */
 private suspend fun Director.askDoneDrawing(): Boolean {
     val v = askYesNo(
         "다 그렸어? 더 그릴 거 있어?", "diary_done",
@@ -432,7 +503,7 @@ internal fun yesNoOf(text: String): String? = when {
 
 /**
  * 예/아니 질문 — 마이크로 듣는다. 대본 답은 값(yes · no)이 붙어 오고, 서버 모드의 말은 글자로 가른다.
- * 돌려주는 값: yes · no · done(시연 서랍 [다 그렸어]) · skip · silent · unclear
+ * 돌려주는 값: yes · no · done(시연 서랍 [다 그렸어]) · skip · silent · unclear · [MOVED_ON] · [WENT_QUIET]
  */
 private suspend fun Director.askYesNo(text: String, id: String, yes: Answer, no: Answer): String {
     val q = Question(
@@ -444,7 +515,8 @@ private suspend fun Director.askYesNo(text: String, id: String, yes: Answer, no:
         id = id,
         waitSec = D1_WAIT_SEC,
     )
-    return when (val r = ask(q)) {
+    // 어느 조각이든 다시 그리기 시작하면 거둔다(about = null) — 그리는 중인 아이에게 예/아니를 붙잡고 있지 않는다
+    return when (val r = askWhileDrawing(q, s.diaryDay, about = null)) {
         is Reply.Tapped -> r.value
         is Reply.Spoke -> r.answer?.value?.takeIf { it.isNotBlank() } ?: yesNoOf(r.text) ?: "unclear"
         else -> "silent"

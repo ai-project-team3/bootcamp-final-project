@@ -387,17 +387,49 @@ class PictureDiaryFlowTest {
         s.drawing += stroke(0.1f)
         assertTrue(d.push("붓이 멈춤"))
         assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
-        s.drawing += stroke(0.7f)                                    // 답하기 전에 멀리 새 선
+        s.drawing += stroke(0.12f)                                   // 답하기 전에 그 조각에 더 그린다
         d.speak("강아지")
         assertTrue(await { s.line == "강아지구나!" } != null)
         delay(300)
-        assertTrue("새로 그리는 중인데 바로 제안했다", s.line != "나도 강아지를 그려볼까?")
-        assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "우와, 지금 그리는 건 뭐야?" } != null)
-        d.speak("해야")
-        assertTrue("새 조각은 그리는 중이 아니었으니 바로 — 말=${s.line}", await { s.line == "나도 해를 그려볼까?" } != null)
-        assertTrue(d.push("아니"))
+        assertTrue("그리는 중인데 바로 제안했다", s.line != "나도 강아지를 그려볼까?")
         assertTrue("미뤄 둔 제안이 오지 않았다 — 말=${s.line}",
             await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "나도 강아지를 그려볼까?" } != null)
+    }
+
+    /** D1 질문 중 다른 조각을 그리기 시작하면 조용히 거두고, 다음 멈춤에 지금 그리는 조각을 먼저 묻는다 (10-01 안 A) */
+    @Test
+    fun drawingSomethingElseWithdrawsTheQuestion() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        val first = s.diaryDay.askingPiece
+        s.drawing += stroke(0.7f)                                    // 멀리 — 다른 조각
+        assertTrue("다른 조각을 그리는데 질문을 거두지 않았다", await { s.diaryDay.askingPiece == null } != null)
+        assertTrue("거둘 때 말을 했다 — 말=${s.line}", s.line.isEmpty())
+        assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.diaryDay.askingPiece != null } != null)
+        assertTrue("지금 그리는 조각을 먼저 묻지 않았다", s.diaryDay.askingPiece != first)
+        assertEquals("우와, 지금 그리는 건 뭐야?", s.line)
+        assertTrue("앞 조각에 이름이 붙었다", s.diaryDay.pieces.first { it.id == first }.name == null)
+    }
+
+    /** 묻는 조각을 계속 그리는 동안에는 질문을 열어 두고 시간을 세지 않는다 · 손을 놓고 조용하면 거둔다 (10-01 안 A) */
+    @Test
+    fun drawingTheSamePieceKeepsTheQuestionOpen() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        // 기다림 10초 = 시험 속도로 약 0.1초 · 그 세 배 동안 같은 조각에 계속 그린다
+        repeat(6) { i -> s.drawing += stroke(0.1f + i * 0.005f); delay(50) }
+        assertTrue("같은 조각을 그리는데 질문을 거뒀다", s.diaryDay.askingPiece != null)
+        // 손을 놓고 조용하면 거둔다
+        assertTrue("조용한데 거두지 않았다", await { s.diaryDay.askingPiece == null } != null)
+        assertTrue(await { s.line == "계속 그려 봐!" } != null)
     }
 
     /** 그냥 이름표를 톡 — 오또가 이름을 불러 준다(「나」면 「너!」) · 그리기는 그대로 (프로토타입 tapTag) */
