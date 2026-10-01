@@ -35,7 +35,30 @@ class CoopPartPack(val rungs: List<String>, val answers: List<Answer>, val masco
  * 뼈대 네 자리는 템플릿 · 요소별 묶음, 꼬리질문은 **고른 이유의 시제**에 맞춘 묶음이다 —
  * 꼬리질문 걸음은 「오늘 하루」를 전제로 쓰여 있어(“집에 와서는 뭐 했어?”) 곧 해요 · 상상 이야기에는 맞지 않는다.
  */
-fun DemoState.coopPartPack(step: DiaryStep): CoopPartPack? {
+fun DemoState.coopPartPack(step: DiaryStep): CoopPartPack? = rawPartPack(step)?.let { p ->
+    // 앞에서 아이가 말한 곳을 「거기」 자리에 끼운다 — 「큰 건물!」 다음엔 「큰 건물에서 무슨 일을 할까?」 (10-01)
+    val here = heardPlace() ?: return@let p
+    CoopPartPack(p.rungs.map { it.here(here) }, p.answers, p.mascot)
+}
+
+/**
+ * 아이가 말한 곳 — 질문에 끼울 수 있을 만큼 **이름처럼 짧은 말**일 때만. 문장(「큰 건물에서 일할 것 같아」)이거나
+ * 마스코트가 「아직 못 들은 …」으로 메운 칸이면 null — 그때는 「거기」를 그대로 둔다
+ */
+internal fun DemoState.heardPlace(): String? {
+    val p = place?.trim()?.removeSuffix("에서")?.removeSuffix("에")?.trim() ?: return null
+    if (p.isEmpty() || p.length > 12 || p.split(" ").size > 3 || p.startsWith("아직")) return null
+    if (PLACE_NOT_A_NAME.any { p.endsWith(it) }) return null
+    return p
+}
+
+/** 말끝이 이러면 이름이 아니라 문장이다 (갔어 · 있어요 · 했다 · 몰라 …) */
+private val PLACE_NOT_A_NAME = listOf("어", "요", "다", "야", "지", "까", "해", "서", "고", "니", "라")
+
+/** 「거기서」 → 「큰 건물에서」 · 「거기 」 → 「큰 건물에 」 */
+internal fun String.here(place: String): String = replace("거기서", "${place}에서").replace("거기 ", "${place}에 ")
+
+private fun DemoState.rawPartPack(step: DiaryStep): CoopPartPack? {
     if (!isCoop) return null
     val pick = coopPick ?: return null
     val reason = pick.reasonOrNull() ?: CoopReason.DREAM

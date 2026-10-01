@@ -14,6 +14,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -493,10 +494,25 @@ private fun Pointer(modifier: Modifier) {
  */
 @Composable
 fun LockDoor(modifier: Modifier = Modifier, onOpen: () -> Unit) {
-    FeltButton(WoolCream, onClick = onOpen, modifier = modifier.size(56.dp), shape = CircleShape) {
-        Text("🔒", fontSize = 22.sp)
+    TopSlot(onOpen, modifier.size(TopSlot)) {
+        FeltButton(WoolCream, onClick = onOpen, modifier = Modifier.size(TopFace), shape = CircleShape) { Text("🔒", fontSize = 19.sp) }
     }
 }
+
+/**
+ * 왼쪽 위 시스템 버튼 자리 (10-01) — 보이는 펠트는 [TopFace](48dp)로 줄여 덜 답답하게, 누르는 자리는 [TopSlot](56dp) 그대로.
+ * 보이는 원 바깥 4dp 테두리도 눌린다 — 크기를 줄여도 누르기는 어려워지지 않는다
+ */
+@Composable
+private fun TopSlot(onClick: () -> Unit, modifier: Modifier, content: @Composable () -> Unit) {
+    Box(
+        modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { content() }
+}
+
+private val TopSlot = 56.dp
+private val TopFace = 48.dp
 
 /** 오또를 눌렀을 때 머리 위에 톡 튀어나오는 말 */
 @Composable
@@ -678,20 +694,25 @@ fun online(ctx: Context): Boolean = runCatching {
 fun KidTopBar(d: Director, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         // 「방으로 갈까?」 확인은 화면 전체를 덮어야 해서 앱 틀(OttoShell)이 그린다
-        FeltButton(WoolCream, onClick = { Shell.askHome = true }, modifier = Modifier.size(56.dp), shape = CircleShape) { Text("🏠", fontSize = 24.sp) }
-        Spacer(Modifier.width(10.dp))
+        // 보이는 크기 48dp · 누르는 자리 56dp — 자리 사이 4dp 라 보이는 버튼 사이는 12dp (10-01 — 56dp 원이 바짝 붙어 답답했다)
+        TopSlot({ Shell.askHome = true }, Modifier.size(TopSlot)) {
+            FeltButton(WoolCream, onClick = { Shell.askHome = true }, modifier = Modifier.size(TopFace), shape = CircleShape) { Text("🏠", fontSize = 21.sp) }
+        }
+        Spacer(Modifier.width(4.dp))
         LockDoor { d.openParent() }
         // 같이 만들기 중에만 — 부모 「그만하기」 (#36). 누르면 확인 창을 한 번 더 거친다(아이가 잘못 누르지 않게).
-        // 10-01 — 옆 🏠 · 🔒 와 같은 펠트 버튼(크림 펠트 · 바느질 · 같은 높이 56dp · 누르면 꾹)에 ComfyUI 펠트 손바닥 그림.
+        // 10-01 — 옆 🏠 · 🔒 와 같은 펠트 버튼(크림 펠트 · 바느질 · 같은 높이 · 누르면 꾹)에 ComfyUI 펠트 손바닥 그림.
         // 글씨는 어른용 고딕 그대로 — 어른이 누르는 버튼이다
         val s = d.s
         if (s.isCoop && s.scene == com.example.finalproject_demo.demo.Scene.DIARY && s.endReason == null) {
-            Spacer(Modifier.width(10.dp))
-            FeltButton(WoolCream, onClick = { Shell.askStop = true }, modifier = Modifier.height(56.dp), shape = RoundedCornerShape(Radius.Round)) {
-                Row(Modifier.padding(start = 10.dp, end = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    AssetImage("ic_parent_stop", Modifier.size(36.dp)) { Text("✋", fontSize = 22.sp) }
-                    Spacer(Modifier.width(6.dp))
-                    ParentText { Text("그만하기", fontSize = 15.sp, color = InkBrown, fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.width(4.dp))
+            TopSlot({ Shell.askStop = true }, Modifier.height(TopSlot).padding(horizontal = 4.dp)) {
+                FeltButton(WoolCream, onClick = { Shell.askStop = true }, modifier = Modifier.height(TopFace), shape = RoundedCornerShape(Radius.Round)) {
+                    Row(Modifier.padding(start = 8.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        AssetImage("ic_parent_stop", Modifier.size(32.dp)) { Text("✋", fontSize = 20.sp) }
+                        Spacer(Modifier.width(5.dp))
+                        ParentText { Text("그만하기", fontSize = 14.sp, color = InkBrown, fontWeight = FontWeight.Bold) }
+                    }
                 }
             }
         }

@@ -5,6 +5,8 @@ import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.coopAsked
+import com.example.finalproject_demo.demo.heardPlace
+import com.example.finalproject_demo.demo.here
 import com.example.finalproject_demo.demo.stopCoopByParent
 import com.example.finalproject_demo.ui.templateQuestions
 import kotlinx.coroutines.CoroutineScope
@@ -95,6 +97,10 @@ class CoopFlowTest {
 
     private val firefighter = CoopPick("job", "소방관", "soon")
 
+    /** 오또가 실제로 물을 뼈대 네 질문 — 앞에서 말한 곳이 「거기」 자리에 들어간다 (10-01). 이야기를 다 돈 뒤에 부른다 */
+    private fun Director.partsAsked(pick: CoopPick = firefighter): List<String> =
+        pick.templateQuestions().map { q -> s.heardPlace()?.let(q::here) ?: q }
+
     @Test
     fun theMascotReadsTheParentsQuestionOutLoud() = run { d ->
         val s = d.s
@@ -142,7 +148,7 @@ class CoopFlowTest {
         d.startCoopWith(pick = firefighter)
 
         val askedTexts = d.walkToBook()
-        assertTrue("네 자리를 다 안 물었다: $askedTexts", firefighter.templateQuestions().all { it in askedTexts })
+        assertTrue("네 자리를 다 안 물었다: $askedTexts", d.partsAsked().all { it in askedTexts })
         // 결말 자리 뒤의 꼬리질문 「다 끝나고 뭐 했어」 · 「내일 또 하고 싶은 거」는 묻지 않는다.
         // ⚠️ 질문 글로 세지 않는다 — 결말 자리에서 답이 칸을 못 채우면 사다리 한 칸 아래 쉬운 말로 다시 묻는다(같은 걸음)
         // 걸음 수로 세지 않는다 — 조건부 걸음(반응 · 한 말)은 답에 따라 건너뛰어 수가 달라진다
@@ -162,7 +168,7 @@ class CoopFlowTest {
 
         val askedTexts = d.walkToBook()
         assertTrue("부모 질문을 안 물었다: $askedTexts", "제일 재밌었던 게 뭐였어?" in askedTexts)
-        assertTrue("네 자리를 다 안 물었다: $askedTexts", firefighter.templateQuestions().all { it in askedTexts })
+        assertTrue("네 자리를 다 안 물었다: $askedTexts", d.partsAsked().all { it in askedTexts })
         // 결말 자리 뒤의 꼬리질문은 묻지 않는다 (걸음 수로 세지 않는다 — 조건부 걸음은 답에 따라 건너뛴다)
         assertEquals("결말 자리에서 멈추지 않았다", null, s.slots["after"]); assertEquals(null, s.slots["keep"])
         assertTrue("책까지 못 갔다 scene=${s.scene} end=${s.endReason}", await(20_000) { s.scene == Scene.BOOK } != null)
@@ -189,8 +195,10 @@ class CoopFlowTest {
         assertTrue("시연 답이 그 이야기 것이 아니다: ${s.buttons.map { it.label }}", await(3_000) { s.buttons.any { "큰 건물!" in it.label } } != null)
         assertTrue("일기 답이 섞였다", s.buttons.none { "어린이집" in it.label })
 
-        d.walkToBook()
+        val askedTexts = d.walkToBook()
         val places = setOf("큰 건물", "밖", "사람 많은 곳", "바쁜 곳", "소방관이 일하는 곳")
+        // 앞에서 말한 곳이 「무슨 일」 질문의 「거기」 자리에 들어간다 (10-01)
+        assertTrue("앞 답이 다음 질문에 안 들어갔다: $askedTexts", "${s.place}에서 무슨 일을 할까?" in askedTexts)
         assertTrue("칸 값이 그 이야기 것이 아니다: ${s.place}", s.place in places)
         // 꼬리질문 답까지 — 「블록을 높이높이 쌓아 올렸어요」 같은 일기 문장이 소방관 이야기 책에 들어가면 안 된다
         assertTrue("일기 문장이 책에 들어갔다: ${s.slots}", s.slots.values.none { "어린이집" in it || "블록" in it || "미끄럼틀" in it })
@@ -206,7 +214,8 @@ class CoopFlowTest {
         assertTrue("부모 띠가 떴다", s.parentCard == null)
 
         val askedTexts = d.walkToBook()
-        val at = lines.map { askedTexts.indexOf(it) }
+        val parts = d.partsAsked()
+        val at = parts.map { askedTexts.indexOf(it) }
         assertTrue("네 자리를 다 안 물었다: $askedTexts", at.all { it >= 0 })
         assertEquals("네 자리의 순서가 어긋났다: $askedTexts", at.sorted(), at)
         assertTrue("꼬리질문 자리에 앱 질문이 안 나왔다: $askedTexts", askedTexts.size > lines.size)
@@ -214,7 +223,7 @@ class CoopFlowTest {
         // 템플릿 질문은 오또의 질문이다 — 어른의 말로 세지 않는다. 리포트에는 답이 남는다
         assertEquals(0, s.partnerTurns)
         assertTrue("어른 발화로 남았다", s.events.none { it.startsWith("utterance") && "speaker=adult" in it })
-        assertEquals(lines, s.coopAsked.map { it.question })
+        assertEquals(parts, s.coopAsked.map { it.question })
         assertTrue("책까지 못 갔다 scene=${s.scene} end=${s.endReason}", await(20_000) { s.scene == Scene.BOOK } != null)
         assertEquals("이야기가 끝났는데 고른 이야기가 남아 있다", null, s.coopPick)
     }
@@ -233,7 +242,7 @@ class CoopFlowTest {
         assertTrue("부모 질문을 안 물었다: $askedTexts", first >= 0 && second >= 0)
         assertTrue("적은 순서대로 안 물었다: $askedTexts", first < second)
         assertTrue("부모 질문이 뼈대 첫 자리를 차지했다: $askedTexts", askedTexts.indexOf(lines[0]) < first)
-        assertTrue("네 자리를 다 안 물었다: $askedTexts", lines.all { it in askedTexts })
+        assertTrue("네 자리를 다 안 물었다: $askedTexts", d.partsAsked().all { it in askedTexts })
         assertFalse("빈 자리를 빈 문장으로 물었다", askedTexts.any { it.isBlank() })
         assertEquals("함께하기 축 = 물어본 부모 질문 수", 2, s.partnerTurns)
         assertEquals("마지막으로 쓴 부모 질문", "거기서 누구를 만났어?", s.adultLine)

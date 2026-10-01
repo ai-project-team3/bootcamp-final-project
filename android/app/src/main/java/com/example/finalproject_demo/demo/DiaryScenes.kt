@@ -124,7 +124,12 @@ suspend fun Director.sceneDiary() {
             log("[${step.part} · ${step.bookKey}] 건너뜀 — 앞의 답에 물을 데가 없다 (소크라틱: 아이가 한 말에서 다음 질문이 나온다)")
             continue
         }
-        askDiaryStep(step)
+        // 뼈대 칸이 앞 답에서 이미 찼으면 묻지 않는다 — 「놀이터 갔는데 친구가 밀었어」로 「무슨 일」이 찼는데
+        // 셋째 걸음에서 「무슨 일이 있었어?」를 또 물으면 아이는 방금 한 말을 되풀이하고, 새 답이 앞 값을 덮는다 (10-01)
+        if (step.required && diaryFilled(step.slot)) {
+            log("[${step.part} · ${step.bookKey}] 건너뜀 — 앞의 답에서 이미 찼다 (${s.slotBy[step.bookKey] ?: "?"}) · 같은 걸 두 번 묻지 않는다")
+            s.coopCoverPart(step.variant.id)
+        } else askDiaryStep(step)
         // 진행 막대는 **지나온 걸음 수**로 찬다 (9/22). 칸이 찼는지로 세면, 아이가 답하지 않은
         // 선택 질문이 하나라도 있으면 마지막 질문까지 가도 막대가 끝까지 가지 않는다
         s.stepsDone++

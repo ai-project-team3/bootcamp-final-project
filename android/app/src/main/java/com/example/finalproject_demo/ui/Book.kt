@@ -622,9 +622,9 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                 }
             }
             // 페이지 진행도 — 왼쪽 위 🏠 · 🔒(시스템) 바로 뒤에 붙인다 (10-01 사용자 요청 — 전에는 오른쪽 위).
-            // 🏠 · 🔒 는 12 + 56 + 10 + 56 = 134dp 까지 — 그 사이 간격(10dp)만큼 띄운다
+            // 보이는 🏠 · 🔒 는 124dp 에서 끝난다(누르는 자리 12 + 56 + 4 + 56 에서 안쪽 4dp) — 버튼 사이와 같은 12dp 띄운다
             Row(
-                Modifier.align(Alignment.TopStart).padding(top = 24.dp, start = 144.dp)
+                Modifier.align(Alignment.TopStart).padding(top = 24.dp, start = 136.dp)
                     .felt(InkBrown.copy(alpha = 0.55f), RoundedCornerShape(Radius.Round), lift = 2.dp, stitch = false, texture = false).padding(horizontal = 10.dp, vertical = 6.dp),
                 // 가운데 도구와 붙지 않게 조금 날씬하게 — 점 · 간격을 줄였다 (태블릿 · 4:3 에서 거의 맞닿았다)
                 horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically,

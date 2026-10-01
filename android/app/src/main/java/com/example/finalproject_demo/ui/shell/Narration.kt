@@ -17,7 +17,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageShader
 import androidx.compose.ui.graphics.PathEffect
@@ -33,8 +32,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.draw.alpha
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Mood
@@ -90,8 +89,6 @@ fun Narration(
     val fiberImg = ImageBitmap.imageResource(R.drawable.felt_texture)
     val cream = remember(creamImg) { ShaderBrush(ImageShader(creamImg, TileMode.Repeated, TileMode.Repeated)) }
     val fibers = remember(fiberImg) { ShaderBrush(ImageShader(fiberImg, TileMode.Repeated, TileMode.Repeated)) }
-    // 얼굴이 뛰어오른 높이(px, 위가 음수) — 그리기 단계에서만 읽어 띠 왼쪽이 얼굴을 따라 휜다
-    val lift = remember { mutableFloatStateOf(0f) }
     Row(
         modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp, top = 4.dp),
         verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.SpaceBetween,
@@ -101,10 +98,8 @@ fun Narration(
             Row(
                 Modifier
                     .padding(start = FaceSize / 2)
-                    // 띠 전체가 오또 움직임의 절반만큼 같이 오르내리고, 나머지 절반은 얼굴 쪽에서 완만하게 이어받는다 —
-                    // 끝만 휘면 끌려오는 것처럼 보였다 (10-01 사용자 제보). 글씨는 조금만 움직여 읽기에 지장이 없다
-                    .graphicsLayer { translationY = lift.floatValue * BandShare }
-                    .drawBehind { drawFeltPill(mode.color, cream, fibers, lift.floatValue * (1f - BandShare)) }
+                    // 띠는 가만히 있고 오또만 움직인다 (10-01 사용자 요청 — 따라 휘거나 오르내리면 끌려오는 것처럼 보였다)
+                    .drawBehind { drawFeltPill(mode.color, cream, fibers) }
                     .padding(start = FaceSize / 2 + 10.dp, end = 22.dp, top = 10.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -118,8 +113,8 @@ fun Narration(
                 }
             }
             // 오또 얼굴 — 혼자 선다 (감싸는 테두리 없음). 테두리 색 · 파동이 차례를 알린다.
-            // 띠보다 위에 그려 띠 왼쪽 끝을 덮는다. 뛰면 그 높이를 띠에 알려 띠가 따라 휜다
-            OttoFace(state, Modifier.size(FaceSize), burst = burst, burstId = burstId, expr = expr, pulse = true, onLift = { lift.floatValue = it })
+            // 띠보다 위에 그려 띠 왼쪽 끝을 덮는다 — 띠 끝이 얼굴 뒤로 들어가 있어, 오또가 뛰어도 띠가 오또 뒤로 이어져 보인다
+            OttoFace(state, Modifier.size(FaceSize), burst = burst, burstId = burstId, expr = expr, pulse = true)
         }
         // 녹음 · 그리기 버튼 — 오른쪽 끝에 따로 선다. 화면 아래 여백 = 화면 오른쪽 여백이 되게 밑에 붙이고,
         // 이 줄 밑에 부르는 쪽 여백(약 6dp)이 더 있어서 그만큼 내린다 — 실물폰(S10)에서 틈을 재어 맞췄다 (09-30)
@@ -134,29 +129,14 @@ fun Narration(
  * 테두리 가운데로 흰 바느질 점선이 돈다. 띠 자기 크기로만 그려서 첫 프레임부터 모양이 맞다.
  *
  * 띠 왼쪽 둥근 끝의 중심은 얼굴 중심 아래(띠 왼쪽 가장자리)에 둔다 — 둥근 끝이 얼굴 원 안에 숨고 밑선이 얼굴 맨 아래에서
- * 접선으로 이어진다. 띠 전체는 오또 움직임의 [BandShare] 만큼 같이 움직이고, 남은 [lift] 는 왼쪽 끝에서 받아
- * 얼굴 너비 1.3 배쯤에 걸쳐 완만하게 0 이 된다 — 띠와 오또가 한 덩어리로 오르내리는 것처럼 (10-01 사용자 요청)
+ * 접선으로 이어진다. 오또가 움직여도 띠는 가만히 있다 (10-01 사용자 요청)
  */
-private fun DrawScope.drawFeltPill(edge: Color, cream: ShaderBrush, fibers: ShaderBrush, lift: Float) {
-    val bend = (FaceSize * 1.3f).toPx()        // 얼굴 중심부터 여기까지 완만하게 휜다
-    fun follow(x: Float): Float {              // 얼굴 쪽 1 → bend 너머 0 (부드럽게)
-        val t = (x / bend).coerceIn(0f, 1f)
-        return lift * (1f - t * t * (3f - 2f * t))
-    }
+private fun DrawScope.drawFeltPill(edge: Color, cream: ShaderBrush, fibers: ShaderBrush) {
     fun pill(inset: Float) = Path().apply {
         val top = inset; val bottom = size.height - inset
         val r = (bottom - top) / 2
-        val right = size.width - inset
-        val steps = 16
-        moveTo(0f, top + follow(0f))
-        for (i in 1..steps) { val x = bend * i / steps; lineTo(x, top + follow(x)) }
-        lineTo(right - r, top)
-        arcTo(Rect(right - r * 2, top, right, bottom), 270f, 180f, false)
-        lineTo(bend, bottom)
-        for (i in steps - 1 downTo 0) { val x = bend * i / steps; lineTo(x, bottom + follow(x)) }
-        val cy = (top + bottom) / 2 + lift
-        arcTo(Rect(-r, cy - r, r, cy + r), 90f, 180f, false)
-        close()
+        // 왼쪽 둥근 끝의 중심이 x = 0(얼굴 중심 아래)에 오게 — 줄인 모양도 같은 중심을 쓴다
+        addRoundRect(RoundRect(-r, top, size.width - inset, bottom, CornerRadius(r)))
     }
     val band = EdgeBand.toPx()
     val outer = pill(0f)
@@ -180,9 +160,6 @@ private fun DrawScope.drawFeltPill(edge: Color, cream: ShaderBrush, fibers: Shad
 
 /** 오또 얼굴 — 전에 얼굴을 감싸던 둥근 자리(100dp)와 같은 크기 */
 private val FaceSize = 100.dp
-
-/** 띠 전체가 오또 움직임을 따라가는 몫 — 나머지는 얼굴 쪽 휨이 받는다 */
-private const val BandShare = 0.5f
 
 /** 모드 색 펠트 테두리 두께 */
 private val EdgeBand = 7.dp
