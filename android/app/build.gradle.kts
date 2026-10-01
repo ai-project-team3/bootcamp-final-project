@@ -16,8 +16,8 @@ android {
         applicationId = "kr.clap.otto"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.2-closed"
+        versionCode = 5
+        versionName = "0.3-closed"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_bg">#F9B233</color>
+    <color name="ic_launcher_bg">#FDE8CD</color>  <!-- cat Otto icon's own cream (10-01) · design/tools/make_store_assets.py -->
     <color name="splash_bg">#FFFFF4E1</color>
 </resources>
