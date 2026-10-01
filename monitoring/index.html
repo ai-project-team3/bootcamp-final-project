@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>오또 백엔드 — 엔드포인트 모니터</title>
+<style>
+  :root {
+    --bg: #faf7f2; --card: #fff; --ink: #2b2620; --muted: #857b6e;
+    --line: #e7e0d6; --bar: #e8b84b; --bar-soft: #f3e2b4;
+    --ok: #4a8f5b; --warn: #c9962c; --bad: #c0503f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1f1b17; --card: #2a2520; --ink: #f0e9df; --muted: #a39687;
+      --line: #3a332c; --bar: #e8b84b; --bar-soft: #4a3f2a;
+      --ok: #7cc08c; --warn: #e0b253; --bad: #e2796a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px 16px 40px; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .cards { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; min-width: 120px; flex: 1 1 120px;
+  }
+  .card .k { color: var(--muted); font-size: 12px; }
+  .card .v { font-size: 22px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; background: var(--card);
+          border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--bg); }
+  tr:last-child td { border-bottom: 0; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ep { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; }
+  .barcell { width: 34%; }
+  .bar { height: 8px; border-radius: 4px; background: var(--bar-soft); overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--bar); }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px;
+          font-variant-numeric: tabular-nums; border: 1px solid var(--line); }
+  .s2 { color: var(--ok); } .s4 { color: var(--warn); } .s5 { color: var(--bad); }
+  .muted { color: var(--muted); }
+  tr.hasErr td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
+  footer { margin-top: 16px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>오또 백엔드 — 엔드포인트 모니터</h1>
+  <div class="sub">2초마다 갱신 · 컨테이너를 다시 띄우면 0부터 다시 셉니다</div>
+
+  <div class="cards">
+    <div class="card"><div class="k">전체 요청</div><div class="v" id="total">—</div></div>
+    <div class="card"><div class="k">앱 요청</div><div class="v" id="appTotal">—</div></div>
+    <div class="card"><div class="k">가동 시간</div><div class="v" id="uptime">—</div></div>
+    <div class="card"><div class="k">상태 코드</div><div class="v" id="status">—</div></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>엔드포인트</th>
+        <th class="n">호출</th>
+        <th class="barcell">앱 트래픽 비중</th>
+        <th class="n">평균 응답</th>
+        <th>상태</th>
+      </tr>
+    </thead>
+    <tbody id="rows"><tr><td colspan="5" class="muted">불러오는 중…</td></tr></tbody>
+  </table>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+// Endpoints the app actually calls. The share column is out of these, so my own /health polling
+// and bot traffic on "/" do not distort the ratio the team cares about.
+const APP = new Set(["/stt", "/tts", "/turn", "/story", "/image", "/judge"]);
+
+const fmtUptime = s => {
+  if (s < 60) return s + "초";
+  if (s < 3600) return Math.floor(s / 60) + "분 " + (s % 60) + "초";
+  return Math.floor(s / 3600) + "시간 " + Math.floor((s % 3600) / 60) + "분";
+};
+
+const statusClass = code => code[0] === "2" ? "s2" : code[0] === "5" ? "s5" : "s4";
+
+function render(d) {
+  const appRows = d.endpoints.filter(e => APP.has(e.path));
+  const appTotal = appRows.reduce((a, e) => a + e.count, 0);
+
+  document.getElementById("total").textContent = d.total.toLocaleString();
+  document.getElementById("appTotal").textContent = appTotal.toLocaleString();
+  document.getElementById("uptime").textContent = fmtUptime(d.uptime_s);
+  document.getElementById("status").innerHTML = Object.entries(d.status).length
+    ? Object.entries(d.status).map(([c, n]) =>
+        `<span class="pill ${statusClass(c)}">${c} · ${n}</span>`).join(" ")
+    : "—";
+
+  const rows = d.endpoints.map(e => {
+    const isApp = APP.has(e.path);
+    const share = isApp && appTotal ? e.count / appTotal : 0;
+    const pct = (share * 100).toFixed(1);
+    const codes = Object.entries(e.status || {})
+      .map(([c, n]) => `<span class="pill ${statusClass(c)}">${c}·${n}</span>`).join(" ");
+    const failRate = e.count ? (e.errors / e.count * 100).toFixed(0) : 0;
+    return `<tr${e.errors ? ' class="hasErr"' : ""}>
+      <td class="ep">${e.method} ${e.path}${isApp ? "" : ' <span class="muted">(앱 외)</span>'}</td>
+      <td class="n">${e.count.toLocaleString()}</td>
+      <td class="barcell">${isApp
+        ? `<div class="bar"><i style="width:${pct}%"></i></div><span class="muted">${pct}%</span>`
+        : '<span class="muted">—</span>'}</td>
+      <td class="n">${e.avg_ms.toLocaleString()} ms</td>
+      <td>${codes}${e.errors ? ` <span class="s5">실패 ${failRate}%</span>` : ""}</td>
+    </tr>`;
+  });
+  document.getElementById("rows").innerHTML =
+    rows.length ? rows.join("") : '<tr><td colspan="5" class="muted">아직 요청이 없습니다</td></tr>';
+}
+
+async function tick() {
+  const foot = document.getElementById("foot");
+  try {
+    const r = await fetch("/stats", { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    render(await r.json());
+    foot.textContent = "마지막 갱신 " + new Date().toLocaleTimeString("ko-KR");
+  } catch (e) {
+    foot.textContent = "백엔드에 연결할 수 없습니다 (" + e.message + ") — 다시 시도 중";
+  }
+}
+
+tick();
+setInterval(tick, 2000);
+</script>
+</body>
+</html>
