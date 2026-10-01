@@ -483,6 +483,11 @@ class PictureDiaryFlowTest {
         assertTrue(await { "우리 집에 더 그렸구나" in s.line } != null)
         assertEquals("합치지 않았다", 1, s.diaryDay.pieces.size)
         assertEquals(2, s.diaryDay.pieces.single().strokes.size)
+        // 합친 뒤 「나도 그려볼까?」에 「응」 — 합쳐져 사라진 조각을 찾다가 죽지 않고, 합친 조각을 그린다
+        assertTrue(await { s.line == "나도 우리 집을 그려볼까?" } != null)
+        assertTrue(d.push("응"))
+        assertTrue("말=${s.line}", await { "나도 그려 볼게" in s.line } != null)
+        assertTrue("오또 그림을 주문하다 흐름이 멈췄다", d.push("✅ 다 그렸어") && await { s.stage is DiaryAsk } != null)
     }
 
     /**

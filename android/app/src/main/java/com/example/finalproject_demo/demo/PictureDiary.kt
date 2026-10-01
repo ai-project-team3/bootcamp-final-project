@@ -154,7 +154,12 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             if (finished) break
             if (name == null || offers >= OTTO_OFFERS) continue
             when (offerOttoDrawing(name)) {
-                "yes" -> { offers++; waiting += orderOttoDrawing(this, day.pieces.first { it.id == piece.id }, name) }
+                "yes" -> {
+                    offers++
+                    // 「더 그렸어」로 합쳤으면 물은 조각은 없어지고 이름 조각만 남는다 — 그 조각을 그린다
+                    (day.pieces.firstOrNull { it.id == piece.id } ?: day.pieces.firstOrNull { it.name == name })
+                        ?.let { waiting += orderOttoDrawing(this, it, name) }
+                }
                 "done" -> break
             }
             continue
