@@ -1,5 +1,7 @@
 package com.example.finalproject_demo
 
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.click
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +31,8 @@ import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.catchUp
+import com.example.finalproject_demo.demo.cropFor
+import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.newDiaryDay
 import com.example.finalproject_demo.ui.Bg
@@ -139,7 +143,7 @@ class DiaryViewsTest {
     @Test
     fun aStrokeThenAQuietBrushTellsOttoToAsk() {
         val d = director()
-        d.s.newDiaryDay()
+        d.s.newDiaryDay().watching = true          // 오또가 그리기를 지켜보는 중 — 이때만 붓 멈춤이 간다
         d.s.stage = DiaryBoard()
         show(d)
         // a stopped test clock never recomposes after the gesture, so the pause timer never starts — let it run
@@ -220,6 +224,22 @@ class DiaryViewsTest {
         assertTrue("날씨가 그림의 해에서 켜지지 않았다", d.s.diaryDay.weather == DiaryWeather.SUN)
     }
 
+    /** 서버가 준 오또 그림(정사각형 PNG)은 납작한 선 조각에 붙어도 쪼그라들지 않는다 — 조각의 긴 변만 한 정사각형 */
+    @Test
+    fun ottosDrawingOnAFlatPieceIsNotSquashed() {
+        val d = director()
+        d.s.drawing += line(Color(0xFFE8604C), .60f, .60f, .85f, .66f)       // 선 하나 — 폭은 넓고 높이는 거의 없다
+        val day = d.s.newDiaryDay()
+        day.catchUp(d.s.drawing)
+        val bmp = android.graphics.Bitmap.createBitmap(64, 64, android.graphics.Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(bmp).drawCircle(32f, 32f, 28f, android.graphics.Paint().apply { color = android.graphics.Color.rgb(242, 149, 90) })
+        val png = java.io.ByteArrayOutputStream().also { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+        day.pieces[0] = day.pieces[0].copy(name = "엄마", look = PieceLook.OTTO, ottoPng = png)
+        d.s.stage = DiaryBoard()
+        show(d)
+        snap("diary_board_otto_flat_piece")
+    }
+
     /** D0 — 방에서 손 흔드는 오또 · [그릴래!] · [그림 없이 말할래] (docs/일기모드_UI.html) */
     @Test
     fun theStartAsksToDrawOrTalkInTheRoom() {
@@ -258,5 +278,53 @@ class DiaryViewsTest {
         compose.onNodeWithTag("d6-book").assertExists()
         snap("diary_gift")
         assertEquals("shelf", (d.replyTo { compose.onNodeWithTag("d6-shelf").performClick() } as? Reply.Tapped)?.value)
+    }
+
+    /** D5 — 조각을 톡 하면 도구대로 한마디(✋ 「우리 집 톡!」), 날씨를 누르면 그 날씨를 그린 조각이 「☀️ 해!」, 제목을 누르면 오또가 묻는다 */
+    @Test
+    fun aPagesPiecesTitleAndWeatherAnswerTaps() {
+        val d = director()
+        drawDay(d)
+        d.s.title = "우리 집 앞에서"
+        d.s.stage = DiaryPaper(0)
+        d.say("나는 오늘 우리 집, 나, 해를 그렸어요.")
+        show(d)
+        // 집 가운데(판 좌표 0.2 · 0.55)를 그림 칸 좌표로 — 그림 칸은 그린 부분만 3:1 로 잘라 보인다
+        val crop = cropFor(d.s.diaryDay.pieces.flatMap { it.strokes }, d.s.drawingAspect)
+        val fx = (0.2f - crop.left) / crop.width
+        val fy = (0.55f - crop.top) / crop.height
+        compose.onNodeWithTag("d5-picture").performTouchInput { click(Offset(width * fx, height * fy)) }
+        compose.mainClock.advanceTimeBy(200)                     // 한마디는 1.5초 떠 있다 — 그 안에 본다
+        compose.onNodeWithTag("d5-said").assertTextContains("우리 집 톡!")
+        assertEquals("wx:SUN", (d.replyTo { compose.onNodeWithTag("wx-${DiaryWeather.SUN.name}").performClick() } as? Reply.Tapped)?.value)
+        compose.mainClock.advanceTimeBy(200)
+        compose.onNodeWithTag("d5-said").assertTextContains("☀️ 해!")
+        assertEquals("title", (d.replyTo { compose.onNodeWithTag("d5-title").performClick() } as? Reply.Tapped)?.value)
+        compose.onNodeWithTag("d5-lines").performClick()          // 다시 쓰고 다시 움직인다 — 멈추지 않으면 된다
+        compose.mainClock.advanceTimeBy(500)
+    }
+
+    /** 🧩 — 조각을 톡 · 자리를 톡. 틀린 자리면 「다른 자리에 맞춰 볼까?」, 셋 다 맞추면 「✨ 다 맞췄다!」 */
+    @Test
+    fun thePuzzleIsSolvedByTappingAPieceThenItsPlace() {
+        val d = director()
+        drawDay(d)
+        d.s.slots["place"] = "우리 집 앞에서 놀았어"; d.s.slotBy["place"] = "child"
+        val pages = com.example.finalproject_demo.demo.buildDiaryBook(d.s.diaryBookInput())
+        val at = pages.indexOfFirst { it.kind == com.example.finalproject_demo.demo.DiaryPageKind.PUZZLE }
+        assertTrue("놀이 쪽이 없다", at >= 0)
+        d.s.stage = DiaryPaper(at)
+        show(d)
+        snap("diary_puzzle")
+        compose.onNodeWithTag("puzzle-piece-2").performClick()
+        compose.onNodeWithTag("puzzle-slot-0").performClick()
+        compose.mainClock.advanceTimeBy(200)
+        compose.onNodeWithTag("puzzle-hint").assertTextContains("다른 자리에 맞춰 볼까?", substring = true)
+        for (i in 0 until 3) {
+            compose.onNodeWithTag("puzzle-piece-$i").performClick()
+            compose.onNodeWithTag("puzzle-slot-$i").performClick()
+            compose.mainClock.advanceTimeBy(100)
+        }
+        compose.onNodeWithTag("puzzle-hint").assertTextContains("다 맞췄다", substring = true)
     }
 }

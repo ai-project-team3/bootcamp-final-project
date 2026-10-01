@@ -40,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -65,8 +66,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -97,6 +100,7 @@ import com.example.finalproject_demo.demo.boxOf
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.cropFor
 import com.example.finalproject_demo.demo.diaryBookInput
+import com.example.finalproject_demo.demo.diaryCovers
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.ottoEmoji
 import com.example.finalproject_demo.ui.shell.Otto
@@ -144,7 +148,8 @@ fun DiaryStageView(d: Director, stage: DiaryStage) {
         }
         when (stage) {
             is DiaryBoard -> DiaryBubble(d, cq, Modifier.align(Alignment.BottomStart))
-            is DiaryPaper -> {}
+            // 그림일기 한 장에는 대사 칸이 없다 — 오또가 묻는 동안(제목)만 작은 말풍선과 마이크
+            is DiaryPaper -> if (d.s.micEnabled) DiaryBubble(d, cq, Modifier.align(Alignment.BottomCenter))
             else -> MascotBubble(d, Modifier.align(Alignment.BottomCenter).padding(start = 8.dp, bottom = 6.dp))
         }
     }
@@ -246,7 +251,8 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
     LaunchedEffect(strokes) {
         if (strokes == 0) return@LaunchedEffect
         delay(BRUSH_PAUSE_MS)
-        if (!s.micEnabled && stage.pick == null) d.send(Reply.Tapped("pause", "붓 멈춤"))
+        // 오또가 지켜보는 중에만 — 묻는 중 · 고르는 중 · 아이가 말하는 중(녹음)에는 보내지 않는다
+        if (day.watching && !s.micOn && stage.pick == null) d.send(Reply.Tapped("pause", "붓 멈춤"))
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -304,7 +310,8 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
             PieceRings(day.pieces.toList(), day.askingPiece, cq)
             day.pieces.filter { it.name != null }.forEach { p ->
                 val b = boxOf(p.strokes) ?: return@forEach
-                val ready = p.look == PieceLook.OTTO
+                // ✨ — 오또 그림이 와 있다. 톡 하면 다시 고른다
+                val ready = p.ottoPng != null || p.look == PieceLook.OTTO
                 Text(
                     if (ready) "✨ ${p.name}" else p.name!!,
                     fontSize = (cq.value * 1.7f).sp,
@@ -313,6 +320,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                         // 고리 바로 위 — 판 맨 위에 그린 조각이면 판 안으로 내려 잘리지 않게
                         .offset(x = (maxWidth.value * b.left).dp, y = ((maxHeight.value * b.top) - cq.value * 4.4f).coerceAtLeast(4f).dp)
                         .background(if (ready) FeltCoral else FeltMustard, RoundedCornerShape(cq * 2))
+                        .then(if (ready) Modifier.clickable { d.send(Reply.Tapped("look:${p.id}", "오또 그림 보기")) } else Modifier)
                         .padding(horizontal = cq * 1.2f, vertical = cq * 0.2f),
                 )
             }
@@ -364,9 +372,10 @@ private fun DiaryBubble(d: Director, cq: Dp, modifier: Modifier) {
         shown = 0
         while (shown < text.length) { delay(28); shown++ }
         delay(4_000)
-        if (!s.micEnabled) tucked = true
+        if (!s.micOn) tucked = true
     }
-    val open = !tucked || s.micEnabled
+    // 접혀도 마이크는 남는다 — 아이는 아무 때나 먼저 말해도 된다. 말하는 중에는 펼친다
+    val open = !tucked || s.micOn
     val state = when {
         s.micOn -> OttoState.LISTEN
         shown < text.length -> OttoState.TALK
@@ -455,12 +464,14 @@ private fun OttoArt(piece: DiaryPiece, modifier: Modifier) {
 private fun OttoLook(piece: DiaryPiece, b: BoardBox, crop: BoardBox, wDp: Float, hDp: Float, alpha: Float = 1f) {
     val pop = remember(piece.id, piece.look) { Animatable(0.4f) }
     LaunchedEffect(piece.id, piece.look) { pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessLow)) }
-    val x = (b.left - crop.left) / crop.width * wDp
-    val y = (b.top - crop.top) / crop.height * hDp
+    // 오또 그림은 정사각형(640²)이다 — 조각이 납작한 선이어도 쪼그라들지 않게 조각의 긴 변만 한 정사각형을 조각 가운데에
     val w = b.width / crop.width * wDp
     val h = b.height / crop.height * hDp
+    val side = maxOf(w, h, 24f)
+    val x = ((b.left + b.right) / 2f - crop.left) / crop.width * wDp - side / 2f
+    val y = ((b.top + b.bottom) / 2f - crop.top) / crop.height * hDp - side / 2f
     Box(
-        Modifier.offset(x = x.dp, y = y.dp).size(maxOf(w, 24f).dp, maxOf(h, 24f).dp).alpha(alpha)
+        Modifier.offset(x = x.dp, y = y.dp).size(side.dp).alpha(alpha)
             .graphicsLayer { scaleX = 2f - pop.value; scaleY = pop.value }
     ) { OttoArt(piece, Modifier.fillMaxSize()) }
 }
@@ -490,7 +501,9 @@ internal fun diaryAskPose(listening: Boolean): Pose = if (listening) Pose.LIE_WR
 @Composable
 private fun DiaryAskView(d: Director, cq: Dp) {
     val s = d.s
-    val pieces = bookPieces(s)
+    // 「이건 뭐 그린 거야?」를 묻는 동안은 그 조각만 꽂는다
+    val focus = s.diaryDay.focusPiece
+    val pieces = bookPieces(s).let { all -> all.filter { it.id == focus }.ifEmpty { all } }
     Box(Modifier.fillMaxSize()) {
         TwoStars(PICTURE_REQUIRED.count { !s.slots[it].isNullOrBlank() }, cq, Modifier.align(Alignment.TopCenter).padding(top = cq * 2))
         Row(
@@ -595,6 +608,8 @@ private fun DiaryPaperView(d: Director, stage: DiaryPaper, cq: Dp) {
     val page = pages.getOrNull(stage.index) ?: return
     val last = stage.index == pages.lastIndex
     var tool by remember { mutableStateOf(Tool.HAND) }
+    var replay by remember(stage.index) { mutableIntStateOf(0) }                   // 글 칸을 누른 수 — 다시 쓰고 다시 움직인다
+    var glow by remember(stage.index) { mutableStateOf<Pair<Int, DiaryWeather>?>(null) }   // 날씨를 눌러 반짝일 조각
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // 종이 — 가운데. 오른쪽에 쪽 점과 ▶ 자리를 남긴다
@@ -607,14 +622,27 @@ private fun DiaryPaperView(d: Director, stage: DiaryPaper, cq: Dp) {
                 .testTag("d5-sheet")
         ) {
             // 왼쪽 위는 앱 틀의 🏠 · 🔒 자리 — 머리글을 그만큼 비킨다
-            SheetHead(d, day.weather, s.title, cq, Modifier.padding(start = maxOf(cq * 2, TopBarEnd - left), end = cq * 2, top = cq * 0.9f))
+            SheetHead(
+                d, day.weather, s.title, s.slotBy["title"] == "child", cq,
+                Modifier.padding(start = maxOf(cq * 2, TopBarEnd - left), end = cq * 2, top = cq * 0.9f),
+                onWeather = { w -> bookPieces(s).lastOrNull { p -> p.name?.let(w::drew) == true }?.let { glow = it.id to w } },
+            )
+            if (page.kind == DiaryPageKind.PUZZLE) {
+                PuzzlePanel(d, page, cq, stage.index)
+                return@Box
+            }
             PicturePanel(
                 d, page, tool, cq,
                 Modifier.align(Alignment.TopCenter).padding(top = cq * 6).size(cq * 66, cq * 22),
+                replay = replay, glow = glow,
             )
             // 오늘 기분을 고를 쪽이면 원고지가 기분 칸 자리를 비킨다 — 긴 문장이 얼굴 밑에 숨지 않게
-            val feel = last && page.asksFeel
-            Manuscript(page, cq, Modifier.padding(start = cq * 3, end = if (feel) cq * 38 else cq * 3, top = cq * 28.8f, bottom = cq))
+            val feel = page.asksFeel
+            Manuscript(
+                page, cq, replay,
+                Modifier.padding(start = cq * 3, end = if (feel) cq * 38 else cq * 3, top = cq * 28.8f, bottom = cq)
+                    .clickable { replay++ }.testTag("d5-lines"),
+            )
             if (feel) FeelRow(d, cq, Modifier.align(Alignment.TopEnd).padding(end = cq * 3, top = cq * 29.6f))
         }
         // 도구 — 왼쪽 세로. 앱 틀의 방 버튼 아래
@@ -668,7 +696,10 @@ private val DAYS = listOf("월", "화", "수", "목", "금", "토", "일")
 
 /** 날짜 · 날씨 · 제목 — 날씨는 그림에서 알아봤거나 아이가 누른 것만 켜진다(지어내지 않는다) */
 @Composable
-private fun SheetHead(d: Director, weather: DiaryWeather?, title: String?, cq: Dp, modifier: Modifier) {
+private fun SheetHead(
+    d: Director, weather: DiaryWeather?, title: String?, titleSaid: Boolean, cq: Dp, modifier: Modifier,
+    onWeather: (DiaryWeather) -> Unit,
+) {
     val today = LocalDate.now()
     val fs = (cq.value * 1.8f).sp
     Column(modifier) {
@@ -682,13 +713,21 @@ private fun SheetHead(d: Director, weather: DiaryWeather?, title: String?, cq: D
                         Modifier.size(cq * 3.6f).alpha(if (on) 1f else 0.35f)
                             .background(if (on) Picked else Color.Transparent, CircleShape)
                             .border(cq * 0.25f, if (on) FeltMustard else Color.Transparent, CircleShape)
-                            .clickable { d.send(Reply.Tapped("wx:${w.name}", w.label)) }
+                            .clickable { d.send(Reply.Tapped("wx:${w.name}", w.label)); onWeather(w) }
                             .testTag("wx-${w.name}"),
                         contentAlignment = Alignment.Center,
                     ) { Text(w.emoji, fontSize = (cq.value * 2f).sp) }
                 }
             }
-            Text("제목: ${title ?: "오늘의 그림일기"}", fontSize = fs, color = InkBrown, maxLines = 1)
+            // 제목을 누르면 오또가 「이 일기 제목은 뭐로 할까?」 — 아이가 말한 제목이 아니면 밑줄로 누를 수 있다고 알린다
+            Row(Modifier.clickable { d.send(Reply.Tapped("title", "제목")) }.testTag("d5-title"), verticalAlignment = Alignment.CenterVertically) {
+                Text("제목: ", fontSize = fs, color = InkBrown)
+                Text(
+                    title ?: "눌러서 말해 줘", fontSize = fs, maxLines = 1,
+                    color = if (titleSaid) InkBrown else InkSoft,
+                    textDecoration = if (titleSaid) null else TextDecoration.Underline,
+                )
+            }
         }
         Box(Modifier.fillMaxWidth().height(cq * 0.2f).background(PaperLine))
     }
@@ -697,49 +736,112 @@ private fun SheetHead(d: Director, weather: DiaryWeather?, title: String?, cq: D
 /**
  * 그림 칸 — 아이 그림 조각이 그린 자리 그대로. 문장에 나온 조각은 앞에서 문장대로 움직이고
  * 나머지는 흐리게 뒤에 남는다. 그린 부분만 3:1 로 잘라 맞춘다(찌그러짐 없음).
- * 조각을 톡 누르면 고른 도구대로 반응한다(✋ 통통 · 🔨 납작 · 🪶 간질 · 🔍 크게).
+ * 조각을 짧게 톡 하면 고른 도구대로 반응하고(✋ 통통 · 🔨 납작 · 🪶 간질 · 🔍 크게) 한마디 한다. 끌면 옮겨진다(이 쪽 안에서만).
+ * 글 칸을 누르면([replay]) 앞에 나온 조각이 다시 통통, 날씨를 누르면([glow]) 그 날씨를 그린 조각이 반짝인다.
  */
 @Composable
-private fun PicturePanel(d: Director, page: DiaryPage, tool: Tool, cq: Dp, modifier: Modifier) {
+private fun PicturePanel(
+    d: Director, page: DiaryPage, tool: Tool, cq: Dp, modifier: Modifier,
+    replay: Int = 0, glow: Pair<Int, DiaryWeather>? = null,
+) {
     val s = d.s
     val pieces = bookPieces(s)
-    var poke by remember { mutableStateOf<Pair<Int, Int>?>(null) }     // 조각 id · 누른 차례
+    val density = LocalDensity.current
+    var poke by remember(page) { mutableStateOf<Pair<Int, Int>?>(null) }      // 조각 id · 누른 차례
+    var said by remember(page) { mutableStateOf<Pair<Int, String>?>(null) }   // 조각 id · 한마디
+    val moved = remember(page) { mutableStateMapOf<Int, Offset>() }           // 조각 id → 끌어 옮긴 거리(px)
+    var dragging by remember(page) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(said) { if (said != null) { delay(1_500); said = null } }
+    LaunchedEffect(glow) { glow?.let { (id, w) -> said = id to "${w.emoji} ${pieces.firstOrNull { it.id == id }?.name.orEmpty()}!" } }
     BoxWithConstraints(
         modifier.clip(RoundedCornerShape(cq)).background(Color.White, RoundedCornerShape(cq))
             .border(cq * 0.25f, PaperLine, RoundedCornerShape(cq))
+            .testTag("d5-picture")
     ) {
         if (pieces.isEmpty()) {
             Text("✏️", fontSize = (cq.value * 5).sp, modifier = Modifier.align(Alignment.Center).alpha(0.4f))
             return@BoxWithConstraints
         }
         val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f)
-        val everyone = page.kind == DiaryPageKind.DRAWING || page.kind == DiaryPageKind.PLACE
+        val everyone = page.kind == DiaryPageKind.DRAWING || page.kind == DiaryPageKind.PLACE || page.kind == DiaryPageKind.PUZZLE
         val wDp = maxWidth.value
         val hDp = maxHeight.value
-        Box(Modifier.fillMaxSize().pointerInput(pieces, crop) {
-            detectTapGestures { at ->
-                val x = crop.left + at.x / size.width * crop.width
-                val y = crop.top + at.y / size.height * crop.height
-                val hit = pieces.lastOrNull { p -> boxOf(p.strokes)?.grow(0.03f)?.let { x in it.left..it.right && y in it.top..it.bottom } == true }
-                if (hit != null) poke = hit.id to ((poke?.second ?: 0) + 1)
-            }
-        }) {
+        // 화면 좌표 → 그 자리의 조각 (옮긴 조각은 옮긴 자리로)
+        fun hit(at: Offset, w: Float, h: Float): DiaryPiece? = pieces.lastOrNull { p ->
+            val o = moved[p.id] ?: Offset.Zero
+            val x = crop.left + (at.x - o.x) / w * crop.width
+            val y = crop.top + (at.y - o.y) / h * crop.height
+            boxOf(p.strokes)?.grow(0.03f)?.let { x in it.left..it.right && y in it.top..it.bottom } == true
+        }
+        Box(
+            Modifier.fillMaxSize()
+                .pointerInput(pieces, crop, tool) {
+                    detectTapGestures { at ->
+                        val p = hit(at, size.width.toFloat(), size.height.toFloat()) ?: return@detectTapGestures
+                        poke = p.id to ((poke?.second ?: 0) + 1)
+                        said = p.id to reactionWord(tool, p)
+                    }
+                }
+                .pointerInput(pieces, crop) {
+                    detectDragGestures(
+                        onDragStart = { at -> dragging = hit(at, size.width.toFloat(), size.height.toFloat())?.id },
+                        onDrag = { change, amount ->
+                            val id = dragging ?: return@detectDragGestures
+                            moved[id] = (moved[id] ?: Offset.Zero) + amount
+                            change.consume()
+                        },
+                        onDragEnd = { dragging = null },
+                        onDragCancel = { dragging = null },
+                    )
+                }
+        ) {
             pieces.forEach { p ->
-                val front = everyone || (p.name != null && p.name in page.cast)
+                val front = everyone || (p.name != null && p.name in page.cast) || p.id in moved || p.id == glow?.first
                 val moves = front && !everyone && p.name !in page.still
                 val a = if (front) 1f else 0.25f
-                val nonce = poke?.takeIf { it.first == p.id }?.second ?: 0
-                PieceLayer(p, crop, if (moves) page.move else null, a, wDp, hDp, tool.takeIf { nonce > 0 }, nonce)
+                val mine = poke?.takeIf { it.first == p.id }?.second ?: 0
+                // 글 칸을 다시 누르면 앞에 나온 조각이 모두 통통 — 누른 조각의 반응이 먼저다
+                val (rxTool, nonce) = when {
+                    mine > 0 -> tool to mine
+                    replay > 0 && front -> Tool.HAND to 10_000 + replay
+                    else -> null to 0
+                }
+                PieceLayer(
+                    p, crop, if (moves) page.move else null, a, wDp, hDp, rxTool, nonce,
+                    shift = moved[p.id] ?: Offset.Zero, glowing = p.id == glow?.first,
+                )
+            }
+            said?.let { (id, word) ->
+                val p = pieces.firstOrNull { it.id == id } ?: return@let
+                val b = boxOf(p.strokes) ?: return@let
+                val o = moved[id] ?: Offset.Zero
+                val x = ((b.left + b.right) / 2f - crop.left) / crop.width * wDp + with(density) { o.x.toDp().value }
+                val y = (b.top - crop.top) / crop.height * hDp + with(density) { o.y.toDp().value }
+                Text(
+                    word, fontSize = (cq.value * 2f).sp, color = InkBrown, maxLines = 1,
+                    modifier = Modifier.offset(x = (x - cq.value * 6).dp, y = (y - cq.value * 4).coerceAtLeast(0f).dp)
+                        .shadow(cq * 0.4f, RoundedCornerShape(cq * 2)).background(Color.White, RoundedCornerShape(cq * 2))
+                        .padding(horizontal = cq * 1.4f, vertical = cq * 0.4f)
+                        .testTag("d5-said"),
+                )
             }
         }
     }
+}
+
+/** 도구로 조각을 누를 때 조각이 하는 한마디 (프로토타입 react) */
+private fun reactionWord(tool: Tool, p: DiaryPiece): String = when (tool) {
+    Tool.HAND -> p.name?.let { "$it 톡!" } ?: "톡!"
+    Tool.HAMMER -> "간지러워!"
+    Tool.FEATHER -> "깔깔깔!"
+    Tool.LENS -> "${if (p.look == PieceLook.OTTO) "오또랑 같이 그린" else "내가 그린"} ${p.name ?: "그림"}"
 }
 
 /** 조각 한 겹 — 움직임은 조각 가운데를 축으로. [poked] 가 바뀔 때마다 [tool] 반응을 한 번 */
 @Composable
 private fun PieceLayer(
     p: DiaryPiece, crop: BoardBox, move: PieceMove?, alpha: Float, wDp: Float, hDp: Float,
-    tool: Tool? = null, poked: Int = 0,
+    tool: Tool? = null, poked: Int = 0, shift: Offset = Offset.Zero, glowing: Boolean = false,
 ) {
     val b = boxOf(p.strokes) ?: return
     val t = rememberInfiniteTransition(label = "piece${p.id}")
@@ -755,13 +857,15 @@ private fun PieceLayer(
     val cy = ((b.top + b.bottom) / 2f - crop.top) / crop.height
     val layer = Modifier.fillMaxSize().alpha(alpha).graphicsLayer {
         transformOrigin = TransformOrigin(cx.coerceIn(0f, 1f), cy.coerceIn(0f, 1f))
+        translationX = shift.x
+        translationY = shift.y
         when (move) {
-            PieceMove.HOP -> translationY = -k * size.height * 0.08f
+            PieceMove.HOP -> translationY += -k * size.height * 0.08f
             PieceMove.TOPPLE -> rotationZ = k * 22f
-            PieceMove.DROOP -> { translationY = k * size.height * 0.03f; scaleY = 1f - k * 0.06f }
+            PieceMove.DROOP -> { translationY += k * size.height * 0.03f; scaleY = 1f - k * 0.06f }
             PieceMove.BUILD -> { scaleX = 1f + k * 0.06f; scaleY = 1f + k * 0.06f }
-            PieceMove.WALK -> translationX = (k - 0.5f) * size.width * 0.04f
-            PieceMove.BOB -> translationY = -k * size.height * 0.02f
+            PieceMove.WALK -> translationX += (k - 0.5f) * size.width * 0.04f
+            PieceMove.BOB -> translationY += -k * size.height * 0.02f
             null -> {}
         }
         // 누른 반응 — 0 → 1 동안 한 번 (sin 곡선으로 제자리로 돌아온다)
@@ -775,17 +879,21 @@ private fun PieceLayer(
         }
     }
     if (p.look == PieceLook.OTTO) Box(layer) { OttoLook(p, b, crop, wDp, hDp) }
-    else Canvas(layer) { p.strokes.forEach { drawBoardStroke(it, crop) } }
+    else Canvas(layer) {
+        // 날씨를 눌러 반짝 — 선 뒤로 겨자빛을 두껍게 한 번 더
+        if (glowing) p.strokes.forEach { drawBoardStroke(it.copy(color = FeltMustard.copy(alpha = 0.45f), w = it.w * 3.5f), crop) }
+        p.strokes.forEach { drawBoardStroke(it, crop) }
+    }
 }
 
 /** 원고지 — 문장이 한 글자씩 써진다. 비었다고 쓰는 꼬리와 「오늘은 …」은 연하게. 넘치면 칸을 줄인다 */
 @Composable
-private fun Manuscript(page: DiaryPage, cq: Dp, modifier: Modifier) {
+private fun Manuscript(page: DiaryPage, cq: Dp, replay: Int, modifier: Modifier) {
     val main = page.text
     val soft = listOfNotNull(page.tail, page.closing ?: if (page.asksFeel) "$FEEL_LEAD …" else null).joinToString(" ")
     val chars = (main + if (soft.isEmpty()) "" else " $soft").toList()
-    var shown by remember(page) { mutableIntStateOf(0) }
-    LaunchedEffect(page) { while (shown < chars.size) { delay(60); shown++ } }
+    var shown by remember(page, replay) { mutableIntStateOf(0) }
+    LaunchedEffect(page, replay) { while (shown < chars.size) { delay(60); shown++ } }
     BoxWithConstraints(modifier.fillMaxSize()) {
         // 프로토타입 칸 3.3 × 5.2cqw — 글이 넘치면 같은 비율로 줄인다
         var cellW = cq.value * 3.3f
@@ -890,5 +998,155 @@ private fun DiaryGiftView(d: Director, cq: Dp) {
                 .testTag("d6-shelf"),
             contentAlignment = Alignment.Center,
         ) { Text("📚 책장에 꽂기", fontSize = (cq.value * 3f).sp, color = Color.White) }
+    }
+}
+
+// ── 책장 표지 ────────────────────────────────────────────────────
+
+/**
+ * 책장에 꽂힌 그림일기의 표지 — 그날 아이가 그린 조각(오또 그림을 고른 조각은 그 모습)을 흰 종이에.
+ * `Shelf.kt` 가 [hasDiaryCover] 로 물어 그림일기 책이면 장소 그림 대신 이것을 그린다
+ */
+@Composable
+fun DiaryShelfCover(s: DemoState, title: String, modifier: Modifier = Modifier) {
+    val cover = s.diaryCovers[title] ?: return
+    BoxWithConstraints(modifier.background(Color.White).padding(4.dp).testTag("diary-shelf-cover")) {
+        val crop = cropFor(cover.pieces.flatMap { it.strokes }, cover.aspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)
+        cover.pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
+    }
+}
+
+// ── D5 🧩 내 그림 맞추기 ─────────────────────────────────────────
+
+/** 퍼즐 조각 수 · 섞인 차례(처음부터 맞게 놓이지 않게) · 원고지 자리에서의 크기 */
+private const val PUZZLE_N = 3
+private val PUZZLE_SHUFFLE = listOf(2, 0, 1)
+private const val PUZZLE_SMALL = 0.4f
+
+/**
+ * 🧩 내 그림 맞추기 (프로토타입 A3) — 그림 칸에 내 그림을 세로로 셋 나눈 흐린 자리, 원고지 자리에 섞인 조각 셋.
+ * 끌어다 놓거나 조각을 톡 · 자리를 톡. 틀린 자리면 제자리로 돌아가 「다른 자리에 맞춰 볼까?」(틀렸다고 하지 않는다).
+ * 8초 동안 진전이 없으면 다음 조각과 그 자리를 알려 준다. 다 맞추면 그림이 통통 — 점수 · 시간은 남기지 않는다.
+ */
+@Composable
+private fun PuzzlePanel(d: Director, page: DiaryPage, cq: Dp, pageIndex: Int) {
+    val s = d.s
+    val pieces = bookPieces(s)
+    if (pieces.isEmpty()) return
+    val density = LocalDensity.current
+    val placed = remember(pageIndex) { mutableStateListOf<Int>() }
+    var selected by remember(pageIndex) { mutableStateOf<Int?>(null) }
+    var hint by remember(pageIndex) { mutableStateOf("🧩 내 그림을 맞춰 볼까?") }
+    var helping by remember(pageIndex) { mutableStateOf<Int?>(null) }     // 8초 힌트 — 이 조각과 그 자리
+    var progress by remember(pageIndex) { mutableIntStateOf(0) }
+    var nudge by remember(pageIndex) { mutableStateOf<Pair<Int, Int>?>(null) }  // 조각 · 차례 — 흔들기
+    var done by remember(pageIndex) { mutableStateOf(false) }
+    val moved = remember(pageIndex) { mutableStateMapOf<Int, Offset>() }   // 끄는 중인 조각의 거리(px)
+
+    LaunchedEffect(progress, done) {
+        if (done) return@LaunchedEffect
+        delay(8_000)
+        val next = (0 until PUZZLE_N).firstOrNull { it !in placed } ?: return@LaunchedEffect
+        helping = next
+        nudge = next to ((nudge?.second ?: 0) + 1)
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize().testTag("d5-puzzle")) {
+        val cqPx = with(density) { cq.toPx() }
+        val picLeft = (maxWidth - cq * 66) / 2
+        val slotW = cq * 22
+        val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f)
+        fun strip(i: Int) = BoardBox(crop.left + i * crop.width / PUZZLE_N, crop.top, crop.left + (i + 1) * crop.width / PUZZLE_N, crop.bottom)
+        fun slotRect(i: Int): Pair<Offset, Float> = Offset(with(density) { (picLeft + slotW * i).toPx() }, 6 * cqPx) to with(density) { slotW.toPx() }
+        fun homeOf(i: Int): Offset { val j = PUZZLE_SHUFFLE.indexOf(i); return Offset((10 + j * (22 * PUZZLE_SMALL + 6)) * cqPx, 30 * cqPx) }
+
+        fun place(i: Int) {
+            if (i in placed) return
+            placed += i; selected = null; helping = null; moved.remove(i); progress++
+            if (placed.size < PUZZLE_N) { hint = "🧩 잘했어! 또 맞춰 볼까?"; return }
+            hint = "✨ 다 맞췄다!"
+            d.event("mission", "kind" to "A3", "result" to "done")      // 점수 · 시간은 남기지 않는다
+        }
+        fun sendHome(i: Int) {
+            moved.remove(i); selected = null
+            nudge = i to ((nudge?.second ?: 0) + 1)
+            hint = "🧩 다른 자리에 맞춰 볼까?"
+        }
+        LaunchedEffect(placed.size) { if (placed.size == PUZZLE_N) { delay(600); done = true } }
+
+        if (done) {
+            PicturePanel(d, page, Tool.HAND, cq, Modifier.align(Alignment.TopCenter).padding(top = cq * 6).size(cq * 66, cq * 22), replay = 1)
+        } else {
+            // 자리 셋 — 흐린 내 그림 조각. 조각을 고른 뒤 자리를 톡 하면 맞춘다
+            for (i in 0 until PUZZLE_N) {
+                Box(
+                    Modifier.offset(x = picLeft + slotW * i, y = cq * 6).size(slotW)
+                        .border(cq * 0.3f, if (helping == i) FeltMustard else PaperLine, RoundedCornerShape(cq * 0.8f))
+                        .clip(RoundedCornerShape(cq * 0.8f))
+                        .clickable(enabled = selected != null) { selected?.let { if (it == i) place(it) else sendHome(it) } }
+                        .testTag("puzzle-slot-$i")
+                ) {
+                    if (i in placed) StripArt(pieces, strip(i), 1f)
+                    else StripArt(pieces, strip(i), 0.15f)
+                }
+            }
+            // 섞인 조각 — 끌거나 톡
+            PUZZLE_SHUFFLE.filter { it !in placed }.forEach { i ->
+                val home = homeOf(i)
+                val at = home + (moved[i] ?: Offset.Zero)
+                val wobble = remember(i) { Animatable(0f) }
+                LaunchedEffect(nudge) {
+                    if (nudge?.first != i) return@LaunchedEffect
+                    repeat(2) { wobble.animateTo(9f, tween(90)); wobble.animateTo(-8f, tween(120)); wobble.animateTo(0f, tween(90)) }
+                }
+                val tilt = (PUZZLE_SHUFFLE.indexOf(i) - 1) * 6f
+                Box(
+                    Modifier.offset { androidx.compose.ui.unit.IntOffset(at.x.toInt(), at.y.toInt()) }
+                        .size(slotW * PUZZLE_SMALL)
+                        .graphicsLayer { rotationZ = if (moved[i] != null) 0f else tilt + wobble.value }
+                        .shadow(cq * 0.6f, RoundedCornerShape(cq * 0.6f))
+                        .background(Color.White, RoundedCornerShape(cq * 0.6f))
+                        .border(if (selected == i || helping == i) cq * 0.45f else cq * 0.25f, if (selected == i || helping == i) FeltMustard else Color.White, RoundedCornerShape(cq * 0.6f))
+                        .clip(RoundedCornerShape(cq * 0.6f))
+                        .pointerInput(i) { detectTapGestures { selected = i } }
+                        .pointerInput(i) {
+                            detectDragGestures(
+                                onDrag = { change, amount -> moved[i] = (moved[i] ?: Offset.Zero) + amount; change.consume() },
+                                onDragEnd = {
+                                    val size = slotW.toPx() * PUZZLE_SMALL
+                                    val center = homeOf(i) + (moved[i] ?: Offset.Zero) + Offset(size / 2, size / 2)
+                                    val under = (0 until PUZZLE_N).firstOrNull { k ->
+                                        val (o, w) = slotRect(k)
+                                        center.x in o.x..(o.x + w) && center.y in o.y..(o.y + w)
+                                    }
+                                    when (under) {
+                                        i -> place(i)
+                                        null -> progress++
+                                        else -> sendHome(i)
+                                    }
+                                },
+                            )
+                        }
+                        .testTag("puzzle-piece-$i")
+                ) { StripArt(pieces, strip(i), 1f) }
+            }
+        }
+        // 안내 — 그림 칸 위
+        Text(
+            hint, fontSize = (cq.value * 1.8f).sp, color = if (placed.size == PUZZLE_N) Color.White else InkBrown,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = cq * 4.4f)
+                .shadow(cq * 0.4f, RoundedCornerShape(cq * 3))
+                .background(if (placed.size == PUZZLE_N) FeltTeal else Color.White, RoundedCornerShape(cq * 3))
+                .padding(horizontal = cq * 1.6f, vertical = cq * 0.4f)
+                .testTag("puzzle-hint"),
+        )
+    }
+}
+
+/** 내 그림의 한 세로 줄 — [crop] 창만 보이게 잘라서. [alpha] 가 낮으면 흐린 자리 */
+@Composable
+private fun StripArt(pieces: List<DiaryPiece>, crop: BoardBox, alpha: Float) {
+    BoxWithConstraints(Modifier.fillMaxSize().clip(RoundedCornerShape(0.dp)).alpha(alpha)) {
+        pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
     }
 }
