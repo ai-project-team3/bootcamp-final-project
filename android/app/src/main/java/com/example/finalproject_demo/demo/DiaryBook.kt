@@ -56,7 +56,24 @@ data class DiaryBookInput(
     val written: List<String>? = null,
     /** 놀이(미션) 쪽을 붙이나 — 앱의 책은 붙이고, 쪽 짜기만 보는 검사는 끈다 */
     val missions: Boolean = false,
+    /** 그림을 세 줄로 나눠 줄마다 선이 있나 — 없으면 🧩 조각 하나가 흰 카드다([puzzleStripsAllDrawn]) */
+    val puzzle: Boolean = true,
 )
+
+/** 🧩 퍼즐 조각 수 — 화면(`DiaryViews` PuzzlePanel)도 이 수로 나눈다 */
+const val PUZZLE_STRIPS = 3
+
+/**
+ * 그림을 퍼즐처럼 세로 [PUZZLE_STRIPS] 줄로 나눴을 때 줄마다 선이 지나가나. 화면과 같은 자르기([cropFor])로 본다.
+ * 10-01 실기기: 떨어진 동그라미 둘을 그린 날 가운데 조각이 흰 카드라 무엇을 맞추는지 알 수 없었다
+ */
+fun puzzleStripsAllDrawn(strokes: List<Stroke>, aspect: Float): Boolean {
+    val pts = strokes.flatMap { it.pts }
+    if (pts.isEmpty()) return false
+    val crop = cropFor(strokes, aspect)
+    val w = crop.width / PUZZLE_STRIPS
+    return (0 until PUZZLE_STRIPS).all { i -> val l = crop.left + i * w; pts.any { it.x in l..(l + w) } }
+}
 
 /** 퍼즐 쪽의 글 — 원고지 대신 놀이 안내가 들어간다 */
 const val PUZZLE_TEXT = "놀이 · 내 그림 맞추기"
@@ -66,7 +83,7 @@ private val ACTION = Regex("(갔|왔|했|놀았|놀고|놀다|탔|먹|쌓|그렸
 
 /** 그림이 있고 아이가 한 행동을 말한 날이면 맨 뒤에 퍼즐 쪽 — 기분 줄은 그 앞 쪽에 남는다 */
 private fun withMissions(pages: MutableList<DiaryPage>, input: DiaryBookInput): List<DiaryPage> {
-    if (!input.missions || !input.hasDrawing) return pages
+    if (!input.missions || !input.hasDrawing || !input.puzzle) return pages
     // 앱이 지은 문장(「…에 갔어요」)이 아니라 아이가 한 말 원문으로 본다
     val acted = listOf("place", "problem", "solution").any { k -> input.lines[k]?.let(ACTION::containsMatchIn) == true }
     if (!acted) return pages
@@ -87,6 +104,10 @@ fun DemoState.diaryBookInput(): DiaryBookInput = DiaryBookInput(
     feel = diaryDay.feel,
     written = diaryDay.written,
     missions = true,
+    puzzle = puzzleStripsAllDrawn(
+        diaryDay.pieces.flatMap { it.strokes }.ifEmpty { sceneDrawing.toList() },
+        drawingAspect.takeIf { it > 0f } ?: 1f,
+    ),
 )
 
 /** 그림일기 쪽 목록. 그림도 말도 없으면 빈 목록 — 책 없이 조용히 끝난다(D6) */

@@ -13,6 +13,10 @@ import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.newDiaryDay
+import com.example.finalproject_demo.demo.puzzleStripsAllDrawn
+import com.example.finalproject_demo.demo.Stroke
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -163,7 +167,7 @@ class DiaryBookTest {
     fun theBookReadsFromTheSessionState() {
         val s = DemoState().apply { mode = StoryMode.DIARY }
         val d = s.newDiaryDay()
-        d.pieces += DiaryPiece(0, emptyList(), "해")
+        d.pieces += DiaryPiece(0, listOf(Stroke(Color.Red, (0..20).map { Offset(0.2f + it * 0.03f, 0.3f + (it % 2) * 0.05f) })), "해")
         s.slots["place"] = "놀이터"; s.slotBy["place"] = "child"
         s.slots["problem"] = "그네 탔어"; s.slotBy["problem"] = "child"
         s.slots["detail"] = "the old eleven-step keys are not pages"
@@ -222,5 +226,17 @@ class DiaryBookTest {
         assertTrue("한 행동을 말하지 않은 날에 놀이를 붙였다", quiet.none { it.kind == DiaryPageKind.PUZZLE })
         val noDrawing = buildDiaryBook(smallDay.copy(missions = true, hasDrawing = false))
         assertTrue("그림 없는 날에 그림 맞추기를 붙였다", noDrawing.none { it.kind == DiaryPageKind.PUZZLE })
+    }
+
+    /** 🧩 세 조각 모두에 선이 있어야 한다 — 10-01 실기기: 떨어진 동그라미 둘이면 가운데 조각이 흰 카드였다 */
+    @Test
+    fun aPuzzleNeedsLinesInEveryStrip() {
+        fun circle(cx: Float) = Stroke(Color.Red, (0..24).map { i -> val a = i * Math.PI / 12; Offset(cx + 0.08f * Math.cos(a).toFloat(), 0.5f + 0.15f * Math.sin(a).toFloat()) })
+        val wavy = Stroke(Color.Red, (0..40).map { i -> Offset(0.1f + i * 0.02f, 0.5f + if (i % 2 == 0) 0.05f else -0.05f) })
+        assertTrue(puzzleStripsAllDrawn(listOf(wavy), aspect = 2.2f))
+        assertFalse("가운데가 빈 그림으로 퍼즐을 만들었다", puzzleStripsAllDrawn(listOf(circle(0.2f), circle(0.8f)), aspect = 2.2f))
+        assertFalse(puzzleStripsAllDrawn(emptyList(), aspect = 2.2f))
+        val gap = buildDiaryBook(smallDay.copy(missions = true, puzzle = false))
+        assertTrue("세 조각을 못 만드는 그림에 놀이를 붙였다", gap.none { it.kind == DiaryPageKind.PUZZLE })
     }
 }

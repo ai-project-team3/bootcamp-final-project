@@ -1020,7 +1020,7 @@ fun DiaryShelfCover(s: DemoState, title: String, modifier: Modifier = Modifier) 
 // ── D5 🧩 내 그림 맞추기 ─────────────────────────────────────────
 
 /** 퍼즐 조각 수 · 섞인 차례(처음부터 맞게 놓이지 않게) · 원고지 자리에서의 크기 */
-private const val PUZZLE_N = 3
+private const val PUZZLE_N = com.example.finalproject_demo.demo.PUZZLE_STRIPS
 private val PUZZLE_SHUFFLE = listOf(2, 0, 1)
 private const val PUZZLE_SMALL = 0.4f
 
