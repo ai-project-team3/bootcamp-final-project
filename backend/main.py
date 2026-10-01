@@ -9,6 +9,7 @@ Run (from backend/):
     MOCK=1 → spec-shaped fixed answers, no keys, no GPU (for wiring the app)
 """
 import asyncio
+import logging
 import time
 from collections import Counter
 from contextlib import asynccontextmanager
@@ -22,6 +23,11 @@ from starlette.exceptions import HTTPException
 
 from app.config import settings
 from app.image import comfy
+
+# Our own INFO lines (which voice spoke · stt timing · image steps) reach `docker logs`.
+# Nothing was configured before, so only warnings showed (10-01). httpx logs each URL at INFO — kept quiet.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(name)s · %(message)s")
+logging.getLogger("httpx").setLevel(logging.WARNING)
 from app.routers import image, judge, story, stt, tts, turn
 
 
