@@ -239,4 +239,13 @@ class DiaryBookTest {
         val gap = buildDiaryBook(smallDay.copy(missions = true, puzzle = false))
         assertTrue("세 조각을 못 만드는 그림에 놀이를 붙였다", gap.none { it.kind == DiaryPageKind.PUZZLE })
     }
+
+    /** 「엄마랑 미끄럼틀 탔어」 — 같이 있던 엄마는 통통, 미끄럼틀은 문장대로. 1쪽(전체 그림)에는 없다 (프로토타입 `withWho`) */
+    @Test
+    fun whoWasThereTooHops() {
+        val day = DiaryBookInput(mapOf("problem" to "엄마랑 미끄럼틀 탔어"), pieceNames = listOf("엄마", "미끄럼틀"), hasDrawing = true)
+        val book = buildDiaryBook(day)
+        assertEquals(setOf("엄마"), book.first { it.kind == DiaryPageKind.PROBLEM }.with)
+        assertTrue(book.first { it.kind == DiaryPageKind.DRAWING }.with.isEmpty())
+    }
 }

@@ -30,6 +30,7 @@ enum class PieceMove { TOPPLE, BUILD, DROOP, WALK, HOP, BOB }
  *
  * @param cast 앞으로 나와 움직이는 조각 이름. 나머지 조각은 흐리게 뒤에 남는다
  * @param still 문장이 **장소로** 쓴 조각(「우리 집 앞에」) — 앞으로 나오되 걷지 않는다
+ * @param with 「엄마랑 미끄럼틀 탔어」의 엄마처럼 **같이 있던** 조각 — 문장의 움직임 대신 통통 뛴다 (프로토타입 `withWho`)
  * @param closing 마지막 쪽의 오늘 기분 줄. [asksFeel] 이면 아직 안 골랐다 — 「오늘은」까지 써 두고 얼굴을 누르게 한다
  */
 data class DiaryPage(
@@ -39,6 +40,7 @@ data class DiaryPage(
     val cast: List<String>,
     val move: PieceMove,
     val still: Set<String> = emptySet(),
+    val with: Set<String> = emptySet(),
     val tail: String? = null,
     val closing: String? = null,
     val asksFeel: Boolean = false,
@@ -124,6 +126,7 @@ fun buildDiaryBook(input: DiaryBookInput): List<DiaryPage> {
         cast = if (castAll) names else names.filter { mentions(text, it) },
         move = moveFrom(text),
         still = names.filter { asPlace(text, it) }.toSet(),
+        with = if (castAll) emptySet() else names.filter { Regex(Regex.escape(it) + "(이랑|랑|하고|와|과)").containsMatchIn(text) }.toSet(),
     )
 
     val pages = mutableListOf<DiaryPage>()

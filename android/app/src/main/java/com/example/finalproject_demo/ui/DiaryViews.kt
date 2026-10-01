@@ -810,7 +810,7 @@ private fun PicturePanel(
                     else -> null to 0
                 }
                 PieceLayer(
-                    p, crop, if (moves) page.move else null, a, wDp, hDp, rxTool, nonce,
+                    p, crop, if (!moves) null else if (p.name in page.with) PieceMove.HOP else page.move, a, wDp, hDp, rxTool, nonce,
                     shift = moved[p.id] ?: Offset.Zero, glowing = p.id == glow?.first,
                 )
             }
