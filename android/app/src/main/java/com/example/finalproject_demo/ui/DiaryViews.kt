@@ -496,7 +496,9 @@ internal fun diaryAskPose(listening: Boolean): Pose = if (listening) Pose.LIE_WR
 @Composable
 private fun DiaryAskView(d: Director, cq: Dp) {
     val s = d.s
-    val pieces = bookPieces(s)
+    // 「이건 뭐 그린 거야?」를 묻는 동안은 그 조각만 꽂는다
+    val focus = s.diaryDay.focusPiece
+    val pieces = bookPieces(s).let { all -> all.filter { it.id == focus }.ifEmpty { all } }
     Box(Modifier.fillMaxSize()) {
         TwoStars(PICTURE_REQUIRED.count { !s.slots[it].isNullOrBlank() }, cq, Modifier.align(Alignment.TopCenter).padding(top = cq * 2))
         Row(

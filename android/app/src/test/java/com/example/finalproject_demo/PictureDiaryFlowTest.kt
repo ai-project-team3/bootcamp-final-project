@@ -21,6 +21,7 @@ import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.diaryDay
+import com.example.finalproject_demo.demo.echoBack
 import com.example.finalproject_demo.demo.praiseFor
 import com.example.finalproject_demo.demo.soundsLikeAName
 import com.example.finalproject_demo.demo.yesNoOf
@@ -328,5 +329,33 @@ class PictureDiaryFlowTest {
         assertTrue(soundsLikeAName("우리 집이야!"))
         assertFalse(soundsLikeAName("나 오늘 너무 배고파"))
         assertFalse(soundsLikeAName("엄마가 그러는데 내일 비 온대"))
+    }
+
+    /** D3 — 필수 두 칸 다음에 이름 없는 조각 하나를 「이건 뭐 그린 거야?」로 묻는다. 카드에는 그 조각만 (프로토타입 nextD3) */
+    @Test
+    fun afterTheRequiredTwoOttoAsksAboutOneUnnamedPiece() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.2f)
+        assertTrue(d.push("✅ 다 그렸어"))
+        assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+        assertTrue(d.push("🎬 오늘 이야기 시연 답"))
+        assertTrue(await { "무슨 일이" in s.line } != null)
+        assertTrue(d.push("🎬 오늘 이야기 시연 답"))
+        assertTrue("필수 두 칸 다음에 조각을 묻지 않았다 — 말=${s.line}", await { s.line == "이건 뭐 그린 거야?" } != null)
+        assertTrue("카드가 그 조각만 꽂지 않았다", s.diaryDay.focusPiece != null)
+        assertTrue(d.push("우리 집이야"))
+        assertTrue(await { s.diaryDay.pieces.single().name == "우리 집" } != null)
+        assertTrue(await { s.diaryDay.focusPiece == null } != null)
+    }
+
+    @Test
+    fun ottoEchoesWhatTheChildSaidAsYou() {
+        assertEquals("놀이터 갔구나!", echoBack("놀이터 갔어"))
+        assertEquals("너는 블록을 쌓았구나!", echoBack("나는 블록을 쌓았어."))
+        assertEquals("우리 집이구나!", echoBack("우리 집이야"))
+        assertEquals("네가 먼저 탔구나!", echoBack("내가 먼저 탔어!"))
+        assertEquals("재미있어, 그랬구나!", echoBack("재미있어"))
     }
 }

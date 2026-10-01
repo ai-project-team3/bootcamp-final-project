@@ -402,10 +402,17 @@ private suspend fun Director.askEmptySlots() {
     val queue = PICTURE_QUESTIONS.filter { s.slots[it.key].isNullOrBlank() }.toMutableList()
     var asked = 0
     var wrapOffered = false
+    var pieceAsked = false
     while (queue.isNotEmpty() && asked < ASK_AFTER_DRAWING) {
         if (!wrapOffered && s.diaryTimeUp) {
             wrapOffered = true
             if (offerWrapUp()) break
+        }
+        // 필수 두 칸을 물은 뒤 — 이름 없는 조각 하나를 묻는다(세 번 안에서)
+        if (!pieceAsked && queue.none { it.key in PICTURE_REQUIRED }) {
+            pieceAsked = true
+            val unnamed = firstUnnamedPiece()
+            if (unnamed != null) { asked++; askPieceOnD3(unnamed); continue }
         }
         val pq = queue.removeAt(0)
         asked++
@@ -457,6 +464,8 @@ private suspend fun Director.askPictureSlot(pq: PictureQuestion) {
         setDiarySlot(step.slot, pq.key, value, line, "child")
         quote(r.text)
         s.mascotPicks = 0
+        say(echoBack(r.text))
+        pause(700)
         return
     }
 }
@@ -492,12 +501,19 @@ private suspend fun Director.askEmptySlotsLive() {
     var wrapOffered = false
     val gaveUp = mutableSetOf<String>()          // 두 번 모른다고 한 칸 — 다시 묻지 않는다
     var easyTried: String? = null
+    var pieceAsked = false
     while (next != null && asked < ASK_AFTER_DRAWING) {
         if (!wrapOffered && s.diaryTimeUp) {
             wrapOffered = true
             if (offerWrapUp()) break
         }
         val (slot, text, key) = next
+        // 필수 칸 질문이 아닌 차례가 오면 — 이름 없는 조각 하나를 먼저 묻는다(세 번 안에서)
+        if (!pieceAsked && key !in PICTURE_REQUIRED) {
+            pieceAsked = true
+            val unnamed = firstUnnamedPiece()
+            if (unnamed != null) { asked++; askPieceOnD3(unnamed); continue }
+        }
         val step = DIARY_STEPS.firstOrNull { it.bookKey == key } ?: DIARY_STEPS.firstOrNull { it.slot == slot }
         asked++
         s.stepsDone++
@@ -522,7 +538,10 @@ private suspend fun Director.askEmptySlotsLive() {
         if (v == null) {
             log("판정 서버가 답하지 않았다 → 이 턴은 아이 말을 물은 칸에 그대로 넣고 대본 차례로")
             judge(step?.variant, r, q.text)
-            if (!dontKnow(r.text)) setDiarySlot(slot, key, r.text.trim(), r.text.trim(), "child")
+            if (!dontKnow(r.text)) {
+                setDiarySlot(slot, key, r.text.trim(), r.text.trim(), "child")
+                say(echoBack(r.text)); pause(600)
+            }
             next = firstEmptyQuestion(gaveUp)
             continue
         }
@@ -560,6 +579,7 @@ private suspend fun Director.askEmptySlotsLive() {
         }
         val reaction = listOfNotNull(result.line?.ack?.takeIf(String::isNotBlank), result.line?.expand?.takeIf(String::isNotBlank)).joinToString(" ")
         if (reaction.isNotBlank()) { say(reaction); pause(600) }
+        else if (v.fills.isNotEmpty()) { say(echoBack(r.text)); pause(600) }
         val serverSlot = v.nextSlot?.takeIf { it in Server.SLOTS && s.slots[bookKeyOf(it, it)].isNullOrBlank() }
         val serverQuestion = result.line?.question?.takeIf(String::isNotBlank)
         next = when {
@@ -573,6 +593,40 @@ private suspend fun Director.askEmptySlotsLive() {
     }
     if (s.endReason == null && PICTURE_REQUIRED.all { !s.slots[it].isNullOrBlank() }) s.endReason = "story_ready"
     log("다 그린 뒤 ${asked}번 물었다 · /turn ${day.turnCalls}번 (#30 — 세기만)")
+}
+
+/** 그림 쪽에 들어갈, 아직 이름 없는 조각 — 선이 있는 첫 조각 */
+private fun Director.firstUnnamedPiece(): DiaryPiece? =
+    s.diaryDay.pieces.firstOrNull { it.name == null && it.strokes.isNotEmpty() }
+
+/** D3 — 「이건 뭐 그린 거야?」 그 조각만 꽂아 보여 주고 묻는다. 「몰라」면 이름 없이 책에 싣는다(그림은 아이 것이다) */
+private suspend fun Director.askPieceOnD3(piece: DiaryPiece) {
+    val day = s.diaryDay
+    day.focusPiece = piece.id
+    try {
+        val r = ask(Question(text = "이건 뭐 그린 거야?", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_piece_after"))
+        val name = (r as? Reply.Spoke)?.let { nameThePiece(day, piece, it) }
+        if (name == null) log("다 그린 뒤 조각 이름을 못 들었다 → 이름 없이 책에 싣는다")
+    } finally {
+        day.focusPiece = null
+    }
+}
+
+/**
+ * 오또가 아이 말을 「너」로 되받아 준다 — 「나는 놀이터 갔어」 → 「너는 놀이터 갔구나!」 (프로토타입 echoBack).
+ * 서버가 붙으면 판정의 받아 주기(ack)가 이 일을 하고, 이것은 대본 · 서버 실패 때만 쓴다.
+ */
+internal fun echoBack(raw: String): String {
+    var t = raw.trim().trimEnd('.', '!', '?', '~').trim()
+    t = Regex("""(^|\s)나(는|도|랑|를|의)?(?=\s|$)""").replace(t) { m -> "${m.groupValues[1]}너${m.groupValues[2]}" }
+    t = Regex("""(^|\s)내가(?=\s|$)""").replace(t) { m -> "${m.groupValues[1]}네가" }
+    t = Regex("""(^|\s)내(?=\s)""").replace(t) { m -> "${m.groupValues[1]}네" }
+    if (Regex("(았|었|였|했|갔|왔|졌|봤|났|탔|샀|웠)어$").containsMatchIn(t)) return t.dropLast(1) + "구나!"
+    if (Regex("(이야|야)$").containsMatchIn(t)) {
+        val base = t.replace(Regex("(이야|야)$"), "")
+        return "$base${if (bat(base)) "이" else ""}구나!"
+    }
+    return "$t, 그랬구나!"
 }
 
 /** 30분쯤 — 마무리를 **한 번** 제안한다. 더 하고 싶다면 계속한다. 되묻지 않는다 */
