@@ -627,13 +627,17 @@ private fun DiaryPaperView(d: Director, stage: DiaryPaper, cq: Dp) {
                 Modifier.padding(start = maxOf(cq * 2, TopBarEnd - left), end = cq * 2, top = cq * 0.9f),
                 onWeather = { w -> bookPieces(s).lastOrNull { p -> p.name?.let(w::drew) == true }?.let { glow = it.id to w } },
             )
+            if (page.kind == DiaryPageKind.PUZZLE) {
+                PuzzlePanel(d, page, cq, stage.index)
+                return@Box
+            }
             PicturePanel(
                 d, page, tool, cq,
                 Modifier.align(Alignment.TopCenter).padding(top = cq * 6).size(cq * 66, cq * 22),
                 replay = replay, glow = glow,
             )
             // 오늘 기분을 고를 쪽이면 원고지가 기분 칸 자리를 비킨다 — 긴 문장이 얼굴 밑에 숨지 않게
-            val feel = last && page.asksFeel
+            val feel = page.asksFeel
             Manuscript(
                 page, cq, replay,
                 Modifier.padding(start = cq * 3, end = if (feel) cq * 38 else cq * 3, top = cq * 28.8f, bottom = cq)
@@ -759,7 +763,7 @@ private fun PicturePanel(
             return@BoxWithConstraints
         }
         val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f)
-        val everyone = page.kind == DiaryPageKind.DRAWING || page.kind == DiaryPageKind.PLACE
+        val everyone = page.kind == DiaryPageKind.DRAWING || page.kind == DiaryPageKind.PLACE || page.kind == DiaryPageKind.PUZZLE
         val wDp = maxWidth.value
         val hDp = maxHeight.value
         // 화면 좌표 → 그 자리의 조각 (옮긴 조각은 옮긴 자리로)
@@ -1009,5 +1013,140 @@ fun DiaryShelfCover(s: DemoState, title: String, modifier: Modifier = Modifier) 
     BoxWithConstraints(modifier.background(Color.White).padding(4.dp).testTag("diary-shelf-cover")) {
         val crop = cropFor(cover.pieces.flatMap { it.strokes }, cover.aspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)
         cover.pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
+    }
+}
+
+// ── D5 🧩 내 그림 맞추기 ─────────────────────────────────────────
+
+/** 퍼즐 조각 수 · 섞인 차례(처음부터 맞게 놓이지 않게) · 원고지 자리에서의 크기 */
+private const val PUZZLE_N = 3
+private val PUZZLE_SHUFFLE = listOf(2, 0, 1)
+private const val PUZZLE_SMALL = 0.4f
+
+/**
+ * 🧩 내 그림 맞추기 (프로토타입 A3) — 그림 칸에 내 그림을 세로로 셋 나눈 흐린 자리, 원고지 자리에 섞인 조각 셋.
+ * 끌어다 놓거나 조각을 톡 · 자리를 톡. 틀린 자리면 제자리로 돌아가 「다른 자리에 맞춰 볼까?」(틀렸다고 하지 않는다).
+ * 8초 동안 진전이 없으면 다음 조각과 그 자리를 알려 준다. 다 맞추면 그림이 통통 — 점수 · 시간은 남기지 않는다.
+ */
+@Composable
+private fun PuzzlePanel(d: Director, page: DiaryPage, cq: Dp, pageIndex: Int) {
+    val s = d.s
+    val pieces = bookPieces(s)
+    if (pieces.isEmpty()) return
+    val density = LocalDensity.current
+    val placed = remember(pageIndex) { mutableStateListOf<Int>() }
+    var selected by remember(pageIndex) { mutableStateOf<Int?>(null) }
+    var hint by remember(pageIndex) { mutableStateOf("🧩 내 그림을 맞춰 볼까?") }
+    var helping by remember(pageIndex) { mutableStateOf<Int?>(null) }     // 8초 힌트 — 이 조각과 그 자리
+    var progress by remember(pageIndex) { mutableIntStateOf(0) }
+    var nudge by remember(pageIndex) { mutableStateOf<Pair<Int, Int>?>(null) }  // 조각 · 차례 — 흔들기
+    var done by remember(pageIndex) { mutableStateOf(false) }
+    val moved = remember(pageIndex) { mutableStateMapOf<Int, Offset>() }   // 끄는 중인 조각의 거리(px)
+
+    LaunchedEffect(progress, done) {
+        if (done) return@LaunchedEffect
+        delay(8_000)
+        val next = (0 until PUZZLE_N).firstOrNull { it !in placed } ?: return@LaunchedEffect
+        helping = next
+        nudge = next to ((nudge?.second ?: 0) + 1)
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize().testTag("d5-puzzle")) {
+        val cqPx = with(density) { cq.toPx() }
+        val picLeft = (maxWidth - cq * 66) / 2
+        val slotW = cq * 22
+        val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f)
+        fun strip(i: Int) = BoardBox(crop.left + i * crop.width / PUZZLE_N, crop.top, crop.left + (i + 1) * crop.width / PUZZLE_N, crop.bottom)
+        fun slotRect(i: Int): Pair<Offset, Float> = Offset(with(density) { (picLeft + slotW * i).toPx() }, 6 * cqPx) to with(density) { slotW.toPx() }
+        fun homeOf(i: Int): Offset { val j = PUZZLE_SHUFFLE.indexOf(i); return Offset((10 + j * (22 * PUZZLE_SMALL + 6)) * cqPx, 30 * cqPx) }
+
+        fun place(i: Int) {
+            if (i in placed) return
+            placed += i; selected = null; helping = null; moved.remove(i); progress++
+            if (placed.size < PUZZLE_N) { hint = "🧩 잘했어! 또 맞춰 볼까?"; return }
+            hint = "✨ 다 맞췄다!"
+            d.event("mission", "kind" to "A3", "result" to "done")      // 점수 · 시간은 남기지 않는다
+        }
+        fun sendHome(i: Int) {
+            moved.remove(i); selected = null
+            nudge = i to ((nudge?.second ?: 0) + 1)
+            hint = "🧩 다른 자리에 맞춰 볼까?"
+        }
+        LaunchedEffect(placed.size) { if (placed.size == PUZZLE_N) { delay(600); done = true } }
+
+        if (done) {
+            PicturePanel(d, page, Tool.HAND, cq, Modifier.align(Alignment.TopCenter).padding(top = cq * 6).size(cq * 66, cq * 22), replay = 1)
+        } else {
+            // 자리 셋 — 흐린 내 그림 조각. 조각을 고른 뒤 자리를 톡 하면 맞춘다
+            for (i in 0 until PUZZLE_N) {
+                Box(
+                    Modifier.offset(x = picLeft + slotW * i, y = cq * 6).size(slotW)
+                        .border(cq * 0.3f, if (helping == i) FeltMustard else PaperLine, RoundedCornerShape(cq * 0.8f))
+                        .clip(RoundedCornerShape(cq * 0.8f))
+                        .clickable(enabled = selected != null) { selected?.let { if (it == i) place(it) else sendHome(it) } }
+                        .testTag("puzzle-slot-$i")
+                ) {
+                    if (i in placed) StripArt(pieces, strip(i), 1f)
+                    else StripArt(pieces, strip(i), 0.15f)
+                }
+            }
+            // 섞인 조각 — 끌거나 톡
+            PUZZLE_SHUFFLE.filter { it !in placed }.forEach { i ->
+                val home = homeOf(i)
+                val at = home + (moved[i] ?: Offset.Zero)
+                val wobble = remember(i) { Animatable(0f) }
+                LaunchedEffect(nudge) {
+                    if (nudge?.first != i) return@LaunchedEffect
+                    repeat(2) { wobble.animateTo(9f, tween(90)); wobble.animateTo(-8f, tween(120)); wobble.animateTo(0f, tween(90)) }
+                }
+                val tilt = (PUZZLE_SHUFFLE.indexOf(i) - 1) * 6f
+                Box(
+                    Modifier.offset { androidx.compose.ui.unit.IntOffset(at.x.toInt(), at.y.toInt()) }
+                        .size(slotW * PUZZLE_SMALL)
+                        .graphicsLayer { rotationZ = if (moved[i] != null) 0f else tilt + wobble.value }
+                        .shadow(cq * 0.6f, RoundedCornerShape(cq * 0.6f))
+                        .background(Color.White, RoundedCornerShape(cq * 0.6f))
+                        .border(if (selected == i || helping == i) cq * 0.45f else cq * 0.25f, if (selected == i || helping == i) FeltMustard else Color.White, RoundedCornerShape(cq * 0.6f))
+                        .clip(RoundedCornerShape(cq * 0.6f))
+                        .pointerInput(i) { detectTapGestures { selected = i } }
+                        .pointerInput(i) {
+                            detectDragGestures(
+                                onDrag = { change, amount -> moved[i] = (moved[i] ?: Offset.Zero) + amount; change.consume() },
+                                onDragEnd = {
+                                    val size = slotW.toPx() * PUZZLE_SMALL
+                                    val center = homeOf(i) + (moved[i] ?: Offset.Zero) + Offset(size / 2, size / 2)
+                                    val under = (0 until PUZZLE_N).firstOrNull { k ->
+                                        val (o, w) = slotRect(k)
+                                        center.x in o.x..(o.x + w) && center.y in o.y..(o.y + w)
+                                    }
+                                    when (under) {
+                                        i -> place(i)
+                                        null -> progress++
+                                        else -> sendHome(i)
+                                    }
+                                },
+                            )
+                        }
+                        .testTag("puzzle-piece-$i")
+                ) { StripArt(pieces, strip(i), 1f) }
+            }
+        }
+        // 안내 — 그림 칸 위
+        Text(
+            hint, fontSize = (cq.value * 1.8f).sp, color = if (placed.size == PUZZLE_N) Color.White else InkBrown,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = cq * 4.4f)
+                .shadow(cq * 0.4f, RoundedCornerShape(cq * 3))
+                .background(if (placed.size == PUZZLE_N) FeltTeal else Color.White, RoundedCornerShape(cq * 3))
+                .padding(horizontal = cq * 1.6f, vertical = cq * 0.4f)
+                .testTag("puzzle-hint"),
+        )
+    }
+}
+
+/** 내 그림의 한 세로 줄 — [crop] 창만 보이게 잘라서. [alpha] 가 낮으면 흐린 자리 */
+@Composable
+private fun StripArt(pieces: List<DiaryPiece>, crop: BoardBox, alpha: Float) {
+    BoxWithConstraints(Modifier.fillMaxSize().clip(RoundedCornerShape(0.dp)).alpha(alpha)) {
+        pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
     }
 }

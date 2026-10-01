@@ -782,14 +782,15 @@ private suspend fun Director.readPictureDiary(day: DiaryDay) {
         val pages = buildDiaryBook(s.diaryBookInput())
         val p = pages[i]
         val last = i == pages.lastIndex
-        val caption = listOfNotNull(p.text, p.tail, p.closing ?: if (p.asksFeel) "$FEEL_LEAD …" else null).joinToString(" ")
+        val caption = if (p.kind == DiaryPageKind.PUZZLE) "내 그림을 맞춰 볼까? 조각을 끌어다 제자리에 놓아 봐!"
+        else listOfNotNull(p.text, p.tail, p.closing ?: if (p.asksFeel) "$FEEL_LEAD …" else null).joinToString(" ")
         s.stage = DiaryPaper(i)
         say(caption)
         val b = mutableListOf<DemoBtn>()
         if (i == 0 && day.weather == null) DiaryWeather.entries.forEach { w ->
             b += DemoBtn("${w.emoji} 날씨 ${w.label}") { send(Reply.Tapped("wx:${w.name}", w.label)) }
         }
-        if (last && p.asksFeel) DiaryFeel.entries.forEach { f ->
+        if (p.asksFeel) DiaryFeel.entries.forEach { f ->
             b += DemoBtn("${f.emoji} ${f.line}") { send(Reply.Tapped("feel:${f.name}", f.line)) }
         }
         // 넘기기가 앞이다 — 동화 책(sceneBook)과 같은 차례. 앞 쪽이 먼저면 앞으로만 누르는 손이 책 앞뒤를 오간다

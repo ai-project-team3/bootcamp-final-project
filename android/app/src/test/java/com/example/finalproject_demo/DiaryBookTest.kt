@@ -1,5 +1,6 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.PUZZLE_TEXT
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.DiaryBookInput
 import com.example.finalproject_demo.demo.DiaryFeel
@@ -167,7 +168,8 @@ class DiaryBookTest {
         s.slots["problem"] = "그네 탔어"; s.slotBy["problem"] = "child"
         s.slots["detail"] = "the old eleven-step keys are not pages"
         val book = buildDiaryBook(s.diaryBookInput())
-        assertEquals(listOf("나는 오늘 해를 그렸어요.", "나는 오늘 놀이터에 갔어요.", "그네 탔어요."), book.map { it.text })
+        // 그네를 「탔어」 — 한 행동을 말한 날이라 맨 뒤에 놀이(퍼즐) 쪽이 붙는다
+        assertEquals(listOf("나는 오늘 해를 그렸어요.", "나는 오늘 놀이터에 갔어요.", "그네 탔어요.", PUZZLE_TEXT), book.map { it.text })
         assertEquals("child", book[1].by)
     }
 
@@ -206,5 +208,19 @@ class DiaryBookTest {
         val book = buildDiaryBook(smallDay.copy(written = listOf("나는 오늘 놀이터에 갔어요.", "미끄럼틀을 탔어요.", "그 뒤에 어떻게 되었는지는 아직 듣지 못했어요.")))
         assertEquals(4, book.size)
         assertTrue(book.last().asksFeel)
+    }
+
+    /** 🧩 놀이 — 그림이 있고 아이가 한 행동을 말한 날에만 맨 뒤에. 기분 줄은 그 앞 쪽에 남는다 */
+    @Test
+    fun aPuzzlePageFollowsADayTheChildDidSomething() {
+        val book = buildDiaryBook(smallDay.copy(missions = true))
+        assertEquals(DiaryPageKind.PUZZLE, book.last().kind)
+        assertEquals(PUZZLE_TEXT, book.last().text)
+        assertTrue("기분 줄이 놀이 쪽으로 갔다", book[book.lastIndex - 1].asksFeel)
+        assertFalse(book.last().asksFeel)
+        val quiet = buildDiaryBook(smallDay.copy(missions = true, lines = mapOf("place" to "놀이터")))
+        assertTrue("한 행동을 말하지 않은 날에 놀이를 붙였다", quiet.none { it.kind == DiaryPageKind.PUZZLE })
+        val noDrawing = buildDiaryBook(smallDay.copy(missions = true, hasDrawing = false))
+        assertTrue("그림 없는 날에 그림 맞추기를 붙였다", noDrawing.none { it.kind == DiaryPageKind.PUZZLE })
     }
 }

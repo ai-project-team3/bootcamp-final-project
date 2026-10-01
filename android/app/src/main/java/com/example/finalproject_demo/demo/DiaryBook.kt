@@ -18,6 +18,8 @@ enum class DiaryPageKind(val slot: String, val bookKey: String) {
     REACTION("reaction", "reaction"),
     SOLUTION("solution", "solution"),
     KEEP("extra", "keep"),
+    /** 🧩 내 그림 맞추기 — 아이가 한 행동을 말한 날, 그림이 있으면 맨 뒤에 (프로토타입 A3 · 09-29 조장) */
+    PUZZLE("extra", "puzzle"),
 }
 
 /** 문장이 조각을 어떻게 움직이나 — 문장의 낱말에서 읽는다 (동화 책의 [motionFrom] 과 같은 방식) */
@@ -52,7 +54,25 @@ data class DiaryBookInput(
     val feel: DiaryFeel? = null,
     /** 서버(`/story` diary)가 쓴 쪽 문장 — 있으면 그림 쪽 뒤를 이 쪽들로 짠다. 없으면 앱 문장 */
     val written: List<String>? = null,
+    /** 놀이(미션) 쪽을 붙이나 — 앱의 책은 붙이고, 쪽 짜기만 보는 검사는 끈다 */
+    val missions: Boolean = false,
 )
+
+/** 퍼즐 쪽의 글 — 원고지 대신 놀이 안내가 들어간다 */
+const val PUZZLE_TEXT = "놀이 · 내 그림 맞추기"
+
+/** 아이가 한 행동 — 이런 말이 있는 날에만 놀이를 붙인다(지어낸 것 없이 아이 것만 · 프로토타입 ACTION) */
+private val ACTION = Regex("(갔|왔|했|놀았|놀고|놀다|탔|먹|쌓|그렸|만들|뛰|넘어|들어|봤|잤|읽|씻|달렸|던졌|찼|걸었|올라|내려|쳤|불었|춤|일어났)")
+
+/** 그림이 있고 아이가 한 행동을 말한 날이면 맨 뒤에 퍼즐 쪽 — 기분 줄은 그 앞 쪽에 남는다 */
+private fun withMissions(pages: MutableList<DiaryPage>, input: DiaryBookInput): List<DiaryPage> {
+    if (!input.missions || !input.hasDrawing) return pages
+    // 앱이 지은 문장(「…에 갔어요」)이 아니라 아이가 한 말 원문으로 본다
+    val acted = listOf("place", "problem", "solution").any { k -> input.lines[k]?.let(ACTION::containsMatchIn) == true }
+    if (!acted) return pages
+    pages += DiaryPage(DiaryPageKind.PUZZLE, PUZZLE_TEXT, by = null, cast = input.pieceNames, move = PieceMove.HOP)
+    return pages
+}
 
 const val NOT_HEARD_AFTER = "그 뒤에 어떻게 되었는지는 아직 듣지 못했어요."
 const val NOT_HEARD_THERE = "거기서 있었던 일은 아직 듣지 못했어요."
@@ -65,6 +85,7 @@ fun DemoState.diaryBookInput(): DiaryBookInput = DiaryBookInput(
     hasDrawing = sceneDrawing.isNotEmpty() || diaryDay.pieces.isNotEmpty(),
     feel = diaryDay.feel,
     written = diaryDay.written,
+    missions = true,
 )
 
 /** 그림일기 쪽 목록. 그림도 말도 없으면 빈 목록 — 책 없이 조용히 끝난다(D6) */
@@ -95,7 +116,7 @@ fun buildDiaryBook(input: DiaryBookInput): List<DiaryPage> {
         val kinds = writtenKinds(STORY_KINDS.filter { line(it) != null }, written.size)
         written.forEachIndexed { i, text -> pages += page(kinds[i], text, castAll = kinds[i] == DiaryPageKind.PLACE) }
         closeWithFeel(pages, line(DiaryPageKind.REACTION) != null, input.feel)
-        return pages
+        return withMissions(pages, input)
     }
     line(DiaryPageKind.PLACE)?.let { pages += page(DiaryPageKind.PLACE, placeSentence(it), castAll = true) }
     line(DiaryPageKind.PROBLEM)?.let { pages += page(DiaryPageKind.PROBLEM, yo(it)) }
@@ -119,7 +140,7 @@ fun buildDiaryBook(input: DiaryBookInput): List<DiaryPage> {
     }
 
     closeWithFeel(pages, line(DiaryPageKind.REACTION) != null, input.feel)
-    return pages
+    return withMissions(pages, input)
 }
 
 /** 그림 쪽 다음에 오는 쪽 종류 — 책의 차례(기 · 승 · 전 · 결 · 맺음) */

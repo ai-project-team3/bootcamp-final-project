@@ -32,6 +32,7 @@ import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.catchUp
 import com.example.finalproject_demo.demo.cropFor
+import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.newDiaryDay
 import com.example.finalproject_demo.ui.Bg
@@ -301,5 +302,29 @@ class DiaryViewsTest {
         assertEquals("title", (d.replyTo { compose.onNodeWithTag("d5-title").performClick() } as? Reply.Tapped)?.value)
         compose.onNodeWithTag("d5-lines").performClick()          // 다시 쓰고 다시 움직인다 — 멈추지 않으면 된다
         compose.mainClock.advanceTimeBy(500)
+    }
+
+    /** 🧩 — 조각을 톡 · 자리를 톡. 틀린 자리면 「다른 자리에 맞춰 볼까?」, 셋 다 맞추면 「✨ 다 맞췄다!」 */
+    @Test
+    fun thePuzzleIsSolvedByTappingAPieceThenItsPlace() {
+        val d = director()
+        drawDay(d)
+        d.s.slots["place"] = "우리 집 앞에서 놀았어"; d.s.slotBy["place"] = "child"
+        val pages = com.example.finalproject_demo.demo.buildDiaryBook(d.s.diaryBookInput())
+        val at = pages.indexOfFirst { it.kind == com.example.finalproject_demo.demo.DiaryPageKind.PUZZLE }
+        assertTrue("놀이 쪽이 없다", at >= 0)
+        d.s.stage = DiaryPaper(at)
+        show(d)
+        snap("diary_puzzle")
+        compose.onNodeWithTag("puzzle-piece-2").performClick()
+        compose.onNodeWithTag("puzzle-slot-0").performClick()
+        compose.mainClock.advanceTimeBy(200)
+        compose.onNodeWithTag("puzzle-hint").assertTextContains("다른 자리에 맞춰 볼까?", substring = true)
+        for (i in 0 until 3) {
+            compose.onNodeWithTag("puzzle-piece-$i").performClick()
+            compose.onNodeWithTag("puzzle-slot-$i").performClick()
+            compose.mainClock.advanceTimeBy(100)
+        }
+        compose.onNodeWithTag("puzzle-hint").assertTextContains("다 맞췄다", substring = true)
     }
 }
