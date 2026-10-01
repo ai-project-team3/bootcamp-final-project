@@ -358,7 +358,7 @@ private fun PieceRings(pieces: List<DiaryPiece>, asking: Int?, cq: Dp) {
 }
 
 /**
- * 작은 말풍선 (D1) — 그림판 왼쪽 아래에 얹는다. 오또가 말을 마치고 조금 지나면 얼굴만 남기고 접힌다.
+ * 작은 말풍선 (D1) — 그림판 왼쪽 아래에 얹는다. 오또가 말을 마치고 조금 지나면 얼굴만 남기고 접힌다(묻는 말은 안 접는다).
  * 얼굴을 누르면 다시 펼친다. 마이크가 열리면(오또가 물었다) 펼쳐진 채 마이크를 보인다
  */
 @Composable
@@ -372,7 +372,8 @@ private fun DiaryBubble(d: Director, cq: Dp, modifier: Modifier) {
         shown = 0
         while (shown < text.length) { delay(28); shown++ }
         delay(4_000)
-        if (!s.micOn) tucked = true
+        // 묻는 말은 답이 올 때까지 펼쳐 둔다 — 접히면 아이는 오또가 무엇을 기다리는지 모른다(10-01 실기기)
+        if (!s.micOn && !text.trimEnd().endsWith("?")) tucked = true
     }
     // 접혀도 마이크는 남는다 — 아이는 아무 때나 먼저 말해도 된다. 말하는 중에는 펼친다
     val open = !tucked || s.micOn

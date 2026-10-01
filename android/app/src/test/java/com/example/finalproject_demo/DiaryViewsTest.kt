@@ -129,6 +129,24 @@ class DiaryViewsTest {
         snap("diary_board_pieces")
     }
 
+    /**
+     * D1 말풍선 — 묻는 말은 답이 올 때까지 펼쳐 둔다. 10-01 실기기: 「나도 강아를 그려볼까?」가 4초 뒤 접혀
+     * 무엇을 기다리는지 안 보였다. 그냥 하는 말은 전처럼 접힌다
+     */
+    @Test
+    fun aQuestionStaysOpenUntilItIsAnswered() {
+        val d = director()
+        drawDay(d)
+        d.s.stage = DiaryBoard()
+        d.say("나도 우리 집을 그려볼까?")
+        show(d)
+        compose.mainClock.advanceTimeBy(8_000)
+        compose.onNodeWithText("나도 우리 집을 그려볼까?").assertExists()
+        d.say("좋아, 네 그림이 최고야!")
+        compose.mainClock.advanceTimeBy(8_000)
+        compose.onNodeWithText("좋아, 네 그림이 최고야!").assertDoesNotExist()
+    }
+
     @Test
     fun ottosDrawingIsPickedBesideTheOriginal() {
         val d = director()
