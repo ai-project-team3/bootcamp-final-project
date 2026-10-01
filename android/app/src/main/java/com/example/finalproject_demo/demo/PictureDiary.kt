@@ -308,10 +308,11 @@ private fun Director.keepBoard() {
 
 /**
  * 다 그린 뒤 — 빈 칸만 묻는다. 필수(place · problem)가 먼저, 남으면 결말 · 내일. 합쳐 [ASK_AFTER_DRAWING] 번까지.
- * 질문 순서는 서버가 붙으면 판정의 `next_slot` 이 정한다(목요일). 지금은 이 차례다.
+ * 서버 모드면 판정의 `next_slot` 과 오또 대사가 다음 질문을 정한다([askEmptySlotsLive]). 대본이면 이 차례다.
  */
 private suspend fun Director.askEmptySlots() {
     s.stage = DiaryAsk
+    if (Server.liveFor(s.mode)) { askEmptySlotsLive(); return }
     val queue = PICTURE_QUESTIONS.filter { s.slots[it.key].isNullOrBlank() }.toMutableList()
     var asked = 0
     var wrapOffered = false
@@ -372,6 +373,121 @@ private suspend fun Director.askPictureSlot(pq: PictureQuestion) {
         s.mascotPicks = 0
         return
     }
+}
+
+// ── D3 · 서버 판정 (#39 ① · #34) ────────────────────────────────
+
+/** 판정을 부르는 곳 — 테스트가 서버 없이 바꿔 끼운다 */
+internal var requestDiaryTurn: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) }
+
+/** 다 그린 뒤 묻는 칸의 판정 슬롯 — 「내일」은 12칸에 없어 `extra` 로 묻는다 */
+private fun judgeSlotOf(key: String) = if (key == "keep") "extra" else key
+
+/** 아직 빈 첫 질문 (판정 슬롯 · 질문 · 책 키) — 서버가 다음 질문을 못 줄 때의 차례 */
+private fun Director.firstEmptyQuestion(skip: Set<String> = emptySet()): Triple<String, String, String>? =
+    PICTURE_QUESTIONS.firstOrNull { s.slots[it.key].isNullOrBlank() && it.key !in skip }
+        ?.let { Triple(judgeSlotOf(it.key), it.ask(s), it.key) }
+
+/** 판정 슬롯 → 책 키. 그림일기 쪽이 있는 칸만 책에 들어가고, 나머지는 칸에만 남는다 */
+private fun bookKeyOf(slot: String, askedKey: String): String = when (slot) {
+    "extra" -> if (askedKey == "keep") "keep" else "extra"
+    else -> slot
+}
+
+/**
+ * 서버 판정으로 묻는다 — 차별점 2(질문 순서가 고정이 아니다).
+ *
+ * 한 턴: 묻기 → 아이 말 → `/turn`(diary) → 판정이 채운 칸을 **아이 출처로** 넣는다 → 오또가 받아 주고
+ * → 판정이 고른 칸을 판정이 쓴 질문으로 묻는다. 수준은 앱 규칙이 계산한다(규칙 4 — 서버는 신호만).
+ * 서버가 실패하면 그 턴은 아이 말을 물은 칸에 그대로 넣고 대본 차례로 간다 — 멈추지 않는다.
+ */
+private suspend fun Director.askEmptySlotsLive() {
+    val day = s.diaryDay
+    var next = firstEmptyQuestion()
+    var asked = 0
+    var wrapOffered = false
+    val gaveUp = mutableSetOf<String>()          // 두 번 모른다고 한 칸 — 다시 묻지 않는다
+    var easyTried: String? = null
+    while (next != null && asked < ASK_AFTER_DRAWING) {
+        if (!wrapOffered && s.diaryTimeUp) {
+            wrapOffered = true
+            if (offerWrapUp()) break
+        }
+        val (slot, text, key) = next
+        val step = DIARY_STEPS.firstOrNull { it.bookKey == key } ?: DIARY_STEPS.firstOrNull { it.slot == slot }
+        asked++
+        s.stepsDone++
+        val q = Question(
+            text = text,
+            kind = step?.kind ?: Kind.EASY,
+            noCards = true,
+            spoken = step?.answers(s).orEmpty(),
+            extra = listOf(DemoBtn("⏱ (시연) 30분이 지난 것으로") { s.diaryTimeUp = true; send(Reply.Silent) }),
+            id = "diary_$key",
+        )
+        val r = ask(q)
+        if (r !is Reply.Spoke || r.text.isBlank()) {
+            judge(step?.variant, r, q.text)
+            next = firstEmptyQuestion(gaveUp + key)
+            continue
+        }
+        day.turnCalls++                            // #30 — 세기만 한다
+        val result = s.exchangeTurn("diary", slot, text, r.text, requestDiaryTurn)
+        val v = result?.verdict
+        if (v == null) {
+            log("판정 서버가 답하지 않았다 → 이 턴은 아이 말을 물은 칸에 그대로 넣고 대본 차례로")
+            judge(step?.variant, r, q.text)
+            if (!dontKnow(r.text)) setDiarySlot(slot, key, r.text.trim(), r.text.trim(), "child")
+            next = firstEmptyQuestion(gaveUp)
+            continue
+        }
+        if (v.reason == "blocked_by_filter") {
+            log("서버 안전 판정 — 이 답은 책 재료에서 뺀다 · 다른 이야기로")
+            next = Triple(slot, "다른 이야기도 들려줄래?", key)
+            continue
+        }
+        // 수준 신호는 판정에서, 수준 계산은 앱 규칙에서 (규칙 4)
+        judge(step?.variant, r.copy(answer = Answer(
+            text = r.text,
+            reason = v.s1Reason,
+            el = if (v.s2Addition) setOf("추가") else emptySet(),
+            emo = v.emotion.orEmpty(),
+        )), q.text)
+        v.fills.forEachIndexed { i, (fillSlot, value) ->
+            if (fillSlot !in Server.SLOTS || value.isBlank()) return@forEachIndexed
+            // 첫 칸의 책 문장은 아이가 한 말 그대로 — 판정의 요약이 아니다(차별점 「오늘 아이가 한 말 그대로」)
+            val line = if (i == 0) r.text.trim() else value.trim()
+            setDiarySlot(fillSlot, bookKeyOf(fillSlot, key), value.trim(), line, "child")
+        }
+        if (v.fills.isEmpty()) {
+            if (easyTried != key && step != null) {
+                easyTried = key
+                val easy = PICTURE_QUESTIONS.firstOrNull { it.key == key }?.easy
+                if (easy != null) { log("[$key] 채운 칸이 없다 → 한 번만 쉽게 바꿔 묻는다"); next = Triple(slot, easy, key); continue }
+            }
+            gaveUp += key
+            log("[$key] 또 못 채웠다 → 비워 둔다. 마스코트가 대신 채우지 않는다")
+        }
+        v.noLongerNeeded?.let { log("판정 — 「$it」 칸은 더 묻지 않아도 된다") }
+        if (v.storyReady && s.endReason == null) {
+            s.endReason = "story_ready"
+            log("판정 story_ready — 남은 물음은 판정이 고른 칸만")
+        }
+        val reaction = listOfNotNull(result.line?.ack?.takeIf(String::isNotBlank), result.line?.expand?.takeIf(String::isNotBlank)).joinToString(" ")
+        if (reaction.isNotBlank()) { say(reaction); pause(600) }
+        val serverSlot = v.nextSlot?.takeIf { it in Server.SLOTS && s.slots[bookKeyOf(it, it)].isNullOrBlank() }
+        val serverQuestion = result.line?.question?.takeIf(String::isNotBlank)
+        next = when {
+            serverSlot != null && serverQuestion != null -> {
+                log("판정이 다음 칸을 골랐다 → [$serverSlot] 「$serverQuestion」")
+                Triple(serverSlot, serverQuestion, if (serverSlot == "extra") "keep" else serverSlot)
+            }
+            v.storyReady -> null
+            else -> firstEmptyQuestion(gaveUp)
+        }
+    }
+    if (s.endReason == null && PICTURE_REQUIRED.all { !s.slots[it].isNullOrBlank() }) s.endReason = "story_ready"
+    log("다 그린 뒤 ${asked}번 물었다 · /turn ${day.turnCalls}번 (#30 — 세기만)")
 }
 
 /** 30분쯤 — 마무리를 **한 번** 제안한다. 더 하고 싶다면 계속한다. 되묻지 않는다 */
