@@ -164,3 +164,10 @@ def test_the_block_cut_drops_notes_and_the_input_block():
     assert s.startswith("당신은"), s[:40]
     assert "[지금 상태]" not in s and "{utterance}" not in s
     assert "## 치환 변수" not in s
+
+
+def test_a_short_diary_day_keeps_its_one_page():
+    """#39: a day with only place + what happened is one honest page, not a 502."""
+    assert story_route.check(_book("놀이터에 갔어요."), "diary") is None
+    assert story_route.check(_book("놀이터에 갔어요."), "coop")
+    assert story_route.check(_book(*["가요."] * 7), "diary")

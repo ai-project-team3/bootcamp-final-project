@@ -19,7 +19,9 @@ router = APIRouter()
 EVAL = REPO / "eval"
 
 # story: exactly six (spec §3-3). diary · coop: as many as the day filled.
-_SCENES = {"story": (6, 6), "diary": (3, 6), "coop": (3, 6)}
+# diary from 1: a day with only place + what happened is one honest page — the prompt says
+# "pages as filled, invent nothing", and 3 at least turned that answer into a 502 (#39 · 10-01)
+_SCENES = {"story": (6, 6), "diary": (1, 6), "coop": (3, 6)}
 
 
 @lru_cache(maxsize=4)

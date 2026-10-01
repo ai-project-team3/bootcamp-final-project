@@ -1,0 +1,11 @@
+{
+  "name": "redraw_order",
+  "description": "오또가 대신 그려 주기 주문. 구현은 backend/app/routers/image.py, 프롬프트는 eval/redraw_prompt.md, API 는 guidelines/3_API_명세.md §3-3-1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["safe", "subject"],
+  "properties": {
+    "safe": { "type": "boolean" },
+    "subject": { "type": ["string", "null"] }
+  }
+}
