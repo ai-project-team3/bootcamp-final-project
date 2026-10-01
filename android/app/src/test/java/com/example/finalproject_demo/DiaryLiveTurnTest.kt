@@ -11,9 +11,9 @@ import com.example.finalproject_demo.demo.DiaryPaper
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.requestDiaryStory
-import com.example.finalproject_demo.demo.requestDiaryTurn
 import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.CoroutineScope
+import org.json.JSONObject
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -37,30 +37,39 @@ class DiaryLiveTurnTest {
     private suspend fun await(ms: Long = 6_000, cond: () -> Boolean): Boolean? =
         withTimeoutOrNull(ms) { while (!cond()) delay(5); true }
 
-    private fun verdict(fills: List<Pair<String, String>>, next: String?, ready: Boolean = false, s1: Boolean = false) =
-        Server.Verdict("ok", fills, next, null, ready, false, null, false, s1, false, null)
+    /** `/turn` 응답 JSON — 서버 명세(guidelines/3 §3-2-1)의 judge 16필드 중 쓰는 것만 */
+    private fun turn(fills: List<Pair<String, String>>, next: String?, ack: String, question: String?, ready: Boolean = false, s1: Boolean = false): String {
+        val judge = JSONObject().put("reason", "ok").put("next_slot", next ?: JSONObject.NULL)
+            .put("story_ready", ready).put("s1_reason", s1)
+        fills.forEachIndexed { i, (slot, value) -> judge.put("slot_${i + 1}", slot).put("value_${i + 1}", value) }
+        val line = JSONObject().put("ack", ack).put("expand", JSONObject.NULL).put("question", question ?: JSONObject.NULL)
+        return JSONObject().put("judge", judge).put("line", line).toString()
+    }
 
+    /**
+     * 서버 모드 — 앞에 가짜 `/turn` 서버를 띄운다([FakeHttp]). [fake] 는 받은 요청 → 돌려줄 JSON (null = 502).
+     * 앱은 판정을 `exchangeTurn` 의 기본 요청으로 부른다 — 요청 함수를 넘기면 Kotlin IR 백엔드가 죽어서다
+     */
     private fun live(
-        fake: suspend (Server.Turn) -> Server.TurnResult?,
+        fake: (JSONObject) -> String?,
         story: suspend (Map<String, String?>, Map<String, String>, String?) -> List<String>? = { _, _, _ -> null },
         block: suspend (Director) -> Unit,
     ) = runBlocking {
+        val http = FakeHttp { path, body -> if (path == "/turn") fake(JSONObject(body)) else null }
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
         val d = Director(scope)
         d.s.speed = 0.01
         d.s.mode = StoryMode.DIARY
-        val real = requestDiaryTurn
         val realStory = requestDiaryStory
         requestDiaryStory = story
-        Server.base = "http://127.0.0.1:1"
+        Server.base = http.base
         Server.liveModes = setOf(StoryMode.DIARY)
-        requestDiaryTurn = fake
         try { block(d) } finally {
-            requestDiaryTurn = real
             requestDiaryStory = realStory
             Server.liveModes = emptySet()
             Server.base = null
             scope.cancel()
+            http.close()
         }
     }
 
@@ -85,26 +94,24 @@ class DiaryLiveTurnTest {
 
     @Test
     fun theVerdictPicksTheNextQuestionAndFillsSlotsAsTheChilds() {
-        val asked = mutableListOf<Server.Turn>()
+        val asked = mutableListOf<JSONObject>()
         live({ t ->
             asked += t
             when (asked.size) {
-                1 -> Server.TurnResult(verdict(listOf("place" to "놀이터"), "reaction"),
-                    Server.Line("놀이터에 갔구나!", null, "거기서 기분이 어땠어?"))
-                else -> Server.TurnResult(verdict(listOf("reaction" to "신났다", "problem" to "미끄럼틀을 탔다"), null, ready = true, s1 = true),
-                    Server.Line("신났구나!", null, null))
+                1 -> turn(listOf("place" to "놀이터"), "reaction", "놀이터에 갔구나!", "거기서 기분이 어땠어?")
+                else -> turn(listOf("reaction" to "신났다", "problem" to "미끄럼틀을 탔다"), null, "신났구나!", null, ready = true, s1 = true)
             }
         }) { d ->
             val s = d.s
             d.toQuestions()
             assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
             d.answer("놀이터 갔어") { s.line == "거기서 기분이 어땠어?" }
-            assertEquals("diary", asked[0].mode)
-            assertEquals("place", asked[0].askedSlot)
+            assertEquals("diary", asked[0].getString("mode"))
+            assertEquals("place", asked[0].getString("asked_slot"))
             assertEquals("놀이터 갔어", s.slots["place"])
             assertEquals("child", s.slotBy["place"])
             d.answer("미끄럼틀 타서 신났어") { asked.size == 2 && s.stage !is DiaryAsk }
-            assertEquals("고정 차례가 아니라 판정이 고른 칸을 물었다", "reaction", asked[1].askedSlot)
+            assertEquals("고정 차례가 아니라 판정이 고른 칸을 물었다", "reaction", asked[1].getString("asked_slot"))
             assertEquals("첫 칸의 책 문장은 아이 말 그대로", "미끄럼틀 타서 신났어", s.slots["reaction"])
             assertEquals("둘째 칸은 판정이 채운 값", "미끄럼틀을 탔다", s.slots["problem"])
             assertTrue(s.slotBy.values.all { it == "child" })
@@ -130,7 +137,7 @@ class DiaryLiveTurnTest {
     fun theBookIsWrittenByTheServer() {
         var sent: Map<String, String?>? = null
         live(
-            { Server.TurnResult(verdict(listOf("place" to "놀이터"), null, ready = true), Server.Line("놀이터에 갔구나!", null, null)) },
+            { turn(listOf("place" to "놀이터"), null, "놀이터에 갔구나!", null, ready = true) },
             { slots, _, _ -> sent = slots; listOf("나는 오늘 놀이터에 갔어요.", "그 뒤에 어떻게 되었는지는 아직 듣지 못했어요.", "재미있었어요.") },
         ) { d ->
             val s = d.s
@@ -144,7 +151,7 @@ class DiaryLiveTurnTest {
 
     @Test
     fun whenTheBookServerFailsTheAppWritesTheBook() {
-        live({ Server.TurnResult(verdict(listOf("place" to "놀이터"), null, ready = true), null) }) { d ->
+        live({ turn(listOf("place" to "놀이터"), null, "놀이터에 갔구나!", null, ready = true) }) { d ->
             val s = d.s
             d.toQuestions()
             assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)

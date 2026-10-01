@@ -378,8 +378,6 @@ private suspend fun Director.askPictureSlot(pq: PictureQuestion) {
 
 // ── D3 · 서버 판정 (#39 ① · #34) ────────────────────────────────
 
-/** 판정을 부르는 곳 — 테스트가 서버 없이 바꿔 끼운다 */
-internal var requestDiaryTurn: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) }
 
 /** 다 그린 뒤 묻는 칸의 판정 슬롯 — 「내일」은 12칸에 없어 `extra` 로 묻는다 */
 private fun judgeSlotOf(key: String) = if (key == "keep") "extra" else key
@@ -433,7 +431,8 @@ private suspend fun Director.askEmptySlotsLive() {
             continue
         }
         day.turnCalls++                            // #30 — 세기만 한다
-        val result = s.exchangeTurn("diary", slot, text, r.text, requestDiaryTurn)
+        // 요청 함수를 넘기지 않는다 — 넘기면 Kotlin IR 백엔드가 StoryTurn.kt 에서 죽는다(AddContinuationLowering · 10-01)
+        val result = s.exchangeTurn("diary", slot, text, r.text)
         val v = result?.verdict
         if (v == null) {
             log("판정 서버가 답하지 않았다 → 이 턴은 아이 말을 물은 칸에 그대로 넣고 대본 차례로")
