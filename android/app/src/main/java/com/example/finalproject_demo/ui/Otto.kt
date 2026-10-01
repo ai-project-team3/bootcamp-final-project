@@ -32,7 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -62,9 +61,10 @@ import kotlin.math.roundToInt
 /*
  * 오또(마스코트) — 얼굴 · 표정 · 나레이션 칸 · 녹음 버튼 (09-29 · Chrome.kt 에서 옮김)
  *
- * 얼굴 테두리 색으로 **차례**를 알린다 — 말하는 중 분홍 [Cheek] · 듣는 중 청록 [FeltTeal] · 생각하는 중 겨자 [FeltMustard].
- * 말할 때도 들을 때처럼 테두리 색 파동이 퍼진다(09-29 사용자 요청 — 전에는 들을 때만 파동이 있었다).
+ * 상태 색 — 말하는 중 분홍 [Cheek] · 듣는 중 청록 [FeltTeal] · 생각하는 중 겨자 [FeltMustard]. 이 색으로 얼굴 둘레에 파동을 퍼뜨릴 수 있다([OttoFace] 의 pulse).
  * 파동은 얼굴과 **같은 상자**에서 같이 움직여, 얼굴이 기울거나 뛰어도 중심이 어긋나지 않는다.
+ * 10-01 — 얼굴 테두리 색과 나레이션 칸의 파동은 껐다. 말하는 동안만 분홍 테두리 · 파동 · 🔊 가 붙었다 떨어져서
+ * 「옛 나레이션이 먼저 떴다가 바뀐다」로 보였다 (사용자 제보). 지금 차례는 써지는 글자 · 녹음 버튼 · 「…」 가 알린다.
  */
 
 enum class OttoState(val ring: Color, val face: String) {
@@ -120,7 +120,6 @@ fun exprFor(text: String, mood: Mood): Expr {
  * @param burstId 이 번호가 바뀔 때마다 [burst] 가 다시 터진다 (같은 반응이 연달아 와도)
  * @param expr    표정 — 말하는 중 · 가만있을 때만 얼굴 그림을 바꾼다(듣는 중 · 생각하는 중은 그 얼굴 그대로)
  * @param pulse   말하는 중 · 듣는 중 · 기다리는 중이면 테두리 색 파동을 얼굴 둘레에 퍼뜨린다
- * @param frame   이 모양 안에서만 얼굴이 뛰고 기운다 (틀 밖으로 안 나가게). 없으면 자르지 않는다
  */
 @Composable
 fun OttoFace(
@@ -130,7 +129,6 @@ fun OttoFace(
     burstId: Int = 0,
     expr: Expr = Expr.NONE,
     pulse: Boolean = false,
-    frame: Shape? = null,
 ) {
     val inf = rememberInfiniteTransition(label = "otto")
     val hop by inf.animateFloat(0f, -5f, infiniteRepeatable(tween(200), RepeatMode.Reverse), label = "hop")
@@ -218,8 +216,6 @@ fun OttoFace(
     val pulsing = pulse && (state == OttoState.TALK || state == OttoState.LISTEN || state == OttoState.WAIT)
 
     Box(modifier) {
-        // [frame] 이 있으면 얼굴은 그 틀 안에서만 뛰고 기운다 — 틀 밖으로 삐져나오지 않게 (나레이션 칸 09-30)
-        Box(if (frame != null) Modifier.fillMaxSize().clip(frame) else Modifier.fillMaxSize()) {
         // 얼굴과 파동을 **한 상자**에 — 뛰고 기울어도 파동이 얼굴 정중앙에 붙어 다닌다
         Box(
             Modifier
@@ -246,13 +242,11 @@ fun OttoFace(
                 Modifier
                     .fillMaxSize()
                     .shadow(Felt.ShadowY, CircleShape, ambientColor = Felt.ShadowColor, spotColor = Felt.ShadowColor)
-                    .clip(CircleShape)
-                    .background(state.ring)
-                    .padding(4.dp)
+                    // 상태 색 테두리는 없앴다 (10-01) — 말하는 동안만 분홍 테두리가 생겼다 사라져서
+                    // 「옛 나레이션이 먼저 떴다가 바뀐다」로 보였다. 상태는 파동([pulse]) · 「…」 · 녹음 버튼이 보여 준다
                     .clip(CircleShape)
                     .background(WoolCream),
             ) { AssetImage(face, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { ArtView(Art.Mascot, Modifier.fillMaxSize()) } }
-        }
         }
 
         // 머리 위 「…」 — 기다릴 때와 생각할 때. 점이 하나씩 차오른다
@@ -288,7 +282,7 @@ fun OttoFace(
 
 /**
  * 오또 말풍선 → **나레이션 칸** (화면 아래 전체 폭). 말할 때마다 톡 튀어나오고 글자가 한 자씩 써진다.
- * 녹음 버튼 · 그리기 버튼은 칸 **안** 오른쪽에 들어간다 (09-29 사용자 요청).
+ * 녹음 버튼 · 그리기 버튼은 칸 오른쪽 끝에 따로 선다 (09-30 사용자 요청).
  */
 @Composable
 fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
@@ -326,9 +320,10 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
         else -> NarrationMode.STORY
     }
     // 오또가 할 말이 없는 차례(같이 만들기에서 어른이 묻는 차례 등)에도 칸이 비지 않게 — 아이에게 차례를 알린다
-    val line = if (text.isBlank()) "네 차례야! 마이크를 누르고 말해 봐" else text.take(shown)
+    val full = if (text.isBlank()) "네 차례야! 마이크를 누르고 말해 봐" else text
+    val line = if (text.isBlank()) full else text.take(shown)
     Narration(
-        mode = mode, state = state, line = line,
+        mode = mode, state = state, line = line, fullLine = full,
         modifier = modifier.alpha(((pop.value - 0.6f) / 0.4f).coerceIn(0f, 1f)),
         speaker = if (s.speaker != "마스코트") s.speaker else null,
         burst = s.mood, burstId = s.moodId,
