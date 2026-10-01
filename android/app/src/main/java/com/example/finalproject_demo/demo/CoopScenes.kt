@@ -2,6 +2,9 @@ package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
+import com.example.finalproject_demo.ui.CoopReason
+import com.example.finalproject_demo.ui.coopKind
+import com.example.finalproject_demo.ui.reasonOrNull
 import com.example.finalproject_demo.ui.templateQuestions
 
 /**
@@ -42,6 +45,8 @@ val DemoState.coopReady: Boolean get() = coopPick != null || hasCoopQuestions
 private sealed interface CoopLine {
     data class Template(val text: String) : CoopLine
     data class Parent(val text: String) : CoopLine
+    /** 서버(`/turn`)의 LLM 이 앞 답을 보고 만든 다음 질문 (10-01 · #53 A) */
+    data class Llm(val text: String) : CoopLine
 }
 
 /**
@@ -74,6 +79,8 @@ private class CoopTrack {
     val askedSteps = mutableSetOf<String>()
     var parentUsed = 0
     val asked = mutableListOf<CoopAsked>()
+    /** 방금 `/turn` 이 정한 다음 칸과 그 칸을 묻는 LLM 질문 — 바로 다음 걸음에서 한 번만 쓰고 버린다 */
+    var llmNext: Pair<String, String>? = null
 }
 
 /**
@@ -85,6 +92,39 @@ private val DemoState.coopTrack: CoopTrack
     get() = trackByState[this] ?: CoopTrack().also { trackByState[this] = it }
 
 private fun DemoState.newCoopTrack() { trackByState[this] = CoopTrack() }
+
+/** LLM 질문을 받을 수 있는 걸음 — 칸 이름이 걸음과 하나로 맞는 것만. 꼬리질문 `extra` 는 여러 걸음이 같은 칸이라 뺀다 */
+private val LLM_QUESTION_STEPS = setOf("place", "problem", "cause", "solution", "companion", "reaction")
+
+/**
+ * 이 걸음에 서버 LLM 질문을 쓸까 (#53 A · 동화의 `Director.askSlot` 과 같은 방식).
+ * **앱이 지금 물을 칸과 서버가 정한 다음 칸이 같을 때만** 쓴다 — 걸음 순서 · 뼈대 네 칸 · 부모 질문 자리는 앱 규칙 그대로다.
+ * 서버가 꺼졌거나 질문이 없으면 null → 대본.
+ */
+private fun DemoState.llmQuestionFor(q: Question, next: Pair<String, String>?): String? {
+    if (next == null || !Server.liveFor(mode) || !coopLlmQuestionsFit) return null
+    val key = q.id.removePrefix("diary_")
+    return next.second.takeIf { key in LLM_QUESTION_STEPS && next.first == key && it.isNotBlank() }
+}
+
+/**
+ * 서버 질문의 시제가 이 이야기와 맞나. 서버 프롬프트(`eval/line_prompt.md`)는 협업을 「오늘 있었던 일 · 과거형」으로 묻는다.
+ * 그래서 **지난 일(다녀왔어요)과 이야기를 안 고른 경우만** 켠다 — 곧 해요 · 좋아해요에 쓰면 「뭐 했어?」로 묻게 된다.
+ * ⚠️ 서버가 고른 이유로 시제를 가르게 되면(#53 C) 이 조건을 `true` 로 바꾼다.
+ */
+private val DemoState.coopLlmQuestionsFit: Boolean
+    get() = coopPick.let { it == null || it.reasonOrNull() == CoopReason.DONE }
+
+/**
+ * `/turn` 에 함께 보내는 고른 이야기 (#53 B) — 「같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)」.
+ * 서버는 지금 이 칸을 동화 틀 이름으로만 읽는다. 시제를 가르는 일은 서버가 정하면(#53 C) 그쪽이 한다
+ */
+internal fun DemoState.coopTurnContext(): String? = coopPick?.let { p ->
+    val k = coopKind(p.kind) ?: return@let null
+    val r = p.reasonOrNull()
+    val tense = when (r) { CoopReason.DONE -> "지난 일"; CoopReason.SOON -> "앞으로 할 일"; else -> "상상 이야기" }
+    "같이 만들기 · ${k.title} · ${p.name} · ${r?.let { k.reasonLabels[it] } ?: "이유 없음"}($tense)"
+}
 
 /**
  * 묻지 않고 지나간 뼈대 걸음을 「물은 것」으로 친다 — 앞 답에서 이미 찬 칸이라 건너뛴 걸음 (10-01).
@@ -129,13 +169,20 @@ suspend fun Director.askOrCoopAsk(q: Question): Reply = when {
  */
 private suspend fun Director.coopAskInFlow(q: Question): Reply {
     mark("coop")
-    val line = s.takeCoopLine(q)
+    val llm = s.coopTrack.llmNext.also { s.coopTrack.llmNext = null }
+    val firstAsk = q.id !in s.coopTrack.askedSteps
+    val line = s.takeCoopLine(q).let { scripted ->
+        // 부모 질문이 먼저다. 그다음이 LLM 질문, 그다음이 대본 (#53 A)
+        if (scripted is CoopLine.Parent || !firstAsk) scripted
+        else s.llmQuestionFor(q, llm)?.let { CoopLine.Llm(it) } ?: scripted
+    }
     val text = when (line) {
         null -> {
             log("[${q.id}] 앱 질문을 그대로 묻는다: \"${q.text}\"")
             return ask(q)
         }
         is CoopLine.Template -> line.text.also { log("[${q.id}] 고른 이야기에 맞춘 질문 → \"$it\" (LLM 대역 · 앱 질문 \"${q.text}\" 은 사다리 뒤에 남는다)") }
+        is CoopLine.Llm -> line.text.also { log("[${q.id}] 서버 LLM 이 앞 답을 보고 만든 질문 → \"$it\" (대본 \"${q.text}\" 은 사다리 뒤에 남는다 · #53)") }
         is CoopLine.Parent -> line.text.also { log("[${q.id}] 부모가 적은 질문을 끼워 묻는다: \"$it\" (앱 질문 \"${q.text}\" 은 사다리 뒤에 남는다)") }
     }
     val r = ask(q.copy(text = text, silent = false))
@@ -310,7 +357,10 @@ internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r
     if (isNonAnswer(text)) return null
     if (!Server.liveFor(s.mode)) return text
     val asked = step.slot.takeIf { it in Server.SLOTS && it != "extra" }
-    val verdict = s.exchangeTurn("coop", asked, question, text)?.verdict
+    val turn = s.exchangeTurn("coop", asked, question, text, template = s.coopTurnContext())
+    // 서버가 정한 다음 칸 · 질문을 다음 걸음에 쓸 수 있게 둔다 (#53 A) — 맞지 않으면 다음 걸음이 버린다
+    s.coopTrack.llmNext = turn?.verdict?.nextSlot?.let { slot -> turn.line?.question?.takeIf(String::isNotBlank)?.let { slot to it } }
+    val verdict = turn?.verdict
     if (verdict == null) {
         log("[${step.bookKey}] /turn 응답 없음 → 아이 말 그대로 칸에 넣는다")
         return text
