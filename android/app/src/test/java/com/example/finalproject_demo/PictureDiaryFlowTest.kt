@@ -3,10 +3,14 @@ package com.example.finalproject_demo
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.ASK_AFTER_DRAWING
+import com.example.finalproject_demo.demo.ASK_WHILE_DRAWING
+import com.example.finalproject_demo.demo.DONE_CHECK_EVERY
 import com.example.finalproject_demo.demo.DiaryAsk
 import com.example.finalproject_demo.demo.DiaryBoard
+import com.example.finalproject_demo.demo.DiaryGift
 import com.example.finalproject_demo.demo.DiaryPageKind
 import com.example.finalproject_demo.demo.DiaryPaper
+import com.example.finalproject_demo.demo.DiaryStart
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.NOT_HEARD_AFTER
 import com.example.finalproject_demo.demo.PieceLook
@@ -17,6 +21,7 @@ import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.diaryDay
+import com.example.finalproject_demo.demo.yesNoOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -63,7 +68,7 @@ class PictureDiaryFlowTest {
 
     private suspend fun Director.readToTheEnd() {
         var guard = 0
-        while (s.scene == Scene.DIARY && guard++ < 30) {
+        while (s.scene == Scene.DIARY && s.stage !is DiaryGift && guard++ < 30) {
             val b = s.buttons.firstOrNull { "😄" in it.label } ?: s.buttons.firstOrNull { "다음 쪽" in it.label || "다 읽었어" in it.label }
             if (b == null) { delay(20); continue }
             b.onClick(); delay(30)
@@ -84,7 +89,7 @@ class PictureDiaryFlowTest {
     fun aTalkingDayAsksAtMostThreeThingsAndBecomesAPictureDiary() = run { d ->
         val s = d.s
         d.go(Scene.DIARY)
-        assertTrue("D0 에 그림판이 먼저 떠야 한다", await { s.stage is DiaryBoard } != null)
+        assertTrue("D0 은 방에서 묻는 시작 화면이다", await { s.stage is DiaryStart } != null)
         assertTrue(d.push("그림 없이 이야기할래"))
 
         // 남아 있는 옛 버튼을 한 번 더 누를 수 있어 누른 수가 아니라 **물은 수**(stepsDone)로 센다
@@ -108,8 +113,11 @@ class PictureDiaryFlowTest {
         assertTrue("오늘 기분을 묻지 않았다", book.last().asksFeel)
 
         d.readToTheEnd()
-        assertTrue("선물 · 책장으로 안 갔다 (장면=${s.scene})", await { s.scene == Scene.END } != null)
+        assertTrue("그림일기 책 선물(D6)로 안 갔다 (장면=${s.scene} · ${s.stage})", await { s.stage is DiaryGift } != null)
         assertEquals("얼굴로 고른 기분", "오늘은 참 신났어요.", s.diaryDay.feel?.line)
+        assertTrue(d.push("책장에 꽂기"))
+        assertTrue("책장으로 안 갔다", await { s.scene == Scene.SHELF } != null)
+        assertEquals("오늘 그림일기가 책장 맨 앞에 꽂히지 않았다", 3, s.shelf.first().pages)
     }
 
     @Test
@@ -235,6 +243,52 @@ class PictureDiaryFlowTest {
         assertEquals(listOf(DiaryPageKind.DRAWING), book.map { it.kind })
         assertFalse("그림만 있는 날에 「아직 듣지 못했어요」를 붙였다", book.single().tail == NOT_HEARD_AFTER)
         d.readToTheEnd()
-        assertTrue(await { s.scene == Scene.END } != null)
+        assertTrue(await { s.stage is DiaryGift } != null)
+    }
+
+    /** 그림판 옆 버튼이 없다 — 물을 것이 떨어지면 오또가 「다 그렸어?」라고 묻고, 말로 답해 끝낸다 (docs/일기모드_UI.html) */
+    @Test
+    fun whenNothingIsLeftToAskOttoAsksIfDoneAndAVoiceYesEndsDrawing() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        repeat(ASK_WHILE_DRAWING) { i ->
+            s.drawing += stroke(0.1f + 0.3f * i)
+            assertTrue(d.push("붓이 멈춤"))
+            assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+            assertTrue(d.push("대답 없음"))
+            if (await(1_500) { s.buttons.any { "대답 없음" in it.label } } != null) d.push("대답 없음")
+            assertTrue(await { s.buttons.any { "붓이 멈춤" in it.label } } != null)
+        }
+        // 물을 것 없는 멈춤 — 처음 몇 번은 지켜보기만 하고, [DONE_CHECK_EVERY] 번째에 묻는다
+        repeat(DONE_CHECK_EVERY - 1) { i ->
+            s.drawing += stroke(0.8f + 0.05f * i)
+            val watched = s.log.count { "물을 만큼 물었다" in it }
+            assertTrue(await {
+                s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick()
+                s.log.count { "물을 만큼 물었다" in it } > watched
+            } != null)
+        }
+        s.drawing += stroke(0.9f)
+        assertTrue("물을 것이 떨어졌는데 「다 그렸어?」를 묻지 않았다", await {
+            s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick()
+            s.line == "다 그렸어? 더 그릴 거 있어?"
+        } != null)
+        assertTrue("마이크가 열리지 않았다 — 말로 답할 길이 없다", s.micEnabled)
+        // 서버 모드처럼 값 없는 말로 답한다
+        assertTrue(await { d.send(Reply.Spoke("응, 다 그렸어")); s.stage is DiaryAsk } != null)
+        assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+    }
+
+    @Test
+    fun aChildsWordsAreReadAsYesNoOrDone() {
+        assertEquals("yes", yesNoOf("응!"))
+        assertEquals("yes", yesNoOf("좋아"))
+        assertEquals("yes", yesNoOf("너도 그려줘"))
+        assertEquals("no", yesNoOf("아니, 내 그림이 좋아."))
+        assertEquals("no", yesNoOf("더 그릴래!"))
+        assertEquals("done", yesNoOf("다 그렸어"))
+        assertEquals("done", yesNoOf("응, 다 그렸어"))
+        assertNull(yesNoOf("강아지"))
     }
 }

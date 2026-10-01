@@ -281,7 +281,9 @@ private suspend fun Director.sceneAdult() {
     // 일기 · 협업 모드는 "누구랑 같이 만들래?"를 묻지 않는다 (9/21 사용자 요청).
     // 재료가 아이의 실제 하루라 **오늘 누구와 있었는지는 이야기 안에서 묻는 것**이 자연스럽고(질문 2번),
     // 협업 모드는 옆에 있는 사람이 곧 질문하는 사람이라 따로 고를 이유가 없다.
-    if (s.isDiary) go(if (s.firstDay) Scene.MAKEHERO else Scene.BESTIARY) else go(Scene.PARTNER)
+    // 그림일기는 주인공을 고르지 않는다 — 주인공은 그림을 그리는 아이 자신이다 (docs/일기모드_UI.html · 방 → D0)
+    if (s.mode == StoryMode.DIARY) go(Scene.DIARY)
+    else if (s.isDiary) go(if (s.firstDay) Scene.MAKEHERO else Scene.BESTIARY) else go(Scene.PARTNER)
 }
 
 // ── 장면 2 · 도감 (⭐8 주인공 4칸 + 점선 ＋ 버튼) ──────────────────
@@ -1083,6 +1085,11 @@ private suspend fun Director.sceneDino() {
 // ── 장면 8 · 공룡 소리 (원본 녹음 · 다시 2번 · 폰 밖으로 안 나감) ───
 
 private suspend fun Director.sceneSound() {
+    if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
+        recordStorySound()
+        go(Scene.CHECK)
+        return
+    }
     val d = s.dino
     var left = 2
     var retried = false
@@ -1453,6 +1460,8 @@ private suspend fun Director.sceneBook() {
             i == dragPage -> if (s.m2Result == null) s.m2Line(s.m1Result == "helped") else s.m2Done()
             // 일기 모드에는 공룡 소리 칸이 없다 — 묻지 않는 칸이다 (§2-2)
             i == last && s.isDiary -> "오른쪽 책 버튼을 눌러 봐! 오늘 이야기가 여기서 끝나."
+            i == last && s.storySoundClip != null -> "${d}${eul(d)} 눌러 봐! 내가 만든 소리가 나와."
+            i == last && Server.liveFor(s.mode) -> "오른쪽 책 버튼을 눌러 봐! 우리 이야기가 여기서 끝나."
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
         }
@@ -1520,7 +1529,10 @@ private suspend fun Director.sceneBook() {
                 log("미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (연출은 공통)")
                 mark("book")
             }
-            vv == "dino" -> log("${d}${eul(d)} 누르면 아이가 녹음한 소리 재생 (폰 안에서만)")
+            vv == "dino" -> {
+                if (s.mode == StoryMode.STORY) playStorySound()
+                log("친구 소리 재생 · 녹음이 없으면 조용히 유지")
+            }
             vv.startsWith("tool:") -> { log("도구 반응 ${vv.removePrefix("tool:")} — 그 자리 위에 글자 (반응 애니메이션은 대상 무관 공통)"); mark("tools") }
         }
     }

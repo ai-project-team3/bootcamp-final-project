@@ -1167,6 +1167,10 @@ class DemoState {
     /** 책 화면 위쪽 안내 한 줄 (책은 전체 화면이라 마스코트 말풍선 대신 여기에) */
     var bookNote by mutableStateOf("")
     var soundLine by mutableStateOf("뿌우우우웅!")
+    var storySoundClip: com.example.finalproject_demo.sound.ChildSound.SoundClip? = null
+    var storySoundBookId: String? = null
+    var storySoundSaved = false
+    var storySoundAttempted = false
 
     val th: Theme get() = theme(themeKey)
 
@@ -1340,6 +1344,7 @@ class DemoState {
 
     /** 이야기 한 권 분량만 지운다. 책장 · 부모 설정 · 하루 별 · 도감 · 수준(다음 세션 시작점) · 쓴 질문은 남긴다 */
     fun resetStory() {
+        clearStorySound()
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
         slots.clear(); slotBy.clear(); storyNextSlot = null; storyServerQuestion = null; storyUnneededSlots.clear(); storyStartedAtMs = 0L
