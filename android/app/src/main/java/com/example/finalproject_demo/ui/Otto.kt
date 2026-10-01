@@ -30,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
@@ -64,6 +63,7 @@ import kotlin.math.roundToInt
  * 얼굴 테두리 색으로 **차례**를 알린다 — 말하는 중 분홍 [Cheek] · 듣는 중 청록 [FeltTeal] · 생각하는 중 겨자 [FeltMustard].
  * 말할 때도 들을 때처럼 테두리 색 파동이 퍼진다(09-29 사용자 요청 — 전에는 들을 때만 파동이 있었다).
  * 파동은 얼굴과 **같은 상자**에서 같이 움직여, 얼굴이 기울거나 뛰어도 중심이 어긋나지 않는다.
+ * (10-01 에 잠깐 껐다가 사용자 요청으로 그대로 되살렸다. 옛 모양이 번쩍인 원인은 띠 안 🔊 가 붙었다 떨어지며 띠 길이가 바뀐 것이었다)
  */
 
 enum class OttoState(val ring: Color, val face: String) {
@@ -282,15 +282,17 @@ fun OttoFace(
 
 /**
  * 오또 말풍선 → **나레이션 칸** (화면 아래 전체 폭). 말할 때마다 톡 튀어나오고 글자가 한 자씩 써진다.
- * 녹음 버튼 · 그리기 버튼은 칸 **안** 오른쪽에 들어간다 (09-29 사용자 요청).
+ * 녹음 버튼 · 그리기 버튼은 칸 오른쪽 끝에 따로 선다 (09-30 사용자 요청).
  */
 @Composable
 fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
     val s = d.s
     val id = s.lineId
     val text = s.line
-    val pop = remember { Animatable(1f) }
-    var shown by remember { mutableIntStateOf(text.length) }
+    // 처음부터 「튀어나오기 전」 상태로 — 전에는 다 보인 상태(투명도 1 · 글자 전부)로 한 프레임 그렸다가
+    // 아래 LaunchedEffect 가 되돌려서, 나레이션이 뜰 때마다 문장 전체가 번쩍 보였다 사라졌다 (09-30 사용자 제보)
+    val pop = remember { Animatable(0.6f) }
+    var shown by remember { mutableIntStateOf(0) }
     LaunchedEffect(id) {
         shown = 0
         pop.snapTo(0.6f)
@@ -309,7 +311,8 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
         s.micOn -> OttoState.LISTEN
         talking -> OttoState.TALK
         s.stage is Stage.Making -> OttoState.THINK
-        s.mood == Mood.WAITING -> OttoState.WAIT
+        // 말을 다 했고 마이크를 쓸 수 있으면 아이 답을 기다리는 중이다 — 불빛을 켠다 (10-01 사용자 요청)
+        s.mood == Mood.WAITING || s.micEnabled -> OttoState.WAIT
         else -> OttoState.IDLE
     }
     val mode = when {
@@ -318,19 +321,26 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
         else -> NarrationMode.STORY
     }
     // 오또가 할 말이 없는 차례(같이 만들기에서 어른이 묻는 차례 등)에도 칸이 비지 않게 — 아이에게 차례를 알린다
-    val line = if (text.isBlank()) "네 차례야! 마이크를 누르고 말해 봐" else text.take(shown)
+    val full = if (text.isBlank()) "네 차례야! 마이크를 누르고 말해 봐" else text
+    val line = if (text.isBlank()) full else text.take(shown)
     Narration(
-        mode = mode, state = state, line = line,
-        modifier = modifier.alpha(((pop.value - 0.6f) / 0.4f).coerceIn(0f, 1f)),
+        mode = mode, state = state, line = line, fullLine = full,
+        // 투명도는 영역 크기만 한 버퍼에 그려 합친다 — 그래서 버퍼 **위쪽에 여유(Headroom)** 를 넣는다. 전에는 새 말과 함께
+        // 터지는 점프 · 파동 · 「!」가 칸 위로 나가면서 잘렸다 (10-01 사용자 제보). 여유 칸은 투명하고 누름을 받지 않는다.
+        // (버퍼 없이 그리는 ModulateAlpha 는 겹친 층이 비쳐 띠가 분홍빛으로 물들어서 쓰지 않는다)
+        modifier = modifier.graphicsLayer { alpha = ((pop.value - 0.6f) / 0.4f).coerceIn(0f, 1f) }.padding(top = BubbleHeadroom),
         speaker = if (s.speaker != "마스코트") s.speaker else null,
         burst = s.mood, burstId = s.moodId,
         expr = exprFor(text, s.mood),
         trailing = if (controls) { {
             if (s.drawEnabled) DrawButton(d)
-            if (s.micEnabled) MicButton(d)
+            if (s.micEnabled) MicButton(d, size = 96.dp)  // 나레이션 줄 오른쪽 — 얼굴 자리(100dp)와 무게를 맞춘다
         } } else null,
     )
 }
+
+/** 나레이션 위 여유 — 오또 점프(18dp) · 파동 · 「!」가 투명도 버퍼 안에 들어오게 */
+private val BubbleHeadroom = 40.dp
 
 /**
  * 나레이션 칸이 없는 화면(첫 화면 · 책 · 부모)에서만 쓰는 오른쪽 아래 버튼.

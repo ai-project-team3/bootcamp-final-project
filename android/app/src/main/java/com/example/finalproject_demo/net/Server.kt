@@ -146,7 +146,7 @@ object Server {
             .put("question", t.question)
             .put("utterance", t.utterance)
             .put("ask", ask)
-        val j = postJson("/turn", body, readMs = 20_000) ?: return null
+        val j = postJson("/turn", body, readMs = 30_000) ?: return null   // server answers within 25 s (turn_deadline_s)
         return try {
             TurnResult(
                 verdict = j.optJSONObject("judge")?.let { parseVerdict(it) },
@@ -271,7 +271,7 @@ object Server {
             .put("voice_id", voiceId ?: JSONObject.NULL)
             .put("previous_text", previous ?: JSONObject.NULL)
             .put("next_text", next ?: JSONObject.NULL)
-        val (code, bytes) = post("/tts", body.toString().toByteArray(), JSON) ?: return null
+        val (code, bytes) = post("/tts", body.toString().toByteArray(), JSON, readMs = 20_000) ?: return null   // server gives up at 15 s
         if (code != 200) { Log.w(TAG, "/tts $code ${bytes.decodeToString()}"); return null }
         return bytes
     }
@@ -309,7 +309,7 @@ object Server {
             val b = base ?: return@withContext null
             try {
                 val c = URL(b + path).openConnection() as HttpURLConnection
-                c.connectTimeout = 4_000
+                c.connectTimeout = 6_000   // 10-01: the public https address goes through Cloudflare; 4 s was tight on mobile data
                 c.readTimeout = readMs
                 c.requestMethod = "POST"
                 c.doOutput = true

@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
@@ -162,7 +163,8 @@ fun DemoApp() {
         // 마스코트가 그대로 한다 (부모협업모드_설계.md §2-2). 그러니 반응은 보여야 한다.
         //
         // 이제 Column으로 쌓는다 — 위가 마스코트 말풍선, 아래가 부모 띠. 겹칠 수가 없다.
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+        // 나레이션은 화면 **맨 앞** — 오또가 뛰어도 무대 그림 · 다른 층에 가리지 않는다 (10-01)
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().zIndex(10f)) {
             if (!bubbleHidden && !diaryOwnsChrome) MascotBubble(d, Modifier.padding(start = 8.dp, bottom = 6.dp))
             // 아이 화면 위에 덮지 않고 아래에 띠로 붙는다: 아이는 위 그림을, 부모는 아래 글자를 본다
             if (pinStage == null) ParentBand(d)

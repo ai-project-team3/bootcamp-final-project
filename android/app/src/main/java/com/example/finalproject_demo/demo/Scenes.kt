@@ -923,7 +923,7 @@ private suspend fun Director.sceneCause() {
     go(Scene.DRAW)
 }
 
-// ── 장면 6 · 그림판 (아이 그림 원본 그대로 · 이름 · 입 위치) ───────
+// ── 장면 6 · 그림판 (아이 그림 원본 그대로 · 이름) ───────
 
 private suspend fun Director.sceneDraw() {
     val nc = s.newcomerKind
@@ -967,11 +967,7 @@ private suspend fun Director.sceneDraw() {
     }
     s.newcomer = "${s.friendName} (아이 그림)"
 
-    s.stage = Stage.MouthTap(s.friendArt)
-    say("${s.friendName}${eun(s.friendName)} 어디로 말할까? 입을 콕 눌러 줘.")
-    buttons(DemoBtn("🖐 입 위치 탭") { send(Reply.Tapped("mouth", "입")) })
-    awaitValue("mouth")
-    log("입 위치 1점만 저장 → 말할 때 그 자리만 움직임 (얼굴 인식 아님)")
+    // 아이 그림에 입 위치를 찍어 붙이던 단계는 없앴다 (10-01 사용자 요청) — 이름을 정하면 바로 이야기로 간다
     mark("draw")
     pause(900)
     go(Scene.PLOT)
@@ -1426,6 +1422,7 @@ private suspend fun Director.sceneMaking() {
         if (s.useGeneratedStory(captions)) log("서버가 쓴 동화 ${s.pageCount}쪽을 받음")
         else log("동화 생성 실패 또는 쪽 목록 불일치 → 템플릿 책 사용")
     }
+    coopWriteBook()                             // 협업 책 문장 — 서버를 켰을 때만 (CoopScenes.kt · #47)
     s.stage = Stage.Making("『${s.title}』", 1f)
     say("다 만들었어! 제목은 『${s.title}』${if (bat(s.title!!)) "이야" else "야"}.")
     log("제목은 아이에게 묻지 않고 템플릿 · 대화로 지어 준다 → 책장에서 바꿀 수 있다")
@@ -1547,8 +1544,17 @@ private suspend fun Director.sceneBook() {
  */
 private suspend fun Director.sceneFriends() {
     inputs(false, false)
+    // Live stories have no scripted dinosaur; only rate a confirmed newcomer.
+    val liveStory = s.mode == StoryMode.STORY && Server.liveFor(s.mode)
+    if (liveStory && s.slots["newcomer"].isNullOrBlank()) {
+        log("동화 모드 · 이야기에서 고른 친구가 없다 → 친구 평가를 건너뛴다")
+        go(Scene.END)
+        return
+    }
     // 일기 모드에는 공룡(동행 칸)이 없다. 아이가 아무도 그리지 않았으면 평가할 친구도 없다 (§2-2)
-    val items = if (s.isDiary) {
+    val items = if (liveStory) {
+        mutableListOf(RateItem("friend", s.friendCallName, s.friendArt))
+    } else if (s.isDiary) {
         if (s.newcomer == null) {
             log("일기 모드 · 오늘 그린 친구가 없다 → 친구 평가를 건너뛴다 (동행 · 소리 칸은 묻지 않는다 · §2-2)")
             go(Scene.END)
@@ -1557,7 +1563,7 @@ private suspend fun Director.sceneFriends() {
         mutableListOf(RateItem("friend", s.friendCallName, s.friendArt))
     } else {
         mutableListOf(
-            RateItem("friend", s.friendName, s.friendArt),
+            RateItem("friend", s.friendCallName, s.friendArt),
             RateItem("dino", s.dino.name, Art.DinoArt(s.dinoColor, s.dinoKey)),
         )
     }

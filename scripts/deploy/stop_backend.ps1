@@ -1,15 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
-$conns = Get-NetTCPConnection -LocalPort 8010 -State Listen -ErrorAction SilentlyContinue
-if (-not $conns) {
-    Write-Host "no process on port 8010 - nothing to stop"
-    exit 0
-}
-
-$targetPids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
-foreach ($targetPid in $targetPids) {
-    Write-Host "stopping pid $targetPid (port 8010)"
-    Stop-Process -Id $targetPid -Force -ErrorAction SilentlyContinue
-}
-
-Start-Sleep -Seconds 1
+# Docker-based deploy: the backend runs as container "otto-backend" (own process tree in
+# dockerd, immune to the Actions runner's Windows Job Object — see start_backend.ps1).
+docker rm -f otto-backend 2>$null | Out-Null
+Write-Host "removed otto-backend container (or none was running)"

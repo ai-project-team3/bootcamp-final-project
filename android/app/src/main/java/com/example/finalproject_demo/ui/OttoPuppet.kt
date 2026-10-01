@@ -117,11 +117,11 @@ private fun ottoPose(move: OttoMove, t: Float): PoseOut {
  * @param flip 왼쪽을 볼 때(왼쪽으로 걸을 때 · 왼쪽 물건을 가리킬 때) 좌우를 뒤집는다. 옆모습 그림은 오른쪽을 본다
  */
 @Composable
-fun OttoPuppet(move: OttoMove, modifier: Modifier = Modifier, flip: Boolean = false) {
+fun OttoPuppet(move: OttoMove, modifier: Modifier = Modifier, flip: Boolean = false, paused: Boolean = false) {
     if (assetId("otto_m_body") == 0) { AssetImage("mascot", modifier); return }
-    // 흐르는 시간(초). 화면 검사에서는 한 순간에 멈춘다
-    val t by produceState(0.35f, move) {
-        if (motionFrozen) return@produceState
+    // 흐르는 시간(초). 화면 검사에서는 한 순간에 멈춘다 · [paused] 면 쉰다(방에 한참 아무도 안 만질 때 · #40)
+    val t by produceState(0.35f, move, paused) {
+        if (motionFrozen || paused) return@produceState
         val start = withFrameNanos { it }
         while (true) withFrameNanos { value = (it - start) / 1e9f }
     }

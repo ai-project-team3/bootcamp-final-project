@@ -10,6 +10,7 @@ The prompt is read from eval/line_prompt.md, not copied (one thing in one place)
 import json
 import logging
 import re
+import time
 from functools import lru_cache
 
 from fastapi import APIRouter, HTTPException
@@ -45,7 +46,11 @@ def schema() -> dict:
 def user(req: TurnRequest, v: JudgeResult | None) -> str:
     """The §3 inputs. Without a verdict, the slots are empty and the model just continues."""
     values = [x for x in ((v.value_1, v.value_2) if v else ()) if x]
+    # what the child has already settled — 10-01 #50: without it the line model asked about
+    # places and characters that were not in the story, and the talk drifted
+    so_far = " · ".join(f"{k}={val}" for k, val in req.slots.items() if val and str(val).strip())
     return (
+        f"story_so_far:{so_far}\n"
         f"mode:{req.mode}\n"
         f"ask:{'true' if req.ask else 'false'}\n"
         f"level:{req.level or ''}\n"
@@ -92,14 +97,20 @@ def mock_line(req: TurnRequest, v: JudgeResult | None) -> Line:
     return Line(ack="그랬구나!", expand=None, question=f"{nxt} 이야기를 해 줄래?" if nxt else "그다음엔?")
 
 
-async def run_line(req: TurnRequest, v: JudgeResult | None) -> Line | None:
+LINE_MIN_S = 3.0      # less than this left after the judge: send the verdict alone
+
+
+async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30.0) -> Line | None:
     if v is not None and v.reason == "blocked_by_filter":
         return None          # a blocked utterance never leaves for the LLM, here either
     if settings.mock:
         return shape(mock_line(req, v), req, v)
+    if budget_s < LINE_MIN_S:
+        log.warning("line skipped: %.1fs left of the /turn deadline", budget_s)
+        return None          # the phone asks its own next question; the verdict still counts
     try:
         raw = await complete(system(), user(req, v), schema(), name="mascot_line",
-                             effort=settings.llm_effort_line)
+                             effort=settings.llm_effort_line, timeout_s=budget_s)
     except LLMError as e:
         log.warning("line failed: %s", e)
         return None
@@ -113,12 +124,15 @@ async def run_line(req: TurnRequest, v: JudgeResult | None) -> Line | None:
 
 @router.post("/turn", response_model=TurnResult)
 async def turn(req: TurnRequest) -> TurnResult:
+    # one deadline for the whole turn, under the phone's 30 s: the judge first (≤ 18 s),
+    # the line gets what is left — a slow vendor costs the line, never the verdict
+    t0 = time.monotonic()
     try:
         v = await judge.run(req)
     except LLMError as e:
         log.warning("judge failed in /turn: %s", e)
         v = None
-    line = await run_line(req, v)
+    line = await run_line(req, v, settings.turn_deadline_s - (time.monotonic() - t0))
     if v is None and line is None:
         raise HTTPException(502, "judge and line both failed")
     return TurnResult(judge=v, line=line)

@@ -36,15 +36,19 @@ _MOCK_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
 
 
-@lru_cache(maxsize=2)
+# each kind orders its picture with its own prompt (eval/). The redraw one takes things as well
+# as characters — the character prompt turned a house and a sun down as "not a character" (#32)
+_ORDER = {"background": "image", "character": "character", "redraw": "redraw"}
+
+
+@lru_cache(maxsize=3)
 def system(kind: str = "background") -> str:
-    return system_block(EVAL / ("image_prompt.md" if kind == "background" else "character_prompt.md"))
+    return system_block(EVAL / f"{_ORDER[kind]}_prompt.md")
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=3)
 def schema(kind: str = "background") -> dict:
-    name = "image_schema.json" if kind == "background" else "character_schema.json"
-    s = json.loads((EVAL / name).read_text(encoding="utf-8"))
+    s = json.loads((EVAL / f"{_ORDER[kind]}_schema.json").read_text(encoding="utf-8"))
     return {k: v for k, v in s.items() if k not in ("name", "description")}
 
 
@@ -64,9 +68,9 @@ async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
         # memory (comfy_nodes/otto_memory.py), history entry deleted in comfy.run
         drawing = await asyncio.to_thread(character.prepare_drawing, base64.b64decode(req.png_base64))
         raw = await comfy.run(comfy.redraw_workflow(scene, random.randrange(2 ** 31),
-                                                    base64.b64encode(drawing).decode()))
+                                                    base64.b64encode(drawing).decode(), mode=req.mode))
         del drawing
-        return await asyncio.to_thread(character.cut_and_fit, raw, True)
+        return await asyncio.to_thread(character.cut_out_all, raw)
     tmpl = character.template(rig)
     if tmpl is not None and rig not in _uploaded:
         _uploaded[rig] = await comfy.upload(tmpl, f"otto_mannequin_{rig}.png")
@@ -77,10 +81,9 @@ async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
 async def _draw(req: ImageRequest) -> ImageResult:
     t0 = time.monotonic()
     field = "place" if req.kind == "background" else "description"
-    # a redraw orders its subject like a character does — only the words, never the drawing
-    order = "background" if req.kind == "background" else "character"
+    # the order LLM gets only the words — never the child's drawing
     try:
-        raw = await complete(system(order), f"mode:{req.mode}\n{field}:{req.words}", schema(order),
+        raw = await complete(system(req.kind), f"mode:{req.mode}\n{field}:{req.words}", schema(req.kind),
                              name=f"image_{req.kind}", effort=settings.llm_effort_judge, max_output_tokens=200)
     except LLMError as e:
         return preset(f"scene llm: {e}")

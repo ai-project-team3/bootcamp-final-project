@@ -129,7 +129,9 @@ fun ProgressTrack(filled: Int, total: Int, modifier: Modifier = Modifier) {
                 .height(36.dp)
                 .felt(FeltWhite.copy(alpha = 0.94f), RoundedCornerShape(Radius.Round), lift = 3.dp)
         ) {
-            Canvas(Modifier.fillMaxSize().padding(start = 14.dp, end = 30.dp)) {
+            // 길은 끝의 메달 **밑까지** 이어진다 — 메달이 마지막 별 자리다 (10-01 사용자 요청: 마지막 별과 선이 끊겨 있었다).
+            // 판 끝(오른쪽 22dp 안) 에서 13dp 더 들어간 곳 = 메달 안쪽
+            Canvas(Modifier.fillMaxSize().padding(start = 14.dp, end = 13.dp)) {
                 val h = 12.dp.toPx()
                 val y = size.height / 2
                 val r = CornerRadius(h / 2)
@@ -145,13 +147,15 @@ fun ProgressTrack(filled: Int, total: Int, modifier: Modifier = Modifier) {
                     val sx = size.width * shimmer
                     if (sx >= 0f && sx + h <= w) drawRect(FeltWhite.copy(alpha = 0.35f), Offset(sx, y - h / 2), Size(h, h))
                 }
-                // 쪽마다 별 구슬 — 지난 쪽은 흰 별, 남은 쪽은 흐린 별
+                // 쪽마다 별 구슬 — 차오르는 선이 별에 닿는 순간 별도 코랄 펠트로 채워진다(흰 바느질 테두리).
+                // 아직 닿지 않은 별은 흐린 별 (10-01 사용자 요청: 선만 차고 별은 비어 보였다)
+                val reached = if (frac > 0f) (size.width * frac).coerceAtLeast(h) else 0f
                 for (i in 1 until total) {
                     val cx = size.width * i / total
-                    val star = starPath(cx, y, 7.dp.toPx())
-                    if (i <= filled) {
-                        drawPath(star, FeltWhite)
-                        drawPath(star, StageWoodDeep.copy(alpha = 0.55f), style = Stroke(1.2f.dp.toPx()))
+                    val star = starPath(cx, y, 7.5f.dp.toPx())
+                    if (cx <= reached) {
+                        drawPath(star, FeltCoral)
+                        drawPath(star, FeltWhite, style = Stroke(1.6f.dp.toPx()))
                     } else {
                         drawPath(star, InkSoft.copy(alpha = 0.28f))
                     }
@@ -292,10 +296,10 @@ fun Tappable(
 /**
  * 아래 여백 — 오또 나레이션 칸에 가리지 않게 무대 안쪽에 두는 높이.
  * 09-29 나레이션 칸이 화면 아래 전체 폭(위 여백 30 + 칸 84 + 아래 8 = 122dp)이 되면서 76dp 로는
- * 주인공 고르기 다섯째 줄 · 카드가 칸 밑에 깔렸다 → 칸 높이에 맞춘다 (09-30 칸이 낮아져 98dp → 102dp)
+ * 주인공 고르기 다섯째 줄 · 카드가 칸 밑에 깔렸다 → 칸 높이에 맞춘다 (칸 전체 112dp → 116dp)
  */
-val BottomChrome = 102.dp
-/** 위 여백 — 🏠 · 🔒(10 + 56dp)과 진행 막대 아래 */
+val BottomChrome = 116.dp
+/** 위 여백 — 🏠 · 🔒(누르는 자리 10 + 56dp)과 진행 막대 아래 */
 val TopChrome = 72.dp
 
 @Composable

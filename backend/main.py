@@ -9,6 +9,9 @@ Run (from backend/):
     MOCK=1 → spec-shaped fixed answers, no keys, no GPU (for wiring the app)
 """
 import asyncio
+import logging
+import time
+from collections import Counter
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -20,6 +23,11 @@ from starlette.exceptions import HTTPException
 
 from app.config import settings
 from app.image import comfy
+
+# Our own INFO lines (which voice spoke · stt timing · image steps) reach `docker logs`.
+# Nothing was configured before, so only warnings showed (10-01). httpx logs each URL at INFO — kept quiet.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(name)s · %(message)s")
+logging.getLogger("httpx").setLevel(logging.WARNING)
 from app.routers import image, judge, story, stt, tts, turn
 
 
@@ -59,3 +67,59 @@ async def _shape_error(_: Request, e: RequestValidationError) -> JSONResponse:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "mock": settings.mock}
+
+
+# ── /stats — what the monitor on port 80 reads (monitoring/, scripts/deploy/start_monitor.ps1) ──
+#
+# In memory on purpose: a restart is a reset. Nothing a child said is kept — only the route
+# template, the status code and how long it took, never a path argument or a body.
+_START = time.monotonic()
+_HITS: Counter[tuple[str, str]] = Counter()      # (method, route template) -> calls
+_MS: Counter[tuple[str, str]] = Counter()        # (method, route template) -> total ms
+_STATUS: Counter[int] = Counter()                # status -> calls, over everything
+# status per endpoint too: "which one is failing" is the question a 502 actually raises
+# (the /story ReadTimeout of 10-01 was invisible for exactly this reason)
+_ESTATUS: Counter[tuple[str, str, int]] = Counter()
+
+
+@app.middleware("http")
+async def _count(request: Request, call_next):
+    t0 = time.monotonic()
+    response = await call_next(request)
+    ms = (time.monotonic() - t0) * 1000
+    # The route template, not the raw path: an unmatched path (bots probe "/" and worse on the
+    # public tunnel) must not grow a new counter every time.
+    route = request.scope.get("route")
+    path = getattr(route, "path", None) or "(unmatched)"
+    if path != "/stats":                         # the observer does not count itself
+        key = (request.method, path)
+        _HITS[key] += 1
+        _MS[key] += ms
+        _STATUS[response.status_code] += 1
+        _ESTATUS[(request.method, path, response.status_code)] += 1
+    return response
+
+
+@app.get("/stats")
+def stats() -> dict:
+    total = sum(_HITS.values())
+    return {
+        "uptime_s": round(time.monotonic() - _START),
+        "total": total,
+        "endpoints": [
+            {
+                "method": method,
+                "path": path,
+                "count": n,
+                "share": round(n / total, 4) if total else 0.0,
+                "avg_ms": round(_MS[(method, path)] / n),
+                "status": {str(code): hits
+                           for (m, p, code), hits in sorted(_ESTATUS.items())
+                           if m == method and p == path},
+                "errors": sum(hits for (m, p, code), hits in _ESTATUS.items()
+                              if m == method and p == path and code >= 400),
+            }
+            for (method, path), n in _HITS.most_common()
+        ],
+        "status": {str(code): n for code, n in sorted(_STATUS.items())},
+    }

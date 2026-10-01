@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # still open, so the voice is a setting and the app may pass its own voice_id.
     typecast_api_key: str = ""
     typecast_model: str = "ssfm-v30"
-    typecast_voice_id: str = "tc_65a8c82a7e7bded32947497e"
+    typecast_voice_id: str = "tc_6699eb3849dfac016c29444c"   # Siwoo (10-01 조장 · was Ruri tc_65a8c82a7e7bded32947497e)
 
     # 09-21 recipe (results.md): SDXL base + Lightning 8-step, 3.74 s alone · 3.86 s beside large-v3
     comfy_url: str = "http://127.0.0.1:8188"
@@ -49,6 +49,32 @@ class Settings(BaseSettings):
     image_lora: str = "sdxl_lightning_8step_lora.safetensors"
     # under the app's 15 s preset line (rule 8), so the answer lands before the app gives up
     image_deadline_s: float = 13.0
+    # Every server deadline sits under the phone's wait (net/Server.kt), so the server answers
+    # first — a verdict, a fallback or an error — instead of the phone giving up mid-call (10-01).
+    turn_deadline_s: float = 25.0        # phone waits 30 s · judge ≤ 18 s, the line gets what is left
+    judge_deadline_s: float = 18.0
+    story_deadline_s: float = 55.0       # phone waits 60 s · effort high: 10-01 a book passed 30 s → 502
+    tts_deadline_s: float = 15.0         # phone waits 20 s
+    # Who makes the mascot's voice. 10-01: TypeCast answered 403 UNUSUAL_ACTIVITY_DETECTED on the
+    # new key (the free account ran out, the next free account was flagged) — OpenAI for now, the
+    # vendor already in the privacy policy, same key. Back to "typecast" once that account is sorted.
+    # 10-01 later: a new TypeCast key — TypeCast first again, and if it fails (402 · 403 · slow)
+    # the same request falls back to OpenAI, so the mascot never goes quiet over an account issue
+    tts_provider: str = "typecast"       # typecast | openai
+    tts_fallback: str = "openai"         # "" = no fallback
+    # 조장 10-01: Siwoo · 밝게 (09-26 blind ★) but a little fast — 0.95 until the ear test
+    # (eval/bench_tts_tempo.py) settles it
+    typecast_emotion: str = "happy"      # a preset name, or "smart" (reads the neighbouring lines)
+    typecast_tempo: float = 0.95
+    # 10-01 조장 pick: sage on the pinned snapshot with a short "playful" instruction — the only
+    # combination that rose into a child's pitch range (median F0 ~262-296 Hz vs ~210 on the current
+    # model with the same words · eval/voice_pitch.py, eval/bench_tts_openai_voices3.py). OpenAI has
+    # no child voice; the snapshot follows "playful, like talking with a young child" by going higher.
+    # ⚠️ a pinned snapshot can be retired — bake the fixed lines while it exists
+    openai_tts_model: str = "gpt-4o-mini-tts-2025-03-20"
+    openai_tts_voice: str = "sage"
+    openai_tts_instructions: str = ("Warm, friendly and playful. Speak naturally, like talking with a young child. "
+                                    "Not too fast.")
     image_warmup: bool = True            # draw one picture at start so models are loaded
     # rule 8: our image model has no safety filter — every picture is checked
     moderation_model: str = "omni-moderation-latest"

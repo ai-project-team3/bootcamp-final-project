@@ -18,7 +18,7 @@ import com.example.finalproject_demo.ui.HeroAttr
  * 협업 모드의 질문 흐름을 멈추는 조건 (09-30 확정 · guidelines/2 §1-1 · #36).
  *
  * 끝나는 조건은 `story_ready` 하나다. 「`mascot_pick` 2회 연속이면 끝」은 없앴다 — 마스코트는 칸을 채울 뿐
- * 이야기를 닫지 않는다. **협업은 시간으로 끊지 않는다** — 부모가 넣은 질문을 다 물으면 마무리하고
+ * 이야기를 닫지 않는다. **협업은 시간으로 끊지 않는다** — 뼈대 네 자리와 부모가 넣은 질문을 다 물으면 마무리하고
  * (`coopQuestionsAllAsked` · 아래 루프), 부모 「그만하기」로 언제든 끝낸다(`stopCoopByParent`).
  * 일기(그림일기)는 이 함수를 쓰지 않고 30분쯤 마무리를 한 번 제안한다(`PictureDiary.kt`).
  */
@@ -124,13 +124,18 @@ suspend fun Director.sceneDiary() {
             log("[${step.part} · ${step.bookKey}] 건너뜀 — 앞의 답에 물을 데가 없다 (소크라틱: 아이가 한 말에서 다음 질문이 나온다)")
             continue
         }
-        askDiaryStep(step)
+        // 뼈대 칸이 앞 답에서 이미 찼으면 묻지 않는다 — 「놀이터 갔는데 친구가 밀었어」로 「무슨 일」이 찼는데
+        // 셋째 걸음에서 「무슨 일이 있었어?」를 또 물으면 아이는 방금 한 말을 되풀이하고, 새 답이 앞 값을 덮는다 (10-01)
+        if (step.required && diaryFilled(step.slot)) {
+            log("[${step.part} · ${step.bookKey}] 건너뜀 — 앞의 답에서 이미 찼다 (${s.slotBy[step.bookKey] ?: "?"}) · 같은 걸 두 번 묻지 않는다")
+            s.coopCoverPart(step.variant.id)
+        } else askDiaryStep(step)
         // 진행 막대는 **지나온 걸음 수**로 찬다 (9/22). 칸이 찼는지로 세면, 아이가 답하지 않은
         // 선택 질문이 하나라도 있으면 마지막 질문까지 가도 막대가 끝까지 가지 않는다
         s.stepsDone++
-        // 부모가 넣은 질문을 다 물었으면 남은 꼬리질문은 묻지 않는다 — 부모가 길이를 정한 셈이다 (09-30 확정 · #36)
+        // 뼈대 네 자리와 부모가 넣은 질문을 다 물었으면 남은 꼬리질문은 묻지 않는다 — 부모가 길이를 정한 셈이다 (09-30 확정 · #36)
         if (s.coopQuestionsAllAsked) {
-            log("부모가 넣은 질문 ${s.parentQIndex}개를 다 물었다 → 남은 꼬리질문은 건너뛰고 마무리한다 (#36)")
+            log("뼈대 네 자리와 부모가 넣은 질문 ${s.parentQIndex}개를 다 물었다 → 남은 꼬리질문은 건너뛰고 마무리한다 (#36)")
             break
         }
     }
@@ -163,7 +168,9 @@ private fun diaryDrawAnswer(@Suppress("UNUSED_PARAMETER") step: DiaryStep): Answ
  */
 private suspend fun Director.askDiaryStep(step: DiaryStep) {
     val v = step.variant
-    var rungs = step.rungs(s)
+    // 협업에서 고른 이야기가 있으면 사다리 · 시연 답 · 마스코트 채움을 그 이야기 것으로 — 뼈대는 요소별, 꼬리질문은 시제별 (CoopTemplatePack.kt)
+    val pack = s.coopPartPack(step)
+    var rungs = pack?.rungs ?: step.rungs(s)
     log("일기 질문 [${step.part} · ${step.bookKey}] 사다리 ${rungs.size}칸 — ${step.probe} · 지금 수준 ${s.level.label}")
     while (true) {
         val q = Question(
@@ -172,8 +179,8 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
             // 사다리 뒤에 그림 3장을 붙이지 않는다 — 일기에서 그림 3장은 앱이 아이 하루를 추측해 보여 주는 것이 된다 (일기 §7-6)
             noCards = true,
             ladder = rungs.drop(1),
-            fallback = step.mascot?.invoke(s),
-            spoken = v.answers(s),
+            fallback = if (pack != null) pack.mascot else step.mascot?.invoke(s),
+            spoken = pack?.answers ?: v.answers(s),
             drawAnswer = diaryDrawAnswer(step),
             extra = buildList {
                 if (!s.isCoop) step.demoAnswer(s)?.let { a ->
@@ -193,11 +200,15 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
             return
         }
 
-        val value = diaryValueOf(r)
+        // 진짜 마이크 답은 대본 값(`value`)이 비어 있다 — 글자에서 칸 값을 얻는다 (#47 · CoopScenes.kt)
+        val live = (r as? Reply.Spoke)?.takeIf { it.isLiveSpeech() }
+        val value = if (live != null) coopLiveValue(step, q.text, live).orEmpty() else diaryValueOf(r)
         if (value.isNotEmpty()) {
             s.mascotPicks = 0                       // 연속이 끊긴다
             val by = if (r is Reply.Spoke) "child" else "card"
-            setDiarySlot(step.slot, step.bookKey, diarySlotOf(value), diaryLineOf(value), by)
+            // 말 그대로의 답은 `칸|문장` 꼴이 아니다 — 문장 자리에도 같은 말을 넣어야 꼬리질문 답이 책에 남는다
+            if (live != null) setDiarySlot(step.slot, step.bookKey, value, value, by)
+            else setDiarySlot(step.slot, step.bookKey, diarySlotOf(value), diaryLineOf(value), by)
             (r as? Reply.Spoke)?.answer?.let { afterDiaryAnswer(step, it) }
             if (!step.required) mark("diarytail")
             if (r is Reply.Tapped) log("그림으로 답함 → mode: draw 로 남기고 by 는 card. 수준 신호로 세지 않는다 (일기 §5-1)")
@@ -207,7 +218,7 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
 
         // 말은 했는데 칸이 안 찼다 ("몰라") — 사다리에 남은 칸이 있으면 질문을 바꿔 다시 묻는다
         if (rungs.size <= 1) {
-            val fb = step.mascot?.invoke(s)
+            val fb = if (pack != null) pack.mascot else step.mascot?.invoke(s)
             if (fb == null) {
                 // 꼬리질문은 마스코트가 지어내지 않는다 — 없으면 없는 대로 간다
                 log("[${step.bookKey}] 끝까지 안 나옴 → 지어내지 않고 넘어간다 (벌점 · 아쉬움 표현 없음 · 구현대본 §5)")

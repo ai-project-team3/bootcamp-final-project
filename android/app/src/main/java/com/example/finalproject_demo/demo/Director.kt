@@ -28,6 +28,10 @@ enum class Kind { EASY, HARD, CHOICE }
  * - CHOICE(모호한 말 확인): "공룡!" 처럼 뜻이 여럿인 말을 되물을 때만 카드 3장을 바로 띄운다.
  * - 말로 답한 것만 수준 신호다. 탭 · 그림 · 마스코트가 채운 것은 세지 않는다.
  */
+/** Set only by the test run that lists the app's own lines (`Director.dumpSpoken`) */
+private val SPEECH_DUMP: String? = System.getenv("OTTO_SPEECH_DUMP")
+private val SPEECH_DUMP_LOCK = Any()
+
 data class Question(
     val text: String,
     val kind: Kind,
@@ -185,7 +189,19 @@ class Director(
         s.line = text
         s.lineId++
         if (who == "마스코트" && surprise.containsMatchIn(text)) feel(Mood.SURPRISED)
-        if (who == "마스코트") speakLive(text)
+        if (who == "마스코트") { dumpSpoken(text); speakLive(text) }
+    }
+
+    /**
+     * Writes each mascot line to the file named by `OTTO_SPEECH_DUMP`, only when it is set — the
+     * test suite runs with it to list every line the app itself can say, to bake into audio once
+     * (eval/fixed_lines.py · 10-01: fixed lines going to TypeCast every time used up the month).
+     * The app never has the variable, so this does nothing there.
+     */
+    private fun dumpSpoken(text: String) {
+        val path = SPEECH_DUMP ?: return
+        val line = s.nameMask().speakable(text, named = false)   // what TypeCast would get
+        synchronized(SPEECH_DUMP_LOCK) { java.io.File(path).appendText(line.replace('\n', ' ') + "\n") }
     }
 
     /** 마스코트 기분을 켠다 — 얼굴이 그에 맞게 움직인다 ([Mood]) */
@@ -196,7 +212,7 @@ class Director(
 
     /**
      * 서버 모드면 마스코트 말을 **목소리로도** 낸다(`/tts` · 09-29).
-     * 이름은 보호자가 「이름 읽기」에 동의했을 때만 소리로 나간다 — 아니면 「우리 친구」(규칙 6 개정).
+     * 이름은 보호자가 「이름 읽기」에 동의했을 때만 소리로 나간다 — 아니면 아이는 「너」 · 친구는 「그 친구」(규칙 6 개정 · 10-01 #50).
      * 목소리가 실패해도 말풍선은 이미 떴다 — 조용한 마스코트일 뿐 멈추지 않는다.
      *
      * **대사는 줄을 서서 끝까지 읽는다** (09-29 S25+). 전에는 새 대사가 앞 대사를 끊어서

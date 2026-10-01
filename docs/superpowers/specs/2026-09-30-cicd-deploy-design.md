@@ -70,7 +70,7 @@ steps:
   - pip install -r backend/requirements.txt
   - scripts/deploy/stop_backend.ps1
   - scripts/deploy/start_backend.ps1
-  - 최대 30초, 2초 간격 재시도: curl 127.0.0.1:8010/health → {"status":"ok","mock":false}
+  - 최대 30초, 2초 간격 재시도: curl 127.0.0.1:8000/health (10-01 Docker · 바깥 8000) → {"status":"ok","mock":false}
   - 실패 시 워크플로를 실패 처리(백엔드는 이미 재시작이 시도된 상태이므로 조장에게 알림 필요)
 ```
 

@@ -14,6 +14,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -64,13 +65,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Reply
-import com.example.finalproject_demo.demo.hasCoopQuestions
+import com.example.finalproject_demo.demo.coopReady
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.ui.AssetImage
 import com.example.finalproject_demo.ui.OttoMove
 import com.example.finalproject_demo.ui.OttoPuppet
 import com.example.finalproject_demo.ui.Cheek
 import com.example.finalproject_demo.ui.Radius
+import com.example.finalproject_demo.ui.rememberQuietRest
+import com.example.finalproject_demo.ui.wakeOnTouch
 import com.example.finalproject_demo.ui.Curtain
 import com.example.finalproject_demo.ui.CurtainDeep
 import com.example.finalproject_demo.ui.FeltButton
@@ -285,7 +288,12 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
         }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Wool)) {
+    // 한참 아무도 안 만지면 반복 움직임(인형 숨쉬기 · 반짝이)을 쉬게 한다 — 만지는 순간 바로 다시 (#40).
+    // 걷는 중 · 묻는 중 · 누름 반응 중 · 튜토리얼에서는 쉬지 않는다
+    val quiet = rememberQuietRest()
+    val still = quiet.resting && !tutorial && target == null && poke == null && !moving && !walkX.isRunning
+
+    BoxWithConstraints(Modifier.fillMaxSize().background(Wool).wakeOnTouch(quiet)) {
         val g = Grid(maxWidth, maxHeight)
         // 벽지 · 바닥 · 러그 — ComfyUI 그림(room_bg). 없으면 펠트 도형으로 그린다
         RoomBackground(g) { Canvas(Modifier.fillMaxSize()) {
@@ -317,9 +325,9 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                 }
                 // 이름표 — 이 물건이 어떤 모드인지 (아이콘 + 이름)
                 NameTag(t, Modifier.align(Alignment.BottomCenter))
-                if (hinted) Sparkle(Modifier.align(Alignment.TopEnd).offset(10.dp, (-10).dp))
+                if (hinted) Sparkle(Modifier.align(Alignment.TopEnd).offset(10.dp, (-10).dp), still)
                 // 어른이 부모 모드에서 이야기를 준비해 뒀으면 소파에 선물 표시 (09-29) — 털실(🧶)이 있으면 그쪽이 먼저다
-                if (t == Thing.SOFA && !tutorial && !resumable && s.hasCoopQuestions) Box(
+                if (t == Thing.SOFA && !tutorial && !resumable && s.coopReady) Box(
                     // 소파가 화면 왼쪽 끝에 있어 왼쪽 위에 두면 잘린다 — 오른쪽 위에
                     Modifier.align(Alignment.TopEnd).offset(6.dp, (-6).dp).size(44.dp).felt(FeltMustard, CircleShape, lift = 4.dp, stitch = false),
                     contentAlignment = Alignment.Center,
@@ -353,6 +361,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                 },
                 modifier = Modifier.fillMaxSize(),
                 flip = face,
+                paused = still,
             )
             // 리액션 말풍선 · 하트 — 오또 머리 위
             poke?.let { p ->
@@ -389,7 +398,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                     title = t.title, detail = "새로 만들면 만들던 이야기는 사라져요",
                     art = t.art, accent = t.color,
                 )
-            } else if (t == Thing.SOFA && !s.hasCoopQuestions) {
+            } else if (t == Thing.SOFA && !s.coopReady) {
                 // 준비된 이야기가 없다 — 옛 흐름(어른이 띠를 읽고 묻기)으로 들어가지 않고 부모님께 부탁하라고 한다 (09-29 사용자 요청).
                 // 버튼은 하나 — 아이가 막히지 않고 방으로 돌아간다
                 ConfirmDialog(
@@ -462,7 +471,9 @@ private fun ShelfThing() = Box(Modifier.fillMaxSize().felt(StageWood, RoundedCor
 }
 
 @Composable
-private fun Sparkle(modifier: Modifier) {
+private fun Sparkle(modifier: Modifier, still: Boolean = false) {
+    // 쉬는 동안에는 반짝이지 않고 그 자리에 있기만 한다 (#40)
+    if (still) { Text("✨", fontSize = 30.sp, modifier = modifier); return }
     val t = rememberInfiniteTransition(label = "sp")
     val a by t.animateFloat(0.4f, 1f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "a")
     Text("✨", fontSize = 30.sp, modifier = modifier.alpha(a).scale(0.8f + 0.3f * a))
@@ -483,10 +494,25 @@ private fun Pointer(modifier: Modifier) {
  */
 @Composable
 fun LockDoor(modifier: Modifier = Modifier, onOpen: () -> Unit) {
-    FeltButton(WoolCream, onClick = onOpen, modifier = modifier.size(56.dp), shape = CircleShape) {
-        Text("🔒", fontSize = 22.sp)
+    TopSlot(onOpen, modifier.size(TopSlot)) {
+        FeltButton(WoolCream, onClick = onOpen, modifier = Modifier.size(TopFace), shape = CircleShape) { Text("🔒", fontSize = 19.sp) }
     }
 }
+
+/**
+ * 왼쪽 위 시스템 버튼 자리 (10-01) — 보이는 펠트는 [TopFace](48dp)로 줄여 덜 답답하게, 누르는 자리는 [TopSlot](56dp) 그대로.
+ * 보이는 원 바깥 4dp 테두리도 눌린다 — 크기를 줄여도 누르기는 어려워지지 않는다
+ */
+@Composable
+private fun TopSlot(onClick: () -> Unit, modifier: Modifier, content: @Composable () -> Unit) {
+    Box(
+        modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { content() }
+}
+
+private val TopSlot = 56.dp
+private val TopFace = 48.dp
 
 /** 오또를 눌렀을 때 머리 위에 톡 튀어나오는 말 */
 @Composable
@@ -668,20 +694,27 @@ fun online(ctx: Context): Boolean = runCatching {
 fun KidTopBar(d: Director, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         // 「방으로 갈까?」 확인은 화면 전체를 덮어야 해서 앱 틀(OttoShell)이 그린다
-        FeltButton(WoolCream, onClick = { Shell.askHome = true }, modifier = Modifier.size(56.dp), shape = CircleShape) { Text("🏠", fontSize = 24.sp) }
-        Spacer(Modifier.width(10.dp))
+        // 보이는 크기 48dp · 누르는 자리 56dp — 자리 사이 4dp 라 보이는 버튼 사이는 12dp (10-01 — 56dp 원이 바짝 붙어 답답했다)
+        TopSlot({ Shell.askHome = true }, Modifier.size(TopSlot)) {
+            FeltButton(WoolCream, onClick = { Shell.askHome = true }, modifier = Modifier.size(TopFace), shape = CircleShape) { Text("🏠", fontSize = 21.sp) }
+        }
+        Spacer(Modifier.width(4.dp))
         LockDoor { d.openParent() }
-        // 같이 만들기 중에만 — 부모 「그만하기」 (#36). 어른 글씨로 작게, 누르면 확인 창을 한 번 더 거친다(아이가 잘못 누르지 않게)
+        // 같이 만들기 중에만 — 부모 「그만하기」 (#36). 누르면 확인 창을 한 번 더 거친다(아이가 잘못 누르지 않게).
+        // 10-01 — 옆 🏠 · 🔒 와 같은 펠트 버튼(크림 펠트 · 바느질 · 같은 높이 · 누르면 꾹)에 ComfyUI 펠트 손바닥 그림.
+        // 글씨는 어른용 고딕 그대로 — 어른이 누르는 버튼이다
         val s = d.s
         if (s.isCoop && s.scene == com.example.finalproject_demo.demo.Scene.DIARY && s.endReason == null) {
-            Spacer(Modifier.width(10.dp))
-            Box(
-                Modifier.height(44.dp)
-                    .felt(FeltWhite.copy(alpha = 0.94f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
-                    .clickable { Shell.askStop = true }
-                    .padding(horizontal = 16.dp),
-                contentAlignment = Alignment.Center,
-            ) { ParentText { Text("✋ 그만하기", fontSize = 14.sp, color = InkBrown, fontWeight = FontWeight.Bold) } }
+            Spacer(Modifier.width(4.dp))
+            TopSlot({ Shell.askStop = true }, Modifier.height(TopSlot).padding(horizontal = 4.dp)) {
+                FeltButton(WoolCream, onClick = { Shell.askStop = true }, modifier = Modifier.height(TopFace), shape = RoundedCornerShape(Radius.Round)) {
+                    Row(Modifier.padding(start = 8.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        AssetImage("ic_parent_stop", Modifier.size(32.dp)) { Text("✋", fontSize = 20.sp) }
+                        Spacer(Modifier.width(5.dp))
+                        ParentText { Text("그만하기", fontSize = 14.sp, color = InkBrown, fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
         }
     }
 }
