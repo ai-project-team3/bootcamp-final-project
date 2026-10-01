@@ -77,9 +77,46 @@ _START = time.monotonic()
 _HITS: Counter[tuple[str, str]] = Counter()      # (method, route template) -> calls
 _MS: Counter[tuple[str, str]] = Counter()        # (method, route template) -> total ms
 _STATUS: Counter[int] = Counter()                # status -> calls, over everything
+# who is connecting: (ip, user agent) -> calls · first · last. Bounded, in memory, never on disk.
+# An IP is personal data (개인정보보호법), so this list is served only to a caller on the LAN —
+# /stats is reachable through the public tunnel too, and a visitor log must not be.
+_CLIENTS: dict[tuple[str, str], dict] = {}
+_CLIENT_CAP = 50
+_CLIENTS_DROPPED = 0
 # status per endpoint too: "which one is failing" is the question a 502 actually raises
 # (the /story ReadTimeout of 10-01 was invisible for exactly this reason)
 _ESTATUS: Counter[tuple[str, str, int]] = Counter()
+
+
+def _forwarded_ip(request: Request) -> str | None:
+    """The real client IP, when a proxy told us. Docker's NAT rewrites the socket peer to the
+    bridge gateway, so the socket alone cannot tell two phones apart — only these headers can.
+    Cloudflare sets CF-Connecting-IP; its presence also means the request came in off the tunnel."""
+    cf = request.headers.get("cf-connecting-ip")
+    if cf:
+        return cf.strip()
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.headers.get("x-real-ip")
+
+
+def _note_client(request: Request, path: str) -> None:
+    global _CLIENTS_DROPPED
+    ip = _forwarded_ip(request) or (request.client.host if request.client else "?")
+    ua = (request.headers.get("user-agent") or "")[:160]
+    key = (ip, ua)
+    seen = _CLIENTS.get(key)
+    now = time.time()
+    if seen is None:
+        if len(_CLIENTS) >= _CLIENT_CAP:           # bounded: a public address attracts probes
+            _CLIENTS_DROPPED += 1
+            return
+        _CLIENTS[key] = {"count": 1, "first": now, "last": now, "paths": Counter([path])}
+        return
+    seen["count"] += 1
+    seen["last"] = now
+    seen["paths"][path] += 1
 
 
 @app.middleware("http")
@@ -97,13 +134,30 @@ async def _count(request: Request, call_next):
         _MS[key] += ms
         _STATUS[response.status_code] += 1
         _ESTATUS[(request.method, path, response.status_code)] += 1
+        _note_client(request, path)
     return response
 
 
 @app.get("/stats")
-def stats() -> dict:
+def stats(request: Request) -> dict:
     total = sum(_HITS.values())
+    # Off the tunnel (a forwarding header is set) this is a public reader: counts only, no visitors.
+    local = _forwarded_ip(request) is None
+    clients = sorted(_CLIENTS.items(), key=lambda kv: kv[1]["last"], reverse=True) if local else []
     return {
+        "clients_shown": local,
+        "clients_dropped": _CLIENTS_DROPPED,
+        "clients": [
+            {
+                "ip": ip,
+                "user_agent": ua,
+                "count": c["count"],
+                "first_seen_s": round(time.time() - c["first"]),
+                "last_seen_s": round(time.time() - c["last"]),
+                "top_paths": [p for p, _ in c["paths"].most_common(3)],
+            }
+            for (ip, ua), c in clients
+        ],
         "uptime_s": round(time.monotonic() - _START),
         "total": total,
         "endpoints": [
