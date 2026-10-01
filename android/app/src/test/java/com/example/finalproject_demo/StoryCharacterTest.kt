@@ -34,6 +34,8 @@ class StoryCharacterTest {
 
     @Test
     fun spokenHeroCreationDisplaysAndKeepsTheActualServerPng() = runBlocking {
+        val previousBase = Server.base
+        val previousModes = Server.liveModes
         val png = ByteArrayOutputStream().apply output@{
             Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888).apply {
                 eraseColor(android.graphics.Color.YELLOW)
@@ -81,13 +83,14 @@ class StoryCharacterTest {
             assertEquals("human", d.s.heroes.last().rig)
             withTimeout(5_000) { while (d.s.stage !is Stage.Bestiary) delay(10) }
             d.send(Reply.Tapped("hero:${d.s.heroes.lastIndex}", "Generated hero"))
-            withTimeout(5_000) { while (d.s.stage !is Stage.World) delay(10) }
-            assertEquals(art, (d.s.stage as Stage.World).items.first().art)
+            withTimeout(5_000) { while (d.s.stage !is Stage.Show || !d.s.micEnabled) delay(10) }
+            assertEquals("The generated hero must remain visible on the neutral first-question stage",
+                art, (d.s.stage as Stage.Show).art)
             assertEquals(art, d.s.storyHeroArt)
         } finally {
-            scope.cancel()
-            Server.base = null
-            Server.liveModes = emptySet()
+            scope.coroutineContext[Job]!!.cancelAndJoin()
+            Server.base = previousBase
+            Server.liveModes = previousModes
             server.close()
         }
     }

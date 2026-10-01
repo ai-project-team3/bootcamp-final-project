@@ -1,5 +1,9 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.namedNeighborOf
+import com.example.finalproject_demo.demo.namedIn
+import com.example.finalproject_demo.demo.mergeInto
+import com.example.finalproject_demo.demo.DiaryDay
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.DemoState
@@ -71,4 +75,25 @@ class DiaryBoardTest {
         val wide = cropFor(listOf(line(0.05f, 0.50f, 0.95f, 0.52f)), aspect)
         assertEquals(3f, wide.width * aspect / wide.height, 0.001f)
     }
+
+    /** 대화로 합치기 — 이름 붙은 조각에 닿은 새 조각 · 다른 조각 이름을 부른 말 · 합치면 선은 그대로 */
+    @Test
+    fun aPieceCanBeMergedIntoANamedOneByWhatTheChildSays() {
+        val day = DiaryDay()
+        val house = day.addStroke(diaryLine(.10f, .40f, .30f, .40f, .30f, .80f, .10f, .80f))
+        day.pieces[0] = day.pieces[0].copy(name = "우리 집")
+        val window = day.addStroke(diaryLine(.15f, .50f, .20f, .50f, .20f, .55f))          // 집 안에 그린 창문
+        val mom = day.addStroke(diaryLine(.70f, .30f, .70f, .70f))                          // 멀리 떨어진 사람
+        assertTrue("이름 붙은 조각은 안에 그린 선을 빨아들이지 않는다", house != window)
+        assertEquals("우리 집", day.namedNeighborOf(day.pieces.first { it.id == window })?.name)
+        assertEquals(null, day.namedNeighborOf(day.pieces.first { it.id == mom }))
+        assertEquals("우리 집", day.namedIn("우리 집 창문이야", except = window)?.name)
+        assertEquals(null, day.namedIn("엄마야", except = mom))
+        day.mergeInto(window, house)
+        assertEquals(2, day.pieces.size)
+        assertEquals(2, day.pieces.first { it.id == house }.strokes.size)
+    }
+
+    private fun diaryLine(vararg xy: Float) =
+        com.example.finalproject_demo.demo.Stroke(androidx.compose.ui.graphics.Color.Blue, xy.toList().chunked(2).map { androidx.compose.ui.geometry.Offset(it[0], it[1]) })
 }

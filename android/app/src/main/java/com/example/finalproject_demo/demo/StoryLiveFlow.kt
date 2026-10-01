@@ -8,14 +8,32 @@ import kotlinx.coroutines.*
 suspend fun Director.liveStoryConversation() = coroutineScope {
     var imagePlace: String? = null
     var imageJob: Job? = null
+    var backgroundPending = false
+    var waitingConversation: Stage.Show? = null
     var friendDrawingPrepared = false
+
+    fun conversationWorld() = Stage.World(listOf(
+        WorldItem(s.storyHeroArt, 0.25f, 0.32f, 0.11f, depth = 1f),
+        WorldItem(s.friendArt, 0.72f, 0.32f, 0.13f, depth = 0.9f),
+    ))
+
+    fun showConversation() {
+        // World and Making both render bgName, whose unknown-place fallback is snow.
+        val stage = if (s.slots["place"].isNullOrBlank() || backgroundPending)
+            Stage.Show(s.storyHeroArt) else conversationWorld()
+        s.stage = stage
+        // Compose may retain an equal stage object; capture the one actually displayed.
+        waitingConversation = s.stage as? Stage.Show
+    }
 
     fun updateBackground() {
         val place = s.slots["place"]?.takeIf(String::isNotBlank) ?: return
         if (imagePlace == place) return
         imagePlace = place
         imageJob?.cancel()
+        backgroundPending = true
         s.storyBackground = null
+        if (s.stage is Stage.World || s.stage === waitingConversation) showConversation()
         val mask = s.nameMask()
         imageJob = launch {
             val reminder = launch {
@@ -28,8 +46,15 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             try {
                 val png = withTimeoutOrNull(15_000) { Server.image(mask.mask(place), "story") }
                 val saved = png?.let { withContext(Dispatchers.IO) { saveStoryImage(it) } }
-                if (s.place == place) {
+                currentCoroutineContext().ensureActive()
+                if (s.place == place && imagePlace == place) {
                     s.storyBackground = saved
+                    backgroundPending = false
+                    // Only refresh our waiting conversation, never a drawing/card/retry stage.
+                    if (waitingConversation != null && s.stage === waitingConversation) {
+                        waitingConversation = null
+                        s.stage = conversationWorld()
+                    }
                     log(if (saved == null) "배경 생성 실패 또는 15초 경과 → 프리셋 유지" else "대화 중 생성 배경 저장 · 무대와 책에 연결")
                 }
             } finally { reminder.cancel() }
@@ -46,10 +71,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 notifyStorySoundChoice(prompt)
                 continue
             }
-            s.stage = Stage.World(listOf(
-                WorldItem(s.storyHeroArt, 0.25f, 0.32f, 0.11f, depth = 1f),
-                WorldItem(s.friendArt, 0.72f, 0.32f, 0.13f, depth = 0.9f),
-            ))
+            showConversation()
             val variant = liveVariant(prompt)
             val base = variant.toQuestion(s)
             val question = base.copy(text = if (prompt.templateOnly) base.text else prompt.text)
@@ -93,7 +115,8 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     if (imageJob?.isCompleted == false) {
         inputs(false, false)
         buttons()
-        s.stage = Stage.Making("이야기 그림을 마무리하는 중…")
+        waitingConversation = null
+        s.stage = Stage.Show(s.storyHeroArt, "이야기 그림을 마무리하는 중…")
     }
     imageJob?.join()
     log("동화 대화 종료: ${s.endReason} · ${s.turn}턴 · 실제 판정으로 채운 칸 ${s.slots.keys}")

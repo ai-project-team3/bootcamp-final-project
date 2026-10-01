@@ -61,21 +61,36 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
 
     /**
      * A line for the mascot's voice (TypeCast). [named] = the guardian agreed to names being read
-     * (`ConsentStore.nameVoiceAgreed`). Without it no real name leaves in the voice: the child
-     * becomes "우리 친구", a friend "친구" — particles fixed, so it still reads as Korean.
-     * Takes masked or unmasked text alike: real names are masked first.
+     * (`ConsentStore.nameVoiceAgreed`). Without it no real name leaves in the voice: the child is
+     * spoken to as "너" (네가 · 너를 · 너와 …), calling the child ("지민아,") is "친구야,";
+     * a friend becomes "그 친구". Takes masked or unmasked text alike: real names are masked first.
+     *
+     * 10-01 (#50 · 민우 S25): the child used to be "우리 친구" and a friend "친구", so one line
+     * said "친구와 함께 갈 친구는 누구일까?" — two different people under one word.
      */
     fun speakable(text: String, named: Boolean): String {
         val masked = mask(text)
         if (named) return unmask(masked)
         return MARK.replace(masked) { m ->
-            val word = if (m.groupValues[1] == HERO) "우리 친구" else "친구"
-            word + fixParticle(word, m.groupValues[2])
+            if (m.groupValues[1] == HERO) you(m.groupValues[2])
+            else "그 친구" + fixParticle("친구", m.groupValues[2])
         }
     }
 
     companion object {
         const val HERO = "{주인공}"
+
+        /** The child as "너" — 가 and 이가 take the irregular 네가; calling the child is "친구야" */
+        private fun you(p: String): String = when (p) {
+            "이", "가", "이가" -> "네가"
+            "은", "는", "이는" -> "너는"
+            "을", "를" -> "너를"
+            "과", "와" -> "너와"
+            "이랑", "랑" -> "너랑"
+            "으로", "로" -> "너로"
+            "아", "야" -> "친구야"      // 10-01: dropping the call left lines starting cold
+            else -> "너$p"
+        }
 
         // placeholder + the particle glued to it (longest alternatives first)
         private val MARK = Regex("(\\{주인공\\}|\\{친구\\d+\\})(으로|이랑|이는|이가|은|는|이|가|을|를|과|와|로|랑|아|야)?")

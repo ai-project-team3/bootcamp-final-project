@@ -149,6 +149,41 @@ def _fill_holes(blob: np.ndarray) -> np.ndarray:
     return blob | ~outside
 
 
+SPECK = 0.002       # redraw: a piece smaller than this share of the picture is a stray dot
+
+
+def cut_out_all(png: bytes) -> bytes:
+    """A redrawn piece → 640² RGBA, centred, **every** drawn part kept.
+
+    The character cut keeps the largest blob (it drops confetti around a doll), but a child's
+    sun has rays and a drawn person may have a head apart from the body — 진웅 10-01 #32 saw
+    those pieces thrown away. Here only the paper (pale and reached from the frame) goes;
+    specks under [SPECK] go too. Raises CutoutError.
+    """
+    im = Image.open(io.BytesIO(png)).convert("RGB")
+    small = im.resize((256, 256), Image.BILINEAR)
+    mask = _foreground(np.asarray(small))
+    keep = np.zeros_like(mask)
+    for sides, size, blob in _components(mask):
+        if size >= SPECK * mask.size and sides <= 2:      # a card or frame touches 3+ sides
+            keep |= blob
+    if keep.sum() < MIN_AREA * mask.size:
+        raise CutoutError("nothing drawn")
+    alpha = Image.fromarray((keep * 255).astype(np.uint8)).resize(im.size, Image.BILINEAR)
+    rgba = im.copy(); rgba.putalpha(alpha)
+    box = alpha.point(lambda v: 255 if v > 127 else 0).getbbox()
+    if not box:
+        raise CutoutError("empty after cut")
+    piece = rgba.crop(box)
+    w, h = piece.size
+    scale = min(SIZE * 0.9 / w, SIZE * 0.9 / h)
+    piece = piece.resize((max(1, round(w * scale)), max(1, round(h * scale))), Image.LANCZOS)
+    canvas = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+    canvas.alpha_composite(piece, ((SIZE - piece.width) // 2, (SIZE - piece.height) // 2))
+    out = io.BytesIO(); canvas.save(out, "PNG")
+    return out.getvalue()
+
+
 def cut_and_fit(png: bytes, centered: bool = False) -> bytes:
     """Generated PNG (white-ish background) → 640² RGBA, feet on the 93% line. Raises CutoutError.
 

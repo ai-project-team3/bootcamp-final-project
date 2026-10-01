@@ -182,11 +182,26 @@ async def run(wf: dict) -> bytes:
 # some seeds. Six samples, no real child drawings yet — eval/results.md 09-30 before changing.
 REDRAW_DENOISE = 0.9
 
+# The picture diary draws in colored pencil, not cut paper (진웅 · 09-30 · #32): same model,
+# only words and the number change. 4 drawings × 3 seeds on PC2 — 11 of 12 kept the child's
+# layout (the side-on dog stayed side-on), 4.2~6.9 s, no extra VRAM. 0.9 drifted (the dog
+# turned to face front), 0.6~0.75 copied. docs/review/일기모드_0930_redraw/ on his branch.
+DIARY_STYLE = (", colored pencil sketch, loose hand-drawn pencil outlines, light colored pencil shading, "
+               "gentle storybook sketch, isolated on plain pure white paper background, no shadow, no text")
+DIARY_NEG = ("text, letters, watermark, photo, photorealistic, 3d render, cut paper, collage, felt, "
+             "blurry, ugly, scary, dark, horror, background scenery, frame, border, card, colored background, "
+             "multiple subjects, nudity, blood, weapon, gore")
+DIARY_DENOISE = 0.85
 
-def redraw_workflow(subject: str, seed: int, drawing_b64: str, denoise: float = REDRAW_DENOISE) -> dict:
+
+def redraw_workflow(subject: str, seed: int, drawing_b64: str, denoise: float | None = None,
+                    mode: str = "story") -> dict:
+    diary = mode == "diary"
+    if denoise is None:
+        denoise = DIARY_DENOISE if diary else REDRAW_DENOISE
     wf = workflow("", seed)
-    wf["2"]["inputs"]["text"] = f"a cute {subject}, full view{CHAR_STYLE}"
-    wf["3"]["inputs"]["text"] = CHAR_NEG
+    wf["2"]["inputs"]["text"] = f"a cute {subject}, full view{DIARY_STYLE if diary else CHAR_STYLE}"
+    wf["3"]["inputs"]["text"] = DIARY_NEG if diary else CHAR_NEG
     wf["10"] = {"class_type": "OttoLoadImageB64", "inputs": {"png_base64": drawing_b64}}
     wf["11"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["10", 0], "vae": ["1", 2]}}
     wf["5"]["inputs"].update({"latent_image": ["11", 0], "denoise": denoise})

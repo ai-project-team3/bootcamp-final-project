@@ -19,7 +19,9 @@ router = APIRouter()
 EVAL = REPO / "eval"
 
 # story: exactly six (spec §3-3). diary · coop: as many as the day filled.
-_SCENES = {"story": (6, 6), "diary": (3, 6), "coop": (3, 6)}
+# diary from 1: a day with only place + what happened is one honest page — the prompt says
+# "pages as filled, invent nothing", and 3 at least turned that answer into a 502 (#39 · 10-01)
+_SCENES = {"story": (6, 6), "diary": (1, 6), "coop": (3, 6)}
 
 
 @lru_cache(maxsize=4)
@@ -153,7 +155,8 @@ async def story(req: StoryRequest) -> StoryResult:
         return stamp(mock(req), req)
     try:
         raw = await complete(system(req.mode), user(req), schema(), name="story",
-                             effort=settings.llm_effort_story, max_output_tokens=6000)
+                             effort=settings.llm_effort_story, max_output_tokens=6000,
+                             timeout_s=settings.story_deadline_s)
     except LLMError as e:
         raise HTTPException(502, str(e)) from e
     result = StoryResult.model_validate(raw)

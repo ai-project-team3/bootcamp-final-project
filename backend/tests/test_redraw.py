@@ -162,3 +162,36 @@ def test_run_deletes_the_history_entry(monkeypatch):
     wf = comfy.redraw_workflow("house", 1, "AAAA")
     assert asyncio.run(comfy.run(wf)) == b"result"
     assert any(u.endswith("/history") and j == {"delete": ["p9"]} for u, j in calls)
+
+
+def test_the_diary_redraws_in_colored_pencil_at_0_85():
+    """#32 · 진웅 09-30: diary → colored pencil · 0.85; other modes keep cut paper · 0.9."""
+    d = comfy.redraw_workflow("house", 1, "AAAA", mode="diary")
+    s = comfy.redraw_workflow("house", 1, "AAAA", mode="story")
+    assert "colored pencil" in d["2"]["inputs"]["text"] and d["5"]["inputs"]["denoise"] == 0.85
+    assert "cut paper" in s["2"]["inputs"]["text"] and s["5"]["inputs"]["denoise"] == 0.9
+
+
+def test_the_mode_reaches_the_workflow(live):
+    post(mode="diary")
+    assert "colored pencil" in live["wf"]["2"]["inputs"]["text"]
+
+
+def test_redraw_orders_with_its_own_prompt_that_takes_things():
+    """#32: the character prompt turned a house and a sun down as not-a-character."""
+    s = image_route.system("redraw")
+    assert "물건" in s and "rig" not in image_route.schema("redraw")["properties"]
+
+
+def test_every_drawn_piece_is_kept():
+    """#32: a sun's rays and a head drawn apart from the body were thrown away."""
+    im = Image.new("RGB", (1024, 1024), (246, 246, 244))
+    d = ImageDraw.Draw(im)
+    d.ellipse((380, 380, 640, 640), fill=(250, 200, 30))           # the sun
+    d.rectangle((495, 150, 525, 300), fill=(250, 150, 20))         # a ray, not touching it
+    d.rectangle((495, 720, 525, 870), fill=(250, 150, 20))         # another
+    out = Image.open(io.BytesIO(character.cut_out_all(_png(im))))
+    alpha = out.getchannel("A")
+    box = alpha.getbbox()
+    # rays above and below the sun survive: the kept shape is much taller than wide
+    assert (box[3] - box[1]) > 1.5 * (box[2] - box[0])

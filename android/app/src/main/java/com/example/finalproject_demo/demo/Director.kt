@@ -8,9 +8,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
 
 enum class Kind { EASY, HARD, CHOICE }
@@ -28,6 +30,10 @@ enum class Kind { EASY, HARD, CHOICE }
  * - CHOICE(모호한 말 확인): "공룡!" 처럼 뜻이 여럿인 말을 되물을 때만 카드 3장을 바로 띄운다.
  * - 말로 답한 것만 수준 신호다. 탭 · 그림 · 마스코트가 채운 것은 세지 않는다.
  */
+/** Set only by the test run that lists the app's own lines (`Director.dumpSpoken`) */
+private val SPEECH_DUMP: String? = System.getenv("OTTO_SPEECH_DUMP")
+private val SPEECH_DUMP_LOCK = Any()
+
 data class Question(
     val text: String,
     val kind: Kind,
@@ -183,7 +189,19 @@ class Director(
         s.line = text
         s.lineId++
         if (who == "마스코트" && surprise.containsMatchIn(text)) feel(Mood.SURPRISED)
-        if (who == "마스코트") speakLive(text)
+        if (who == "마스코트") { dumpSpoken(text); speakLive(text) }
+    }
+
+    /**
+     * Writes each mascot line to the file named by `OTTO_SPEECH_DUMP`, only when it is set — the
+     * test suite runs with it to list every line the app itself can say, to bake into audio once
+     * (eval/fixed_lines.py · 10-01: fixed lines going to TypeCast every time used up the month).
+     * The app never has the variable, so this does nothing there.
+     */
+    private fun dumpSpoken(text: String) {
+        val path = SPEECH_DUMP ?: return
+        val line = s.nameMask().speakable(text, named = false)   // what TypeCast would get
+        synchronized(SPEECH_DUMP_LOCK) { java.io.File(path).appendText(line.replace('\n', ' ') + "\n") }
     }
 
     /** 마스코트 기분을 켠다 — 얼굴이 그에 맞게 움직인다 ([Mood]) */
@@ -194,7 +212,7 @@ class Director(
 
     /**
      * 서버 모드면 마스코트 말을 **목소리로도** 낸다(`/tts` · 09-29).
-     * 이름은 보호자가 「이름 읽기」에 동의했을 때만 소리로 나간다 — 아니면 「우리 친구」(규칙 6 개정).
+     * 이름은 보호자가 「이름 읽기」에 동의했을 때만 소리로 나간다 — 아니면 아이는 「너」 · 친구는 「그 친구」(규칙 6 개정 · 10-01 #50).
      * 목소리가 실패해도 말풍선은 이미 떴다 — 조용한 마스코트일 뿐 멈추지 않는다.
      *
      * **대사는 줄을 서서 끝까지 읽는다** (09-29 S25+). 전에는 새 대사가 앞 대사를 끊어서
@@ -203,17 +221,28 @@ class Director(
      */
     private var voiceJob: Job? = null
 
+    // 줄 선 대사 전부의 부모 — 받아 오는 중인 소리까지 한 번에 끊는다 ([hushVoice]).
+    // 10-01 #50: 전에는 맨 끝 대사만 취소해서, 앞에 줄 서 있던 대사가 다음 화면에서 늦게 나왔다
+    private val voiceLines = mutableSetOf<Job>()
+
+    private fun queueVoice(j: Job): Job {
+        synchronized(voiceLines) { voiceLines += j }
+        j.invokeOnCompletion { synchronized(voiceLines) { voiceLines -= j } }
+        return j
+    }
+
     private fun speakLive(text: String) {
         // 소리를 낼 수 없으면(단위 테스트 — Voice 가 붙지 않았다) 목소리를 청하지도 않는다.
         // 들리지 않을 목소리 때문에 가짜 서버 주소로 대사마다 연결을 시도할 까닭이 없다
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text, ConsentStore.nameVoiceAgreed)
         val before = voiceJob
-        val audio = scope.async { Server.tts(line) }          // 앞 대사를 읽는 동안 미리 받는다
-        voiceJob = scope.launch {
+        // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
+        val audio = scope.async { Voice.baked(line) ?: Server.tts(line) }.also { queueVoice(it) }
+        voiceJob = queueVoice(scope.launch {
             before?.join()
             audio.await()?.let { Voice.playAndWait(it) }
-        }
+        })
     }
 
     /** 마스코트가 하던 말을 끝낼 때까지 기다린다 — 서버 모드가 아니면 바로 돌아온다 */
@@ -221,11 +250,47 @@ class Director(
         voiceJob?.join()
     }
 
-    /** 목소리를 지금 멈추고 줄 선 대사도 버린다 — 🎤 가 눌렸다(마스코트 소리가 녹음에 섞이면 안 된다) */
+    /**
+     * 목소리를 지금 멈추고 줄 선 대사 · 받아 오던 소리도 버린다.
+     * 🎤 가 눌렸다(마스코트 소리가 녹음에 섞이면 안 된다) · 아이가 선택 버튼을 눌렀다([awaitChoice]).
+     */
     private fun hushVoice() {
-        voiceJob?.cancel()
+        synchronized(voiceLines) { voiceLines.toList() }.forEach { it.cancel() }
         voiceJob = null
         Voice.stopPlaying()
+    }
+
+    // ── 선택 구간 (10-01 #50 · 민우 S25) ─────────────────────────────────
+    //
+    // 「안녕」 · 「또 만날래」처럼 아이가 고르는 구간은 마스코트가 말하는 중에도 바로 받는다.
+    // 일반 질문은 그대로다 — 목소리가 끝나야 아이 차례가 온다([pause] · [ask]).
+    // 쓰는 법: 장면에 들어올 때 한 번 [awaitChoice], 고른 뒤 쉬는 자리는 [pauseOrChoice].
+    //   var next: Reply? = null
+    //   while (true) {
+    //       val r = next ?: awaitChoice(); next = null
+    //       … 결과를 한 번 적용 · 화면을 먼저 바꾸고 say(…) …
+    //       next = pauseOrChoice(1100)
+    //   }
+
+    /**
+     * 선택을 기다린다. 들어오기 전 화면의 입력은 버리고, **목소리가 나오는 중에도** 받는다.
+     * 받으면 지금 목소리와 줄 선 대사를 끊는다 — 늦게 받아 둔 소리가 다음 화면에서 나오지 않는다.
+     */
+    suspend fun awaitChoice(): Reply {
+        drain()
+        return input.receive().also { hushVoice() }
+    }
+
+    /**
+     * [pause] 와 같지만 그 사이 아이가 고르면 **바로** 그 입력을 돌려준다(버리지 않는다) — 목소리는 끊는다.
+     * 아무것도 안 고르면 null. 쉬는 동안 쌓인 입력은 [awaitChoice] 처럼 버리지 않고 첫 것을 쓴다.
+     */
+    suspend fun pauseOrChoice(ms: Long): Reply? = coroutineScope {
+        val resting = async { pause(ms) }
+        select<Reply?> {
+            input.onReceive { resting.cancel(); hushVoice(); it }
+            resting.onAwait { null }
+        }
     }
 
     /**

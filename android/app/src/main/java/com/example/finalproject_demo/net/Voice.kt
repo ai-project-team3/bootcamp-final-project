@@ -46,6 +46,30 @@ object Voice {
     /** Can this process make sound? False in unit tests (never attached) — then no `/tts` is even asked for. */
     val canSpeak: Boolean get() = ctx != null
 
+    // ── lines baked into the app (10-01) ──────────────────────────
+    //
+    // Lines written in the app never change, so they are spoken once with the server's voice
+    // (eval/bake_lines.py → assets/voice/<key>.mp3) and played from here: no wait, no `/tts` call.
+    // Lines the server writes, and any line with a real name in it, still go to `/tts`.
+
+    private val bakedNames: Set<String> by lazy {
+        ctx?.assets?.list("voice")?.toSet() ?: emptySet()
+    }
+
+    /** The baked audio for exactly this line, or null — then the caller asks `/tts`. */
+    fun baked(line: String): ByteArray? {
+        val name = bakedKey(line) + ".mp3"
+        if (name !in bakedNames) return null
+        return runCatching { ctx?.assets?.open("voice/$name")?.use { it.readBytes() } }.getOrNull()
+    }
+
+    /** Same key as eval/bake_lines.py: sha1 of the line with spaces collapsed, first 16 hex. */
+    fun bakedKey(line: String): String {
+        val norm = line.trim().replace(Regex("\\s+"), " ")
+        return java.security.MessageDigest.getInstance("SHA-1").digest(norm.toByteArray())
+            .joinToString("") { "%02x".format(it) }.take(16)
+    }
+
     /** `MainActivity.onCreate`, next to `Server.base`. Loads the VAD model in the background right away. */
     fun attach(context: Context) {
         ctx = context.applicationContext
@@ -112,6 +136,9 @@ object Voice {
                 if (speech) heard = true
                 else if (heard) break                    // VAD already waited 500 ms of silence
             }
+            // how long and what ended it — 10-01: "STT got worse" could not be told apart from a cut recording
+            val ended = when { stop() -> "button"; System.currentTimeMillis() - started >= maxMs -> "max"; heard -> "vad"; else -> "cancel" }
+            Log.i(TAG, "recorded %.1f s · ended by %s · speech %s".format(pcm.size / RATE.toFloat(), ended, if (heard) "heard" else "not heard"))
         } catch (e: Throwable) {
             Log.w(TAG, "record failed: ${e.javaClass.simpleName} ${e.message}")
             return@withContext null

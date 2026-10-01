@@ -55,6 +55,9 @@ enum class DiaryWeather(val emoji: String, val label: String, private val drawn:
     RAIN("☔", "비", Regex("비|우산|빗")),
     SNOW("⛄", "눈", Regex("눈사람|눈이|눈싸움"));
 
+    /** 이 이름의 조각이 이 날씨를 그린 것인가 — 날씨를 누르면 그 조각이 반짝인다 */
+    fun drew(name: String): Boolean = drawn.containsMatchIn(name)
+
     companion object {
         /** 이름 붙은 조각에서 고른다. 없으면 null — 아이에게 누르게 한다 */
         fun fromPieces(names: List<String>): DiaryWeather? =
@@ -82,6 +85,15 @@ class DiaryDay {
     var weatherBy by mutableStateOf<String?>(null)
 
     var feel by mutableStateOf<DiaryFeel?>(null)
+
+    /** 서버(`/story` diary)가 쓴 책 쪽 문장 — 이름은 이미 풀었다. null 이면 앱 문장으로 짠다 */
+    var written by mutableStateOf<List<String>?>(null)
+
+    /** D3 에서 「이건 뭐 그린 거야?」라고 묻는 조각 — 꽂힌 카드가 그 조각만 보여 준다 */
+    var focusPiece by mutableStateOf<Int?>(null)
+
+    /** 오또가 그리기를 지켜보는 중 — 이때만 그림판이 붓 멈춤을 알린다(묻는 중 · 고르는 중에는 안 보낸다) */
+    var watching by mutableStateOf(false)
 
     /** 오또가 지금 「뭐 그린 거야?」라고 묻는 조각 — 그림판이 그 조각에 고리를 띄운다 */
     var askingPiece by mutableStateOf<Int?>(null)
@@ -117,6 +129,20 @@ private val dayByState = WeakHashMap<DemoState, DiaryDay>()
 /** 이 상태의 그림일기. 아직 없으면 새로 만든다 */
 val DemoState.diaryDay: DiaryDay
     get() = dayByState[this] ?: DiaryDay().also { dayByState[this] = it }
+
+/** 책장에 꽂힌 그림일기의 표지 — 그날 아이가 그린 조각 그대로(오또 그림을 고른 조각은 그 모습). [aspect] 는 화이트보드 폭/높이 */
+data class DiaryCover(val pieces: List<DiaryPiece>, val aspect: Float)
+
+private val coversByState = WeakHashMap<DemoState, MutableMap<String, DiaryCover>>()
+
+/**
+ * 책 제목 → 표지. 앱을 켜 둔 동안만 남는다 — 기기에 저장하는 것은 책장 저장(#37)이 정한다.
+ * 책장 화면은 [hasDiaryCover] 로 물어 있으면 아이 그림 표지를 그린다
+ */
+val DemoState.diaryCovers: MutableMap<String, DiaryCover>
+    get() = coversByState.getOrPut(this) { mutableMapOf() }
+
+fun DemoState.hasDiaryCover(title: String): Boolean = diaryCovers[title]?.pieces?.isNotEmpty() == true
 
 /** 그림일기를 새로 시작한다 — 지난 판의 조각 · 날씨 · 기분 · 호출 수를 버린다 */
 fun DemoState.newDiaryDay(): DiaryDay = DiaryDay().also { dayByState[this] = it }

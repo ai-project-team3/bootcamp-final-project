@@ -98,3 +98,57 @@ def test_user_message_carries_ask_and_only_a_real_unclear():
     assert "ask:false" in text and "next_slot:problem" in text
     assert "unclear_of:\n" in text, "unclear_of is sent only when unclear is true"
     assert "next_slot:\n" in turn_route.user(req, None)
+
+
+def test_the_line_model_sees_the_story_so_far():
+    """#50 · 10-01: the line model got only the last answer, so it asked about places and
+    characters that were not in the story. Filled slots go with it; empty ones do not."""
+    req = TurnRequest(mode="story", slots={"place": "바닷속", "newcomer": "문어", "problem": None, "cause": ""},
+                      question="누굴 만났어?", utterance="문어")
+    text = turn_route.user(req, None)
+    assert text.startswith("story_so_far:place=바닷속 · newcomer=문어\n")
+    assert "problem=" not in text and "cause=" not in text
+    assert "지금까지의 이야기" in turn_route.system()
+
+
+def test_a_slow_llm_call_is_cut_at_its_own_deadline(monkeypatch):
+    """10-01: /story with effort high passed httpx's 30 s per-phase timeout and the phone got 502.
+    Now each call has a whole-call deadline; past it, LLMError — never a hang past the phone."""
+    import asyncio as aio
+    from app.llm import client
+
+    class Slow:
+        def __init__(self, **_): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, *a, **k):
+            await aio.sleep(5)
+
+    monkeypatch.setattr(client.settings, "openai_api_key", "x")
+    monkeypatch.setattr(client.httpx, "AsyncClient", Slow)
+    with pytest.raises(client.LLMError, match="over"):
+        aio.run(client.complete("s", "u", {}, effort="none", timeout_s=0.2))
+
+
+def test_a_slow_judge_costs_the_line_not_the_verdict(monkeypatch):
+    """/turn has one deadline (25 s, phone waits 30): when the judge eats it, the verdict goes alone."""
+    import asyncio as aio
+    from app.routers import judge as judge_route
+
+    monkeypatch.setattr(turn_route.settings, "mock", False)
+    monkeypatch.setattr(turn_route.settings, "turn_deadline_s", 0.3)
+    v = JudgeResult(reason="r", value_1="바닷속", next_slot="problem")
+
+    async def slow_judge(_):
+        await aio.sleep(0.4)
+        return v
+    called = []
+
+    async def line_llm(*_, **__):
+        called.append(1)
+        return {"ack": "a", "expand": None, "question": "q"}
+    monkeypatch.setattr(judge_route, "run", slow_judge)
+    monkeypatch.setattr(turn_route, "complete", line_llm)
+    req = TurnRequest(mode="story", slots={}, question="q", utterance="바닷속")
+    out = aio.run(turn_route.turn(req))
+    assert out.judge == v and out.line is None and not called

@@ -1544,8 +1544,17 @@ private suspend fun Director.sceneBook() {
  */
 private suspend fun Director.sceneFriends() {
     inputs(false, false)
+    // Live stories have no scripted dinosaur; only rate a confirmed newcomer.
+    val liveStory = s.mode == StoryMode.STORY && Server.liveFor(s.mode)
+    if (liveStory && s.slots["newcomer"].isNullOrBlank()) {
+        log("동화 모드 · 이야기에서 고른 친구가 없다 → 친구 평가를 건너뛴다")
+        go(Scene.END)
+        return
+    }
     // 일기 모드에는 공룡(동행 칸)이 없다. 아이가 아무도 그리지 않았으면 평가할 친구도 없다 (§2-2)
-    val items = if (s.isDiary) {
+    val items = if (liveStory) {
+        mutableListOf(RateItem("friend", s.friendCallName, s.friendArt))
+    } else if (s.isDiary) {
         if (s.newcomer == null) {
             log("일기 모드 · 오늘 그린 친구가 없다 → 친구 평가를 건너뛴다 (동행 · 소리 칸은 묻지 않는다 · §2-2)")
             go(Scene.END)
