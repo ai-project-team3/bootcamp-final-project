@@ -31,6 +31,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 /** 그리는 동안 묻는 질문 수 · 오또가 그려 주겠다고 하는 수 · 다 그린 뒤 묻는 수 */
 internal const val ASK_WHILE_DRAWING = 2
 internal const val OTTO_OFFERS = 2
+
+/**
+ * 그리면서 듣는 D1 질문의 첫 답 기다림(초). 기본 5초는 손을 멈추고 답하기엔 짧다(10-01 진웅 · 프로토타입 15초 · 흐름 10초).
+ * 말이 끊기지 않게 언제 거둘지(오래 그리는 중 · 손을 놓고 멈춤)는 따로 정한다
+ */
+internal const val D1_WAIT_SEC = 10.0
 internal const val ASK_AFTER_DRAWING = 3
 
 /** 마무리를 제안하는 때 — 끝내는 시간이 아니다 (guidelines/2 §1-1 · 09-30) */
@@ -292,7 +298,7 @@ private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pai
     // 이름 붙은 조각에 닿게 그렸으면 — 거기에 더 그린 건지, 새로 그린 건지를 먼저 묻는다(프로토타입 규칙)
     val neighbor = day.namedNeighborOf(piece)
     val r = if (neighbor != null) askMoreOrNew(day, piece, neighbor) else {
-        val q = Question(text = "우와, 지금 그리는 건 뭐야?", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_piece")
+        val q = Question(text = "우와, 지금 그리는 건 뭐야?", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_piece", waitSec = D1_WAIT_SEC)
         day.askingPiece = piece.id
         try { ask(q) } finally { day.askingPiece = null }
     }
@@ -321,6 +327,7 @@ private suspend fun Director.askMoreOrNew(day: DiaryDay, piece: DiaryPiece, name
         noCards = true,
         spoken = listOf(Answer("더 그렸어!", MORE_HERE, lv = 1), Answer("새로 그렸어, 땅이야.", "땅", lv = 2)),
         id = "diary_piece",
+        waitSec = D1_WAIT_SEC,
     )
     day.askingPiece = piece.id
     return try { ask(q) } finally { day.askingPiece = null }
@@ -435,6 +442,7 @@ private suspend fun Director.askYesNo(text: String, id: String, yes: Answer, no:
         spoken = listOf(yes, no),
         extra = listOf(DemoBtn("✅ 다 그렸어") { send(Reply.Tapped("done", "완료")) }),
         id = id,
+        waitSec = D1_WAIT_SEC,
     )
     return when (val r = ask(q)) {
         is Reply.Tapped -> r.value
