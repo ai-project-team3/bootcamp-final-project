@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # still open, so the voice is a setting and the app may pass its own voice_id.
     typecast_api_key: str = ""
     typecast_model: str = "ssfm-v30"
-    typecast_voice_id: str = "tc_65a8c82a7e7bded32947497e"
+    typecast_voice_id: str = "tc_6699eb3849dfac016c29444c"   # Siwoo (10-01 조장 · was Ruri tc_65a8c82a7e7bded32947497e)
 
     # 09-21 recipe (results.md): SDXL base + Lightning 8-step, 3.74 s alone · 3.86 s beside large-v3
     comfy_url: str = "http://127.0.0.1:8188"
@@ -58,7 +58,14 @@ class Settings(BaseSettings):
     # Who makes the mascot's voice. 10-01: TypeCast answered 403 UNUSUAL_ACTIVITY_DETECTED on the
     # new key (the free account ran out, the next free account was flagged) — OpenAI for now, the
     # vendor already in the privacy policy, same key. Back to "typecast" once that account is sorted.
-    tts_provider: str = "openai"         # openai | typecast
+    # 10-01 later: a new TypeCast key — TypeCast first again, and if it fails (402 · 403 · slow)
+    # the same request falls back to OpenAI, so the mascot never goes quiet over an account issue
+    tts_provider: str = "typecast"       # typecast | openai
+    tts_fallback: str = "openai"         # "" = no fallback
+    # 조장 10-01: Siwoo · 밝게 (09-26 blind ★) but a little fast — 0.95 until the ear test
+    # (eval/bench_tts_tempo.py) settles it
+    typecast_emotion: str = "happy"      # a preset name, or "smart" (reads the neighbouring lines)
+    typecast_tempo: float = 0.95
     openai_tts_model: str = "gpt-4o-mini-tts"
     # 10-01 round 2 (eval/bench_tts_openai_voices2.py): OpenAI recommends marin/cedar for quality;
     # short, direct, English instructions; no "sound like a six-year-old" — an adult voice told to
