@@ -119,7 +119,6 @@ fun exprFor(text: String, mood: Mood): Expr {
  * @param burstId 이 번호가 바뀔 때마다 [burst] 가 다시 터진다 (같은 반응이 연달아 와도)
  * @param expr    표정 — 말하는 중 · 가만있을 때만 얼굴 그림을 바꾼다(듣는 중 · 생각하는 중은 그 얼굴 그대로)
  * @param pulse   말하는 중 · 듣는 중 · 기다리는 중이면 테두리 색 파동을 얼굴 둘레에 퍼뜨린다
- * @param onLift  얼굴이 위아래로 움직인 만큼(px, 위가 음수)을 매 프레임 알린다 — 나레이션 띠가 얼굴을 따라 휘게
  */
 @Composable
 fun OttoFace(
@@ -129,7 +128,6 @@ fun OttoFace(
     burstId: Int = 0,
     expr: Expr = Expr.NONE,
     pulse: Boolean = false,
-    onLift: ((Float) -> Unit)? = null,
 ) {
     val inf = rememberInfiniteTransition(label = "otto")
     val hop by inf.animateFloat(0f, -5f, infiniteRepeatable(tween(200), RepeatMode.Reverse), label = "hop")
@@ -221,11 +219,7 @@ fun OttoFace(
         Box(
             Modifier
                 .fillMaxSize()
-                .offset {
-                    val y = (baseY * density.density + jump.value).roundToInt()
-                    onLift?.invoke(y.toFloat())
-                    IntOffset(0, y)
-                }
+                .offset { IntOffset(0, (baseY * density.density + jump.value).roundToInt()) }
                 .graphicsLayer {
                     scaleX = sx.value * baseScale; scaleY = sy.value * baseScale
                     rotationZ = baseTilt + shake.value
