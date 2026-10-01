@@ -87,6 +87,7 @@ class PictureDiaryFlowTest {
         var guard = 0
         while (s.scene == Scene.DIARY && s.stage !is DiaryGift && guard++ < 30) {
             val b = s.buttons.firstOrNull { "😄" in it.label } ?: s.buttons.firstOrNull { "다음 쪽" in it.label || "다 읽었어" in it.label }
+                ?: s.buttons.firstOrNull { "대답 없음" in it.label }      // 다 읽은 뒤 제목을 묻는다 — 말 없이 넘긴다
             if (b == null) { delay(20); continue }
             b.onClick(); delay(30)
         }
@@ -505,6 +506,29 @@ class PictureDiaryFlowTest {
         assertTrue(d.push("신나는 하루"))
         assertTrue(await { s.title == "신나는 하루" } != null)
         assertEquals("child", s.slotBy["title"])
+    }
+
+    /** 제목을 안 붙였으면 다 읽은 뒤 한 번 묻는다 · 붙였으면 묻지 않고 바로 책을 준다 (10-01 안 2) */
+    @Test
+    fun theTitleIsAskedOnceAfterReading() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그림 없이 이야기할래"))
+        var guard = 0
+        while (s.stage !is DiaryPaper && guard++ < 20) {
+            if (await(2_000) { s.buttons.any { "🎬 오늘 이야기 시연 답" in it.label } } == null) break
+            d.push("🎬 오늘 이야기 시연 답")
+        }
+        assertTrue(await { s.stage is DiaryPaper } != null)
+        guard = 0
+        while (s.line != "이 일기 제목은 뭐로 할까?" && guard++ < 30) {
+            val b = s.buttons.firstOrNull { "😄" in it.label } ?: s.buttons.firstOrNull { "다음 쪽" in it.label || "다 읽었어" in it.label }
+            if (b == null) { delay(20); continue }
+            b.onClick(); delay(30)
+        }
+        assertEquals("다 읽고 제목을 묻지 않았다", "이 일기 제목은 뭐로 할까?", s.line)
+        assertTrue(d.push("신나는 하루"))
+        assertTrue(await { s.title == "신나는 하루" && s.stage is DiaryGift } != null)
     }
 
     /** 이름 붙은 조각에 닿게 그리면 「우리 집에 더 그린 거야, 새로 그린 거야?」 — 「더 그렸어」면 합치고, 「새로 그렸어, 땅이야」면 새 조각 */

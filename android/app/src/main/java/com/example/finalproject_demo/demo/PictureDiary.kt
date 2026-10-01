@@ -879,7 +879,11 @@ private suspend fun Director.readPictureDiary(day: DiaryDay) {
             }
             r.value == "title" -> askTitle()
             r.value == "prev" -> i = (i - 1).coerceAtLeast(0)
-            r.value == "next" -> if (last) return else i++
+            r.value == "next" -> if (!last) i++ else {
+                // 다 읽고 나면 제목을 한 번 묻는다 — 내용을 다 본 뒤라 아이가 붙이기 쉽다. 이미 붙였으면 묻지 않는다 (10-01 안 2)
+                if (s.slotBy["title"] != "child") askTitle()
+                return
+            }
         }
     }
 }
