@@ -91,10 +91,36 @@ fun DiaryDay.namedNeighborOf(piece: DiaryPiece): DiaryPiece? {
     return pieces.lastOrNull { it.id != piece.id && it.name != null && boxOf(it.strokes)?.touches(b) == true }
 }
 
-/** 아이 말이 다른 이름 붙은 조각을 부르나 — 「우리 집 창문」 · 「강아지 꼬리」 · 「우리 집에 그렸어」 → 그 조각 */
+/** 두 조각이 닿아 있나 — 붙여 그린 것은 말만 듣고 합쳐도 된다 */
+fun DiaryDay.touching(a: Int, b: Int): Boolean {
+    val ba = pieces.firstOrNull { it.id == a }?.let { boxOf(it.strokes) }?.grow(PIECE_GAP / 2) ?: return false
+    val bb = pieces.firstOrNull { it.id == b }?.let { boxOf(it.strokes) } ?: return false
+    return ba.touches(bb)
+}
+
+/**
+ * 아이 말이 다른 이름 붙은 조각을 부르나 — 「우리 집 창문」 · 「강아지 꼬리」 · 「우리 집에 그렸어」 → 그 조각.
+ * **낱말로** 불러야 한다: 「강아」는 「강아지 뽀삐」 안에 글자로 들어 있지만 부른 것이 아니다(10-01 실기기)
+ */
 fun DiaryDay.namedIn(text: String, except: Int): DiaryPiece? =
     pieces.filter { it.id != except && it.name != null }.sortedByDescending { it.name!!.length }
-        .firstOrNull { text.contains(it.name!!) }
+        .firstOrNull { callsByName(text, it.name!!) }
+
+/** 이름 뒤에 붙어도 되는 조사 — 그 밖의 글자가 붙으면 다른 낱말이다(「해」 ≠ 「해님」) */
+private val PARTICLE = Regex("^(이랑|랑|하고|한테|에서|처럼|이야|이가|은|는|이|가|을|를|에|의|도|야|만)")
+
+private fun callsByName(text: String, name: String): Boolean {
+    var at = text.indexOf(name)
+    while (at >= 0) {
+        val startsWord = at == 0 || !text[at - 1].isLetterOrDigit()
+        val rest = text.substring(at + name.length)
+        val endsWord = rest.isEmpty() || !rest[0].isLetterOrDigit() || PARTICLE.containsMatchIn(rest) &&
+            rest.drop(PARTICLE.find(rest)!!.value.length).let { it.isEmpty() || !it[0].isLetterOrDigit() }
+        if (startsWord && endsWord) return true
+        at = text.indexOf(name, at + 1)
+    }
+    return false
+}
 
 /** [from] 조각의 선을 [into] 조각에 붙이고 [from] 을 없앤다 — 대화로 「거기에 더 그렸어」라고 정했을 때 */
 fun DiaryDay.mergeInto(from: Int, into: Int) {

@@ -351,11 +351,11 @@ class PictureDiaryFlowTest {
             "음… 강아지" to "강아지", "그냥 동그라미" to "동그라미", "이건 엄마랑 나야" to "엄마랑 나",
             "이건 우리 집 강아지 뽀삐야" to "우리 집 강아지 뽀삐", "해님이랑 구름" to "해님이랑 구름",
             "어 그러니까 이거는 자동차인데 빨간 거" to "자동차", "내가 좋아하는 티라노사우루스" to "티라노사우루스",
-            "그네" to "그네", "모래" to "모래", "의자" to "의자",
+            "그네" to "그네", "모래" to "모래", "의자" to "의자", "새로 그렸어, 땅이야" to "땅",
         )
         named.forEach { (said, name) -> assertEquals("「$said」", name, pieceNameFrom(Reply.Spoke(said))) }
         listOf(
-            "몰라", "응", "아니", "배고파", "선생님 보고 싶어", "놀이터에서 그네 탔어",
+            "몰라", "응", "아니", "새로 그렸어", "배고파", "선생님 보고 싶어", "놀이터에서 그네 탔어",
             "엄마랑 나랑 놀이터에서 노는 거야", "엄마가 그러는데 내일 비 온대",
         ).forEach { assertEquals("「$it」은 이름이 아니다", null, pieceNameFrom(Reply.Spoke(it))) }
     }
@@ -424,5 +424,30 @@ class PictureDiaryFlowTest {
         assertTrue(await { "우리 집에 더 그렸구나" in s.line } != null)
         assertEquals("합치지 않았다", 1, s.diaryDay.pieces.size)
         assertEquals(2, s.diaryDay.pieces.single().strokes.size)
+    }
+
+    /**
+     * 멀리 그린 조각이 다른 조각 이름을 불러도 바로 합치지 않는다 — 먼저 묻고, 「새로 그렸어」면 제 이름을 갖는다.
+     * 10-01 실기기: 「이건 우리 집 강아지 뽀삐야」에 멀리 있던 그림이 앞 조각에 말없이 합쳐졌다
+     */
+    @Test
+    fun aFarPieceThatMentionsANamedOneIsAskedBeforeMerging() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("강아지")
+        assertTrue("말=${s.line}", await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertEquals("강아지", s.diaryDay.pieces.single().name)
+        assertTrue(d.push("아니"))
+        s.drawing += stroke(0.7f)                                    // 멀리
+        assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("이건 우리 강아지 뽀삐야")
+        assertTrue("묻지 않고 합쳤다 — 말=${s.line}", await { s.line == "강아지에 더 그린 거야, 새로 그린 거야?" } != null)
+        d.speak("새로 그렸어")
+        assertTrue(await { s.diaryDay.pieces.size == 2 && s.diaryDay.pieces.last().name != null } != null)
+        assertEquals("우리 강아지 뽀삐", s.diaryDay.pieces.last().name)
     }
 }

@@ -260,18 +260,11 @@ private fun Director.pieceBeingDrawn(day: DiaryDay): DiaryPiece? {
 private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pair<String?, Boolean> {
     // 이름 붙은 조각에 닿게 그렸으면 — 거기에 더 그린 건지, 새로 그린 건지를 먼저 묻는다(프로토타입 규칙)
     val neighbor = day.namedNeighborOf(piece)
-    val q = Question(
-        text = neighbor?.name?.let { "${it}에 더 그린 거야, 새로 그린 거야?" } ?: "우와, 지금 그리는 건 뭐야?",
-        kind = Kind.EASY,
-        noCards = true,
-        spoken = if (neighbor == null) PIECE_ANSWERS else listOf(
-            Answer("더 그렸어!", MORE_HERE, lv = 1),
-            Answer("새로 그렸어, 땅이야.", "땅", lv = 2),
-        ),
-        id = "diary_piece",
-    )
-    day.askingPiece = piece.id
-    val r = try { ask(q) } finally { day.askingPiece = null }
+    val r = if (neighbor != null) askMoreOrNew(day, piece, neighbor) else {
+        val q = Question(text = "우와, 지금 그리는 건 뭐야?", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_piece")
+        day.askingPiece = piece.id
+        try { ask(q) } finally { day.askingPiece = null }
+    }
     if (r is Reply.Tapped && (r.value == "done" || r.value == "skip")) return null to true
     if (neighbor != null && r is Reply.Spoke && addedTo(r)) {
         day.mergeInto(piece.id, neighbor.id)
@@ -289,6 +282,19 @@ private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pai
     return name to false
 }
 
+/** 「○○에 더 그린 거야, 새로 그린 거야?」 — [piece] 를 가리키며 묻는다 */
+private suspend fun Director.askMoreOrNew(day: DiaryDay, piece: DiaryPiece, named: DiaryPiece): Reply {
+    val q = Question(
+        text = "${named.name}에 더 그린 거야, 새로 그린 거야?",
+        kind = Kind.EASY,
+        noCards = true,
+        spoken = listOf(Answer("더 그렸어!", MORE_HERE, lv = 1), Answer("새로 그렸어, 땅이야.", "땅", lv = 2)),
+        id = "diary_piece",
+    )
+    day.askingPiece = piece.id
+    return try { ask(q) } finally { day.askingPiece = null }
+}
+
 /** 대본 답의 값 — 「거기에 더 그렸어」 */
 private const val MORE_HERE = "@more"
 
@@ -300,26 +306,33 @@ private fun addedTo(r: Reply.Spoke): Boolean =
 
 /**
  * 아이 말에서 조각 이름을 받아 붙인다 — 아이가 말한 이름만(규칙 5). 이름이 아니면 null, 아무것도 안 바꾼다.
- * 다른 이름 조각을 부르면(「우리 집 창문」 · 「강아지 꼬리」 · 「우리 집에 그렸어」) 그 조각에 합친다
+ * 다른 이름 조각을 부르면(「우리 집 창문」 · 「강아지 꼬리」 · 「우리 집에 그렸어」) 그 조각에 합친다 —
+ * 닿아 있을 때만 바로. 떨어져 있으면 「○○에 더 그린 거야, 새로 그린 거야?」를 먼저 묻는다(멀리 그린 다른 강아지일 수 있다)
  */
 private suspend fun Director.nameThePiece(day: DiaryDay, piece: DiaryPiece, r: Reply.Spoke): String? {
     if (r.answer?.value == MORE_HERE) return null
+    var said = r
     day.namedIn(r.text, except = piece.id)?.takeIf { r.answer == null || r.answer.value.isBlank() }?.let { other ->
-        day.mergeInto(piece.id, other.id)
-        quote(r.text)
-        say("${other.name}${eul(other.name!!)} 더 그렸구나!")
-        log("「${r.text}」 — 「${other.name}」을 불렀다 → 그 조각에 합친다 (아이 말)")
-        pause(700)
-        return other.name
+        val again = if (day.touching(piece.id, other.id)) null else askMoreOrNew(day, piece, other)
+        if (again == null || again is Reply.Spoke && addedTo(again)) {
+            day.mergeInto(piece.id, other.id)
+            quote(r.text)
+            say("${other.name}${eul(other.name!!)} 더 그렸구나!")
+            log("「${r.text}」 — 「${other.name}」을 불렀다 → 그 조각에 합친다 (아이 말${if (again != null) " · 떨어져 있어 물었다" else ""})")
+            pause(700)
+            return other.name
+        }
+        // 새로 그렸다 — 새 이름을 말했으면 그것, 아니면 처음 한 말에서 이름을 뗀다
+        if (again is Reply.Spoke && pieceNameFrom(again) != null) said = again
     }
-    val name = pieceNameFrom(r)?.removePrefix("새로 그렸어,")?.removePrefix("새로 그렸어")?.trim()?.takeIf(String::isNotEmpty) ?: return null
+    val name = pieceNameFrom(said) ?: return null
     val i = day.pieces.indexOfFirst { it.id == piece.id }
     if (i < 0) return null
     day.pieces[i] = day.pieces[i].copy(name = name)
     s.slots["whiteboard"] = day.pieceNames.joinToString(", ")
     s.slotBy["whiteboard"] = "child"
     event("slot_filled", "slot" to "extra", "of" to "whiteboard", "value" to name, "source" to "child")
-    quote(r.text)
+    quote(said.text)
     say("${name}${ida(name)}구나!")
     log("조각 이름 「$name」 — 아이가 말한 이름 (extra · whiteboard · child)")
     pause(700)
@@ -864,6 +877,8 @@ private val NOT_A_NAME = Regex("^(응|어|웅|네|예|아니|아니야|그래|�
 private val ADNOMINAL = Regex("(는|은|던|한|인)$")
 
 private val THIS_IS = Regex("^(이건|이거는|이거|저건|저거|요건|얘는|얘)\\s+")
+/** 「더 그린 거야, 새로 그린 거야?」의 답 머리 — 이름이 아니다 */
+private val NEW_ONE = Regex("^새로 ?(그렸어|그린 거야|그린 거)[.,!~ ]*")
 private val ENDS_AS_NAME = Regex("(이야|야|이에요|예요)[.!~ ]*$")
 
 /**
@@ -887,7 +902,8 @@ internal fun pieceNameFrom(r: Reply.Spoke): String? {
     if (NOT_A_NAME.matches(t)) return null
     t = t.removePrefix("아니,").removePrefix("아니 ").trim()
     t = THIS_IS.replace(t, "").trim()
-    t = t.substringBefore("인데").trim()                       // 「자동차인데 빨간 거」 → 「자동차」
+    t = NEW_ONE.replace(t, "").trim()                           // 「새로 그렸어, 땅이야」 → 「땅이야」
+    t = t.substringBefore("인데").trim()                      // 「자동차인데 빨간 거」 → 「자동차」
     t = withoutEnding(t)
     t = DREW.replace(t, "").trim()
     if (t.isEmpty() || PREDICATE.containsMatchIn(t)) return null

@@ -3,6 +3,7 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.namedNeighborOf
 import com.example.finalproject_demo.demo.namedIn
 import com.example.finalproject_demo.demo.mergeInto
+import com.example.finalproject_demo.demo.touching
 import com.example.finalproject_demo.demo.DiaryDay
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -14,6 +15,7 @@ import com.example.finalproject_demo.demo.catchUp
 import com.example.finalproject_demo.demo.cropFor
 import com.example.finalproject_demo.demo.newDiaryDay
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -89,9 +91,27 @@ class DiaryBoardTest {
         assertEquals(null, day.namedNeighborOf(day.pieces.first { it.id == mom }))
         assertEquals("우리 집", day.namedIn("우리 집 창문이야", except = window)?.name)
         assertEquals(null, day.namedIn("엄마야", except = mom))
+        assertEquals("우리 집", day.namedIn("우리 집에 그렸어", except = window)?.name)
+        assertTrue(day.touching(window, house))
+        assertFalse("멀리 떨어진 조각이 닿았다고 했다", day.touching(mom, house))
         day.mergeInto(window, house)
         assertEquals(2, day.pieces.size)
         assertEquals(2, day.pieces.first { it.id == house }.strokes.size)
+    }
+
+    /** 이름은 낱말로 불러야 한다 — 10-01 실기기에서 「강아」 조각이 「이건 우리 집 강아지 뽀삐야」에 합쳐졌다 */
+    @Test
+    fun aNameInsideAnotherWordDoesNotCallThatPiece() {
+        val day = DiaryDay()
+        day.addStroke(diaryLine(.10f, .40f, .30f, .40f))
+        day.pieces[0] = day.pieces[0].copy(name = "강아")
+        day.addStroke(diaryLine(.70f, .30f, .90f, .30f))
+        day.pieces[1] = day.pieces[1].copy(name = "해")
+        val next = day.addStroke(diaryLine(.50f, .80f, .55f, .85f))
+        assertEquals(null, day.namedIn("이건 우리 집 강아지 뽀삐야", except = next))
+        assertEquals(null, day.namedIn("해님이야", except = next))
+        assertEquals("해", day.namedIn("해가 웃고 있어", except = next)?.name)
+        assertEquals("강아", day.namedIn("강아 꼬리야", except = next)?.name)
     }
 
     private fun diaryLine(vararg xy: Float) =
