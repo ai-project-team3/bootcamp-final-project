@@ -58,6 +58,7 @@ enum class NarrationMode(val color: Color, val label: String, val icon: String) 
 /**
  * **나레이션 칸** — 화면 아래 한 줄: **[오또 얼굴] [오또가 하는 말 띠]** · 오른쪽 끝에 따로 선 **[녹음 버튼]**.
  *
+ *   얼굴 불빛 = 차례 — 답을 기다릴 때 · 녹음 중일 때 청록 테두리와 파동 (말하는 중에는 없다)
  *   얼굴 그림 = 표정 — [Expr] (기쁨 · 깜짝 · 속상 · 궁금 · 뿌듯). 표정마다 움직임도 다르다
  *   띠 테두리 = 모드 — 빨강 이야기 만들기 · 파랑 오늘 이야기 · 청록 같이 만들기
  *
@@ -110,9 +111,9 @@ fun Narration(
                     }
                 }
             }
-            // 오또 얼굴 — 혼자 선다 (감싸는 테두리 · 상태 파동 없음 — 말하는 동안만 붙었다 떨어지면 옛 모양처럼 보였다).
+            // 오또 얼굴 — 혼자 선다 (감싸는 테두리 없음). 답을 기다릴 때 · 녹음 중일 때만 청록 불빛이 켜진다.
             // 띠보다 위에 그려 띠 왼쪽 끝을 덮는다
-            OttoFace(state, Modifier.size(FaceSize), burst = burst, burstId = burstId, expr = expr)
+            OttoFace(state, Modifier.size(FaceSize), burst = burst, burstId = burstId, expr = expr, pulse = true)
         }
         // 녹음 · 그리기 버튼 — 오른쪽 끝에 따로 선다. 화면 아래 여백 = 화면 오른쪽 여백이 되게 밑에 붙이고,
         // 이 줄 밑에 부르는 쪽 여백(약 6dp)이 더 있어서 그만큼 내린다 — 실물폰(S10)에서 틈을 재어 맞췄다 (09-30)
