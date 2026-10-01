@@ -374,6 +374,31 @@ class PictureDiaryFlowTest {
         d.tell("강아지 그려줘") { s.line == "나도 지금 강아지를 그리고 있어! 조금만 기다려 줘." }
     }
 
+    /**
+     * 「나도 그려볼까?」는 이름을 들으면 바로 — 다만 답하는 사이 새 선을 긋기 시작했으면 그리기를 끊지 않고,
+     * 새 조각을 먼저 묻고, 물을 것 없는 멈춤에 미뤄 둔 제안을 한다 (10-01 진웅)
+     */
+    @Test
+    fun theOfferWaitsWhileTheChildIsDrawingSomethingNew() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        s.drawing += stroke(0.7f)                                    // 답하기 전에 멀리 새 선
+        d.speak("강아지")
+        assertTrue(await { s.line == "강아지구나!" } != null)
+        delay(300)
+        assertTrue("새로 그리는 중인데 바로 제안했다", s.line != "나도 강아지를 그려볼까?")
+        assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("해야")
+        assertTrue("새 조각은 그리는 중이 아니었으니 바로 — 말=${s.line}", await { s.line == "나도 해를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        assertTrue("미뤄 둔 제안이 오지 않았다 — 말=${s.line}",
+            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "나도 강아지를 그려볼까?" } != null)
+    }
+
     @Test
     fun aPieceNamedMeIsCalledYou() = run { d ->
         val s = d.s

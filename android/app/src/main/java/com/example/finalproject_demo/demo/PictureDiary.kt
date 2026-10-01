@@ -80,6 +80,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
     var quiet = 0                                // 물을 것 없이 지나간 멈춤 수
     val waiting = mutableListOf<OttoOrder>()      // 오또가 그리고 있는 조각 — 다 되면 다음 멈춤에 보여 준다
     val askedPieces = mutableSetOf<Int>()        // 한 번 물은 조각은 다시 묻지 않는다(답이 없었어도)
+    var held: Pair<Int, String>? = null          // 미뤄 둔 「나도 그려볼까?」 — 조각 · 이름
     say("좋아! 다 그리면 알려 줘.")
     while (true) {
         buttons(
@@ -150,16 +151,27 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
         if (piece != null && asked < ASK_WHILE_DRAWING) {
             asked++
             askedPieces += piece.id
+            val linesBefore = s.drawing.size
             val (name, finished) = askPieceName(day, piece)
             if (finished) break
             if (name == null || offers >= OTTO_OFFERS) continue
-            when (offerOttoDrawing(name)) {
-                "yes" -> {
-                    offers++
-                    // 「더 그렸어」로 합쳤으면 물은 조각은 없어지고 이름 조각만 남는다 — 그 조각을 그린다
-                    (day.pieces.firstOrNull { it.id == piece.id } ?: day.pieces.firstOrNull { it.name == name })
-                        ?.let { waiting += orderOttoDrawing(this, it, name) }
-                }
+            // 답하는 사이 새 선을 긋기 시작했으면 그리기를 끊지 않는다 — 제안은 물을 것 없는 다음 멈춤에
+            if (s.drawing.size > linesBefore) {
+                held = piece.id to name
+                log("「$name」 이름을 듣는 사이 새로 그리기 시작했다 → 「나도 그려볼까?」는 다음 조용한 멈춤에")
+                continue
+            }
+            when (offerAndOrder(this, day, waiting, piece.id, name)) {
+                "yes" -> offers++
+                "done" -> break
+            }
+            continue
+        }
+        val h = held
+        if (h != null && offers < OTTO_OFFERS) {
+            held = null
+            when (offerAndOrder(this, day, waiting, h.first, h.second)) {
+                "yes" -> offers++
                 "done" -> break
             }
             continue
@@ -351,6 +363,17 @@ private suspend fun Director.nameThePiece(day: DiaryDay, piece: DiaryPiece, r: R
     log("조각 이름 「$name」 — 아이가 말한 이름 (extra · whiteboard · child)")
     pause(700)
     return name
+}
+
+/**
+ * 「나도 ○○ 그려볼까?」를 묻고, 응이면 그 조각을 주문해 [waiting] 에 넣는다. yes · no · done.
+ * 「더 그렸어」로 합쳤으면 물은 조각([id])은 없어지고 이름 조각만 남는다 — 그 조각을 그린다
+ */
+private suspend fun Director.offerAndOrder(scope: CoroutineScope, day: DiaryDay, waiting: MutableList<OttoOrder>, id: Int, name: String): String {
+    val v = offerOttoDrawing(name)
+    if (v == "yes") (day.pieces.firstOrNull { it.id == id } ?: day.pieces.firstOrNull { it.name == name })
+        ?.let { waiting += orderOttoDrawing(scope, it, name) }
+    return v
 }
 
 /**
