@@ -27,6 +27,7 @@ import com.example.finalproject_demo.demo.pieceNameFrom
 import com.example.finalproject_demo.demo.praiseFor
 import com.example.finalproject_demo.demo.soundsLikeAName
 import com.example.finalproject_demo.demo.yesNoOf
+import com.example.finalproject_demo.demo.you
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -326,6 +327,32 @@ class PictureDiaryFlowTest {
         assertEquals("다 그렸구나! 강아지 멋지다!", praiseFor(listOf("강아지")))
         assertEquals("다 그렸구나! 강아지랑 우리 집 멋지다!", praiseFor(listOf("강아지", "우리 집")))
         assertEquals("다 그렸구나! 해, 집이랑 나무 멋지다!", praiseFor(listOf("해", "집", "나무")))
+        assertEquals("다 그렸구나! 너랑 엄마 멋지다!", praiseFor(listOf("나", "엄마")))
+    }
+
+    /** 오또가 아이의 「나」를 부를 때는 「너」 — 이름(아이 말)은 그대로 두고 대사만 바꾼다 (프로토타입 `you()`) */
+    @Test
+    fun ottoCallsTheChildsMeYou() {
+        assertEquals("너", you("나"))
+        assertEquals("엄마랑 너", you("엄마랑 나"))
+        assertEquals("네 동생", you("내 동생"))
+        assertEquals("너랑 엄마", you("나랑 엄마"))
+        assertEquals("나무", you("나무"))
+        assertEquals("우리 집", you("우리 집"))
+        assertEquals("나비", you("나비"))
+    }
+
+    @Test
+    fun aPieceNamedMeIsCalledYou() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("나야")
+        assertTrue("말=${s.line}", await { s.line == "나도 너를 그려볼까?" } != null)
+        assertEquals("이름은 아이 말 그대로", "나", s.diaryDay.pieces.single().name)
     }
 
     @Test

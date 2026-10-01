@@ -171,7 +171,8 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
 }
 
 /** 다 그렸을 때 — 이번에 그린 것들을 한꺼번에 칭찬한다(「강아지랑 우리 집 멋지다!」). 이름이 없으면 그림 전체를 */
-internal fun praiseFor(names: List<String>): String {
+internal fun praiseFor(childNames: List<String>): String {
+    val names = childNames.map(::you)
     if (names.isEmpty()) return "다 그렸구나! 멋지다!"
     if (names.size == 1) return "다 그렸구나! ${names[0]} 멋지다!"
     val head = names.dropLast(1)
@@ -268,7 +269,7 @@ private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pai
     if (r is Reply.Tapped && (r.value == "done" || r.value == "skip")) return null to true
     if (neighbor != null && r is Reply.Spoke && addedTo(r)) {
         day.mergeInto(piece.id, neighbor.id)
-        say("${neighbor.name}에 더 그렸구나!")
+        say("${you(neighbor.name.orEmpty())}에 더 그렸구나!")
         log("「${neighbor.name}」에 더 그린 선 → 그 조각에 합친다 (아이 말)")
         pause(700)
         return neighbor.name to false
@@ -285,7 +286,7 @@ private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pai
 /** 「○○에 더 그린 거야, 새로 그린 거야?」 — [piece] 를 가리키며 묻는다 */
 private suspend fun Director.askMoreOrNew(day: DiaryDay, piece: DiaryPiece, named: DiaryPiece): Reply {
     val q = Question(
-        text = "${named.name}에 더 그린 거야, 새로 그린 거야?",
+        text = "${you(named.name.orEmpty())}에 더 그린 거야, 새로 그린 거야?",
         kind = Kind.EASY,
         noCards = true,
         spoken = listOf(Answer("더 그렸어!", MORE_HERE, lv = 1), Answer("새로 그렸어, 땅이야.", "땅", lv = 2)),
@@ -317,7 +318,7 @@ private suspend fun Director.nameThePiece(day: DiaryDay, piece: DiaryPiece, r: R
         if (again == null || again is Reply.Spoke && addedTo(again)) {
             day.mergeInto(piece.id, other.id)
             quote(r.text)
-            say("${other.name}${eul(other.name!!)} 더 그렸구나!")
+            say("${you(other.name!!)}${eul(you(other.name!!))} 더 그렸구나!")
             log("「${r.text}」 — 「${other.name}」을 불렀다 → 그 조각에 합친다 (아이 말${if (again != null) " · 떨어져 있어 물었다" else ""})")
             pause(700)
             return other.name
@@ -333,7 +334,7 @@ private suspend fun Director.nameThePiece(day: DiaryDay, piece: DiaryPiece, r: R
     s.slotBy["whiteboard"] = "child"
     event("slot_filled", "slot" to "extra", "of" to "whiteboard", "value" to name, "source" to "child")
     quote(said.text)
-    say("${name}${ida(name)}구나!")
+    say("${you(name)}${ida(you(name))}구나!")
     log("조각 이름 「$name」 — 아이가 말한 이름 (extra · whiteboard · child)")
     pause(700)
     return name
@@ -345,7 +346,7 @@ private suspend fun Director.nameThePiece(day: DiaryDay, piece: DiaryPiece, r: R
  */
 private suspend fun Director.offerOttoDrawing(name: String): String {
     val v = askYesNo(
-        "나도 ${name}${eul(name)} 그려볼까?", "diary_offer",
+        "나도 ${you(name)}${eul(you(name))} 그려볼까?", "diary_offer",
         yes = Answer("응!", "yes", lv = 1), no = Answer("아니, 내 그림이 좋아.", "no", lv = 1),
     ).let { if (it == "yes" || it == "done") it else "no" }
     when (v) {
@@ -405,7 +406,7 @@ private suspend fun Director.askYesNo(text: String, id: String, yes: Answer, no:
 private suspend fun Director.showOttoDrawing(day: DiaryDay, piece: DiaryPiece) {
     val name = piece.name ?: return
     s.stage = DiaryBoard(pick = piece.id)
-    say("짠! 나도 ${name}${eul(name)} 그려 봤어! 어떤 게 좋아?")
+    say("짠! 나도 ${you(name)}${eul(you(name))} 그려 봤어! 어떤 게 좋아?")
     buttons(
         DemoBtn("🖍 내 그림으로") { send(Reply.Tapped("orig", "내 그림")) },
         DemoBtn("✨ 오또 그림으로 ${ottoEmoji(name)}") { send(Reply.Tapped("otto", "오또 그림")) },
@@ -418,10 +419,10 @@ private suspend fun Director.showOttoDrawing(day: DiaryDay, piece: DiaryPiece) {
     s.reactions++
     event("utterance", "speaker" to "child", "mode" to "card", "text" to if (look == PieceLook.OTTO) "오또 그림" else "내 그림")
     if (look == PieceLook.OTTO) {
-        say("펑! 내가 그린 ${name}${ida(name)}야. 고마워!")
+        say("펑! 내가 그린 ${you(name)}${ida(you(name))}야. 고마워!")
         log("「$name」 → 오또 그림으로 (부모 기록: 아이가 고른 오또 그림 · 원본도 보관)")
     } else {
-        say("띠용! 역시 네가 그린 ${name}${ida(name)}!")
+        say("띠용! 역시 네가 그린 ${you(name)}${ida(you(name))}!")
         log("「$name」 → 아이 원본 그대로")
     }
     pause(900)
@@ -930,6 +931,17 @@ private fun withoutEnding(t: String): String {
     val ieung = (before[0].code - 0xAC00) % 28 == 21
     if (bat(before) && (word.length == 2 || !ieung)) s = s.dropLast(1)
     return s
+}
+
+private val ME = Regex("^(나|저)(랑|하고|와|도|는|를|의|만)?$")
+private val MY = Regex("^(내|제)(가)?$")
+
+/**
+ * 오또가 아이의 「나」를 부를 때 — 「나」 → 「너」 · 「엄마랑 나」 → 「엄마랑 너」 · 「내 동생」 → 「네 동생」 (프로토타입 `you()`).
+ * 낱말 단위라 「나무」 「나비」는 그대로. 조각 이름(아이 말)은 바꾸지 않고 **대사에만** 쓴다(규칙 5)
+ */
+internal fun you(name: String): String = name.split(" ").joinToString(" ") { w ->
+    ME.matchEntire(w)?.let { "너" + it.groupValues[2] } ?: MY.matchEntire(w)?.let { "네" + it.groupValues[2] } ?: w
 }
 
 /** 이름 뒤 「(이)야 · (이)구나」 */
