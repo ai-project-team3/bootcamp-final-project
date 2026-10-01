@@ -63,6 +63,21 @@ object Voice {
         return runCatching { ctx?.assets?.open("voice/$name")?.use { it.readBytes() } }.getOrNull()
     }
 
+    private var lastNeutral = -1
+
+    /**
+     * A content-neutral sound for the moment the child stops talking (「음~」 · 「응응.」 · 「응, 그랬구나.」 ·
+     * eval/bake_neutral.py). The answer is not transcribed yet, so it says nothing about it; never the
+     * same one twice in a row. Null when none are bundled.
+     */
+    fun neutral(): ByteArray? {
+        val names = bakedNames.filter { it.startsWith("neutral_") }.sorted()
+        if (names.isEmpty()) return null
+        val i = names.indices.filter { it != lastNeutral || names.size == 1 }.random()
+        lastNeutral = i
+        return runCatching { ctx?.assets?.open("voice/${names[i]}")?.use { it.readBytes() } }.getOrNull()
+    }
+
     /** Same key as eval/bake_lines.py: sha1 of the line with spaces collapsed, first 16 hex. */
     fun bakedKey(line: String): String {
         val norm = line.trim().replace(Regex("\\s+"), " ")
