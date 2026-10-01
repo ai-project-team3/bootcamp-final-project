@@ -32,7 +32,7 @@ jobs:
           $result = $null
           for ($i = 0; $i -lt 15; $i++) {
             try {
-              $result = Invoke-RestMethod -Uri http://127.0.0.1:8010/health -TimeoutSec 3
+              $result = Invoke-RestMethod -Uri http://127.0.0.1:8000/health -TimeoutSec 3
               if ($result.status -eq "ok" -and $result.mock -eq $false) { $ok = $true; break }
             } catch {}
             Start-Sleep -Seconds 2
