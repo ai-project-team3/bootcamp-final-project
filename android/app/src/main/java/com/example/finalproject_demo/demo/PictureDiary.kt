@@ -850,8 +850,18 @@ private val DONT_KNOW = Regex("몰라|모르겠|글쎄|음+$")
 
 internal fun dontKnow(text: String) = text.isBlank() || DONT_KNOW.containsMatchIn(text)
 
-private val COPULA = Regex("(이야|야|이에요|예요|이요|요|이지|지|인데|거든)?[.!?~ ]*$")
-private val DREW = Regex("(을|를)?\\s*(그렸어|그리는 거야|그리는 중이야|그리고 있어)$")
+/** 말 앞의 군말 — 「음…」 「어 그러니까」 「그냥」. 뒤에 띄어쓰기나 부호가 와야 군말이다(「어린이집」은 아니다) */
+private val FILLER = Regex("^(음+|어+|아+|저기|그러니까|그니까|그냥|있잖아|이제)[.…,~! ]+")
+/** 이름 뒤에 붙는 끝 — 「~야」 「~에요」 「~요」. 「지」는 넣지 않는다: 「강아지」 「돼지」의 끝이다(10-01 실기기) */
+private val ENDING = Regex("(야|에요|예요|요|거든|이지)$")
+/** 「집이」의 「이」를 떼지 않는 두 글자 낱말 — 받침 뒤 「이」가 낱말의 일부다 */
+private val KEEP_I = setOf("종이", "놀이", "먹이", "팽이", "길이", "높이")
+private val DREW = Regex("(을|를)?\\s*(그렸어|그리는 거|그리는 중|그리고 있어|그린 거)$")
+/** 이름이 아니라 일 · 기분을 말한 끝 — 「배고파」 「그네 탔어」 「노는 거」. 「그네」 「모래」 「의자」는 이름이라 「네 · 래 · 자」는 넣지 않는다 */
+private val PREDICATE = Regex("(았어|었어|였어|했어|갔어|왔어|탔어|봤어|났어|졌어|됐어|싶어|고파|아파|졸려|추워|더워|좋아|싫어|줘|할래|갈래|볼래|하자|가자|는 거|은 거|던 거)$")
+private val NOT_A_NAME = Regex("^(응|어|웅|네|예|아니|아니야|그래|좋아|싫어)$")
+/** 긴 말에서 마지막 낱말을 꾸미는 말 — 「내가 좋아하는 티라노사우루스」 */
+private val ADNOMINAL = Regex("(는|은|던|한|인)$")
 
 private val THIS_IS = Regex("^(이건|이거는|이거|저건|저거|요건|얘는|얘)\\s+")
 private val ENDS_AS_NAME = Regex("(이야|야|이에요|예요)[.!~ ]*$")
@@ -866,17 +876,41 @@ internal fun soundsLikeAName(text: String): Boolean {
 
 /**
  * 「우리 집이야!」 → 「우리 집」 · 「아니, 블록이야」 → 「블록」 · 「이건 강아지야」 → 「강아지」. 대본 답에는 값이 붙어 있어 그대로 쓴다.
- * 「몰라」면 null — 이름 없이 둔다.
+ * 「몰라」 · 「응」 · 「배고파」처럼 이름이 아닌 말이면 null — 이름 없이 둔다. 이름은 아이 말에서 떼어 낸 조각뿐이다(규칙 5)
  */
 internal fun pieceNameFrom(r: Reply.Spoke): String? {
     r.answer?.value?.takeIf { it.isNotBlank() }?.let { return it }
     var t = r.text.trim()
     if (dontKnow(t)) return null
-    t = t.removePrefix("아니,").removePrefix("아니").trim()
+    while (true) { val next = FILLER.replace(t, "").trim(); if (next == t) break; t = next }
+    t = t.trimEnd('.', '!', '?', '~', '…', ' ')
+    if (NOT_A_NAME.matches(t)) return null
+    t = t.removePrefix("아니,").removePrefix("아니 ").trim()
     t = THIS_IS.replace(t, "").trim()
+    t = t.substringBefore("인데").trim()                       // 「자동차인데 빨간 거」 → 「자동차」
+    t = withoutEnding(t)
     t = DREW.replace(t, "").trim()
-    t = COPULA.replace(t, "").trim()
-    return t.takeIf { it.isNotEmpty() && it.length <= 12 }
+    if (t.isEmpty() || PREDICATE.containsMatchIn(t)) return null
+    val words = t.split(Regex("\\s+"))
+    if (t.length <= 12 && words.size <= 4) return t
+    // 긴 말 — 「내가 좋아하는 티라노사우루스」처럼 마지막 낱말을 꾸미는 말이면 그 낱말만
+    val last = words.last()
+    return last.takeIf { words.size >= 2 && ADNOMINAL.containsMatchIn(words[words.size - 2]) && last.length in 2..12 }
+}
+
+/** 「집이야」 → 「집」 · 「고양이에요」 → 「고양이」 · 「강아지요」 → 「강아지」. 끝이 없으면 그대로 */
+private fun withoutEnding(t: String): String {
+    val m = ENDING.find(t) ?: return t
+    var s = t.substring(0, m.range.first).trimEnd()
+    if (s.isEmpty()) return t
+    // 「집이」 「블록이」의 「이」는 받침 뒤에 붙은 말끝이다. 「아이」 「종이」는 낱말이라 남기고,
+    // 세 글자 넘는 「고양이 · 원숭이 · 달팽이 · 멍멍이」는 ㅇ 받침 뒤 「이」까지가 낱말이라 남긴다
+    val word = s.substringAfterLast(' ')
+    if (word.length < 2 || !word.endsWith("이") || word in KEEP_I) return s
+    val before = word[word.length - 2].toString()
+    val ieung = (before[0].code - 0xAC00) % 28 == 21
+    if (bat(before) && (word.length == 2 || !ieung)) s = s.dropLast(1)
+    return s
 }
 
 /** 이름 뒤 「(이)야 · (이)구나」 */

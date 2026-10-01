@@ -23,6 +23,7 @@ import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.echoBack
 import com.example.finalproject_demo.demo.hasDiaryCover
+import com.example.finalproject_demo.demo.pieceNameFrom
 import com.example.finalproject_demo.demo.praiseFor
 import com.example.finalproject_demo.demo.soundsLikeAName
 import com.example.finalproject_demo.demo.yesNoOf
@@ -333,6 +334,30 @@ class PictureDiaryFlowTest {
         assertTrue(soundsLikeAName("우리 집이야!"))
         assertFalse(soundsLikeAName("나 오늘 너무 배고파"))
         assertFalse(soundsLikeAName("엄마가 그러는데 내일 비 온대"))
+    }
+
+    /**
+     * 「지금 그리는 건 뭐야?」에 대한 답 → 조각 이름. 10-01 실기기에서 「강아지」가 「강아」가 됐다(끝 「지」를 어미로 읽었다).
+     * 낱말 · 문장 · 군말 · 딴말 — 이름이 아닌 말은 null(이름 없이 둔다)
+     */
+    @Test
+    fun pieceNamesComeOutOfWordsAndSentences() {
+        val named = mapOf(
+            "강아지" to "강아지", "강아지!" to "강아지", "강아지야" to "강아지", "강아지요" to "강아지", "돼지야" to "돼지",
+            "우리 집이야" to "우리 집", "집이에요" to "집", "집이요" to "집", "형이야" to "형",
+            "고양이야" to "고양이", "고양이에요" to "고양이", "종이야" to "종이", "아이야" to "아이", "원숭이야" to "원숭이", "공이야" to "공",
+            "이건 강아지야" to "강아지", "이거는 해야" to "해", "아니, 블록이야" to "블록",
+            "공룡 그렸어" to "공룡", "엄마를 그렸어" to "엄마", "강아지 그리는 중이야" to "강아지", "강아지 그렸어요" to "강아지",
+            "음… 강아지" to "강아지", "그냥 동그라미" to "동그라미", "이건 엄마랑 나야" to "엄마랑 나",
+            "이건 우리 집 강아지 뽀삐야" to "우리 집 강아지 뽀삐", "해님이랑 구름" to "해님이랑 구름",
+            "어 그러니까 이거는 자동차인데 빨간 거" to "자동차", "내가 좋아하는 티라노사우루스" to "티라노사우루스",
+            "그네" to "그네", "모래" to "모래", "의자" to "의자",
+        )
+        named.forEach { (said, name) -> assertEquals("「$said」", name, pieceNameFrom(Reply.Spoke(said))) }
+        listOf(
+            "몰라", "응", "아니", "배고파", "선생님 보고 싶어", "놀이터에서 그네 탔어",
+            "엄마랑 나랑 놀이터에서 노는 거야", "엄마가 그러는데 내일 비 온대",
+        ).forEach { assertEquals("「$it」은 이름이 아니다", null, pieceNameFrom(Reply.Spoke(it))) }
     }
 
     /** D3 — 필수 두 칸 다음에 이름 없는 조각 하나를 「이건 뭐 그린 거야?」로 묻는다. 카드에는 그 조각만 (프로토타입 nextD3) */
