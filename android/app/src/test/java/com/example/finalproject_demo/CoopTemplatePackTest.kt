@@ -5,6 +5,7 @@ import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.coopPartPack
+import com.example.finalproject_demo.demo.heardPlace
 import com.example.finalproject_demo.ui.COOP_KINDS
 import com.example.finalproject_demo.ui.CoopReason
 import com.example.finalproject_demo.ui.questionHint
@@ -117,6 +118,42 @@ class CoopTemplatePackTest {
         assertEquals("다녀와서 뭐 할 거야?", state(CoopPick("place", "동물원", "soon")).coopPartPack(after)!!.rungs[0])
         assertEquals("이야기가 끝나고 뭐 했을까?", state(CoopPick("place", "동물원", "dream")).coopPartPack(after)!!.rungs[0])
         assertEquals("이야기가 끝나고 뭐 했을까?", state(CoopPick("place", "동물원", null)).coopPartPack(after)!!.rungs[0])
+    }
+
+    /** 앞에서 말한 곳이 이름처럼 짧은 말이면 질문의 「거기」 자리에 들어간다 (10-01) */
+    @Test
+    fun theHeardPlaceTakesThePlaceOfThere() {
+        val s = state(CoopPick("job", "소방관", "soon")).apply { place = "큰 건물" }
+        assertEquals("큰 건물에서 무슨 일을 할까?", s.coopPartPack(parts[1])!!.rungs[0])
+        val done = state(CoopPick("place", "동물원", "done")).apply { place = "동물원 입구" }
+        assertEquals("동물원 입구에 누구랑 같이 갔어?", done.coopPartPack(tails.first { it.slot == "companion" })!!.rungs[0])
+        assertEquals("동물원 입구에서 누구를 만났어?", done.coopPartPack(tails.first { it.slot == "companion" })!!.rungs[2])
+    }
+
+    /** 칸에 문장이 들어 있거나 마스코트가 「아직 못 들은 …」으로 메웠으면 「거기」를 그대로 둔다 */
+    @Test
+    fun aSentenceOrAnUnheardPlaceLeavesThereAlone() {
+        fun heard(p: String?) = state(CoopPick("job", "소방관", "soon")).apply { place = p }.heardPlace()
+        assertEquals("놀이터", heard("놀이터에"))
+        assertEquals("큰 건물", heard("큰 건물에서"))
+        assertEquals("소방관이 일하는 곳", heard("소방관이 일하는 곳"))
+        assertNull(heard("큰 건물에서 일할 것 같아"))
+        assertNull(heard("놀이터에 갔어"))
+        assertNull(heard("아직 못 들은 곳"))
+        assertNull(heard(null))
+        val s = state(CoopPick("job", "소방관", "soon")).apply { place = "큰 건물에서 일할 것 같아" }
+        assertEquals("거기서 무슨 일을 할까?", s.coopPartPack(parts[1])!!.rungs[0])
+    }
+
+    /** 곳이 들어간 질문도 우리 귀띔 규칙을 지킨다 */
+    @Test
+    fun rungsWithAHeardPlaceStillPassOurRules() {
+        everyPick().forEach { pick ->
+            val s = state(pick).apply { place = "놀이공원 입구" }
+            COOP_STEPS.forEach { step ->
+                s.coopPartPack(step)!!.rungs.forEach { q -> assertNull("$pick ${step.bookKey}: $q", questionHint(q)) }
+            }
+        }
     }
 
     @Test

@@ -55,7 +55,8 @@ private fun DemoState.takeCoopLine(q: Question): CoopLine? {
     if (q.id in track.askedSteps) return null          // 다시 묻는 자리 — 앱 질문으로
     track.askedSteps += q.id
     val idx = partIndexOf(q)
-    if (idx != null) return coopPick?.templateQuestions()?.getOrNull(idx)?.let { CoopLine.Template(it) }
+    // 앞에서 말한 곳을 「거기」 자리에 — 사다리(CoopTemplatePack)와 같은 말이 나가게 (10-01)
+    if (idx != null) return coopPick?.templateQuestions()?.getOrNull(idx)?.let { t -> CoopLine.Template(heardPlace()?.let(t::here) ?: t) }
     val mine = parentQuestions.filter { it.isNotBlank() }.getOrNull(track.parentUsed) ?: return null
     track.parentUsed++
     parentQIndex++
