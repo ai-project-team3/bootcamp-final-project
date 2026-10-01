@@ -65,6 +65,8 @@ data class Question(
      * 흐름(사다리 · 무응답 · 마스코트 채우기)은 동화 모드와 **똑같다** (9/21).
      */
     val silent: Boolean = false,
+    /** 첫 답을 기다리는 초 — null 이면 [kind] 의 기본(쉬운 5 · 어려운 8 · 고르기 7). 그림일기 D1 은 그리면서 답해서 길게 둔다 */
+    val waitSec: Double? = null,
 )
 
 class Director(
@@ -555,7 +557,7 @@ class Director(
 
         // 마스코트 말이 끝나면(TTS 종료) 아이 차례 — 서버 모드는 **진짜 목소리가 끝날 때까지** 기다린다 (09-29 S25+)
         if (Server.liveFor(s.mode)) { awaitVoice(); pause(300) } else pause(1200)
-        val sec = when (q.kind) { Kind.EASY -> 5.0; Kind.HARD -> 8.0; Kind.CHOICE -> 7.0 }
+        val sec = q.waitSec ?: when (q.kind) { Kind.EASY -> 5.0; Kind.HARD -> 8.0; Kind.CHOICE -> 7.0 }
         val first = waitReply(sec)
 
         val result = when {
