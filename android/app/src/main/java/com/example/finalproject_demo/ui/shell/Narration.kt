@@ -32,8 +32,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Mood
@@ -58,7 +58,7 @@ enum class NarrationMode(val color: Color, val label: String, val icon: String) 
 /**
  * **나레이션 칸** — 화면 아래 한 줄: **[오또 얼굴] [오또가 하는 말 띠]** · 오른쪽 끝에 따로 선 **[녹음 버튼]**.
  *
- *   얼굴 불빛 = 차례 — 답을 기다릴 때 · 녹음 중일 때 청록 테두리와 파동 (말하는 중에는 없다)
+ *   얼굴 테두리 = 차례 — 분홍 말함 · 청록 들음 · 겨자 생각. 말할 때 · 기다릴 때 · 들을 때 테두리 색 파동이 퍼진다
  *   얼굴 그림 = 표정 — [Expr] (기쁨 · 깜짝 · 속상 · 궁금 · 뿌듯). 표정마다 움직임도 다르다
  *   띠 테두리 = 모드 — 빨강 이야기 만들기 · 파랑 오늘 이야기 · 청록 같이 만들기
  *
@@ -89,6 +89,8 @@ fun Narration(
     val fiberImg = ImageBitmap.imageResource(R.drawable.felt_texture)
     val cream = remember(creamImg) { ShaderBrush(ImageShader(creamImg, TileMode.Repeated, TileMode.Repeated)) }
     val fibers = remember(fiberImg) { ShaderBrush(ImageShader(fiberImg, TileMode.Repeated, TileMode.Repeated)) }
+    // 얼굴이 뛰어오른 높이(px, 위가 음수) — 그리기 단계에서만 읽어 띠 왼쪽이 얼굴을 따라 휜다
+    val lift = remember { mutableFloatStateOf(0f) }
     Row(
         modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp, top = 4.dp),
         verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.SpaceBetween,
@@ -98,7 +100,7 @@ fun Narration(
             Row(
                 Modifier
                     .padding(start = FaceSize / 2)
-                    .drawBehind { drawFeltPill(mode.color, cream, fibers) }
+                    .drawBehind { drawFeltPill(mode.color, cream, fibers, lift.floatValue) }
                     .padding(start = FaceSize / 2 + 10.dp, end = 22.dp, top = 10.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -111,9 +113,9 @@ fun Narration(
                     }
                 }
             }
-            // 오또 얼굴 — 혼자 선다 (감싸는 테두리 없음). 답을 기다릴 때 · 녹음 중일 때만 청록 불빛이 켜진다.
-            // 띠보다 위에 그려 띠 왼쪽 끝을 덮는다
-            OttoFace(state, Modifier.size(FaceSize), burst = burst, burstId = burstId, expr = expr, pulse = true)
+            // 오또 얼굴 — 혼자 선다 (감싸는 테두리 없음). 테두리 색 · 파동이 차례를 알린다.
+            // 띠보다 위에 그려 띠 왼쪽 끝을 덮는다. 뛰면 그 높이를 띠에 알려 띠가 따라 휜다
+            OttoFace(state, Modifier.size(FaceSize), burst = burst, burstId = burstId, expr = expr, pulse = true, onLift = { lift.floatValue = it })
         }
         // 녹음 · 그리기 버튼 — 오른쪽 끝에 따로 선다. 화면 아래 여백 = 화면 오른쪽 여백이 되게 밑에 붙이고,
         // 이 줄 밑에 부르는 쪽 여백(약 6dp)이 더 있어서 그만큼 내린다 — 실물폰(S10)에서 틈을 재어 맞췄다 (09-30)
@@ -125,15 +127,32 @@ fun Narration(
 
 /**
  * 펠트 말 띠 — 모드 색 펠트 테두리(양모 결) 안에 크림 펠트 천(ComfyUI 그림 `narration_felt`)을 얹고,
- * 테두리 가운데로 흰 바느질 점선이 돈다. 띠 자기 크기로만 그려서 첫 프레임부터 모양이 맞다
+ * 테두리 가운데로 흰 바느질 점선이 돈다. 띠 자기 크기로만 그려서 첫 프레임부터 모양이 맞다.
+ *
+ * 띠 왼쪽 둥근 끝의 중심은 얼굴 중심 아래(띠 왼쪽 가장자리)에 둔다 — 둥근 끝이 얼굴 원 안에 숨고 밑선이 얼굴 맨 아래에서
+ * 접선으로 이어진다. 얼굴이 [lift] 만큼 뛰면 왼쪽 끝도 그만큼 올라가고, 얼굴 오른쪽 조금 너머까지 부드럽게 휘어
+ * 원래 높이로 돌아온다 — 천 띠가 얼굴에 붙어 따라 당겨지는 것처럼 (10-01 사용자 요청). 글씨 있는 곳은 움직이지 않는다
  */
-private fun DrawScope.drawFeltPill(edge: Color, cream: ShaderBrush, fibers: ShaderBrush) {
-    // 띠 왼쪽 둥근 끝의 중심을 얼굴 중심 아래(띠 왼쪽 가장자리)에 둔다 — 그러면 둥근 끝이 얼굴 원 안에 다 숨고,
-    // 띠 밑선이 얼굴 맨 아래에서 접선으로 매끈하게 이어진다 (전에는 둥근 끝이 얼굴 밑으로 삐져나왔다)
-    val left = -size.height / 2
+private fun DrawScope.drawFeltPill(edge: Color, cream: ShaderBrush, fibers: ShaderBrush, lift: Float) {
+    val bend = (FaceSize / 2 + 18.dp).toPx()   // 얼굴 중심부터 여기까지만 휜다
+    fun follow(x: Float): Float {              // 얼굴 쪽 1 → bend 너머 0 (부드럽게)
+        val t = (x / bend).coerceIn(0f, 1f)
+        return lift * (1f - t * t * (3f - 2f * t))
+    }
     fun pill(inset: Float) = Path().apply {
-        val h = size.height - inset * 2
-        addRoundRect(RoundRect(left + inset, inset, size.width - inset, size.height - inset, CornerRadius(h / 2)))
+        val top = inset; val bottom = size.height - inset
+        val r = (bottom - top) / 2
+        val right = size.width - inset
+        val steps = 16
+        moveTo(0f, top + follow(0f))
+        for (i in 1..steps) { val x = bend * i / steps; lineTo(x, top + follow(x)) }
+        lineTo(right - r, top)
+        arcTo(Rect(right - r * 2, top, right, bottom), 270f, 180f, false)
+        lineTo(bend, bottom)
+        for (i in steps - 1 downTo 0) { val x = bend * i / steps; lineTo(x, bottom + follow(x)) }
+        val cy = (top + bottom) / 2 + lift
+        arcTo(Rect(-r, cy - r, r, cy + r), 90f, 180f, false)
+        close()
     }
     val band = EdgeBand.toPx()
     val outer = pill(0f)
