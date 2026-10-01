@@ -30,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
@@ -332,7 +331,10 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
     val line = if (text.isBlank()) full else text.take(shown)
     Narration(
         mode = mode, state = state, line = line, fullLine = full,
-        modifier = modifier.alpha(((pop.value - 0.6f) / 0.4f).coerceIn(0f, 1f)),
+        // 투명도는 영역 크기만 한 버퍼에 그려 합친다 — 그래서 버퍼 **위쪽에 여유(Headroom)** 를 넣는다. 전에는 새 말과 함께
+        // 터지는 점프 · 파동 · 「!」가 칸 위로 나가면서 잘렸다 (10-01 사용자 제보). 여유 칸은 투명하고 누름을 받지 않는다.
+        // (버퍼 없이 그리는 ModulateAlpha 는 겹친 층이 비쳐 띠가 분홍빛으로 물들어서 쓰지 않는다)
+        modifier = modifier.graphicsLayer { alpha = ((pop.value - 0.6f) / 0.4f).coerceIn(0f, 1f) }.padding(top = BubbleHeadroom),
         speaker = if (s.speaker != "마스코트") s.speaker else null,
         burst = s.mood, burstId = s.moodId,
         expr = exprFor(text, s.mood),
@@ -342,6 +344,9 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
         } } else null,
     )
 }
+
+/** 나레이션 위 여유 — 오또 점프(18dp) · 파동 · 「!」가 투명도 버퍼 안에 들어오게 */
+private val BubbleHeadroom = 40.dp
 
 /**
  * 나레이션 칸이 없는 화면(첫 화면 · 책 · 부모)에서만 쓰는 오른쪽 아래 버튼.
