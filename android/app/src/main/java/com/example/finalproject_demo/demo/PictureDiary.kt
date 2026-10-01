@@ -88,7 +88,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
     var quiet = 0                                // 물을 것 없이 지나간 멈춤 수
     val waiting = mutableListOf<OttoOrder>()      // 오또가 그리고 있는 조각 — 다 되면 다음 멈춤에 보여 준다
     val askedPieces = mutableSetOf<Int>()        // 한 번 물은 조각은 다시 묻지 않는다(답이 없었어도)
-    var held: Pair<Int, String>? = null          // 미뤄 둔 「나도 그려볼까?」 — 조각 · 이름
+    val held = mutableListOf<Pair<Int, String>>() // 미뤄 둔 「나도 그려볼까?」 — 조각 · 이름 (앞 것부터 · 덮어쓰지 않는다)
     say("좋아! 다 그리면 알려 줘.")
     while (true) {
         buttons(
@@ -139,7 +139,19 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
                             }
                         }
                     }
-                    Heard.NAMED, Heard.OTHER -> {}
+                    Heard.NAMED -> {
+                        // 묻지 않았는데 이름을 말했다 — 물어서 들은 이름처럼 「나도 그려볼까?」를 바로 (전에는 빠졌다 · 10-01 실기기)
+                        val named = day.pieces.firstOrNull { s.drawing.lastOrNull() in it.strokes }?.takeIf { it.name != null }
+                        if (named != null && offers < OTTO_OFFERS && named.ottoPng == null && waiting.none { it.pieceId == named.id }) {
+                            askedPieces += named.id
+                            when (offerAndOrder(this, day, waiting, named.id, named.name!!)) {
+                                "yes" -> offers++
+                                "done" -> break
+                                MOVED_ON -> held += named.id to named.name!!
+                            }
+                        }
+                    }
+                    Heard.OTHER -> {}
                 }
                 continue
             }
@@ -173,24 +185,23 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             if (name == null || offers >= OTTO_OFFERS) continue
             // 답하는 사이 새 선을 긋기 시작했으면 그리기를 끊지 않는다 — 제안은 물을 것 없는 다음 멈춤에
             if (s.drawing.size > linesBefore) {
-                held = piece.id to name
+                held += piece.id to name
                 log("「$name」 이름을 듣는 사이 새로 그리기 시작했다 → 「나도 그려볼까?」는 다음 조용한 멈춤에")
                 continue
             }
             when (offerAndOrder(this, day, waiting, piece.id, name)) {
                 "yes" -> offers++
                 "done" -> break
-                MOVED_ON -> held = piece.id to name             // 묻는 사이 다른 걸 그리러 갔다 — 조용한 멈춤에 다시
+                MOVED_ON -> held += piece.id to name            // 묻는 사이 다른 걸 그리러 갔다 · 말하는 중 — 조용한 멈춤에 다시
             }
             continue
         }
-        val h = held
+        val h = held.removeFirstOrNull()
         if (h != null && offers < OTTO_OFFERS) {
-            held = null
             when (offerAndOrder(this, day, waiting, h.first, h.second)) {
                 "yes" -> offers++
                 "done" -> break
-                MOVED_ON -> held = h
+                MOVED_ON -> held.add(0, h)
             }
             continue
         }
@@ -344,6 +355,12 @@ internal const val WENT_QUIET = "@quiet"
  * `ask()` 로 거두면 「괜찮아, 다음에 같이 생각해 보자!」가 나오거나(무응답) 탭으로 세어져서 따로 둔다.
  */
 private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: Int?): Reply = coroutineScope {
+    // 아이가 말하는 중(녹음 중)이면 묻지 않는다 — 오또 목소리가 아이 말과 같이 녹음된다(10-01 실기기).
+    // 그 말은 그리기 판이 받아 먼저 듣는다(이름이면 이름으로). 이 질문은 [MOVED_ON] 처럼 미룬다
+    if (s.micOn) {
+        log("「${q.text}」 — 아이가 말하는 중이라 묻지 않고 미룬다(목소리가 녹음에 섞이지 않게)")
+        return@coroutineScope Reply.Tapped(MOVED_ON, "말하는 중")
+    }
     val linesAtAsk = s.drawing.size                     // 오또가 묻는 말을 하는 사이에 그은 선도 본다
     say(q.text)
     inputs(mic = true, next = true)

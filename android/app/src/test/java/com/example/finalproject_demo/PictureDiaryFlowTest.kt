@@ -322,6 +322,8 @@ class PictureDiaryFlowTest {
         s.drawing += stroke(0.1f)
         assertTrue("묻지 않았는데 말한 이름을 안 받았다", d.push("이건 강아지야") && await { "강아지구나" in s.line } != null)
         assertEquals("강아지", s.diaryDay.pieces.single().name)
+        assertTrue("묻지 않고 들은 이름에도 「나도 그려볼까?」가 와야 한다", await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
         assertTrue(await { s.buttons.any { "너도 그려줘" in it.label } } != null)
         assertTrue(d.push("너도 그려줘"))
         assertTrue("「너도 그려줘」에 바로 그리지 않았다", await { "나도 강아지를 그려볼게" in s.line } != null)
@@ -394,6 +396,26 @@ class PictureDiaryFlowTest {
         assertTrue("그리는 중인데 바로 제안했다", s.line != "나도 강아지를 그려볼까?")
         assertTrue("미뤄 둔 제안이 오지 않았다 — 말=${s.line}",
             await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "나도 강아지를 그려볼까?" } != null)
+    }
+
+    /**
+     * 아이가 말하는 중(녹음 중)이면 오또가 묻지 않는다 — 오또 목소리가 아이 말과 같이 녹음됐다(10-01 실기기).
+     * 그 말이 이름이면 이름으로 받고, 「나도 그려볼까?」는 그 뒤에
+     */
+    @Test
+    fun ottoDoesNotAskOverTheChildTalking() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(await { s.diaryDay.watching } != null)
+        s.micOn = true                                               // 아이가 🎤를 누르고 말하는 중
+        d.send(Reply.Tapped("pause", "멈춤"))                        // 그 사이 붓 멈춤이 먼저 와 있었다
+        delay(300)
+        assertTrue("말하는 중에 물었다 — 말=${s.line}", s.line != "우와, 지금 그리는 건 뭐야?")
+        s.micOn = false
+        d.tell("강아지야") { s.diaryDay.pieces.single().name == "강아지" }
+        assertTrue("말=${s.line}", await { s.line == "나도 강아지를 그려볼까?" } != null)
     }
 
     /** D1 질문 중 다른 조각을 그리기 시작하면 조용히 거두고, 다음 멈춤에 지금 그리는 조각을 먼저 묻는다 (10-01 안 A) */
