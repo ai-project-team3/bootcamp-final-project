@@ -474,6 +474,7 @@ private fun OttoLook(piece: DiaryPiece, b: BoardBox, crop: BoardBox, wDp: Float,
     Box(
         Modifier.offset(x = x.dp, y = y.dp).size(side.dp).alpha(alpha)
             .graphicsLayer { scaleX = 2f - pop.value; scaleY = pop.value }
+            .testTag("otto-look-${piece.id}")
     ) { OttoArt(piece, Modifier.fillMaxSize()) }
 }
 
@@ -746,7 +747,8 @@ private fun PicturePanel(
     replay: Int = 0, glow: Pair<Int, DiaryWeather>? = null,
 ) {
     val s = d.s
-    val pieces = bookPieces(s)
+    // 1쪽(「○○을 그렸어요」)은 늘 아이가 그린 그대로 — 오또 그림을 골랐어도 (흐름 §D5 · 10-01 진웅)
+    val pieces = bookPieces(s).let { all -> if (page.kind == DiaryPageKind.DRAWING) all.map { it.copy(look = PieceLook.ORIGINAL) } else all }
     val density = LocalDensity.current
     var poke by remember(page) { mutableStateOf<Pair<Int, Int>?>(null) }      // 조각 id · 누른 차례
     var said by remember(page) { mutableStateOf<Pair<Int, String>?>(null) }   // 조각 id · 한마디

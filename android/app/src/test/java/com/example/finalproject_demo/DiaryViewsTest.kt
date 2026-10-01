@@ -242,6 +242,22 @@ class DiaryViewsTest {
         assertTrue("날씨가 그림의 해에서 켜지지 않았다", d.s.diaryDay.weather == DiaryWeather.SUN)
     }
 
+    /** 1쪽(「○○을 그렸어요」)은 오또 그림을 골랐어도 아이 그림 그대로 — 다른 쪽에서는 고른 모습 (10-01) */
+    @Test
+    fun theFirstPageKeepsTheChildsOwnLines() {
+        val d = director()
+        drawDay(d)
+        d.s.diaryDay.pieces[2] = d.s.diaryDay.pieces[2].copy(look = PieceLook.OTTO)
+        val sun = d.s.diaryDay.pieces[2].id
+        d.s.slots["place"] = "우리 집 앞에서 놀았어"; d.s.slotBy["place"] = "child"
+        d.s.stage = DiaryPaper(0)
+        show(d)
+        compose.onNodeWithTag("otto-look-$sun").assertDoesNotExist()
+        d.s.stage = DiaryPaper(1)
+        compose.mainClock.advanceTimeBy(2_500)
+        compose.onNodeWithTag("otto-look-$sun").assertExists()
+    }
+
     /** 서버가 준 오또 그림(정사각형 PNG)은 납작한 선 조각에 붙어도 쪼그라들지 않는다 — 조각의 긴 변만 한 정사각형 */
     @Test
     fun ottosDrawingOnAFlatPieceIsNotSquashed() {
