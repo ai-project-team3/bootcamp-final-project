@@ -5,6 +5,9 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.isNonAnswer
+import com.example.finalproject_demo.demo.bookCaption
+import com.example.finalproject_demo.demo.pageCount
+import com.example.finalproject_demo.demo.coopWriteBook
 import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -126,6 +129,58 @@ class CoopLiveAnswerTest {
             val first = d.s.line
             d.speakUntil("빨강") { server.requests.any { it.first == "/turn" } && d.s.line != first }
             assertNull("질문에 안 맞는 답이 칸에 들어갔다", d.s.place)
+        } finally { server.close() }
+    }
+
+    /** 협업 책을 만들 수 있게 칸을 채워 둔다 */
+    private fun Director.filledCoop() {
+        s.mode = StoryMode.COOP
+        s.parentQuestions += "오늘 제일 재밌었던 게 뭐였어?"
+        s.place = "놀이터"; s.problem = "친구가 밀었어"; s.cause = "줄을 서다가"; s.solution = "같이 미끄럼틀을 탔어"
+        listOf("place", "problem", "cause", "solution").forEach { s.slotBy[it] = "child" }
+    }
+
+    @Test
+    fun withTheServerTheCoopBookUsesTheSentencesItWrote() = run { d ->
+        val server = StoryTestServer { path, body ->
+            if (path != "/story") JSONObject()
+            else {
+                val n = body.optJSONArray("pages")?.length() ?: 0
+                JSONObject().put("scenes", org.json.JSONArray().apply {
+                    repeat(n) { put(JSONObject().put("index", it + 1).put("caption", "서버 문장 ${it + 1}")) }
+                })
+            }
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.filledCoop()
+            val pages = d.s.template!!.pages.size
+            d.coopWriteBook()
+            assertEquals(pages, d.s.storyCaptions?.size)
+            assertEquals("책 쪽 수가 서버 문장 수와 다르다", pages, d.s.pageCount)
+            assertEquals("서버 문장 1", d.s.bookCaption(1))
+            val req = server.requests.first { it.first == "/story" }.second
+            assertEquals("coop", req.optString("mode"))
+            assertEquals("놀이터", req.getJSONObject("slots").optString("place"))
+            assertEquals(pages, req.getJSONArray("pages").length())
+        } finally { server.close() }
+    }
+
+    @Test
+    fun aWrongNumberOfSentencesKeepsTheTemplateBook() = run { d ->
+        val server = StoryTestServer { path, _ ->
+            if (path != "/story") JSONObject()
+            else JSONObject().put("scenes", org.json.JSONArray().put(JSONObject().put("index", 1).put("caption", "한 쪽만")))
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.filledCoop()
+            val templateFirst = d.s.bookCaption(1)
+            d.coopWriteBook()
+            assertNull(d.s.storyCaptions)
+            assertEquals(templateFirst, d.s.bookCaption(1))
         } finally { server.close() }
     }
 }

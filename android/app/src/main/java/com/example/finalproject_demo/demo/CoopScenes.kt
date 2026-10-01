@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.templateQuestions
 
 /**
@@ -323,6 +324,49 @@ internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r
 }
 
 private val COOP_SKELETON = setOf("place", "problem", "cause", "solution")
+
+// ── 책 문장 — /story (#47 2번 · 10-01) ──────────────────────────────
+
+/** 꼬리질문으로 모은 문장 — 서버에는 `extra` 한 칸으로 보낸다. 맺음(`keep`)은 따로 간다 */
+private val COOP_TAIL_KEYS = listOf("detail", "said", "try", "after")
+
+/**
+ * 서버를 켰으면 협업 책 문장을 `/story`(`mode: "coop"`)로 받는다. 지금 책은 틀 문장(`diaryTemplate()`) 빈칸 채우기라 딱딱하다.
+ *
+ * 책의 모양(쪽 수 · 차례)은 앱이 정한다 — 협업 책 틀의 쪽 목록을 `pages` 로 보내 **정확히 그 수만큼** 받는다.
+ * 받은 문장은 `storyCaptions` 에 담고 책은 그 문장으로 그린다(`StoryBank.kt` `bookCaption`).
+ * 실패하거나 수가 안 맞으면 지금 틀 문장 그대로다. 이름은 보낼 때 가리고 받은 글에서 되돌린다(규칙 6).
+ */
+suspend fun Director.coopWriteBook() {
+    if (!s.isCoop || !Server.liveFor(s.mode)) return
+    val pages = s.template?.pages ?: return
+    s.stage = Stage.Making("이야기 문장을 쓰는 중… (${pages.size}쪽)")
+    val mask = s.nameMask()
+    val tails = COOP_TAIL_KEYS.mapNotNull { s.slots[it]?.takeIf(String::isNotBlank) }
+    val slots = mapOf(
+        "place" to s.place, "problem" to s.problem, "cause" to s.cause, "solution" to s.solution,
+        "reaction" to s.reaction, "companion" to s.friend,
+        "extra" to tails.joinToString(" / ").ifBlank { null },
+    )
+    val captions = Server.story(
+        mode = "coop",
+        slots = mask.maskSlots(slots),
+        slotBy = s.slotBy.filterKeys { it in Server.SLOTS },
+        keep = s.slots["keep"]?.takeIf(String::isNotBlank)?.let(mask::mask),
+        level = s.level.name.lowercase(),
+        pages = pages.map { Server.Page(it.kind.name) },
+    )?.map(mask::unmask)
+    if (s.useCoopCaptions(captions)) log("서버가 쓴 협업 책 문장 ${pages.size}쪽을 받음 (/story)")
+    else log("협업 책 문장 생성 실패 또는 쪽 수 불일치 → 틀 문장 그대로")
+}
+
+/** 쪽 수가 맞고 빈 문장이 없을 때만 쓴다 — 하나라도 어긋나면 틀 문장 책 */
+fun DemoState.useCoopCaptions(captions: List<String>?): Boolean {
+    val expected = template?.pages?.size
+    val valid = isCoop && expected != null && captions != null && captions.size == expected && captions.all { it.isNotBlank() }
+    storyCaptions = if (valid) captions!!.toList() else null
+    return valid
+}
 
 /** 책 이름 — 협업이면 "같이 지은"을 붙인다. */
 fun coopBookName(s: DemoState): String =
