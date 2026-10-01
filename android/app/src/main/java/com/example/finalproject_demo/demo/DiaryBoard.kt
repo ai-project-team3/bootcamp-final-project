@@ -85,6 +85,26 @@ fun DiaryDay.addStroke(stroke: Stroke): Int {
     return target.id
 }
 
+/** 이름 붙은 조각 중 [piece] 에 닿은 것 — 「○○에 더 그린 거야, 새로 그린 거야?」를 물을 상대 */
+fun DiaryDay.namedNeighborOf(piece: DiaryPiece): DiaryPiece? {
+    val b = boxOf(piece.strokes)?.grow(PIECE_GAP / 2) ?: return null
+    return pieces.lastOrNull { it.id != piece.id && it.name != null && boxOf(it.strokes)?.touches(b) == true }
+}
+
+/** 아이 말이 다른 이름 붙은 조각을 부르나 — 「우리 집 창문」 · 「강아지 꼬리」 · 「우리 집에 그렸어」 → 그 조각 */
+fun DiaryDay.namedIn(text: String, except: Int): DiaryPiece? =
+    pieces.filter { it.id != except && it.name != null }.sortedByDescending { it.name!!.length }
+        .firstOrNull { text.contains(it.name!!) }
+
+/** [from] 조각의 선을 [into] 조각에 붙이고 [from] 을 없앤다 — 대화로 「거기에 더 그렸어」라고 정했을 때 */
+fun DiaryDay.mergeInto(from: Int, into: Int) {
+    val a = pieces.indexOfFirst { it.id == from }
+    val b = pieces.indexOfFirst { it.id == into }
+    if (a < 0 || b < 0 || a == b) return
+    pieces[b] = pieces[b].copy(strokes = pieces[b].strokes + pieces[a].strokes)
+    pieces.removeAt(a)
+}
+
 /** 화이트보드의 획 중 아직 어느 조각에도 안 붙은 것을 붙인다. 붙인 수를 돌려준다 */
 fun DiaryDay.catchUp(drawing: List<Stroke>): Int {
     val known = pieces.sumOf { it.strokes.size }

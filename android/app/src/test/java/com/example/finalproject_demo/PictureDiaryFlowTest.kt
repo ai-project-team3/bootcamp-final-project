@@ -376,4 +376,24 @@ class PictureDiaryFlowTest {
         assertTrue(await { s.title == "신나는 하루" } != null)
         assertEquals("child", s.slotBy["title"])
     }
+
+    /** 이름 붙은 조각에 닿게 그리면 「우리 집에 더 그린 거야, 새로 그린 거야?」 — 「더 그렸어」면 합치고, 「새로 그렸어, 땅이야」면 새 조각 */
+    @Test
+    fun drawingOnANamedPieceAsksMoreOrNew() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        assertTrue(d.push("우리 집이야"))
+        assertTrue(await { s.line == "나도 우리 집을 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        s.drawing += stroke(0.12f)                                   // 집에 닿게
+        assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "우리 집에 더 그린 거야, 새로 그린 거야?" } != null)
+        assertTrue(d.push("더 그렸어"))
+        assertTrue(await { "우리 집에 더 그렸구나" in s.line } != null)
+        assertEquals("합치지 않았다", 1, s.diaryDay.pieces.size)
+        assertEquals(2, s.diaryDay.pieces.single().strokes.size)
+    }
 }
