@@ -71,6 +71,8 @@ import com.example.finalproject_demo.ui.OttoMove
 import com.example.finalproject_demo.ui.OttoPuppet
 import com.example.finalproject_demo.ui.Cheek
 import com.example.finalproject_demo.ui.Radius
+import com.example.finalproject_demo.ui.rememberQuietRest
+import com.example.finalproject_demo.ui.wakeOnTouch
 import com.example.finalproject_demo.ui.Curtain
 import com.example.finalproject_demo.ui.CurtainDeep
 import com.example.finalproject_demo.ui.FeltButton
@@ -285,7 +287,12 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
         }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Wool)) {
+    // 한참 아무도 안 만지면 반복 움직임(인형 숨쉬기 · 반짝이)을 쉬게 한다 — 만지는 순간 바로 다시 (#40).
+    // 걷는 중 · 묻는 중 · 누름 반응 중 · 튜토리얼에서는 쉬지 않는다
+    val quiet = rememberQuietRest()
+    val still = quiet.resting && !tutorial && target == null && poke == null && !moving && !walkX.isRunning
+
+    BoxWithConstraints(Modifier.fillMaxSize().background(Wool).wakeOnTouch(quiet)) {
         val g = Grid(maxWidth, maxHeight)
         // 벽지 · 바닥 · 러그 — ComfyUI 그림(room_bg). 없으면 펠트 도형으로 그린다
         RoomBackground(g) { Canvas(Modifier.fillMaxSize()) {
@@ -317,7 +324,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                 }
                 // 이름표 — 이 물건이 어떤 모드인지 (아이콘 + 이름)
                 NameTag(t, Modifier.align(Alignment.BottomCenter))
-                if (hinted) Sparkle(Modifier.align(Alignment.TopEnd).offset(10.dp, (-10).dp))
+                if (hinted) Sparkle(Modifier.align(Alignment.TopEnd).offset(10.dp, (-10).dp), still)
                 // 어른이 부모 모드에서 이야기를 준비해 뒀으면 소파에 선물 표시 (09-29) — 털실(🧶)이 있으면 그쪽이 먼저다
                 if (t == Thing.SOFA && !tutorial && !resumable && s.coopReady) Box(
                     // 소파가 화면 왼쪽 끝에 있어 왼쪽 위에 두면 잘린다 — 오른쪽 위에
@@ -353,6 +360,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                 },
                 modifier = Modifier.fillMaxSize(),
                 flip = face,
+                paused = still,
             )
             // 리액션 말풍선 · 하트 — 오또 머리 위
             poke?.let { p ->
@@ -462,7 +470,9 @@ private fun ShelfThing() = Box(Modifier.fillMaxSize().felt(StageWood, RoundedCor
 }
 
 @Composable
-private fun Sparkle(modifier: Modifier) {
+private fun Sparkle(modifier: Modifier, still: Boolean = false) {
+    // 쉬는 동안에는 반짝이지 않고 그 자리에 있기만 한다 (#40)
+    if (still) { Text("✨", fontSize = 30.sp, modifier = modifier); return }
     val t = rememberInfiniteTransition(label = "sp")
     val a by t.animateFloat(0.4f, 1f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "a")
     Text("✨", fontSize = 30.sp, modifier = modifier.alpha(a).scale(0.8f + 0.3f * a))

@@ -57,6 +57,8 @@ import com.example.finalproject_demo.net.AuthProvider
 import com.example.finalproject_demo.net.AuthResult
 import com.example.finalproject_demo.net.ConsentRecord
 import com.example.finalproject_demo.ui.AssetImage
+import com.example.finalproject_demo.ui.rememberQuietRest
+import com.example.finalproject_demo.ui.wakeOnTouch
 import com.example.finalproject_demo.ui.ConsentStore
 import com.example.finalproject_demo.ui.Curtain
 import com.example.finalproject_demo.ui.CurtainDeep
@@ -88,9 +90,13 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun TitleScreen(onStart: () -> Unit) {
-    val t = rememberInfiniteTransition(label = "title")
-    val pulse by t.animateFloat(0.94f, 1.06f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pulse")
-    Box(Modifier.fillMaxSize().background(CurtainDeep).noRippleClickable { onStart() }) {
+    // 한참 아무도 안 만지면 「눌러서 시작」 두근거림을 쉬게 한다 — 이 하나로 CPU 87% 였다 (#40)
+    val quiet = rememberQuietRest()
+    val pulse = if (quiet.resting) 1f else {
+        val t = rememberInfiniteTransition(label = "title")
+        t.animateFloat(0.94f, 1.06f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pulse").value
+    }
+    Box(Modifier.fillMaxSize().background(CurtainDeep).wakeOnTouch(quiet).noRippleClickable { onStart() }) {
         // 무대 그림 — ComfyUI(title_bg · tools/gen_room.py). 없으면 아래 펠트 도형으로 그린다
         AssetImage("title_bg", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop) { TitleFallback() }
         Column(Modifier.align(Alignment.Center).padding(top = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
