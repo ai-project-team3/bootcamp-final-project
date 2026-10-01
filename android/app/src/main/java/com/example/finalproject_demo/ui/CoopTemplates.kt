@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.ui
 
+import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.eul
 import com.example.finalproject_demo.demo.eun
 import com.example.finalproject_demo.demo.ga
@@ -7,16 +8,18 @@ import com.example.finalproject_demo.demo.ga
 /**
  * 협업 탭 템플릿 — **장소 · 직업 · 스포츠 → 요소 하나 → 고른 이유** (09-29 · 엔드픽처 「같이 만들기」).
  *
- * 어른이 부모 모드에서 미리 고르면 질문 네 줄이 채워지고, 아이가 오또의 방 소파를 누르면 오또가 이 순서로 묻는다.
+ * 어른이 부모 모드에서 고르는 것은 **질문 줄이 아니라 이야기의 맥락**이다 (09-30 사용자 결정).
+ * 흐름은 일반 모드처럼 오또가 걸음마다 묻고, 기승전결 네 자리에서만 고른 요소 · 이유에 맞춘 질문으로 묻는다
+ * ([templateQuestions] — LLM이 붙으면 이 맥락을 프롬프트에 넣는다). 부모가 따로 적은 질문은 꼬리질문 자리에 끼워진다.
  *
  * ⚠️ 네 줄의 순서는 place → problem → cause → solution 이다.
- *    `CoopScenes.kt` 의 `COOP_PART_SLOTS` 가 입력 줄 0~3을 이 순서로 칸에 짝짓는다 — 어긋나면 답이 다른 칸에 들어간다.
+ *    `CoopScenes.kt` 의 `COOP_PART_SLOTS` 가 줄 0~3을 이 순서로 칸에 짝짓는다 — 어긋나면 답이 다른 칸에 들어간다.
  *    그래서 템플릿마다 이야기 모양(탐험 · 임무 · 도전)이 달라도 **묻는 자리**는 같다: 어디 → 무슨 일 → 왜 → 어떻게 됐나.
  * - **고른 이유**가 같은 요소의 질문을 바꾼다 — 다녀왔으면 기억(과거), 곧 하면 기대(미래), 좋아하면 상상.
  *   다른 모드와 가르는 장치가 이것이다. 이유를 안 고르면 상상(`dream`)으로 묻는다
  * - 요소는 목록에서 고르거나 **직접 쓴다** — 질문 틀이 이름만 끼워 넣으므로 어떤 이름이든 같은 틀로 묻는다
  * - 모든 줄이 [questionHint] 에 안 걸려야 한다 — 우리 예시가 우리 귀띔에 걸리면 모순이다
- * - 아이 이름은 넣지 않는다. 질문 글이 부모 발화로 기록되므로 실명이 섞이지 않게 한다 (규칙 6)
+ * - 아이 이름은 넣지 않는다. 질문 글이 로그 · 리포트에 남으므로 실명이 섞이지 않게 한다 (규칙 6)
  * - 4번 줄(solution)은 **결말**을 묻는다 — 바람("~하고 싶어?")은 넣지 않는다
  */
 enum class CoopReason(val key: String) { DONE("done"), SOON("soon"), DREAM("dream") }
@@ -103,10 +106,12 @@ fun cleanCoopName(raw: String): String? {
     return v.takeIf { Regex("^[가-힣a-zA-Z0-9 ]+$").matches(it) }
 }
 
-/** 카드를 골랐을 때 — 앞 네 줄을 템플릿으로 갈고, 5번째부터의 자유 질문은 그대로 둔다 */
-fun fillFromTemplate(current: List<String>, questions: List<String>): List<String> =
-    questions + current.drop(questions.size)
+/** 저장된 이유 키 → [CoopReason]. 없거나 모르는 값이면 null (상상으로 묻는다) */
+fun CoopPick.reasonOrNull(): CoopReason? = reason?.let { r -> CoopReason.entries.firstOrNull { it.key == r } }
 
-/** 요소 · 이유를 바꿨을 때 — 아직 템플릿 그대로인 줄만 새 값으로. 부모가 손으로 고친 줄은 안 건드린다 */
-fun refillBlank(current: List<String>, old: List<String>, new: List<String>): List<String> =
-    current.mapIndexed { i, q -> if (i < old.size && q == old[i]) new[i] else q }
+/**
+ * 고른 이야기에서 오또가 기승전결 네 자리에 물을 질문 — place · problem · cause · solution 순.
+ * **LLM이 붙기 전의 대역이다.** 실제로는 요소 · 이유 · 그때까지 찬 칸을 프롬프트에 넣어 매 걸음 만든다.
+ * 모르는 템플릿이면 빈 목록 — 그때는 앱 질문을 그대로 묻는다.
+ */
+fun CoopPick.templateQuestions(): List<String> = coopKind(kind)?.questions(name, reasonOrNull()).orEmpty()

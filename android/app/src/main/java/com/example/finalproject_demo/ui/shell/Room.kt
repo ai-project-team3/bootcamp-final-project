@@ -64,7 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Reply
-import com.example.finalproject_demo.demo.hasCoopQuestions
+import com.example.finalproject_demo.demo.coopReady
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.ui.AssetImage
 import com.example.finalproject_demo.ui.OttoMove
@@ -319,7 +319,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                 NameTag(t, Modifier.align(Alignment.BottomCenter))
                 if (hinted) Sparkle(Modifier.align(Alignment.TopEnd).offset(10.dp, (-10).dp))
                 // 어른이 부모 모드에서 이야기를 준비해 뒀으면 소파에 선물 표시 (09-29) — 털실(🧶)이 있으면 그쪽이 먼저다
-                if (t == Thing.SOFA && !tutorial && !resumable && s.hasCoopQuestions) Box(
+                if (t == Thing.SOFA && !tutorial && !resumable && s.coopReady) Box(
                     // 소파가 화면 왼쪽 끝에 있어 왼쪽 위에 두면 잘린다 — 오른쪽 위에
                     Modifier.align(Alignment.TopEnd).offset(6.dp, (-6).dp).size(44.dp).felt(FeltMustard, CircleShape, lift = 4.dp, stitch = false),
                     contentAlignment = Alignment.Center,
@@ -389,7 +389,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                     title = t.title, detail = "새로 만들면 만들던 이야기는 사라져요",
                     art = t.art, accent = t.color,
                 )
-            } else if (t == Thing.SOFA && !s.hasCoopQuestions) {
+            } else if (t == Thing.SOFA && !s.coopReady) {
                 // 준비된 이야기가 없다 — 옛 흐름(어른이 띠를 읽고 묻기)으로 들어가지 않고 부모님께 부탁하라고 한다 (09-29 사용자 요청).
                 // 버튼은 하나 — 아이가 막히지 않고 방으로 돌아간다
                 ConfirmDialog(

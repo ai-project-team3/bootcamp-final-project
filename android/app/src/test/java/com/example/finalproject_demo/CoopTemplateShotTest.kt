@@ -56,7 +56,7 @@ class CoopTemplateShotTest {
     }
 
     @Test
-    fun pickingKindItemAndReasonFillsAllFour() {
+    fun pickingKindItemAndReasonSavesTheStoryNotQuestionLines() {
         val d = parent()
         val job = coopKind("job")!!
 
@@ -69,12 +69,15 @@ class CoopTemplateShotTest {
 
         compose.onNodeWithText("체험했어요").performScrollTo().performClick()
         compose.waitForIdle()
+        // 고른 이야기에 맞춘 오또의 질문을 미리 보여 준다 (09-30)
+        compose.onNodeWithText("“${job.questions("소방관", CoopReason.DONE)[0]}”").performScrollTo().assertExists()
         snap("screens/coop_template_job.png")
         assertEquals(null, d.s.coopPick)
 
         compose.onNodeWithText("저장하기").performClick()
         compose.waitForIdle()
-        assertEquals(job.questions("소방관", CoopReason.DONE), d.s.parentQuestions.toList())
+        // 템플릿은 맥락이다 — 부모 질문 줄을 채우지 않는다 (09-30)
+        assertEquals(emptyList<String>(), d.s.parentQuestions.toList())
         assertEquals(CoopPick("job", "소방관", "done"), d.s.coopPick)
         compose.onNodeWithText("✏️ 수정하기").assertExists()
         snap("screens/coop_template_saved.png")
@@ -92,8 +95,9 @@ class CoopTemplateShotTest {
         compose.waitForIdle()
         compose.onNodeWithText("저장하기").performClick()
         compose.waitForIdle()
-        assertEquals(place.questions("할머니 집"), d.s.parentQuestions.toList())
+        assertEquals(emptyList<String>(), d.s.parentQuestions.toList())
         assertEquals("할머니 집", d.s.coopPick?.name)
+        compose.onNodeWithText("“${place.questions("할머니 집")[0]}”").assertExists()
 
         snap("screens/coop_template_custom.png")
     }
@@ -119,7 +123,8 @@ class CoopTemplateShotTest {
         compose.onNodeWithText("축구").performScrollTo().performClick()
         compose.onNodeWithText("저장하기").performClick()
         compose.waitForIdle()
-        assertEquals(sport.questions("축구"), d.s.parentQuestions.toList())
+        assertEquals(CoopPick("sport", "축구", null), d.s.coopPick)
+        compose.onNodeWithText("“${sport.questions("축구")[0]}”").assertExists()
 
         // 수정하다가 취소 — 저장된 것은 그대로
         compose.onNodeWithText("✏️ 수정하기").performClick()
@@ -134,7 +139,7 @@ class CoopTemplateShotTest {
         compose.onNodeWithText("수영").performScrollTo().performClick()
         compose.onNodeWithText("저장하기").performClick()
         compose.waitForIdle()
-        assertEquals(sport.questions("수영"), d.s.parentQuestions.toList())
+        assertEquals(emptyList<String>(), d.s.parentQuestions.toList())
         assertEquals("수영", d.s.coopPick?.name)
 
         // 삭제는 한 번 더 묻고 — [아니요]면 남고, [지우기]면 비운다

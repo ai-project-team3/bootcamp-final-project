@@ -4,9 +4,10 @@ import com.example.finalproject_demo.ui.COOP_KINDS
 import com.example.finalproject_demo.ui.CoopReason
 import com.example.finalproject_demo.ui.cleanCoopName
 import com.example.finalproject_demo.ui.coopKind
-import com.example.finalproject_demo.ui.fillFromTemplate
+import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.ui.COOP_SUGGESTIONS
 import com.example.finalproject_demo.ui.questionHint
-import com.example.finalproject_demo.ui.refillBlank
+import com.example.finalproject_demo.ui.templateQuestions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -15,8 +16,8 @@ import org.junit.Test
 
 /**
  * 협업 탭 템플릿 — 장소 · 직업 · 스포츠 → 요소 → 고른 이유 (09-29).
- * 고를 때마다 질문 네 자리를 place → problem → cause → solution 순서로 채운다 —
- * `CoopScenes.kt` 의 `COOP_PART_SLOTS` 가 입력 줄 0~3을 이 순서로 칸에 짝짓는다.
+ * 고른 것은 맥락이고, 오또가 기승전결 네 자리에서 place → problem → cause → solution 순서로 묻는다 —
+ * `CoopScenes.kt` 의 `COOP_PART_SLOTS` 가 템플릿 질문 0~3을 이 순서로 칸에 짝짓는다.
  */
 class CoopTemplateTest {
 
@@ -105,26 +106,20 @@ class CoopTemplateTest {
         assertEquals("abc 123", cleanCoopName("abc 123"))
     }
 
+    /** 저장된 고른 것(키 문자열)에서 오또가 물을 네 줄 — 이유 키가 없거나 모르는 값이면 상상으로 */
     @Test
-    fun pickingFillsTheFourPartsAndKeepsFreeLines() {
-        val q = coopKind("place")!!.questions("아쿠아리움", CoopReason.DONE)
-        val before = listOf("옛 질문", "", "", "", "자유 질문 하나")
-        val after = fillFromTemplate(before, q)
-        assertEquals(q, after.take(4))
-        assertEquals("자유 질문 하나", after[4])
-        // 비어 있던 목록도 네 줄이 된다
-        assertEquals(q, fillFromTemplate(emptyList(), q))
+    fun aSavedPickGivesTheMascotsFourQuestions() {
+        val job = coopKind("job")!!
+        assertEquals(job.questions("소방관", CoopReason.DONE), CoopPick("job", "소방관", "done").templateQuestions())
+        assertEquals(job.questions("소방관", CoopReason.DREAM), CoopPick("job", "소방관", null).templateQuestions())
+        assertEquals(job.questions("소방관", CoopReason.DREAM), CoopPick("job", "소방관", "???").templateQuestions())
+        assertNotEquals(CoopPick("job", "소방관", "done").templateQuestions(), CoopPick("job", "소방관", "soon").templateQuestions())
+        assertEquals(emptyList<String>(), CoopPick("nope", "소방관", null).templateQuestions())
     }
 
+    /** 부모 화면의 추천 질문도 우리 귀띔에 걸리면 안 된다 */
     @Test
-    fun changingTheReasonKeepsLinesTheParentRewrote() {
-        val k = coopKind("sport")!!
-        val old = k.questions("축구", CoopReason.DONE)
-        val edited = old.toMutableList().also { it[2] = "누구랑 같이 했어?" }
-        val new = k.questions("축구", CoopReason.SOON)
-        assertNotEquals(old[0], new[0])
-        val out = refillBlank(edited, old, new)
-        assertEquals(new[0], out[0])
-        assertEquals("누구랑 같이 했어?", out[2])
+    fun suggestionsPassOurOwnHints() {
+        COOP_SUGGESTIONS.forEach { assertNull(it, questionHint(it)) }
     }
 }
