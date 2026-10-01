@@ -67,7 +67,7 @@ class StoryLiveFriendsTest {
             d.s.speed = 0.001
             check(d)
         } finally {
-            scope.cancel()
+            scope.coroutineContext[Job]!!.cancelAndJoin()
             Server.base = previousBase
             Server.liveModes = previousModes
             server.close()
