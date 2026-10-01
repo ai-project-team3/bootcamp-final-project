@@ -116,6 +116,43 @@ class CoopLiveAnswerTest {
         } finally { server.close() }
     }
 
+    /**
+     * 앞 답에서 이미 찬 뼈대 칸은 **다시 묻지 않는다** (10-01).
+     * 「놀이터 갔는데 친구가 밀었어」로 「무슨 일」이 찼는데 셋째 걸음에서 「무슨 일이 있었어?」를 또 물으면
+     * 아이는 방금 한 말을 되풀이하고, 새 답이 앞 값을 덮는다.
+     */
+    @Test
+    fun aSkeletonSlotFilledByAnEarlierAnswerIsNotAskedAgain() = run { d ->
+        var first = true
+        val server = StoryTestServer { path, body ->
+            if (path != "/turn") JSONObject() else {
+                val judge = JSONObject().put("reason", "ok")
+                val asked = body.optString("asked_slot")
+                if (asked.isNotBlank() && asked != "null") judge.put("slot_1", asked).put("value_1", "새로 한 말")
+                // 첫 답에만 「무슨 일」이 같이 나온다
+                if (first) { first = false; judge.put("slot_1", "place").put("value_1", "놀이터").put("slot_2", "problem").put("value_2", "친구가 밀었어") }
+                JSONObject().put("judge", judge)
+            }
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestion()
+            val asked = mutableListOf<String>()
+            withTimeoutOrNull(30_000) {
+                while (d.s.slots["detail"] == null && d.s.scene == Scene.DIARY) {
+                    if (d.s.micEnabled && asked.lastOrNull() != d.s.line) asked += d.s.line
+                    d.send(Reply.Spoke("대답했어")); delay(60)
+                }
+            }
+            assertEquals("놀이터", d.s.place)
+            assertTrue("「자세히」 걸음까지 못 갔다: $asked", d.s.slots["detail"] != null)
+            assertTrue("이미 찬 「무슨 일」을 또 물었다: $asked", asked.none { "무슨 일" in it })
+            assertEquals("앞 답이 덮였다", "친구가 밀었어", d.s.problem)
+            assertEquals("child", d.s.slotBy["problem"])
+        } finally { server.close() }
+    }
+
     @Test
     fun withTheServerAnAnswerThatDoesNotFitTheQuestionIsAskedAgain() = run { d ->
         // 「무슨 일」 줄을 「좋아하는 색은?」으로 바꾼 것처럼 — 서버가 이 칸을 못 찾으면 칸에 넣지 않는다
