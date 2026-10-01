@@ -3,6 +3,7 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.applyStoryVerdict
 import com.example.finalproject_demo.demo.exchangeStoryTurn
+import com.example.finalproject_demo.demo.nextStoryPrompt
 import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -45,6 +46,39 @@ class StoryTurnResultTest {
         assertTrue("companion" in s.storyUnneededSlots)
         s.applyStoryVerdict(verdict(next = "companion"), "child")
         assertNull(s.storyNextSlot)
+    }
+
+    @Test
+    fun unclearFilledSlotKeepsTheServersClarifyingQuestionUntilResolved() {
+        val s = DemoState()
+        s.turn = 3
+        s.slots["newcomer"] = "문어"
+        s.applyStoryVerdict(verdict(next = "newcomer").copy(unclear = true, unclearOf = "모습"), "child")
+
+        assertEquals("newcomer", s.nextStoryPrompt("문어는 어떤 모습일까?")?.slot)
+        assertEquals("문어는 어떤 모습일까?", s.nextStoryPrompt("문어는 어떤 모습일까?")?.text)
+        s.applyStoryVerdict(verdict(fills = listOf("newcomer" to "보라색 문어"), next = "cause"), "child")
+        assertEquals("cause", s.nextStoryPrompt()?.slot)
+        s.storyNextSlot = "newcomer"
+        assertFalse("resolved clarification must not reopen a filled slot", s.nextStoryPrompt()?.slot == "newcomer")
+    }
+
+    @Test
+    fun clarificationCannotReopenAnUnneededSlotAndResetClearsIt() {
+        val s = DemoState()
+        s.turn = 3
+        s.slots["newcomer"] = "문어"
+        s.applyStoryVerdict(verdict(next = "newcomer").copy(unclear = true), "child")
+        assertEquals("newcomer", s.nextStoryPrompt()?.slot)
+        s.applyStoryVerdict(verdict(next = "newcomer", noLongerNeeded = "newcomer").copy(unclear = true), "child")
+        assertFalse(s.nextStoryPrompt()?.slot == "newcomer")
+        s.storyUnneededSlots.clear()
+        s.applyStoryVerdict(verdict(next = "newcomer").copy(unclear = true), "child")
+        s.resetStory()
+        s.turn = 3
+        s.slots["newcomer"] = "문어"
+        s.storyNextSlot = "newcomer"
+        assertFalse(s.nextStoryPrompt()?.slot == "newcomer")
     }
 
     @Test
