@@ -56,6 +56,29 @@ def test_a_failure_is_counted_against_the_endpoint_that_failed(client):
     assert r["status"]["422"] >= 1 and r["errors"] >= 1
 
 
+def test_a_caller_shows_up_with_its_device_and_count(client):
+    client.get("/health", headers={"User-Agent": "Dalvik/2.1.0 (Linux; U; Android 16; SM-S938N Build/X)"})
+    me = next((c for c in client.get("/stats").json()["clients"]
+               if "SM-S938N" in c["user_agent"]), None)
+    assert me and me["count"] >= 1 and "/health" in me["top_paths"]
+
+
+def test_a_reader_off_the_tunnel_gets_no_visitor_list(client):
+    """/stats answers on the public domain too — an IP list there would be a public visitor log."""
+    client.get("/health")
+    public = client.get("/stats", headers={"CF-Connecting-IP": "203.0.113.7"}).json()
+    assert public["clients_shown"] is False and public["clients"] == []
+    assert public["endpoints"], "counts stay public; only the visitors are withheld"
+    assert client.get("/stats").json()["clients_shown"] is True
+
+
+def test_a_forwarded_ip_wins_over_the_socket_peer(client):
+    """Docker's NAT rewrites the peer to one gateway address, so only the header can tell phones apart."""
+    client.get("/health", headers={"CF-Connecting-IP": "198.51.100.22", "User-Agent": "probe/1"})
+    ips = [c["ip"] for c in client.get("/stats").json()["clients"] if c["user_agent"] == "probe/1"]
+    assert ips == ["198.51.100.22"]
+
+
 def test_shares_add_up_and_averages_are_reported(client):
     client.get("/health")
     stats = client.get("/stats").json()
