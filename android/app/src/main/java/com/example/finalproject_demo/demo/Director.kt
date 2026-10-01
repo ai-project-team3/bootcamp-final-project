@@ -91,7 +91,10 @@ class Director(
     fun saveFinishedStory(): Boolean {
         val book = s.completedStoryBook() ?: return false
         return try {
+            if (book.soundClipId != null && storyBookStore == null) return false
+            if (!s.keepStorySound(book)) return false
             storyBookStore?.save(book)
+            s.commitStorySound()
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))
             true
@@ -101,10 +104,11 @@ class Director(
     fun savedStory(id: String): SavedStoryBook? = savedStories.firstOrNull { it.id == id }
 
     fun keepStoryBackground(png: ByteArray): Boolean {
-        val path = storyImageStore?.save(png) ?: return false
+        val path = saveStoryImage(png) ?: return false
         s.storyBackground = path
         return true
     }
+    fun saveStoryImage(png: ByteArray): String? = storyImageStore?.save(png)
     private var job: Job? = null
     private val input = Channel<Reply>(Channel.BUFFERED)
 
@@ -359,6 +363,22 @@ class Director(
             s.behind = behindText(scene)
             seedFor(scene)
             job = scope.launch { runScene(scene) }
+        }
+    }
+
+    /**
+     * Stops the running scene and runs [next] in its place, in the same scene — e.g. a parent ending co-op
+     * early (#36). A plain [go] would restart the scene from its first line.
+     */
+    fun replaceScene(next: suspend () -> Unit) {
+        scope.launch {
+            job?.cancelAndJoin()
+            drain()
+            currentQ = null
+            s.buttons.clear()
+            s.countdown = null
+            inputs(mic = false, next = false)
+            job = scope.launch { next() }
         }
     }
 

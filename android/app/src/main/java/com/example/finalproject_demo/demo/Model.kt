@@ -212,7 +212,7 @@ sealed interface Art {
     data class ChildDrawing(val strokes: List<Stroke>, val preset: Int, val aspect: Float = 1f) : Art
 
     /** ComfyUI로 만든 그림(res/drawable/<name>). 없으면 fallback으로 그린다. */
-    data class Img(val name: String, val fallback: Art) : Art
+    data class Img(val name: String, val fallback: Art, val rig: String? = null) : Art
 }
 
 data class Card(val label: String, val art: Art, val value: String)
@@ -688,7 +688,7 @@ sealed interface Stage {
 /** S10에 늘어놓는 친구 한 명. keep=null 이면 아직 고르지 않음 */
 data class RateItem(val id: String, val name: String, val art: Art, val keep: Boolean? = null)
 
-data class Hero(val name: String, val attr: HeroAttr)
+data class Hero(val name: String, val attr: HeroAttr, val image: String? = null, val rig: String? = null)
 
 /** 옷 색 → 생성 그림 이름 조각 */
 fun shirtKey(c: Color): String = when (c) {
@@ -920,6 +920,7 @@ class DemoState {
     /** 동화 모드의 서버 판정이 정한 다음 질문과 생략 칸. 일기·협업의 질문 순서에는 쓰지 않는다. */
     var storyNextSlot by mutableStateOf<String?>(null)
     var storyServerQuestion by mutableStateOf<String?>(null)
+    var storyStartedAtMs = 0L
     val storyUnneededSlots = mutableStateListOf<String>()
     val storyReady: Boolean get() = mode == StoryMode.STORY && endReason == "story_ready"
 
@@ -974,9 +975,12 @@ class DemoState {
      * 끝나는 조건([diaryReady] · `story_ready`)은 여전히 [filled] · [reqCount] 가 정한다.
      * 여기서 바꾸는 것은 **보이는 막대뿐**이다 — 기승전결 네 자리라는 규격은 그대로다 (일기 §3).
      */
+    /** The step list this story walks — co-op has its own copy (`CoopSteps.kt` · #36) */
+    private val questionSteps: List<DiaryStep> get() = if (isCoop) COOP_STEPS else DIARY_STEPS
+
     val askTotal: Int
         get() = (
-            if (isDiary) DIARY_STEPS.count { it.ask(this) }.coerceAtLeast(reqCount)
+            if (isDiary) questionSteps.count { it.ask(this) }.coerceAtLeast(reqCount)
             // 템플릿은 3턴째에 정해진다. 그전에는 **가장 많은 경우(3)로 잡아 둔다** —
             // 0으로 두면 3턴째에 분모가 6 → 9로 늘면서 막대가 **뒤로 물러난다** (9/22)
             else reqCount + (if (templateKey == null) 3 else extraAskSlots.size)
@@ -1021,7 +1025,7 @@ class DemoState {
             endReason != null -> askTotal
             isDiary -> maxOf(
                 stepsDone,
-                DIARY_STEPS.count { it.ask(this) && !slots[it.bookKey].isNullOrBlank() },
+                questionSteps.count { it.ask(this) && !slots[it.bookKey].isNullOrBlank() },
             ).coerceAtMost(askTotal)
             else -> reqSlots.count { it != null } + extraAskSlots.count { !slots[it].isNullOrBlank() }
         }
@@ -1163,6 +1167,10 @@ class DemoState {
     /** 책 화면 위쪽 안내 한 줄 (책은 전체 화면이라 마스코트 말풍선 대신 여기에) */
     var bookNote by mutableStateOf("")
     var soundLine by mutableStateOf("뿌우우우웅!")
+    var storySoundClip: com.example.finalproject_demo.sound.ChildSound.SoundClip? = null
+    var storySoundBookId: String? = null
+    var storySoundSaved = false
+    var storySoundAttempted = false
 
     val th: Theme get() = theme(themeKey)
 
@@ -1245,6 +1253,8 @@ class DemoState {
     val redrawMax = 2
     var dinoColor by mutableStateOf(Color(0xFF6FC276))
     var heroAttr by mutableStateOf<HeroAttr?>(null)
+    var storyHeroImage by mutableStateOf<String?>(null)
+    var storyHeroRig by mutableStateOf<String?>(null)
 
     val heroes = mutableStateListOf(
         // 둘이 한눈에 달라 보여야 한다 — 안경만 다르면 도감에서 같은 아이로 보인다 (9/21)
@@ -1334,9 +1344,10 @@ class DemoState {
 
     /** 이야기 한 권 분량만 지운다. 책장 · 부모 설정 · 하루 별 · 도감 · 수준(다음 세션 시작점) · 쓴 질문은 남긴다 */
     fun resetStory() {
+        clearStorySound()
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
-        slots.clear(); slotBy.clear(); storyNextSlot = null; storyServerQuestion = null; storyUnneededSlots.clear()
+        slots.clear(); slotBy.clear(); storyNextSlot = null; storyServerQuestion = null; storyUnneededSlots.clear(); storyStartedAtMs = 0L
         partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY
@@ -1363,7 +1374,7 @@ class DemoState {
         mood = Mood.NONE
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
-        heroAttr = null
+        heroAttr = null; storyHeroImage = null; storyHeroRig = null
         achievements.clear(); reactions = 0
         log.clear(); done.clear(); events.clear()
         heroTries.clear()

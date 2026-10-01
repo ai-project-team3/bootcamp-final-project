@@ -48,6 +48,8 @@ suspend fun Director.runScene(scene: Scene) {
 
 /** 장면을 건너뛰어 들어왔을 때 앞 장면의 결과를 채워 둔다 (아이가 고른 값은 건드리지 않는다). */
 fun Director.seedFor(scene: Scene) {
+    // Live stories have actual verdicts. Drawer defaults must never invent their answers.
+    if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) return
     val order = Scene.entries.indexOf(scene)
     fun after(target: Scene, fill: () -> Unit) {
         if (order > Scene.entries.indexOf(target) && order <= Scene.entries.indexOf(Scene.END)) fill()
@@ -151,7 +153,7 @@ private fun Director.world(
     return Stage.World(items, brush = brush, retry = retry, quake = quake, glow = glow, pulse = s.pulse)
 }
 
-private val Director.hero get() = Art.HeroArt(s.heroAttr ?: HeroAttr())
+private val Director.hero get() = s.storyHeroArt
 
 private fun Director.solutionText() = when (s.solutionKey) {
     "gift" -> "선물 주기 · ${s.solutionLine}"
@@ -332,6 +334,8 @@ private suspend fun Director.sceneBestiary() {
 private suspend fun Director.onHeroPicked(v: String) {
     val idx = v.removePrefix("hero:").toIntOrNull() ?: 0
     s.heroAttr = s.heroes[idx].attr
+    s.storyHeroImage = s.heroes[idx].image
+    s.storyHeroRig = s.heroes[idx].rig
     mark("bestiary")
     log("주인공 고름: ${s.heroes[idx].name} → 고정 스프라이트 그대로 씀 (⭐20 · ⭐26)")
     say("${s.heroes[idx].name}${ya(s.heroes[idx].name)}, 준비됐지?")
@@ -346,6 +350,11 @@ private suspend fun Director.sceneMakeHero() {
     var attr = HeroAttr(hair = "short", shirt = Color(0xFF3F7BD9), glasses = "none", likes = "dino")
     var fixes = 0
     val c = s.childName
+    val descriptions = mutableListOf<String>()
+    val confirmedChoices = linkedMapOf<String, String>()
+    val generatedTries = mutableListOf<Pair<String?, String?>>()
+    var generatedImage: String? = null
+    var generatedRig: String? = null
 
     fun heroName(): String {
         val h = when (attr.hair) { "long" -> "긴 머리"; "tied" -> "묶은 머리"; else -> "짧은 머리" }
@@ -354,8 +363,10 @@ private suspend fun Director.sceneMakeHero() {
     }
 
     suspend fun save() {
-        s.heroes += Hero(heroName(), attr)
+        s.heroes += Hero(heroName(), attr, generatedImage, generatedRig)
         s.heroAttr = attr
+        s.storyHeroImage = generatedImage
+        s.storyHeroRig = generatedRig
         log("주인공 확정 → 고정 스프라이트로 도감에 저장. 이야기 중 다시 생성하지 않음 (⭐20 · ⭐26)")
         pause(600)
         go(Scene.BESTIARY)
@@ -402,12 +413,32 @@ private suspend fun Director.sceneMakeHero() {
         s.images++
         s.stage = Stage.Making("인형을 만드는 중…")
         say("조금만 기다려!")
+        generatedImage = null
+        generatedRig = null
+        if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
+            val description = descriptions.joinToString("; ").ifBlank { heroName() } +
+                if (confirmedChoices.isNotEmpty()) "\nLatest confirmed choices override earlier descriptions: " +
+                    confirmedChoices.entries.joinToString("; ") { "${it.key}=${it.value}" } else ""
+            val mask = s.nameMask()
+            val character = withTimeoutOrNull(15_000) { Server.character(mask.mask(description), mode = "story") }
+            if (character != null) {
+                generatedImage = saveStoryImage(character.png)
+                generatedRig = character.rig.takeIf { generatedImage != null }
+                generatedImage?.let { path ->
+                    com.example.finalproject_demo.ui.RigCache.prefetch(path, character.png,
+                        com.example.finalproject_demo.ui.RigHint.of(character.rig))
+                }
+            }
+            log(if (generatedImage == null) "주인공 생성 실패 → 골라 둔 프리셋 인형" else "생성 PNG 저장 · 서버 몸 종류로 뼈대 요청")
+            return
+        }
         log("속성값 → 영어 키워드 → 우리 서버 ComfyUI → 투명 배경 인형 · 생성 이미지 +1 (발화 원문 · 이름은 보내지 않음)")
         pause(2200)
     }
 
     suspend fun confirm(): String {
-        s.stage = Stage.Confirm(Art.HeroArt(attr), "좋아", "싫어", redraws = fixes, redrawMax = s.redrawMax)
+        val art = generatedImage?.let { Art.Img(it, Art.HeroArt(attr), generatedRig) } ?: Art.HeroArt(attr)
+        s.stage = Stage.Confirm(art, "좋아", "싫어", redraws = fixes, redrawMax = s.redrawMax)
         say("짠! 이렇게 생겼어. 마음에 들어?")
         mark("makehero")
         buttons(
@@ -420,12 +451,16 @@ private suspend fun Director.sceneMakeHero() {
     /** 다시 만들기를 다 쓰면 만든 것들을 늘어놓고 아이가 고른다 (결정 29) */
     suspend fun pickFromTries() {
         val tries = s.heroTries.takeLast(3)
-        s.stage = Stage.CardsRow(tries.mapIndexed { i, a -> Card("${i + 1}번", Art.HeroArt(a), "$i") })
+        val images = generatedTries.takeLast(3)
+        s.stage = Stage.CardsRow(tries.mapIndexed { i, a -> Card("${i + 1}번",
+            images.getOrNull(i)?.first?.let { Art.Img(it, Art.HeroArt(a), images[i].second) } ?: Art.HeroArt(a), "$i") })
         say("여태 만든 것 중에 어떤 게 제일 좋아?")
         log("수정 ${s.redrawMax}번 다 씀 → 새로 만들지 않고 만든 ${tries.size}장 중에서 고르게 한다 (결정 29) · 생성 없음")
         buttons(*tries.indices.map { i -> DemoBtn("🖐 ${i + 1}번 고름") { send(Reply.Tapped("$i", "${i + 1}번")) } }.toTypedArray())
         val idx = awaitValue(*tries.indices.map { "$it" }.toTypedArray()).toIntOrNull() ?: 0
         attr = tries[idx]
+        generatedImage = images.getOrNull(idx)?.first
+        generatedRig = images.getOrNull(idx)?.second
         s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = "$idx") ?: s.stage
         pause(900)
         save()
@@ -446,6 +481,7 @@ private suspend fun Director.sceneMakeHero() {
     )
 
     fun apply(key: String, v: String) {
+        confirmedChoices[key] = v
         attr = when (key) {
             "hair" -> attr.copy(hair = v)
             "glasses" -> attr.copy(glasses = v)
@@ -456,6 +492,7 @@ private suspend fun Director.sceneMakeHero() {
 
     /** 대본 답이면 꼬리표로, 진짜 말이면 글자에서 찾는다. 못 찾으면 모습을 그대로 둔다 */
     fun applySpoken(key: String?, r: Reply.Spoke) {
+        descriptions += r.text
         val found = (if (key != null) r.value.takeIf { it.isNotBlank() }?.let { key to it } else null)
             ?: r.value.split(":").takeIf { it.size == 2 }?.let { it[0] to it[1] }
             ?: heroValueIn(key, r.text)
@@ -518,6 +555,7 @@ private suspend fun Director.sceneMakeHero() {
     while (true) {
         generate()
         s.heroTries += attr
+        generatedTries += generatedImage to generatedRig
         if (confirm() == "ok") { save(); return }
         if (fixes >= s.redrawMax) { pickFromTries(); return }
         fixes++
@@ -653,6 +691,10 @@ private val BASE_WHO = QVariant(
 // ── 장면 3 · 어디로 갈까 (고정 1턴) → 거기엔 뭐가 있을까 (배경 속 것이 반짝) ──
 
 private suspend fun Director.scenePlace() {
+    if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
+        liveStoryConversation()
+        return
+    }
     val c = s.childName
     s.stage = Stage.HeroShow(s.heroAttr ?: HeroAttr(), "")
     val q = BASE_PLACE.toQuestion(s).copy(choices = basePlaceCards(), noCards = false, easierAsk = "어디로 갈까?", hint = null)
@@ -1043,6 +1085,11 @@ private suspend fun Director.sceneDino() {
 // ── 장면 8 · 공룡 소리 (원본 녹음 · 다시 2번 · 폰 밖으로 안 나감) ───
 
 private suspend fun Director.sceneSound() {
+    if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
+        recordStorySound()
+        go(Scene.CHECK)
+        return
+    }
     val d = s.dino
     var left = 2
     var retried = false
@@ -1367,10 +1414,11 @@ private suspend fun Director.sceneMaking() {
     if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
         s.stage = Stage.Making("이야기 문장을 쓰는 중… (${t.pages.size}쪽)")
         val mask = s.nameMask()
+        val storyInput = s.storyServerInput()
         val captions = Server.story(
             mode = "story",
-            slots = mask.maskSlots(s.slots),
-            slotBy = s.slotBy,
+            slots = mask.maskSlots(storyInput.slots),
+            slotBy = storyInput.sources,
             template = t.key,
             level = s.level.name.lowercase(),
             pages = s.storyPagePlan(),
@@ -1412,6 +1460,8 @@ private suspend fun Director.sceneBook() {
             i == dragPage -> if (s.m2Result == null) s.m2Line(s.m1Result == "helped") else s.m2Done()
             // 일기 모드에는 공룡 소리 칸이 없다 — 묻지 않는 칸이다 (§2-2)
             i == last && s.isDiary -> "오른쪽 책 버튼을 눌러 봐! 오늘 이야기가 여기서 끝나."
+            i == last && s.storySoundClip != null -> "${d}${eul(d)} 눌러 봐! 내가 만든 소리가 나와."
+            i == last && Server.liveFor(s.mode) -> "오른쪽 책 버튼을 눌러 봐! 우리 이야기가 여기서 끝나."
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
         }
@@ -1479,7 +1529,10 @@ private suspend fun Director.sceneBook() {
                 log("미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (연출은 공통)")
                 mark("book")
             }
-            vv == "dino" -> log("${d}${eul(d)} 누르면 아이가 녹음한 소리 재생 (폰 안에서만)")
+            vv == "dino" -> {
+                if (s.mode == StoryMode.STORY) playStorySound()
+                log("친구 소리 재생 · 녹음이 없으면 조용히 유지")
+            }
             vv.startsWith("tool:") -> { log("도구 반응 ${vv.removePrefix("tool:")} — 그 자리 위에 글자 (반응 애니메이션은 대상 무관 공통)"); mark("tools") }
         }
     }

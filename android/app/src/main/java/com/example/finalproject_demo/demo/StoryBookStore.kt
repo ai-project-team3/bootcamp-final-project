@@ -13,6 +13,8 @@ data class SavedStoryBook(
     val themeKey: String,
     val bgName: String,
     val pages: List<SavedStoryPage>,
+    val visuals: SavedStoryVisuals? = null,
+    val soundClipId: String? = null,
 )
 
 /** 완성된 동화만 저장한다. 진행 중인 이야기와 다른 모드의 책은 이 저장소의 범위 밖이다. */
@@ -25,12 +27,15 @@ fun DemoState.completedStoryBook(): SavedStoryBook? {
     if (mode != StoryMode.STORY || template == null || pageCount == 0) return null
     val pages = (1..pageCount).map { SavedStoryPage(pageKind(it), bookCaption(it)) }
     if (pages.any { it.caption.isBlank() }) return null
-    return SavedStoryBook(UUID.randomUUID().toString(), title ?: autoTitleFor(), themeKey, bgName, pages)
+    return SavedStoryBook(storySoundBookId ?: UUID.randomUUID().toString(), title ?: autoTitleFor(),
+        themeKey, bgName, pages, captureStoryVisuals(), storySoundClip?.id)
 }
 
 /** 앱 내부 저장소에만 보관한다. 저장 시 전체 배열을 한 번에 교체해 중간 상태를 남기지 않는다. */
 class LocalStoryBookStore(context: Context) : StoryBookStore {
     private val prefs = context.applicationContext.getSharedPreferences("story_books", Context.MODE_PRIVATE)
+
+    init { recoverStorySounds(load()) }
 
     override fun load(): List<SavedStoryBook> {
         val raw = prefs.getString("books", null) ?: return emptyList()
@@ -48,6 +53,8 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
                     else SavedStoryBook(
                         obj.getString("id"), obj.getString("title"), obj.getString("themeKey"),
                         obj.getString("bgName"), pages,
+                        obj.optJSONObject("visuals")?.let { runCatching { storyVisualsFromJson(it) }.getOrNull() },
+                        if (obj.isNull("soundClipId")) null else obj.optString("soundClipId").takeIf(String::isNotBlank),
                     )
                 } catch (_: Exception) { null }
             }
@@ -65,7 +72,8 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
             array.put(JSONObject()
                 .put("id", entry.id).put("title", entry.title)
                 .put("themeKey", entry.themeKey).put("bgName", entry.bgName)
-                .put("pages", pages))
+                .put("pages", pages).put("visuals", entry.visuals?.toJson() ?: JSONObject.NULL)
+                .put("soundClipId", entry.soundClipId ?: JSONObject.NULL))
         }
         check(prefs.edit().putString("books", array.toString()).commit()) { "동화책을 저장하지 못했습니다" }
     }

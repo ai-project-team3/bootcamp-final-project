@@ -63,15 +63,21 @@ class CoopTemplateShotTest {
         compose.onNodeWithText("직업 · 임무 이야기").performScrollTo().performClick()
         compose.onNodeWithText("소방관").performScrollTo().performClick()
         compose.waitForIdle()
-        assertEquals(job.questions("소방관"), d.s.parentQuestions.toList())
-        assertEquals(CoopPick("job", "소방관", null), d.s.coopPick)
+        // 고르기만 해서는 확정되지 않는다 — 소파에 🎁 가 붙으면 안 된다 (09-30)
+        assertEquals(emptyList<String>(), d.s.parentQuestions.toList())
+        assertEquals(null, d.s.coopPick)
 
         compose.onNodeWithText("체험했어요").performScrollTo().performClick()
         compose.waitForIdle()
-        assertEquals(job.questions("소방관", CoopReason.DONE), d.s.parentQuestions.toList())
-        assertEquals("done", d.s.coopPick?.reason)
-
         snap("screens/coop_template_job.png")
+        assertEquals(null, d.s.coopPick)
+
+        compose.onNodeWithText("저장하기").performClick()
+        compose.waitForIdle()
+        assertEquals(job.questions("소방관", CoopReason.DONE), d.s.parentQuestions.toList())
+        assertEquals(CoopPick("job", "소방관", "done"), d.s.coopPick)
+        compose.onNodeWithText("✏️ 수정하기").assertExists()
+        snap("screens/coop_template_saved.png")
     }
 
     @Test
@@ -83,6 +89,8 @@ class CoopTemplateShotTest {
         compose.onNodeWithText("직접 쓰기", substring = true).performScrollTo().performClick()
         compose.onAllNodes(hasSetTextAction()).onFirst().performTextInput("  할머니 집 ")
         compose.onNodeWithText("넣기").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("저장하기").performClick()
         compose.waitForIdle()
         assertEquals(place.questions("할머니 집"), d.s.parentQuestions.toList())
         assertEquals("할머니 집", d.s.coopPick?.name)
@@ -101,5 +109,45 @@ class CoopTemplateShotTest {
         compose.onNodeWithText("한글 · 영문 · 숫자로 10자까지 써 주세요").assertExists()
         assertEquals(null, d.s.coopPick)
         assertEquals(emptyList<String>(), d.s.parentQuestions.toList())
+    }
+
+    @Test
+    fun savedStoryCanBeEditedCancelledAndDeleted() {
+        val d = parent()
+        val sport = coopKind("sport")!!
+        compose.onNodeWithText("스포츠 · 도전 이야기").performScrollTo().performClick()
+        compose.onNodeWithText("축구").performScrollTo().performClick()
+        compose.onNodeWithText("저장하기").performClick()
+        compose.waitForIdle()
+        assertEquals(sport.questions("축구"), d.s.parentQuestions.toList())
+
+        // 수정하다가 취소 — 저장된 것은 그대로
+        compose.onNodeWithText("✏️ 수정하기").performClick()
+        compose.onNodeWithText("수영").performScrollTo().performClick()
+        compose.onNodeWithText("취소").performClick()
+        compose.waitForIdle()
+        assertEquals("축구", d.s.coopPick?.name)
+        compose.onNodeWithText("스포츠 · ‘축구’ 도전 이야기").assertExists()
+
+        // 수정해서 저장 — 바뀐다
+        compose.onNodeWithText("✏️ 수정하기").performClick()
+        compose.onNodeWithText("수영").performScrollTo().performClick()
+        compose.onNodeWithText("저장하기").performClick()
+        compose.waitForIdle()
+        assertEquals(sport.questions("수영"), d.s.parentQuestions.toList())
+        assertEquals("수영", d.s.coopPick?.name)
+
+        // 삭제는 한 번 더 묻고 — [아니요]면 남고, [지우기]면 비운다
+        compose.onNodeWithText("🗑 삭제하기").performClick()
+        compose.onNodeWithText("아니요").performClick()
+        compose.waitForIdle()
+        assertEquals("수영", d.s.coopPick?.name)
+        compose.onNodeWithText("🗑 삭제하기").performClick()
+        snap("screens/coop_template_delete_ask.png")
+        compose.onNodeWithText("지우기").performClick()
+        compose.waitForIdle()
+        assertEquals(emptyList<String>(), d.s.parentQuestions.toList())
+        assertEquals(null, d.s.coopPick)
+        compose.onNodeWithText("장소 · 탐험 이야기").assertExists()
     }
 }

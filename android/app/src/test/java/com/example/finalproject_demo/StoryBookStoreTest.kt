@@ -9,6 +9,12 @@ import com.example.finalproject_demo.demo.SavedStoryBook
 import com.example.finalproject_demo.demo.SavedStoryPage
 import com.example.finalproject_demo.demo.completedStoryBook
 import com.example.finalproject_demo.demo.useGeneratedStory
+import com.example.finalproject_demo.demo.restoreStoryBook
+import com.example.finalproject_demo.demo.mission1
+import com.example.finalproject_demo.demo.Stroke
+import com.example.finalproject_demo.ui.HeroAttr
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -16,10 +22,70 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.json.JSONArray
+import org.json.JSONObject
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class StoryBookStoreTest {
+    @Test
+    fun reopenedBookKeepsItsLocalSoundReferenceWhenStoredAgain() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("story_books", Context.MODE_PRIVATE)
+        val rawBook = JSONObject().put("id", "sound-book").put("title", "친구의 소리")
+            .put("themeKey", "sea").put("bgName", "bg_sea").put("soundClipId", "local-clip-1")
+            .put("pages", JSONArray().put(JSONObject().put("kind", "TOGETHER").put("caption", "같이 놀았어요.")))
+        prefs.edit().putString("books", JSONArray().put(rawBook).toString()).commit()
+
+        val reopened = LocalStoryBookStore(context).load().single()
+        LocalStoryBookStore(context).save(reopened)
+
+        val stored = JSONArray(prefs.getString("books", null)).getJSONObject(0)
+        assertEquals("local-clip-1", stored.optString("soundClipId"))
+    }
+
+    @Test
+    fun savedBookKeepsGeneratedHeroAndOriginalChildStrokesAfterAnotherSession() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.getSharedPreferences("story_books", Context.MODE_PRIVATE).edit().clear().commit()
+        val state = DemoState().apply {
+            templateKey = "C"
+            storyHeroImage = "local:my-generated-hero.png"
+            storyHeroRig = "human"
+            heroAttr = HeroAttr(hair = "long", shirt = Color.Red, glasses = "square", bottom = "skirt")
+            drawing += Stroke(Color.Blue, listOf(Offset(0.1f, 0.2f), Offset(0.5f, 0.7f)), 0.02f)
+            drawingAspect = 1.6f
+            dinoKey = "trex"
+            dinoColor = Color.Magenta
+            newcomerKind = "문어"
+            soundLine = "뽀글뽀글!"
+            causeLine = "길을 잃어서"
+            useGeneratedStory(template!!.pages.indices.map { "${it + 1}쪽 저장할 문장" })
+            m1Result = "solo"
+            m2Result = "solo"
+        }
+        val book = state.completedStoryBook()!!
+        LocalStoryBookStore(context).save(book)
+        state.drawing.clear()
+        state.storyHeroImage = "local:other-session.png"
+        val reopened = LocalStoryBookStore(context).load().single()
+        assertNotNull("art is part of the saved book, not the current session", reopened.visuals)
+        assertEquals("local:my-generated-hero.png", reopened.visuals!!.hero.image)
+        assertEquals("human", reopened.visuals!!.hero.rig)
+        assertEquals("skirt", reopened.visuals!!.hero.attr.bottom)
+        assertEquals(listOf(Offset(0.1f, 0.2f), Offset(0.5f, 0.7f)), reopened.visuals!!.drawing.single().pts)
+        assertEquals(0.02f, reopened.visuals!!.drawing.single().w, 0.00001f)
+        assertEquals(Color.Blue, reopened.visuals!!.drawing.single().color)
+        assertEquals(1.6f, reopened.visuals!!.drawingAspect, 0.00001f)
+        assertEquals(Color.Magenta, reopened.visuals!!.dinoColor)
+        assertEquals(book, reopened)
+        val reader = DemoState()
+        reader.restoreStoryBook(reopened)
+        assertEquals(state.mission1(), reader.mission1())
+        assertEquals("뽀글뽀글!", reader.soundLine)
+        assertEquals("길을 잃어서", reader.causeLine)
+    }
+
     @Test
     fun finishedGeneratedBookKeepsEveryFinalCaptionAndPageKind() {
         val s = DemoState()

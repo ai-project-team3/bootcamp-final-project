@@ -93,6 +93,7 @@ import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.demo.PEN_W
 import com.example.finalproject_demo.demo.dinoKind
 import com.example.finalproject_demo.demo.heroImageName
+import com.example.finalproject_demo.demo.storyArt
 import com.example.finalproject_demo.demo.Stroke as DrawStroke
 import kotlin.math.roundToInt
 
@@ -128,7 +129,8 @@ fun ArtView(art: Art, modifier: Modifier = Modifier, motion: RigMotion? = null) 
         Art.Rocket -> AssetImage("rocket", modifier) { FigureView(Rocket, modifier) }
         Art.Mascot -> AssetImage("mascot", modifier) { FigureView(Mascot, modifier) }
         is Art.ChildDrawing -> ChildDrawingView(art.strokes, art.preset, modifier, art.aspect)
-        is Art.Img -> AssetImage(art.name, modifier) { ArtView(art.fallback, modifier) }
+        is Art.Img -> if (art.rig != null) StoryCharacterImage(art, modifier, motion)
+            else AssetImage(art.name, modifier) { ArtView(art.fallback, modifier) }
     }
 }
 
@@ -341,7 +343,7 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                             // 09-29 디자인 시스템 — 고르기 방울: 크림 펠트 카드 · 꾹 눌림 (주인공 카드가 주인공 — 오또는 빼는 화면)
                             FeltButton(WoolCream, onClick = { d.send(Reply.Tapped("hero:$i", h.name)) }, modifier = Modifier.width(146.dp), shape = RoundedCornerShape(R)) {
                                 Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    ArtView(Art.HeroArt(h.attr), Modifier.fillMaxWidth().height(130.dp))
+                                    ArtView(h.storyArt(), Modifier.fillMaxWidth().height(130.dp))
                                     Text(h.name, fontSize = TextSize.KidCard, color = InkBrown, maxLines = 1)
                                 }
                             }

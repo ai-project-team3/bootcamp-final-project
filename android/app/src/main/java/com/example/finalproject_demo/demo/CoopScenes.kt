@@ -223,10 +223,34 @@ fun Director.coopFinishLog() {
     log("같이 짓기 — 어른이 읽어 준 질문 ${s.partnerTurns}번 · 그중 아이가 자기 말로 채운 자리 $byChild. 채점처럼 보이면 안 되므로 책에는 남기지 않는다 (협업 §6)")
 }
 
-/** 15분이 지나 끝날 때의 한 줄 — 협업은 부모가 질문을 고르는 시간이 들어가 더 빨리 닿는다 (협업 §9-3). */
-fun DemoState.coopTimeUpNote(): String =
-    if (isCoop) "15분 경과 → 끝. ⚠️ 협업 모드는 부모가 질문을 고르는 시간이 들어가 15분에 더 빨리 닿는다 (협업 §9-3)"
-    else "15분 경과 → 끝. ⚠️ 15분은 동화 모드 기준이라 취침 루틴에는 길 수 있다 (일기 §7-5)"
+/**
+ * 부모 「그만하기」 (#36 · 09-30) — 어른이 옆에 있으니 끝낼 권한은 어른에게 준다. 아이 화면의 버튼이 아니라
+ * 확인 창을 한 번 거친다(`OttoShell` · `KidTopBar`).
+ *
+ * 멈추면 **모인 답으로 책을 만든다** — 끝나는 이유만 `parent_stop` 이고, 뒤는 다 같은 마무리(`finishDiary`)다:
+ * 빈 필수 칸은 마스코트가 이야기로 메우고(`by: mascot`), 아이 답이 하나도 없으면 끝낼지 묻는다.
+ * `endReason` 은 앱 안에서만 쓰는 값이라(로그 · 마무리 문구) 서버 규격에는 영향이 없다.
+ *
+ * 묻고 있던 질문은 **취소한다.** 탭 · 무응답 신호로 깨우면 그 값이 칸에 들어가거나 쉬운 질문으로 다시 묻는다.
+ */
+fun Director.stopCoopByParent() {
+    if (!s.isCoop || s.scene != Scene.DIARY || s.endReason != null) return
+    s.endReason = "parent_stop"
+    log("부모가 「그만하기」를 눌렀다 → 묻던 질문을 거두고, 지금까지 모인 답으로 책을 만든다 (#36)")
+    replaceScene {
+        say("부모님이 오늘은 여기까지래! 지금까지 한 이야기로 책을 만들어 줄게.")
+        pause(1500)
+        finishDiary()
+    }
+}
+
+/**
+ * 부모가 넣은 질문을 **다 물었나** — 협업이 끝나는 조건 (09-30 확정 · guidelines/2 §1-1 · #36).
+ * 빈 줄은 세지 않는다. 사다리로 다시 묻는 자리는 부모 질문을 한 번만 쓰므로 `parentQIndex` 는 쓴 수 그대로다.
+ * 걸음이 건너뛰어져 못 물은 질문이 있으면 참이 되지 않고, 그때는 열한 걸음이 끝나며 자연히 마무리된다.
+ */
+val DemoState.coopQuestionsAllAsked: Boolean
+    get() = isCoop && hasCoopQuestions && parentQIndex >= parentQuestions.count { it.isNotBlank() }
 
 /** 책 이름 — 협업이면 "같이 지은"을 붙인다. */
 fun coopBookName(s: DemoState): String =

@@ -15,28 +15,17 @@ import com.example.finalproject_demo.ui.HeroAttr
 // ── 끝나는 조건 ────────────────────────────────────────────────
 
 /**
- * 협업 모드의 질문 흐름을 멈추는 조건 (09-30 조장 · guidelines/2 §1-1).
+ * 협업 모드의 질문 흐름을 멈추는 조건 (09-30 확정 · guidelines/2 §1-1 · #36).
  *
  * 끝나는 조건은 `story_ready` 하나다. 「`mascot_pick` 2회 연속이면 끝」은 없앴다 — 마스코트는 칸을 채울 뿐
- * 이야기를 닫지 않는다. 시간은 모드마다 다르다: **협업은 정해질 때까지 15분 그대로**(치영과 확인 중 · #36),
+ * 이야기를 닫지 않는다. **협업은 시간으로 끊지 않는다** — 부모가 넣은 질문을 다 물으면 마무리하고
+ * (`coopQuestionsAllAsked` · 아래 루프), 부모 「그만하기」로 언제든 끝낸다(`stopCoopByParent`).
  * 일기(그림일기)는 이 함수를 쓰지 않고 30분쯤 마무리를 한 번 제안한다(`PictureDiary.kt`).
  */
-fun Director.diaryEnded(): Boolean {
-    if (s.endReason != null) return true
-    if (!s.isCoop) return false
-    val over15 = s.diaryTimeUp || (s.diaryStart > 0L && System.currentTimeMillis() - s.diaryStart >= 15 * 60 * 1000)
-    if (over15) {
-        s.endReason = "timeout"
-        log(
-            s.coopTimeUpNote()
-        )
-        return true
-    }
-    return false
-}
+fun Director.diaryEnded(): Boolean = s.endReason != null
 
 /** 기승전결 네 자리가 다 찼나 — 모든 질문을 다 물은 뒤에만 본다 */
-private fun Director.diaryReadyNow(): Boolean = DIARY_REQUIRED.all { diaryFilled(it.slot) }
+private fun Director.diaryReadyNow(): Boolean = COOP_REQUIRED.all { diaryFilled(it.slot) }
 
 /** 답에서 칸 값 꺼내기. "몰라"처럼 값이 없는 답은 빈 문자열이다 */
 private fun diaryValueOf(r: Reply): String = when (r) {
@@ -125,11 +114,11 @@ suspend fun Director.sceneDiary() {
     if (!s.isCoop) { pictureDiary(); return }
     s.stage = diaryStage()
     coopIntro(c)                                // 협업 쪽은 CoopScenes.kt
-    log("${DIARY_STEPS.size}걸음 — 기승전결 네 자리(필수)와 꼬리질문 ${DIARY_STEPS.size - DIARY_REQUIRED.size}. 꼬리질문 답은 기존 슬롯의 `extra` 등에 쌓여 책의 재료가 된다")
+    log("${COOP_STEPS.size}걸음 — 기승전결 네 자리(필수)와 꼬리질문 ${COOP_STEPS.size - COOP_REQUIRED.size}. 꼬리질문 답은 기존 슬롯의 `extra` 등에 쌓여 책의 재료가 된다")
     log("⚠️ 일기 질문은 동화 모드보다 어렵다 — 상상이 아니라 기억을 꺼내야 한다. 같은 아이가 낮은 수준으로 나올 수 있다 (일기 §4-5 · 수준 공유 여부는 §7-3 열린 항목)")
     pause(1700)
 
-    for (step in DIARY_STEPS) {
+    for (step in COOP_STEPS) {
         if (diaryEnded()) break
         if (!step.ask(s)) {
             log("[${step.part} · ${step.bookKey}] 건너뜀 — 앞의 답에 물을 데가 없다 (소크라틱: 아이가 한 말에서 다음 질문이 나온다)")
@@ -139,11 +128,18 @@ suspend fun Director.sceneDiary() {
         // 진행 막대는 **지나온 걸음 수**로 찬다 (9/22). 칸이 찼는지로 세면, 아이가 답하지 않은
         // 선택 질문이 하나라도 있으면 마지막 질문까지 가도 막대가 끝까지 가지 않는다
         s.stepsDone++
+        // 부모가 넣은 질문을 다 물었으면 남은 꼬리질문은 묻지 않는다 — 부모가 길이를 정한 셈이다 (09-30 확정 · #36)
+        if (s.coopQuestionsAllAsked) {
+            log("부모가 넣은 질문 ${s.parentQIndex}개를 다 물었다 → 남은 꼬리질문은 건너뛰고 마무리한다 (#36)")
+            break
+        }
     }
     if (s.endReason == null && diaryReadyNow()) {
         s.endReason = "story_ready"
         log("기승전결 네 자리가 다 찼다 → story_ready (일기 §3)")
     }
+    // 네 자리가 덜 찼는데 부모 질문이 끝났다 — 빈 자리는 마무리에서 마스코트가 메운다
+    if (s.endReason == null && s.coopQuestionsAllAsked) s.endReason = "questions_done"
     diaryEnded()
     if (s.endReason == "story_ready") diaryDrawStep()
     finishDiary()
@@ -183,7 +179,6 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
                 if (!s.isCoop) step.demoAnswer(s)?.let { a ->
                     add(DemoBtn("🎬 오늘 이야기 시연 답 — \"${a.text}\"") { send(Reply.Spoke(a.text, a.value, a)) })
                 }
-                add(DemoBtn("⏱ (시연) 15분 지난 것으로 — 끝나는 조건 셋째") { s.diaryTimeUp = true; send(Reply.Silent) })
             },
             id = v.id,
         )
@@ -289,12 +284,12 @@ private suspend fun Director.diaryDrawStep() {
 }
 
 /** 모인 답변으로 책을 만든다 — **책은 언제나 나온다** (일기 §5 · 구현대본 §5) */
-private suspend fun Director.finishDiary() {
+internal suspend fun Director.finishDiary() {
     buttons()
     inputs(false, false)
     s.parentCard = null; s.parentAsk = null
     if (s.endReason == null) s.endReason = "story_ready"
-    val bySelf = DIARY_REQUIRED.count { s.slotBy[it.bookKey] == "child" || s.slotBy[it.bookKey] == "card" }
+    val bySelf = COOP_REQUIRED.count { s.slotBy[it.bookKey] == "child" || s.slotBy[it.bookKey] == "card" }
     val hasChildSeed = s.slotBy.values.any { it == "child" || it == "card" }
 
     // 필수 네 칸을 못 채워도 꼬리질문에 아이의 답이 있으면 그 말을 재료로 책을 만든다 (일기 §5 · §7-4).
@@ -322,7 +317,7 @@ private suspend fun Director.finishDiary() {
     }
 
     // 빈 자리는 LLM이 이야기로 메운다. 메운 자리는 by: mascot 이다 (일기 §5 · §5-1)
-    DIARY_REQUIRED.forEach { st ->
+    COOP_REQUIRED.forEach { st ->
         if (!diaryFilled(st.slot)) {
             val a = st.mascot?.invoke(s) ?: return@forEach
             setDiarySlot(st.slot, st.bookKey, diarySlotOf(a.value), diaryLineOf(a.value), "mascot")
@@ -331,10 +326,11 @@ private suspend fun Director.finishDiary() {
     }
     mark("diary")
     val why = when (s.endReason) {
-        "timeout" -> "15분 경과"
+        "questions_done" -> "부모 질문을 다 물음 (#36)"
+        "parent_stop" -> "부모 「그만하기」 (#36)"
         else -> "story_ready (기승전결 네 자리)"
     }
-    val tails = DIARY_STEPS.filterNot { it.required }.count { s.slots[it.bookKey] != null }
+    val tails = COOP_STEPS.filterNot { it.required }.count { s.slots[it.bookKey] != null }
     log("일기 모드 끝 — 끝난 조건: $why · 아이 · 카드가 채운 필수 칸 $bySelf/4 · 꼬리질문으로 더 모은 문장 ${tails}개 (이만큼 마스코트가 메울 자리가 줄었다)")
     coopFinishLog()                             // 협업 쪽은 CoopScenes.kt (진웅)
     say("오늘 이야기가 다 모였어! 이제 동화책으로 만들어 줄게.")
