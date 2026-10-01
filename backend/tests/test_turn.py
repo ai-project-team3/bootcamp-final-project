@@ -98,3 +98,14 @@ def test_user_message_carries_ask_and_only_a_real_unclear():
     assert "ask:false" in text and "next_slot:problem" in text
     assert "unclear_of:\n" in text, "unclear_of is sent only when unclear is true"
     assert "next_slot:\n" in turn_route.user(req, None)
+
+
+def test_the_line_model_sees_the_story_so_far():
+    """#50 · 10-01: the line model got only the last answer, so it asked about places and
+    characters that were not in the story. Filled slots go with it; empty ones do not."""
+    req = TurnRequest(mode="story", slots={"place": "바닷속", "newcomer": "문어", "problem": None, "cause": ""},
+                      question="누굴 만났어?", utterance="문어")
+    text = turn_route.user(req, None)
+    assert text.startswith("story_so_far:place=바닷속 · newcomer=문어\n")
+    assert "problem=" not in text and "cause=" not in text
+    assert "지금까지의 이야기" in turn_route.system()

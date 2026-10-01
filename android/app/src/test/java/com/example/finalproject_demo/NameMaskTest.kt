@@ -57,9 +57,18 @@ class NameMaskTest {
     fun theVoiceReadsTheNameOnlyWithConsent() {
         val line = "지민이 민수랑 공룡 나라에 갔구나!"
         assertEquals(line, m.speakable(line, named = true))
-        assertEquals("우리 친구가 친구랑 공룡 나라에 갔구나!", m.speakable(line, named = false))
+        assertEquals("네가 그 친구랑 공룡 나라에 갔구나!", m.speakable(line, named = false))
         // a masked line from the server reads the same way
-        assertEquals("우리 친구는 웃었어.", m.speakable("{주인공}은 웃었어.", named = false))
+        assertEquals("너는 웃었어.", m.speakable("{주인공}은 웃었어.", named = false))
+    }
+
+    /** #50 · 10-01: the child and a story friend both came out as "친구" in one line */
+    @Test
+    fun withoutConsentTheChildIsYouAndAFriendIsThatFriend() {
+        assertEquals("너와 함께 갈 친구는 누구일까?", m.speakable("{주인공}와 함께 갈 친구는 누구일까?", named = false))
+        assertEquals("어디로 갈래?", m.speakable("{주인공}아, 어디로 갈래?", named = false))     // calling the child: left out
+        assertEquals("그 친구가 너를 불렀어.", m.speakable("{친구1}가 {주인공}를 불렀어.", named = false))
+        assertEquals("네가 먼저 해 볼래?", m.speakable("{주인공}이가 먼저 해 볼래?", named = false))
     }
 
     @Test

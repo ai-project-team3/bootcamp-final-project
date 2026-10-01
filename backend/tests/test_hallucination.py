@@ -24,6 +24,11 @@ class HallucinationTest(unittest.TestCase):
         for line in ["MBC 뉴스 김철수입니다.", "구독 좋아요 알림 설정", "이 영상은 유료광고를 포함하고 있습니다"]:
             self.assertEqual(check_transcript(line).reason, "hallucination", line)
 
+    def test_the_subtitle_notice_from_the_10_01_phone_is_dropped(self):
+        # #50 · 민우 S25: 이야기 도중 아이 말 자리에 떴다 — 앱에는 이 문장이 없다
+        for line in ["자막은 설정에서 선택할 수 있어요", "자막은 설정에서 선택하실 수 있습니다."]:
+            self.assertEqual(check_transcript(line).reason, "hallucination", line)
+
     def test_real_answers_from_the_09_29_phone_are_kept(self):
         # 같은 날 제대로 받아쓴 답 — 목록이 이것들을 먹으면 안 된다
         for line in ["삼촌", "엄마", "긴 생머리", "알록달록", "무서워", "괴물", "다 별로야", "다음에 또 만나요"]:

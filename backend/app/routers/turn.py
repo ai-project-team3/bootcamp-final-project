@@ -45,7 +45,11 @@ def schema() -> dict:
 def user(req: TurnRequest, v: JudgeResult | None) -> str:
     """The §3 inputs. Without a verdict, the slots are empty and the model just continues."""
     values = [x for x in ((v.value_1, v.value_2) if v else ()) if x]
+    # what the child has already settled — 10-01 #50: without it the line model asked about
+    # places and characters that were not in the story, and the talk drifted
+    so_far = " · ".join(f"{k}={val}" for k, val in req.slots.items() if val and str(val).strip())
     return (
+        f"story_so_far:{so_far}\n"
         f"mode:{req.mode}\n"
         f"ask:{'true' if req.ask else 'false'}\n"
         f"level:{req.level or ''}\n"
