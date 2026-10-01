@@ -51,7 +51,7 @@ async def speak(req: TtsRequest) -> Response:
         "prompt": prompt, "output": {"audio_format": "mp3"},
     }
     try:
-        async with httpx.AsyncClient(timeout=30) as http:
+        async with httpx.AsyncClient(timeout=settings.tts_deadline_s) as http:   # phone waits 20 s
             r = await http.post("https://api.typecast.ai/v1/text-to-speech", json=body,
                                 headers={"X-API-KEY": settings.typecast_api_key})
     except httpx.HTTPError as e:
