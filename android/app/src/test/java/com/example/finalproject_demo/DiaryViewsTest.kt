@@ -139,7 +139,7 @@ class DiaryViewsTest {
     @Test
     fun aStrokeThenAQuietBrushTellsOttoToAsk() {
         val d = director()
-        d.s.newDiaryDay()
+        d.s.newDiaryDay().watching = true          // 오또가 그리기를 지켜보는 중 — 이때만 붓 멈춤이 간다
         d.s.stage = DiaryBoard()
         show(d)
         // a stopped test clock never recomposes after the gesture, so the pause timer never starts — let it run

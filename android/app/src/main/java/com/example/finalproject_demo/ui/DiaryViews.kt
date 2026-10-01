@@ -246,7 +246,8 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
     LaunchedEffect(strokes) {
         if (strokes == 0) return@LaunchedEffect
         delay(BRUSH_PAUSE_MS)
-        if (!s.micEnabled && stage.pick == null) d.send(Reply.Tapped("pause", "붓 멈춤"))
+        // 오또가 지켜보는 중에만 — 묻는 중 · 고르는 중 · 아이가 말하는 중(녹음)에는 보내지 않는다
+        if (day.watching && !s.micOn && stage.pick == null) d.send(Reply.Tapped("pause", "붓 멈춤"))
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -304,7 +305,8 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
             PieceRings(day.pieces.toList(), day.askingPiece, cq)
             day.pieces.filter { it.name != null }.forEach { p ->
                 val b = boxOf(p.strokes) ?: return@forEach
-                val ready = p.look == PieceLook.OTTO
+                // ✨ — 오또 그림이 와 있다. 톡 하면 다시 고른다
+                val ready = p.ottoPng != null || p.look == PieceLook.OTTO
                 Text(
                     if (ready) "✨ ${p.name}" else p.name!!,
                     fontSize = (cq.value * 1.7f).sp,
@@ -313,6 +315,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                         // 고리 바로 위 — 판 맨 위에 그린 조각이면 판 안으로 내려 잘리지 않게
                         .offset(x = (maxWidth.value * b.left).dp, y = ((maxHeight.value * b.top) - cq.value * 4.4f).coerceAtLeast(4f).dp)
                         .background(if (ready) FeltCoral else FeltMustard, RoundedCornerShape(cq * 2))
+                        .then(if (ready) Modifier.clickable { d.send(Reply.Tapped("look:${p.id}", "오또 그림 보기")) } else Modifier)
                         .padding(horizontal = cq * 1.2f, vertical = cq * 0.2f),
                 )
             }
@@ -364,9 +367,10 @@ private fun DiaryBubble(d: Director, cq: Dp, modifier: Modifier) {
         shown = 0
         while (shown < text.length) { delay(28); shown++ }
         delay(4_000)
-        if (!s.micEnabled) tucked = true
+        if (!s.micOn) tucked = true
     }
-    val open = !tucked || s.micEnabled
+    // 접혀도 마이크는 남는다 — 아이는 아무 때나 먼저 말해도 된다. 말하는 중에는 펼친다
+    val open = !tucked || s.micOn
     val state = when {
         s.micOn -> OttoState.LISTEN
         shown < text.length -> OttoState.TALK

@@ -21,6 +21,8 @@ import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.diaryDay
+import com.example.finalproject_demo.demo.praiseFor
+import com.example.finalproject_demo.demo.soundsLikeAName
 import com.example.finalproject_demo.demo.yesNoOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -290,5 +292,41 @@ class PictureDiaryFlowTest {
         assertEquals("done", yesNoOf("다 그렸어"))
         assertEquals("done", yesNoOf("응, 다 그렸어"))
         assertNull(yesNoOf("강아지"))
+    }
+
+    /** 그리는 중에 아이가 먼저 말한다 — 묻지 않아도 이름을 받고, 「너도 그려줘」면 묻지 않고 바로, 「다 그렸어」면 끝 (docs/일기모드_UI.html) */
+    @Test
+    fun theChildCanSpeakFirstWhileDrawing() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue("묻지 않았는데 말한 이름을 안 받았다", d.push("이건 강아지야") && await { "강아지구나" in s.line } != null)
+        assertEquals("강아지", s.diaryDay.pieces.single().name)
+        assertTrue(await { s.buttons.any { "너도 그려줘" in it.label } } != null)
+        assertTrue(d.push("너도 그려줘"))
+        assertTrue("「너도 그려줘」에 바로 그리지 않았다", await { "나도 그려볼게" in s.line } != null)
+        s.drawing += stroke(0.6f)
+        assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); "짠!" in s.line } != null)
+        assertTrue(d.push("내 그림으로"))
+        assertTrue(await { s.buttons.any { "다 그렸어!" in it.label } } != null)
+        assertTrue(d.push("\"다 그렸어!\""))
+        assertTrue("다 그렸다고 말했는데 끝나지 않았다", await { s.stage is DiaryAsk } != null)
+    }
+
+    @Test
+    fun praiseNamesWhatWasDrawn() {
+        assertEquals("다 그렸구나! 멋지다!", praiseFor(emptyList()))
+        assertEquals("다 그렸구나! 강아지 멋지다!", praiseFor(listOf("강아지")))
+        assertEquals("다 그렸구나! 강아지랑 우리 집 멋지다!", praiseFor(listOf("강아지", "우리 집")))
+        assertEquals("다 그렸구나! 해, 집이랑 나무 멋지다!", praiseFor(listOf("해", "집", "나무")))
+    }
+
+    @Test
+    fun onlyNameLikeWordsBecomeAPieceName() {
+        assertTrue(soundsLikeAName("이건 강아지야"))
+        assertTrue(soundsLikeAName("우리 집이야!"))
+        assertFalse(soundsLikeAName("나 오늘 너무 배고파"))
+        assertFalse(soundsLikeAName("엄마가 그러는데 내일 비 온대"))
     }
 }

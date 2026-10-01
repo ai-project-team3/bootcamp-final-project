@@ -85,15 +85,56 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
         buttons(
             DemoBtn("✏️ (시연) 붓이 멈춤 — 조각 하나를 그렸다") { send(Reply.Tapped("pause", "멈춤")) },
             DemoBtn("✅ 다 그렸어") { send(Reply.Tapped("done", "완료")) },
+            DemoBtn("🗣 (먼저 말함) \"다 그렸어!\"") { send(Reply.Spoke("다 그렸어!")) },
+            DemoBtn("🗣 (먼저 말함) \"너도 그려줘!\"") { send(Reply.Spoke("너도 그려줘!")) },
+            DemoBtn("🗣 (먼저 말함) \"이건 강아지야\"") { send(Reply.Spoke("이건 강아지야")) },
         )
-        // [그리기 싫어](skip)도 그리기를 끝낸다 — 시연 서랍 · 말로 끝낼 때
-        if (awaitValue("pause", "done", "skip") != "pause") break
+        // 아이는 아무 때나 먼저 말해도 된다 — 마이크를 열어 둔다. 붓 멈춤은 오또가 지켜보는 동안에만 온다
+        inputs(mic = true, next = false)
+        day.watching = true
+        val r = awaitReply()
+        day.watching = false
+        when {
+            r is Reply.Tapped && r.value == "pause" -> {}
+            // [그리기 싫어](skip)도 그리기를 끝낸다 — 시연 서랍
+            r is Reply.Tapped && (r.value == "done" || r.value == "skip") -> break
+            // ✨ 이름표를 톡 — 왔던 오또 그림을 다시 고른다
+            r is Reply.Tapped && r.value.startsWith("look:") -> {
+                day.pieces.firstOrNull { it.id == r.value.removePrefix("look:").toIntOrNull() && it.ottoPng != null }
+                    ?.let { showOttoDrawing(day, it) }
+                continue
+            }
+            r is Reply.Spoke -> {
+                when (heardWhileDrawing(day, r)) {
+                    Heard.DONE -> break
+                    Heard.DRAW_ME -> {
+                        day.catchUp(s.drawing)
+                        val target = day.pieces.lastOrNull { s.drawing.lastOrNull() in it.strokes } ?: day.pieces.lastOrNull()
+                        if (target != null && waiting.none { it.pieceId == target.id }) {
+                            say("나도 그려볼게! 더 그리고 있어!")
+                            offers++
+                            waiting += orderOttoDrawing(this, target, target.name ?: "아이가 그린 그림")
+                            pause(600)
+                        } else say("그림을 먼저 그려 줘! 그다음에 나도 그려 볼게.")
+                    }
+                    Heard.NAMED, Heard.OTHER -> {}
+                }
+                continue
+            }
+            else -> continue
+        }
 
         // 다 그려진 오또 그림이 먼저다 — 아이가 부탁한 것이라. 아직 그리는 중이면 기다리지 않고 지나간다
         val ready = waiting.firstOrNull { it.art?.isCompleted != false }
         if (ready != null) {
             waiting -= ready
             if (receiveOttoDrawing(day, ready)) continue
+        }
+        // 8초가 넘도록 안 오면 한 번만 알린다(규칙 8) — 서버는 13초에 원본으로 돌려준다
+        waiting.firstOrNull { !it.late && System.currentTimeMillis() - it.since > OTTO_LATE_MS }?.let {
+            it.late = true
+            say("오또 그림은 조금 뒤에 올 거야! 계속 그리고 있어.")
+            pause(500)
         }
 
         day.catchUp(s.drawing)
@@ -122,14 +163,51 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
         waiting.forEach { it.art?.cancel() }
         log("아직 그리는 중인 오또 그림 ${waiting.size}장은 버린다 — 다 그렸으니 기다리게 하지 않는다")
     }
+    inputs(false, false)
     keepBoard()
     if (s.sceneDrawing.isEmpty() && day.pieces.all { it.strokes.isEmpty() }) log("그린 것이 없다 → 그림 없는 날")
-    say("다 그렸구나!")
+    say(praiseFor(day.pieceNames))
     pause(900)
 }
 
+/** 다 그렸을 때 — 이번에 그린 것들을 한꺼번에 칭찬한다(「강아지랑 우리 집 멋지다!」). 이름이 없으면 그림 전체를 */
+internal fun praiseFor(names: List<String>): String {
+    if (names.isEmpty()) return "다 그렸구나! 멋지다!"
+    if (names.size == 1) return "다 그렸구나! ${names[0]} 멋지다!"
+    val head = names.dropLast(1)
+    val rang = if (bat(head.last())) "이랑" else "랑"
+    return "다 그렸구나! ${head.joinToString(", ")}$rang ${names.last()} 멋지다!"
+}
+
+/** 오또 그림이 이만큼 늦으면 「조금 뒤에 올 거야」 (규칙 8 · 프로토타입 8초) */
+internal const val OTTO_LATE_MS = 8_000L
+
 /** 오또에게 부탁한 그림 한 장 — [art] 가 null 이면 대본(서버 없음) · 그림 글자로 보여 준다 */
-private class OttoOrder(val pieceId: Int, val art: Deferred<ByteArray?>?)
+private class OttoOrder(val pieceId: Int, val art: Deferred<ByteArray?>?) {
+    val since = System.currentTimeMillis()
+    var late = false
+}
+
+/** 그리는 중에 아이가 먼저 한 말 */
+private enum class Heard { DONE, DRAW_ME, NAMED, OTHER }
+
+private val DRAW_ME = Regex("너도 ?그려|오또도 ?그려|같이 ?그려|그려 ?줘|그려 ?줄래")
+
+/**
+ * 그리는 중에 들은 말 — 「다 그렸어」면 끝, 「너도 그려줘」면 묻지 않고 바로 오또가 그린다(이름이 아직 없어도),
+ * 방금 그리던 조각에 이름이 없으면 그 말을 이름으로 받는다(「이건 강아지야」). 아이 말은 모두 아이 출처다.
+ */
+private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke): Heard {
+    s.reactions++
+    event("utterance", "speaker" to "child", "mode" to "voice", "text" to r.text)
+    if (yesNoOf(r.text) == "done") return Heard.DONE
+    if (DRAW_ME.containsMatchIn(r.text)) return Heard.DRAW_ME
+    day.catchUp(s.drawing)
+    val piece = pieceBeingDrawn(day)
+    if (piece != null && soundsLikeAName(r.text) && nameThePiece(day, piece, r) != null) return Heard.NAMED
+    say("그렇구나! 계속 그려 봐.")
+    return Heard.OTHER
+}
 
 /**
  * 「응」 — 서버 모드면 그 조각만 PNG 로 만들어 뒤에서 `/image` redraw 를 부른다. 아이는 계속 그린다(기다리는 화면 없음).
@@ -190,22 +268,29 @@ private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pai
     day.askingPiece = piece.id
     val r = try { ask(q) } finally { day.askingPiece = null }
     if (r is Reply.Tapped && (r.value == "done" || r.value == "skip")) return null to true
-    val name = (r as? Reply.Spoke)?.let { pieceNameFrom(it) }
+    val name = (r as? Reply.Spoke)?.let { nameThePiece(day, piece, it) }
     if (name == null) {
         say(if (r is Reply.Spoke) "그래, 계속 그려 봐." else "계속 그려 봐!")
         log("조각 이름을 못 들었다 → 이름 없이 둔다. 다시 묻지 않는다")
         return null to false
     }
+    return name to false
+}
+
+/** 아이 말에서 조각 이름을 받아 붙인다 — 아이가 말한 이름만(규칙 5). 이름이 아니면 null, 아무것도 안 바꾼다 */
+private suspend fun Director.nameThePiece(day: DiaryDay, piece: DiaryPiece, r: Reply.Spoke): String? {
+    val name = pieceNameFrom(r) ?: return null
     val i = day.pieces.indexOfFirst { it.id == piece.id }
+    if (i < 0) return null
     day.pieces[i] = day.pieces[i].copy(name = name)
     s.slots["whiteboard"] = day.pieceNames.joinToString(", ")
     s.slotBy["whiteboard"] = "child"
     event("slot_filled", "slot" to "extra", "of" to "whiteboard", "value" to name, "source" to "child")
-    quote((r as Reply.Spoke).text)
+    quote(r.text)
     say("${name}${ida(name)}구나!")
     log("조각 이름 「$name」 — 아이가 말한 이름 (extra · whiteboard · child)")
     pause(700)
-    return name to false
+    return name
 }
 
 /**
@@ -649,8 +734,19 @@ internal fun dontKnow(text: String) = text.isBlank() || DONT_KNOW.containsMatchI
 private val COPULA = Regex("(이야|야|이에요|예요|이요|요|이지|지|인데|거든)?[.!?~ ]*$")
 private val DREW = Regex("(을|를)?\\s*(그렸어|그리는 거야|그리는 중이야|그리고 있어)$")
 
+private val THIS_IS = Regex("^(이건|이거는|이거|저건|저거|요건|얘는|얘)\\s+")
+private val ENDS_AS_NAME = Regex("(이야|야|이에요|예요)[.!~ ]*$")
+
 /**
- * 「우리 집이야!」 → 「우리 집」 · 「아니, 블록이야」 → 「블록」. 대본 답에는 값이 붙어 있어 그대로 쓴다.
+ * 묻지 않았는데 들은 말이 이름처럼 들리나 — 「이건 강아지야」 · 「우리 집이야」. 「배고파」 같은 말로 조각 이름을 덮지 않게
+ */
+internal fun soundsLikeAName(text: String): Boolean {
+    val t = text.trim()
+    return THIS_IS.containsMatchIn(t) || (ENDS_AS_NAME.containsMatchIn(t) && t.split(Regex("\\s+")).size <= 3)
+}
+
+/**
+ * 「우리 집이야!」 → 「우리 집」 · 「아니, 블록이야」 → 「블록」 · 「이건 강아지야」 → 「강아지」. 대본 답에는 값이 붙어 있어 그대로 쓴다.
  * 「몰라」면 null — 이름 없이 둔다.
  */
 internal fun pieceNameFrom(r: Reply.Spoke): String? {
@@ -658,6 +754,7 @@ internal fun pieceNameFrom(r: Reply.Spoke): String? {
     var t = r.text.trim()
     if (dontKnow(t)) return null
     t = t.removePrefix("아니,").removePrefix("아니").trim()
+    t = THIS_IS.replace(t, "").trim()
     t = DREW.replace(t, "").trim()
     t = COPULA.replace(t, "").trim()
     return t.takeIf { it.isNotEmpty() && it.length <= 12 }
