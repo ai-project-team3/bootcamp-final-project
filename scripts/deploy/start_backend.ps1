@@ -14,7 +14,7 @@ New-Item -ItemType Directory -Force -Path $hfCache | Out-Null
 docker run -d --name otto-backend --gpus all `
     --env-file C:\otto\.env `
     -v "${hfCache}:/root/.cache/huggingface" `
-    -p 8010:8010 `
+    -p 8000:8010 `
     otto-backend
 if ($LASTEXITCODE -ne 0) { throw "docker run failed (exit $LASTEXITCODE)" }
 
