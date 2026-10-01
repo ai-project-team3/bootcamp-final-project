@@ -275,7 +275,7 @@ private fun Director.orderOttoDrawing(scope: CoroutineScope, piece: DiaryPiece, 
         log("오또 그림 부탁 — 조각에 선이 없다. 원본 그대로")
         return OttoOrder(piece.id, scope.async { null })
     }
-    val words = s.nameMask().mask(name)
+    val words = s.nameMask().mask(drawWords(name))
     log("오또 그림 부탁 → /image redraw (조각 PNG ${png.size / 1024} KB · 우리 서버까지만 · 서버는 쓰고 지운다)")
     return OttoOrder(piece.id, scope.async { requestRedraw(png, words) })
 }
@@ -1084,6 +1084,14 @@ private val MY = Regex("^(내|제)(가)?$")
  */
 internal fun you(name: String): String = name.split(" ").joinToString(" ") { w ->
     ME.matchEntire(w)?.let { "너" + it.groupValues[2] } ?: MY.matchEntire(w)?.let { "네" + it.groupValues[2] } ?: w
+}
+
+/**
+ * 그림 주문에 보낼 말 — 아이 자신(「나 · 저」)은 「아이」로. 서버 주문은 「나」만 오면 누구인지 몰라 거절한다
+ * (`not drawable` · 10-01 도메인 서버로 확인: 「나」 거절 · 「아이」 「엄마랑 나」 「내 동생」은 그림). 조각 이름은 그대로 둔다
+ */
+internal fun drawWords(name: String): String = name.split(" ").joinToString(" ") { w ->
+    ME.matchEntire(w)?.let { "아이" + it.groupValues[2] } ?: w
 }
 
 /** 이름 뒤 「(이)야 · (이)구나」 */

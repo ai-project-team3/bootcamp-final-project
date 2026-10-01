@@ -21,6 +21,7 @@ import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.diaryDay
+import com.example.finalproject_demo.demo.drawWords
 import com.example.finalproject_demo.demo.echoBack
 import com.example.finalproject_demo.demo.hasDiaryCover
 import com.example.finalproject_demo.demo.pieceNameFrom
@@ -469,6 +470,16 @@ class PictureDiaryFlowTest {
         val id = s.diaryDay.pieces.single().id
         assertTrue("말=${s.line}", await { if (s.diaryDay.watching) d.send(Reply.Tapped("name:$id", "이름 부르기")); s.line == "너!" } != null)
         assertTrue("그리기가 끝났다", s.stage is DiaryBoard)
+    }
+
+    /** 그림 주문에는 아이 자신을 「아이」로 — 서버가 「나」만 오면 거절했다(10-01 도메인 서버) */
+    @Test
+    fun theDrawingOrderCallsTheChildAChild() {
+        assertEquals("아이", drawWords("나"))
+        assertEquals("아이", drawWords("저"))
+        assertEquals("엄마랑 아이", drawWords("엄마랑 나"))
+        assertEquals("우리 집", drawWords("우리 집"))
+        assertEquals("나비", drawWords("나비"))
     }
 
     @Test
