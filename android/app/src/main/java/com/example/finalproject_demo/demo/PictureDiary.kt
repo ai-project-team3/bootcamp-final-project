@@ -105,6 +105,11 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
                     ?.let { showOttoDrawing(day, it) }
                 continue
             }
+            // 그냥 이름표를 톡 — 이름을 불러 준다 (프로토타입 tapTag)
+            r is Reply.Tapped && r.value.startsWith("name:") -> {
+                day.pieces.firstOrNull { it.id == r.value.removePrefix("name:").toIntOrNull() }?.name?.let { say("${you(it)}!") }
+                continue
+            }
             r is Reply.Spoke -> {
                 when (heardWhileDrawing(day, r)) {
                     Heard.DONE -> break

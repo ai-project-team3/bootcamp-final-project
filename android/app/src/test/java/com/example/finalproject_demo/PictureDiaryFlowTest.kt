@@ -399,6 +399,23 @@ class PictureDiaryFlowTest {
             await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "나도 강아지를 그려볼까?" } != null)
     }
 
+    /** 그냥 이름표를 톡 — 오또가 이름을 불러 준다(「나」면 「너!」) · 그리기는 그대로 (프로토타입 tapTag) */
+    @Test
+    fun tappingANameTagCallsTheName() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("나야")
+        assertTrue(await { s.line == "나도 너를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        val id = s.diaryDay.pieces.single().id
+        assertTrue("말=${s.line}", await { if (s.diaryDay.watching) d.send(Reply.Tapped("name:$id", "이름 부르기")); s.line == "너!" } != null)
+        assertTrue("그리기가 끝났다", s.stage is DiaryBoard)
+    }
+
     @Test
     fun aPieceNamedMeIsCalledYou() = run { d ->
         val s = d.s

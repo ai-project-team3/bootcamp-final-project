@@ -320,7 +320,14 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                         // 고리 바로 위 — 판 맨 위에 그린 조각이면 판 안으로 내려 잘리지 않게
                         .offset(x = (maxWidth.value * b.left).dp, y = ((maxHeight.value * b.top) - cq.value * 4.4f).coerceAtLeast(4f).dp)
                         .background(if (ready) FeltCoral else FeltMustard, RoundedCornerShape(cq * 2))
-                        .then(if (ready) Modifier.clickable { d.send(Reply.Tapped("look:${p.id}", "오또 그림 보기")) } else Modifier)
+                        .then(
+                            when {
+                                ready -> Modifier.clickable { d.send(Reply.Tapped("look:${p.id}", "오또 그림 보기")) }
+                                // 그냥 이름표 — 오또가 이름을 불러 준다. 묻는 중에는 답으로 섞이지 않게 지켜볼 때만
+                                day.watching -> Modifier.clickable { d.send(Reply.Tapped("name:${p.id}", "이름 부르기")) }.testTag("tag-${p.id}")
+                                else -> Modifier
+                            }
+                        )
                         .padding(horizontal = cq * 1.2f, vertical = cq * 0.2f),
                 )
             }
