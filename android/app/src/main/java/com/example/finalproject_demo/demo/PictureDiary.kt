@@ -129,7 +129,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
                 continue
             }
             r is Reply.Spoke -> {
-                when (heardWhileDrawing(day, r)) {
+                when (heardWhileDrawing(day, r, askedPieces)) {
                     Heard.DONE -> break
                     Heard.DRAW_ME -> {
                         day.catchUp(s.drawing)
@@ -263,14 +263,16 @@ private val DRAW_ME = Regex("너도 ?그려|오또도 ?그려|같이 ?그려|그
  * 그리는 중에 들은 말 — 「다 그렸어」면 끝, 「너도 그려줘」면 묻지 않고 바로 오또가 그린다(이름이 아직 없어도),
  * 방금 그리던 조각에 이름이 없으면 그 말을 이름으로 받는다(「이건 강아지야」). 아이 말은 모두 아이 출처다.
  */
-private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke): Heard {
+private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke, asked: Set<Int>): Heard {
     s.reactions++
     event("utterance", "speaker" to "child", "mode" to "voice", "text" to r.text)
     if (yesNoOf(r.text) == "done") return Heard.DONE
     if (DRAW_ME.containsMatchIn(r.text)) return Heard.DRAW_ME
     day.catchUp(s.drawing)
     val piece = pieceBeingDrawn(day)
-    if (piece != null && soundsLikeAName(r.text) && nameThePiece(day, piece, r) != null) return Heard.NAMED
+    // 물었는데 이름을 못 받은 조각이면 다시 한 말은 이름을 고쳐 말하는 것이다 — 「○○야」 꼴이 아니어도 받는다
+    val retry = piece != null && piece.id in asked
+    if (piece != null && (retry || soundsLikeAName(r.text)) && nameThePiece(day, piece, r) != null) return Heard.NAMED
     say("그렇구나! 계속 그려 봐.")
     return Heard.OTHER
 }
@@ -344,10 +346,19 @@ private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pie
         pause(700)
         return PieceAnswer(neighbor.name)
     }
-    val name = (r as? Reply.Spoke)?.let { nameThePiece(day, piece, it) }
+    var name = (r as? Reply.Spoke)?.let { nameThePiece(day, piece, it) }
+    // 말은 했는데 이름이 안 나왔다(잘못 알아들음 · 딴말) — 한 번만 다시 묻는다. 「몰라」면 다시 묻지 않는다 (10-02 실기기)
+    if (name == null && r is Reply.Spoke && !dontKnow(r.text) && day.pieces.any { it.id == piece.id }) {
+        val again = Question(text = "잘 못 들었어. 뭐 그린 거야?", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_piece", waitSec = D1_WAIT_SEC)
+        day.askingPiece = piece.id
+        val r2 = try { askWhileDrawing(again, day, about = piece.id) } finally { day.askingPiece = null }
+        if (r2 is Reply.Tapped && (r2.value == "done" || r2.value == "skip")) return PieceAnswer(null, finished = true)
+        if (r2 is Reply.Tapped && r2.value == MOVED_ON) return PieceAnswer(null, movedOn = true)
+        name = (r2 as? Reply.Spoke)?.let { nameThePiece(day, piece, it) }
+    }
     if (name == null) {
         say(if (r is Reply.Spoke) "그래, 계속 그려 봐." else "계속 그려 봐!")
-        log("조각 이름을 못 들었다 → 이름 없이 둔다. 다시 묻지 않는다")
+        log("조각 이름을 못 들었다 → 이름 없이 둔다. 아이가 다시 말하면 이 조각 이름으로 받는다")
         return PieceAnswer(null)
     }
     return PieceAnswer(name)

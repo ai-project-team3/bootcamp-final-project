@@ -449,6 +449,27 @@ class PictureDiaryFlowTest {
         assertTrue("말없이 거둔 질문이 말풍선에 남았다 — 말=${s.line}", await { s.line.isEmpty() } != null)
     }
 
+    /**
+     * 받아쓰기가 잘못 들어 이름이 안 나오면 한 번 더 묻는다. 그래도 안 되면 「계속 그려 봐」로 두되,
+     * 아이가 다시 말하면 「○○야」 꼴이 아니어도 그 조각 이름으로 받는다 — 새 조각을 그려야만 진행되던 막힘 (10-02 실기기)
+     */
+    @Test
+    fun aMisheardNameIsAskedAgainAndCanStillBeGiven() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("배고파")                                             // 잘못 알아들은 말
+        assertTrue("다시 묻지 않았다 — 말=${s.line}", await { s.line == "잘 못 들었어. 뭐 그린 거야?" } != null)
+        d.speak("배고파")
+        assertTrue(await { s.line == "그래, 계속 그려 봐." } != null)
+        assertNull(s.diaryDay.pieces.single().name)
+        d.tell("로켓") { s.diaryDay.pieces.single().name == "로켓" }   // 「로켓이야」 꼴이 아니어도
+        assertTrue("말=${s.line}", await { s.line == "나도 로켓을 그려볼까?" } != null)
+    }
+
     /** D1 질문 중 다른 조각을 그리기 시작하면 조용히 거두고, 다음 멈춤에 지금 그리는 조각을 먼저 묻는다 (10-01 안 A) */
     @Test
     fun drawingSomethingElseWithdrawsTheQuestion() = run { d ->
