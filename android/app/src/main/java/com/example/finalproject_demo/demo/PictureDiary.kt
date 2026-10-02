@@ -98,6 +98,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
     var offers = 0
     var quiet = 0                                // 물을 것 없이 지나간 멈춤 수
     var afterCrayon = false                      // 이번 멈춤이 크레용을 고른 뒤에 왔나
+    val storyAsked = mutableSetOf<String>()      // 그리는 중에 물은 이야기 칸 — 한 번씩만
     val waiting = mutableListOf<OttoOrder>()      // 오또가 그리고 있는 조각 — 다 되면 다음 멈춤에 보여 준다
     val askedPieces = mutableSetOf<Int>()        // 한 번 물은 조각은 다시 묻지 않는다(답이 없었어도)
     val held = mutableListOf<Pair<Int, String>>() // 미뤄 둔 「나도 그려볼까?」 — 조각 · 이름 (앞 것부터 · 덮어쓰지 않는다)
@@ -231,6 +232,13 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
         }
         log("붓 멈춤 — 방금 그린 조각은 이름이 있거나 이미 물었다. 묻지 않는다")
         if (afterCrayon) continue                      // 색을 고르고 이어 그릴 참이다 — 「다 그렸어?」로 세지 않는다
+        // 물을 조각이 없는 멈춤 — 이야기를 하나 묻는다(어디 → 무슨 일). 칸마다 한 번 · 답한 칸은 D3 에서 다시 묻지 않는다 (10-02 진웅 · 프로토타입)
+        val story = D1_STORY.firstOrNull { it.key !in storyAsked && s.slots[it.key].isNullOrBlank() }
+        if (story != null) {
+            storyAsked += story.key
+            if (askStoryWhileDrawing(day, story) == "done") break
+            continue
+        }
         if (++quiet < DONE_CHECK_EVERY) continue
         quiet = 0
         if (askDoneDrawing()) break
@@ -331,6 +339,43 @@ private suspend fun Director.receiveOttoDrawing(day: DiaryDay, order: OttoOrder)
 private fun Director.pieceBeingDrawn(day: DiaryDay): DiaryPiece? {
     val lastStroke = s.drawing.lastOrNull() ?: return null
     return day.pieces.firstOrNull { lastStroke in it.strokes }?.takeIf { it.name == null }
+}
+
+/** 그리는 중에 묻는 이야기 — 책 키 · 질문. 그림을 보며 묻는 말이라 D3 질문보다 짧다 */
+private class StoryAsk(val key: String, val text: String)
+
+private val D1_STORY = listOf(
+    StoryAsk("place", "여기는 어디야?"),
+    StoryAsk("problem", "여기서 무슨 일이 있었어?"),
+)
+
+/**
+ * 그리는 중 이야기 질문 하나 — 그리기를 막지 않는다(다른 조각을 그리기 시작하면 조용히 거둔다).
+ * 답은 **아이 말 그대로** 그 칸에(아이 출처 · 규칙 5). 서버 판정은 D3 의 다음 질문이 이 칸까지 보고 고른다. 「몰라」 · 말이 없으면 비워 두고 D3 가 묻는다
+ * 돌려주는 값: done(그리기를 끝냈다) · 그 밖
+ */
+private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: StoryAsk): String {
+    val q = Question(
+        text = story.text, kind = Kind.EASY, noCards = true,
+        spoken = DIARY_STEPS.firstOrNull { it.bookKey == story.key }?.answers(s).orEmpty(),
+        extra = listOf(DemoBtn("✅ 다 그렸어") { send(Reply.Tapped("done", "완료")) }),
+        id = "diary_d1_${story.key}", waitSec = D1_WAIT_SEC,
+    )
+    val r = askWhileDrawing(q, day, about = null)
+    if (r is Reply.Tapped && (r.value == "done" || r.value == "skip")) return "done"
+    val text = (r as? Reply.Spoke)?.text?.trim().orEmpty()
+    if (text.isEmpty() || dontKnow(text)) {
+        if (r is Reply.Spoke) { say("괜찮아, 계속 그려 봐!"); pause(600) }
+        log("그리는 중 이야기 [${story.key}] — 못 들었다 → 비워 두고 다 그린 뒤 묻는다")
+        return "skip"
+    }
+    val scripted = (r as Reply.Spoke).answer?.value?.takeIf(String::isNotBlank)    // 시연 대본 답이면 값이 붙어 온다
+    val value = scripted?.let(::diarySlotOf) ?: text
+    val line = scripted?.let(::diaryLineOf) ?: text
+    setDiarySlot(judgeSlotOf(story.key), story.key, value, line, "child")
+    say(echoBack(text)); pause(600)
+    log("그리는 중 이야기 [${story.key}] = 「$text」 (child) — 다 그린 뒤에는 묻지 않는다")
+    return "ok"
 }
 
 /** 조각을 물은 결과 — 붙은 이름 · 그리기를 끝냈나 · 다른 조각으로 넘어가 거뒀나(그 조각은 나중에 다시 물을 수 있다) */

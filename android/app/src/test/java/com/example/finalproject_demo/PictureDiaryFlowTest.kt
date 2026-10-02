@@ -410,6 +410,35 @@ class PictureDiaryFlowTest {
     }
 
     /**
+     * 물을 조각이 없는 붓 멈춤 — 그리는 중에 이야기를 묻는다(어디 → 무슨 일). 답은 아이 말 그대로 그 칸에(아이 출처),
+     * 다 그린 뒤에는 그 칸을 다시 묻지 않는다 (10-02 진웅 · 프로토타입)
+     */
+    @Test
+    fun withNothingToAskOttoAsksAboutTheDayWhileDrawing() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("미끄럼틀")
+        assertTrue(await { s.line == "나도 미끄럼틀을 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        assertTrue("물을 조각이 없는데 이야기를 묻지 않았다 — 말=${s.line}",
+            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "여기는 어디야?" } != null)
+        d.speak("놀이터 갔어")
+        assertTrue(await { s.slots["place"] == "놀이터 갔어" } != null)
+        assertEquals("child", s.slotBy["place"])
+        assertTrue("둘째 이야기를 묻지 않았다 — 말=${s.line}",
+            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "여기서 무슨 일이 있었어?" } != null)
+        d.speak("몰라")
+        assertTrue(await { s.line == "괜찮아, 계속 그려 봐!" } != null)
+        assertTrue(d.push("✅ 다 그렸어"))
+        assertTrue("다 그린 뒤 이미 답한 「어디」를 또 물었다 — 말=${s.line}",
+            await { s.stage is DiaryAsk && s.line == "거기서 무슨 일이 있었어?" } != null)
+    }
+
+    /**
      * 크레용을 고른 뒤의 멈춤은 「다 그렸어?」로 세지 않는다 · 말없이 거둔 「다 그렸어?」는 말풍선에 남기지 않는다 (10-02 실기기)
      */
     @Test
@@ -424,6 +453,8 @@ class PictureDiaryFlowTest {
         assertTrue(await { s.line == "나도 강아지를 그려볼까?" } != null)
         assertTrue(d.push("아니"))
         assertTrue(await { s.diaryDay.watching } != null)
+        // 이야기 칸은 이미 찼다고 둔다 — 그리는 중 이야기 질문 없이 「다 그렸어?」 세기만 본다
+        s.slots["place"] = "놀이터"; s.slots["problem"] = "넘어졌어"
         repeat(3) {                                                  // 크레용 뒤 멈춤 셋 — 세지 않는다
             assertTrue(await { s.diaryDay.watching } != null)
             d.send(Reply.Tapped("pause", CRAYON_PAUSE)); delay(80)
