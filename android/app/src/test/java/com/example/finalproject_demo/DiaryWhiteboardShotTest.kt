@@ -63,7 +63,7 @@ class DiaryWhiteboardShotTest {
     fun whiteboardStart() {
         val d = director().apply {
             s.stage = Stage.DrawPad()
-            say("지호야, 오늘 있었던 일 하나를 그려 볼래? 생각나는 것부터 그려 줘.")
+            say("친구야, 오늘 있었던 일 하나를 그려 볼래? 생각나는 것부터 그려 줘.")
         }
         compose.mainClock.autoAdvance = false
         compose.setContent {

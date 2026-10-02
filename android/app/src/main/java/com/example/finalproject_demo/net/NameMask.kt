@@ -4,27 +4,19 @@ import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.bat
 
 /**
- * Real names stay on the phone on the way to the LLM (rule 6, 09-29 revision). Everything
- * that goes to /judge · /turn · /story — slots, utterances, the question just asked — goes
- * through [mask]; captions and mascot lines coming back go through [unmask] for the screen.
- * The mapping lives only here, never on the server.
+ * Names and the placeholders the server writes (10-02 조장 — rule 6 revised).
  *
- * The voice is the other half (09-29, 조장): a line sent to the voice vendor (`/tts`) goes through [speakable].
- * With the guardian's optional name consent it reads the real name ("지민아!"); without it the
- * child is 「너」 (called 「친구야」) and a friend 「그 친구」 (10-01). Masking costs the LLM nothing, so it stays; reading the name is
- * what the child notices, so that is what the consent unlocks.
+ * **Names are no longer hidden.** The child's call is a nickname the guardian chose (`ChildCall`),
+ * and a name alone does not single out a child — hiding it made the mascot say 「너」 · 「그 친구」
+ * and the friend's name never reached the story. So [mask] passes text through untouched, and the
+ * voice reads names as they are ([speakable]).
  *
- * The child is `{주인공}`; friends are `{친구1}`, `{친구2}`… in the order given. Build one per
- * session with [DemoState.nameMask] and use the same one both ways, or `{친구1}` could come
- * back as a different friend.
- *
- * ⚠️ It only hides names it was told. A friend the child names for the first time mid-sentence
- * is not in the list yet — add it (and rebuild) before that text is sent.
+ * What stays: the server's prompts still write the protagonist as `{주인공}` (and may write
+ * `{친구n}`), so [unmask] turns those back into names with the particle fixed for the name.
+ * The child is `{주인공}`; friends are `{친구1}`, `{친구2}`… in the order given.
  */
 class NameMask(child: String?, friends: List<String> = emptyList()) {
 
-    /** real name → placeholder. Longest first, so "민수아" is not eaten as "민수" + "아". */
-    private val toMark: List<Pair<String, String>>
     private val toName: Map<String, String>
 
     init {
@@ -33,18 +25,11 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
             friends.map { it.trim() }.filter { usable(it) && it != child?.trim() }.distinct()
                 .forEachIndexed { i, f -> add(f to "{친구${i + 1}}") }
         }
-        toMark = pairs.sortedByDescending { it.first.length }
         toName = pairs.associate { (name, mark) -> mark to name }
     }
 
-    /** Names → placeholders. A name counts only at the start of a word, so "지호" does not hide inside "보지호수". */
-    fun mask(text: String): String {
-        var out = text
-        for ((name, mark) in toMark) {
-            out = Regex("(?<![가-힣A-Za-z])" + Regex.escape(name)).replace(out, Regex.escapeReplacement(mark))
-        }
-        return out
-    }
+    /** Kept so callers need not change: names are no longer hidden (10-02), so text passes as is. */
+    fun mask(text: String): String = text
 
     fun maskSlots(slots: Map<String, String?>): Map<String, String?> = slots.mapValues { (_, v) -> v?.let { mask(it) } }
 
@@ -59,44 +44,17 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
             name + fixParticle(name, m.groupValues[2])
         }
 
-    /**
-     * A line for the mascot's voice (TypeCast). [named] = the guardian agreed to names being read
-     * (`ConsentStore.nameVoiceAgreed`). Without it no real name leaves in the voice: the child is
-     * spoken to as "너" (네가 · 너를 · 너와 …), calling the child ("지민아,") is "친구야,";
-     * a friend becomes "그 친구". Takes masked or unmasked text alike: real names are masked first.
-     *
-     * 10-01 (#50 · 민우 S25): the child used to be "우리 친구" and a friend "친구", so one line
-     * said "친구와 함께 갈 친구는 누구일까?" — two different people under one word.
-     */
-    fun speakable(text: String, named: Boolean): String {
-        val masked = mask(text)
-        if (named) return unmask(masked)
-        return MARK.replace(masked) { m ->
-            if (m.groupValues[1] == HERO) you(m.groupValues[2])
-            else "그 친구" + fixParticle("친구", m.groupValues[2])
-        }
-    }
+    /** A line for the mascot's voice: placeholders become names, names stay names (10-02). */
+    fun speakable(text: String): String = unmask(text)
 
     companion object {
         const val HERO = "{주인공}"
 
-        /** The child as "너" — 가 and 이가 take the irregular 네가; calling the child is "친구야" */
-        private fun you(p: String): String = when (p) {
-            "이", "가", "이가" -> "네가"
-            "은", "는", "이는" -> "너는"
-            "을", "를" -> "너를"
-            "과", "와" -> "너와"
-            "이랑", "랑" -> "너랑"
-            "으로", "로" -> "너로"
-            "아", "야" -> "친구야"      // 10-01: dropping the call left lines starting cold
-            else -> "너$p"
-        }
-
         // placeholder + the particle glued to it (longest alternatives first)
         private val MARK = Regex("(\\{주인공\\}|\\{친구\\d+\\})(으로|이랑|이는|이가|은|는|이|가|을|를|과|와|로|랑|아|야)?")
 
-        /** A one-letter name would hide inside ordinary words; blank is nothing. */
-        private fun usable(n: String) = n.length >= 2 && !n.startsWith("{")
+        /** Blank is nothing; a placeholder is not a name. One letter is fine now — nothing is hidden (10-02). */
+        private fun usable(n: String) = n.isNotBlank() && !n.startsWith("{")
 
         private val PAIRS = mapOf(
             "은" to ("은" to "는"), "는" to ("은" to "는"),
@@ -119,16 +77,12 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
     }
 }
 
-/**
- * The session's mask: the child's name, and the friend in this story if it has a real name.
- * A story character the child named ("뿌뿌") is masked too — a child may name it after a real
- * friend, and hiding a made-up name costs nothing because it comes back on the phone.
- */
+/** The session's names — the child's call and the friend in this story — for turning placeholders back. */
 fun DemoState.nameMask(): NameMask = NameMask(
     childName,
     listOfNotNull(
         friendName.takeUnless { it.startsWith("{") },
-        // 「누구랑?」에 친구 이름으로 답했으면(「민수」) 그 이름도 가린다 — 호칭(삼촌 · 형)은 이름이 아니다
+        // 「누구랑?」에 친구 이름으로 답했으면(「민수」) — 호칭(삼촌 · 형)은 이름이 아니다
         partnerCall.takeIf { partnerKey == "friend" },
     ),
 )
