@@ -49,8 +49,15 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
             val books = JSONArray(raw)
             (0 until books.length()).flatMap { i ->
                 val entry = books.getJSONObject(i)
-                listOfNotNull(entry.getString("bgName"),
-                    entry.optJSONObject("visuals")?.optJSONObject("hero")?.optString("image")?.takeIf { it != "null" })
+                buildList {
+                    add(entry.get("bgName") as? String ?: error("Unreadable story background reference"))
+                    if (entry.has("visuals") && !entry.isNull("visuals")) {
+                        val hero = entry.getJSONObject("visuals").getJSONObject("hero")
+                        check(hero.has("image")) { "Unknown story hero references" }
+                        if (!hero.isNull("image"))
+                            add(hero.get("image") as? String ?: error("Unreadable story hero reference"))
+                    }
+                }
             }.toSet()
         }.getOrNull()
     }
@@ -80,17 +87,33 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
     }
 
     override fun save(book: SavedStoryBook) {
-        val all = listOf(book) + load().filterNot { it.id == book.id }
+        val all = listOf(book) + writableBooks().filterNot { it.id == book.id }
         require(all.size <= STORY_SHELF_CAPACITY) { "Choose a story to replace before adding a thirteenth book" }
         write(all)
     }
 
     override fun replace(book: SavedStoryBook, oldId: String) {
-        val current = load()
+        val current = writableBooks()
         require(oldId != book.id && current.any { it.id == oldId }) { "The chosen story is no longer available" }
         val all = listOf(book) + current.filterNot { it.id == oldId || it.id == book.id }
         require(all.size <= STORY_SHELF_CAPACITY)
         write(all)
+    }
+
+    /** Reading can skip damaged entries, but writing must never silently erase them. */
+    private fun writableBooks(): List<SavedStoryBook> {
+        val raw = prefs.getString("books", null) ?: return emptyList()
+        check(imageReferences() != null) { "Cannot overwrite unknown story image references" }
+        val entries = JSONArray(raw)
+        val books = load()
+        check(books.size == entries.length()) { "Cannot overwrite unreadable story metadata" }
+        books.forEachIndexed { i, book ->
+            val entry = entries.getJSONObject(i)
+            check(!entry.has("visuals") || entry.isNull("visuals") || book.visuals != null) {
+                "Cannot overwrite an unsupported story art version"
+            }
+        }
+        return books
     }
 
     private fun write(all: List<SavedStoryBook>) {
