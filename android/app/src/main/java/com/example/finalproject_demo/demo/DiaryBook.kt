@@ -131,7 +131,8 @@ fun buildDiaryBook(input: DiaryBookInput): List<DiaryPage> {
 
     val pages = mutableListOf<DiaryPage>()
     if (input.hasDrawing) {
-        val text = if (names.isEmpty()) "내가 오늘 그린 그림이에요." else "나는 오늘 ${names.joinToString(", ")}${eul(names.last())} 그렸어요."
+        val listed = drawnList(names)
+        val text = if (listed.isEmpty()) "내가 오늘 그린 그림이에요." else "나는 오늘 ${listed.joinToString(", ")}${eul(listed.last())} 그렸어요."
         pages += page(DiaryPageKind.DRAWING, text, castAll = true).copy(by = if (names.isEmpty()) null else "child")
     }
     val written = input.written?.map(String::trim)?.filter(String::isNotEmpty)
@@ -230,6 +231,13 @@ internal fun mentions(text: String, name: String): Boolean {
     val re = Regex("(^|[\\s,])${Regex.escape(name)}($PARTICLES)?(?=[\\s,.!?]|$)")
     return re.containsMatchIn(text) || (name == "나" && Regex("(^|\\s)내가(\\s|$)").containsMatchIn(text))
 }
+
+/**
+ * 1쪽 「나는 오늘 ○○를 그렸어요」에 늘어놓을 이름 — 다른 이름 안에 낱말로 들어 있는 이름은 뺀다.
+ * 「강아지, 우리 집 강아지 뽀삐」 → 「우리 집 강아지 뽀삐」 · 「나, 엄마랑 나」 → 「엄마랑 나」. 조각은 그대로 다 나온다(문장만)
+ */
+internal fun drawnList(names: List<String>): List<String> =
+    names.filter { n -> names.none { m -> m != n && mentions(m, n) } }
 
 /** 문장이 그 조각을 장소로 쓰나 (「우리 집 앞에」 · 「놀이터에서」) — 그 조각은 걷지 않는다 */
 internal fun asPlace(text: String, name: String): Boolean =

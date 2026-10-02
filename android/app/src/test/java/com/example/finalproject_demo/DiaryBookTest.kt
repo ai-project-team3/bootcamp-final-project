@@ -240,6 +240,16 @@ class DiaryBookTest {
         assertTrue("세 조각을 못 만드는 그림에 놀이를 붙였다", gap.none { it.kind == DiaryPageKind.PUZZLE })
     }
 
+    /** 1쪽 이름 나열 — 다른 이름 안에 든 이름은 빼서 겹치지 않게(10-01 실기기 「강아지, 우리 집 강아지 뽀삐를 그렸어요」) */
+    @Test
+    fun theFirstPageDoesNotRepeatANameInsideAnother() {
+        val book = buildDiaryBook(DiaryBookInput(emptyMap(), pieceNames = listOf("강아지", "우리 집 강아지 뽀삐", "해"), hasDrawing = true))
+        assertEquals("나는 오늘 우리 집 강아지 뽀삐, 해를 그렸어요.", book.first().text)
+        assertEquals("조각은 다 나온다", listOf("강아지", "우리 집 강아지 뽀삐", "해"), book.first().cast)
+        val plain = buildDiaryBook(DiaryBookInput(emptyMap(), pieceNames = listOf("나무", "나"), hasDrawing = true))
+        assertEquals("「나무」 속 「나」는 낱말이 아니다", "나는 오늘 나무, 나를 그렸어요.", plain.first().text)
+    }
+
     /** 「엄마랑 미끄럼틀 탔어」 — 같이 있던 엄마는 통통, 미끄럼틀은 문장대로. 1쪽(전체 그림)에는 없다 (프로토타입 `withWho`) */
     @Test
     fun whoWasThereTooHops() {
