@@ -1,7 +1,14 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.COOP_SHELF_CAPACITY
+import com.example.finalproject_demo.demo.COOP_SHELF_ID
+import com.example.finalproject_demo.demo.CoopBookStore
 import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.demo.CoopShelf
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.PageKind
+import com.example.finalproject_demo.demo.SavedStoryBook
+import com.example.finalproject_demo.demo.SavedStoryPage
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.coopAsked
@@ -310,14 +317,77 @@ class CoopFlowTest {
     fun theShelfButtonAppearsOnTheChildScreenAfterTheGifts() = run { d ->
         val s = d.s
         d.startCoopWith("오늘 어디 갔었어?", "무슨 일이 있었어?")
+        d.walkToShelfButton()
+        val gifts = s.stage as? com.example.finalproject_demo.demo.Stage.Gifts
+        assertTrue("선물 화면이 아니다: ${s.stage}", gifts != null)
+        // 고친 뒤에는 **선물 수가 아니라 `done`** 이 버튼을 그린다 — 안 그린 날은 선물이 하나뿐이다 (9/22)
+        assertTrue(
+            "아이 화면에 [책장에 꽂기]가 없다 — Gifts(shown=${gifts!!.shown}, done=${gifts.done}). 여기서 앱이 멎는다",
+            gifts.done,
+        )
+    }
+
+    /** 같이 만든 책은 **협업 책장에 저장**되고, 책장에서 다시 열면 쪽마다 문장이 있다 (#83). 동화 책장은 건드리지 않는다 */
+    @Test
+    fun aFinishedCoopBookIsSavedToTheCoopShelfAndReopens() = run { d ->
+        val s = d.s
+        val store = MemoryCoopStore()
+        CoopShelf.attach(s, store)
+        d.startCoopWith(pick = CoopPick("place", "동물원", "done"))
+        d.walkToShelfButton()
+        s.buttons.first { "책장에 꽂기" in it.label }.onClick()
+        assertTrue("책장으로 못 갔다: ${s.line}", await(5_000) { s.scene == Scene.SHELF } != null)
+
+        val saved = store.books.singleOrNull()
+        assertTrue("협업 책장에 저장되지 않았다", saved != null)
+        assertTrue("빈 쪽이 있다: ${saved!!.pages}", saved.pages.isNotEmpty() && saved.pages.all { it.caption.isNotBlank() })
+        val shelved = s.shelf.first()
+        assertEquals(COOP_SHELF_ID + saved.id, shelved.savedStoryId)
+        assertTrue("새로 꽂힌 책 표시가 없다", shelved.fresh)
+        assertEquals("동화 책장에 섞였다", null, d.savedStory(saved.id))
+
+        // 책장에서 누르면 저장된 그 책이 열린다
+        d.send(com.example.finalproject_demo.demo.Reply.Tapped("book", shelved.savedStoryId!!))
+        val opened = await(5_000) { (s.stage as? com.example.finalproject_demo.demo.Stage.SavedStory)?.book?.id == saved.id }
+        assertTrue("책장에서 다시 열리지 않았다: ${s.stage}", opened != null)
+    }
+
+    /** 12권이 차 있으면 **아무것도 지우지 않고** 이번 책은 꽂지 않는다 — 뺄 책 고르기는 책장 전체의 일이다 (guidelines/3 §3-5) */
+    @Test
+    fun aFullCoopShelfDeletesNothing() = run { d ->
+        val s = d.s
+        val store = MemoryCoopStore((1..COOP_SHELF_CAPACITY).map { coopBook("old$it") })
+        CoopShelf.attach(s, store)
+        d.startCoopWith(pick = CoopPick("place", "동물원", "done"))
+        d.walkToShelfButton()
+        s.buttons.first { "책장에 꽂기" in it.label }.onClick()
+        assertTrue(await(5_000) { s.scene == Scene.SHELF } != null)
+        assertEquals((1..COOP_SHELF_CAPACITY).map { "old$it" }, store.books.map { it.id })
+        assertTrue("꽉 찬 책장에 새 책이 꽂혔다", s.shelf.none { it.fresh })
+    }
+
+    private class MemoryCoopStore(start: List<SavedStoryBook> = emptyList()) : CoopBookStore {
+        val books = start.toMutableList()
+        override fun load() = books.toList()
+        override fun save(book: SavedStoryBook) {
+            require(books.size < COOP_SHELF_CAPACITY)
+            books.add(0, book)
+        }
+    }
+
+    private fun coopBook(id: String) =
+        SavedStoryBook(id, "책 $id", "space", "bg_space", listOf(SavedStoryPage(PageKind.TOGETHER, "같이 놀았어요.")))
+
+    /** 책까지 🎲로 밀고, 책 → 친구 평가 → 선물을 지나 [책장에 꽂기]가 뜰 때까지 */
+    private suspend fun Director.walkToShelfButton() {
         // 책까지
         var guard = 0
         while (s.scene == Scene.DIARY && guard++ < 40) {
             if (await(2_000) { s.buttons.any { "🎲" in it.label } } == null) break
-            if (!d.push("🎲")) break
+            if (!push("🎲")) break
             delay(40)
         }
-        if (await(3_000) { s.buttons.any { "안 그릴래" in it.label } } != null) d.tap("안 그릴래")
+        if (await(3_000) { s.buttons.any { "안 그릴래" in it.label } } != null) tap("안 그릴래")
         assertTrue("책까지 못 갔다", await(20_000) { s.scene == Scene.BOOK } != null)
 
         // 책 → 친구 평가 → 선물: 시연 서랍 버튼 중 대답 없는 것을 빼고 하나씩 민다 (치영 StoryFlowTest 방식)
@@ -338,13 +408,6 @@ class CoopFlowTest {
 
         // 감독이 "shelf" 를 기다리기 시작하는 순간(서랍에 [책장에 꽂기]가 뜬 뒤) 아이 화면에도 버튼이 있어야 한다
         assertTrue(await(10_000) { s.buttons.any { "책장에 꽂기" in it.label } } != null)
-        val gifts = s.stage as? com.example.finalproject_demo.demo.Stage.Gifts
-        assertTrue("선물 화면이 아니다: ${s.stage}", gifts != null)
-        // 고친 뒤에는 **선물 수가 아니라 `done`** 이 버튼을 그린다 — 안 그린 날은 선물이 하나뿐이다 (9/22)
-        assertTrue(
-            "아이 화면에 [책장에 꽂기]가 없다 — Gifts(shown=${gifts!!.shown}, done=${gifts.done}). 여기서 앱이 멎는다",
-            gifts.done,
-        )
     }
 
     @Test
