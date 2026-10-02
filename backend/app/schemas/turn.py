@@ -3,7 +3,7 @@
 The line is split from the judge on purpose (§2): a wrong verdict must still
 leave the mascot something to say, and a failed line must not lose the verdict.
 """
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 
@@ -11,9 +11,12 @@ from .judge import JudgeRequest, JudgeResult
 
 
 class TurnRequest(JudgeRequest):
-    # coop: the parent wrote the next question in advance, the app reads it.
-    # The mascot keeps the reaction (ack · expand) and leaves the question empty.
+    # false: the app already has the next question (in coop, a parent's question is next) and
+    # reads it itself. The mascot keeps the reaction (ack · expand) and leaves the question empty.
     ask: bool = True
+    # coop only: why the parent picked the story (CoopTemplates.kt CoopReason) — sets the tense of
+    # the question, as /story does for the book (#52 · #53 C). done · soon · dream; None = done
+    reason: Optional[Literal["done", "soon", "dream"]] = None
 
 
 class Line(BaseModel):

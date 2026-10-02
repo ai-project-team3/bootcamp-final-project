@@ -51,7 +51,9 @@ def user(req: TurnRequest, v: JudgeResult | None) -> str:
         f"ask:{'true' if req.ask else 'false'}\n"
         f"level:{req.level or ''}\n"
         f"template:{req.template or ''}\n"
-        f"question_just_asked:{req.question}\n"
+        # coop: the tense of the question follows why the parent picked the story (#53 C)
+        + (f"reason:{req.reason or 'done'}\n" if req.mode == "coop" else "")
+        + f"question_just_asked:{req.question}\n"
         f"utterance:{req.utterance}\n"
         f"value:{' / '.join(values)}\n"
         f"next_slot:{(v.next_slot if v else None) or ''}\n"
