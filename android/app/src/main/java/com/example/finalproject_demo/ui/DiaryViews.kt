@@ -259,7 +259,9 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
         delay(quietFor)
         if (live.isNotEmpty()) return@LaunchedEffect          // 아직 긋는 중 — 천천히 긋는 선을 잘라 묻지 않는다
         // 오또가 지켜보는 중에만 — 묻는 중 · 고르는 중 · 아이가 말하는 중(녹음)에는 보내지 않는다
-        if (day.watching && !s.micOn && stage.pick == null) d.send(Reply.Tapped("pause", if (quietFor == COLOR_PAUSE_MS) CRAYON_PAUSE else "붓 멈춤"))
+        val label = if (quietFor == COLOR_PAUSE_MS) CRAYON_PAUSE else "붓 멈춤"
+        // 지켜보는 중이면 바로 알리고, 아니면(말하는 중 · 묻는 중 · 고르는 중) 남겨 둔다 — 흐름이 돌아오면 받는다
+        if (day.watching && !s.micOn && stage.pick == null) { day.pendingPause = null; d.send(Reply.Tapped("pause", label)) } else day.pendingPause = label
     }
 
     Box(Modifier.fillMaxSize()) {
