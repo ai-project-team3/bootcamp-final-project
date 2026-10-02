@@ -9,9 +9,9 @@ import com.example.finalproject_demo.demo.bat
  * through [mask]; captions and mascot lines coming back go through [unmask] for the screen.
  * The mapping lives only here, never on the server.
  *
- * The voice is the other half (09-29, 조장): a line sent to TypeCast goes through [speakable].
+ * The voice is the other half (09-29, 조장): a line sent to the voice vendor (`/tts`) goes through [speakable].
  * With the guardian's optional name consent it reads the real name ("지민아!"); without it the
- * name becomes "우리 친구". Masking costs the LLM nothing, so it stays; reading the name is
+ * child is 「너」 (called 「친구야」) and a friend 「그 친구」 (10-01). Masking costs the LLM nothing, so it stays; reading the name is
  * what the child notices, so that is what the consent unlocks.
  *
  * The child is `{주인공}`; friends are `{친구1}`, `{친구2}`… in the order given. Build one per

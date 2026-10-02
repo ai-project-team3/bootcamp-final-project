@@ -302,5 +302,3 @@ val BottomChrome = 116.dp
 /** 위 여백 — 🏠 · 🔒(누르는 자리 10 + 56dp)과 진행 막대 아래 */
 val TopChrome = 72.dp
 
-@Composable
-fun FullHeightSpacer() = Spacer(Modifier.fillMaxHeight())

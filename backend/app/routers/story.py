@@ -4,15 +4,14 @@ The prompt is read from eval/, not copied (one thing in one place):
 story → story_prompt.md, diary · coop → story_prompt_diary.md.
 """
 import json
-import re
 from functools import lru_cache
 
 from fastapi import APIRouter, HTTPException
 
 from ..config import REPO, settings
-from ..filters.blocklist import BLOCK, ALLOW
+from ..filters.blocklist import has_unknown_placeholder, is_blocked
 from ..llm.client import LLMError, complete
-from ..llm.judge_prompt import system_block
+from ..llm.judge_prompt import load_schema, system_block
 from ..schemas.story import Scene, StoryRequest, StoryResult
 
 router = APIRouter()
@@ -30,10 +29,8 @@ def system(mode: str) -> str:
     return system_block(EVAL / ("story_prompt.md" if mode == "story" else "story_prompt_diary.md"))
 
 
-@lru_cache(maxsize=1)
 def schema() -> dict:
-    s = json.loads((EVAL / "story_schema.json").read_text(encoding="utf-8"))
-    return {k: v for k, v in s.items() if k not in ("name", "description")}
+    return load_schema("story_schema.json")
 
 
 # What each page is for. The app's PageKind names; the meanings follow StoryBank.kt templates.
@@ -108,10 +105,6 @@ def user(req: StoryRequest) -> str:
     return f"모드: {req.mode}\n채워진 칸: {slots}\n칸마다 by: {by}\n맺음: {keep}{tail}"
 
 
-def _eojeol(text: str) -> list[str]:
-    return [w.strip(".,!?~…\"'") for w in text.split()]
-
-
 def check(result: StoryResult, mode: str, pages: list | None = None) -> str | None:
     """Why this book must not reach the child, or None. A bad book is thrown away, not patched."""
     if pages:
@@ -123,11 +116,9 @@ def check(result: StoryResult, mode: str, pages: list | None = None) -> str | No
         if not lo <= len(result.scenes) <= hi:
             return f"{len(result.scenes)} scenes (want {lo}-{hi})"
     for sc in result.scenes:
-        words = _eojeol(sc.caption)
-        if any(w in BLOCK for w in words) and not any(w in ALLOW for w in words):
+        if is_blocked(sc.caption):
             return f"blocked word in scene {sc.index}"
-        # a real name would mean the model invented one: names come in only as {주인공} · {친구n}
-        if re.search(r"\{(?!주인공\}|친구\d\})[^}]*\}", sc.caption):
+        if has_unknown_placeholder(sc.caption):
             return f"unknown placeholder in scene {sc.index}"
     return None
 

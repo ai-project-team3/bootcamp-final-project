@@ -28,11 +28,16 @@ system_block = _blocks.system_block      # the story's cut
 judge_system = _blocks.judge_system      # the judge's cut (whole file — 09-28 measurement)
 
 
-@lru_cache(maxsize=1)
-def schema() -> dict:
-    s = json.loads((EVAL / "judge_schema.json").read_text(encoding="utf-8"))
+@lru_cache(maxsize=None)
+def load_schema(file: str) -> dict:
+    """An eval/*_schema.json as the API wants it. Judge, story, line and image all read theirs here."""
+    s = json.loads((EVAL / file).read_text(encoding="utf-8"))
     # the file carries name/description for humans; the API wants the bare schema
     return {k: v for k, v in s.items() if k not in ("name", "description")}
+
+
+def schema() -> dict:
+    return load_schema("judge_schema.json")
 
 
 @lru_cache(maxsize=1)
