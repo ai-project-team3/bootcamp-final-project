@@ -856,16 +856,9 @@ class DemoState {
 
     /**
      * 미리 넣어 둔 질문 중 **몇 개를 썼나**. `parentQuestions.size` 에 닿으면 소진이다.
-     * 소진 뒤에 무엇을 하는지는 진웅이 정한다 — AI 추천으로 넘어가나, 마스코트가 이어받나.
+     * 소진 뒤 흐름은 `CoopScenes` 가 정한다(빈 줄은 세지 않는다).
      */
     var parentQIndex by mutableStateOf(0)
-
-    /** 미리 넣어 둔 질문이 남았나 */
-    val hasParentQuestion: Boolean get() = parentQIndex < parentQuestions.size
-
-    /** 다음 질문을 꺼내고 인덱스를 올린다. 없으면 null */
-    fun nextParentQuestion(): String? =
-        if (hasParentQuestion) parentQuestions[parentQIndex++] else null
 
     /**
      * 부모가 넣은 질문을 비운다 — **한 권이 끝났을 때만.**
@@ -881,18 +874,6 @@ class DemoState {
      * 소개하는 데만 쓴다. 줄을 손으로만 적었으면 null. [clearParentQuestions] 가 같이 비운다.
      */
     var coopPick by mutableStateOf<CoopPick?>(null)
-
-    /**
-     * 협업 모드 아이 화면의 제목 (09-22 박진웅 요청).
-     * `Scene.DIARY` 를 협업이 그대로 쓰는데 라벨이 "오늘 있었던 일 말하기"라 협업에서도 그대로 떴다.
-     * ⚠️ 협업은 **일기가 아니다** — 부모가 넣은 질문에 답하는 모드라 "있었던 일"이 전제가 아니다.
-     * 진웅이 다른 문구를 쓰고 싶으면 [coopLabel] 만 바꾸면 된다.
-     */
-    var coopLabel by mutableStateOf("오늘 이야기 나누기")
-
-    /** 화면 제목 — 협업일 때만 갈아끼운다. 그리기는 `MainActivity` 가 이 값을 쓴다 */
-    val sceneLabel: String get() =
-        if (isCoop && scene == Scene.DIARY) coopLabel else scene.label
 
 
     /** 일기 모드가 시작된 시각 — 끝나는 조건 셋 중 "15분 경과"를 재는 데 쓴다 (guidelines/2 §1-1) */
