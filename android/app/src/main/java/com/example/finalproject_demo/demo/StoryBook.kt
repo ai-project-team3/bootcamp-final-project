@@ -26,6 +26,7 @@ fun DemoState.useGeneratedStory(captions: List<String>?): Boolean {
 
 /** 서버 문장은 미션 직전에서 끝난다. 아이가 미션을 끝낸 뒤에만 책 자막에 결과를 더한다. */
 fun DemoState.storyMissionResult(i: Int): String? {
+    if (isCoop && storyCaptions != null) return coopMissionResult(pageKind(i))   // 협업 결과 문장은 CoopScenes.kt (#52 2번)
     if (mode != StoryMode.STORY || storyCaptions == null) return null
     return when (pageKind(i)) {
         PageKind.RUB -> if (m1Result != null) {
