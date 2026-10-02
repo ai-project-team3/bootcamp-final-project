@@ -2,11 +2,12 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 
-# Docker owns the process from here: a container started with `docker run -d` lives in
-# dockerd's own process tree, not the Actions runner step's, so it survives the step/job
-# ending without the WMI workaround the old Start-Process-based script needed.
+# Build BEFORE touching the running container: the build takes minutes, and the old
+# otto-backend keeps serving the phones the whole time. Retagging otto-backend does not
+# affect a running container (it keeps the image it was started from). A failed build
+# throws here, so the old container is never removed and the server stays up.
 docker build -f (Join-Path $repoRoot "backend\Dockerfile") -t otto-backend $repoRoot
-if ($LASTEXITCODE -ne 0) { throw "docker build failed (exit $LASTEXITCODE)" }
+if ($LASTEXITCODE -ne 0) { throw "docker build failed (exit $LASTEXITCODE) - old container left running" }
 
 $hfCache = Join-Path $env:USERPROFILE ".cache\huggingface"
 New-Item -ItemType Directory -Force -Path $hfCache | Out-Null
@@ -19,6 +20,13 @@ if (-not (docker network ls --filter name=^otto$ --format '{{.Name}}')) {
     docker network create otto | Out-Null
 }
 
+# Only now swap: remove the old container and start the new one back to back, so the
+# downtime is the container restart plus model load, not the image build.
+& (Join-Path $PSScriptRoot "stop_backend.ps1")
+
+# Docker owns the process from here: a container started with `docker run -d` lives in
+# dockerd's own process tree, not the Actions runner step's, so it survives the step/job
+# ending without the WMI workaround the old Start-Process-based script needed.
 docker run -d --name otto-backend --gpus all `
     --network otto `
     --env-file C:\otto\.env `
@@ -28,3 +36,22 @@ docker run -d --name otto-backend --gpus all `
 if ($LASTEXITCODE -ne 0) { throw "docker run failed (exit $LASTEXITCODE)" }
 
 Write-Host "started otto-backend container"
+
+# Whisper loads at container start, so /health can take a while to answer. Only report how
+# long it took; the workflow's own health check step decides pass/fail.
+$sw = [Diagnostics.Stopwatch]::StartNew()
+$up = $false
+while ($sw.Elapsed.TotalSeconds -lt 90) {
+    try {
+        Invoke-RestMethod -Uri http://localhost:8000/health -TimeoutSec 3 | Out-Null
+        $up = $true
+        break
+    } catch {
+        Start-Sleep -Seconds 2
+    }
+}
+if ($up) {
+    Write-Host ("backend answering /health after {0:N0}s" -f $sw.Elapsed.TotalSeconds)
+} else {
+    Write-Warning "backend not answering /health after 90s - still loading? check: docker logs otto-backend"
+}

@@ -71,6 +71,8 @@ data class Question(
      * 흐름(사다리 · 무응답 · 마스코트 채우기)은 동화 모드와 **똑같다** (9/21).
      */
     val silent: Boolean = false,
+    /** 첫 답을 기다리는 초 — null 이면 [kind] 의 기본(쉬운 5 · 어려운 8 · 고르기 7). 그림일기 D1 은 그리면서 답해서 길게 둔다 */
+    val waitSec: Double? = null,
 )
 
 class Director(
@@ -241,7 +243,49 @@ class Director(
         val audio = scope.async { Voice.baked(line) ?: Server.tts(line) }.also { queueVoice(it) }
         voiceJob = queueVoice(scope.launch {
             before?.join()
-            audio.await()?.let { Voice.playAndWait(it) }
+            audio.await()?.let { play(it) }
+        })
+    }
+
+    // ── 말 사이 숨 (10-02 조장 실기기) ─────────────────────────────────
+    //
+    // 구운 소리는 기다림이 0 이라 대사가 「다다다」 붙어 나왔고, 말 끝 리액션은 너무 일찍 끼어들었다.
+    // 사람 대화의 차례 넘김은 보통 0.2초 안팎이지만, 어린아이에게 말하는 어른은 더 천천히 말하고 더 쉰다.
+    // 아래 두 값은 그 사이에서 조장 귀(10-02)로 맞춘 출발점이다 — 「느리다/빠르다」 말이 나오면 이 두 줄만 고친다.
+
+    /** 마스코트 대사와 대사 사이 최소 쉼. 앞 대사가 끝난 시각부터 잰다 — 서버 대사는 이미 늦게 오므로 보통 안 기다린다 */
+    private val LINE_GAP_MS = 400L
+
+    /**
+     * 아이 말이 끝나고 리액션까지. VAD 가 이미 0.5초 침묵을 듣고 끊으므로(`Voice.vad`) 여기 0.5초를 더하면
+     * 아이가 말을 멈춘 뒤 **약 1초**에 「음~」이 나온다. 받아쓰기(약 1.1초)와 겹쳐 흐르므로 질문은 늦어지지 않는다.
+     */
+    private val NEUTRAL_DELAY_MS = 500L
+
+    @Volatile private var lastVoiceEnd = 0L
+
+    private suspend fun play(audio: ByteArray) {
+        val wait = LINE_GAP_MS - (System.currentTimeMillis() - lastVoiceEnd)
+        if (wait > 0) delay(wait)
+        try { Voice.playAndWait(audio) } finally { lastVoiceEnd = System.currentTimeMillis() }
+    }
+
+    /**
+     * 아이 말이 끝나고 약 1초 뒤([NEUTRAL_DELAY_MS]) 폰에 든 중립 소리(「음~」 「응응.」 「응, 그랬구나.」)를 낸다 — 리액션 1단계(10-01).
+     * 받아쓰기 + 판정 + 목소리(공개 주소로 5~6초)를 기다리는 동안 마스코트가 듣고 있다는 걸 알린다.
+     * 아직 아이 말을 모르므로 감정 · 칭찬 · 질문이 없다. 말풍선은 바꾸지 않고, 세지도 않는다(마스코트 말).
+     * 뒤에 오는 대사는 이 소리 뒤에 줄을 선다.
+     */
+    private fun speakNeutral() {
+        if (!Server.liveFor(s.mode) || !Voice.canSpeak) return
+        val clip = Voice.neutral() ?: return
+        val before = voiceJob
+        val heardAt = System.currentTimeMillis()
+        voiceJob = queueVoice(scope.launch {
+            before?.join()
+            val wait = NEUTRAL_DELAY_MS - (System.currentTimeMillis() - heardAt)
+            if (wait > 0) delay(wait)
+            play(clip)
         })
     }
 
@@ -386,6 +430,7 @@ class Director(
             val audio = Voice.listen { stopMic }
             s.micOn = false
             if (audio == null) { log("🎤 아무것도 못 들음 → 무응답"); send(Reply.Silent); return@launch }
+            speakNeutral()
             log("🎤 끝 → 우리 서버로 받아쓰기 (${audio.size / 1024}KB)")
             val text = Voice.transcribe(audio)
             when {
@@ -620,7 +665,7 @@ class Director(
 
         // 마스코트 말이 끝나면(TTS 종료) 아이 차례 — 서버 모드는 **진짜 목소리가 끝날 때까지** 기다린다 (09-29 S25+)
         if (Server.liveFor(s.mode)) { awaitVoice(); pause(300) } else pause(1200)
-        val sec = when (q.kind) { Kind.EASY -> 5.0; Kind.HARD -> 8.0; Kind.CHOICE -> 7.0 }
+        val sec = q.waitSec ?: when (q.kind) { Kind.EASY -> 5.0; Kind.HARD -> 8.0; Kind.CHOICE -> 7.0 }
         val first = waitReply(sec)
 
         val result = when {

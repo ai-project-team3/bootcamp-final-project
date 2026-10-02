@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import com.example.finalproject_demo.demo.BRUSH_PAUSE_MS
+import com.example.finalproject_demo.demo.COLOR_PAUSE_MS
 import com.example.finalproject_demo.demo.DiaryAsk
 import com.example.finalproject_demo.demo.DiaryBoard
 import com.example.finalproject_demo.demo.DiaryFeel
@@ -49,6 +50,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -129,6 +131,24 @@ class DiaryViewsTest {
         snap("diary_board_pieces")
     }
 
+    /**
+     * D1 말풍선 — 묻는 말은 답이 올 때까지 펼쳐 둔다. 10-01 실기기: 「나도 강아를 그려볼까?」가 4초 뒤 접혀
+     * 무엇을 기다리는지 안 보였다. 그냥 하는 말은 전처럼 접힌다
+     */
+    @Test
+    fun aQuestionStaysOpenUntilItIsAnswered() {
+        val d = director()
+        drawDay(d)
+        d.s.stage = DiaryBoard()
+        d.say("나도 우리 집을 그려볼까?")
+        show(d)
+        compose.mainClock.advanceTimeBy(8_000)
+        compose.onNodeWithText("나도 우리 집을 그려볼까?").assertExists()
+        d.say("좋아, 네 그림이 최고야!")
+        compose.mainClock.advanceTimeBy(8_000)
+        compose.onNodeWithText("좋아, 네 그림이 최고야!").assertDoesNotExist()
+    }
+
     @Test
     fun ottosDrawingIsPickedBesideTheOriginal() {
         val d = director()
@@ -155,6 +175,51 @@ class DiaryViewsTest {
         }
         assertEquals("a stroke goes into the drawing as soon as it is drawn", 1, d.s.drawing.size)
         assertEquals("pause", (r as? Reply.Tapped)?.value)
+    }
+
+    /** 오또가 듣기 시작한 뒤 [act] — 끝나고 아직 답이 없으면 null (기다리는 중인 것을 돌려준다) */
+    private fun Director.listening() = CoroutineScope(Dispatchers.Default).async { withTimeoutOrNull(10_000) { awaitReply() } }
+        .also { Thread.sleep(100) }
+
+    /**
+     * 한 조각을 그리다 크레용을 바꾸러 가면 1.6초가 지나도 묻지 않는다 — 크레용 뒤로는 3초 (10-01 실기기:
+     * 색을 바꾸는 사이 다 그린 조각으로 알고 물었다)
+     */
+    @Test
+    fun pickingACrayonWaitsLongerBeforeAsking() {
+        val d = director()
+        d.s.newDiaryDay().watching = true
+        d.s.stage = DiaryBoard()
+        show(d)
+        val got = d.listening()
+        compose.onNodeWithTag("diary-board").performTouchInput { swipe(Offset(100f, 100f), Offset(300f, 200f), 200) }
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithTag("crayon-3").performClick()
+        compose.mainClock.advanceTimeBy(BRUSH_PAUSE_MS + 400)        // 획 뒤 1.6초는 지났지만 크레용 뒤 3초는 아직
+        Thread.sleep(300)
+        assertFalse("크레용을 고르는 사이 물었다", got.isCompleted)
+        compose.mainClock.advanceTimeBy(COLOR_PAUSE_MS)
+        assertEquals("pause", (runBlocking { got.await() } as? Reply.Tapped)?.value)
+    }
+
+    /** 천천히 긋는 둘째 획 — 앞 획 뒤 1.6초가 지나도 손가락이 판에 있으면 묻지 않는다. 손을 떼고 조용하면 묻는다 */
+    @Test
+    fun aSlowStrokeIsNotCutOffByThePause() {
+        val d = director()
+        d.s.newDiaryDay().watching = true
+        d.s.stage = DiaryBoard()
+        show(d)
+        val got = d.listening()
+        compose.onNodeWithTag("diary-board").performTouchInput { swipe(Offset(100f, 100f), Offset(300f, 200f), 200) }
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithTag("diary-board").performTouchInput { down(Offset(400f, 300f)); moveBy(Offset(60f, 0f)) }
+        compose.mainClock.advanceTimeBy(BRUSH_PAUSE_MS * 2)            // 손가락을 댄 채
+        Thread.sleep(300)
+        assertFalse("긋는 중에 물었다", got.isCompleted)
+        compose.onNodeWithTag("diary-board").performTouchInput { moveBy(Offset(60f, 40f)); up() }
+        compose.mainClock.advanceTimeBy(BRUSH_PAUSE_MS + 300)
+        assertEquals("pause", (runBlocking { got.await() } as? Reply.Tapped)?.value)
+        assertEquals(2, d.s.drawing.size)
     }
 
     /** D3 — 다 그린 뒤: 엎드린 오또 옆에 아이 그림을 꽂아 두고 아래 대사 칸으로 묻는다 (docs/review/일기모드_0930 A) */
@@ -222,6 +287,22 @@ class DiaryViewsTest {
         compose.mainClock.advanceTimeBy(6_000)
         snap("diary_paper_drawing")
         assertTrue("날씨가 그림의 해에서 켜지지 않았다", d.s.diaryDay.weather == DiaryWeather.SUN)
+    }
+
+    /** 1쪽(「○○을 그렸어요」)은 오또 그림을 골랐어도 아이 그림 그대로 — 다른 쪽에서는 고른 모습 (10-01) */
+    @Test
+    fun theFirstPageKeepsTheChildsOwnLines() {
+        val d = director()
+        drawDay(d)
+        d.s.diaryDay.pieces[2] = d.s.diaryDay.pieces[2].copy(look = PieceLook.OTTO)
+        val sun = d.s.diaryDay.pieces[2].id
+        d.s.slots["place"] = "우리 집 앞에서 놀았어"; d.s.slotBy["place"] = "child"
+        d.s.stage = DiaryPaper(0)
+        show(d)
+        compose.onNodeWithTag("otto-look-$sun").assertDoesNotExist()
+        d.s.stage = DiaryPaper(1)
+        compose.mainClock.advanceTimeBy(2_500)
+        compose.onNodeWithTag("otto-look-$sun").assertExists()
     }
 
     /** 서버가 준 오또 그림(정사각형 PNG)은 납작한 선 조각에 붙어도 쪼그라들지 않는다 — 조각의 긴 변만 한 정사각형 */

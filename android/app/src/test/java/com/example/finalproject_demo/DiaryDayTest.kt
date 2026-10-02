@@ -43,6 +43,20 @@ class DiaryDayTest {
         assertEquals("drawing", d.weatherBy)
     }
 
+    /** 날씨는 **낱말로** 읽는다 — 「나비」 「비행기」는 비가 아니고 「해바라기」 「해적」은 맑음이 아니다 */
+    @Test
+    fun weatherIsReadFromWholeWords() {
+        mapOf(
+            "해" to DiaryWeather.SUN, "해님" to DiaryWeather.SUN, "햇님이랑 구름" to DiaryWeather.SUN, "태양" to DiaryWeather.SUN,
+            "구름" to DiaryWeather.CLOUD, "먹구름" to DiaryWeather.CLOUD,
+            "비" to DiaryWeather.RAIN, "비 오는 날" to DiaryWeather.RAIN, "우산" to DiaryWeather.RAIN, "빗방울" to DiaryWeather.RAIN,
+            "눈사람" to DiaryWeather.SNOW, "눈송이" to DiaryWeather.SNOW,
+        ).forEach { (name, w) -> assertEquals("「$name」", w, DiaryWeather.fromPieces(listOf(name))) }
+        listOf("나비", "비행기", "비둘기", "해바라기", "해적", "바다", "눈", "놀이터").forEach {
+            assertNull("「$it」은 날씨가 아니다", DiaryWeather.fromPieces(listOf(it)))
+        }
+    }
+
     @Test
     fun aTappedWeatherIsNotOverwrittenByTheDrawing() {
         val d = DemoState().newDiaryDay()

@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +76,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.BRUSH_PAUSE_MS
+import com.example.finalproject_demo.demo.COLOR_PAUSE_MS
 import com.example.finalproject_demo.demo.BoardBox
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.DiaryAsk
@@ -246,11 +248,15 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
     var box by remember { mutableStateOf(IntSize(1, 1)) }
     val live = remember { mutableStateListOf<Offset>() }
     var strokes by remember { mutableIntStateOf(0) }
+    // 판을 만질 때마다(획 시작 · 획 끝 · 크레용) 붓 멈춤 시계를 다시 건다. 크레용을 바꿨으면 더 오래 기다린다
+    var touched by remember { mutableIntStateOf(0) }
+    var quietFor by remember { mutableLongStateOf(BRUSH_PAUSE_MS) }
 
-    // 붓 멈춤 — 마지막 획 뒤로 조용하면 알린다
-    LaunchedEffect(strokes) {
+    // 붓 멈춤 — 마지막으로 만진 뒤로 조용하면 알린다
+    LaunchedEffect(touched) {
         if (strokes == 0) return@LaunchedEffect
-        delay(BRUSH_PAUSE_MS)
+        delay(quietFor)
+        if (live.isNotEmpty()) return@LaunchedEffect          // 아직 긋는 중 — 천천히 긋는 선을 잘라 묻지 않는다
         // 오또가 지켜보는 중에만 — 묻는 중 · 고르는 중 · 아이가 말하는 중(녹음)에는 보내지 않는다
         if (day.watching && !s.micOn && stage.pick == null) d.send(Reply.Tapped("pause", "붓 멈춤"))
     }
@@ -269,7 +275,8 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                                 .shadow(cq * 0.4f, CircleShape)
                                 .background(c, CircleShape)
                                 .border(cq * 0.35f, Color.White.copy(alpha = 0.9f), CircleShape)
-                                .clickable { color = c }
+                                .clickable { color = c; quietFor = COLOR_PAUSE_MS; touched++ }
+                                .testTag("crayon-${DIARY_CRAYONS.indexOf(c)}")
                         )
                     }
                 }
@@ -284,7 +291,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                 .testTag("diary-board")
                 .pointerInput(color) {
                     detectDragGestures(
-                        onDragStart = { p -> live.clear(); live += p },
+                        onDragStart = { p -> live.clear(); live += p; touched++ },
                         onDrag = { change, _ -> live += change.position; change.consume() },
                         onDragEnd = {
                             if (live.size >= 2) {
@@ -292,7 +299,10 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                                 strokes++
                             }
                             live.clear()
+                            quietFor = BRUSH_PAUSE_MS
+                            touched++
                         },
+                        onDragCancel = { live.clear(); quietFor = BRUSH_PAUSE_MS; touched++ },
                     )
                 }
         ) {
@@ -320,7 +330,14 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                         // 고리 바로 위 — 판 맨 위에 그린 조각이면 판 안으로 내려 잘리지 않게
                         .offset(x = (maxWidth.value * b.left).dp, y = ((maxHeight.value * b.top) - cq.value * 4.4f).coerceAtLeast(4f).dp)
                         .background(if (ready) FeltCoral else FeltMustard, RoundedCornerShape(cq * 2))
-                        .then(if (ready) Modifier.clickable { d.send(Reply.Tapped("look:${p.id}", "오또 그림 보기")) } else Modifier)
+                        .then(
+                            when {
+                                ready -> Modifier.clickable { d.send(Reply.Tapped("look:${p.id}", "오또 그림 보기")) }
+                                // 그냥 이름표 — 오또가 이름을 불러 준다. 묻는 중에는 답으로 섞이지 않게 지켜볼 때만
+                                day.watching -> Modifier.clickable { d.send(Reply.Tapped("name:${p.id}", "이름 부르기")) }.testTag("tag-${p.id}")
+                                else -> Modifier
+                            }
+                        )
                         .padding(horizontal = cq * 1.2f, vertical = cq * 0.2f),
                 )
             }
@@ -358,7 +375,7 @@ private fun PieceRings(pieces: List<DiaryPiece>, asking: Int?, cq: Dp) {
 }
 
 /**
- * 작은 말풍선 (D1) — 그림판 왼쪽 아래에 얹는다. 오또가 말을 마치고 조금 지나면 얼굴만 남기고 접힌다.
+ * 작은 말풍선 (D1) — 그림판 왼쪽 아래에 얹는다. 오또가 말을 마치고 조금 지나면 얼굴만 남기고 접힌다(묻는 말은 안 접는다).
  * 얼굴을 누르면 다시 펼친다. 마이크가 열리면(오또가 물었다) 펼쳐진 채 마이크를 보인다
  */
 @Composable
@@ -372,7 +389,8 @@ private fun DiaryBubble(d: Director, cq: Dp, modifier: Modifier) {
         shown = 0
         while (shown < text.length) { delay(28); shown++ }
         delay(4_000)
-        if (!s.micOn) tucked = true
+        // 묻는 말은 답이 올 때까지 펼쳐 둔다 — 접히면 아이는 오또가 무엇을 기다리는지 모른다(10-01 실기기)
+        if (!s.micOn && !text.trimEnd().endsWith("?")) tucked = true
     }
     // 접혀도 마이크는 남는다 — 아이는 아무 때나 먼저 말해도 된다. 말하는 중에는 펼친다
     val open = !tucked || s.micOn
@@ -473,6 +491,7 @@ private fun OttoLook(piece: DiaryPiece, b: BoardBox, crop: BoardBox, wDp: Float,
     Box(
         Modifier.offset(x = x.dp, y = y.dp).size(side.dp).alpha(alpha)
             .graphicsLayer { scaleX = 2f - pop.value; scaleY = pop.value }
+            .testTag("otto-look-${piece.id}")
     ) { OttoArt(piece, Modifier.fillMaxSize()) }
 }
 
@@ -745,7 +764,8 @@ private fun PicturePanel(
     replay: Int = 0, glow: Pair<Int, DiaryWeather>? = null,
 ) {
     val s = d.s
-    val pieces = bookPieces(s)
+    // 1쪽(「○○을 그렸어요」)은 늘 아이가 그린 그대로 — 오또 그림을 골랐어도 (흐름 §D5 · 10-01 진웅)
+    val pieces = bookPieces(s).let { all -> if (page.kind == DiaryPageKind.DRAWING) all.map { it.copy(look = PieceLook.ORIGINAL) } else all }
     val density = LocalDensity.current
     var poke by remember(page) { mutableStateOf<Pair<Int, Int>?>(null) }      // 조각 id · 누른 차례
     var said by remember(page) { mutableStateOf<Pair<Int, String>?>(null) }   // 조각 id · 한마디
@@ -807,7 +827,7 @@ private fun PicturePanel(
                     else -> null to 0
                 }
                 PieceLayer(
-                    p, crop, if (moves) page.move else null, a, wDp, hDp, rxTool, nonce,
+                    p, crop, if (!moves) null else if (p.name in page.with) PieceMove.HOP else page.move, a, wDp, hDp, rxTool, nonce,
                     shift = moved[p.id] ?: Offset.Zero, glowing = p.id == glow?.first,
                 )
             }
@@ -1019,7 +1039,7 @@ fun DiaryShelfCover(s: DemoState, title: String, modifier: Modifier = Modifier) 
 // ── D5 🧩 내 그림 맞추기 ─────────────────────────────────────────
 
 /** 퍼즐 조각 수 · 섞인 차례(처음부터 맞게 놓이지 않게) · 원고지 자리에서의 크기 */
-private const val PUZZLE_N = 3
+private const val PUZZLE_N = com.example.finalproject_demo.demo.PUZZLE_STRIPS
 private val PUZZLE_SHUFFLE = listOf(2, 0, 1)
 private const val PUZZLE_SMALL = 0.4f
 

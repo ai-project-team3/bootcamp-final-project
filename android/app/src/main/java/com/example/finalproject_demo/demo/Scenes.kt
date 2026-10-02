@@ -1582,31 +1582,49 @@ private suspend fun Director.sceneFriends() {
         buttons(*b.toTypedArray())
     }
     refresh()
+    val interruptible = s.mode == StoryMode.STORY
+    var pending: Reply? = null
     while (true) {
-        val r = awaitReply() as? Reply.Tapped ?: continue
+        val reply = pending ?: if (interruptible) awaitChoice() else awaitReply()
+        pending = null
+        val r = reply as? Reply.Tapped
+        if (r == null) {
+            if (interruptible) pending = pauseOrChoice(0)
+            continue
+        }
         if (r.value == "done") break
         val (act, id) = r.value.split(":", limit = 2).let { it.getOrElse(0) { "" } to it.getOrElse(1) { "" } }
         val i = items.indexOfFirst { it.id == id }
-        if (i < 0) continue
+        if (i < 0 || (interruptible && (act !in setOf("keep", "bye") || items[i].keep != null))) {
+            // Preserve a queued next choice even when a repeated tap is ignored.
+            if (interruptible) pending = pauseOrChoice(0)
+            continue
+        }
         val keep = act == "keep"
         items[i] = items[i].copy(keep = keep)
         s.reactions++
         event("friend_rating", "friend_id" to id, "keep" to keep)
-        if (keep) {
+        val feedback = if (keep) {
             if (items[i].name !in s.keptFriends) s.keptFriends += items[i].name
-            say("${items[i].name}${eul(items[i].name)} 또 만나자! 다음 이야기에 나올 수 있어.")
             log("또 만날래 → ${items[i].name}${eun(items[i].name)} 다음 이야기의 확인 카드 후보 (⭐26 · 폰 소품함)")
+            "${items[i].name}${eul(items[i].name)} 또 만나자! 다음 이야기에 나올 수 있어."
         } else {
-            say("${items[i].name}, 안녕! 오늘 고마웠어.")
             log("안녕 → 지우지 않는다. 폰에 남고 이 책에는 그대로 나온다")
+            "${items[i].name}, 안녕! 오늘 고마웠어."
         }
         mark("friends")
-        pause(1100)
+        if (interruptible) {
+            refresh()
+            // Do not start farewell audio when the last choice already leaves this scene.
+            if (items.all { it.keep != null }) break
+        }
+        say(feedback)
+        if (interruptible) pending = pauseOrChoice(1100) else pause(1100)
         refresh()
         if (items.all { it.keep != null }) break
     }
     say("좋아! 이제 선물이 있어.")
-    pause(1200)
+    if (!interruptible) pause(1200)
     go(Scene.END)
 }
 

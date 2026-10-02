@@ -43,8 +43,12 @@ object Voice {
 
     @Volatile private var ctx: Context? = null
 
-    /** Can this process make sound? False in unit tests (never attached) — then no `/tts` is even asked for. */
-    val canSpeak: Boolean get() = ctx != null
+    /**
+     * Can this process make sound? False in unit tests — then no `/tts` is even asked for.
+     * Screen tests start MainActivity, which attaches; Robolectric's MediaPlayer never reports the
+     * end, so a baked line (no server in the way) waited forever and hung the suite (10-01 #50 민우).
+     */
+    val canSpeak: Boolean get() = ctx != null && android.os.Build.FINGERPRINT != "robolectric"
 
     // ── lines baked into the app (10-01) ──────────────────────────
     //
@@ -61,6 +65,21 @@ object Voice {
         val name = bakedKey(line) + ".mp3"
         if (name !in bakedNames) return null
         return runCatching { ctx?.assets?.open("voice/$name")?.use { it.readBytes() } }.getOrNull()
+    }
+
+    private var lastNeutral = -1
+
+    /**
+     * A content-neutral sound for the moment the child stops talking (「음~」 · 「응응.」 · 「응, 그랬구나.」 ·
+     * eval/bake_neutral.py). The answer is not transcribed yet, so it says nothing about it; never the
+     * same one twice in a row. Null when none are bundled.
+     */
+    fun neutral(): ByteArray? {
+        val names = bakedNames.filter { it.startsWith("neutral_") }.sorted()
+        if (names.isEmpty()) return null
+        val i = names.indices.filter { it != lastNeutral || names.size == 1 }.random()
+        lastNeutral = i
+        return runCatching { ctx?.assets?.open("voice/${names[i]}")?.use { it.readBytes() } }.getOrNull()
     }
 
     /** Same key as eval/bake_lines.py: sha1 of the line with spaces collapsed, first 16 hex. */
@@ -123,6 +142,9 @@ object Voice {
             rec = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, RATE,
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, RATE * 2 * 2))
             if (rec.state != AudioRecord.STATE_INITIALIZED) return@withContext null
+            recording = true
+            // nothing of the mascot may be in the child's answer — the player lives on the main thread
+            android.os.Handler(android.os.Looper.getMainLooper()).post { stopPlaying() }
             rec.startRecording()
             val opened = System.currentTimeMillis()
             val vad = vad()                                  // normally already loaded at app start
@@ -143,6 +165,7 @@ object Voice {
             Log.w(TAG, "record failed: ${e.javaClass.simpleName} ${e.message}")
             return@withContext null
         } finally {
+            recording = false
             rec?.let { runCatching { it.stop() }; it.release() }
             // the VAD stays loaded for the next press
         }
@@ -166,6 +189,7 @@ object Voice {
     // ── out ────────────────────────────────────────────────────────
 
     private var player: MediaPlayer? = null
+    @Volatile private var recording = false
     private var done: (() -> Unit)? = null
 
     /**
@@ -175,6 +199,10 @@ object Voice {
      */
     suspend fun playAndWait(audio: ByteArray) {
         val c = ctx ?: return
+        // 10-01 evening: a line queued before 🎤 (fetched late from /tts) started playing *during* the
+        // recording, so the mascot's voice went into the child's answer and the transcript fell apart.
+        // While the mic is open, nothing plays.
+        if (recording) { Log.i(TAG, "a mascot line arrived while recording — not played"); return }
         withContext(Dispatchers.Main) {
             suspendCancellableCoroutine { cont ->
                 val finish = { if (cont.isActive) cont.resume(Unit) }
