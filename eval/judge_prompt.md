@@ -33,6 +33,20 @@
 place · problem · reaction · cause · newcomer · name · companion · sound · adult · solution · title · extra
 목록에 없는 요소는 extra에 원문 그대로 넣는다.
 
+[모드 — 입력의 mode 줄. 없으면 story]
+칸 이름은 모드와 상관없이 같은 12개다. 모드는 같은 칸을 어떻게 읽을지만 바꾼다.
+story (동화) : 아이와 함께 지어내는 이야기. 아래 판정 기준 그대로.
+  - 하겠다는 말("다리를 만들어 줄래", "우산을 씌워 줄래")이 곧 해결이다 — 물은 칸이 solution 이면 solution.
+    아래 diary 의 「바람·계획은 extra」는 story 에 쓰지 않는다.
+diary (일기) : 아이가 오늘 실제로 있었던 일을 말한다. 지어내지 않는다.
+  - 답이 "몰라"·"그냥"·"기억 안 나"뿐이면 slot_1:null. 감정·까닭·결말을 추측해 채우지 않는다.
+  - solution 은 이야기 끝에 어떻게 됐나(결말)다. 문제가 있었으면 어떻게 풀었나.
+    문제가 없던 날의 결말("다 놀고 집에 왔어")도 solution 이다.
+  - 바람·계획("또 가고 싶어", "내일 다시 할 거야")은 아직 일어나지 않은 일이다. solution 이 아니다 —
+    extra 에 원문 그대로 넣는다. 결말과 바람이 한 발화에 같이 나오면 결말은 slot_1, 바람은 slot_2:extra.
+coop (협업) : diary 와 같이 읽는다. 질문은 부모가 적어 둔 것이라 방금 물은 칸과 안 맞을 수 있다.
+  - 답이 방금 물은 칸의 내용이 아니면 그 칸을 채우지 않는다 (「제일 좋아하는 동물은?」의 "토끼"는 problem 이 아니다).
+
 [판정 기준]
 reason              : 판정 근거를 딱 한 문장. 반드시 첫 필드 — 판정보다 앞에 근거를 쓴다.
 slot_1 / value_1    : 이 발화가 채우는 칸과 값. "방금 물은 칸"에 대한 답이 보통이지만 다른 칸을
@@ -78,6 +92,9 @@ story_ready         : 템플릿 기준으로 이야기 재료가 다 찼으면 t
 
 예시 6) 슬롯: {"place":"공룡나라"} / 방금 물은 칸: newcomer / 발화: "공룡!"
 {"reason":"newcomer를 답하긴 했으나 '공룡'은 종류만 말한 것이라 생김새를 더 물으면 이야기가 풍부해짐","slot_1":"newcomer","value_1":"공룡","slot_2":null,"value_2":null,"contradiction":false,"contradiction_with":null,"s1_reason":false,"s2_addition":false,"emotion":null,"unclear":true,"unclear_of":"어떻게 생겼는지","next_slot":"newcomer","next_reason":"방금 답한 공룡의 생김새를 더 물어서 채움","no_longer_needed":null,"story_ready":false}
+
+예시 7) 모드: diary / 슬롯: {"place":"놀이터","problem":"그네를 탔어","cause":"높이 올라가서"} / 방금 물은 칸: solution / 발화: "다 놀고 집에 왔어. 또 오고 싶어"
+{"reason":"앞은 오늘의 결말, 뒤는 아직 안 한 바람이라 결말만 solution, 바람은 extra 원문","slot_1":"solution","value_1":"다 놀고 집에 왔다","slot_2":"extra","value_2":"또 오고 싶어","contradiction":false,"contradiction_with":null,"s1_reason":false,"s2_addition":true,"emotion":null,"unclear":false,"unclear_of":null,"next_slot":null,"next_reason":"결말까지 찼다","no_longer_needed":null,"story_ready":true}
 
 reason에 한 줄 근거를 먼저 쓰고, 그다음 나머지 값을 정한다.
 JSON 외에는 아무것도 출력하지 마라.
