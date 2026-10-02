@@ -120,6 +120,28 @@ class DiaryLiveTurnTest {
         }
     }
 
+    /** 판정이 `next_slot = extra` 를 주면 그 답은 `keep`(내일)에 들어간다 — 이미 답했으면 다시 묻지 않는다 (#64-3) */
+    @Test
+    fun anAnsweredWishIsNotAskedAgainWhenTheServerPicksExtra() {
+        val asked = mutableListOf<JSONObject>()
+        live({ t ->
+            asked += t
+            when (asked.size) {
+                1 -> turn(listOf("place" to "놀이터"), "extra", "놀이터에 갔구나!", "내일 또 하고 싶은 거 있어?")
+                2 -> turn(listOf("extra" to "또 미끄럼틀 타고 싶어"), "extra", "또 타고 싶구나!", "내일 또 하고 싶은 거 있어?")
+                else -> turn(emptyList(), null, "그랬구나!", null, ready = true)
+            }
+        }) { d ->
+            val s = d.s
+            d.toQuestions()
+            assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+            d.answer("놀이터 갔어") { s.line == "내일 또 하고 싶은 거 있어?" }
+            d.answer("또 미끄럼틀 타고 싶어") { asked.size == 2 && s.line != "내일 또 하고 싶은 거 있어?" }
+            assertEquals("또 미끄럼틀 타고 싶어", s.slots["keep"])
+            assertTrue("이미 답한 「내일」을 또 물었다 — 말=${s.line}", await(1_500) { s.line == "내일 또 하고 싶은 거 있어?" } == null)
+        }
+    }
+
     @Test
     fun whenTheServerFailsTheChildsWordsStayAndTheFixedOrderGoesOn() {
         live({ null }) { d ->

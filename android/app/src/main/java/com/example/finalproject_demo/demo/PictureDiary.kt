@@ -714,6 +714,12 @@ private fun Director.firstEmptyQuestion(skip: Set<String> = emptySet()): Triple<
         ?.let { Triple(judgeSlotOf(it.key), it.ask(s), it.key) }
 
 /** 판정 슬롯 → 책 키. 그림일기 쪽이 있는 칸만 책에 들어가고, 나머지는 칸에만 남는다 */
+/**
+ * 판정이 다음에 물을 칸으로 고른 [slot] 의 답이 들어갈 책 키 — 일기에서 `extra` 를 물으면 「내일 또 하고 싶은 거」라 `keep` 에 넣는다.
+ * 비었나 볼 때도 같은 키로 본다 — 전에는 `extra` 를 봐서 이미 답한 「내일」을 또 물었다 (#64-3)
+ */
+internal fun askedKeyOf(slot: String): String = if (slot == "extra") "keep" else slot
+
 private fun bookKeyOf(slot: String, askedKey: String): String = when (slot) {
     "extra" -> if (askedKey == "keep") "keep" else "extra"
     else -> slot
@@ -814,12 +820,12 @@ private suspend fun Director.askEmptySlotsLive() {
         val reaction = listOfNotNull(result.line?.ack?.takeIf(String::isNotBlank), result.line?.expand?.takeIf(String::isNotBlank)).joinToString(" ")
         if (reaction.isNotBlank()) { say(reaction); pause(600) }
         else if (v.fills.isNotEmpty()) { say(echoBack(r.text)); pause(600) }
-        val serverSlot = v.nextSlot?.takeIf { it in Server.SLOTS && s.slots[bookKeyOf(it, it)].isNullOrBlank() }
+        val serverSlot = v.nextSlot?.takeIf { it in Server.SLOTS && s.slots[askedKeyOf(it)].isNullOrBlank() }
         val serverQuestion = result.line?.question?.takeIf(String::isNotBlank)
         next = when {
             serverSlot != null && serverQuestion != null -> {
                 log("판정이 다음 칸을 골랐다 → [$serverSlot] 「$serverQuestion」")
-                Triple(serverSlot, serverQuestion, if (serverSlot == "extra") "keep" else serverSlot)
+                Triple(serverSlot, serverQuestion, askedKeyOf(serverSlot))
             }
             v.storyReady -> null
             else -> firstEmptyQuestion(gaveUp)
