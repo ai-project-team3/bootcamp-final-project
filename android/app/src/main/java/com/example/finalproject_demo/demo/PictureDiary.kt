@@ -1236,7 +1236,7 @@ private val ADNOMINAL = Regex("(는|은|던|한|인)$")
 
 private val THIS_IS = Regex("^(이건|이거는|이거|저건|저거|요건|얘는|얘)\\s+")
 /** 「더 그린 거야, 새로 그린 거야?」의 답 머리 — 이름이 아니다 */
-private val NEW_ONE = Regex("^새로 ?(그렸어|그린 거야|그린 거)[.,!~ ]*")
+private val NEW_ONE = Regex("^새로 ?(그렸어요|그렸어|그린 거(야|예요|에요|요)?|그린 것)[.,!~ ]*")
 private val ENDS_AS_NAME = Regex("(이야|야|이에요|예요)[.!~ ]*$")
 
 /**
@@ -1288,7 +1288,7 @@ internal fun withoutRepeat(t: String): String {
 private fun withoutEnding(t: String): String {
     val m = ENDING.find(t) ?: return t
     var s = t.substring(0, m.range.first).trimEnd()
-    if (s.isEmpty()) return t
+    if (s.isEmpty()) return ""                                  // 「요」 「야」만 남았다 — 이름이 아니다 (10-02 실기기 「새로 그린 거요」 → 「요」)
     // 「집이」 「블록이」의 「이」는 받침 뒤에 붙은 말끝이다. 「아이」 「종이」는 낱말이라 남기고,
     // 세 글자 넘는 「고양이 · 원숭이 · 달팽이 · 멍멍이」는 ㅇ 받침 뒤 「이」까지가 낱말이라 남긴다
     val word = s.substringAfterLast(' ')
