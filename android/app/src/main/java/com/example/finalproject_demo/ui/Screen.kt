@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.ChildProfile
+import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.Level
 import com.example.finalproject_demo.demo.ruleEstimate
 import com.example.finalproject_demo.demo.CHECKLIST
@@ -1185,6 +1186,15 @@ private fun DrawerControls(d: Director) {
     Spacer(Modifier.height(8.dp))
     Text("그림 · 한도 (구현대본 §7)", fontSize = 13.sp, color = Muted)
     Row { DrawerChip("🐢 그림 생성 느리게 (8초 안내 · 15초 취소)", s.slowImages) { s.slowImages = !s.slowImages } }
+    // 같이 만들기 질문 방식 견주기 — 협업일 때만 보인다 (10-02 · CoopScenes.kt CoopLab)
+    if (s.isCoop) {
+        Spacer(Modifier.height(8.dp))
+        Text("같이 만들기 질문", fontSize = 13.sp, color = Muted)
+        Row {
+            DrawerChip("지금 방식", !CoopLab.followUps) { CoopLab.followUps = false }
+            DrawerChip("바뀐 방식 (이어 받기 · 갈무리)", CoopLab.followUps) { CoopLab.followUps = true }
+        }
+    }
     Row {
         DrawerChip("⭐ 하루 별 0으로", s.dayStars == 0) { s.usedToday = if (s.dayStars == 0) 0 else s.dailyLimit }
         DrawerChip("⏩ 8턴 지난 것으로 (남은 칸 자동)", s.turn >= 8) { s.turn = if (s.turn >= 8) 0 else 8 }
