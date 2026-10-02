@@ -398,11 +398,18 @@ private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: 
     buttons(*(answers + DemoBtn("🤐 대답 없음") { send(Reply.Silent) } + q.extra).toTypedArray())
     if (Server.liveFor(s.mode)) { awaitVoice(); pause(300) } else pause(1200)
     val waitMs = ((q.waitSec ?: D1_WAIT_SEC) * 1000).toLong()
+    // 조용함은 **실제로 흐른 시간**으로 센다 — 돈 횟수로 세면 OS 타이머 정밀도에 따라 달라졌다
+    // (리눅스 CI 에서 1ms 잠이 정말 1ms 라 0.1초 만에 거뒀다 · #66). 빠르게 돌리는 시연 · 검사도 최소 [QUIET_FLOOR_MS] 는 기다린다
+    val quietLimitMs = maxOf((waitMs * s.speed).toLong(), minOf(waitMs, QUIET_FLOOR_MS))
     val watch = launch {
         var seen = linesAtAsk
         var quietMs = 0L
+        var last = System.nanoTime()
         while (true) {
             delay((WATCH_STEP_MS * s.speed).toLong().coerceAtLeast(1))
+            val now = System.nanoTime()
+            val stepMs = (now - last) / 1_000_000
+            last = now
             if (s.micOn || day.penDown) { quietMs = 0; continue }      // 말하는 중 · 선을 긋는 중은 조용한 게 아니다
             if (s.drawing.size > seen) {
                 val fresh = s.drawing.subList(seen, s.drawing.size).toList()
@@ -413,8 +420,8 @@ private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: 
                 quietMs = 0
                 continue
             }
-            quietMs += WATCH_STEP_MS
-            if (quietMs >= waitMs) { send(Reply.Tapped(WENT_QUIET, "조용함")); return@launch }
+            quietMs += stepMs
+            if (quietMs >= quietLimitMs) { send(Reply.Tapped(WENT_QUIET, "조용함")); return@launch }
         }
     }
     val r = try { awaitReply() } finally { watch.cancel() }
@@ -433,6 +440,9 @@ private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: 
 
 /** 손의 움직임을 보는 간격 */
 private const val WATCH_STEP_MS = 100L
+
+/** 빠르게(speed < 1) 돌릴 때도 D1 질문이 적어도 이만큼(실제 시간)은 답을 기다린다 — 실기기 10초에는 영향이 없다 */
+private const val QUIET_FLOOR_MS = 2_000L
 
 /** 「○○에 더 그린 거야, 새로 그린 거야?」 — [piece] 를 가리키며 묻는다 */
 private suspend fun Director.askMoreOrNew(day: DiaryDay, piece: DiaryPiece, named: DiaryPiece): Reply {
