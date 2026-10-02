@@ -1413,16 +1413,18 @@ private suspend fun Director.sceneMaking() {
         s.stage = Stage.Making("이야기 문장을 쓰는 중… (${t.pages.size}쪽)")
         val mask = s.nameMask()
         val storyInput = s.storyServerInput()
-        val captions = Server.story(
+        val book = Server.storyBook(
             mode = "story",
             slots = mask.maskSlots(storyInput.slots),
             slotBy = storyInput.sources,
             template = t.key,
             level = s.level.name.lowercase(),
             pages = s.storyPagePlan(),
-        )?.map(mask::unmask)
-        if (s.useGeneratedStory(captions)) log("서버가 쓴 동화 ${s.pageCount}쪽을 받음")
-        else log("동화 생성 실패 또는 쪽 목록 불일치 → 템플릿 책 사용")
+        )
+        if (s.useGeneratedStory(book?.captions?.map(mask::unmask))) {
+            book?.title?.let { s.title = mask.unmask(it) }
+            log("서버가 쓴 동화 ${s.pageCount}쪽을 받음")
+        } else log("동화 생성 실패 또는 쪽 목록 불일치 → 템플릿 책 사용")
     }
     coopWriteBook()                             // 협업 책 문장 — 서버를 켰을 때만 (CoopScenes.kt · #47)
     s.stage = Stage.Making("『${s.title}』", 1f)
