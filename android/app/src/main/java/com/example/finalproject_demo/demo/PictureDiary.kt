@@ -31,7 +31,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  */
 
 /**
- * 오또가 먼저 「나도 ○○ 그려볼까?」라고 하는 수(한 판) · 다 그린 뒤 묻는 수.
+ * 오또가 먼저 「나도 ○○ 그려볼까?」라고 하는 수(한 판).
  * 제안마다 GPU 가 약 8초씩 그려서 상한을 둔다 — 아이가 「그려줘」로 직접 부탁하는 건 세지 않는다 (10-02 진웅: 2 → 4).
  * 그리는 동안의 이름 질문에는 상한이 없다
  */
@@ -42,6 +42,11 @@ internal const val OTTO_OFFERS = 4
  * 말이 끊기지 않게 언제 거둘지(오래 그리는 중 · 손을 놓고 멈춤)는 따로 정한다
  */
 internal const val D1_WAIT_SEC = 10.0
+
+/**
+ * 다 그린 뒤(D3) 오또가 먼저 꺼내는 **칸 채우기** 질문 수 — 흐름 문서 「최대 2~3개」. 아이가 더 말하는 건 막지 않는다.
+ * 그림에 대한 질문(「이건 뭐 그린 거야?」)은 다른 질문이라 여기에 세지 않는다 (10-02 진웅)
+ */
 internal const val ASK_AFTER_DRAWING = 3
 
 /** 마무리를 제안하는 때 — 끝내는 시간이 아니다 (guidelines/2 §1-1 · 09-30) */
@@ -606,7 +611,7 @@ private fun Director.keepBoard() {
 // ── D3 ─────────────────────────────────────────────────────────
 
 /**
- * 다 그린 뒤 — 빈 칸만 묻는다. 필수(place · problem)가 먼저, 남으면 결말 · 내일. 합쳐 [ASK_AFTER_DRAWING] 번까지.
+ * 다 그린 뒤 — 빈 칸만 묻는다. 필수(place · problem)가 먼저, 남으면 결말 · 내일. 칸 질문은 합쳐 [ASK_AFTER_DRAWING] 번까지(이름 없는 조각 질문은 따로).
  * 서버 모드면 판정의 `next_slot` 과 오또 대사가 다음 질문을 정한다([askEmptySlotsLive]). 대본이면 이 차례다.
  */
 private suspend fun Director.askEmptySlots() {
@@ -621,11 +626,11 @@ private suspend fun Director.askEmptySlots() {
             wrapOffered = true
             if (offerWrapUp()) break
         }
-        // 필수 두 칸을 물은 뒤 — 이름 없는 조각 하나를 묻는다(세 번 안에서)
+        // 필수 두 칸을 물은 뒤 — 이름 없는 조각 하나를 묻는다(칸 질문 수와 따로 · 10-02)
         if (!pieceAsked && queue.none { it.key in PICTURE_REQUIRED }) {
             pieceAsked = true
             val unnamed = firstUnnamedPiece()
-            if (unnamed != null) { asked++; askPieceOnD3(unnamed); continue }
+            if (unnamed != null) { askPieceOnD3(unnamed); continue }      // 그림 질문 — 칸 채우기 질문 수([ASK_AFTER_DRAWING])에 세지 않는다
         }
         val pq = queue.removeAt(0)
         asked++
@@ -721,11 +726,11 @@ private suspend fun Director.askEmptySlotsLive() {
             if (offerWrapUp()) break
         }
         val (slot, text, key) = next
-        // 필수 칸 질문이 아닌 차례가 오면 — 이름 없는 조각 하나를 먼저 묻는다(세 번 안에서)
+        // 필수 칸 질문이 아닌 차례가 오면 — 이름 없는 조각 하나를 먼저 묻는다(칸 질문 수와 따로 · 10-02)
         if (!pieceAsked && key !in PICTURE_REQUIRED) {
             pieceAsked = true
             val unnamed = firstUnnamedPiece()
-            if (unnamed != null) { asked++; askPieceOnD3(unnamed); continue }
+            if (unnamed != null) { askPieceOnD3(unnamed); continue }      // 그림 질문 — 칸 채우기 질문 수([ASK_AFTER_DRAWING])에 세지 않는다
         }
         val step = DIARY_STEPS.firstOrNull { it.bookKey == key } ?: DIARY_STEPS.firstOrNull { it.slot == slot }
         asked++
