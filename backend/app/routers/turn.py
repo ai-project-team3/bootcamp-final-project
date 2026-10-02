@@ -76,6 +76,11 @@ def check(line: Line) -> str | None:
         words = eojeol(text)
         if len(words) > _LIMITS[field]:
             log.info("line %s over %d eojeol: %d", field, _LIMITS[field], len(words))
+    # an unsafe option is dropped on its own — the line and the other options still stand
+    if line.options:
+        kept = [o.strip() for o in line.options
+                if o and o.strip() and not is_blocked(o) and not has_unknown_placeholder(o)]
+        line.options = list(dict.fromkeys(kept))[:3] or None
     return None
 
 
@@ -83,12 +88,16 @@ def shape(line: Line, req: TurnRequest, v: JudgeResult | None) -> Line:
     """The rules win over the model on when there is no question."""
     if not req.ask or (v is not None and v.story_ready):
         line.question = None
+    # options only make sense for a question the mascot asks; never in diary (#79)
+    if line.question is None or req.mode == "diary":
+        line.options = None
     return line
 
 
 def mock_line(req: TurnRequest, v: JudgeResult | None) -> Line:
     nxt = v.next_slot if v else None
-    return Line(ack="그랬구나!", expand=None, question=f"{nxt} 이야기를 해 줄래?" if nxt else "그다음엔?")
+    return Line(ack="그랬구나!", expand=None, question=f"{nxt} 이야기를 해 줄래?" if nxt else "그다음엔?",
+                options=["첫 번째 후보", "두 번째 후보", "세 번째 후보"])
 
 
 LINE_MIN_S = 3.0      # less than this left after the judge: send the verdict alone
