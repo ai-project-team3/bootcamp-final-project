@@ -68,13 +68,18 @@ steps:
   - checkout
   - .env 존재 확인 (Test-Path) — 없으면 즉시 실패. 키 없이 mock 서버가 조용히 뜨는 것을 막는다
   - pip install -r backend/requirements.txt
-  - scripts/deploy/stop_backend.ps1
-  - scripts/deploy/start_backend.ps1
+  - scripts/deploy/start_backend.ps1 — 새 이미지를 먼저 빌드(옛 컨테이너는 계속 응답) → 빌드 성공 시에만
+    stop_backend.ps1 로 옛 컨테이너 제거 → 바로 docker run (10-01 · 멈추는 시간이 빌드 시간만큼 줄었다.
+    빌드가 실패하면 옛 컨테이너가 그대로 돈다)
   - 최대 30초, 2초 간격 재시도: curl 127.0.0.1:8000/health (10-01 Docker · 바깥 8000) → {"status":"ok","mock":false}
   - 실패 시 워크플로를 실패 처리(백엔드는 이미 재시작이 시도된 상태이므로 조장에게 알림 필요)
 ```
 
 ### 재시작 스크립트
+
+> 10-01 갱신: 아래 Start-Process 방식은 Docker 로 바뀌었다. 지금은 `start_backend.ps1` 이
+> `docker build` → (성공하면) `stop_backend.ps1`(`docker rm -f otto-backend`) → `docker run` 순서로 돌고,
+> 끝에 `/health` 를 최대 90초 기다려 걸린 시간을 찍는다(넘으면 경고만). 아래는 처음 설계 기록이다.
 
 `scripts/deploy/stop_backend.ps1`:
 - `Get-NetTCPConnection -LocalPort 8010 -ErrorAction SilentlyContinue`로 8010번을 쓰는 프로세스를 찾아 종료

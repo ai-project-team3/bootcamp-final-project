@@ -237,10 +237,27 @@ class Director(
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text, ConsentStore.nameVoiceAgreed)
         val before = voiceJob
-        val audio = scope.async { Server.tts(line) }.also { queueVoice(it) }   // 앞 대사를 읽는 동안 미리 받는다
+        // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
+        val audio = scope.async { Voice.baked(line) ?: Server.tts(line) }.also { queueVoice(it) }
         voiceJob = queueVoice(scope.launch {
             before?.join()
             audio.await()?.let { Voice.playAndWait(it) }
+        })
+    }
+
+    /**
+     * 아이 말이 끝난 순간 폰에 든 중립 소리(「음~」 「응응.」 「응, 그랬구나.」)를 바로 낸다 — 리액션 1단계(10-01).
+     * 받아쓰기 + 판정 + 목소리(공개 주소로 5~6초)를 기다리는 동안 마스코트가 듣고 있다는 걸 알린다.
+     * 아직 아이 말을 모르므로 감정 · 칭찬 · 질문이 없다. 말풍선은 바꾸지 않고, 세지도 않는다(마스코트 말).
+     * 뒤에 오는 대사는 이 소리 뒤에 줄을 선다.
+     */
+    private fun speakNeutral() {
+        if (!Server.liveFor(s.mode) || !Voice.canSpeak) return
+        val clip = Voice.neutral() ?: return
+        val before = voiceJob
+        voiceJob = queueVoice(scope.launch {
+            before?.join()
+            Voice.playAndWait(clip)
         })
     }
 
@@ -385,6 +402,7 @@ class Director(
             val audio = Voice.listen { stopMic }
             s.micOn = false
             if (audio == null) { log("🎤 아무것도 못 들음 → 무응답"); send(Reply.Silent); return@launch }
+            speakNeutral()
             log("🎤 끝 → 우리 서버로 받아쓰기 (${audio.size / 1024}KB)")
             val text = Voice.transcribe(audio)
             when {

@@ -60,8 +60,11 @@ class Settings(BaseSettings):
     # vendor already in the privacy policy, same key. Back to "typecast" once that account is sorted.
     # 10-01 later: a new TypeCast key — TypeCast first again, and if it fails (402 · 403 · slow)
     # the same request falls back to OpenAI, so the mascot never goes quiet over an account issue
-    tts_provider: str = "typecast"       # typecast | openai
-    tts_fallback: str = "openai"         # "" = no fallback
+    # 10-01 evening, 조장: OpenAI only. A failed TypeCast try before every line cost time, and
+    # rotating free keys risks the account being suspended. The fixed lines are baked with this
+    # same voice into the app (eval/bake_lines.py), so the live ones must match it.
+    tts_provider: str = "openai"         # typecast | openai
+    tts_fallback: str = ""               # "" = no fallback
     # 조장 10-01: Siwoo · 밝게 (09-26 blind ★) but a little fast — 0.95 until the ear test
     # (eval/bench_tts_tempo.py) settles it
     typecast_emotion: str = "happy"      # a preset name, or "smart" (reads the neighbouring lines)
