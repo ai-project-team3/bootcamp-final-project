@@ -1059,6 +1059,7 @@ class DemoState {
      */
     val bgName: String
         get() = when {
+            isCoop -> coopBackdrop()                     // 같이 만들기 — 고른 요소의 배경 (CoopScenes.kt · 10-02)
             isDiary -> diaryPlaceBg(placeLabel)
             mode == StoryMode.STORY && storyBackground != null -> storyBackground!!
             generatedBg -> "bg_snow"
