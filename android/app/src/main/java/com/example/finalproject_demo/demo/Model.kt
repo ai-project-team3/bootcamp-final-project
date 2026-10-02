@@ -75,10 +75,11 @@ enum class StoryMode {
     val usesDiaryQuestions: Boolean get() = this == DIARY || this == COOP
 }
 
-enum class Persona(val childName: String, val label: String) {
-    TALKER("지호", "말하기형 · 지호"),
-    CHOOSER("하늘", "고르기형 · 하늘"),
-    DRAWER("다온", "그리기형 · 다온"),
+/** 시연 서랍 — 더미 아이가 어떻게 답하나. 이름은 없다: 아이 호칭은 부모가 정한다(`net/ChildCall` · 10-02) */
+enum class Persona(val label: String) {
+    TALKER("말하기형"),
+    CHOOSER("고르기형"),
+    DRAWER("그리기형"),
 }
 
 /**
@@ -636,6 +637,8 @@ sealed interface Stage {
     /** 그림 한 장을 가운데 보여 주기만 한다 (질문하는 동안 앞 화면의 버튼이 남지 않게) */
     data class Show(val art: Art, val caption: String = "") : Stage
     data class HeroBuilder(val attr: HeroAttr) : Stage
+    /** 만든 주인공에 이름 붙이기 — 말로 하거나 글로 적는다 (`demo/HeroName.kt` · 10-02) */
+    data class NameEntry(val attr: HeroAttr, val image: String?) : Stage
     data class Making(val label: String, val progress: Float = -1f) : Stage
 
     /** ⭐21 좋아 / 싫어 그림 카드. redraws >= 0 이면 "다시 그리기 n/2" 를 함께 보여준다 (24) */
@@ -687,7 +690,8 @@ sealed interface Stage {
 /** S10에 늘어놓는 친구 한 명. keep=null 이면 아직 고르지 않음 */
 data class RateItem(val id: String, val name: String, val art: Art, val keep: Boolean? = null)
 
-data class Hero(val name: String, val attr: HeroAttr, val image: String? = null, val rig: String? = null)
+/** [called] = 아이가 지어 준 이름(말 · 글 · 10-02) — 있으면 이야기의 주인공 이름이 된다. 없으면 [name](모습)으로 부른다 */
+data class Hero(val name: String, val attr: HeroAttr, val image: String? = null, val rig: String? = null, val called: String? = null)
 
 /** 옷 색 → 생성 그림 이름 조각 */
 fun shirtKey(c: Color): String = when (c) {
@@ -1239,8 +1243,8 @@ class DemoState {
 
     val heroes = mutableStateListOf(
         // 둘이 한눈에 달라 보여야 한다 — 안경만 다르면 도감에서 같은 아이로 보인다 (9/21)
-        Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9))),
-        Hero("빨간 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts")),
+        Hero("안경 쓴 친구", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9))),
+        Hero("빨간 옷 친구", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts")),
     )
 
     val achievements = mutableStateListOf<String>()
@@ -1266,6 +1270,11 @@ class DemoState {
     var paused by mutableStateOf<Scene?>(null)
     var micOn by mutableStateOf(false)
     var micEnabled by mutableStateOf(false)
+    /** 되돌리기 · 앞으로 가기를 보일 차례인가 — `TurnHistory` 가 정한다 (10-02) */
+    /** 이 이야기 주인공의 이름 — 아이가 인형에 지어 준 것. 없으면 `{주인공}` 은 아이 호칭으로 읽는다 */
+    var storyHeroCall by mutableStateOf<String?>(null)
+    var canUndo by mutableStateOf(false)
+    var canRedo by mutableStateOf(false)
     var nextEnabled by mutableStateOf(false)
 
     /** [직접 그리기 🖍️] — 질문에 따라 켜진다 (장면 3에서는 쓰지 않는다) */
@@ -1321,11 +1330,13 @@ class DemoState {
     var modeDraw by mutableStateOf(0)
     var modeSilent by mutableStateOf(0)
 
-    val childName: String get() = persona.childName
+    /** 마스코트가 아이를 부르는 말 — 부모가 정한 호칭, 없으면 「친구」(`net/ChildCall` · 10-02) */
+    val childName: String get() = com.example.finalproject_demo.net.ChildCall.call
 
     /** 이야기 한 권 분량만 지운다. 책장 · 부모 설정 · 하루 별 · 도감 · 수준(다음 세션 시작점) · 쓴 질문은 남긴다 */
     fun resetStory() {
         clearStorySound()
+        canUndo = false; canRedo = false
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
         slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyUnneededSlots.clear(); storyStartedAtMs = 0L
@@ -1372,8 +1383,8 @@ class DemoState {
         // 앱을 새로 켠 것이므로 부모가 넣은 질문도 지운다 — `resetStory()` 는 이제 안 지운다
         clearParentQuestions()
         heroes.clear()
-        heroes += Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9)))
-        heroes += Hero("빨간 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
+        heroes += Hero("안경 쓴 친구", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9)))
+        heroes += Hero("빨간 옷 친구", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
         shelf.clear()
         limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null
         keptFriends.clear(); usedVariants.clear()

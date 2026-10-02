@@ -103,11 +103,11 @@ class StoryTurnResultTest {
     }
 
     @Test
-    fun oneLiveTurnMasksTheRequestAndRestoresTheVerdictAndMascotLine() = runBlocking {
+    fun oneLiveTurnSendsNamesAndRestoresPlaceholdersInTheVerdictAndMascotLine() = runBlocking {
         val s = DemoState()
-        s.slots["place"] = "지호의 숲"
+        s.slots["place"] = "친구의 숲"
         var sent: Server.Turn? = null
-        val result = s.exchangeStoryTurn("problem", "지호야, 무슨 일이야?", "지호가 길을 잃었어") {
+        val result = s.exchangeStoryTurn("problem", "친구야, 무슨 일이야?", "친구가 길을 잃었어") {
             sent = it
             Server.TurnResult(
                 verdict(fills = listOf("problem" to "{주인공}이 길을 잃었다"), next = "reaction"),
@@ -116,14 +116,14 @@ class StoryTurnResultTest {
             )
         }
 
-        assertEquals("{주인공}의 숲", sent!!.slots["place"])
-        assertEquals("{주인공}야, 무슨 일이야?", sent!!.question)
-        assertEquals("{주인공}가 길을 잃었어", sent!!.utterance)
-        assertEquals("지호가 길을 잃었다", s.slots["problem"])
+        assertEquals("친구의 숲", sent!!.slots["place"])   // names go as they are (10-02)
+        assertEquals("친구야, 무슨 일이야?", sent!!.question)
+        assertEquals("친구가 길을 잃었어", sent!!.utterance)
+        assertEquals("친구가 길을 잃었다", s.slots["problem"])
         assertEquals("child", s.slotBy["problem"])
         assertEquals("reaction", s.storyNextSlot)
-        assertEquals("지호가 길을 잃었구나", result?.line?.ack)
-        assertEquals(listOf("지호는 친구를 불렀어", "길을 찾아봤어"), result?.line?.options)
+        assertEquals("친구가 길을 잃었구나", result?.line?.ack)
+        assertEquals(listOf("친구는 친구를 불렀어", "길을 찾아봤어"), result?.line?.options)
     }
 
     @Test

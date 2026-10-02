@@ -114,9 +114,9 @@ class StoryTextTest {
     @Test
     fun thePagePoseFollowsWhatTheCaptionSays() {
         // 타는 문장
-        assertTrue(ridingFrom("지호는 로켓을 타고 반짝이는 우주로 떠났어요."))
+        assertTrue(ridingFrom("친구는 로켓을 타고 반짝이는 우주로 떠났어요."))
         assertTrue(ridingFrom("트리케라톱스가 기차에 올라탔어요!"))
-        assertFalse("타는 말이 없는데 태웠다", ridingFrom("지호는 놀이터에 갔어요."))
+        assertFalse("타는 말이 없는데 태웠다", ridingFrom("친구는 놀이터에 갔어요."))
 
         // 인사하는 문장 — **손**이나 **인사**가 같이 있어야 한다
         assertTrue(wavingFrom("창밖을 보니 외계인 뿌뿌가 손을 흔들고 있었어요."))
@@ -263,7 +263,7 @@ class StoryTextTest {
                 (book + s.title!!).forEach { line ->
                     pages++
                     bad.filter { it in line }.forEach { b -> problems += "[${t.code}/${p.key}/$th] '$b' in: $line" }
-                    // 「선생님」은 템플릿 D 에서 **아이가 맡는 직업**이기도 하다(「의사 선생님이 되기로」 · 「선생님 지호」) —
+                    // 「선생님」은 템플릿 D 에서 **아이가 맡는 직업**이기도 하다(「의사 선생님이 되기로」 · 「선생님 친구」) —
                     // 함께 하는 사람으로서의 선생님(09-29 추가)과 헷갈리지 않게 그 말은 빼고 본다
                     val aboutPartner = line.replace("의사 선생님", "").replace("선생님이 되기로", "")
                         .replace("선생님 ${s.childName}", "")
@@ -429,7 +429,7 @@ class StoryTextTest {
         assertEquals(Motion.NONE, motionFrom("미끄럼틀에서 내려오다 부딪혔어요."))
 
         // 탈것에 타는 것(`ridingFrom`)과는 다른 축이다 — 그쪽은 자리를, 이쪽은 몸짓을 정한다
-        assertEquals(Motion.NONE, motionFrom("지호는 로켓을 타고 우주로 떠났어요."))
+        assertEquals(Motion.NONE, motionFrom("친구는 로켓을 타고 우주로 떠났어요."))
     }
 
     /**

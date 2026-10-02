@@ -449,6 +449,7 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
             }
 
             is Stage.HeroBuilder -> HeroBuilderView(d, stage)
+            is Stage.NameEntry -> NameEntryView(d, stage)
 
             // ⑩ 책 만드는 중 (09-29 디자인 시스템) — 흐릿한 그림책 쪽이 점점 또렷해지고, 가운데 **바느질 로딩**
             //   (바늘이 앞으로 가며 꿰맴 · 숫자 % 없음). 끝나면 책 더미가 숨 쉰다
@@ -816,6 +817,45 @@ val HERO_ROWS: List<Triple<String, String, List<Pair<String, String>>>> = listOf
     Triple("안경", "glasses", listOf("없음" to "none", "동글" to "round", "네모" to "square")),
     Triple("아래옷", "bottom", listOf("바지" to "pants", "치마" to "skirt", "반바지" to "shorts")),
 )
+
+/**
+ * 만든 주인공에 이름 붙이기 (10-02 조장 · `demo/HeroName.kt`) — 🎤로 말하거나, 글로 적어서 「이 이름으로」.
+ * 글 칸은 어른이 대신 적어 줘도 된다. 비워 두고 넘어가면 이름 없이(모습으로) 부른다.
+ */
+@Composable
+private fun NameEntryView(d: Director, stage: Stage.NameEntry) {
+    var typed by remember(stage) { mutableStateOf("") }
+    Centered {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.size(170.dp, 210.dp)) {
+                ArtView(stage.image?.let { Art.Img(it, Art.HeroArt(stage.attr)) } ?: Art.HeroArt(stage.attr), Modifier.fillMaxSize())
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier.felt(WoolCream, RoundedCornerShape(24.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = typed,
+                    onValueChange = { typed = it.take(10) },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, color = InkBrown),
+                    modifier = Modifier.width(220.dp),
+                    decorationBox = { inner ->
+                        if (typed.isEmpty()) Text("이름을 글로 적어도 돼", fontSize = 20.sp, color = InkBrown.copy(alpha = 0.4f))
+                        inner()
+                    },
+                )
+                Spacer(Modifier.width(10.dp))
+                FeltButton(FeltCoral, onClick = {
+                    if (typed.isNotBlank()) d.send(Reply.Tapped(com.example.finalproject_demo.demo.NAME_TYPED, typed.trim()))
+                }, modifier = Modifier.height(52.dp), shape = RoundedCornerShape(22.dp)) {
+                    Text("이 이름으로", fontSize = 18.sp, color = FeltWhite, modifier = Modifier.padding(horizontal = 14.dp))
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun HeroBuilderView(d: Director, stage: Stage.HeroBuilder) {

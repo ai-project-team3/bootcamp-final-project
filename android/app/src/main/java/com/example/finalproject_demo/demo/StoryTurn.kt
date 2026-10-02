@@ -58,7 +58,7 @@ suspend fun Director.askStory(
         s.stage = conversationStage
         val reply = if (Server.liveFor(s.mode)) askLiveStoryReply(currentQuestion, s.optionsFor(askedSlot, question.text))
             else ask(currentQuestion)
-        if (!Server.liveFor(s.mode)) return reply
+        if (!Server.liveFor(s.mode) || TurnHistory.isNav(reply)) return reply
         val utterance = when (reply) {
             is Reply.Spoke -> reply.text
             is Reply.Tapped -> reply.label
