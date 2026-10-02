@@ -328,7 +328,11 @@ private fun reactionFor(s: DemoState, tool: String, target: String, objName: Str
         "hammer" -> "간지러워!"
         "feather" -> "깔깔깔!"
         "glass" -> when (target) {
-            "hero" -> if (s.isDiary) "${s.childName}의 오늘 이야기!" else "${s.childName}${eun(s.childName)} ${s.th.vehicle} 선장!"
+            "hero" -> when {
+                s.isDiary -> "${s.childName}의 오늘 이야기!"
+                com.example.finalproject_demo.net.Server.liveFor(s.mode) -> "${s.childName}의 이야기!"   // 서버 모드엔 기본 탈것이 없다(10-02)
+                else -> "${s.childName}${eun(s.childName)} ${s.th.vehicle} 선장!"
+            }
             "dino" -> "${s.dino.label} · ${s.dino.look}"
             "friend" -> if (s.isDiary) "${s.friendCallName} · 오늘 만난 사람" else "$f · ${s.newcomerKind} 친구"
             "vehicle" -> "${s.rideName}예요"
@@ -499,8 +503,10 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
 
         // 일기 모드에는 탈것(로켓 · 거북이 · 기차)도 동행 공룡도 없다 — 묻지 않는 칸이다 (일기 설계 §2-2).
         // 아이가 아무도 그리지 않은 날에는 친구 자리도 비워 둔다 — 앱이 없는 친구를 만들어 내지 않는다 (§3-2).
-        val showRide = !s.isDiary
-        val showDino = !s.isDiary
+        // 서버 모드 동화에는 아이가 말하거나 그린 것만 선다 — 대본의 기본 탈것(기차 · 로켓)과 공룡은 빼다(10-02 조장 실기기)
+        val scripted = !com.example.finalproject_demo.net.Server.liveFor(s.mode)
+        val showRide = !s.isDiary && scripted
+        val showDino = !s.isDiary && scripted
         // 일기 · 협업은 아이가 그린 것 → 아이가 말한 사람 순으로 세우고, 둘 다 없으면 아무도 안 세운다 (일기 §3-2)
         val friendShown: Art? = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
         val showFriend = friendShown != null
@@ -679,7 +685,7 @@ private fun Cover(d: Director, heroArt: Art) {
             // 일기 모드 표지에는 아이가 그린 것만 선다 — 안 그렸으면 주인공만 (§2-2 · §3-2)
             val coverFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
             if (coverFriend != null) ArtView(coverFriend, Modifier.size(120.dp))
-            if (!s.isDiary) ArtView(Art.DinoArt(s.dinoColor, s.dinoKey), Modifier.size(130.dp, 110.dp))
+            if (!s.isDiary && !com.example.finalproject_demo.net.Server.liveFor(s.mode)) ArtView(Art.DinoArt(s.dinoColor, s.dinoKey), Modifier.size(130.dp, 110.dp))
         }
         Spacer(Modifier.height(6.dp))
         // 지은이는 **아이 이름만** 쓴다 (9/22).
@@ -745,11 +751,12 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
             listOf(0.30f to 0.66f, 0.46f to 0.73f, 0.63f to 0.65f).map { (bx, by) -> Offset(bx * wpx, by * hpx) }
         else
             listOf(0.22f to fy, 0.50f to fy + 0.08f, 0.78f to fy).map { (bx, by) -> Offset(vx * wpx + bx * vwPx, vy * hpx + by * vhPx) }
-        if (!s.isDiary) Layer(vx, vy, vw, va, Modifier.offset { IntOffset(0, lift.roundToInt()) }) { ArtView(s.rideArt, Modifier.fillMaxSize()) }
+        val scripted = !com.example.finalproject_demo.net.Server.liveFor(s.mode)   // 서버 모드 동화엔 기본 탈것 · 공룡이 없다(10-02)
+        if (!s.isDiary && scripted) Layer(vx, vy, vw, va, Modifier.offset { IntOffset(0, lift.roundToInt()) }) { ArtView(s.rideArt, Modifier.fillMaxSize()) }
         Stand(0.14f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
         val rubFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
         if (rubFriend != null) Stand(0.66f, 0.11f, 0.85f) { ArtView(rubFriend, Modifier.fillMaxSize()) }
-        if (!s.isDiary) Stand(0.86f, 0.19f, 0.92f) { ArtView(dinoArt, Modifier.fillMaxSize()) }
+        if (!s.isDiary && scripted) Stand(0.86f, 0.19f, 0.92f) { ArtView(dinoArt, Modifier.fillMaxSize()) }
 
         // 불을 계속 피운다. 문지를수록 기운이 줄어 **입자 수가** 사그라든다.
         //
