@@ -4,7 +4,9 @@ import com.example.finalproject_demo.demo.completedStoryBook
 import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.demo.bookCaption
 import com.example.finalproject_demo.demo.restoreStoryBook
+import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.demo.coopPartQuestions
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
@@ -101,9 +103,14 @@ class CoopFlowTest {
 
     private val firefighter = CoopPick("job", "소방관", "soon")
 
-    /** 오또가 실제로 물을 뼈대 네 질문 — 앞에서 말한 곳이 「거기」 자리에 들어간다 (10-01). 이야기를 다 돈 뒤에 부른다 */
+    /**
+     * 오또가 실제로 물은 뼈대 네 질문 (이야기를 다 돈 뒤에 부른다).
+     * 지금 방식은 템플릿 질문에 앞에서 말한 곳이 「거기」 자리에 들어간다 (10-01).
+     * 바뀐 방식(10-02)은 2~4번째 자리가 앞 답을 끼운 이어 받기라, 자리마다 처음 물은 질문을 협업 쪽 기록에서 읽는다 — 네 개여야 한다
+     */
     private fun Director.partsAsked(pick: CoopPick = firefighter): List<String> =
-        pick.templateQuestions().map { q -> s.heardPlace()?.let(q::here) ?: q }
+        if (CoopLab.followUps) s.coopPartQuestions.also { assertEquals("뼈대 네 자리를 다 물어야 한다: $it", 4, it.size) }
+        else pick.templateQuestions().map { q -> s.heardPlace()?.let(q::here) ?: q }
 
     @Test
     fun theMascotReadsTheParentsQuestionOutLoud() = run { d ->

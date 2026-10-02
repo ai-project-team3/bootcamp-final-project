@@ -52,7 +52,9 @@ class CoopHeardTest {
     @Test
     fun nothingIsInsertedWhenThereIsNoName() {
         listOf("배고파", "몰라", "모르겠어", "응", "아직 못 들은 곳", "", "   ",
-            "어제 엄마랑 아빠랑 동생이랑 같이 기차 타고 멀리 갔어").forEach { t ->
+            "어제 엄마랑 아빠랑 동생이랑 같이 기차 타고 멀리 갔어",
+            // 흐름 검사에서 실제로 끼었던 말 토막 (10-02)
+            "사람 도와줄 거야", "도구를 챙길 거야", "불 끄는 것", "소방관 옷 입을 거야").forEach { t ->
             CoopRole.entries.forEach { r -> assertNull("$r「$t」", coopNameFrom(t, r)) }
         }
         // 이름 자리가 하나라도 비면 질문 전체를 포기한다 — 고정 질문으로 돌아간다

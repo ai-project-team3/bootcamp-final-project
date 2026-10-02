@@ -81,7 +81,23 @@ fun coopNameFrom(raw: String, role: CoopRole): String? {
     val name = pieceNameFrom(Reply.Spoke(part))?.trim() ?: return null
     if (name.isEmpty() || name in NOT_NAMES || isNonAnswer(name)) return null
     if (name.length > NAME_MAX_CHARS || name.split(" ").size > NAME_MAX_WORDS) return null
+    if (looksLikeAPhrase(name)) return null
     return if (role == CoopRole.WHO) you(name) else name
+}
+
+/**
+ * 이름이 아니라 말 토막인가 — 「사람 도와줄 거」 · 「도구를 챙길」 · 「불 끄는 것」.
+ * 이런 것을 끼우면 「사람 도와줄 거가 왜 그럴까?」가 된다(10-02 흐름 검사에서 실제로 나왔다).
+ * 「큰 소방서」 · 「엄마랑 나」처럼 꾸미는 말이 붙은 이름은 지나간다
+ */
+private fun looksLikeAPhrase(name: String): Boolean {
+    val words = name.split(" ")
+    val last = words.last()
+    if (last in setOf("거", "것", "게", "데", "때", "줄", "수")) return true
+    if (Regex("(을|를)$").containsMatchIn(name.substringBeforeLast(" ", ""))) return true      // 앞 어절에 목적어 → 문장
+    if (words.size == 1) return Regex("(을|를|기|고|서|면|지만)$").containsMatchIn(last)
+    // 앞 어절이 ㄹ 받침으로 끝나면 「도와줄 · 챙길 · 갈」 같은 꾸밈 — 다음은 이름이 아니라 「거 · 곳」이 오기 쉽다
+    return words.dropLast(1).any { w -> w.lastOrNull()?.let { c -> c in '가'..'힣' && (c - '가') % 28 == 8 } == true }
 }
 
 /** `{이름:조사}` — 조사 이름은 받침 없는 꼴로 적는다 (가 · 을 · 은 · 랑 · 와 · 로 · 에서 · 아) */

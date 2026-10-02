@@ -1,5 +1,8 @@
 package com.example.finalproject_demo.demo
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.example.finalproject_demo.ui.coopItem
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
@@ -98,6 +101,31 @@ private class CoopTrack {
     val asked = mutableListOf<CoopAsked>()
     /** 방금 `/turn` 이 정한 다음 칸과 그 칸을 묻는 LLM 질문 — 바로 다음 걸음에서 한 번만 쓰고 버린다 */
     var llmNext: Pair<String, String>? = null
+    /** 앞 답에서 뗀 이름 — place · who · thing (이어 받기 질문에 끼운다 · CoopHeard.kt) */
+    val heard = mutableMapOf<String, String>()
+    /** 이 이야기에서 나간 「왜」 질문 수 — 두 번까지 (CoopQuestions.kt) */
+    var whyAsked = 0
+    /** 뼈대 네 자리(0~3)에서 처음 물은 질문 — 이어 받기로 문장이 바뀌어도 네 자리를 다 물었는지 본다 */
+    val partQuestions = sortedMapOf<Int, String>()
+}
+
+/** 이 이야기에서 뼈대 네 자리마다 처음 물은 질문 (자리 순서대로). 검사 · 로그가 읽는다 */
+internal val DemoState.coopPartQuestions: List<String> get() = trackByState[this]?.partQuestions?.values?.toList().orEmpty()
+
+/**
+ * 협업 질문 방식 — **바뀐 방식**(이어 받기 · 갈무리 · 짧은 받아주기)과 **지금 방식**(09-30 흐름 그대로)을 견줘 보는 스위치.
+ * 시연 서랍에서 협업일 때만 보인다. 기본은 바뀐 방식 (10-02)
+ */
+object CoopLab {
+    var followUps by mutableStateOf(true)
+}
+
+/** 걸음 자리 → 이름이 놓이는 모양 */
+private fun roleOf(stepKey: String): Pair<String, CoopRole>? = when (stepKey) {
+    "place" -> "place" to CoopRole.PLACE
+    "companion" -> "who" to CoopRole.WHO
+    "problem" -> "thing" to CoopRole.THING
+    else -> null
 }
 
 /**
@@ -185,6 +213,64 @@ suspend fun Director.askOrCoopAsk(q: Question): Reply = when {
  * 사다리(쉬운 질문)는 앱 것을 그대로 둔다: 아이가 답을 못 하면 앱이 더 쉬운 말로 바꿔 묻는다.
  */
 private suspend fun Director.coopAskInFlow(q: Question): Reply {
+    if (!CoopLab.followUps) return coopAskInFlowBefore(q)
+    mark("coop")
+    val track = s.coopTrack
+    val llm = track.llmNext.also { track.llmNext = null }
+    val firstAsk = q.id !in track.askedSteps
+    val idx = partIndexOf(q)
+    val key = q.id.removePrefix("diary_")
+    val reason = s.coopPick?.reasonOrNull() ?: CoopReason.DREAM
+    val scripted = s.takeCoopLine(q)
+
+    /** 갈무리 — 통과하면 그 말, 못 고치면 null. 어디서 왔고 무엇에 걸렸는지 남긴다 */
+    fun guarded(text: String, src: CoopSource): String? {
+        val g = coopGuard(text, reason, src)
+        if (g.issues.isNotEmpty()) log("[$key] 갈무리(${src.label}) ${if (g.ok) "고침" else "사다리로"} — ${g.issues.joinToString(" · ")} · 원문 \"$text\"" + (g.text?.let { " → \"$it\"" } ?: ""))
+        if (g.issues.isNotEmpty()) event("coop_guard", "source" to src.name, "ok" to g.ok, "issues" to g.issues.joinToString("|"))
+        return g.text
+    }
+
+    // 부모 질문이 먼저 — 몰래 바꾸지 않는다(질문 하나만 남긴다). 그다음 서버 LLM 질문, 그다음 이어 받기 · 템플릿, 그다음 사다리
+    val (text, src) = when {
+        scripted is CoopLine.Parent -> (guarded(scripted.text, CoopSource.PARENT) ?: scripted.text) to CoopSource.PARENT
+        firstAsk && s.llmQuestionFor(q, llm)?.let { guarded(it, CoopSource.LLM) } != null ->
+            guarded(s.llmQuestionFor(q, llm)!!, CoopSource.LLM)!! to CoopSource.LLM
+        scripted is CoopLine.Template && idx != null && idx >= 1 -> {
+            // 2~4번째 자리 — 앞 답을 끼운 이어 받기. 못 만들면 템플릿 질문 그대로 (첫 자리는 미리 본 템플릿 그대로)
+            val raw = s.coopPick?.templateQuestions()?.getOrNull(idx)
+            coopFollowUp(key, s.level, reason, track.heard, s.coopPick, track.whyAsked, raw, listOf(q.text) + q.ladder)
+                ?.let { it to CoopSource.HEARD }
+                ?: ((guarded(scripted.text, CoopSource.TEMPLATE) ?: q.text) to CoopSource.TEMPLATE)
+        }
+        scripted is CoopLine.Template -> (guarded(scripted.text, CoopSource.TEMPLATE) ?: q.text) to CoopSource.TEMPLATE
+        else -> (guarded(q.text, CoopSource.LADDER) ?: q.text) to CoopSource.LADDER
+    }
+    log("[$key] ${src.label} 질문 → \"$text\" · 수준 ${s.level.label}" + (if (src == CoopSource.HEARD) " · 들은 이름 ${track.heard}" else ""))
+    if ("왜" in text) track.whyAsked++
+    if (idx != null && firstAsk) track.partQuestions[idx] = text
+    val r = ask(q.copy(text = text, silent = false))
+    // 부모 리포트 「고른 이야기 · 적은 질문에 한 답」 — 지금 방식과 같이 앱 기본 질문 · 사다리는 남기지 않는다
+    if (src != CoopSource.LADDER) track.asked += when (r) {
+        is Reply.Spoke -> CoopAsked(text, r.text, "child")
+        is Reply.Tapped -> CoopAsked(text, r.label, if (r.byMascot) "mascot" else "card")
+        else -> CoopAsked(text, null, null)
+    }
+    if (src == CoopSource.PARENT) {
+        event("utterance", "speaker" to "adult", "mode" to "typed", "text" to text)
+        s.partnerTurns++
+        s.adultLine = text
+    }
+    // 앞 답에서 이름 하나 — 다음 자리 질문에 끼운다. 거친 말이 섞인 이름은 끼우지 않는다
+    if (r is Reply.Spoke) roleOf(key)?.let { (slot, role) ->
+        coopNameFrom(r.text, role)?.takeIf { !hasRoughWord(it) }?.let { track.heard[slot] = it; log("[$key] 들은 이름 $slot=「$it」 (다음 질문에 끼운다)") }
+    }
+    if (r is Reply.Spoke) coopReact(r)
+    return r
+}
+
+/** 지금 방식(09-30 흐름) — 비교용으로 그대로 둔다. 시연 서랍에서 고른다 */
+private suspend fun Director.coopAskInFlowBefore(q: Question): Reply {
     mark("coop")
     val llm = s.coopTrack.llmNext.also { s.coopTrack.llmNext = null }
     val firstAsk = q.id !in s.coopTrack.askedSteps
