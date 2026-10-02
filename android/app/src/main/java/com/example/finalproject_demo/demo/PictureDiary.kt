@@ -535,7 +535,7 @@ private suspend fun Director.offerOttoDrawing(name: String): String {
     when (v) {
         "yes" -> {
             say("나도 그려 볼게! 너도 더 그리고 있어!")
-            log("오또 그림 부탁 — 뒤에서 만든다(서버 연결 뒤 /image redraw · #32). 지금은 대본 그림")
+            log("오또 그림 부탁 — 뒤에서 만든다(서버 모드면 /image redraw · 아니면 대본 그림)")
         }
         "no" -> say("좋아, 네 그림이 최고야!")
     }
