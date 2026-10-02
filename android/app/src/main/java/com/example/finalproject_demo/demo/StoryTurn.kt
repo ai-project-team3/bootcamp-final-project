@@ -50,13 +50,14 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
 
 suspend fun Director.askStory(
     question: Question, askedSlot: String?,
+    singleAttempt: Boolean = false,
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Reply {
     var currentQuestion = question
     val conversationStage = s.stage
     while (true) {
         s.stage = conversationStage
-        val reply = if (Server.liveFor(s.mode)) askLiveStoryReply(currentQuestion, s.optionsFor(askedSlot, question.text))
+        val reply = if (Server.liveFor(s.mode)) askLiveStoryReply(currentQuestion, s.optionsFor(askedSlot, question.text), singleAttempt)
             else ask(currentQuestion)
         if (!Server.liveFor(s.mode) || TurnHistory.isNav(reply)) return reply
         val utterance = when (reply) {
@@ -96,14 +97,15 @@ suspend fun Director.askStory(
 }
 
 /** The same question gets one easier attempt before its server candidates are revealed. */
-private suspend fun Director.askLiveStoryReply(question: Question, options: List<String>): Reply {
+private suspend fun Director.askLiveStoryReply(question: Question, options: List<String>, singleAttempt: Boolean): Reply {
     val open = question.copy(
         kind = if (question.kind == Kind.CHOICE) Kind.EASY else question.kind,
         choices = emptyList(), noCards = true, fallback = null, hint = null,
-        ladder = listOf(question.easierText ?: "천천히 생각해 봐. ${question.text}"),
+        easierText = if (singleAttempt) null else question.easierText,
+        ladder = if (singleAttempt) emptyList() else listOf(question.easierText ?: "천천히 생각해 봐. ${question.text}"),
     )
     val reply = ask(open)
-    if (reply != Reply.Silent || options.isEmpty()) return reply
+    if (reply != Reply.Silent || options.isEmpty() || singleAttempt) return reply
     val cards = options.map { Card(it, Art.Mascot, it) }
     try {
         setListening(question.copy(choices = cards))

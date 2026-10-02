@@ -1424,6 +1424,7 @@ private suspend fun Director.sceneMaking() {
         if (s.useGeneratedStory(book?.captions?.map(mask::unmask))) {
             book?.title?.let { s.title = mask.unmask(it) }
             log("서버가 쓴 동화 ${s.pageCount}쪽을 받음")
+            completeStoryBackgroundFromBook()
         } else log("동화 생성 실패 또는 쪽 목록 불일치 → 템플릿 책 사용")
     }
     coopWriteBook()                             // 협업 책 문장 — 서버를 켰을 때만 (CoopScenes.kt · #47)
