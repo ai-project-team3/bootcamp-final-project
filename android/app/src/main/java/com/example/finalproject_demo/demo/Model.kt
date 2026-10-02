@@ -905,6 +905,8 @@ class DemoState {
     var storyNextSlot by mutableStateOf<String?>(null)
     var storyClarificationSlot by mutableStateOf<String?>(null)
     var storyServerQuestion by mutableStateOf<String?>(null)
+    /** Candidates belong to the current question and travel with its undo/redo snapshot. */
+    internal var storyAnswerOptions by mutableStateOf<StoryOptions?>(null)
     var storyStartedAtMs = 0L
     val storyUnneededSlots = mutableStateListOf<String>()
     val storyReady: Boolean get() = mode == StoryMode.STORY && endReason == "story_ready"
@@ -1339,7 +1341,7 @@ class DemoState {
         canUndo = false; canRedo = false
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
-        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyUnneededSlots.clear(); storyStartedAtMs = 0L
+        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyAnswerOptions = null; storyUnneededSlots.clear(); storyStartedAtMs = 0L
         partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY

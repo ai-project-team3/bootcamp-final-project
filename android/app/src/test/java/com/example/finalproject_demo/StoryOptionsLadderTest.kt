@@ -20,6 +20,89 @@ class StoryOptionsLadderTest {
     @Test fun twoSilentAnswersShowServerCardsAndKeepTheCardSource() = exercise(select = true)
     @Test fun noCardSelectionUsesTheFirstServerOptionWithoutChildSignals() = exercise(select = false)
 
+    @Test fun undoDuringServerCardsReturnsWithoutSubmittingAnAnswer() = runBlocking {
+        val previousBase = Server.base
+        val previousModes = Server.liveModes
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope)
+        Server.base = "http://127.0.0.1:1"
+        Server.liveModes = setOf(StoryMode.STORY)
+        d.s.speed = 0.01
+        d.s.timerOn = false
+        var submissions = 0
+        try {
+            d.s.exchangeStoryTurn("problem", "무슨 일이야?", "떠났어") {
+                Server.TurnResult(verdict("place"), Server.Line("그랬구나!", null, "어디로 갈까?", listOf("숲", "바다", "우주")))
+            }
+            val reply = async {
+                d.askStory(Question("어디로 갈까?", Kind.EASY), "place") {
+                    submissions++
+                    Server.TurnResult(verdict("problem"), null)
+                }
+            }
+            val feeder = launch {
+                while (d.s.stage !is Stage.CardsRow) {
+                    if (d.s.micEnabled) d.send(Reply.Silent)
+                    delay(20)
+                }
+            }
+            val reached = withTimeoutOrNull(3_000) { while (d.s.stage !is Stage.CardsRow) delay(5); true }
+            feeder.cancelAndJoin()
+            assertTrue("cards were not reached: ${d.s.stage} / ${d.s.log.takeLast(5)}", reached == true)
+            delay(30)
+            val undo = Reply.Tapped(TurnHistory.UNDO, "되돌리기")
+            d.send(undo)
+            val result = withTimeoutOrNull(3_000) { reply.await() }
+            assertEquals("navigation must return to the flow: ${d.s.log.takeLast(5)}", undo, result)
+            assertEquals("navigation is not a story answer", 0, submissions)
+            assertNull(d.s.slots["place"])
+        } finally {
+            scope.coroutineContext[Job]!!.cancelAndJoin()
+            Server.base = previousBase
+            Server.liveModes = previousModes
+        }
+    }
+
+    @Test fun undoRestoresTheCandidatesBelongingToThePreviousQuestion() = runBlocking {
+        val previousBase = Server.base
+        val previousModes = Server.liveModes
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope)
+        Server.base = "http://127.0.0.1:1"
+        Server.liveModes = setOf(StoryMode.STORY)
+        d.s.speed = 0.01
+        d.s.timerOn = false
+        try {
+            d.s.exchangeStoryTurn("problem", "무슨 일이야?", "떠났어") {
+                Server.TurnResult(verdict("place"), Server.Line("그랬구나!", null, "어디로 갈까?", listOf("숲", "바다", "우주")))
+            }
+            val history = TurnHistory(d.s)
+            history.before()
+            d.s.exchangeStoryTurn("place", "어디로 갈까?", "숲") {
+                Server.TurnResult(verdict("cause", listOf("place" to "숲")),
+                    Server.Line("숲이구나!", null, "왜 그랬어?", listOf("배고파서", "외로워서", "놀고 싶어서")))
+            }
+            history.done()
+            assertTrue(history.undo())
+            val reply = async { d.askStory(Question("어디로 갈까?", Kind.EASY), "place") }
+            val feeder = launch {
+                while (reply.isActive && d.s.stage !is Stage.CardsRow) {
+                    if (d.s.micEnabled) d.send(Reply.Silent)
+                    delay(20)
+                }
+            }
+            withTimeout(3_000) { while (d.s.stage !is Stage.CardsRow && !reply.isCompleted) delay(5) }
+            feeder.cancelAndJoin()
+            assertTrue("the restored question must still offer its own candidates", d.s.stage is Stage.CardsRow)
+            assertEquals(setOf("숲", "바다", "우주"), (d.s.stage as Stage.CardsRow).cards.map { it.label }.toSet())
+            reply.cancelAndJoin()
+        } finally {
+            scope.coroutineContext[Job]!!.cancelAndJoin()
+            Server.base = previousBase
+            Server.liveModes = previousModes
+        }
+    }
+
     @Test fun cardSpeechWaitsForTranscriptionAfterTheMicrophoneStops() = runBlocking {
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
         val d = Director(scope)

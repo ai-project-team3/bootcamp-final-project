@@ -2,25 +2,23 @@ package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
-import java.util.WeakHashMap
 import kotlinx.coroutines.*
 
-private data class StoryOptions(val slot: String?, val question: String, val values: List<String>)
-private val storyOptions = WeakHashMap<DemoState, StoryOptions>()
+internal data class StoryOptions(val slot: String?, val question: String, val values: List<String>)
 
 private fun DemoState.optionsFor(slot: String?, question: String): List<String> =
-    storyOptions[this]?.takeIf {
+    storyAnswerOptions?.takeIf {
         it.slot == slot && it.question == question && storyServerQuestion == question
     }?.values.orEmpty()
 
 /** Keep candidates with their question, so a reset or a different slot cannot reuse them. */
 private fun DemoState.rememberStoryQuestion(response: Server.TurnResult) {
     storyServerQuestion = response.line?.question
-    storyOptions.remove(this)
+    storyAnswerOptions = null
     val line = response.line ?: return
     val question = line.question?.takeIf(String::isNotBlank) ?: return
     val options = line.options?.filter(String::isNotBlank)?.distinct()?.take(3).orEmpty()
-    if (options.isNotEmpty()) storyOptions[this] = StoryOptions(storyNextSlot, question, options)
+    if (options.isNotEmpty()) storyAnswerOptions = StoryOptions(storyNextSlot, question, options)
 }
 
 /** 서버 판정을 동화 모드의 자료와 다음 질문에 반영한다. 서버 호출과 이름 가리기는 공통 경로가 담당한다. */
@@ -118,6 +116,7 @@ private suspend fun Director.askLiveStoryReply(question: Question, options: List
             buttons(DemoBtn("안 고름") { send(Reply.Silent) })
             awaitVoice()
             val chosen = awaitStoryCardReply()
+            if (chosen != null && TurnHistory.isNav(chosen)) return chosen
             when (chosen) {
                 is Reply.Spoke -> { acceptSpoken(chosen.text); return chosen }
                 is Reply.Tapped -> if (chosen.value in options && !chosen.byMascot) {
