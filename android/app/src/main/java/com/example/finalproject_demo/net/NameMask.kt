@@ -79,7 +79,7 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
 
 /** The session's names — the child's call and the friend in this story — for turning placeholders back. */
 fun DemoState.nameMask(): NameMask = NameMask(
-    childName,
+    storyHeroCall ?: childName,          // 아이가 인형에 이름을 지어 줬으면 그 이름이 주인공 (10-02)
     listOfNotNull(
         friendName.takeUnless { it.startsWith("{") },
         // 「누구랑?」에 친구 이름으로 답했으면(「민수」) — 호칭(삼촌 · 형)은 이름이 아니다
