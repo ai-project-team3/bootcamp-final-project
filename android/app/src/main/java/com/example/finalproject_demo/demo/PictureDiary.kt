@@ -987,6 +987,7 @@ suspend fun Director.openSavedDiary(shelfId: String): Boolean {
     val book = DiaryShelf.book(s, shelfId) ?: return false
     log("책장 → 그림일기 『${book.title}』 다시 읽기 (${book.madeAt})")
     s.withSavedDiary(book) { day -> readPictureDiary(day, reread = true) }
+    say("우리가 만든 책들이야!")                        // 책장으로 돌아온다 — 마지막 쪽 문장을 말풍선에 남기지 않는다
     return true
 }
 
