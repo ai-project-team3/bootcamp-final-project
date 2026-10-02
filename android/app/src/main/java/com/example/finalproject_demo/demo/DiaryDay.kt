@@ -112,6 +112,9 @@ class DiaryDay {
      */
     val sameSaying = mutableSetOf<String>()
 
+    /** 손가락이 그림판에 닿아 선을 긋는 중 — 획은 손을 떼야 들어오므로, 그 사이를 「조용함」으로 세지 않게 D1 질문이 본다 */
+    @Volatile var penDown = false
+
     /** 마지막으로 붙인 획 · 색을 바꿔 이어 그리는 중인 조각 — [addStroke] 가 본다 */
     internal var lastStroke: Stroke? = null
     internal var continuing: Int? = null

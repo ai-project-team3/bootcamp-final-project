@@ -480,6 +480,11 @@ class PictureDiaryFlowTest {
         // 기다림 10초 = 시험 속도로 약 0.1초 · 그 세 배 동안 같은 조각에 계속 그린다
         repeat(6) { i -> s.drawing += stroke(0.1f + i * 0.005f); delay(50) }
         assertTrue("같은 조각을 그리는데 질문을 거뒀다", s.diaryDay.askingPiece != null)
+        // 긴 선을 긋는 중(손가락이 판에 닿아 있음) — 획은 손을 떼야 들어오지만, 그 사이도 조용한 게 아니다 (10-02 실기기)
+        s.diaryDay.penDown = true
+        delay(300)
+        assertTrue("선을 긋는 중인데 질문을 거뒀다", s.diaryDay.askingPiece != null)
+        s.diaryDay.penDown = false
         // 손을 놓고 조용하면 거둔다
         assertTrue("조용한데 거두지 않았다", await { s.diaryDay.askingPiece == null } != null)
         assertTrue(await { s.line == "계속 그려 봐!" } != null)

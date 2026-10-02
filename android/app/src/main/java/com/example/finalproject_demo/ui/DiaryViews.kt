@@ -292,7 +292,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                 .testTag("diary-board")
                 .pointerInput(color) {
                     detectDragGestures(
-                        onDragStart = { p -> live.clear(); live += p; touched++ },
+                        onDragStart = { p -> live.clear(); live += p; day.penDown = true; touched++ },
                         onDrag = { change, _ -> live += change.position; change.consume() },
                         onDragEnd = {
                             if (live.size >= 2) {
@@ -300,10 +300,11 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                                 strokes++
                             }
                             live.clear()
+                            day.penDown = false                       // 획을 넣은 뒤에 — 질문이 새 획을 먼저 본다
                             quietFor = BRUSH_PAUSE_MS
                             touched++
                         },
-                        onDragCancel = { live.clear(); quietFor = BRUSH_PAUSE_MS; touched++ },
+                        onDragCancel = { live.clear(); day.penDown = false; quietFor = BRUSH_PAUSE_MS; touched++ },
                     )
                 }
         ) {
