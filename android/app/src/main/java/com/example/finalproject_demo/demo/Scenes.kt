@@ -1655,11 +1655,11 @@ private suspend fun Director.sceneEnd() {
         log("오늘은 그림을 안 그려서 무지개 크레용은 없다 — 안 한 일에 선물을 주지 않는다 (조사3 §1-3)")
     }
     say("책 다 만들었다! 고생했어~~")
-    buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
     while (true) {
+        buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
         awaitValue("shelf")
-        if (s.mode != StoryMode.STORY || saveFinishedStory()) break
-        say("책을 기기에 저장하지 못했어. 다시 눌러 줘.")
+        if (s.mode != StoryMode.STORY || saveStoryWithChoice()) break
+        say("책장에는 아직 넣지 않았어. 다시 눌러도 돼.")
     }
     mark("end")
     if (s.mode != StoryMode.STORY)
