@@ -57,6 +57,7 @@ import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.coopReady
+import com.example.finalproject_demo.demo.coopParentAdvice
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.bat
@@ -572,6 +573,18 @@ private fun CoopQuestionsTab(c: CoopDraft) {
                 Spacer(Modifier.height(4.dp))
                 Text("💡 ${h.why}", fontSize = 12.sp, color = PAccent)
                 Text(h.example, fontSize = 12.sp, color = PSub)
+            }
+            // 오또가 묻기 전 갈무리와 같은 기준의 귀띔 — 막지 않고, 바꿀지는 부모가 고른다 (10-02 · CoopGuard.kt)
+            var kept by remember(text) { mutableStateOf(false) }
+            if (!kept) coopParentAdvice(text)?.let { a ->
+                Spacer(Modifier.height(4.dp))
+                a.notes.forEach { Text("💡 $it", fontSize = 12.sp, color = PAccent) }
+                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    a.suggestion?.let { sug ->
+                        CoopChip("“$sug” 로 바꿀게요", on = true) { set(i, sug) }
+                    }
+                    CoopChip("그대로 둘게요", on = false) { kept = true }
+                }
             }
         }
     }
