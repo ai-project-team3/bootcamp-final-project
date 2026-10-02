@@ -8,7 +8,7 @@ gen_assets.py 와 같은 파이프라인(krea2 → 물건은 BiRefNet 으로 배
 """
 import json, time, urllib.request, urllib.parse, os, sys, random
 
-API = "http://127.0.0.1:8188"
+API = os.environ.get("COMFY_URL", "http://127.0.0.1:8188").rstrip("/")  # 다른 PC 의 ComfyUI 는 COMFY_URL (ART.md)
 STYLE = ("soft wool felt and fabric craft 3D children's picture book illustration, visible felt fibers and stitched edges, "
          "cute rounded shapes, warm pastel colors (cream, mustard yellow, coral, teal, sky blue), gentle soft lighting, "
          "cozy, no text, no letters, no numbers, high quality")

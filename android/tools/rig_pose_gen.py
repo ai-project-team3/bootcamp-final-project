@@ -16,7 +16,7 @@
 import io, json, math, os, random, sys, time, urllib.parse, urllib.request
 from PIL import Image, ImageDraw
 
-API = "http://127.0.0.1:8188"
+API = os.environ.get("COMFY_URL", "http://127.0.0.1:8188").rstrip("/")  # 다른 PC 의 ComfyUI 는 COMFY_URL (ART.md)
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "build", "rig_pose")
 os.makedirs(OUT, exist_ok=True)
