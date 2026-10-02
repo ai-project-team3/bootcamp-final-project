@@ -201,13 +201,21 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
         // 그린 조각마다 묻는다 — 몇 번까지라는 상한은 없다. 빈도는 붓 멈춤 · 손 움직임이 정한다 (10-02 진웅 · 흐름 「간격으로만」)
         if (piece != null) {
             askedPieces += piece.id
+            // 배경을 그렸다 — 「뭐 그린 거야?」 대신 「여기는 어디야?」(장소를 아직 모를 때). 답은 장소 칸으로
+            if (piece.role == PieceRole.BACKGROUND && "place" !in storyAsked && s.slots["place"].isNullOrBlank()) {
+                storyAsked += "place"
+                log("배경을 그렸다 → 장소를 묻는다")
+                if (askStoryWhileDrawing(day, Triple("place", D1_FIRST_STORY, "place"), ring = piece.id) == "done") break
+                continue
+            }
             val linesBefore = s.drawing.size
             val answer = askPieceName(day, piece)
             if (answer.finished) break
             // 다른 조각을 그리러 갔다 — 이 조각은 안 물은 것으로 두고(나중에 · D3), 다음 멈춤에 지금 그리는 조각을 먼저 묻는다
             if (answer.movedOn) { askedPieces -= piece.id; continue }
             val name = answer.name
-            if (name == null || offers >= OTTO_OFFERS) continue
+            // 배경은 오또가 다시 그려 주지 않는다 — 배경 다시 그리기는 ComfyUI 확인 뒤에 (10-02 진웅)
+            if (name == null || offers >= OTTO_OFFERS || piece.role == PieceRole.BACKGROUND) continue
             // 답하는 사이 새 선을 긋기 시작했으면 그리기를 끊지 않는다 — 제안은 물을 것 없는 다음 멈춤에
             if (s.drawing.size > linesBefore) {
                 held += piece.id to name
@@ -369,7 +377,7 @@ private fun Director.nextD1Story(day: DiaryDay, asked: Set<String>): Triple<Stri
  * 서버가 없거나 실패하면 아이 말 그대로 물은 칸에. 「몰라」 · 말이 없으면 비워 두고 D3 가 묻는다.
  * 돌려주는 값: done(그리기를 끝냈다) · 그 밖
  */
-private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: Triple<String, String, String>): String {
+private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: Triple<String, String, String>, ring: Int? = null): String {
     val (slot, text, key) = story
     day.nextStory = null
     val q = Question(
@@ -378,7 +386,8 @@ private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: Triple<S
         extra = listOf(DemoBtn("✅ 다 그렸어") { send(Reply.Tapped("done", "완료")) }),
         id = "diary_d1_$key", waitSec = D1_WAIT_SEC,
     )
-    val r = askWhileDrawing(q, day, about = null)
+    day.askingPiece = ring                                   // 배경을 보고 묻는 질문이면 그 배경에 고리
+    val r = try { askWhileDrawing(q, day, about = ring) } finally { day.askingPiece = null }
     if (r is Reply.Tapped && (r.value == "done" || r.value == "skip")) return "done"
     val said = (r as? Reply.Spoke)?.text?.trim().orEmpty()
     if (r !is Reply.Spoke || said.isEmpty() || dontKnow(said)) {
@@ -791,6 +800,13 @@ private fun Director.firstEmptyQuestion(skip: Set<String> = emptySet()): Triple<
     PICTURE_QUESTIONS.firstOrNull { s.slots[it.key].isNullOrBlank() && it.key !in skip }
         ?.let { Triple(judgeSlotOf(it.key), it.ask(s), it.key) }
 
+/**
+ * 판정이 `story_ready` 를 줘도 「내일」이 비었으면 그것만 묻는다 — 이야기 칸이 다 찼다는 뜻이지 일기의 맺음까지 들었다는 뜻이 아니다.
+ * 판정은 결말 답에서 ready · 다음 칸 없음을 준다(`eval/results.md` 10-02) — 그대로 멈추면 「내일」이 빠진다
+ */
+private fun Director.tomorrowQuestion(skip: Set<String>): Triple<String, String, String>? =
+    firstEmptyQuestion(skip + PICTURE_QUESTIONS.map { it.key }.filter { it != "keep" })
+
 /** 판정 슬롯 → 책 키. 그림일기 쪽이 있는 칸만 책에 들어가고, 나머지는 칸에만 남는다 */
 /**
  * 판정이 다음에 물을 칸으로 고른 [slot] 의 답이 들어갈 책 키 — 일기에서 `extra` 를 물으면 「내일 또 하고 싶은 거」라 `keep` 에 넣는다.
@@ -920,10 +936,10 @@ private suspend fun Director.askEmptySlotsLive() {
         v.noLongerNeeded?.let { log("판정 — 「$it」 칸은 더 묻지 않아도 된다") }
         if (v.storyReady && s.endReason == null) {
             s.endReason = "story_ready"
-            log("판정 story_ready — 남은 물음은 판정이 고른 칸만")
+            log("판정 story_ready — 남은 물음은 판정이 고른 칸과 「내일」만")
         }
         sayReaction(result, r)
-        next = serverNext(result) ?: if (v.storyReady) null else firstEmptyQuestion(gaveUp)
+        next = serverNext(result) ?: if (v.storyReady) tomorrowQuestion(gaveUp) else firstEmptyQuestion(gaveUp)
     }
     if (s.endReason == null && PICTURE_REQUIRED.all { !s.slots[it].isNullOrBlank() }) s.endReason = "story_ready"
     log("다 그린 뒤 ${asked}번 물었다 · /turn ${day.turnCalls}번 (#30 — 세기만)")

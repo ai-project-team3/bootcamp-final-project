@@ -103,6 +103,7 @@ import com.example.finalproject_demo.demo.FEEL_LEAD
 import com.example.finalproject_demo.demo.PEN_W
 import com.example.finalproject_demo.demo.PICTURE_REQUIRED
 import com.example.finalproject_demo.demo.PieceLook
+import com.example.finalproject_demo.demo.PieceRole
 import com.example.finalproject_demo.demo.readingDiary
 import com.example.finalproject_demo.demo.PieceMove
 import com.example.finalproject_demo.demo.Reply
@@ -341,7 +342,9 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
             val otto = day.pieces.filter { it.look == PieceLook.OTTO }
             val hidden = otto.flatMap { it.strokes }.toSet()
             Canvas(Modifier.fillMaxSize()) {
-                s.drawing.filter { it !in hidden }.forEach { drawBoardStroke(it, whole) }
+                // 배경 획을 먼저 — 나중에 그은 땅 · 하늘이 물체를 덮지 않는다
+                val behind = day.pieces.filter { it.role == PieceRole.BACKGROUND }.flatMap { it.strokes }.toSet()
+                s.drawing.filter { it !in hidden }.sortedBy { if (it in behind) 0 else 1 }.forEach { drawBoardStroke(it, whole) }
                 if (live.size >= 2) {
                     val p = Path().apply { live.forEachIndexed { i, o -> if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) } }
                     drawPath(p, color, style = Stroke(size.width * PEN_W, cap = StrokeCap.Round, join = StrokeJoin.Round))
@@ -605,7 +608,7 @@ private fun TwoStars(filled: Int, cq: Dp, modifier: Modifier) {
 /** 책에 들어갈 조각 — 묶인 조각이 없으면 화이트보드 그림 한 덩어리 */
 private fun bookPieces(s: DemoState): List<DiaryPiece> = s.diaryDay.pieces.toList().ifEmpty {
     if (s.sceneDrawing.isEmpty()) emptyList() else listOf(DiaryPiece(0, s.sceneDrawing.toList()))
-}
+}.sortedBy { if (it.role == PieceRole.BACKGROUND) 0 else 1 }       // 배경이 맨 뒤 겹
 
 // ── D4 만드는 중 ────────────────────────────────────────────────
 
@@ -847,8 +850,9 @@ private fun PicturePanel(
                 }
         ) {
             pieces.forEach { p ->
-                val front = everyone || (p.name != null && p.name in page.cast) || p.id in moved || p.id == glow?.first
-                val moves = front && !everyone && p.name !in page.still
+                val backdrop = p.role == PieceRole.BACKGROUND             // 배경은 흐리지도 움직이지도 않고 뒤에 있다
+                val front = backdrop || everyone || (p.name != null && p.name in page.cast) || p.id in moved || p.id == glow?.first
+                val moves = front && !backdrop && !everyone && p.name !in page.still
                 val a = if (front) 1f else 0.25f
                 val mine = poke?.takeIf { it.first == p.id }?.second ?: 0
                 // 글 칸을 다시 누르면 앞에 나온 조각이 모두 통통 — 누른 조각의 반응이 먼저다

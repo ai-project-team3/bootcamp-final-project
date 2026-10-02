@@ -409,6 +409,22 @@ class PictureDiaryFlowTest {
         assertTrue("말=${s.line}", await { s.line == "나도 강아지를 그려볼까?" } != null)
     }
 
+    /** 판을 가로지르는 땅선(배경)을 그리면 「뭐 그린 거야?」 대신 「여기는 어디야?」 — 답은 장소 칸으로, 오또가 다시 그려 주겠다고 하지 않는다 */
+    @Test
+    fun drawingTheGroundAsksWhereThisIs() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += Stroke(Color.Green, listOf(Offset(.05f, .85f), Offset(.50f, .88f), Offset(.95f, .86f)))
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue("배경인데 장소를 묻지 않았다 — 말=${s.line}", await { s.line == "여기는 어디야?" } != null)
+        assertEquals(com.example.finalproject_demo.demo.PieceRole.BACKGROUND, s.diaryDay.pieces.single().role)
+        d.speak("놀이터")
+        assertTrue(await { s.slots["place"] == "놀이터" } != null)
+        delay(300)
+        assertTrue("배경을 다시 그려 주겠다고 했다", "그려볼까" !in s.line)
+    }
+
     /**
      * 물을 조각이 없는 붓 멈춤 — 그리는 중에 이야기를 묻는다(어디 → 무슨 일). 답은 아이 말 그대로 그 칸에(아이 출처),
      * 다 그린 뒤에는 그 칸을 다시 묻지 않는다 (10-02 진웅 · 프로토타입)
