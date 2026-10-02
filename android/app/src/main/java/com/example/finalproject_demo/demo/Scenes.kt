@@ -1633,7 +1633,7 @@ private suspend fun Director.sceneEnd() {
     while (true) {
         buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
         awaitValue("shelf")
-        if (s.mode != StoryMode.STORY || saveStoryWithChoice()) break
+        if (s.mode != StoryMode.STORY || saveFinishedStory()) break
         say("책장에는 아직 넣지 않았어. 다시 눌러도 돼.")
     }
     mark("end")

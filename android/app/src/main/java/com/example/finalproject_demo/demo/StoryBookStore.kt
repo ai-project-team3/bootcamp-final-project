@@ -30,8 +30,6 @@ interface StoryBookStore {
     fun count(): Int = load().size
     /** Persist deletion first; the shared director then updates the shelf and sound files. */
     fun delete(id: String): Boolean { error("Story deletion is not supported") }
-    /** Replace in one transaction. Stores without this capability leave both books untouched. */
-    fun replace(book: SavedStoryBook, oldId: String) { error("Story replacement is not supported") }
     /** Null means metadata cannot safely identify the files to retain. */
     fun imageReferences(): Set<String>? = load().flatMap { listOfNotNull(it.bgName, it.visuals?.hero?.image) }.toSet()
 }
@@ -108,14 +106,6 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
         if (current.none { it.id == id }) return false
         write(current.filterNot { it.id == id })
         return true
-    }
-
-    override fun replace(book: SavedStoryBook, oldId: String) {
-        val current = writableBooks()
-        require(oldId != book.id && current.any { it.id == oldId }) { "The chosen story is no longer available" }
-        val all = listOf(book) + current.filterNot { it.id == oldId || it.id == book.id }
-        require(all.size <= STORY_SHELF_CAPACITY)
-        write(all)
     }
 
     /** Reading can skip damaged entries, but writing must never silently erase them. */

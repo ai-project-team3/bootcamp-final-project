@@ -149,7 +149,7 @@ class StoryImageRecoveryTest {
         } finally { scope.cancel() }
     }
 
-    @Test fun replacementCannotDropAnUnreadableEntryAndItsPicture() {
+    @Test fun parentDeletionCannotDropAnUnreadableEntryAndItsPicture() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefs = context.getSharedPreferences("story_books", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
@@ -167,8 +167,9 @@ class StoryImageRecoveryTest {
         val scope = CoroutineScope(SupervisorJob())
         try {
             val d = Director(scope, books, images)
-            d.s.templateKey = "C"
-            assertFalse(d.saveFinishedStory("book-5"))
+            d.s.scene = Scene.PARENT
+            assertNull(d.storyBookCount())
+            assertFalse(d.deleteStoryBook("book-5"))
             assertNotNull(d.savedStory("book-5"))
             assertEquals(original, prefs.getString("books", null))
             assertTrue(file(picture).exists())

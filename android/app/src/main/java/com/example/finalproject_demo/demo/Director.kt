@@ -96,28 +96,40 @@ class Director(
         ShelfBook(title, themeKey, bgName, pages.size, fresh, id)
 
     /** 실패한 저장은 책장에 성공한 것처럼 표시하지 않는다. */
-    fun storyReplacementChoices(): List<SavedStoryBook> = savedStories.toList()
+    fun storyBooks(): List<SavedStoryBook> = savedStories.toList()
 
-    fun storyNeedsReplacement(): Boolean = savedStories.size >= STORY_SHELF_CAPACITY &&
-        savedStories.none { it.id == s.storySoundBookId }
+    /** Null means unreadable metadata, never an empty shelf that is safe to overwrite. */
+    fun storyBookCount(): Int? = runCatching { storyBookStore?.count() ?: savedStories.size }.getOrNull()
 
-    fun saveFinishedStory(replacingId: String? = null): Boolean {
-        val book = s.completedStoryBook() ?: return false
-        if (storyNeedsReplacement() && replacingId == null) return false
-        if (replacingId != null && (replacingId == book.id || savedStories.none { it.id == replacingId })) return false
+    /** Call after the parent's PIN and deletion confirmation; child scenes cannot delete books. */
+    fun deleteStoryBook(id: String): Boolean {
+        if (s.scene != Scene.PARENT || savedStories.none { it.id == id }) return false
+        return try {
+            if (storyBookStore?.delete(id) != true) return false
+            savedStories.removeAll { it.id == id }
+            s.shelf.removeAll { it.savedStoryId == id }
+            runCatching { com.example.finalproject_demo.sound.ChildSound.deleteBook(id) }
+            recoverStoryImages()
+            true
+        } catch (_: Exception) { false }
+    }
+
+    fun saveFinishedStory(): Boolean {
+        val completed = s.completedStoryBook() ?: return false
+        val previous = savedStories.firstOrNull { it.id == completed.id }
+        val book = completed.copy(madeAt = previous?.madeAt ?: completed.madeAt)
+        val count = storyBookCount() ?: return false
+        if (count >= STORY_SHELF_CAPACITY && previous == null) return false
         return try {
             if (book.soundClipId != null && storyBookStore == null) return false
             if (!s.keepStorySound(book)) return false
-            if (replacingId == null) storyBookStore?.save(book)
-            else storyBookStore?.replace(book, replacingId)
+            storyBookStore?.save(book)
             s.storySoundBookId = book.id
             s.commitStorySound()
-            savedStories.removeAll { it.id == book.id || it.id == replacingId }
-            s.shelf.removeAll { it.savedStoryId == book.id || replacingId != null && it.savedStoryId == replacingId }
+            savedStories.removeAll { it.id == book.id }
+            s.shelf.removeAll { it.savedStoryId == book.id }
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))
-            // Never erase the old recording until the replacement is durably saved.
-            if (replacingId != null) runCatching { com.example.finalproject_demo.sound.ChildSound.deleteBook(replacingId) }
             recoverStoryImages()
             true
         } catch (_: Exception) { false }
