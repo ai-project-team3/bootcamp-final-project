@@ -49,19 +49,23 @@ data class DiaryPiece(
  * 날씨 — **지어내지 않는다.** 아이가 해 · 구름 · 비 · 눈을 그리고 그렇게 이름 붙였으면 저절로,
  * 아니면 그림일기 쪽에서 아이가 누른다.
  */
-enum class DiaryWeather(val emoji: String, val label: String, private val drawn: Regex) {
-    SUN("☀️", "맑음", Regex("해|햇님|햇빛|태양")),
-    CLOUD("☁️", "흐림", Regex("구름")),
-    RAIN("☔", "비", Regex("비|우산|빗")),
-    SNOW("⛄", "눈", Regex("눈사람|눈이|눈싸움"));
+/**
+ * 그림일기 날씨. 이름 붙은 조각을 **낱말로** 읽는다([mentions]) — 글자로 찾으면 「나비」 「비행기」가 비,
+ * 「해바라기」가 맑음이 됐다(프로토타입 정규식을 그대로 옮긴 것 · 10-01 검토). 「눈」 하나는 얼굴의 눈일 수 있어 세지 않는다
+ */
+enum class DiaryWeather(val emoji: String, val label: String, private val words: List<String>) {
+    SUN("☀️", "맑음", listOf("해", "해님", "햇님", "햇빛", "햇살", "태양")),
+    CLOUD("☁️", "흐림", listOf("구름", "먹구름", "구름들")),
+    RAIN("☔", "비", listOf("비", "빗방울", "빗물", "우산", "소나기", "장마")),
+    SNOW("⛄", "눈", listOf("눈사람", "눈송이", "눈싸움", "눈꽃"));
 
     /** 이 이름의 조각이 이 날씨를 그린 것인가 — 날씨를 누르면 그 조각이 반짝인다 */
-    fun drew(name: String): Boolean = drawn.containsMatchIn(name)
+    fun drew(name: String): Boolean = words.any { mentions(name, it) }
 
     companion object {
         /** 이름 붙은 조각에서 고른다. 없으면 null — 아이에게 누르게 한다 */
         fun fromPieces(names: List<String>): DiaryWeather? =
-            entries.firstOrNull { w -> names.any { w.drawn.containsMatchIn(it) } }
+            entries.firstOrNull { w -> names.any(w::drew) }
     }
 }
 
