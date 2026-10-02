@@ -1,5 +1,9 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.completedStoryBook
+import com.example.finalproject_demo.demo.pageCount
+import com.example.finalproject_demo.demo.bookCaption
+import com.example.finalproject_demo.demo.restoreStoryBook
 import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.coopPartQuestions
