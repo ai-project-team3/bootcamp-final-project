@@ -75,10 +75,11 @@ enum class StoryMode {
     val usesDiaryQuestions: Boolean get() = this == DIARY || this == COOP
 }
 
-enum class Persona(val childName: String, val label: String) {
-    TALKER("지호", "말하기형 · 지호"),
-    CHOOSER("하늘", "고르기형 · 하늘"),
-    DRAWER("다온", "그리기형 · 다온"),
+/** 시연 서랍 — 더미 아이가 어떻게 답하나. 이름은 없다: 아이 호칭은 부모가 정한다(`net/ChildCall` · 10-02) */
+enum class Persona(val label: String) {
+    TALKER("말하기형"),
+    CHOOSER("고르기형"),
+    DRAWER("그리기형"),
 }
 
 /**
@@ -1239,8 +1240,8 @@ class DemoState {
 
     val heroes = mutableStateListOf(
         // 둘이 한눈에 달라 보여야 한다 — 안경만 다르면 도감에서 같은 아이로 보인다 (9/21)
-        Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9))),
-        Hero("빨간 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts")),
+        Hero("안경 쓴 친구", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9))),
+        Hero("빨간 옷 친구", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts")),
     )
 
     val achievements = mutableStateListOf<String>()
@@ -1321,7 +1322,8 @@ class DemoState {
     var modeDraw by mutableStateOf(0)
     var modeSilent by mutableStateOf(0)
 
-    val childName: String get() = persona.childName
+    /** 마스코트가 아이를 부르는 말 — 부모가 정한 호칭, 없으면 「친구」(`net/ChildCall` · 10-02) */
+    val childName: String get() = com.example.finalproject_demo.net.ChildCall.call
 
     /** 이야기 한 권 분량만 지운다. 책장 · 부모 설정 · 하루 별 · 도감 · 수준(다음 세션 시작점) · 쓴 질문은 남긴다 */
     fun resetStory() {
@@ -1372,8 +1374,8 @@ class DemoState {
         // 앱을 새로 켠 것이므로 부모가 넣은 질문도 지운다 — `resetStory()` 는 이제 안 지운다
         clearParentQuestions()
         heroes.clear()
-        heroes += Hero("안경 쓴 지호", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9)))
-        heroes += Hero("빨간 옷 지호", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
+        heroes += Hero("안경 쓴 친구", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9)))
+        heroes += Hero("빨간 옷 친구", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
         shelf.clear()
         limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null
         keptFriends.clear(); usedVariants.clear()

@@ -13,21 +13,21 @@ class ExchangeTurnTest {
     ), Server.Line("{주인공}이 길을 잃었구나", null, "{주인공}은 어떻게 했어?"))
 
     @Test
-    fun diaryUsesSharedMaskingWithoutApplyingTheStoryVerdict() = runBlocking {
+    fun diarySendsNamesAndRestoresPlaceholdersWithoutApplyingTheStoryVerdict() = runBlocking {
         val s = DemoState().apply { mode = StoryMode.DIARY; templateKey = "C"; turn = 4 }
-        s.slots["place"] = "지호의 숲"
+        s.slots["place"] = "친구의 숲"
         var sent: Server.Turn? = null
-        val result = s.exchangeTurn("diary", "problem", "지호야, 무슨 일이야?", "지호가 길을 잃었어") {
+        val result = s.exchangeTurn("diary", "problem", "친구야, 무슨 일이야?", "친구가 길을 잃었어") {
             sent = it; response()
         }
         assertEquals("diary", sent?.mode)
         assertNull("diary has its own page plan, not a story template", sent?.template)
         assertEquals(4, sent?.turn)
-        assertEquals("{주인공}의 숲", sent?.slots?.get("place"))
-        assertEquals("{주인공}가 길을 잃었어", sent?.utterance)
-        assertEquals("지호가 길을 잃었다", result?.verdict?.fills?.single()?.second)
-        assertEquals("지호는 어떻게 했어?", result?.line?.question)
-        assertEquals(mapOf("place" to "지호의 숲"), s.slots.toMap())
+        assertEquals("친구의 숲", sent?.slots?.get("place"))   // names go as they are (10-02)
+        assertEquals("친구가 길을 잃었어", sent?.utterance)
+        assertEquals("친구가 길을 잃었다", result?.verdict?.fills?.single()?.second)
+        assertEquals("친구는 어떻게 했어?", result?.line?.question)
+        assertEquals(mapOf("place" to "친구의 숲"), s.slots.toMap())
         assertTrue(s.slotBy.isEmpty())
         assertNull(s.endReason)
         assertNull(s.storyNextSlot)
@@ -36,7 +36,7 @@ class ExchangeTurnTest {
     @Test
     fun sharedStoryExchangeAlsoLeavesStateForTheModeOwnerToApply() = runBlocking {
         val s = DemoState().apply { templateKey = "C" }
-        val result = s.exchangeTurn("story", "problem", "무슨 일이야?", "지호가 길을 잃었어") { response() }
+        val result = s.exchangeTurn("story", "problem", "무슨 일이야?", "친구가 길을 잃었어") { response() }
         assertNotNull(result)
         assertTrue(s.slots.isEmpty())
         assertNull(s.endReason)
