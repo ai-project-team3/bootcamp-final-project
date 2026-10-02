@@ -428,10 +428,19 @@ suspend fun Director.coopWriteBook() {
         keep = s.slots["keep"]?.takeIf(String::isNotBlank)?.let(mask::mask),
         level = s.level.name.lowercase(),
         pages = pages.map { Server.Page(it.kind.name) },
+        // 고른 이야기와 이유 — 이유에 따라 책 시제가 갈린다(곧 해요 = 앞으로 할 일 · 좋아해요 = 상상) (#52 1번 · 서버 `77a9d5c`)
+        template = s.coopTurnContext()?.let(mask::mask),
+        reason = s.coopStoryReason(),
     )?.map(mask::unmask)
     if (s.useCoopCaptions(captions)) log("서버가 쓴 협업 책 문장 ${pages.size}쪽을 받음 (/story)")
     else log("협업 책 문장 생성 실패 또는 쪽 수 불일치 → 틀 문장 그대로")
 }
+
+/**
+ * `/story` 의 `reason` — 고른 이야기가 있으면 그 이유. **이유를 안 골랐으면 `dream`** — 앱이 질문을 상상 이야기로 했으니
+ * 책도 상상으로 써야 한다(서버는 비면 「있었던 일」로 쓴다). 이야기를 안 고르고 질문만 적었으면 null(있었던 일 · 일기형).
+ */
+internal fun DemoState.coopStoryReason(): String? = coopPick?.let { (it.reasonOrNull() ?: CoopReason.DREAM).key }
 
 /** 쪽 수가 맞고 빈 문장이 없을 때만 쓴다 — 하나라도 어긋나면 틀 문장 책 */
 fun DemoState.useCoopCaptions(captions: List<String>?): Boolean {
