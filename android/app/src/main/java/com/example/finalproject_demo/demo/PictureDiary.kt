@@ -102,7 +102,16 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
         // 아이는 아무 때나 먼저 말해도 된다 — 마이크를 열어 둔다. 붓 멈춤은 오또가 지켜보는 동안에만 온다
         inputs(mic = true, next = false)
         day.watching = true
-        val r = awaitReply()
+        // 오또 그림이 다 되면 붓 멈춤을 또 기다리지 않는다 — 아이가 멈추고 기다리면 그림이 영영 안 떴다(10-02 실기기).
+        // 그리는 중 · 말하는 중이면 끝날 때까지 기다렸다가 멈춤처럼 알린다
+        val arts = waiting.mapNotNull { it.art }
+        val wake = launch {
+            if (arts.isEmpty()) return@launch
+            while (arts.none { it.isCompleted }) delay(WATCH_STEP_MS)
+            while (day.penDown || s.micOn) delay(WATCH_STEP_MS)
+            send(Reply.Tapped("pause", "오또 그림"))
+        }
+        val r = try { awaitReply() } finally { wake.cancel() }
         day.watching = false
         when {
             r is Reply.Tapped && r.value == "pause" -> afterCrayon = r.label == CRAYON_PAUSE
@@ -300,6 +309,7 @@ private suspend fun Director.receiveOttoDrawing(day: DiaryDay, order: OttoOrder)
     }
     day.pieces[i] = day.pieces[i].copy(ottoPng = png)
     s.images++
+    runCatching { android.util.Log.i("Diary", "redraw shown #${fingerprint(png)} on 「${day.pieces[i].name}」") }
     showOttoDrawing(day, day.pieces[i])
     return true
 }
