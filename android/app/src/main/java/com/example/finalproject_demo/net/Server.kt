@@ -126,7 +126,8 @@ object Server {
     // ── /turn ──────────────────────────────────────────────────────
 
     /** What the mascot says after the child (guidelines/7 §3). Placeholders `{주인공}` · `{친구n}` stay — unmask on the phone. */
-    data class Line(val ack: String, val expand: String?, val question: String?)
+    /** [options]: up to 3 short answers for the slot [question] asks — cards, then the mascot's pick (#79). Null in diary. */
+    data class Line(val ack: String, val expand: String?, val question: String?, val options: List<String>? = null)
 
     /** Either half may be null — fill it from the script. [question] is null when [ask] was false or the story is ready. */
     data class TurnResult(val verdict: Verdict?, val line: Line?)
@@ -150,7 +151,10 @@ object Server {
         return try {
             TurnResult(
                 verdict = j.optJSONObject("judge")?.let { parseVerdict(it) },
-                line = j.optJSONObject("line")?.let { Line(it.getString("ack"), str(it, "expand"), str(it, "question")) },
+                line = j.optJSONObject("line")?.let { l ->
+                    val options = l.optJSONArray("options")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).takeIf(String::isNotBlank) } }
+                    Line(l.getString("ack"), str(l, "expand"), str(l, "question"), options?.takeIf { it.isNotEmpty() })
+                },
             )
         } catch (e: Exception) { warn("/turn parse", e); null }
     }
