@@ -7,7 +7,13 @@ import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.CoopShelf
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.PageKind
+import com.example.finalproject_demo.demo.CoopBookSnapshot
+import com.example.finalproject_demo.demo.SavedCoopBook
 import com.example.finalproject_demo.demo.SavedStoryBook
+import com.example.finalproject_demo.demo.bookCaption
+import com.example.finalproject_demo.demo.pageCount
+import com.example.finalproject_demo.demo.pageKind
+import com.example.finalproject_demo.demo.restoreCoopBook
 import com.example.finalproject_demo.demo.SavedStoryPage
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
@@ -338,9 +344,11 @@ class CoopFlowTest {
         s.buttons.first { "책장에 꽂기" in it.label }.onClick()
         assertTrue("책장으로 못 갔다: ${s.line}", await(5_000) { s.scene == Scene.SHELF } != null)
 
-        val saved = store.books.singleOrNull()
-        assertTrue("협업 책장에 저장되지 않았다", saved != null)
-        assertTrue("빈 쪽이 있다: ${saved!!.pages}", saved.pages.isNotEmpty() && saved.pages.all { it.caption.isNotBlank() })
+        val entry = store.books.singleOrNull()
+        assertTrue("협업 책장에 저장되지 않았다", entry != null)
+        val saved = entry!!.book
+        assertTrue("빈 쪽이 있다: ${saved.pages}", saved.pages.isNotEmpty() && saved.pages.all { it.caption.isNotBlank() })
+        assertTrue("주인공 · 그림 정보가 저장되지 않았다(글자만 나온다)", saved.visuals != null)
         val shelved = s.shelf.first()
         assertEquals(COOP_SHELF_ID + saved.id, shelved.savedStoryId)
         assertTrue("새로 꽂힌 책 표시가 없다", shelved.fresh)
@@ -350,6 +358,16 @@ class CoopFlowTest {
         d.send(com.example.finalproject_demo.demo.Reply.Tapped("book", shelved.savedStoryId!!))
         val opened = await(5_000) { (s.stage as? com.example.finalproject_demo.demo.Stage.SavedStory)?.book?.id == saved.id }
         assertTrue("책장에서 다시 열리지 않았다: ${s.stage}", opened != null)
+
+        // 읽기 화면처럼 새 상태에 되살린다 — 만들 때와 같은 책이어야 한다 (저장 형식 한 바퀴는 CoopBookStoreTest)
+        val reader = com.example.finalproject_demo.demo.DemoState()
+        assertTrue("같이 만들기 책으로 되살리지 못했다", reader.restoreCoopBook(saved))
+        assertTrue(reader.isCoop)
+        assertEquals("쪽 수가 다르다", saved.pages.size, reader.pageCount)
+        assertEquals("쪽 종류(그림)가 다르다", saved.pages.map { it.kind }, (1..reader.pageCount).map { reader.pageKind(it) })
+        assertEquals("쪽 문장이 다르다", saved.pages.map { it.caption }, (1..reader.pageCount).map { reader.bookCaption(it) })
+        assertEquals("배경이 다르다", s.bgName, reader.bgName)
+        assertEquals("반짝이는 자리가 다르다", s.diaryGlow, reader.diaryGlow)
     }
 
     /** 12권이 차 있으면 **아무것도 지우지 않고** 이번 책은 꽂지 않는다 — 뺄 책 고르기는 책장 전체의 일이다 (guidelines/3 §3-5) */
@@ -362,21 +380,23 @@ class CoopFlowTest {
         d.walkToShelfButton()
         s.buttons.first { "책장에 꽂기" in it.label }.onClick()
         assertTrue(await(5_000) { s.scene == Scene.SHELF } != null)
-        assertEquals((1..COOP_SHELF_CAPACITY).map { "old$it" }, store.books.map { it.id })
+        assertEquals((1..COOP_SHELF_CAPACITY).map { "old$it" }, store.books.map { it.book.id })
         assertTrue("꽉 찬 책장에 새 책이 꽂혔다", s.shelf.none { it.fresh })
     }
 
-    private class MemoryCoopStore(start: List<SavedStoryBook> = emptyList()) : CoopBookStore {
+    private class MemoryCoopStore(start: List<SavedCoopBook> = emptyList()) : CoopBookStore {
         val books = start.toMutableList()
         override fun load() = books.toList()
-        override fun save(book: SavedStoryBook) {
+        override fun save(book: SavedCoopBook) {
             require(books.size < COOP_SHELF_CAPACITY)
             books.add(0, book)
         }
     }
 
-    private fun coopBook(id: String) =
-        SavedStoryBook(id, "책 $id", "space", "bg_space", listOf(SavedStoryPage(PageKind.TOGETHER, "같이 놀았어요.")))
+    private fun coopBook(id: String) = SavedCoopBook(
+        SavedStoryBook(id, "책 $id", "space", "bg_space", listOf(SavedStoryPage(PageKind.TOGETHER, "같이 놀았어요."))),
+        CoopBookSnapshot("지호", emptyMap(), null, "", "{친구1}", emptyList(), 1f, "mom", null, null, "", "bg_space"),
+    )
 
     /** 책까지 🎲로 밀고, 책 → 친구 평가 → 선물을 지나 [책장에 꽂기]가 뜰 때까지 */
     private suspend fun Director.walkToShelfButton() {

@@ -6,7 +6,12 @@ import com.example.finalproject_demo.demo.COOP_SHELF_CAPACITY
 import com.example.finalproject_demo.demo.LocalCoopBookStore
 import com.example.finalproject_demo.demo.LocalStoryBookStore
 import com.example.finalproject_demo.demo.PageKind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import com.example.finalproject_demo.demo.CoopBookSnapshot
+import com.example.finalproject_demo.demo.SavedCoopBook
 import com.example.finalproject_demo.demo.SavedStoryBook
+import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.SavedStoryPage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -27,16 +32,28 @@ class CoopBookStoreTest {
         listOf("coop_books", "story_books").forEach { context.getSharedPreferences(it, Context.MODE_PRIVATE).edit().clear().commit() }
     }
 
-    private fun book(id: String) = SavedStoryBook(id, "책 $id", "space", "bg_space",
-        listOf(SavedStoryPage(PageKind.TOGETHER, "같이 놀았어요."), SavedStoryPage(PageKind.JOURNEY, "집에 왔어요.")))
+    private fun book(id: String) = SavedCoopBook(
+        SavedStoryBook(id, "책 $id", "space", "bg_space",
+            listOf(SavedStoryPage(PageKind.TOGETHER, "같이 놀았어요."), SavedStoryPage(PageKind.JOURNEY, "집에 왔어요."))),
+        CoopBookSnapshot(
+            "지호", mapOf("place" to "사자 우리", "problem" to "사자가 나왔어"), "사자 우리", "엄마", "{친구1}",
+            listOf(Stroke(Color(0xFF3366FF.toInt()), listOf(Offset(0.1f, 0.2f), Offset(0.5f, 0.25f)), 0.02f)), 1.5f,
+            "mom", "엄마", null, "또 가고 싶어요", "bg_zoo",
+            fields = mapOf("place" to "사자 우리", "reaction" to "깜짝 놀랐어"),
+            slotBy = mapOf("place" to "child", "solution" to "mascot"),
+            feelings = listOf("놀랐"),
+        ),
+    )
 
     @Test
     fun aSavedBookComesBackAfterARestartNewestFirst() {
         LocalCoopBookStore(context).save(book("a"))
         LocalCoopBookStore(context).save(book("b"))
         val again = LocalCoopBookStore(context).load()
-        assertEquals(listOf("b", "a"), again.map { it.id })
-        assertEquals(book("a").pages, again.last().pages)
+        assertEquals(listOf("b", "a"), again.map { it.book.id })
+        assertEquals(book("a").book.pages, again.last().book.pages)
+        // 다시 그리는 재료(이야기 칸 · 화이트보드 그림 · 함께한 사람 · 배경)도 그대로 돌아온다
+        assertEquals(book("a").snapshot, again.last().snapshot)
     }
 
     @Test
@@ -52,7 +69,7 @@ class CoopBookStoreTest {
         val refused = runCatching { store.save(book("new")) }.isFailure
         assertTrue("13권째가 들어갔다", refused)
         assertEquals(COOP_SHELF_CAPACITY, store.load().size)
-        assertTrue(store.load().none { it.id == "new" })
+        assertTrue(store.load().none { it.book.id == "new" })
     }
 
     @Test
