@@ -375,7 +375,7 @@ private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: 
         var quietMs = 0L
         while (true) {
             delay((WATCH_STEP_MS * s.speed).toLong().coerceAtLeast(1))
-            if (s.micOn) { quietMs = 0; continue }
+            if (s.micOn || day.penDown) { quietMs = 0; continue }      // 말하는 중 · 선을 긋는 중은 조용한 게 아니다
             if (s.drawing.size > seen) {
                 val fresh = s.drawing.subList(seen, s.drawing.size).toList()
                 seen = s.drawing.size
@@ -390,6 +390,8 @@ private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: 
         }
     }
     val r = try { awaitReply() } finally { watch.cancel() }
+    // 실기기에서 어느 길로 끝났는지 본다 — 질문 · 끝난 까닭만(아이 말은 남기지 않는다)
+    runCatching { android.util.Log.i("Diary", "D1 「${q.text}」 → ${when (r) { is Reply.Spoke -> "answered"; is Reply.Tapped -> r.value; else -> r.javaClass.simpleName }}") }         // 단위 테스트에는 Log 가 없다
     when {
         r is Reply.Spoke -> acceptSpoken(r.text)
         r is Reply.Tapped && r.value == MOVED_ON -> { s.line = ""; log("「${q.text}」 — 다른 조각을 그리기 시작했다 → 조용히 거둔다(지금 그리는 그림이 먼저)") }
