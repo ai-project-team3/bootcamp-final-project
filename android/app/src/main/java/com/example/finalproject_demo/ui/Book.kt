@@ -76,6 +76,9 @@ import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.demo.pageKind
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Reply
+import com.example.finalproject_demo.demo.bookShowsDino
+import com.example.finalproject_demo.demo.isLiveStory
+import com.example.finalproject_demo.demo.soundHolderName
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.SavedStoryBook
 import com.example.finalproject_demo.demo.bookCaption
@@ -500,7 +503,8 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
         // 일기 모드에는 탈것(로켓 · 거북이 · 기차)도 동행 공룡도 없다 — 묻지 않는 칸이다 (일기 설계 §2-2).
         // 아이가 아무도 그리지 않은 날에는 친구 자리도 비워 둔다 — 앱이 없는 친구를 만들어 내지 않는다 (§3-2).
         val showRide = !s.isDiary
-        val showDino = !s.isDiary
+        // 서버 동화도 공룡을 세우지 않는다 — 아이가 정하지 않은 공룡이 끼어들었다 (#50 2번 · `bookShowsDino`)
+        val showDino = s.bookShowsDino
         // 일기 · 협업은 아이가 그린 것 → 아이가 말한 사람 순으로 세우고, 둘 다 없으면 아무도 안 세운다 (일기 §3-2)
         val friendShown: Art? = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
         val showFriend = friendShown != null
@@ -576,7 +580,11 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                 Scenery(glow = if (s.isDiary) s.diaryGlow else s.hotspots.map { it.key }.toSet())
                 Box(Modifier.align(Alignment.TopCenter).padding(top = 76.dp).size(110.dp, 50.dp).alpha(twinkle)) { ArtView(Art.Img("prop_sparkle", Art.Emoji("⭐✨⭐")), Modifier.fillMaxSize()) }
                 Char("hero", heroArt, 0.17f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(heroPose), stand = 1f, act = heroAct)
-                if (friendShown != null) Char("friend", friendShown, 0.42f, 0.26f, 0.17f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }, stand = 0.85f)
+                // 서버 동화는 공룡 대신 **새 친구**를 누르면 아이가 녹음한 그 친구의 소리가 난다 (#50 2번)
+                val friendSound: (() -> Unit)? = if (s.isLiveStory && s.soundHolderName != null) {
+                    { d.send(Reply.Tapped("sound", s.soundHolderName!!)) }
+                } else null
+                if (friendShown != null) Char("friend", friendShown, 0.42f, 0.26f, 0.17f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }, onHand = friendSound, stand = 0.85f)
                 if (showDino) Char("dino", dinoArt, 0.72f, 0.20f, 0.28f, 1.35f, Modifier.offset { IntOffset(0, bob.roundToInt()) }, onHand = { d.send(Reply.Tapped("dino", s.dino.label)) }, stand = 0.92f, act = dinoAct)
                 if (s.partnerHelpLine != null) {
                     Layer(0.80f, 0.34f, 0.10f) { ArtView(Art.Img(s.partner.img, Art.Emoji(s.partner.emoji)), Modifier.fillMaxSize()) }
@@ -679,7 +687,7 @@ private fun Cover(d: Director, heroArt: Art) {
             // 일기 모드 표지에는 아이가 그린 것만 선다 — 안 그렸으면 주인공만 (§2-2 · §3-2)
             val coverFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
             if (coverFriend != null) ArtView(coverFriend, Modifier.size(120.dp))
-            if (!s.isDiary) ArtView(Art.DinoArt(s.dinoColor, s.dinoKey), Modifier.size(130.dp, 110.dp))
+            if (s.bookShowsDino) ArtView(Art.DinoArt(s.dinoColor, s.dinoKey), Modifier.size(130.dp, 110.dp))
         }
         Spacer(Modifier.height(6.dp))
         // 지은이는 **아이 이름만** 쓴다 (9/22).
@@ -749,7 +757,7 @@ private fun RubPage(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool
         Stand(0.14f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
         val rubFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
         if (rubFriend != null) Stand(0.66f, 0.11f, 0.85f) { ArtView(rubFriend, Modifier.fillMaxSize()) }
-        if (!s.isDiary) Stand(0.86f, 0.19f, 0.92f) { ArtView(dinoArt, Modifier.fillMaxSize()) }
+        if (s.bookShowsDino) Stand(0.86f, 0.19f, 0.92f) { ArtView(dinoArt, Modifier.fillMaxSize()) }
 
         // 불을 계속 피운다. 문지를수록 기운이 줄어 **입자 수가** 사그라든다.
         //

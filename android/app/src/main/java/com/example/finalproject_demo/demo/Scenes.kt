@@ -1457,7 +1457,9 @@ private suspend fun Director.sceneBook() {
             i == dragPage -> if (s.m2Result == null) s.m2Line(s.m1Result == "helped") else s.m2Done()
             // 일기 모드에는 공룡 소리 칸이 없다 — 묻지 않는 칸이다 (§2-2)
             i == last && s.isDiary -> "오른쪽 책 버튼을 눌러 봐! 오늘 이야기가 여기서 끝나."
-            i == last && s.storySoundClip != null -> "${d}${eul(d)} 눌러 봐! 내가 만든 소리가 나와."
+            // 누를 인물 — 대본 동화는 공룡, 서버 동화는 새 친구 (#50 2번 · `soundHolderName`)
+            i == last && s.storySoundClip != null && s.soundHolderName != null ->
+                s.soundHolderName!!.let { h -> "${h}${eul(h)} 눌러 봐! 내가 만든 소리가 나와." }
             i == last && Server.liveFor(s.mode) -> "오른쪽 책 버튼을 눌러 봐! 우리 이야기가 여기서 끝나."
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
@@ -1526,7 +1528,7 @@ private suspend fun Director.sceneBook() {
                 log("미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (연출은 공통)")
                 mark("book")
             }
-            vv == "dino" -> {
+            vv == "dino" || vv == "sound" -> {
                 if (s.mode == StoryMode.STORY) playStorySound()
                 log("친구 소리 재생 · 녹음이 없으면 조용히 유지")
             }

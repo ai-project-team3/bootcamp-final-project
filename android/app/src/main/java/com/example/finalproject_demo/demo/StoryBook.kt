@@ -2,6 +2,25 @@ package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.net.Server
 
+/** 서버로 진행한 동화 — 대화가 AI 로 돌아 **대본의 공룡이 없다** (#50 2번 · `sceneFriends` 와 같은 기준) */
+val DemoState.isLiveStory: Boolean get() = mode == StoryMode.STORY && Server.liveFor(mode)
+
+/**
+ * 책에 테마의 기본 공룡을 세우나 (#50 2번). **대본 동화만** — 대본은 장면 「공룡」에서 아이가 공룡을 만난다.
+ * 서버 동화는 아이가 정하지 않은 공룡이 표지 · 미션 쪽 · 마지막 쪽에 끼어들었다(트리케라톱스). 일기 · 협업은 원래 없다.
+ */
+val DemoState.bookShowsDino: Boolean get() = !isDiary && !isLiveStory
+
+/**
+ * 마지막 쪽에서 눌러 **아이가 녹음한 소리**를 듣는 인물의 이름 — 대본 동화는 공룡, 서버 동화는 이야기에서 정한 새 친구
+ * (서버 동화의 소리 칸은 그 친구의 소리다). 누를 인물이 없으면 null.
+ */
+val DemoState.soundHolderName: String? get() = when {
+    bookShowsDino -> dino.name
+    isLiveStory && !slots["newcomer"].isNullOrBlank() -> friendCallName
+    else -> null
+}
+
 /** 현재 동화 템플릿의 쪽 순서를 그대로 서버에 보낸다. 다른 모드의 책 구성은 각 담당자가 정한다. */
 fun DemoState.storyPagePlan(): List<Server.Page> {
     if (mode != StoryMode.STORY) return emptyList()
