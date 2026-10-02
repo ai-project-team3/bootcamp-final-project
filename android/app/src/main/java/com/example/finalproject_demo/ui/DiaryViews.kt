@@ -367,9 +367,17 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                         .background(if (ready) FeltCoral else FeltMustard, RoundedCornerShape(cq * 2))
                         .then(
                             when {
-                                ready -> Modifier.clickable { d.send(Reply.Tapped("look:${p.id}", "오또 그림 보기")) }
-                                // 그냥 이름표 — 오또가 이름을 불러 준다. 묻는 중에는 답으로 섞이지 않게 지켜볼 때만
-                                day.watching -> Modifier.clickable { d.send(Reply.Tapped("name:${p.id}", "이름 부르기")) }.testTag("tag-${p.id}")
+                                // 톡 = ✨ 오또 그림 다시 고르기 · 그냥 이름표는 이름 부르기. 길게 = 이름 고치기(지켜볼 때만 · 10-02 진웅).
+                                // 묻는 중에는 답으로 섞이지 않게 지켜볼 때만 받는다 — ✨ 는 전처럼 언제든
+                                ready || day.watching -> Modifier.pointerInput(p.id, ready, day.watching) {
+                                    detectTapGestures(
+                                        onTap = {
+                                            if (ready) d.send(Reply.Tapped("look:${p.id}", "오또 그림 보기"))
+                                            else d.send(Reply.Tapped("name:${p.id}", "이름 부르기"))
+                                        },
+                                        onLongPress = { if (day.watching) d.send(Reply.Tapped("rename:${p.id}", "이름 고치기")) },
+                                    )
+                                }.testTag("tag-${p.id}")
                                 else -> Modifier
                             }
                         )

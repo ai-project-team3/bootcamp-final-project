@@ -138,6 +138,12 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
                     ?.let { showOttoDrawing(day, it) }
                 continue
             }
+            // 이름표를 길게 — 이름을 다시 묻고 고친다 (10-02 진웅 — 잘못 들은 이름을 고칠 수 있어야 한다)
+            r is Reply.Tapped && r.value.startsWith("rename:") -> {
+                day.pieces.firstOrNull { it.id == r.value.removePrefix("rename:").toIntOrNull() && it.name != null }
+                    ?.let { askRename(day, it) }
+                continue
+            }
             // 그냥 이름표를 톡 — 이름을 불러 준다 (프로토타입 tapTag)
             r is Reply.Tapped && r.value.startsWith("name:") -> {
                 day.pieces.firstOrNull { it.id == r.value.removePrefix("name:").toIntOrNull() }?.name?.let { say("${you(it)}!") }
@@ -297,6 +303,8 @@ private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke, as
     if (yesNoOf(r.text) == "done") return Heard.DONE
     if (DRAW_ME.containsMatchIn(r.text)) return Heard.DRAW_ME
     day.catchUp(s.drawing)
+    // 「요 아니야, 집이야」 — 언제든 붙은 이름을 고친다
+    day.correctionIn(r.text)?.let { (piece, name) -> setPieceName(day, piece.id, name, r.text); return Heard.OTHER }
     val piece = pieceBeingDrawn(day)
     // 물었는데 이름을 못 받은 조각이면 다시 한 말은 이름을 고쳐 말하는 것이다 — 「○○야」 꼴이 아니어도 받는다
     val retry = piece != null && piece.id in asked
@@ -459,6 +467,20 @@ private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pie
     return PieceAnswer(name)
 }
 
+/** 이름표를 길게 눌렀다 — 「이건 뭐야? 다시 말해 줘!」. 이름이 나오면 고치고, 아니면 그대로 둔다 */
+private suspend fun Director.askRename(day: DiaryDay, piece: DiaryPiece) {
+    val q = Question(text = "이건 뭐야? 다시 말해 줘!", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_rename", waitSec = D1_WAIT_SEC)
+    day.askingPiece = piece.id
+    val r = try { askWhileDrawing(q, day, about = piece.id) } finally { day.askingPiece = null }
+    val name = (r as? Reply.Spoke)?.let { pieceNameFrom(it) }
+    val now = you(piece.name.orEmpty())
+    when {
+        name == null -> { say("그래, 그대로 둘게!"); pause(600) }
+        name == piece.name -> { say("맞아, ${now}${ida(now)}!"); pause(600) }
+        else -> setPieceName(day, piece.id, name, (r as Reply.Spoke).text)
+    }
+}
+
 /** D1 질문을 조용히 거둔 까닭 — 아이가 다른 조각을 그리기 시작했다 · 손을 놓고 말이 없었다 */
 internal const val MOVED_ON = "@moved_on"
 internal const val WENT_QUIET = "@quiet"
@@ -579,18 +601,57 @@ private suspend fun Director.nameThePiece(day: DiaryDay, piece: DiaryPiece, r: R
         if (again is Reply.Spoke && pieceNameFrom(again) != null) said = again
     }
     val name = pieceNameFrom(said) ?: return null
-    val i = day.pieces.indexOfFirst { it.id == piece.id }
-    if (i < 0) return null
-    day.pieces[i] = day.pieces[i].copy(name = name)
+    if (!setPieceName(day, piece.id, name, said.text)) return null
+    return name
+}
+
+/**
+ * 조각 이름을 아이 말로 붙이거나 고친다 — 아이 출처(규칙 5). 이름이 바뀌면 옛 이름으로 그린 오또 그림은 떼고 원본으로 둔다.
+ * 고칠 때는 「아, 집이구나!」 (10-02 진웅 — 잘못 들은 이름을 고칠 수 있어야 한다)
+ */
+private suspend fun Director.setPieceName(day: DiaryDay, pieceId: Int, name: String, said: String): Boolean {
+    val i = day.pieces.indexOfFirst { it.id == pieceId }
+    if (i < 0) return false
+    val old = day.pieces[i].name
+    val redrawn = old != null && (day.pieces[i].ottoPng != null || day.pieces[i].look == PieceLook.OTTO)
+    day.pieces[i] = day.pieces[i].copy(name = name).let { if (redrawn) it.copy(ottoPng = null, look = PieceLook.ORIGINAL) else it }
     s.slots["whiteboard"] = day.pieceNames.joinToString(", ")
     s.slotBy["whiteboard"] = "child"
     event("slot_filled", "slot" to "extra", "of" to "whiteboard", "value" to name, "source" to "child")
-    quote(said.text)
-    say("${you(name)}${ida(you(name))}구나!")
-    log("조각 이름 「$name」 — 아이가 말한 이름 (extra · whiteboard · child)")
-    DiaryTrace.name(piece.id, name)
+    quote(said)
+    if (old == null) {
+        say("${you(name)}${ida(you(name))}구나!")
+        log("조각 이름 「$name」 — 아이가 말한 이름 (extra · whiteboard · child)")
+    } else {
+        say("아, ${you(name)}${ida(you(name))}구나!")
+        log("조각 이름 고침 「$old」 → 「$name」 — 아이가 고쳐 말했다${if (redrawn) " · 옛 이름으로 그린 오또 그림은 떼고 원본으로" else ""}")
+    }
+    DiaryTrace.name(pieceId, name)
     pause(700)
-    return name
+    return true
+}
+
+/** 「요 아니야, 집이야」 · 「요가 아니고 집」 — 앞말이 붙은 이름, 뒷말이 고친 이름 */
+private val NOT_THAT = Regex("^(.+?)\\s*(이|가)?\\s*아니(야|고|라|에요|예요)?[,.!~]*\\s+(.+)$")
+
+/** 아이가 조각 이름을 고쳐 말했나 — 「요 아니야, 집이야」. 앞말이 이 판의 조각 이름이어야 한다. (그 조각 · 새 이름) 또는 null */
+internal fun DiaryDay.correctionIn(text: String): Pair<DiaryPiece, String>? {
+    val m = NOT_THAT.find(text.trim()) ?: return null
+    val said = setOf(m.groupValues[1].trim(), m.groupValues[1].trim() + m.groupValues[2])
+    val piece = pieces.firstOrNull { it.name != null && it.name in said } ?: return null
+    val name = pieceNameFrom(Reply.Spoke(m.groupValues[4])) ?: return null
+    return (piece to name).takeIf { name != piece.name }
+}
+
+/**
+ * 「나도 ○○ 그려볼까?」에 이름을 고쳐 답했나 — 「아니, 집이야」 · 「요 아니야, 집이야」. 새 이름 또는 null.
+ * 「아니, 내 그림이 좋아」 · 「아니 괜찮아」는 이름이 아니다 — 「~야」로 끝나는 이름 꼴만 받는다
+ */
+internal fun DiaryDay.renameInAnswer(text: String, piece: DiaryPiece): String? {
+    correctionIn(text)?.takeIf { it.first.id == piece.id }?.let { return it.second }
+    val rest = Regex("^아니[야,.!~ ]*").replace(text.trim(), "").trim()
+    if (rest == text.trim() || !soundsLikeAName(rest)) return null
+    return pieceNameFrom(Reply.Spoke(rest))?.takeIf { it != piece.name }
 }
 
 /**
@@ -598,9 +659,9 @@ private suspend fun Director.nameThePiece(day: DiaryDay, piece: DiaryPiece, r: R
  * 「더 그렸어」로 합쳤으면 물은 조각([id])은 없어지고 이름 조각만 남는다 — 그 조각을 그린다
  */
 private suspend fun Director.offerAndOrder(scope: CoroutineScope, day: DiaryDay, waiting: MutableList<OttoOrder>, id: Int, name: String): String {
-    val v = offerOttoDrawing(name)
+    val v = offerOttoDrawing(name, day, id)
     if (v == "yes") (day.pieces.firstOrNull { it.id == id } ?: day.pieces.firstOrNull { it.name == name })
-        ?.let { waiting += orderOttoDrawing(scope, it, name) }
+        ?.let { waiting += orderOttoDrawing(scope, it, it.name ?: name) }
     return v
 }
 
@@ -608,11 +669,20 @@ private suspend fun Director.offerAndOrder(scope: CoroutineScope, day: DiaryDay,
  * 「나도 ○○ 그려볼까?」 — 응이면 뒤에서 그리고 아이는 계속 그린다. 기다리는 화면이 없다. yes · no · done
  * 말로 답한다(마이크) — 누를 버튼이 화면에 없기 때문이다. 못 알아들었거나 말이 없으면 「아니」로 둔다
  */
-private suspend fun Director.offerOttoDrawing(name: String): String {
+private suspend fun Director.offerOttoDrawing(name: String, day: DiaryDay? = null, pieceId: Int? = null): String {
+    val piece = pieceId?.let { id -> day?.pieces?.firstOrNull { it.id == id } }
+    var heard = ""
     val v = askYesNo(
         "나도 ${you(name)}${eul(you(name))} 그려볼까?", "diary_offer",
         yes = Answer("응!", "yes", lv = 1), no = Answer("아니, 내 그림이 좋아.", "no", lv = 1),
+        rename = if (day != null && piece != null) { text -> heard = text; day.renameInAnswer(text, piece) } else null,
     ).let {
+        // 「아니, 집이야」 — 이름을 고쳐 말했다. 고치고 새 이름으로 한 번 더 묻는다
+        if (it.startsWith(RENAMED) && day != null && piece != null) {
+            val fixed = it.removePrefix(RENAMED)
+            setPieceName(day, piece.id, fixed, heard)
+            return offerOttoDrawing(fixed)
+        }
         when (it) {
             "yes", "done", MOVED_ON -> it        // 묻는 사이 다른 걸 그리러 갔으면 아무 말 없이 — 부른 쪽이 다음에 다시 묻는다
             WENT_QUIET, "silent" -> "quiet"      // 말이 없었다 — 「아니」로 두되 「네 그림이 최고야」는 하지 않는다
@@ -656,7 +726,7 @@ internal fun yesNoOf(text: String): String? = when {
  * 예/아니 질문 — 마이크로 듣는다. 대본 답은 값(yes · no)이 붙어 오고, 서버 모드의 말은 글자로 가른다.
  * 돌려주는 값: yes · no · done(시연 서랍 [다 그렸어]) · skip · silent · unclear · [MOVED_ON] · [WENT_QUIET]
  */
-private suspend fun Director.askYesNo(text: String, id: String, yes: Answer, no: Answer): String {
+private suspend fun Director.askYesNo(text: String, id: String, yes: Answer, no: Answer, rename: ((String) -> String?)? = null): String {
     val q = Question(
         text = text,
         kind = Kind.EASY,
@@ -669,10 +739,15 @@ private suspend fun Director.askYesNo(text: String, id: String, yes: Answer, no:
     // 어느 조각이든 다시 그리기 시작하면 거둔다(about = null) — 그리는 중인 아이에게 예/아니를 붙잡고 있지 않는다
     return when (val r = askWhileDrawing(q, s.diaryDay, about = null)) {
         is Reply.Tapped -> r.value
-        is Reply.Spoke -> r.answer?.value?.takeIf { it.isNotBlank() } ?: yesNoOf(r.text) ?: "unclear"
+        is Reply.Spoke -> r.answer?.value?.takeIf { it.isNotBlank() }
+            ?: rename?.invoke(r.text)?.let { RENAMED + it }
+            ?: yesNoOf(r.text) ?: "unclear"
         else -> "silent"
     }
 }
+
+/** 예/아니 대신 조각 이름을 고쳐 답했다 — 「@renamed:집」 */
+private const val RENAMED = "@renamed:"
 
 /** 오또 그림이 왔다 — 보여 주고 아이가 고른다. 원본이 기본값이다 */
 private suspend fun Director.showOttoDrawing(day: DiaryDay, piece: DiaryPiece) {

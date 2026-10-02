@@ -347,6 +347,35 @@ class PictureDiaryFlowTest {
         assertEquals("나비", you("나비"))
     }
 
+    /**
+     * 잘못 들은 이름은 고친다 (10-02 진웅) — 「나도 ○○ 그려볼까?」에 「아니, 집이야」, 그리는 중 아무 때나 「집 아니야, 나무야」,
+     * 이름표를 길게 누르면 다시 묻는다. 고친 이름도 아이 말이다
+     */
+    @Test
+    fun aMisheardPieceNameCanBeCorrected() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("해야")                                               // 잘못 들었다
+        assertTrue(await { s.line == "나도 해를 그려볼까?" } != null)
+        d.tell("아니, 집이야") { s.line == "나도 집을 그려볼까?" }
+        assertEquals("집", s.diaryDay.pieces.single().name)
+        assertTrue(d.push("아니"))
+        d.tell("집 아니야, 나무야") { s.line == "아, 나무구나!" }
+        assertEquals("나무", s.diaryDay.pieces.single().name)
+        val id = s.diaryDay.pieces.single().id
+        assertTrue(await { s.diaryDay.watching } != null)
+        d.send(Reply.Tapped("rename:$id", "이름 고치기"))
+        assertTrue(await { s.line == "이건 뭐야? 다시 말해 줘!" } != null)
+        d.speak("사과나무야")
+        assertTrue(await { s.line == "아, 사과나무구나!" } != null)
+        assertEquals("사과나무", s.diaryDay.pieces.single().name)
+        assertEquals("child", s.slotBy["whiteboard"])
+    }
+
     /** 「강아지 그려줘」 — 마지막에 그린 조각이 아니라 부른 조각을. 이미 그리는 중이면 다시 주문하지 않고 그렇다고 말한다 (프로토타입) */
     @Test
     fun drawMeAimsAtThePieceTheChildNames() = run { d ->
