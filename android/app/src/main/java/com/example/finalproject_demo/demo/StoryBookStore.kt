@@ -21,6 +21,8 @@ data class SavedStoryBook(
 interface StoryBookStore {
     fun load(): List<SavedStoryBook>
     fun save(book: SavedStoryBook)
+    /** Null means metadata cannot safely identify the files to retain. */
+    fun imageReferences(): Set<String>? = load().flatMap { listOfNotNull(it.bgName, it.visuals?.hero?.image) }.toSet()
 }
 
 fun DemoState.completedStoryBook(): SavedStoryBook? {
@@ -36,6 +38,18 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
     private val prefs = context.applicationContext.getSharedPreferences("story_books", Context.MODE_PRIVATE)
 
     init { recoverStorySounds(load()) }
+
+    override fun imageReferences(): Set<String>? {
+        val raw = prefs.getString("books", null) ?: return emptySet()
+        return runCatching {
+            val books = JSONArray(raw)
+            (0 until books.length()).flatMap { i ->
+                val entry = books.getJSONObject(i)
+                listOfNotNull(entry.getString("bgName"),
+                    entry.optJSONObject("visuals")?.optJSONObject("hero")?.optString("image")?.takeIf { it != "null" })
+            }.toSet()
+        }.getOrNull()
+    }
 
     override fun load(): List<SavedStoryBook> {
         val raw = prefs.getString("books", null) ?: return emptyList()
