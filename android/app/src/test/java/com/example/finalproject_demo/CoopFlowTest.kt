@@ -180,21 +180,33 @@ class CoopFlowTest {
         assertTrue("잇는 말 · 결과 신호가 안 달렸다: $note", note.a1 && "결과" in note.el)
     }
 
-    /** 바뀐 방식이 묻는 횟수를 늘리지 않는다 — 같은 이야기 · 같은 시연 답으로 책까지 가서 견준다 (§0 「턴 수 증가 없음」) */
+    /**
+     * 바뀐 방식이 묻는 횟수를 늘리지 않는다 (§0 「턴 수 증가 없음」) — 같은 이야기에 **같은 진짜 마이크 답을 같은 순서로** 넣고
+     * 판정을 거친 턴 수를 견준다. 🎲 시연 답은 매번 무작위로 뽑혀 걸음 수가 흔들리므로 쓰지 않는다
+     */
     @Test
     fun theNewWayDoesNotAskMoreTimes() {
         val pick = CoopPick("place", "동물원", "done")
+        val answers = listOf(
+            "사자 우리", "엄마랑 나", "사자가 문을 열고 나왔어", "사육사 아저씨가 와서 도와줬어", "깜짝 놀랐어",
+            "배가 고파서", "조심하라고 했어", "다시 문을 닫았어", "그래서 사자가 들어갔어", "또 가고 싶어",
+        )
         val counts = listOf(false, true).map { on ->
             var n = 0
             run { d ->
                 CoopLab.followUps = on
                 d.startCoopWith(pick = pick)
-                n = d.walkToBook().size
+                for (i in 0 until 16) {
+                    if (await(4_000) { d.s.micEnabled } == null) break
+                    d.answer(answers[i % answers.size])
+                }
+                n = d.s.notes.size
             }
             n
         }
         CoopLab.followUps = true
-        assertTrue("지금 방식 ${counts[0]}번 · 바뀐 방식 ${counts[1]}번", counts[0] > 0 && counts[1] <= counts[0])
+        println("턴 수 — 지금 방식 ${counts[0]} · 바뀐 방식 ${counts[1]}")
+        assertTrue("지금 방식 ${counts[0]}턴 · 바뀐 방식 ${counts[1]}턴", counts[0] > 0 && counts[1] <= counts[0])
     }
 
     /** 책까지 🎲(시연 답)로 밀며 오또가 물은 말을 모은다 */
