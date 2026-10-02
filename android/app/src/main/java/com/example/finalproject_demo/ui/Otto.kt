@@ -333,7 +333,6 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
         burst = s.mood, burstId = s.moodId,
         expr = exprFor(text, s.mood),
         trailing = if (controls) { {
-            if (s.micEnabled) TurnNavButtons(d)
             if (s.drawEnabled) DrawButton(d)
             if (s.micEnabled) MicButton(d, size = 96.dp)  // 나레이션 줄 오른쪽 — 얼굴 자리(100dp)와 무게를 맞춘다
         } } else null,
@@ -341,25 +340,20 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
 }
 
 /**
- * 되돌리기 · 앞으로 가기 (10-02 조장 · #87) — 잘못 알아들은 답을 무른다. 아이 차례(마이크가 켜질 수 있을 때)에만,
- * 무를 차례가 있을 때만 보인다. 누르면 말하던 마스코트도 끊긴다(`Director.send`). 흐름은 `demo/TurnHistory`.
+ * 되돌리기 · 앞으로 가기 (10-02 조장 · #87) — 잘못 알아들은 답을 무른다. 화면 **양끝 가운데**(↩ 왼쪽 · ↪ 오른쪽) —
+ * 책의 ◀ ▶ 와 같은 자리 · 같은 64dp 펠트 원이라 「왼쪽 = 뒤로」를 아이가 이미 안다. 아이 차례에, 무를 차례가 있을 때만
+ * 보인다(`MainActivity`). 누르면 말하던 마스코트도 끊긴다(`Director.send`). 흐름은 `demo/TurnHistory`.
  */
 @Composable
-fun TurnNavButtons(d: Director) {
-    val s = d.s
-    if (!s.canUndo && !s.canRedo) return
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if (s.canUndo) FeltButton(
-            WoolCream,
-            onClick = { d.send(Reply.Tapped(com.example.finalproject_demo.demo.TurnHistory.UNDO, "되돌리기")) },
-            modifier = Modifier.padding(end = 8.dp).size(56.dp), shape = CircleShape,
-        ) { Text("↩", fontSize = 26.sp, color = InkBrown) }
-        if (s.canRedo) FeltButton(
-            WoolCream,
-            onClick = { d.send(Reply.Tapped(com.example.finalproject_demo.demo.TurnHistory.REDO, "앞으로")) },
-            modifier = Modifier.padding(end = 8.dp).size(56.dp), shape = CircleShape,
-        ) { Text("↪", fontSize = 26.sp, color = InkBrown) }
-    }
+fun TurnNavButton(d: Director, undo: Boolean, modifier: Modifier = Modifier) {
+    FeltButton(
+        WoolCream,
+        onClick = {
+            if (undo) d.send(Reply.Tapped(com.example.finalproject_demo.demo.TurnHistory.UNDO, "되돌리기"))
+            else d.send(Reply.Tapped(com.example.finalproject_demo.demo.TurnHistory.REDO, "앞으로"))
+        },
+        modifier = modifier.size(64.dp), shape = CircleShape,
+    ) { Text(if (undo) "↩" else "↪", fontSize = 28.sp, color = InkBrown) }
 }
 
 /** 나레이션 위 여유 — 오또 점프(18dp) · 파동 · 「!」가 투명도 버퍼 안에 들어오게 */
