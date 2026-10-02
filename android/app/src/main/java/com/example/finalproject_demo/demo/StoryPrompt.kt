@@ -44,8 +44,7 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null): StoryPrompt? {
 }
 
 /** 시간과 대리 선택 횟수로 끝내지 않는다. story_ready만 책 제작을 시작한다. */
-@Suppress("UNUSED_PARAMETER")
-fun DemoState.storyEndCondition(startedAtMs: Long, nowMs: Long): String? = when {
+fun DemoState.storyEndCondition(): String? = when {
     mode != StoryMode.STORY -> null
     storyReady -> "story_ready"
     else -> null

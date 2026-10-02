@@ -161,6 +161,15 @@ class ServerClientTest {
         assertEquals(3, Server.tts("놀이터 갔구나!")!!.size)
     }
 
+    /** #79: the answer options come with the question; blanks are dropped, and none means null */
+    @Test
+    fun turnCarriesTheAnswerOptions() = runBlocking {
+        json("/turn", """{"judge":$VERDICT,"line":{"ack":"바닷속이구나!","expand":null,"question":"거기서 누굴 만났어?","options":["문어","","해파리"]}}""")
+        assertEquals(listOf("문어", "해파리"), Server.turn(turn())!!.line!!.options)
+        json("/turn", """{"judge":$VERDICT,"line":{"ack":"그랬구나!","expand":null,"question":null,"options":null}}""")
+        assertNull(Server.turn(turn())!!.line!!.options)
+    }
+
     @Test
     fun turnReturnsVerdictAndLineAndEitherMayBeMissing() = runBlocking {
         json("/turn", """{"judge":$VERDICT,"line":{"ack":"놀이터구나!","expand":null,"question":"거기서 뭐 했어?"}}""")
