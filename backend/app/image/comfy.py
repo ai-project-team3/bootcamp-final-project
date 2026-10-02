@@ -65,7 +65,7 @@ async def _cancel(base: str, pid: str) -> None:
 
 async def background(scene: str) -> bytes:
     """PNG bytes. Raises ComfyError; the caller owns the deadline and cancelling cancels the job."""
-    return await run(workflow(scene, random.randrange(2 ** 31)))
+    return await run(workflow(scene, random.randrange(2 ** 31)), front=True)
 
 
 # ── characters: img2img from a posed mannequin (docs/캐릭터_생성_규격.md §8) ──────────
@@ -131,18 +131,20 @@ async def _forget(base: str, pid: str) -> None:
         pass
 
 
-async def run(wf: dict) -> bytes:
+async def run(wf: dict, front: bool = False) -> bytes:
     """Queue one graph and return its first PNG. Cancelling cancels the ComfyUI job.
 
     A graph that returns its picture through OttoReturnImageB64 (the redraw) is read from the
     history entry, and that entry is deleted whatever happens — nothing of it stays on PC2.
+    [front] puts the job at the head of ComfyUI's queue — a picture a child is waiting for
+    (background · character) goes ahead of redraws already queued (#32, 10-02).
     """
     base = settings.comfy_url.rstrip("/")
     in_memory = any(n["class_type"] == "OttoReturnImageB64" for n in wf.values())
     pid = None
     try:
         async with httpx.AsyncClient(timeout=10) as http:
-            r = await http.post(f"{base}/prompt", json={"prompt": wf})
+            r = await http.post(f"{base}/prompt", json={"prompt": wf, "front": front})
             if r.status_code != 200:
                 raise ComfyError(f"prompt HTTP {r.status_code}")
             pid = r.json()["prompt_id"]

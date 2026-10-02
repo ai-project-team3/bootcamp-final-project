@@ -156,3 +156,15 @@ def test_giving_up_cancels_the_comfy_job(monkeypatch):
             pass
     asyncio.run(go())
     assert cancelled == ["p1"]
+
+
+def test_a_background_goes_to_the_front_of_the_gpu_queue(monkeypatch):
+    """#32 (10-02): a child waits for this picture — it goes ahead of redraws already queued."""
+    seen = {}
+
+    async def run(wf, front=False):
+        seen["front"] = front
+        return PNG
+    monkeypatch.setattr(comfy, "run", run)
+    asyncio.run(comfy.background("a sunny park"))
+    assert seen["front"] is True
