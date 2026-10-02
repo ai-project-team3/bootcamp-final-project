@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.BRUSH_PAUSE_MS
 import com.example.finalproject_demo.demo.COLOR_PAUSE_MS
+import com.example.finalproject_demo.demo.CRAYON_PAUSE
 import com.example.finalproject_demo.demo.BoardBox
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.DiaryAsk
@@ -258,7 +259,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
         delay(quietFor)
         if (live.isNotEmpty()) return@LaunchedEffect          // 아직 긋는 중 — 천천히 긋는 선을 잘라 묻지 않는다
         // 오또가 지켜보는 중에만 — 묻는 중 · 고르는 중 · 아이가 말하는 중(녹음)에는 보내지 않는다
-        if (day.watching && !s.micOn && stage.pick == null) d.send(Reply.Tapped("pause", "붓 멈춤"))
+        if (day.watching && !s.micOn && stage.pick == null) d.send(Reply.Tapped("pause", if (quietFor == COLOR_PAUSE_MS) CRAYON_PAUSE else "붓 멈춤"))
     }
 
     Box(Modifier.fillMaxSize()) {

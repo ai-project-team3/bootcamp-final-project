@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.ASK_AFTER_DRAWING
 import com.example.finalproject_demo.demo.ASK_WHILE_DRAWING
 import com.example.finalproject_demo.demo.DONE_CHECK_EVERY
+import com.example.finalproject_demo.demo.CRAYON_PAUSE
 import com.example.finalproject_demo.demo.DiaryAsk
 import com.example.finalproject_demo.demo.DiaryBoard
 import com.example.finalproject_demo.demo.DiaryGift
@@ -418,6 +419,34 @@ class PictureDiaryFlowTest {
         s.micOn = false
         d.tell("강아지야") { s.diaryDay.pieces.single().name == "강아지" }
         assertTrue("말=${s.line}", await { s.line == "나도 강아지를 그려볼까?" } != null)
+    }
+
+    /**
+     * 크레용을 고른 뒤의 멈춤은 「다 그렸어?」로 세지 않는다 · 말없이 거둔 「다 그렸어?」는 말풍선에 남기지 않는다 (10-02 실기기)
+     */
+    @Test
+    fun aCrayonPauseIsNotCountedAndAWithdrawnQuestionLeavesTheBubble() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("강아지")
+        assertTrue(await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        assertTrue(await { s.diaryDay.watching } != null)
+        repeat(3) {                                                  // 크레용 뒤 멈춤 셋 — 세지 않는다
+            assertTrue(await { s.diaryDay.watching } != null)
+            d.send(Reply.Tapped("pause", CRAYON_PAUSE)); delay(80)
+        }
+        assertTrue("크레용 멈춤을 「다 그렸어?」로 셌다", s.line != "다 그렸어? 더 그릴 거 있어?")
+        repeat(DONE_CHECK_EVERY) {
+            assertTrue(await { s.diaryDay.watching } != null)
+            d.send(Reply.Tapped("pause", "붓 멈춤")); delay(80)
+        }
+        assertTrue(await { s.line == "다 그렸어? 더 그릴 거 있어?" } != null)
+        assertTrue("말없이 거둔 질문이 말풍선에 남았다 — 말=${s.line}", await { s.line.isEmpty() } != null)
     }
 
     /** D1 질문 중 다른 조각을 그리기 시작하면 조용히 거두고, 다음 멈춤에 지금 그리는 조각을 먼저 묻는다 (10-01 안 A) */

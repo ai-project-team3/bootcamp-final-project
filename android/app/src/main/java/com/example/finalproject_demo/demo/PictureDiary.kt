@@ -86,6 +86,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
     var asked = 0
     var offers = 0
     var quiet = 0                                // 물을 것 없이 지나간 멈춤 수
+    var afterCrayon = false                      // 이번 멈춤이 크레용을 고른 뒤에 왔나
     val waiting = mutableListOf<OttoOrder>()      // 오또가 그리고 있는 조각 — 다 되면 다음 멈춤에 보여 준다
     val askedPieces = mutableSetOf<Int>()        // 한 번 물은 조각은 다시 묻지 않는다(답이 없었어도)
     val held = mutableListOf<Pair<Int, String>>() // 미뤄 둔 「나도 그려볼까?」 — 조각 · 이름 (앞 것부터 · 덮어쓰지 않는다)
@@ -104,7 +105,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
         val r = awaitReply()
         day.watching = false
         when {
-            r is Reply.Tapped && r.value == "pause" -> {}
+            r is Reply.Tapped && r.value == "pause" -> afterCrayon = r.label == CRAYON_PAUSE
             // [그리기 싫어](skip)도 그리기를 끝낸다 — 시연 서랍
             r is Reply.Tapped && (r.value == "done" || r.value == "skip") -> break
             // ✨ 이름표를 톡 — 왔던 오또 그림을 다시 고른다
@@ -209,6 +210,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             if (piece != null) "붓 멈춤 — 이번 판에 물을 만큼 물었다(${ASK_WHILE_DRAWING}번). 그리기를 지켜본다"
             else "붓 멈춤 — 방금 그린 조각은 이름이 있거나 이미 물었다. 묻지 않는다"
         )
+        if (afterCrayon) continue                      // 색을 고르고 이어 그릴 참이다 — 「다 그렸어?」로 세지 않는다
         if (++quiet < DONE_CHECK_EVERY) continue
         quiet = 0
         if (askDoneDrawing()) break
@@ -398,7 +400,8 @@ private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: 
     when {
         r is Reply.Spoke -> acceptSpoken(r.text)
         r is Reply.Tapped && r.value == MOVED_ON -> { s.line = ""; log("「${q.text}」 — 다른 조각을 그리기 시작했다 → 조용히 거둔다(지금 그리는 그림이 먼저)") }
-        r is Reply.Tapped && r.value == WENT_QUIET -> log("「${q.text}」 — 손을 놓고 ${waitMs / 1000}초 말이 없었다 → 거둔다")
+        // 거둔 질문을 말풍선에 남기지 않는다 — 묻는 말은 접히지 않아서 답을 기다리는 것처럼 보였다(10-02 실기기)
+        r is Reply.Tapped && r.value == WENT_QUIET -> { s.line = ""; log("「${q.text}」 — 손을 놓고 ${waitMs / 1000}초 말이 없었다 → 거둔다") }
         r is Reply.Tapped -> acceptTap(r)
     }
     inputs(mic = false, next = false)
