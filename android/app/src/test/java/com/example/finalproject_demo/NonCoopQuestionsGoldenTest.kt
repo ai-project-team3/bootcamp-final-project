@@ -51,16 +51,14 @@ class NonCoopQuestionsGoldenTest {
         listOf("엄마랑 나", "내 동생", "나무", "나비", "저랑 아빠").forEach { t -> line("you $t") { you(t) } }
     }
 
+    /** 줄바꿈(CRLF · LF)은 견주지 않는다 — 깃이 체크아웃할 때 바꿀 수 있다 */
+    private fun String.lf() = replace("\r\n", "\n")
+
     @Test
     fun nonCoopQuestionsAreUnchanged() {
         val now = dump()
         if (System.getenv("GOLDEN_RECORD") == "1") { golden.parentFile.mkdirs(); golden.writeText(now); return }
-        // 줄바꿈(CRLF · LF)은 견주지 않는다 — 깃이 체크아웃할 때 바꿀 수 있다
-        assertEquals("협업이 아닌 모드의 질문 · 공용 도구 결과가 바뀌었다 (기준: ${golden.path})", golden.readText().replace("
-", "
-"), now.replace("
-", "
-"))
+        assertEquals("협업이 아닌 모드의 질문 · 공용 도구 결과가 바뀌었다 (기준: ${golden.path})", golden.readText().lf(), now.lf())
     }
 
     @Test
