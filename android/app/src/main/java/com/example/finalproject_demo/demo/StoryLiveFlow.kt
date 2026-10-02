@@ -36,12 +36,10 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         if (s.stage is Stage.World || s.stage === waitingConversation) showConversation()
         val mask = s.nameMask()
         imageJob = launch {
+            // 8초 「배경 그림은 조금 뒤에 올 거야!」 자막은 뺐다(10-02 조장) — 대화가 이어지는 중이라 끼어드는 말이었다
             val reminder = launch {
                 delay(8_000)
-                if (s.place == place) {
-                    s.line += "\n배경 그림은 조금 뒤에 올 거야!"
-                    log("배경 생성 8초 경과 · 대화는 계속 진행")
-                }
+                if (s.place == place) log("배경 생성 8초 경과 · 대화는 계속 진행")
             }
             try {
                 val png = withTimeoutOrNull(15_000) { Server.image(mask.mask(place), "story") }

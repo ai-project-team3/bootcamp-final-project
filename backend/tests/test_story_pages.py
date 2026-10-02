@@ -90,3 +90,23 @@ def test_every_mission_and_kind_has_a_meaning():
     from app.schemas.story import MissionId, PageKindName
     assert set(get_args(MissionId)) == set(story_route.MISSION_SETUP)
     assert set(get_args(PageKindName)) == set(story_route.KIND_MEANING)
+
+
+# #52: a coop book follows the reason the parent picked — "곧 체험해요" must not come out past tense
+def test_coop_tense_follows_the_reason_the_parent_picked():
+    def ask(reason, pages=None):
+        return story_route.user(StoryRequest(mode="coop", slots={"place": "소방서"}, template="직업 · 소방관",
+                                             reason=reason, pages=pages))
+    assert "앞으로 할 일" in ask("soon") and "있었던 일" not in ask("soon")
+    assert "상상한 이야기" in ask("dream")
+    assert "있었던 일" in ask("done") and "있었던 일" in ask(None)
+    assert "고른 이야기: 직업 · 소방관" in ask("done")
+    # with a page plan the tense rides on the plan's last line, once
+    with_plan = ask("soon", [Page(kind="DEPART"), Page(kind="TOGETHER")])
+    assert with_plan.count("앞으로 할 일") == 1
+
+
+def test_diary_ignores_a_reason_and_stays_a_day_that_happened():
+    u = story_route.user(StoryRequest(mode="diary", slots={"place": "놀이터"}, reason="soon",
+                                      pages=[Page(kind="DEPART")]))
+    assert "있었던 일" in u and "앞으로 할 일" not in u and "고른 이야기" not in u

@@ -2,6 +2,10 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.PageKind
+import com.example.finalproject_demo.demo.mission1
+import com.example.finalproject_demo.demo.mission2
+import com.example.finalproject_demo.demo.pageKind
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
@@ -290,6 +294,88 @@ class CoopLiveAnswerTest {
             assertEquals("coop", req.optString("mode"))
             assertEquals("놀이터", req.getJSONObject("slots").optString("place"))
             assertEquals(pages, req.getJSONArray("pages").length())
+        } finally { server.close() }
+    }
+
+    /** 서버가 /story 요청을 받아 두는 가짜 — 문장은 쪽 수만큼 */
+    private fun storyServer() = StoryTestServer { path, body ->
+        if (path != "/story") JSONObject()
+        else JSONObject().put("scenes", org.json.JSONArray().apply {
+            repeat(body.optJSONArray("pages")?.length() ?: 0) { put(JSONObject().put("index", it + 1).put("caption", "서버 문장 ${it + 1}")) }
+        })
+    }
+
+    /** #52 1번 — 고른 이야기와 이유가 /story 에 실린다. 서버는 이유로 책 시제를 가른다(`77a9d5c`) */
+    @Test
+    fun theCoopBookRequestCarriesThePickedStoryAndItsReason() = run { d ->
+        val server = storyServer()
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.filledCoop()
+            d.s.coopPick = CoopPick("job", "소방관", "soon")
+            d.coopWriteBook()
+            val req = server.requests.first { it.first == "/story" }.second
+            assertEquals("soon", req.optString("reason"))
+            assertEquals("같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)", req.optString("template"))
+        } finally { server.close() }
+    }
+
+    /** #52 2번 — 서버가 쓴 협업 책도 미션을 끝내면 그 쪽에 결과 문장이 붙는다. 끝내기 전에는 서버 문장만 */
+    @Test
+    fun theServerWrittenCoopBookGetsTheMissionResultAfterTheMission() = run { d ->
+        val server = storyServer()
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.filledCoop()
+            d.coopWriteBook()
+            val s = d.s
+            val rub = (1..s.pageCount).first { s.pageKind(it) == PageKind.RUB }
+            val drag = (1..s.pageCount).first { s.pageKind(it) == PageKind.DRAG }
+            assertEquals("미션 전인데 결과가 붙었다", "서버 문장 $rub", s.bookCaption(rub))
+            s.m1Result = "solo"
+            s.m2Result = "solo"
+            val item = s.mission1().blobName
+            assertTrue("미션 1 결과가 안 붙었다: ${s.bookCaption(rub)}", s.bookCaption(rub).startsWith("서버 문장 $rub ") && s.bookCaption(rub).endsWith("사라졌어요.") && item in s.bookCaption(rub))
+            assertTrue("미션 2 결과가 안 붙었다: ${s.bookCaption(drag)}", s.bookCaption(drag).startsWith("서버 문장 $drag ${s.childName}") && s.bookCaption(drag).endsWith("${s.mission2().give}."))
+        } finally { server.close() }
+    }
+
+    /** #52 3번 — 미션 쪽에 미션 ID 가 붙어 간다(문지르기 A6 · 건네주기 E1). 다른 쪽은 비운다 */
+    @Test
+    fun theCoopBookPlanNamesItsMissions() = run { d ->
+        val server = storyServer()
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.filledCoop()
+            d.coopWriteBook()
+            val pages = server.requests.first { it.first == "/story" }.second.getJSONArray("pages")
+            val byKind = (0 until pages.length()).map { pages.getJSONObject(it) }
+                .associate { it.getString("kind") to (if (it.isNull("mission")) null else it.getString("mission")) }
+            assertEquals("A6", byKind["RUB"])
+            assertEquals("E1", byKind["DRAG"])
+            assertTrue("미션이 아닌 쪽에 미션 ID 가 붙었다: $byKind", byKind.filterKeys { it != "RUB" && it != "DRAG" }.values.all { it == null })
+        } finally { server.close() }
+    }
+
+    /** 이유를 안 골랐으면 앱 질문이 상상 이야기였으니 책도 dream · 이야기를 안 골랐으면 비운다(있었던 일) */
+    @Test
+    fun noReasonMeansDreamAndNoPickMeansADayThatHappened() = run { d ->
+        val server = storyServer()
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.filledCoop()
+            d.s.coopPick = CoopPick("place", "동물원", null)
+            d.coopWriteBook()
+            d.s.coopPick = null
+            d.coopWriteBook()
+            val (picked, plain) = server.requests.filter { it.first == "/story" }.map { it.second }
+            assertEquals("dream", picked.optString("reason"))
+            assertTrue("이야기를 안 골랐는데 이유가 갔다", plain.isNull("reason"))
+            assertTrue("이야기를 안 골랐는데 템플릿이 갔다", plain.isNull("template"))
         } finally { server.close() }
     }
 

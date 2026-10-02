@@ -80,7 +80,7 @@ object Server {
         val level: String? = null,
     )
 
-    /** The 16-field verdict (guidelines/2 §2). Slot names are already checked against the 12 by the server. */
+    /** The verdict fields the app reads (guidelines/2 §2). Slot names are already checked against the 12 by the server. */
     data class Verdict(
         val reason: String,
         val fills: List<Pair<String, String>>,   // (slot, value) — slot_1 · slot_2, the empty ones dropped
@@ -171,6 +171,8 @@ object Server {
         mode: String, slots: Map<String, String?>, slotBy: Map<String, String> = emptyMap(),
         keep: String? = null, template: String? = null, level: String? = null,
         pages: List<Page>? = null,
+        /** coop only: the reason the parent picked — "done" · "soon" · "dream" (#52). null = a day that happened */
+        reason: String? = null,
     ): List<String>? {
         val body = JSONObject()
             .put("mode", mode)
@@ -179,6 +181,7 @@ object Server {
             .put("keep", keep ?: JSONObject.NULL)
             .put("template", template ?: JSONObject.NULL)
             .put("level", level ?: JSONObject.NULL)
+            .put("reason", reason ?: JSONObject.NULL)
         if (pages != null) body.put("pages", JSONArray().apply {
             pages.forEach { put(JSONObject().put("kind", it.kind).put("mission", it.mission ?: JSONObject.NULL)) }
         })
@@ -197,16 +200,24 @@ object Server {
      * A background for the place the child named, drawn and safety-checked on our GPU (rule 8).
      * PNG bytes, or **null = use the preset** — the server said preset (blocked, not a place, slow,
      * flagged), or the call failed. Call it the moment the place slot fills, in the background;
-     * the 8 s "조금 뒤에 올 거야" and the 15 s preset line stay the caller's. [place] must be name-masked.
+     * what to show while waiting and the 15 s preset line stay the caller's. [place] must be name-masked.
      */
     suspend fun image(place: String, mode: String = "story"): ByteArray? {
         val body = JSONObject().put("kind", "background").put("place", place).put("mode", mode)
-        // the server gives up at 13 s and answers preset, so 16 s only covers the network
+        return postImage(body, "background") { png, _ -> png }
+    }
+
+    /**
+     * One `/image` call → [made] with the PNG and the answer, or **null = preset** (the server said so,
+     * the call failed, or the answer did not parse). The three kinds differ only in what they build.
+     * The server gives up at 13 s and answers preset, so 16 s only covers the network.
+     */
+    private suspend fun <T> postImage(body: JSONObject, kind: String, made: (ByteArray, JSONObject) -> T): T? {
         val j = postJson("/image", body, readMs = 16_000) ?: return null
         return try {
-            if (j.optBoolean("preset", true)) { Log.i(TAG, "/image preset: ${j.optString("reason")}"); null }
-            else android.util.Base64.decode(j.getString("png_base64"), android.util.Base64.DEFAULT)
-        } catch (e: Exception) { warn("/image parse", e); null }
+            if (j.optBoolean("preset", true)) { Log.i(TAG, "/image $kind preset: ${j.optString("reason")}"); null }
+            else made(android.util.Base64.decode(j.getString("png_base64"), android.util.Base64.DEFAULT), j)
+        } catch (e: Exception) { warn("/image $kind parse", e); null }
     }
 
     /** A generated character: 640² PNG with a transparent background, feet on the 93% line, and its skeleton kind. */
@@ -220,11 +231,7 @@ object Server {
      */
     suspend fun character(description: String, mode: String = "story"): Character? {
         val body = JSONObject().put("kind", "character").put("description", description).put("mode", mode)
-        val j = postJson("/image", body, readMs = 16_000) ?: return null
-        return try {
-            if (j.optBoolean("preset", true)) { Log.i(TAG, "/image character preset: ${j.optString("reason")}"); null }
-            else Character(android.util.Base64.decode(j.getString("png_base64"), android.util.Base64.DEFAULT), j.getString("rig"))
-        } catch (e: Exception) { warn("/image character parse", e); null }
+        return postImage(body, "character") { png, j -> Character(png, j.getString("rig")) }
     }
 
     /**
@@ -237,11 +244,7 @@ object Server {
     suspend fun redraw(png: ByteArray, description: String, mode: String = "diary"): ByteArray? {
         val body = JSONObject().put("kind", "redraw").put("description", description).put("mode", mode)
             .put("png_base64", android.util.Base64.encodeToString(png, android.util.Base64.NO_WRAP))
-        val j = postJson("/image", body, readMs = 16_000) ?: return null
-        return try {
-            if (j.optBoolean("preset", true)) { Log.i(TAG, "/image redraw preset: ${j.optString("reason")}"); null }
-            else android.util.Base64.decode(j.getString("png_base64"), android.util.Base64.DEFAULT)
-        } catch (e: Exception) { warn("/image redraw parse", e); null }
+        return postImage(body, "redraw") { png, _ -> png }
     }
 
     // ── /stt ───────────────────────────────────────────────────────

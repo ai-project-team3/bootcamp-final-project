@@ -30,10 +30,10 @@ import kotlin.coroutines.coroutineContext
  * The shared way in and out for all three modes (오케스트레이터 ①, 09-29): the child's voice in,
  * the mascot's voice out. Only used when `Server.liveFor(mode)` — otherwise the script runs as before.
  *
- * In:  mic → Silero VAD cuts 300 ms after the child stops (measured on this phone in
+ * In:  mic → Silero VAD cuts 500 ms after the child stops (measured on this phone in
  *      DiagnosticsActivity: the built-in endpointer held the mic ~4.8 s on 14% of short answers)
  *      → WAV → `/stt` on our server. The recording never leaves our server (differentiator 1).
- * Out: text → `NameMask.speakable` → `/tts` → played here.
+ * Out: text → `NameMask.speakable` → a line baked into the app ([baked]) or `/tts` → played here.
  *
  * [listen] and [transcribe] are swappable so the flow can be tested without a microphone.
  */
@@ -122,7 +122,7 @@ object Voice {
     // ── in ─────────────────────────────────────────────────────────
 
     /**
-     * Records until VAD hears the end of speech (300 ms of silence after at least 50 ms of speech),
+     * Records until VAD hears the end of speech (500 ms of silence after at least 50 ms of speech),
      * the child presses ⏹, or [maxMs]. Nothing heard at all → null.
      */
     @SuppressLint("MissingPermission")   // checked on the first line
@@ -189,6 +189,7 @@ object Voice {
     // ── out ────────────────────────────────────────────────────────
 
     private var player: MediaPlayer? = null
+    private var playing: File? = null
     @Volatile private var recording = false
     private var done: (() -> Unit)? = null
 
@@ -209,6 +210,7 @@ object Voice {
                 runCatching {
                     stopPlaying()
                     val f = File(c.cacheDir, "mascot_line_${System.nanoTime()}").apply { writeBytes(audio) }
+                    playing = f
                     player = MediaPlayer().apply {
                         setDataSource(f.absolutePath)
                         setOnCompletionListener { it.release(); f.delete(); if (player === it) player = null; finish() }
@@ -216,16 +218,20 @@ object Voice {
                         prepare(); start()
                     }
                     done = finish
-                }.onFailure { Log.w(TAG, "play failed: ${it.message}"); finish() }
-                cont.invokeOnCancellation { stopPlaying() }
+                }.onFailure { Log.w(TAG, "play failed: ${it.message}"); stopPlaying(); finish() }
+                // cancelled from any thread (a tap · 🎤): the player lives on Main
+                cont.invokeOnCancellation { android.os.Handler(android.os.Looper.getMainLooper()).post { stopPlaying() } }
             }
         }
     }
 
-    /** Stop the voice now — the child pressed 🎤, so the mascot must not be recorded. */
+    /** Stop the voice now — 🎤 (the mascot must not be recorded) or a tap that cuts the line. */
     fun stopPlaying() {
         player?.let { runCatching { it.stop() }; it.release() }
         player = null
+        // a cut line never reaches its completion listener, so its temp file is removed here (10-02)
+        playing?.delete()
+        playing = null
         done?.invoke()
         done = null
     }

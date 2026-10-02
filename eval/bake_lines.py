@@ -91,7 +91,8 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     want = {key(l): l for l in lines}
     for f in OUT.glob("*.mp3"):
-        if f.stem not in want:
+        # neutral_*.mp3 share the folder (eval/bake_neutral.py) — not ours to remove
+        if f.stem not in want and not f.stem.startswith("neutral_"):
             f.unlink()
     new = 0
     for k, line in want.items():
