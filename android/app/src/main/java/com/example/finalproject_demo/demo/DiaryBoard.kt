@@ -49,6 +49,9 @@ const val BRUSH_PAUSE_MS = 1_600L
  */
 const val COLOR_PAUSE_MS = 3_000L
 
+/** 크레용을 고른 뒤에 온 붓 멈춤의 표시 — 이어 그리려고 색을 고른 것이라 「다 그렸어?」를 셀 멈춤이 아니다 */
+const val CRAYON_PAUSE = "크레용"
+
 /** 이만큼 떨어져 있으면 다른 조각이다 (화이트보드 폭 · 높이의 비율) */
 internal const val PIECE_GAP = 0.06f
 
