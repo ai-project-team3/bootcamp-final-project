@@ -453,6 +453,7 @@ class StoryTextTest {
             addAll(THEMES.map { "bg_${it.key}" })    // 동화 모드 세계
             add("bg_snow")                           // 생성 배경(눈 오는 데)
             addAll(HOTSPOTS.keys)                    // 누를 자리를 등록해 둔 배경
+            addAll(com.example.finalproject_demo.ui.COOP_ITEMS.values.map { it.bg })   // 같이 만들기 — 고른 요소의 배경
         }
         val missing = wanted.filterNot { File(drawable, "$it.png").exists() }
         assertTrue("코드가 찾는데 그림이 없는 배경: $missing", missing.isEmpty())

@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.ui.coopItem
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.templateQuestions
@@ -37,6 +38,21 @@ val DemoState.hasCoopQuestions: Boolean get() = parentQuestions.any { it.isNotBl
 
 /** 같이 만들기가 준비됐나 — 템플릿을 골랐거나 질문을 하나라도 적었으면. 소파의 🎁 · 새 흐름이 이것을 본다 */
 val DemoState.coopReady: Boolean get() = coopPick != null || hasCoopQuestions
+
+/**
+ * 같이 만들기 화면 배경 (10-02 사용자 요청 — 고른 요소에 맞춰야 한다). 일기 모드는 이 길을 타지 않는다.
+ *
+ * 1. 목록에 있는 요소면 그 요소의 배경([COOP_ITEMS]) — 소방관이면 소방서, 축구면 축구장.
+ *    아이 말보다 앞선다: 「불 난 집에 갔어」의 「집」이 일기 장소 낱말에 걸려 거실이 나오면 안 된다
+ * 2. 직접 쓴 요소면 아이가 말한 곳, 그다음 요소 이름에서 일기 장소 낱말을 찾는다(「할머니 집」 → 할머니 집)
+ * 3. 고른 이야기가 없으면(질문만 적었으면) 일기와 같이 아이가 말한 곳으로
+ */
+internal fun DemoState.coopBackdrop(): String {
+    val pick = coopPick ?: return diaryPlaceBg(placeLabel)
+    coopItem(pick.name)?.let { return it.bg }
+    val spoken = diaryPlaceBg(placeLabel)
+    return if (spoken != DIARY_BG_FALLBACK) spoken else diaryPlaceBg(pick.name)
+}
 
 /** 이 걸음에 누구의 질문을 쓰나 — 템플릿 맥락으로 만든 오또 질문, 부모가 적은 질문, 앱 질문(null) */
 private sealed interface CoopLine {
