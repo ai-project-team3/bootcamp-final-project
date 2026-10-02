@@ -23,6 +23,10 @@ class Line(BaseModel):
     ack: str                             # 받아주기 — mirror the child's words, 8 eojeol max
     expand: Optional[str] = None         # 되돌려주기 — add one thing; null if nothing to add
     question: Optional[str] = None       # 질문 — the next slot, open, 12 eojeol max
+    # 답 후보 — up to 3 short answers for the slot `question` asks. When the child cannot answer,
+    # the app shows them as cards, then the mascot takes the first (#79 · guidelines/2 §1-1).
+    # Null with no question, and in diary (what really happened today is not picked for the child).
+    options: Optional[list[str]] = None
 
 
 class TurnResult(BaseModel):

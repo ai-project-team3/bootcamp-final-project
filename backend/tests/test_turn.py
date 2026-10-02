@@ -35,7 +35,7 @@ def body(**over):
 def test_turn_gives_verdict_and_line(client):
     out = client.post("/turn", json=body()).json()
     assert out["judge"]["slot_1"] == "place"
-    assert set(out["line"]) == {"ack", "expand", "question"}
+    assert set(out["line"]) == {"ack", "expand", "question", "options"}
     assert out["line"]["ack"] and out["line"]["question"]
 
 
@@ -88,7 +88,7 @@ def test_the_line_prompt_is_the_fenced_block_only():
     s = turn_route.system()
     assert s.startswith("당신은"), s[:40]
     assert "근거:" not in s and "```" not in s
-    assert set(turn_route.schema()["required"]) == {"ack", "expand", "question"}
+    assert set(turn_route.schema()["required"]) == {"ack", "expand", "question", "options"}
 
 
 def test_user_message_carries_ask_and_only_a_real_unclear():
@@ -162,3 +162,23 @@ def test_coop_sends_the_reason_and_other_modes_do_not():
     assert "reason:soon" in block("coop", "soon")
     assert "reason:done" in block("coop")
     assert "\nreason:" not in block("story", "soon") and "\nreason:" not in block("diary")   # not next_reason
+
+
+def test_options_keep_safe_ones_and_drop_the_rest():
+    """#79: an unsafe option goes on its own; the line and the others stay."""
+    word = next(iter(BLOCK))
+    line = Line(ack="그랬구나!", question="거기서 누굴 만났어?",
+                options=["아기 공룡", word, "{지민}", "아기 공룡", "커다란 티라노", "별"])
+    assert turn_route.check(line) is None
+    assert line.options == ["아기 공룡", "커다란 티라노", "별"]
+
+
+def test_options_go_with_the_question_and_never_in_diary():
+    v = JudgeResult(reason="ok", story_ready=False, next_slot="place")
+    story = TurnRequest(**body())
+    diary = TurnRequest(**body(mode="diary"))
+    asked = lambda: Line(ack="a", question="어디로 갈까?", options=["바닷속", "우주", "숲"])
+    assert turn_route.shape(asked(), story, v).options == ["바닷속", "우주", "숲"]
+    assert turn_route.shape(asked(), diary, v).options is None
+    ready = JudgeResult(reason="ok", story_ready=True)
+    assert turn_route.shape(asked(), story, ready).options is None

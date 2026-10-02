@@ -35,42 +35,42 @@ suspend fun Director.askStory(
     var currentQuestion = question
     val conversationStage = s.stage
     while (true) {
-    s.stage = conversationStage
-    val reply = ask(currentQuestion)
-    if (!Server.liveFor(s.mode)) return reply
-    val utterance = when (reply) {
-        is Reply.Spoke -> reply.text
-        is Reply.Tapped -> reply.label
-        else -> return reply
-    }
-    val by = if (reply is Reply.Spoke) "child" else if ((reply as Reply.Tapped).byMascot) "mascot" else "card"
-    val response = exchangeStoryTurnWithRetry(askedSlot, question.text, utterance, by, request)
-    if (response.verdict!!.reason == "blocked_by_filter") {
-        log("서버 안전 판정으로 답을 책 재료에서 제외 · 다른 이야기로 이어가기")
-        currentQuestion = question.copy(text = "다른 생각도 들려줄래? ${question.text}")
-        continue
-    }
-    response.verdict.fills.filter { it.first in Server.SLOTS && it.second.isNotBlank() }.forEach { (slot, value) ->
-        event("slot_filled", "slot" to slot, "value" to value, "source" to by)
-    }
-    s.storyServerQuestion = response.line?.question
-    val line = response.line
-    val reaction = listOfNotNull(line?.ack?.takeIf(String::isNotBlank), line?.expand?.takeIf(String::isNotBlank))
-        .joinToString(" ")
-    if (reaction.isNotBlank()) {
-        say(reaction)
-        pause(600)
-    }
-    // Real STT replies carry no scripted Answer. Keep the child's exact words for the
-    // existing recorder and attach only the signals the server actually returned.
-    if (reply !is Reply.Spoke) return reply
-    val verdict = response.verdict
-    return reply.copy(answer = Answer(
-        text = reply.text,
-        reason = verdict.s1Reason,
-        el = if (verdict.s2Addition) setOf("추가") else emptySet(),
-        emo = verdict.emotion.orEmpty(),
-    ))
+        s.stage = conversationStage
+        val reply = ask(currentQuestion)
+        if (!Server.liveFor(s.mode)) return reply
+        val utterance = when (reply) {
+            is Reply.Spoke -> reply.text
+            is Reply.Tapped -> reply.label
+            else -> return reply
+        }
+        val by = if (reply is Reply.Spoke) "child" else if ((reply as Reply.Tapped).byMascot) "mascot" else "card"
+        val response = exchangeStoryTurnWithRetry(askedSlot, question.text, utterance, by, request)
+        if (response.verdict!!.reason == "blocked_by_filter") {
+            log("서버 안전 판정으로 답을 책 재료에서 제외 · 다른 이야기로 이어가기")
+            currentQuestion = question.copy(text = "다른 생각도 들려줄래? ${question.text}")
+            continue
+        }
+        response.verdict.fills.filter { it.first in Server.SLOTS && it.second.isNotBlank() }.forEach { (slot, value) ->
+            event("slot_filled", "slot" to slot, "value" to value, "source" to by)
+        }
+        s.storyServerQuestion = response.line?.question
+        val line = response.line
+        val reaction = listOfNotNull(line?.ack?.takeIf(String::isNotBlank), line?.expand?.takeIf(String::isNotBlank))
+            .joinToString(" ")
+        if (reaction.isNotBlank()) {
+            say(reaction)
+            pause(600)
+        }
+        // Real STT replies carry no scripted Answer. Keep the child's exact words for the
+        // existing recorder and attach only the signals the server actually returned.
+        if (reply !is Reply.Spoke) return reply
+        val verdict = response.verdict
+        return reply.copy(answer = Answer(
+            text = reply.text,
+            reason = verdict.s1Reason,
+            el = if (verdict.s2Addition) setOf("추가") else emptySet(),
+            emo = verdict.emotion.orEmpty(),
+        ))
     }
 }
 
@@ -108,6 +108,8 @@ internal suspend fun Director.notifyStorySoundChoice(prompt: StoryPrompt) {
 
 suspend fun DemoState.exchangeTurn(
     mode: String, askedSlot: String?, question: String, utterance: String,
+    /** 동화가 아닌 모드의 이야기 맥락 — 협업은 고른 이야기(`coopTurnContext`) · #53 B. 동화는 늘 `templateKey` */
+    template: String? = null,
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult? {
     if (utterance.isBlank()) return null
@@ -119,7 +121,7 @@ suspend fun DemoState.exchangeTurn(
         question = mask.mask(question),
         utterance = mask.mask(utterance),
         turn = turn,
-        template = if (mode == "story") templateKey else null,
+        template = if (mode == "story") templateKey else template,
         level = level.name.lowercase(),
     )) ?: return null
     val verdict = response.verdict?.copy(
@@ -138,7 +140,7 @@ suspend fun DemoState.exchangeStoryTurn(
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult? {
     if (mode != StoryMode.STORY) return null
-    return exchangeTurn("story", askedSlot, question, utterance, request)?.also { response ->
+    return exchangeTurn("story", askedSlot, question, utterance, request = request)?.also { response ->
         response.verdict?.let { applyStoryVerdict(it, by) }
     }
 }

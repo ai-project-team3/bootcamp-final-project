@@ -9,6 +9,7 @@ import java.util.UUID
 class StoryImageStore(context: Context) {
     private val directory = File(context.applicationContext.filesDir, "story_images")
 
+    @Synchronized
     fun save(png: ByteArray): String? {
         if (png.isEmpty() || BitmapFactory.decodeByteArray(png, 0, png.size) == null) return null
         if (!directory.exists() && !directory.mkdirs()) return null
@@ -19,6 +20,23 @@ class StoryImageStore(context: Context) {
         } catch (_: Exception) {
             file.delete()
             null
+        }
+    }
+
+    /** Delete only managed PNGs; callers retain saved and currently displayed references. */
+    @Synchronized
+    fun recover(keep: Collection<String>) {
+        runCatching {
+            val root = directory.canonicalFile
+            val retained = keep.filter { it.startsWith("local:") }.mapNotNull {
+                runCatching { File(it.removePrefix("local:")).canonicalFile }.getOrNull()
+            }.toSet()
+            val managedName = Regex("[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\\.png")
+            directory.listFiles()?.forEach { file ->
+                val resolved = file.canonicalFile
+                if (file.isFile && managedName.matches(file.name) && resolved.parentFile == root && resolved !in retained)
+                    file.delete()
+            }
         }
     }
 }

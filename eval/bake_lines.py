@@ -37,6 +37,9 @@ OUT = ROOT / "android/app/src/main/assets/voice"
 LIST = Path(__file__).parent / "baked_lines.tsv"
 
 
+TITLE = re.compile("『")
+
+
 def norm(s: str) -> str:
     return re.sub(r"\s+", " ", s.strip())
 
@@ -69,6 +72,9 @@ def shrink(mp3: bytes) -> bytes:
 def main() -> None:
     dump = Path(sys.argv[1])
     said = {norm(l) for l in dump.read_text(encoding="utf-8").splitlines() if l.strip()}
+    # a book title is made of the child's own words (「"그만!" 용감한 너」) — the test script's
+    # title never matches a real child's, so baking it only adds weight. Titles go to /tts (#42 · 10-02)
+    said = {l for l in said if not TITLE.search(l)}
     lines = sorted(said)
     print(f"baking {len(lines)} lines")
     OUT.mkdir(parents=True, exist_ok=True)
