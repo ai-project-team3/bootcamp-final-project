@@ -881,8 +881,11 @@ internal var requestDiaryStory: suspend (Map<String, String?>, Map<String, Strin
     Server.story("diary", slots, by, keep = keep)
 }
 
-/** 책을 기다리는 한도 — 꿰매는 화면이라 아이는 기다리지만, 넘으면 앱 문장으로 간다 */
-internal const val DIARY_STORY_WAIT_MS = 30_000L
+/**
+ * 책을 기다리는 한도 — 꿰매는 화면이라 아이는 기다리지만, 넘으면 앱 문장으로 간다.
+ * 다른 모드의 `/story` 와 같은 60초 — 서버 상한(55초)보다 길어야 서버가 먼저 답한다 (`guidelines/3` 시간 표 · 10-02)
+ */
+internal const val DIARY_STORY_WAIT_MS = 60_000L
 
 /**
  * D4 — `/story`(diary)로 책 문장을 받는다. 이름은 가려서 보내고 받은 문장에서 푼다(규칙 6).
