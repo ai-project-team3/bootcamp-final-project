@@ -317,6 +317,24 @@ class CoopLiveAnswerTest {
         } finally { server.close() }
     }
 
+    /** #52 3번 — 미션 쪽에 미션 ID 가 붙어 간다(문지르기 A6 · 건네주기 E1). 다른 쪽은 비운다 */
+    @Test
+    fun theCoopBookPlanNamesItsMissions() = run { d ->
+        val server = storyServer()
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.filledCoop()
+            d.coopWriteBook()
+            val pages = server.requests.first { it.first == "/story" }.second.getJSONArray("pages")
+            val byKind = (0 until pages.length()).map { pages.getJSONObject(it) }
+                .associate { it.getString("kind") to (if (it.isNull("mission")) null else it.getString("mission")) }
+            assertEquals("A6", byKind["RUB"])
+            assertEquals("E1", byKind["DRAG"])
+            assertTrue("미션이 아닌 쪽에 미션 ID 가 붙었다: $byKind", byKind.filterKeys { it != "RUB" && it != "DRAG" }.values.all { it == null })
+        } finally { server.close() }
+    }
+
     /** 이유를 안 골랐으면 앱 질문이 상상 이야기였으니 책도 dream · 이야기를 안 골랐으면 비운다(있었던 일) */
     @Test
     fun noReasonMeansDreamAndNoPickMeansADayThatHappened() = run { d ->
