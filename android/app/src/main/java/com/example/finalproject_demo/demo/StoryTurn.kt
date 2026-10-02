@@ -128,7 +128,9 @@ suspend fun DemoState.exchangeTurn(
         fills = response.verdict.fills.map { (slot, value) -> slot to mask.unmask(value) },
     )
     val line = response.line?.let {
-        Server.Line(mask.unmask(it.ack), it.expand?.let(mask::unmask), it.question?.let(mask::unmask))
+        Server.Line(mask.unmask(it.ack), it.expand?.let(mask::unmask), it.question?.let(mask::unmask),
+            it.options?.map { option -> mask.unmask(option).trim() }?.filter(String::isNotBlank)?.take(3)
+                ?.takeIf(List<String>::isNotEmpty))
     }
     return Server.TurnResult(verdict, line)
 }
