@@ -211,9 +211,10 @@ object Server {
      * One `/image` call → [made] with the PNG and the answer, or **null = preset** (the server said so,
      * the call failed, or the answer did not parse). The three kinds differ only in what they build.
      * The server gives up at 13 s and answers preset, so 16 s only covers the network.
+     * A redraw waits behind the story pictures and gives up at 45 s — its caller passes 50 s (#32).
      */
-    private suspend fun <T> postImage(body: JSONObject, kind: String, made: (ByteArray, JSONObject) -> T): T? {
-        val j = postJson("/image", body, readMs = 16_000) ?: return null
+    private suspend fun <T> postImage(body: JSONObject, kind: String, readMs: Int = 16_000, made: (ByteArray, JSONObject) -> T): T? {
+        val j = postJson("/image", body, readMs = readMs) ?: return null
         return try {
             if (j.optBoolean("preset", true)) { Log.i(TAG, "/image $kind preset: ${j.optString("reason")}"); null }
             else made(android.util.Base64.decode(j.getString("png_base64"), android.util.Base64.DEFAULT), j)
@@ -244,7 +245,8 @@ object Server {
     suspend fun redraw(png: ByteArray, description: String, mode: String = "diary"): ByteArray? {
         val body = JSONObject().put("kind", "redraw").put("description", description).put("mode", mode)
             .put("png_base64", android.util.Base64.encodeToString(png, android.util.Base64.NO_WRAP))
-        return postImage(body, "redraw") { png, _ -> png }
+        // nobody waits on it — the diary shows it at the next brush pause — so it can queue behind story pictures
+        return postImage(body, "redraw", readMs = 50_000) { png, _ -> png }
     }
 
     // ── /stt ───────────────────────────────────────────────────────

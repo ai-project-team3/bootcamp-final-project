@@ -67,7 +67,7 @@ object ChildSound {
         val sound = trim(pcm) ?: return null
         return withContext(Dispatchers.IO) {
             val id = UUID.randomUUID().toString()
-            val f = File(session(), "$id.wav").apply { writeBytes(Voice.wav(sound, RATE)) }
+            val f = File(session(), "$id.wav").apply { writeBytes(Voice.wav(louder(sound), RATE)) }
             SoundClip(id, f)
         }
     }
@@ -131,6 +131,28 @@ object ChildSound {
         val to = ((last + 1 + PAD_FRAMES) * FRAME).coerceAtMost(pcm.size)
         return pcm.copyOfRange(from, to)
     }
+
+    /**
+     * The clip at about the mascot's loudness (#42, 10-02: a recorded sound played back much quieter than
+     * Otto). The loud frames are brought to [TARGET_RMS]; the gain stops before any sample passes
+     * [PEAK] and never goes past [MAX_GAIN], so a whisper does not turn into room noise.
+     */
+    fun louder(pcm: ShortArray, loud: Double = LOUD_RMS): ShortArray {
+        var sum = 0.0; var n = 0; var peak = 1
+        for (f in 0 until pcm.size / FRAME) {
+            val r = rms(pcm, f * FRAME, (f + 1) * FRAME)
+            if (r >= loud) { sum += r * r * FRAME; n += FRAME }
+        }
+        for (v in pcm) peak = maxOf(peak, kotlin.math.abs(v.toInt()))
+        if (n == 0) return pcm
+        val gain = minOf(TARGET_RMS / sqrt(sum / n), PEAK / peak, MAX_GAIN)
+        if (gain <= 1.0) return pcm                 // already loud enough — never turn a child down
+        return ShortArray(pcm.size) { (pcm[it] * gain).toInt().coerceIn(-32768, 32767).toShort() }
+    }
+
+    const val TARGET_RMS = 3_277.0             // -20 dBFS, the mascot lines' level (backend/app/audio_level.py)
+    const val PEAK = 27_500.0                  // -1.5 dBFS
+    const val MAX_GAIN = 8.0                   // +18 dB at most
 
     /** True once a sound has been heard and [QUIET_END_MS] of quiet has followed it. */
     fun soundEnded(loudSeen: Boolean, quietFrames: Int): Boolean =

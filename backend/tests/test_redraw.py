@@ -55,8 +55,9 @@ def live(monkeypatch):
     async def order(*_, **__):
         return {"safe": True, "rig": "blob", "subject": "small red house with a blue roof"}
 
-    async def run(wf):
+    async def run(wf, front=False):
         seen["wf"] = wf
+        seen["front"] = front
         return generated()
 
     async def safe(png):
@@ -195,3 +196,41 @@ def test_every_drawn_piece_is_kept():
     box = alpha.getbbox()
     # rays above and below the sun survive: the kept shape is much taller than wide
     assert (box[3] - box[1]) > 1.5 * (box[2] - box[0])
+
+
+
+# #32 (10-02): nobody waits for a redraw, so it never jumps the GPU queue and gets a longer deadline
+def test_a_redraw_does_not_jump_the_gpu_queue(live):
+    assert post().json()["preset"] is False
+    assert live["front"] is False
+
+
+def test_a_redraw_may_take_longer_than_a_story_picture(live, monkeypatch):
+    async def slow(wf, front=False):
+        await asyncio.sleep(0.4)
+        return generated()
+    monkeypatch.setattr(comfy, "run", slow)
+    monkeypatch.setattr(settings, "image_deadline_s", 0.2)     # a background would give up here
+    monkeypatch.setattr(settings, "redraw_deadline_s", 5.0)
+    assert post().json()["preset"] is False
+    monkeypatch.setattr(settings, "redraw_deadline_s", 0.2)
+    out = post().json()
+    assert out["preset"] is True and "over" in out["reason"]
+
+
+def test_redraws_enter_comfy_one_at_a_time(live, monkeypatch):
+    busy, most = [0], [0]
+
+    async def run(wf, front=False):
+        busy[0] += 1; most[0] = max(most[0], busy[0])
+        await asyncio.sleep(0.05)
+        busy[0] -= 1
+        return generated()
+    monkeypatch.setattr(comfy, "run", run)
+
+    async def two():
+        from app.schemas.image import ImageRequest
+        req = ImageRequest(kind="redraw", description="우리 집", png_base64=B64, mode="diary")
+        await asyncio.gather(image_route.image(req), image_route.image(req))
+    asyncio.run(two())
+    assert most[0] == 1

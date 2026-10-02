@@ -84,7 +84,8 @@ def live(monkeypatch):
     async def upload(png, name):
         return name
 
-    async def run(wf):
+    async def run(wf, front=False):
+        assert front, "a character is waited for — it goes to the front of the GPU queue (#32)"
         return doll_on_grey()
 
     async def safe(_):
@@ -108,7 +109,7 @@ def test_a_character_comes_back_cut_out_with_its_rig(live):
 
 
 def test_a_failed_cutout_is_a_preset(live):
-    async def blank(wf):
+    async def blank(wf, front=False):
         b = io.BytesIO(); Image.new("RGB", (512, 512), (240, 240, 240)).save(b, "PNG")
         return b.getvalue()
     live.setattr(comfy, "run", blank)

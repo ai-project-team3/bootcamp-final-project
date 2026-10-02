@@ -90,4 +90,14 @@ class ChildSoundTest {
             assertFalse("ChildSound.kt 에 「$it」", src.contains(it))
         }
     }
+
+    /** #42 — a quiet sound comes back near the mascot's level; a loud one is never turned down or clipped */
+    @Test fun aQuietSoundIsBroughtUpButNeverClipped() {
+        val quiet = ChildSound.louder(clip(quietMs = 200, loudMs = 600, amp = 1200))
+        val loudest = quiet.maxOf { kotlin.math.abs(it.toInt()) }
+        assertTrue("작은 소리가 커지지 않았다 — 최고 $loudest", loudest > 1200 * 2)
+        assertTrue("최고값이 상한을 넘었다 — $loudest", loudest <= ChildSound.PEAK)
+        val loud = clip(quietMs = 200, loudMs = 600, amp = 20000)
+        assertTrue("큰 소리를 건드렸다", ChildSound.louder(loud).contentEquals(loud))
+    }
 }
