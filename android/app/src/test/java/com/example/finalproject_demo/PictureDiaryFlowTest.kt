@@ -610,6 +610,8 @@ class PictureDiaryFlowTest {
         assertTrue(d.push("우리 집이야"))
         assertTrue(await { s.diaryDay.pieces.single().name == "우리 집" } != null)
         assertTrue(await { s.diaryDay.focusPiece == null } != null)
+        // 그림 질문은 칸 채우기 질문 수를 깎지 않는다 — 세 번째 칸 질문이 그대로 온다 (10-02)
+        assertTrue("조각 질문이 칸 질문 한 번을 썼다 — 말=${s.line}", await { s.line == "그래서 어떻게 됐어?" } != null)
     }
 
     @Test
