@@ -94,6 +94,42 @@ def _debug_keep(audio: bytes, text: str, kept: bool) -> None:
     stem.with_suffix(".txt").write_text(f"{text}\nkept={kept}\n", encoding="utf-8")
 
 
+def audio_stats(audio: bytes) -> str:
+    """What the phone sent, in numbers only — length, loudness, clipping, silence at each end.
+
+    10-01: transcripts felt worse in the evening while the server, fed the same clips, matched
+    09-23 exactly (eval/stt_live_check.py). So the difference is in the audio the phone sends;
+    this makes it visible in `docker logs` without a USB cable. No content is kept.
+    """
+    try:
+        import wave
+
+        import numpy as np
+        with wave.open(io.BytesIO(audio)) as w:
+            if w.getsampwidth() != 2:
+                return "not 16-bit"
+            rate = w.getframerate()
+            x = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(np.float32)
+            if w.getnchannels() > 1:
+                x = x.reshape(-1, w.getnchannels()).mean(axis=1)
+    except Exception:
+        return "not wav"
+    if x.size == 0:
+        return "empty"
+    rms = float(np.sqrt(np.mean(x ** 2))) or 1.0
+    db = 20 * np.log10(rms / 32768)
+    peak = float(np.abs(x).max())
+    clipped = float(np.mean(np.abs(x) >= 32000)) * 100
+    # silence at each end: 20 ms frames under 1/10 of this clip's own RMS
+    f = max(1, rate // 50)
+    frames = np.sqrt(np.mean(x[: x.size // f * f].reshape(-1, f) ** 2, axis=1)) if x.size >= f else np.array([rms])
+    loud = np.nonzero(frames > rms * 0.1)[0]
+    lead = (loud[0] if loud.size else len(frames)) * 0.02
+    tail = (len(frames) - 1 - loud[-1] if loud.size else 0) * 0.02
+    return (f"{x.size / rate:.1f}s @{rate}Hz · rms {db:.0f} dBFS · peak {peak / 32768:.2f} · "
+            f"clipped {clipped:.1f}% · silence {lead:.1f}s before / {tail:.1f}s after")
+
+
 @router.post("/stt")
 async def transcribe(file: UploadFile) -> dict:
     audio = await file.read()
@@ -109,8 +145,8 @@ async def transcribe(file: UploadFile) -> dict:
         raise HTTPException(502, f"stt failed: {type(e).__name__}") from e
     kept = check_transcript(text).keep
     # length and timing only — the words are a child's
-    log.info("stt %.2fs · %d KB · %d chars · %s", time.monotonic() - t0, len(audio) // 1024,
-             len(text), "kept" if kept else "dropped as hallucination")
+    log.info("stt %.2fs · %d KB · %d chars · %s · %s", time.monotonic() - t0, len(audio) // 1024,
+             len(text), "kept" if kept else "dropped as hallucination", audio_stats(audio))
     _debug_keep(audio, text, kept)
     del audio
     return {"text": text if kept else ""}

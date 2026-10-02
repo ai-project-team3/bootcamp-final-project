@@ -20,10 +20,10 @@ jobs:
             exit 1
           }
 
-      - name: Stop existing backend
-        run: .\scripts\deploy\stop_backend.ps1
-
-      - name: Start backend
+      # No separate stop step: start_backend.ps1 builds the new image first while the old
+      # container keeps serving, then removes it and starts the new one back to back.
+      # A failed build leaves the old container running.
+      - name: Build and swap backend
         run: .\scripts\deploy\start_backend.ps1
 
       - name: Health check

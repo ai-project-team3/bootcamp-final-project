@@ -62,7 +62,7 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
     /**
      * A line for the mascot's voice (TypeCast). [named] = the guardian agreed to names being read
      * (`ConsentStore.nameVoiceAgreed`). Without it no real name leaves in the voice: the child is
-     * spoken to as "너" (네가 · 너를 · 너와 …), and calling the child ("지민아,") is left out;
+     * spoken to as "너" (네가 · 너를 · 너와 …), calling the child ("지민아,") is "친구야,";
      * a friend becomes "그 친구". Takes masked or unmasked text alike: real names are masked first.
      *
      * 10-01 (#50 · 민우 S25): the child used to be "우리 친구" and a friend "친구", so one line
@@ -71,21 +71,16 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
     fun speakable(text: String, named: Boolean): String {
         val masked = mask(text)
         if (named) return unmask(masked)
-        return CALL.replace(masked, "").let { calledOut ->
-            MARK.replace(calledOut) { m ->
-                if (m.groupValues[1] == HERO) you(m.groupValues[2])
-                else "그 친구" + fixParticle("친구", m.groupValues[2])
-            }
+        return MARK.replace(masked) { m ->
+            if (m.groupValues[1] == HERO) you(m.groupValues[2])
+            else "그 친구" + fixParticle("친구", m.groupValues[2])
         }
     }
 
     companion object {
         const val HERO = "{주인공}"
 
-        // calling the child at the start of a line or clause: "{주인공}아, " / "{주인공}야! "
-        private val CALL = Regex("\\{주인공\\}(아|야)[,!~]?\\s*")
-
-        /** The child as "너" — 가 and 이가 take the irregular 네가 */
+        /** The child as "너" — 가 and 이가 take the irregular 네가; calling the child is "친구야" */
         private fun you(p: String): String = when (p) {
             "이", "가", "이가" -> "네가"
             "은", "는", "이는" -> "너는"
@@ -93,7 +88,7 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
             "과", "와" -> "너와"
             "이랑", "랑" -> "너랑"
             "으로", "로" -> "너로"
-            "아", "야" -> ""
+            "아", "야" -> "친구야"      // 10-01: dropping the call left lines starting cold
             else -> "너$p"
         }
 

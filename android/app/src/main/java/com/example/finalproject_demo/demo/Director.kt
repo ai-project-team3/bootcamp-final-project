@@ -8,9 +8,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
 
 enum class Kind { EASY, HARD, CHOICE }
@@ -221,17 +223,44 @@ class Director(
      */
     private var voiceJob: Job? = null
 
+    // 줄 선 대사 전부의 부모 — 받아 오는 중인 소리까지 한 번에 끊는다 ([hushVoice]).
+    // 10-01 #50: 전에는 맨 끝 대사만 취소해서, 앞에 줄 서 있던 대사가 다음 화면에서 늦게 나왔다
+    private val voiceLines = mutableSetOf<Job>()
+
+    private fun queueVoice(j: Job): Job {
+        synchronized(voiceLines) { voiceLines += j }
+        j.invokeOnCompletion { synchronized(voiceLines) { voiceLines -= j } }
+        return j
+    }
+
     private fun speakLive(text: String) {
         // 소리를 낼 수 없으면(단위 테스트 — Voice 가 붙지 않았다) 목소리를 청하지도 않는다.
         // 들리지 않을 목소리 때문에 가짜 서버 주소로 대사마다 연결을 시도할 까닭이 없다
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text, ConsentStore.nameVoiceAgreed)
         val before = voiceJob
-        val audio = scope.async { Server.tts(line) }          // 앞 대사를 읽는 동안 미리 받는다
-        voiceJob = scope.launch {
+        // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
+        val audio = scope.async { Voice.baked(line) ?: Server.tts(line) }.also { queueVoice(it) }
+        voiceJob = queueVoice(scope.launch {
             before?.join()
             audio.await()?.let { Voice.playAndWait(it) }
-        }
+        })
+    }
+
+    /**
+     * 아이 말이 끝난 순간 폰에 든 중립 소리(「음~」 「응응.」 「응, 그랬구나.」)를 바로 낸다 — 리액션 1단계(10-01).
+     * 받아쓰기 + 판정 + 목소리(공개 주소로 5~6초)를 기다리는 동안 마스코트가 듣고 있다는 걸 알린다.
+     * 아직 아이 말을 모르므로 감정 · 칭찬 · 질문이 없다. 말풍선은 바꾸지 않고, 세지도 않는다(마스코트 말).
+     * 뒤에 오는 대사는 이 소리 뒤에 줄을 선다.
+     */
+    private fun speakNeutral() {
+        if (!Server.liveFor(s.mode) || !Voice.canSpeak) return
+        val clip = Voice.neutral() ?: return
+        val before = voiceJob
+        voiceJob = queueVoice(scope.launch {
+            before?.join()
+            Voice.playAndWait(clip)
+        })
     }
 
     /** 마스코트가 하던 말을 끝낼 때까지 기다린다 — 서버 모드가 아니면 바로 돌아온다 */
@@ -239,11 +268,47 @@ class Director(
         voiceJob?.join()
     }
 
-    /** 목소리를 지금 멈추고 줄 선 대사도 버린다 — 🎤 가 눌렸다(마스코트 소리가 녹음에 섞이면 안 된다) */
+    /**
+     * 목소리를 지금 멈추고 줄 선 대사 · 받아 오던 소리도 버린다.
+     * 🎤 가 눌렸다(마스코트 소리가 녹음에 섞이면 안 된다) · 아이가 선택 버튼을 눌렀다([awaitChoice]).
+     */
     private fun hushVoice() {
-        voiceJob?.cancel()
+        synchronized(voiceLines) { voiceLines.toList() }.forEach { it.cancel() }
         voiceJob = null
         Voice.stopPlaying()
+    }
+
+    // ── 선택 구간 (10-01 #50 · 민우 S25) ─────────────────────────────────
+    //
+    // 「안녕」 · 「또 만날래」처럼 아이가 고르는 구간은 마스코트가 말하는 중에도 바로 받는다.
+    // 일반 질문은 그대로다 — 목소리가 끝나야 아이 차례가 온다([pause] · [ask]).
+    // 쓰는 법: 장면에 들어올 때 한 번 [awaitChoice], 고른 뒤 쉬는 자리는 [pauseOrChoice].
+    //   var next: Reply? = null
+    //   while (true) {
+    //       val r = next ?: awaitChoice(); next = null
+    //       … 결과를 한 번 적용 · 화면을 먼저 바꾸고 say(…) …
+    //       next = pauseOrChoice(1100)
+    //   }
+
+    /**
+     * 선택을 기다린다. 들어오기 전 화면의 입력은 버리고, **목소리가 나오는 중에도** 받는다.
+     * 받으면 지금 목소리와 줄 선 대사를 끊는다 — 늦게 받아 둔 소리가 다음 화면에서 나오지 않는다.
+     */
+    suspend fun awaitChoice(): Reply {
+        drain()
+        return input.receive().also { hushVoice() }
+    }
+
+    /**
+     * [pause] 와 같지만 그 사이 아이가 고르면 **바로** 그 입력을 돌려준다(버리지 않는다) — 목소리는 끊는다.
+     * 아무것도 안 고르면 null. 쉬는 동안 쌓인 입력은 [awaitChoice] 처럼 버리지 않고 첫 것을 쓴다.
+     */
+    suspend fun pauseOrChoice(ms: Long): Reply? = coroutineScope {
+        val resting = async { pause(ms) }
+        select<Reply?> {
+            input.onReceive { resting.cancel(); hushVoice(); it }
+            resting.onAwait { null }
+        }
     }
 
     /**
@@ -339,6 +404,7 @@ class Director(
             val audio = Voice.listen { stopMic }
             s.micOn = false
             if (audio == null) { log("🎤 아무것도 못 들음 → 무응답"); send(Reply.Silent); return@launch }
+            speakNeutral()
             log("🎤 끝 → 우리 서버로 받아쓰기 (${audio.size / 1024}KB)")
             val text = Voice.transcribe(audio)
             when {
