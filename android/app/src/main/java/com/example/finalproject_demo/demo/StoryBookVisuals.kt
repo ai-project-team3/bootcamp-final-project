@@ -27,7 +27,8 @@ data class SavedStoryVisuals(
 )
 
 fun DemoState.captureStoryVisuals() = SavedStoryVisuals(
-    templateKey!!, persona, Hero(childName, heroAttr ?: HeroAttr(), storyHeroImage, storyHeroRig),
+    // 같이 만들기는 templateKey 가 없고 일기 틀(N)을 쓴다 (10-02)
+    templateKey ?: template?.key ?: "N", persona, Hero(childName, heroAttr ?: HeroAttr(), storyHeroImage, storyHeroRig),
     drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
     dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
     newcomerKind, soundLine, causeLine,
@@ -36,8 +37,9 @@ fun DemoState.captureStoryVisuals() = SavedStoryVisuals(
 /** Build a separate reading state; reopening a book must not overwrite the current conversation. */
 fun DemoState.restoreStoryBook(book: SavedStoryBook): Boolean {
     val visual = book.visuals ?: return false
-    mode = StoryMode.STORY
-    templateKey = visual.templateKey
+    // 같이 만들기 책은 같이 만들기로 연다 — 동화 틀 목록에 없는 일기 틀(N)이라 STORY 로 열면 쪽을 못 찾는다 (10-02)
+    mode = book.mode
+    templateKey = visual.templateKey.takeIf { book.mode == StoryMode.STORY }
     persona = visual.persona
     title = book.title
     themeKey = book.themeKey

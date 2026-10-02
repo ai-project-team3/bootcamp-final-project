@@ -1658,11 +1658,12 @@ private suspend fun Director.sceneEnd() {
     buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
     while (true) {
         awaitValue("shelf")
-        if (s.mode != StoryMode.STORY || saveFinishedStory()) break
+        // 동화 · 같이 만들기는 기기에 저장한다 — 저장이 책장에도 꽂는다. 그림일기는 아직 저장 형식이 없다 (10-02)
+        if (s.mode == StoryMode.DIARY || saveFinishedStory()) break
         say("책을 기기에 저장하지 못했어. 다시 눌러 줘.")
     }
     mark("end")
-    if (s.mode != StoryMode.STORY)
+    if (s.mode == StoryMode.DIARY)
         s.shelf.add(0, ShelfBook(s.title ?: s.autoTitleFor(), s.themeKey, s.bgName, pages = s.pageCount, fresh = true))
     event("session_end", "duration" to "15분", "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
     log("책장에 꽂기 → 동화책 자막과 쪽 종류를 기기에 저장 · 서버에는 저장하지 않음 (⭐26)")
