@@ -43,6 +43,10 @@ class CoopReactTest {
             "공이 하늘로 날아갔어" to CoopReason.DREAM, "공룡이 뻥 찼어" to CoopReason.DREAM,
             "사자가 문을 열고 나왔어" to done, "고양이가 나무에 올라갔어" to done,
         ).forEach { (t, r) -> assertEquals(t, "그랬구나!", coopAck(t, CoopRole.THING, r)) }
+        // 바로 앞도 「그랬구나!」였으면 다른 맞장구로 — 같은 말이 이어 나오지 않는다
+        val next = coopAck("공이 하늘로 날아갔어", CoopRole.THING, CoopReason.DREAM, last = "그랬구나!")
+        assertTrue(next!!, next != "그랬구나!" && next in listOf("우와!", "응응!"))
+        assertEquals("아빠구나!", coopAck("아빠랑", CoopRole.WHO, done, last = "그랬구나!"))
         // 주어가 아니면 지금처럼 이름을 되짚는다
         assertEquals("큰 소방서!", coopAck("큰 소방서", CoopRole.PLACE, CoopReason.SOON))
         // 다녀왔어요의 엉뚱한 답은 주어여도 상상 낱말을 받아 준다

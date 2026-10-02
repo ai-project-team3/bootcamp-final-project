@@ -109,6 +109,8 @@ private class CoopTrack {
     /** 엉뚱한 답이 나온 자리 · 「진짜로는」으로 다시 물은 자리 — 자리마다 한 번만 되돌린다 */
     var wildFor: String? = null
     var wildAsked: String? = null
+    /** 바로 앞 받아주기 — 같은 말이 이어 나오지 않게 */
+    var lastAck: String? = null
     /** 받아주기 직후 한 번 부른 `/turn` — 수준 신호와 칸 값이 같이 쓴다(두 번 부르지 않는다). 아이 말이 키 */
     var liveTurn: LiveTurn? = null
     /** 지금 방식 · 바뀐 방식을 견주는 이야기 하나의 수치 (§11) — 끝날 때 `coop_session` 으로 남긴다 */
@@ -310,7 +312,7 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
             coopNameFrom(r.text, role)?.takeIf { !hasRoughWord(it) }?.let { track.heard[slot] = it; log("[$key] 들은 이름 $slot=「$it」 (다음 질문에 끼운다)") }
         }
         // 받아주기 한마디 — 아이 말에서 뗀 이름 하나. 「몰라」 · 「응」은 되비추지 않는다. 다음 질문과 합쳐 두 문장
-        coopAck(r.text, roleOf(key)?.second, reason, wild)?.let { say(it); pause(700) }
+        coopAck(r.text, roleOf(key)?.second, reason, wild, track.lastAck)?.let { track.lastAck = it; say(it); pause(700) }
         // 진짜 마이크 답에 수준 신호를 단다 — 공용 판정이 신호 없는 답을 늘 「내림」으로 세던 것 (CoopSignals.kt)
         if (r.isLiveSpeech()) return r.copy(answer = coopLiveSignals(q, text, r.text, wild))
     }

@@ -41,10 +41,16 @@ internal fun isWildForReality(text: String, reason: CoopReason): Boolean =
     reason != CoopReason.DREAM && fantasyWordIn(text) != null
 
 /**
- * 받아주기 한마디. [role] 은 이 자리에서 이름이 놓이는 모양. 되비추지 않을 답이면 null.
+ * 받아주기 한마디. [role] 은 이 자리에서 이름이 놓이는 모양, [last] 는 바로 앞 받아주기. 되비추지 않을 답이면 null.
  * 다녀왔어요 · 곧 해요의 엉뚱한 답이면 「공룡이면 깜짝 놀라겠다!」
  */
-internal fun coopAck(text: String, role: CoopRole?, reason: CoopReason, wild: Boolean = false): String? {
+internal fun coopAck(text: String, role: CoopRole?, reason: CoopReason, wild: Boolean = false, last: String? = null): String? =
+    ackFor(text, role, reason, wild)?.let { a ->
+        // 바로 앞 받아주기와 같은 말이면 다른 맞장구로 — 「그랬구나!」가 이어 나오지 않게 (10-02 사용자 결정)
+        if (a == last) PLAIN_ACKS.first { it != last } else a
+    }
+
+private fun ackFor(text: String, role: CoopRole?, reason: CoopReason, wild: Boolean): String? {
     val t = text.trim()
     if (t.isEmpty() || isNonAnswer(t) || dontKnow(t)) return null
     if (wild) fantasyWordIn(t)?.let { f -> return "$f${if (bat(f)) "이면" else "면"} 깜짝 놀라겠다!" }
