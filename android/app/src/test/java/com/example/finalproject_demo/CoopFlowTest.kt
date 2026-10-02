@@ -1,5 +1,9 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.completedStoryBook
+import com.example.finalproject_demo.demo.pageCount
+import com.example.finalproject_demo.demo.bookCaption
+import com.example.finalproject_demo.demo.restoreStoryBook
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
@@ -345,7 +349,25 @@ class CoopFlowTest {
             "아이 화면에 [책장에 꽂기]가 없다 — Gifts(shown=${gifts!!.shown}, done=${gifts.done}). 여기서 앱이 멎는다",
             gifts.done,
         )
+
+        // 꽂은 책은 **저장된 책**이어야 한다 — 책장에서 다시 열리고 쪽마다 문장이 있다 (10-02 사용자 보고: 같이 만들기 책만 내용이 안 남았다)
+        val title = s.title
+        s.buttons.first { "책장에 꽂기" in it.label }.onClick()
+        assertTrue("책장으로 못 갔다: line=${s.line} tpl=${s.template?.key} pages=${s.pageCount} " +
+            "caps=${(1..s.pageCount).map { s.bookCaption(it) }} book=${s.completedStoryBook() != null}",
+            await(5_000) { s.scene == Scene.SHELF } != null)
+        val shelved = s.shelf.first()
+        val id = assertNotNullMsg("같이 만들기 책이 저장되지 않았다(책장 표지만 있다)", shelved.savedStoryId)
+        val book = assertNotNullMsg("저장 목록에 없다", d.savedStory(id))
+        assertEquals(title, book.title)
+        assertEquals(s.pageCount, book.pages.size)
+        assertTrue("빈 쪽이 있다: ${book.pages}", book.pages.all { it.caption.isNotBlank() })
+        val reread = com.example.finalproject_demo.demo.DemoState()
+        assertTrue("다시 열 수 없다", reread.restoreStoryBook(book))
+        assertEquals(book.pages.map { it.caption }, (1..reread.pageCount).map { reread.bookCaption(it) })
     }
+
+    private fun <T> assertNotNullMsg(msg: String, v: T?): T { assertTrue(msg, v != null); return v!! }
 
     @Test
     fun withNothingPreparedTheOldBandFlowStays() = run { d ->
