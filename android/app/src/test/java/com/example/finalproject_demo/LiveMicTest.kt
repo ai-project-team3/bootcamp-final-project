@@ -8,6 +8,7 @@ import com.example.finalproject_demo.net.Voice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.yield
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
@@ -16,6 +17,7 @@ import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -61,16 +63,48 @@ class LiveMicTest {
     }
 
     @Test
-    fun nothingHeardOrAFailedServerBecomesNoAnswer() {
+    fun nothingHeardIsNoAnswer() {
         Voice.listen = { null }
         assertEquals(Reply.Silent, live().pressMicAndWait())
+    }
 
+    /**
+     * 10-02 (#79): speech was heard but the transcript came back empty or failed — the child did
+     * answer, so the mascot asks again and the ladder does not move. Only the third miss in a row
+     * becomes no answer.
+     */
+    @Test
+    fun heardButNotTranscribedAsksAgainBeforeItCountsAsNoAnswer() = runBlocking {
         Voice.listen = { byteArrayOf(1) }
-        Voice.transcribe = { "" }                 // silence, or a whisper hallucination the server dropped
-        assertEquals(Reply.Silent, live().pressMicAndWait())
+        val d = live()
+        var tries = 0
+        Voice.transcribe = { tries++; if (tries % 2 == 0) null else "" }   // a dropped hallucination, then the server down
+        val reply = async { withTimeout(5_000) { d.awaitReply() } }
+        repeat(3) {
+            yield()
+            d.toggleMic()
+            withTimeout(2_000) { while (d.s.micOn || tries <= it) delay(5) }
+            if (it < 2) {
+                delay(50)
+                assertFalse("a miss is not an answer yet", reply.isCompleted)
+                assertTrue("the mascot asks again", "한 번" in d.s.line)
+            }
+        }
+        assertEquals(Reply.Silent, reply.await())
+        assertEquals(3, tries)
+    }
 
-        Voice.transcribe = { null }               // server down
-        assertEquals(Reply.Silent, live().pressMicAndWait())
+    @Test
+    fun aRepeatAfterAMissIsTheAnswer() = runBlocking {
+        Voice.listen = { byteArrayOf(1) }
+        val d = live()
+        var tries = 0
+        Voice.transcribe = { tries++; if (tries == 1) "" else "바닷속" }
+        val reply = async { withTimeout(5_000) { d.awaitReply() } }
+        yield(); d.toggleMic()
+        withTimeout(2_000) { while (d.s.micOn || tries < 1) delay(5) }
+        d.toggleMic()
+        assertEquals(Reply.Spoke("바닷속"), reply.await())
     }
 
     @Test

@@ -3,10 +3,37 @@
   "description": "마스코트 한 턴 세 조각. 구현 계약은 backend/app/schemas/turn.py(Line), 프롬프트는 eval/line_prompt.md, 근거는 guidelines/7_프롬프트.md §3, API 는 guidelines/3_API_명세.md §3-2-1.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["ack", "expand", "question"],
+  "required": [
+    "ack",
+    "expand",
+    "question",
+    "options"
+  ],
   "properties": {
-    "ack": { "type": "string" },
-    "expand": { "type": ["string", "null"] },
-    "question": { "type": ["string", "null"] }
+    "ack": {
+      "type": "string"
+    },
+    "expand": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "question": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "options": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "question 이 묻는 칸의 짧은 답 후보 3개 — 아이가 대답 못 할 때 카드 · 마스코트 채움(#79). question 이 null 이거나 diary 면 null"
+    }
   }
 }

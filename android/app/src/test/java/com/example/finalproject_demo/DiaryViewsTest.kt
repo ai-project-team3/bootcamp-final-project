@@ -42,8 +42,6 @@ import com.example.finalproject_demo.ui.Bg
 import com.example.finalproject_demo.ui.StageView
 import com.example.finalproject_demo.ui.diaryAskPose
 import com.example.finalproject_demo.ui.shell.Pose
-import com.github.takahirom.roborazzi.RoborazziOptions
-import com.github.takahirom.roborazzi.RoborazziTaskType
 import com.github.takahirom.roborazzi.captureRoboImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -74,7 +72,6 @@ class DiaryViewsTest {
 
     private fun snap(name: String) = compose.onRoot().captureRoboImage(
         File("screens/$name.png").path,
-        roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
     )
 
     private fun director() = Director(CoroutineScope(SupervisorJob())).apply {

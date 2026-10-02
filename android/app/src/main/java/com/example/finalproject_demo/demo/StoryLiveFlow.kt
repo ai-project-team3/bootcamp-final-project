@@ -61,7 +61,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     if (s.storyStartedAtMs == 0L) s.storyStartedAtMs = System.currentTimeMillis()
     run {
         while (true) {
-            val end = s.storyEndCondition(s.storyStartedAtMs, System.currentTimeMillis())
+            val end = s.storyEndCondition()
             if (end != null) { s.endReason = end; break }
             val prompt = s.nextStoryPrompt(s.storyServerQuestion) ?: break
             if (prompt.slot == "sound" && !s.storySoundAttempted) {
@@ -74,6 +74,8 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             val base = variant.toQuestion(s)
             val question = base.copy(text = if (prompt.templateOnly) base.text else prompt.text)
             val reply = askStory(question, prompt.slot)
+            // Silence leaves this slot open; it is neither speech nor a mascot choice.
+            if (reply !is Reply.Spoke && reply !is Reply.Tapped) continue
             val by = when {
                 reply is Reply.Spoke -> "child"
                 reply is Reply.Tapped && !reply.byMascot -> "card"
@@ -82,7 +84,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             val value = when (reply) {
                 is Reply.Spoke -> reply.text
                 is Reply.Tapped -> reply.label
-                else -> "아직 정하지 않았어요"
+                else -> error("Only an actual answer reaches slot filling")
             }
             if (prompt.templateOnly) {
                 s.recordTemplateAnswer(prompt, value, by)
@@ -127,7 +129,7 @@ private fun Director.liveVariant(prompt: StoryPrompt): QVariant {
     if (BANK.any { it.slot == bankSlot }) return s.pick(bankSlot)
     return QVariant("live:$slot", slot, Level.entries.toSet(), Kind.EASY, "서버가 고른 다음 이야기 칸",
         text = { prompt.text }, easier = { "천천히 생각해 봐. ${prompt.text}" },
-        answers = { emptyList() }, fallback = { Answer("아직 정하지 않았어요", "아직 정하지 않았어요") })
+        answers = { emptyList() })
 }
 
 /** Project confirmed slots into the existing book/world fields; never fill missing child facts. */
