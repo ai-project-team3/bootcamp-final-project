@@ -90,6 +90,15 @@ private fun asksFuture(q: String): Boolean {
     return rieulSyllable(w.last())
 }
 
+/** 「-요?」 존댓말 끝을 오또 반말로 — 「뭐예요?」→「뭐야?」 · 「갔어요?」→「갔어?」 · 「좋나요?」→「좋니?」 */
+internal fun banmal(q: String): String = when {
+    q.endsWith("이에요?") -> q.dropLast(4) + "이야?"
+    q.endsWith("예요?") || q.endsWith("에요?") -> q.dropLast(3) + "야?"
+    q.endsWith("나요?") -> q.dropLast(3) + "니?"
+    q.endsWith("요?") -> q.dropLast(2) + "?"
+    else -> q
+}
+
 /** 지난 일을 묻는 꼴 — 「했어? · 갔어? · 있었어?」 */
 private fun asksPast(q: String): Boolean {
     val t = q.trimEnd('?', ' ')
@@ -128,7 +137,7 @@ fun coopGuard(raw: String, reason: CoopReason?, source: CoopSource): CoopGuarded
 
     // 5. 오또 말투 — 다정한 반말
     if (Regex("(습니까|십니까|세요|하시|드려)").containsMatchIn(q)) return CoopGuarded(null, issues + "존댓말", changed)
-    if (q.endsWith("요?")) { q = q.dropLast(2) + "?"; issues += "「-요?」→「?」"; changed = true }
+    if (q.endsWith("요?")) { q = banmal(q); issues += "「-요?」→ 반말"; changed = true }
 
     val generated = source == CoopSource.LLM || source == CoopSource.HEARD
     // 6. 시제
@@ -146,4 +155,26 @@ fun coopGuard(raw: String, reason: CoopReason?, source: CoopSource): CoopGuarded
             return CoopGuarded(null, issues + "선택지가 길다", changed)
     }
     return CoopGuarded(out, issues, changed)
+}
+
+/**
+ * 부모 화면 귀띔 — 부모가 적은 질문을 **막지 않는다.** 아이가 답하기 쉬운 쪽으로 무엇이 걸렸는지와 고쳐 쓴 문장 하나를 보여 주고,
+ * 부모가 [바꿀게요] 또는 [그대로 둘게요]를 고른다 (협업 질문 업그레이드 §9 · 규칙 7 「과잉 차단 금지」).
+ * 「언제」 · 의문사 둘 · 예/아니오는 [questionHint] 가 이미 보여 주므로 여기서 겹쳐 말하지 않는다.
+ */
+data class CoopParentAdvice(val notes: List<String>, val suggestion: String?)
+
+fun coopParentAdvice(raw: String): CoopParentAdvice? {
+    val t = raw.trim()
+    if (t.isEmpty()) return null
+    val notes = mutableListOf<String>()
+    if (hasRoughWord(t)) notes += "아이에게 무섭거나 거칠게 들릴 수 있는 말이 있어요"
+    if (t.count { it == '?' } > 1) notes += "질문이 ${t.count { it == '?' }}개예요 — 오또는 첫 질문만 물어요"
+    // 오또가 실제로 물을 문장(첫 질문만) — 거기서 쉬운 말 · 반말만 바꿔 본다
+    var q = coopGuard(t, null, CoopSource.PARENT).text ?: t
+    COOP_EASY_WORDS.forEach { (hard, easy) -> if (hard in q) { q = q.replace(hard, easy); notes += "「$hard」보다 「$easy」가 아이에게 쉬워요" } }
+    if (q.endsWith("요?")) { q = banmal(q); notes +="오또는 반말로 물어요 — 「-요」를 빼면 오또 말투와 맞아요" }
+    if (q.len() > COOP_Q_MAX_CHARS) notes += "조금 길어요 — 짧을수록 아이가 잘 답해요"
+    if (notes.isEmpty()) return null
+    return CoopParentAdvice(notes, q.takeIf { it != t })
 }

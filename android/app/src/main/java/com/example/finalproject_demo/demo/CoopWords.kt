@@ -12,6 +12,7 @@ package com.example.finalproject_demo.demo
 
 /** 어려운 말 → 3~7세가 알아듣는 말. 앞에서부터 바꾼다 (긴 말을 먼저 적는다) */
 val COOP_EASY_WORDS: List<Pair<String, String>> = listOf(
+    "가장 인상 깊었던" to "제일 좋았던",
     "인상 깊었던" to "제일 좋았던",
     "인상깊었던" to "제일 좋았던",
     "느낀 점" to "기분",
