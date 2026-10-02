@@ -311,7 +311,8 @@ private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke, as
  */
 private fun Director.orderOttoDrawing(scope: CoroutineScope, piece: DiaryPiece, name: String): OttoOrder {
     if (!Server.liveFor(s.mode)) return OttoOrder(piece.id, null)
-    val png = pieceToPng(piece, s.drawingAspect)
+    // 무리는 가장 큰 덩어리 하나만 보낸다 — 받은 그림을 덩어리 자리마다 찍는다(서버는 여럿을 보내면 자리를 바꿔 다시 짠다 · 10-02 측정)
+    val png = pieceToPng(piece.redrawSample(), s.drawingAspect)
     if (png == null) {
         log("오또 그림 부탁 — 조각에 선이 없다. 원본 그대로")
         return OttoOrder(piece.id, scope.async { null })

@@ -117,6 +117,8 @@ fun DiaryDay.addStroke(stroke: Stroke): Int {
         ?: last?.takeIf { it.name == null && near(it) }
         ?: pieces.lastOrNull { it.role == PieceRole.OBJECT && it.name == null && near(it) }
     if (target == null) {
+        // 무리 — 떨어진 곳에 같은 색 · 비슷한 크기의 작은 것을 또 그렸다(별 · 빗방울 · 꽃). 새 조각 대신 그 무리에 넣는다
+        groupFor(stroke, b)?.let { return it }
         val p = DiaryPiece(id = (pieces.maxOfOrNull { it.id } ?: -1) + 1, strokes = listOf(stroke))
         pieces += p
         return p.id
@@ -178,6 +180,62 @@ internal const val BG_MIN_WIDTH = 0.55f
 internal const val BG_MAX_HEIGHT = 0.25f
 /** 색칠 — 획 길이가 획 상자 긴 변의 이만큼 배 이상이면 촘촘히 오간 것이다(지그재그 · 덧칠) */
 internal const val FILL_DENSITY = 3.0f
+
+/** 무리로 묶을 만큼 작은가 — 덩어리의 긴 변이 판의 이만큼 이하 */
+internal const val GROUP_MAX_SIDE = 0.15f
+
+/** 무리가 되는 수 — 비슷한 것이 이만큼 모이면 묶는다. 둘(엄마 · 아빠, 두 눈)은 따로 둔다 */
+internal const val GROUP_MIN = 3
+
+/**
+ * [stroke] 를 무리에 넣고 그 조각 id 를 돌려준다. 넣을 곳이 없으면 null(새 조각).
+ * - 이미 있는 무리와 같은 색 · 비슷한 크기(½~2배)면 그 무리에
+ * - 같은 색 · 비슷한 크기의 작은 조각이 [GROUP_MIN] - 1 개 이상 있으면 그것들과 함께 새 무리로(이름이 서로 다르면 묶지 않는다 · 이름은 이어받는다)
+ * 붙여 그린 획은 이미 위에서 그 조각에 붙었다 — 여기는 떨어져 새로 그린 것만 온다
+ */
+private fun DiaryDay.groupFor(stroke: Stroke, b: BoardBox): Int? {
+    val side = maxOf(b.width, b.height)
+    if (side > GROUP_MAX_SIDE) return null
+    fun alike(p: DiaryPiece) = p.role != PieceRole.BACKGROUND && p.strokes.all { it.color == stroke.color } &&
+        p.clusters().all { c -> boxOf(c)!!.let { cb -> maxOf(cb.width, cb.height).let { it <= GROUP_MAX_SIDE && side in it / 2..it * 2 } } }
+    pieces.lastOrNull { it.role == PieceRole.GROUP && alike(it) }?.let { g ->
+        pieces[pieces.indexOfFirst { it.id == g.id }] = g.copy(strokes = g.strokes + stroke)
+        return g.id
+    }
+    val mates = pieces.filter { it.role == PieceRole.OBJECT && alike(it) }
+    if (mates.size + 1 < GROUP_MIN || mates.mapNotNull { it.name }.distinct().size > 1) return null
+    val keep = mates.last()
+    mates.dropLast(1).forEach { mergeInto(it.id, keep.id) }
+    val i = pieces.indexOfFirst { it.id == keep.id }
+    val merged = pieces[i]
+    pieces[i] = merged.copy(strokes = merged.strokes + stroke, role = PieceRole.GROUP, name = mates.firstNotNullOfOrNull { it.name })
+    return keep.id
+}
+
+/** 조각 안의 덩어리들 — 서로 닿는 획끼리. 무리면 덩어리가 여럿이다(별 하나하나) */
+fun DiaryPiece.clusters(): List<List<Stroke>> {
+    val groups = mutableListOf<MutableList<Stroke>>()
+    strokes.forEach { s ->
+        val sb = boxOf(listOf(s)) ?: return@forEach
+        val touching = groups.filter { g -> boxOf(g)!!.grow(PIECE_GAP).touches(sb) }
+        if (touching.isEmpty()) groups += mutableListOf(s)
+        else {
+            val into = touching.first()
+            into += s
+            touching.drop(1).forEach { other -> into += other; groups.remove(other) }
+        }
+    }
+    return groups
+}
+
+/** 오또에게 보낼 조각 — 무리면 가장 큰 덩어리 하나(별 하나), 아니면 조각 그대로 */
+fun DiaryPiece.redrawSample(): DiaryPiece =
+    if (role != PieceRole.GROUP) this
+    else copy(strokes = clusters().maxByOrNull { c -> boxOf(c)!!.let { it.width * it.height } } ?: strokes)
+
+/** 오또 그림을 놓을 자리 — 무리면 덩어리마다, 아니면 조각 하나 */
+fun DiaryPiece.ottoSpots(): List<BoardBox> =
+    if (role == PieceRole.GROUP) clusters().mapNotNull { boxOf(it) } else listOfNotNull(boxOf(strokes))
 
 /** 판을 가로지르는 납작한 선인가 — 땅 · 하늘 · 바다. 3~7세 값은 획 기록으로 다시 잡는다 */
 internal fun isBackgroundStroke(b: BoardBox): Boolean = b.width >= BG_MIN_WIDTH && b.height <= BG_MAX_HEIGHT

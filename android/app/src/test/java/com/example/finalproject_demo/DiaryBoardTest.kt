@@ -12,6 +12,9 @@ import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.addStroke
 import com.example.finalproject_demo.demo.boxOf
 import com.example.finalproject_demo.demo.catchUp
+import com.example.finalproject_demo.demo.clusters
+import com.example.finalproject_demo.demo.ottoSpots
+import com.example.finalproject_demo.demo.redrawSample
 import com.example.finalproject_demo.demo.redoStroke
 import com.example.finalproject_demo.demo.undoStroke
 import com.example.finalproject_demo.demo.cropFor
@@ -188,6 +191,26 @@ class DiaryBoardTest {
         assertEquals("집 안 색칠이 새 조각이 됐다", house, day.addStroke(diaryLine(*zigzag)))
         assertEquals("이름이 바뀌었다", "우리 집", day.pieces.single().name)
         assertNotEquals("집 안의 짧은 선 하나까지 색칠로 봤다", house, day.addStroke(diaryLine(.18f, .55f, .22f, .58f)))
+    }
+
+    /** 같은 색 작은 것을 떨어진 곳에 또 그리면 무리 — 한 조각에 덩어리 여럿. 오또에게는 가장 큰 덩어리 하나만, 그림은 덩어리마다 */
+    @Test
+    fun scatteredSmallMarksOfOneColorBecomeAGroup() {
+        fun mark(c: Color, x: Float, y: Float, r: Float = .04f) = com.example.finalproject_demo.demo.Stroke(c, listOf(Offset(x - r, y), Offset(x, y - r), Offset(x + r, y), Offset(x, y + r), Offset(x - r, y)))
+        val day = DiaryDay()
+        day.addStroke(mark(Color.Yellow, .10f, .20f))
+        day.addStroke(mark(Color.Yellow, .40f, .15f))
+        assertEquals("둘은 따로 둔다(엄마 · 아빠 · 두 눈)", 2, day.pieces.size)
+        val first = day.addStroke(mark(Color.Yellow, .70f, .25f, .05f))
+        val star = day.pieces.single()
+        assertEquals(first, star.id)
+        assertEquals("넷째도 무리에", first, day.addStroke(mark(Color.Yellow, .25f, .45f)))
+        assertEquals(com.example.finalproject_demo.demo.PieceRole.GROUP, star.role)
+        assertEquals(4, day.pieces.single().clusters().size)
+        assertEquals("오또에게 덩어리 여럿을 보냈다", 1, star.redrawSample().clusters().size)
+        assertEquals(4, day.pieces.single().ottoSpots().size)
+        assertNotEquals("다른 색까지 무리에 넣었다", first, day.addStroke(mark(Color.Red, .90f, .80f)))
+        assertNotEquals("큰 것까지 무리에 넣었다", first, day.addStroke(mark(Color.Yellow, .50f, .70f, .2f)))
     }
 
     private fun diaryLine(vararg xy: Float) =

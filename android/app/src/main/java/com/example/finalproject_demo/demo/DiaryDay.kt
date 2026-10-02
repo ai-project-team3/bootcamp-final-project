@@ -26,10 +26,11 @@ sealed interface DiaryStage : Stage
 enum class PieceLook { ORIGINAL, OTTO }
 
 /**
- * 조각의 역할 — 물체(앞에서 움직인다) · 배경(땅 · 하늘처럼 판을 가로지르는 선 — 맨 뒤 겹, 움직이지 않는다).
+ * 조각의 역할 — 물체(앞에서 움직인다) · 배경(땅 · 하늘처럼 판을 가로지르는 선 — 맨 뒤 겹, 움직이지 않는다) ·
+ * 무리(별 · 빗방울처럼 같은 색 작은 것이 흩어진 것 — 이름은 한 번, 오또 그림은 하나를 받아 자리마다 찍는다).
  * 색칠은 따로 역할을 두지 않고 칠한 조각에 붙는다(`addStroke`). 기준값은 획 기록(`DiaryTrace`)으로 다시 잡는다
  */
-enum class PieceRole { OBJECT, BACKGROUND }
+enum class PieceRole { OBJECT, BACKGROUND, GROUP }
 
 /**
  * 화이트보드에서 위치로 묶인 획 한 덩어리 (D1).

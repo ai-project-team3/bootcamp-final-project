@@ -104,6 +104,7 @@ import com.example.finalproject_demo.demo.PEN_W
 import com.example.finalproject_demo.demo.PICTURE_REQUIRED
 import com.example.finalproject_demo.demo.PieceLook
 import com.example.finalproject_demo.demo.PieceRole
+import com.example.finalproject_demo.demo.ottoSpots
 import com.example.finalproject_demo.demo.readingDiary
 import com.example.finalproject_demo.demo.PieceMove
 import com.example.finalproject_demo.demo.Reply
@@ -350,7 +351,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                     drawPath(p, color, style = Stroke(size.width * PEN_W, cap = StrokeCap.Round, join = StrokeJoin.Round))
                 }
             }
-            otto.forEach { p -> boxOf(p.strokes)?.let { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
+            otto.forEach { p -> p.ottoSpots().forEach { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
             PieceRings(day.pieces.toList(), day.askingPiece, cq)
             day.pieces.filter { it.name != null }.forEach { p ->
                 val b = boxOf(p.strokes) ?: return@forEach
@@ -933,7 +934,7 @@ private fun PieceLayer(
             null -> {}
         }
     }
-    if (p.look == PieceLook.OTTO) Box(layer) { OttoLook(p, b, crop, wDp, hDp) }
+    if (p.look == PieceLook.OTTO) Box(layer) { p.ottoSpots().forEach { spot -> OttoLook(p, spot, crop, wDp, hDp) } }
     else Canvas(layer) {
         // 날씨를 눌러 반짝 — 선 뒤로 겨자빛을 두껍게 한 번 더
         if (glowing) p.strokes.forEach { drawBoardStroke(it.copy(color = FeltMustard.copy(alpha = 0.45f), w = it.w * 3.5f), crop) }
