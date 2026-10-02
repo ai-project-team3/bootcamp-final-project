@@ -168,7 +168,13 @@ private val coversByState = WeakHashMap<DemoState, MutableMap<String, DiaryCover
 val DemoState.diaryCovers: MutableMap<String, DiaryCover>
     get() = coversByState.getOrPut(this) { mutableMapOf() }
 
-fun DemoState.hasDiaryCover(title: String): Boolean = diaryCovers[title]?.pieces?.isNotEmpty() == true
+fun DemoState.hasDiaryCover(key: String): Boolean = diaryCovers[key]?.pieces?.isNotEmpty() == true
+
+/**
+ * 표지를 찾는 열쇠 — 저장된 책이면 책 id, 아니면 제목. 제목으로만 찾으면 같은 날 이름 없는 일기 두 권
+ * (둘 다 「10월 2일 그림일기」)이 한 표지를 나눠 썼다 (#64-2)
+ */
+fun ShelfBook.coverKey(): String = savedStoryId ?: title
 
 /** 그림일기를 새로 시작한다 — 지난 판의 조각 · 날씨 · 기분 · 호출 수를 버린다 */
 fun DemoState.newDiaryDay(): DiaryDay = DiaryDay().also { dayByState[this] = it }

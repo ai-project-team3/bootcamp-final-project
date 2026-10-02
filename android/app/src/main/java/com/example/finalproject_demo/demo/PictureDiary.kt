@@ -979,22 +979,28 @@ private suspend fun Director.giveDiaryBook() {
     val title = s.title ?: s.autoTitleFor()
     // 표지는 오늘 그린 그림 — 조각이 없으면 화이트보드 한 덩어리
     val coverPieces = s.diaryDay.pieces.toList().ifEmpty { if (s.sceneDrawing.isEmpty()) emptyList() else listOf(DiaryPiece(0, s.sceneDrawing.toList())) }
-    if (coverPieces.isNotEmpty()) s.diaryCovers[title] = DiaryCover(coverPieces, s.drawingAspect)
     // 폰 안에 저장한다(#37) — 앱을 꺼도 책장에 남고 「다시 읽기」로 연다. 서버에는 보내지 않는다
     val book = s.completedDiaryBook(title)
-    when {
+    val shelved = when {
         !DiaryShelf.attached(s) -> {
-            s.shelf.add(0, ShelfBook(title, s.themeKey, s.bgName, pages = pages, fresh = true))
             log("책장에 꽂기 → 저장소가 없다 · 앱을 켜 둔 동안만 남는다")
+            ShelfBook(title, s.themeKey, s.bgName, pages = pages, fresh = true)
         }
         book != null && DiaryShelf.save(s, book) -> {
-            s.shelf.add(0, book.onShelf(fresh = true))
             log("책장에 꽂기 → 폰 안에 저장(diary_books · 그림 ${book.pieces.size}조각) · 서버에는 보내지 않음")
+            book.onShelf(fresh = true)
         }
         // 저장에 실패한 책은 저장된 것처럼 꽂지 않는다 — 동화와 같은 원칙(`Director.saveFinishedStory`)
-        else -> log("책장에 꽂기 → 저장 실패 · 책장에 꽂지 않는다")
+        else -> { log("책장에 꽂기 → 저장 실패 · 책장에 꽂지 않는다"); null }
     }
-    event("session_end", "duration" to "15분", "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
+    if (shelved != null) {
+        // 표지는 책마다 — 제목이 같은 날 두 권이 한 표지를 나눠 쓰지 않게 책 id 로 단다 (#64-2)
+        if (coverPieces.isNotEmpty()) s.diaryCovers[shelved.coverKey()] = DiaryCover(coverPieces, s.drawingAspect)
+        s.shelf.add(0, shelved)
+    }
+    // 실제로 걸린 분 — 고정값이 아니다 (#64-4)
+    val minutes = if (s.diaryStart > 0L) ((System.currentTimeMillis() - s.diaryStart) / 60_000L).coerceAtLeast(1L) else null
+    event("session_end", "duration" to (minutes?.let { "${it}분" } ?: "모름"), "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
     go(Scene.SHELF)
 }
 

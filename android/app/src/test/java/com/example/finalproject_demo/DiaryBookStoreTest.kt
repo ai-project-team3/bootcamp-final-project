@@ -21,6 +21,8 @@ import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.hasDiaryCover
+import com.example.finalproject_demo.demo.coverKey
+import com.example.finalproject_demo.demo.diaryCovers
 import com.example.finalproject_demo.demo.openSavedDiary
 import com.example.finalproject_demo.demo.readingDiary
 import kotlinx.coroutines.CoroutineScope
@@ -123,7 +125,20 @@ class DiaryBookStoreTest {
         val shelf = d.s.shelf.first()
         assertEquals(sample.title, shelf.title)
         assertEquals(DIARY_SHELF_ID + "b1", shelf.savedStoryId)
-        assertTrue("표지가 아이 그림이 아니다", d.s.hasDiaryCover(sample.title))
+        assertTrue("표지가 아이 그림이 아니다", d.s.hasDiaryCover(shelf.coverKey()))
+    }
+
+    /** 같은 날 제목이 같은 두 권(「10월 2일 그림일기」)도 표지는 따로 (#64-2) */
+    @Test
+    fun twoDiariesWithTheSameTitleKeepTheirOwnCovers() {
+        val d = Director(CoroutineScope(SupervisorJob()))
+        val other = sample.copy(id = "b2", pieces = listOf(DiaryPiece(0, listOf(line(Color.Green, .5f, .5f, .9f, .9f)))))
+        DiaryShelf.attach(d.s, MemoryStore(mutableListOf(other, sample)))
+        val (a, b) = d.s.shelf.take(2)
+        assertEquals("제목은 같다", a.title, b.title)
+        assertTrue("표지 열쇠가 같다", a.coverKey() != b.coverKey())
+        assertEquals(Color.Green, d.s.diaryCovers[a.coverKey()]!!.pieces.single().strokes.single().color)
+        assertEquals(Color.Red, d.s.diaryCovers[b.coverKey()]!!.pieces.first().strokes.single().color)
     }
 
     /** 「책장에 꽂기」 → 저장소에 한 권 · 책장에 「다시 읽기」 표시 */

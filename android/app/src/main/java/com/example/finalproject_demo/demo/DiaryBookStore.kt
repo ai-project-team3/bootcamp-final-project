@@ -103,7 +103,7 @@ object DiaryShelf {
         stores[s] = store
         val saved = runCatching { store.load() }.getOrDefault(emptyList())
         books[s] = saved.toMutableList()
-        saved.forEach { b -> if (b.pieces.isNotEmpty()) s.diaryCovers[b.title] = DiaryCover(b.pieces, b.aspect) }
+        saved.forEach { b -> if (b.pieces.isNotEmpty()) s.diaryCovers[DIARY_SHELF_ID + b.id] = DiaryCover(b.pieces, b.aspect) }
         s.shelf.addAll(0, saved.map { it.onShelf() })
     }
 

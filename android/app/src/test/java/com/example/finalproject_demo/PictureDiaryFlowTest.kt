@@ -25,6 +25,7 @@ import com.example.finalproject_demo.demo.dateTitle
 import com.example.finalproject_demo.demo.drawWords
 import com.example.finalproject_demo.demo.echoBack
 import com.example.finalproject_demo.demo.hasDiaryCover
+import com.example.finalproject_demo.demo.coverKey
 import com.example.finalproject_demo.demo.pieceNameFrom
 import com.example.finalproject_demo.demo.praiseFor
 import com.example.finalproject_demo.demo.soundsLikeAName
@@ -257,7 +258,7 @@ class PictureDiaryFlowTest {
         assertTrue(await { s.stage is DiaryGift } != null)
         assertTrue(d.push("책장에 꽂기"))
         assertTrue(await { s.scene == Scene.SHELF } != null)
-        assertTrue("책장 표지가 아이 그림이 아니다", s.hasDiaryCover(s.shelf.first().title))
+        assertTrue("책장 표지가 아이 그림이 아니다", s.hasDiaryCover(s.shelf.first().coverKey()))
     }
 
     /** 그림판 옆 버튼이 없다 — 물을 것이 떨어지면 오또가 「다 그렸어?」라고 묻고, 말로 답해 끝낸다 (docs/일기모드_UI.html) */
