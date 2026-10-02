@@ -3,8 +3,8 @@ package com.example.finalproject_demo
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.ASK_AFTER_DRAWING
-import com.example.finalproject_demo.demo.ASK_WHILE_DRAWING
 import com.example.finalproject_demo.demo.DONE_CHECK_EVERY
+import com.example.finalproject_demo.demo.CRAYON_PAUSE
 import com.example.finalproject_demo.demo.DiaryAsk
 import com.example.finalproject_demo.demo.DiaryBoard
 import com.example.finalproject_demo.demo.DiaryGift
@@ -222,27 +222,18 @@ class PictureDiaryFlowTest {
     }
 
     @Test
-    fun onlyTwoQuestionsWhileDrawingThenOttoJustWatches() = run { d ->
+    fun everyPieceIsAskedWhileDrawingWithNoCap() = run { d ->
         val s = d.s
         d.go(Scene.DIARY)
         assertTrue(d.push("그릴래"))
-        repeat(2) { i ->
-            s.drawing += stroke(0.1f + 0.3f * i)
-            assertTrue(d.push("붓이 멈춤"))
-            assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        // 상한 없음 — 세 번째 · 네 번째 조각도 묻는다 (10-02 실기기: 두 번 묻고 나면 새 조각을 그려도 안 물었다)
+        repeat(4) { i ->
+            s.drawing += stroke(0.05f + 0.25f * i)
+            assertTrue("${i + 1}번째 조각을 묻지 않았다", d.push("붓이 멈춤") && await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
             assertTrue(d.push("대답 없음"))
-            if (await(1_500) { s.buttons.any { "대답 없음" in it.label } } != null) d.push("대답 없음")
             assertTrue(await { s.buttons.any { "붓이 멈춤" in it.label } } != null)
         }
-        val lines = s.lineId
-        s.drawing += stroke(0.75f)
-        // 이번에는 오또가 말을 걸지 않는 것이 맞다 — 말이 바뀌기를 기다리는 push 대신 기록이 남을 때까지 누른다
-        assertTrue(await {
-            s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick()
-            s.log.any { "물을 만큼 물었다" in it }
-        } != null)
-        assertEquals("세 번째 멈춤에도 말을 걸었다", lines, s.lineId)
-        assertEquals(3, s.diaryDay.pieces.size)
+        assertEquals(4, s.diaryDay.pieces.size)
         assertTrue("아이가 말하지 않은 이름이 붙었다", s.diaryDay.pieces.all { it.name == null })
     }
 
@@ -275,24 +266,21 @@ class PictureDiaryFlowTest {
         val s = d.s
         d.go(Scene.DIARY)
         assertTrue(d.push("그릴래"))
-        repeat(ASK_WHILE_DRAWING) { i ->
+        repeat(2) { i ->
             s.drawing += stroke(0.1f + 0.3f * i)
             assertTrue(d.push("붓이 멈춤"))
             assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
             assertTrue(d.push("대답 없음"))
-            if (await(1_500) { s.buttons.any { "대답 없음" in it.label } } != null) d.push("대답 없음")
             assertTrue(await { s.buttons.any { "붓이 멈춤" in it.label } } != null)
         }
-        // 물을 것 없는 멈춤 — 처음 몇 번은 지켜보기만 하고, [DONE_CHECK_EVERY] 번째에 묻는다
-        repeat(DONE_CHECK_EVERY - 1) { i ->
-            s.drawing += stroke(0.8f + 0.05f * i)
-            val watched = s.log.count { "물을 만큼 물었다" in it }
+        // 물을 것 없는 멈춤(새 조각 없이) — 처음 몇 번은 지켜보기만 하고, [DONE_CHECK_EVERY] 번째에 묻는다
+        repeat(DONE_CHECK_EVERY - 1) {
+            val watched = s.log.count { "이미 물었다" in it }
             assertTrue(await {
                 s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick()
-                s.log.count { "물을 만큼 물었다" in it } > watched
+                s.log.count { "이미 물었다" in it } > watched
             } != null)
         }
-        s.drawing += stroke(0.9f)
         assertTrue("물을 것이 떨어졌는데 「다 그렸어?」를 묻지 않았다", await {
             s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick()
             s.line == "다 그렸어? 더 그릴 거 있어?"
@@ -420,6 +408,78 @@ class PictureDiaryFlowTest {
         assertTrue("말=${s.line}", await { s.line == "나도 강아지를 그려볼까?" } != null)
     }
 
+    /**
+     * 크레용을 고른 뒤의 멈춤은 「다 그렸어?」로 세지 않는다 · 말없이 거둔 「다 그렸어?」는 말풍선에 남기지 않는다 (10-02 실기기)
+     */
+    @Test
+    fun aCrayonPauseIsNotCountedAndAWithdrawnQuestionLeavesTheBubble() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("강아지")
+        assertTrue(await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        assertTrue(await { s.diaryDay.watching } != null)
+        repeat(3) {                                                  // 크레용 뒤 멈춤 셋 — 세지 않는다
+            assertTrue(await { s.diaryDay.watching } != null)
+            d.send(Reply.Tapped("pause", CRAYON_PAUSE)); delay(80)
+        }
+        assertTrue("크레용 멈춤을 「다 그렸어?」로 셌다", s.line != "다 그렸어? 더 그릴 거 있어?")
+        repeat(DONE_CHECK_EVERY) {
+            assertTrue(await { s.diaryDay.watching } != null)
+            d.send(Reply.Tapped("pause", "붓 멈춤")); delay(80)
+        }
+        assertTrue(await { s.line == "다 그렸어? 더 그릴 거 있어?" } != null)
+        assertTrue("말없이 거둔 질문이 말풍선에 남았다 — 말=${s.line}", await { s.line.isEmpty() } != null)
+    }
+
+    /**
+     * 받아쓰기가 잘못 들어 이름이 안 나오면 한 번 더 묻는다. 그래도 안 되면 「계속 그려 봐」로 두되,
+     * 아이가 다시 말하면 「○○야」 꼴이 아니어도 그 조각 이름으로 받는다 — 새 조각을 그려야만 진행되던 막힘 (10-02 실기기)
+     */
+    @Test
+    fun aMisheardNameIsAskedAgainAndCanStillBeGiven() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("배고파")                                             // 잘못 알아들은 말
+        assertTrue("다시 묻지 않았다 — 말=${s.line}", await { s.line == "잘 못 들었어. 뭐 그린 거야?" } != null)
+        d.speak("배고파")
+        assertTrue(await { s.line == "그래, 계속 그려 봐." } != null)
+        assertNull(s.diaryDay.pieces.single().name)
+        d.tell("로켓") { s.diaryDay.pieces.single().name == "로켓" }   // 「로켓이야」 꼴이 아니어도
+        assertTrue("말=${s.line}", await { s.line == "나도 로켓을 그려볼까?" } != null)
+    }
+
+    /**
+     * 오또가 말하는 사이(「좋아, 네 그림이 최고야!」) 새로 그린 조각 — 그 사이 온 붓 멈춤을 남겨 두었다가,
+     * 말이 끝나고 흐름이 돌아오면 새 획 없이도 그 조각을 묻는다 (10-02 실기기)
+     */
+    @Test
+    fun aPieceDrawnWhileOttoTalksIsAskedAfter() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("강아지")
+        assertTrue(await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        assertTrue(await { s.line == "좋아, 네 그림이 최고야!" } != null)
+        s.drawing += stroke(0.7f)                                    // 오또가 말하는 사이 멀리 새로 그렸다
+        s.diaryDay.pendingPause = "붓 멈춤"                           // 그림판이 남겨 둔 붓 멈춤
+        assertTrue("말이 끝난 뒤 새 조각을 묻지 않았다 — 말=${s.line}",
+            await { s.line == "우와, 지금 그리는 건 뭐야?" && s.diaryDay.askingPiece != s.diaryDay.pieces.first().id } != null)
+        assertNull(s.diaryDay.pendingPause)
+    }
+
     /** D1 질문 중 다른 조각을 그리기 시작하면 조용히 거두고, 다음 멈춤에 지금 그리는 조각을 먼저 묻는다 (10-01 안 A) */
     @Test
     fun drawingSomethingElseWithdrawsTheQuestion() = run { d ->
@@ -451,6 +511,11 @@ class PictureDiaryFlowTest {
         // 기다림 10초 = 시험 속도로 약 0.1초 · 그 세 배 동안 같은 조각에 계속 그린다
         repeat(6) { i -> s.drawing += stroke(0.1f + i * 0.005f); delay(50) }
         assertTrue("같은 조각을 그리는데 질문을 거뒀다", s.diaryDay.askingPiece != null)
+        // 긴 선을 긋는 중(손가락이 판에 닿아 있음) — 획은 손을 떼야 들어오지만, 그 사이도 조용한 게 아니다 (10-02 실기기)
+        s.diaryDay.penDown = true
+        delay(300)
+        assertTrue("선을 긋는 중인데 질문을 거뒀다", s.diaryDay.askingPiece != null)
+        s.diaryDay.penDown = false
         // 손을 놓고 조용하면 거둔다
         assertTrue("조용한데 거두지 않았다", await { s.diaryDay.askingPiece == null } != null)
         assertTrue(await { s.line == "계속 그려 봐!" } != null)
@@ -545,6 +610,8 @@ class PictureDiaryFlowTest {
         assertTrue(d.push("우리 집이야"))
         assertTrue(await { s.diaryDay.pieces.single().name == "우리 집" } != null)
         assertTrue(await { s.diaryDay.focusPiece == null } != null)
+        // 그림 질문은 칸 채우기 질문 수를 깎지 않는다 — 세 번째 칸 질문이 그대로 온다 (10-02)
+        assertTrue("조각 질문이 칸 질문 한 번을 썼다 — 말=${s.line}", await { s.line == "그래서 어떻게 됐어?" } != null)
     }
 
     @Test
@@ -588,6 +655,21 @@ class PictureDiaryFlowTest {
         }
         assertTrue(await { s.stage is DiaryPaper } != null)
         assertEquals(dateTitle(), s.title)
+    }
+
+    /** 시작하고 30분이 지나면 시연 버튼 없이도 마무리를 한 번 제안한다 (#64-1 — 전에는 시연 버튼만 켰다) */
+    @Test
+    fun thirtyMinutesInOttoOffersToWrapUp() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그림 없이 이야기할래"))
+        assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+        s.diaryStart = System.currentTimeMillis() - 31L * 60 * 1000          // 31분 전에 시작했다
+        assertTrue(d.push("🎬 오늘 이야기 시연 답"))
+        assertTrue("30분이 지났는데 마무리를 제안하지 않았다 — 말=${s.line}",
+            await { s.line == "오늘 이야기 정말 많이 했다! 이제 그림일기로 만들어 볼까?" } != null)
+        assertTrue(d.push("응, 만들자"))
+        assertTrue(await { s.stage is DiaryPaper } != null)
     }
 
     /** 제목을 안 붙였으면 다 읽은 뒤 한 번 묻는다 · 붙였으면 묻지 않고 바로 책을 준다 (10-01 안 2) */

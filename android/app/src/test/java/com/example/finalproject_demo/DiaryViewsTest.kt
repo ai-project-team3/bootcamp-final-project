@@ -199,6 +199,19 @@ class DiaryViewsTest {
         assertEquals("pause", (runBlocking { got.await() } as? Reply.Tapped)?.value)
     }
 
+    /** 오또가 지켜보지 않을 때(말하는 중 · 묻는 중) 온 붓 멈춤은 버리지 않고 남겨 둔다 — 흐름이 돌아오면 받는다 (10-02 실기기) */
+    @Test
+    fun aPauseWhileOttoIsBusyIsKeptForLater() {
+        val d = director()
+        val day = d.s.newDiaryDay()
+        day.watching = false                                         // 오또가 말하는 중
+        d.s.stage = DiaryBoard()
+        show(d)
+        compose.onNodeWithTag("diary-board").performTouchInput { swipe(Offset(100f, 100f), Offset(300f, 200f), 200) }
+        compose.mainClock.advanceTimeBy(BRUSH_PAUSE_MS + 300)
+        assertEquals("말하는 사이 온 붓 멈춤을 버렸다", "붓 멈춤", day.pendingPause)
+    }
+
     /** 천천히 긋는 둘째 획 — 앞 획 뒤 1.6초가 지나도 손가락이 판에 있으면 묻지 않는다. 손을 떼고 조용하면 묻는다 */
     @Test
     fun aSlowStrokeIsNotCutOffByThePause() {

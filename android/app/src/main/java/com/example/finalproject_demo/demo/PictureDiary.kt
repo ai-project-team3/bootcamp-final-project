@@ -30,19 +30,31 @@ import kotlinx.coroutines.withTimeoutOrNull
  * 오또 그림은 서버 모드면 `/image` redraw(#32 · `DiaryRedraw.kt`), 대본이면 그림 글자다. 시연 버튼으로도 붓 멈춤을 낼 수 있다.
  */
 
-/** 그리는 동안 묻는 질문 수 · 오또가 그려 주겠다고 하는 수 · 다 그린 뒤 묻는 수 */
-internal const val ASK_WHILE_DRAWING = 2
-internal const val OTTO_OFFERS = 2
+/**
+ * 오또가 먼저 「나도 ○○ 그려볼까?」라고 하는 수(한 판).
+ * 제안마다 GPU 가 약 8초씩 그려서 상한을 둔다 — 아이가 「그려줘」로 직접 부탁하는 건 세지 않는다 (10-02 진웅: 2 → 4).
+ * 그리는 동안의 이름 질문에는 상한이 없다
+ */
+internal const val OTTO_OFFERS = 4
 
 /**
  * 그리면서 듣는 D1 질문의 첫 답 기다림(초). 기본 5초는 손을 멈추고 답하기엔 짧다(10-01 진웅 · 프로토타입 15초 · 흐름 10초).
  * 말이 끊기지 않게 언제 거둘지(오래 그리는 중 · 손을 놓고 멈춤)는 따로 정한다
  */
 internal const val D1_WAIT_SEC = 10.0
+
+/**
+ * 다 그린 뒤(D3) 오또가 먼저 꺼내는 **칸 채우기** 질문 수 — 흐름 문서 「최대 2~3개」. 아이가 더 말하는 건 막지 않는다.
+ * 그림에 대한 질문(「이건 뭐 그린 거야?」)은 다른 질문이라 여기에 세지 않는다 (10-02 진웅)
+ */
 internal const val ASK_AFTER_DRAWING = 3
 
 /** 마무리를 제안하는 때 — 끝내는 시간이 아니다 (guidelines/2 §1-1 · 09-30) */
 internal const val WRAP_UP_MS = 30L * 60 * 1000
+
+/** 시작하고 [WRAP_UP_MS] 가 지났나 — 시연 버튼으로 켠 것도 같이 본다. 전에는 시연 버튼만 켜서 실기기에서 안 떴다 (#64-1) */
+private fun Director.diaryRanLong(): Boolean =
+    s.diaryTimeUp || (s.diaryStart > 0L && System.currentTimeMillis() - s.diaryStart >= WRAP_UP_MS)
 
 suspend fun Director.pictureDiary() {
     val day = s.newDiaryDay()
@@ -83,9 +95,9 @@ internal const val DONE_CHECK_EVERY = 2
  * 그림판 옆 버튼은 없다 — 물을 것이 떨어지면 오또가 멈춘 틈에 「다 그렸어?」라고 묻는다 (docs/일기모드_UI.html 규칙)
  */
 private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
-    var asked = 0
     var offers = 0
     var quiet = 0                                // 물을 것 없이 지나간 멈춤 수
+    var afterCrayon = false                      // 이번 멈춤이 크레용을 고른 뒤에 왔나
     val waiting = mutableListOf<OttoOrder>()      // 오또가 그리고 있는 조각 — 다 되면 다음 멈춤에 보여 준다
     val askedPieces = mutableSetOf<Int>()        // 한 번 물은 조각은 다시 묻지 않는다(답이 없었어도)
     val held = mutableListOf<Pair<Int, String>>() // 미뤄 둔 「나도 그려볼까?」 — 조각 · 이름 (앞 것부터 · 덮어쓰지 않는다)
@@ -98,13 +110,25 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             DemoBtn("🗣 (먼저 말함) \"너도 그려줘!\"") { send(Reply.Spoke("너도 그려줘!")) },
             DemoBtn("🗣 (먼저 말함) \"이건 강아지야\"") { send(Reply.Spoke("이건 강아지야")) },
         )
-        // 아이는 아무 때나 먼저 말해도 된다 — 마이크를 열어 둔다. 붓 멈춤은 오또가 지켜보는 동안에만 온다
+        // 아이는 아무 때나 먼저 말해도 된다 — 마이크를 열어 둔다. 오또가 말하는 사이 온 붓 멈춤은 남겨 두었다가 받는다
         inputs(mic = true, next = false)
         day.watching = true
-        val r = awaitReply()
+        // 오또 그림이 다 되면 붓 멈춤을 또 기다리지 않는다 — 아이가 멈추고 기다리면 그림이 영영 안 떴다(10-02 실기기).
+        // 그리는 중 · 말하는 중이면 끝날 때까지 기다렸다가 멈춤처럼 알린다
+        val arts = waiting.mapNotNull { it.art }
+        val wake = launch {
+            if (arts.isEmpty()) return@launch
+            while (arts.none { it.isCompleted }) delay(WATCH_STEP_MS)
+            while (day.penDown || s.micOn) delay(WATCH_STEP_MS)
+            send(Reply.Tapped("pause", "오또 그림"))
+        }
+        // 오또가 말하던 사이 남겨 둔 붓 멈춤이 있으면 기다리지 않고 받는다 — 아이가 새로 그린 것을 놓치지 않는다
+        val missed = day.pendingPause?.takeIf { !s.micOn && !day.penDown }
+        if (missed != null) { day.pendingPause = null; log("오또가 말하는 사이 온 붓 멈춤 → 이제 받는다") }
+        val r = try { if (missed != null) Reply.Tapped("pause", missed) else awaitReply() } finally { wake.cancel() }
         day.watching = false
         when {
-            r is Reply.Tapped && r.value == "pause" -> {}
+            r is Reply.Tapped && r.value == "pause" -> afterCrayon = r.label == CRAYON_PAUSE
             // [그리기 싫어](skip)도 그리기를 끝낸다 — 시연 서랍
             r is Reply.Tapped && (r.value == "done" || r.value == "skip") -> break
             // ✨ 이름표를 톡 — 왔던 오또 그림을 다시 고른다
@@ -119,7 +143,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
                 continue
             }
             r is Reply.Spoke -> {
-                when (heardWhileDrawing(day, r)) {
+                when (heardWhileDrawing(day, r, askedPieces)) {
                     Heard.DONE -> break
                     Heard.DRAW_ME -> {
                         day.catchUp(s.drawing)
@@ -173,14 +197,14 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
 
         day.catchUp(s.drawing)
         val piece = pieceBeingDrawn(day)?.takeIf { it.id !in askedPieces }
-        if (piece != null && asked < ASK_WHILE_DRAWING) {
-            asked++
+        // 그린 조각마다 묻는다 — 몇 번까지라는 상한은 없다. 빈도는 붓 멈춤 · 손 움직임이 정한다 (10-02 진웅 · 흐름 「간격으로만」)
+        if (piece != null) {
             askedPieces += piece.id
             val linesBefore = s.drawing.size
             val answer = askPieceName(day, piece)
             if (answer.finished) break
             // 다른 조각을 그리러 갔다 — 이 조각은 안 물은 것으로 두고(나중에 · D3), 다음 멈춤에 지금 그리는 조각을 먼저 묻는다
-            if (answer.movedOn) { asked--; askedPieces -= piece.id; continue }
+            if (answer.movedOn) { askedPieces -= piece.id; continue }
             val name = answer.name
             if (name == null || offers >= OTTO_OFFERS) continue
             // 답하는 사이 새 선을 긋기 시작했으면 그리기를 끊지 않는다 — 제안은 물을 것 없는 다음 멈춤에
@@ -205,10 +229,8 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             }
             continue
         }
-        log(
-            if (piece != null) "붓 멈춤 — 이번 판에 물을 만큼 물었다(${ASK_WHILE_DRAWING}번). 그리기를 지켜본다"
-            else "붓 멈춤 — 방금 그린 조각은 이름이 있거나 이미 물었다. 묻지 않는다"
-        )
+        log("붓 멈춤 — 방금 그린 조각은 이름이 있거나 이미 물었다. 묻지 않는다")
+        if (afterCrayon) continue                      // 색을 고르고 이어 그릴 참이다 — 「다 그렸어?」로 세지 않는다
         if (++quiet < DONE_CHECK_EVERY) continue
         quiet = 0
         if (askDoneDrawing()) break
@@ -252,14 +274,16 @@ private val DRAW_ME = Regex("너도 ?그려|오또도 ?그려|같이 ?그려|그
  * 그리는 중에 들은 말 — 「다 그렸어」면 끝, 「너도 그려줘」면 묻지 않고 바로 오또가 그린다(이름이 아직 없어도),
  * 방금 그리던 조각에 이름이 없으면 그 말을 이름으로 받는다(「이건 강아지야」). 아이 말은 모두 아이 출처다.
  */
-private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke): Heard {
+private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke, asked: Set<Int>): Heard {
     s.reactions++
     event("utterance", "speaker" to "child", "mode" to "voice", "text" to r.text)
     if (yesNoOf(r.text) == "done") return Heard.DONE
     if (DRAW_ME.containsMatchIn(r.text)) return Heard.DRAW_ME
     day.catchUp(s.drawing)
     val piece = pieceBeingDrawn(day)
-    if (piece != null && soundsLikeAName(r.text) && nameThePiece(day, piece, r) != null) return Heard.NAMED
+    // 물었는데 이름을 못 받은 조각이면 다시 한 말은 이름을 고쳐 말하는 것이다 — 「○○야」 꼴이 아니어도 받는다
+    val retry = piece != null && piece.id in asked
+    if (piece != null && (retry || soundsLikeAName(r.text)) && nameThePiece(day, piece, r) != null) return Heard.NAMED
     say("그렇구나! 계속 그려 봐.")
     return Heard.OTHER
 }
@@ -298,6 +322,7 @@ private suspend fun Director.receiveOttoDrawing(day: DiaryDay, order: OttoOrder)
     }
     day.pieces[i] = day.pieces[i].copy(ottoPng = png)
     s.images++
+    runCatching { android.util.Log.i("Diary", "redraw shown #${fingerprint(png)} on 「${day.pieces[i].name}」") }
     showOttoDrawing(day, day.pieces[i])
     return true
 }
@@ -332,10 +357,19 @@ private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pie
         pause(700)
         return PieceAnswer(neighbor.name)
     }
-    val name = (r as? Reply.Spoke)?.let { nameThePiece(day, piece, it) }
+    var name = (r as? Reply.Spoke)?.let { nameThePiece(day, piece, it) }
+    // 말은 했는데 이름이 안 나왔다(잘못 알아들음 · 딴말) — 한 번만 다시 묻는다. 「몰라」면 다시 묻지 않는다 (10-02 실기기)
+    if (name == null && r is Reply.Spoke && !dontKnow(r.text) && day.pieces.any { it.id == piece.id }) {
+        val again = Question(text = "잘 못 들었어. 뭐 그린 거야?", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_piece", waitSec = D1_WAIT_SEC)
+        day.askingPiece = piece.id
+        val r2 = try { askWhileDrawing(again, day, about = piece.id) } finally { day.askingPiece = null }
+        if (r2 is Reply.Tapped && (r2.value == "done" || r2.value == "skip")) return PieceAnswer(null, finished = true)
+        if (r2 is Reply.Tapped && r2.value == MOVED_ON) return PieceAnswer(null, movedOn = true)
+        name = (r2 as? Reply.Spoke)?.let { nameThePiece(day, piece, it) }
+    }
     if (name == null) {
         say(if (r is Reply.Spoke) "그래, 계속 그려 봐." else "계속 그려 봐!")
-        log("조각 이름을 못 들었다 → 이름 없이 둔다. 다시 묻지 않는다")
+        log("조각 이름을 못 들었다 → 이름 없이 둔다. 아이가 다시 말하면 이 조각 이름으로 받는다")
         return PieceAnswer(null)
     }
     return PieceAnswer(name)
@@ -380,7 +414,7 @@ private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: 
             val now = System.nanoTime()
             val stepMs = (now - last) / 1_000_000
             last = now
-            if (s.micOn) { quietMs = 0; continue }      // 말하는 중은 조용한 게 아니다
+            if (s.micOn || day.penDown) { quietMs = 0; continue }      // 말하는 중 · 선을 긋는 중은 조용한 게 아니다
             if (s.drawing.size > seen) {
                 val fresh = s.drawing.subList(seen, s.drawing.size).toList()
                 seen = s.drawing.size
@@ -395,10 +429,13 @@ private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: 
         }
     }
     val r = try { awaitReply() } finally { watch.cancel() }
+    // 실기기에서 어느 길로 끝났는지 본다 — 질문 · 끝난 까닭만(아이 말은 남기지 않는다)
+    runCatching { android.util.Log.i("Diary", "D1 「${q.text}」 → ${when (r) { is Reply.Spoke -> "answered"; is Reply.Tapped -> r.value; else -> r.javaClass.simpleName }}") }         // 단위 테스트에는 Log 가 없다
     when {
         r is Reply.Spoke -> acceptSpoken(r.text)
         r is Reply.Tapped && r.value == MOVED_ON -> { s.line = ""; log("「${q.text}」 — 다른 조각을 그리기 시작했다 → 조용히 거둔다(지금 그리는 그림이 먼저)") }
-        r is Reply.Tapped && r.value == WENT_QUIET -> log("「${q.text}」 — 손을 놓고 ${waitMs / 1000}초 말이 없었다 → 거둔다")
+        // 거둔 질문을 말풍선에 남기지 않는다 — 묻는 말은 접히지 않아서 답을 기다리는 것처럼 보였다(10-02 실기기)
+        r is Reply.Tapped && r.value == WENT_QUIET -> { s.line = ""; log("「${q.text}」 — 손을 놓고 ${waitMs / 1000}초 말이 없었다 → 거둔다") }
         r is Reply.Tapped -> acceptTap(r)
     }
     inputs(mic = false, next = false)
@@ -498,7 +535,7 @@ private suspend fun Director.offerOttoDrawing(name: String): String {
     when (v) {
         "yes" -> {
             say("나도 그려 볼게! 너도 더 그리고 있어!")
-            log("오또 그림 부탁 — 뒤에서 만든다(서버 연결 뒤 /image redraw · #32). 지금은 대본 그림")
+            log("오또 그림 부탁 — 뒤에서 만든다(서버 모드면 /image redraw · 아니면 대본 그림)")
         }
         "no" -> say("좋아, 네 그림이 최고야!")
     }
@@ -588,7 +625,7 @@ private fun Director.keepBoard() {
 // ── D3 ─────────────────────────────────────────────────────────
 
 /**
- * 다 그린 뒤 — 빈 칸만 묻는다. 필수(place · problem)가 먼저, 남으면 결말 · 내일. 합쳐 [ASK_AFTER_DRAWING] 번까지.
+ * 다 그린 뒤 — 빈 칸만 묻는다. 필수(place · problem)가 먼저, 남으면 결말 · 내일. 칸 질문은 합쳐 [ASK_AFTER_DRAWING] 번까지(이름 없는 조각 질문은 따로).
  * 서버 모드면 판정의 `next_slot` 과 오또 대사가 다음 질문을 정한다([askEmptySlotsLive]). 대본이면 이 차례다.
  */
 private suspend fun Director.askEmptySlots() {
@@ -599,15 +636,15 @@ private suspend fun Director.askEmptySlots() {
     var wrapOffered = false
     var pieceAsked = false
     while (queue.isNotEmpty() && asked < ASK_AFTER_DRAWING) {
-        if (!wrapOffered && s.diaryTimeUp) {
+        if (!wrapOffered && diaryRanLong()) {
             wrapOffered = true
             if (offerWrapUp()) break
         }
-        // 필수 두 칸을 물은 뒤 — 이름 없는 조각 하나를 묻는다(세 번 안에서)
+        // 필수 두 칸을 물은 뒤 — 이름 없는 조각 하나를 묻는다(칸 질문 수와 따로 · 10-02)
         if (!pieceAsked && queue.none { it.key in PICTURE_REQUIRED }) {
             pieceAsked = true
             val unnamed = firstUnnamedPiece()
-            if (unnamed != null) { asked++; askPieceOnD3(unnamed); continue }
+            if (unnamed != null) { askPieceOnD3(unnamed); continue }      // 그림 질문 — 칸 채우기 질문 수([ASK_AFTER_DRAWING])에 세지 않는다
         }
         val pq = queue.removeAt(0)
         asked++
@@ -677,6 +714,12 @@ private fun Director.firstEmptyQuestion(skip: Set<String> = emptySet()): Triple<
         ?.let { Triple(judgeSlotOf(it.key), it.ask(s), it.key) }
 
 /** 판정 슬롯 → 책 키. 그림일기 쪽이 있는 칸만 책에 들어가고, 나머지는 칸에만 남는다 */
+/**
+ * 판정이 다음에 물을 칸으로 고른 [slot] 의 답이 들어갈 책 키 — 일기에서 `extra` 를 물으면 「내일 또 하고 싶은 거」라 `keep` 에 넣는다.
+ * 비었나 볼 때도 같은 키로 본다 — 전에는 `extra` 를 봐서 이미 답한 「내일」을 또 물었다 (#64-3)
+ */
+internal fun askedKeyOf(slot: String): String = if (slot == "extra") "keep" else slot
+
 private fun bookKeyOf(slot: String, askedKey: String): String = when (slot) {
     "extra" -> if (askedKey == "keep") "keep" else "extra"
     else -> slot
@@ -698,16 +741,16 @@ private suspend fun Director.askEmptySlotsLive() {
     var easyTried: String? = null
     var pieceAsked = false
     while (next != null && asked < ASK_AFTER_DRAWING) {
-        if (!wrapOffered && s.diaryTimeUp) {
+        if (!wrapOffered && diaryRanLong()) {
             wrapOffered = true
             if (offerWrapUp()) break
         }
         val (slot, text, key) = next
-        // 필수 칸 질문이 아닌 차례가 오면 — 이름 없는 조각 하나를 먼저 묻는다(세 번 안에서)
+        // 필수 칸 질문이 아닌 차례가 오면 — 이름 없는 조각 하나를 먼저 묻는다(칸 질문 수와 따로 · 10-02)
         if (!pieceAsked && key !in PICTURE_REQUIRED) {
             pieceAsked = true
             val unnamed = firstUnnamedPiece()
-            if (unnamed != null) { asked++; askPieceOnD3(unnamed); continue }
+            if (unnamed != null) { askPieceOnD3(unnamed); continue }      // 그림 질문 — 칸 채우기 질문 수([ASK_AFTER_DRAWING])에 세지 않는다
         }
         val step = DIARY_STEPS.firstOrNull { it.bookKey == key } ?: DIARY_STEPS.firstOrNull { it.slot == slot }
         asked++
@@ -777,12 +820,12 @@ private suspend fun Director.askEmptySlotsLive() {
         val reaction = listOfNotNull(result.line?.ack?.takeIf(String::isNotBlank), result.line?.expand?.takeIf(String::isNotBlank)).joinToString(" ")
         if (reaction.isNotBlank()) { say(reaction); pause(600) }
         else if (v.fills.isNotEmpty()) { say(echoBack(r.text)); pause(600) }
-        val serverSlot = v.nextSlot?.takeIf { it in Server.SLOTS && s.slots[bookKeyOf(it, it)].isNullOrBlank() }
+        val serverSlot = v.nextSlot?.takeIf { it in Server.SLOTS && s.slots[askedKeyOf(it)].isNullOrBlank() }
         val serverQuestion = result.line?.question?.takeIf(String::isNotBlank)
         next = when {
             serverSlot != null && serverQuestion != null -> {
                 log("판정이 다음 칸을 골랐다 → [$serverSlot] 「$serverQuestion」")
-                Triple(serverSlot, serverQuestion, if (serverSlot == "extra") "keep" else serverSlot)
+                Triple(serverSlot, serverQuestion, askedKeyOf(serverSlot))
             }
             v.storyReady -> null
             else -> firstEmptyQuestion(gaveUp)

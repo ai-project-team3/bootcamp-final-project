@@ -63,5 +63,20 @@ fun pieceToPng(piece: DiaryPiece, aspect: Float, side: Int = REDRAW_SIDE): ByteA
  * [description] 은 이름을 가린 조각 이름이다(규칙 6).
  */
 internal var requestRedraw: suspend (png: ByteArray, description: String) -> ByteArray? = { png, description ->
-    Server.redraw(png, description, mode = "diary")
+    val t0 = System.currentTimeMillis()
+    Server.redraw(png, description, mode = "diary").also { out ->
+        // 실기기에서 「지금 보낸 것에 지금 온 그림」인지 맞춰 보는 기록 — 가린 이름 · 크기 · 시간 · 지문만(그림은 남기지 않는다)
+        runCatching {
+            android.util.Log.i(
+                "Diary",
+                "redraw 「$description」 sent ${png.size}B #${fingerprint(png)} → " +
+                    (out?.let { "got ${it.size}B #${fingerprint(it)}" } ?: "nothing (preset · failed)") +
+                    " in ${System.currentTimeMillis() - t0}ms",
+            )
+        }
+    }
 }
+
+/** 그림 지문 — 같은 그림이 두 번 오는지 · 어느 요청의 답인지 맞춰 볼 때만 쓴다 */
+internal fun fingerprint(bytes: ByteArray): String =
+    java.security.MessageDigest.getInstance("SHA-1").digest(bytes).take(5).joinToString("") { "%02x".format(it) }

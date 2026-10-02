@@ -112,6 +112,15 @@ class DiaryDay {
      */
     val sameSaying = mutableSetOf<String>()
 
+    /**
+     * 오또가 지켜보지 않을 때(말하는 중 · 묻는 중 · 그림 고르는 중) 온 붓 멈춤 — 버리지 않고 남겨 둔다.
+     * 알아채기는 오또 말과 따로 돌고, 그에 맞는 말은 하던 말이 끝난 뒤 줄을 서서 한다 (10-02 진웅). 값은 멈춤 표시(「붓 멈춤」 · [CRAYON_PAUSE])
+     */
+    @Volatile var pendingPause: String? = null
+
+    /** 손가락이 그림판에 닿아 선을 긋는 중 — 획은 손을 떼야 들어오므로, 그 사이를 「조용함」으로 세지 않게 D1 질문이 본다 */
+    @Volatile var penDown = false
+
     /** 마지막으로 붙인 획 · 색을 바꿔 이어 그리는 중인 조각 — [addStroke] 가 본다 */
     internal var lastStroke: Stroke? = null
     internal var continuing: Int? = null
