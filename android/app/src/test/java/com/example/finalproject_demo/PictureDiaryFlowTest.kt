@@ -657,6 +657,21 @@ class PictureDiaryFlowTest {
         assertEquals(dateTitle(), s.title)
     }
 
+    /** 시작하고 30분이 지나면 시연 버튼 없이도 마무리를 한 번 제안한다 (#64-1 — 전에는 시연 버튼만 켰다) */
+    @Test
+    fun thirtyMinutesInOttoOffersToWrapUp() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그림 없이 이야기할래"))
+        assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+        s.diaryStart = System.currentTimeMillis() - 31L * 60 * 1000          // 31분 전에 시작했다
+        assertTrue(d.push("🎬 오늘 이야기 시연 답"))
+        assertTrue("30분이 지났는데 마무리를 제안하지 않았다 — 말=${s.line}",
+            await { s.line == "오늘 이야기 정말 많이 했다! 이제 그림일기로 만들어 볼까?" } != null)
+        assertTrue(d.push("응, 만들자"))
+        assertTrue(await { s.stage is DiaryPaper } != null)
+    }
+
     /** 제목을 안 붙였으면 다 읽은 뒤 한 번 묻는다 · 붙였으면 묻지 않고 바로 책을 준다 (10-01 안 2) */
     @Test
     fun theTitleIsAskedOnceAfterReading() = run { d ->

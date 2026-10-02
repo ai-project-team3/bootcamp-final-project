@@ -52,6 +52,10 @@ internal const val ASK_AFTER_DRAWING = 3
 /** 마무리를 제안하는 때 — 끝내는 시간이 아니다 (guidelines/2 §1-1 · 09-30) */
 internal const val WRAP_UP_MS = 30L * 60 * 1000
 
+/** 시작하고 [WRAP_UP_MS] 가 지났나 — 시연 버튼으로 켠 것도 같이 본다. 전에는 시연 버튼만 켜서 실기기에서 안 떴다 (#64-1) */
+private fun Director.diaryRanLong(): Boolean =
+    s.diaryTimeUp || (s.diaryStart > 0L && System.currentTimeMillis() - s.diaryStart >= WRAP_UP_MS)
+
 suspend fun Director.pictureDiary() {
     val day = s.newDiaryDay()
     s.diaryStart = System.currentTimeMillis()
@@ -632,7 +636,7 @@ private suspend fun Director.askEmptySlots() {
     var wrapOffered = false
     var pieceAsked = false
     while (queue.isNotEmpty() && asked < ASK_AFTER_DRAWING) {
-        if (!wrapOffered && s.diaryTimeUp) {
+        if (!wrapOffered && diaryRanLong()) {
             wrapOffered = true
             if (offerWrapUp()) break
         }
@@ -731,7 +735,7 @@ private suspend fun Director.askEmptySlotsLive() {
     var easyTried: String? = null
     var pieceAsked = false
     while (next != null && asked < ASK_AFTER_DRAWING) {
-        if (!wrapOffered && s.diaryTimeUp) {
+        if (!wrapOffered && diaryRanLong()) {
             wrapOffered = true
             if (offerWrapUp()) break
         }
