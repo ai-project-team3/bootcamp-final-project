@@ -97,6 +97,7 @@ import com.example.finalproject_demo.demo.FEEL_LEAD
 import com.example.finalproject_demo.demo.PEN_W
 import com.example.finalproject_demo.demo.PICTURE_REQUIRED
 import com.example.finalproject_demo.demo.PieceLook
+import com.example.finalproject_demo.demo.readingDiary
 import com.example.finalproject_demo.demo.PieceMove
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.boxOf
@@ -646,7 +647,7 @@ private fun DiaryPaperView(d: Director, stage: DiaryPaper, cq: Dp) {
         ) {
             // 왼쪽 위는 앱 틀의 🏠 · 🔒 자리 — 머리글을 그만큼 비킨다
             SheetHead(
-                d, day.weather, s.title, s.slotBy["title"] == "child", cq,
+                d, day.weather, s.title, (s.readingDiary?.by ?: s.slotBy)["title"] == "child", cq,
                 Modifier.padding(start = maxOf(cq * 2, TopBarEnd - left), end = cq * 2, top = cq * 0.9f),
                 onWeather = { w -> bookPieces(s).lastOrNull { p -> p.name?.let(w::drew) == true }?.let { glow = it.id to w } },
             )
@@ -723,7 +724,7 @@ private fun SheetHead(
     d: Director, weather: DiaryWeather?, title: String?, titleSaid: Boolean, cq: Dp, modifier: Modifier,
     onWeather: (DiaryWeather) -> Unit,
 ) {
-    val today = LocalDate.now()
+    val today = d.s.diaryDay.madeOn ?: LocalDate.now()        // 책장에서 다시 연 일기는 만든 날
     val fs = (cq.value * 1.8f).sp
     Column(modifier) {
         Row(Modifier.height(cq * 4.4f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(cq * 2)) {

@@ -125,6 +125,9 @@ class DiaryDay {
     internal var lastStroke: Stroke? = null
     internal var continuing: Int? = null
 
+    /** 이 그림일기를 만든 날 — 책장에서 다시 열 때만 있다. null 이면 오늘 */
+    var madeOn: java.time.LocalDate? = null
+
     var turnCalls = 0
     var turnBudget: Int? = null
 
@@ -169,3 +172,38 @@ fun DemoState.hasDiaryCover(title: String): Boolean = diaryCovers[title]?.pieces
 
 /** 그림일기를 새로 시작한다 — 지난 판의 조각 · 날씨 · 기분 · 호출 수를 버린다 */
 fun DemoState.newDiaryDay(): DiaryDay = DiaryDay().also { dayByState[this] = it }
+
+private val readingByState = WeakHashMap<DemoState, DiaryBookInput>()
+
+/**
+ * 책장에서 다시 여는 그림일기의 쪽 재료 — 열려 있는 동안 [diaryBookInput] 이 이것을 쓴다(지금 판의 칸 · 말을 건드리지 않는다).
+ * null 이면 지금 판
+ */
+var DemoState.readingDiary: DiaryBookInput?
+    get() = readingByState[this]
+    set(v) { if (v == null) readingByState.remove(this) else readingByState[this] = v }
+
+/** 저장된 그림일기를 잠깐 펼친다 — [block] 동안만 그 책의 조각 · 날씨 · 제목으로 바꿨다가 되돌린다 */
+suspend fun <T> DemoState.withSavedDiary(book: SavedDiaryBook, block: suspend (DiaryDay) -> T): T {
+    val before = dayByState[this]
+    val title0 = title
+    val aspect0 = drawingAspect
+    val day = DiaryDay().apply {
+        pieces.addAll(book.pieces)
+        weather = book.weather
+        weatherBy = book.weatherBy
+        feel = book.input.feel
+        written = book.input.written
+        madeOn = runCatching { java.time.LocalDate.parse(book.madeAt) }.getOrNull()
+    }
+    dayByState[this] = day
+    readingDiary = book.input
+    title = book.title
+    drawingAspect = book.aspect
+    return try { block(day) } finally {
+        readingDiary = null
+        if (before != null) dayByState[this] = before else dayByState.remove(this)
+        title = title0
+        drawingAspect = aspect0
+    }
+}
