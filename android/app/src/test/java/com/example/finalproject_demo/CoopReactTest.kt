@@ -25,14 +25,28 @@ class CoopReactTest {
     @Test
     fun theAckEchoesOneNameWithoutConjugating() {
         assertEquals("큰 소방서!", coopAck("큰 소방서에서 일해. 거기 빨간 차가 있어.", CoopRole.PLACE, CoopReason.SOON))
-        assertEquals("소방차구나!", coopAck("소방차가 왔어", CoopRole.THING, done))
-        assertEquals("불이구나!", coopAck("불이 났어", CoopRole.THING, done))
+        assertEquals("소방차구나!", coopAck("소방차", CoopRole.THING, done))
+        assertEquals("아빠구나!", coopAck("아빠랑", CoopRole.WHO, CoopReason.SOON))
         assertEquals("엄마랑 너!", coopAck("엄마랑 나", CoopRole.WHO, done))
         // 지금 방식에서 어색하게 나오던 말들 — 이름이 없으면 한마디만
         listOf("사다리 타고 올라가서 사람 구해. 불이 크니까.", "공룡 나라에서 축구하다가 넘어졌어").forEach { t ->
             val a = coopAck(t, null, CoopReason.DREAM)!!
             assertFalse(a, a.endsWith("니까구나!") || a.endsWith("에서구나!"))
         }
+    }
+
+    /** 이름이 문장의 주어면 이름만 되짚지 않는다 — 일어난 일을 놓친다 (10-02 사용자 결정) */
+    @Test
+    fun whenTheNameIsTheSubjectTheAckIsJustThatsHowItWas() {
+        listOf(
+            "소방차가 왔어" to done, "불이 났어" to done, "불이 날 것 같아" to CoopReason.SOON,
+            "공이 하늘로 날아갔어" to CoopReason.DREAM, "공룡이 뻥 찼어" to CoopReason.DREAM,
+            "사자가 문을 열고 나왔어" to done, "고양이가 나무에 올라갔어" to done,
+        ).forEach { (t, r) -> assertEquals(t, "그랬구나!", coopAck(t, CoopRole.THING, r)) }
+        // 주어가 아니면 지금처럼 이름을 되짚는다
+        assertEquals("큰 소방서!", coopAck("큰 소방서", CoopRole.PLACE, CoopReason.SOON))
+        // 다녀왔어요의 엉뚱한 답은 주어여도 상상 낱말을 받아 준다
+        assertEquals("공룡이면 깜짝 놀라겠다!", coopAck("공룡이 불을 뿜었어", CoopRole.THING, done, wild = true))
     }
 
     @Test
