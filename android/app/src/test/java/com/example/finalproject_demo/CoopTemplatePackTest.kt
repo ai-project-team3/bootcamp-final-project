@@ -124,7 +124,7 @@ class CoopTemplatePackTest {
     @Test
     fun theHeardPlaceTakesThePlaceOfThere() {
         val s = state(CoopPick("job", "소방관", "soon")).apply { place = "큰 건물" }
-        assertEquals("큰 건물에서 무슨 일을 할까?", s.coopPartPack(parts[1])!!.rungs[0])
+        assertEquals("큰 건물에서 불이 나면 소방관은 무슨 일을 할까?", s.coopPartPack(parts[1])!!.rungs[0])
         val done = state(CoopPick("place", "동물원", "done")).apply { place = "동물원 입구" }
         assertEquals("동물원 입구에 누구랑 같이 갔어?", done.coopPartPack(tails.first { it.slot == "companion" })!!.rungs[0])
         assertEquals("동물원 입구에서 누구를 만났어?", done.coopPartPack(tails.first { it.slot == "companion" })!!.rungs[2])
@@ -142,7 +142,7 @@ class CoopTemplatePackTest {
         assertNull(heard("아직 못 들은 곳"))
         assertNull(heard(null))
         val s = state(CoopPick("job", "소방관", "soon")).apply { place = "큰 건물에서 일할 것 같아" }
-        assertEquals("거기서 무슨 일을 할까?", s.coopPartPack(parts[1])!!.rungs[0])
+        assertEquals("거기서 불이 나면 소방관은 무슨 일을 할까?", s.coopPartPack(parts[1])!!.rungs[0])
     }
 
     /** 곳이 들어간 질문도 우리 귀띔 규칙을 지킨다 */
