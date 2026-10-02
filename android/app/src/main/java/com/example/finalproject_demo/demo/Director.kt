@@ -732,6 +732,12 @@ class Director(
         if (Server.liveFor(s.mode)) { awaitVoice(); pause(300) } else pause(1200)
         val sec = q.waitSec ?: when (q.kind) { Kind.EASY -> 5.0; Kind.HARD -> 8.0; Kind.CHOICE -> 7.0 }
         val first = waitReply(sec)
+        // 되돌리기 · 앞으로 가기는 답이 아니다 — 흐름(TurnHistory)이 받도록 그대로 돌려준다 (10-02)
+        if (first != null && TurnHistory.isNav(first)) {
+            currentQ = null
+            inputs(mic = false, next = false)
+            return first
+        }
 
         val result = when {
             first is Reply.Spoke -> {

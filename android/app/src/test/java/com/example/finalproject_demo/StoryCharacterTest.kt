@@ -77,8 +77,12 @@ class StoryCharacterTest {
             assertTrue(request.getString("description").contains("square"))
             assertFalse(request.getString("description").contains(d.s.childName))
             d.send(Reply.Tapped("ok", "좋아"))
+            // 10-02 (#87): the child names the doll before it goes to the bestiary — here typed
+            withTimeout(5_000) { while (d.s.stage !is Stage.NameEntry) delay(10) }
+            d.send(Reply.Tapped(com.example.finalproject_demo.demo.NAME_TYPED, "콩이"))
             withTimeout(5_000) { while (d.s.scene != Scene.BESTIARY) delay(10) }
-            assertTrue(d.s.heroes.last().name.isNotBlank())
+            assertEquals("콩이", d.s.heroes.last().called)
+            assertEquals("콩이", d.s.heroes.last().name)
             assertEquals(art.name, d.s.heroes.last().image)
             assertEquals("human", d.s.heroes.last().rig)
             withTimeout(5_000) { while (d.s.stage !is Stage.Bestiary) delay(10) }

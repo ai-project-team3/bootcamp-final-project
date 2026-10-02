@@ -189,6 +189,12 @@ fun DemoApp() {
             Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 10.dp),
         )
 
+        // 되돌리기 · 앞으로 가기 — 화면 양끝 가운데 (10-02 조장 · 책의 ◀ ▶ 자리). 아이 차례 · 무를 차례가 있을 때만
+        if (pinStage == null && s.micEnabled) {
+            if (s.canUndo) com.example.finalproject_demo.ui.TurnNavButton(d, undo = true, Modifier.align(Alignment.CenterStart).padding(start = 8.dp).zIndex(11f))
+            if (s.canRedo) com.example.finalproject_demo.ui.TurnNavButton(d, undo = false, Modifier.align(Alignment.CenterEnd).padding(end = 8.dp).zIndex(11f))
+        }
+
         // 오른쪽 위 구석 길게 누르기 → 시연 서랍
         Box(
             Modifier
