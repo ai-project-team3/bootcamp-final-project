@@ -18,7 +18,7 @@ gen_heroes.py 가 만든 27장은 전부 **긴바지**다. 골라서 만들기�
 """
 import json, time, urllib.request, urllib.parse, os, sys, random
 
-API = "http://127.0.0.1:8188"
+API = os.environ.get("COMFY_URL", "http://127.0.0.1:8188").rstrip("/")  # 다른 PC 의 ComfyUI 는 COMFY_URL (ART.md)
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "src", "main", "res", "drawable")
 os.makedirs(OUT, exist_ok=True)
 
