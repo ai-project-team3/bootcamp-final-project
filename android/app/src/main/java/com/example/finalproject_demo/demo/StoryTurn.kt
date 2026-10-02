@@ -139,7 +139,7 @@ private suspend fun Director.askLiveStoryReply(question: Question, options: List
     }
 }
 
-/** Pause the card timer while the microphone is recording; one receiver owns the input. */
+/** Once recording starts, wait through STT and unheard retries; one receiver owns the input. */
 private suspend fun Director.awaitStoryCardReply(): Reply? = coroutineScope {
     val receiver = async { awaitReply() }
     try {
@@ -148,7 +148,8 @@ private suspend fun Director.awaitStoryCardReply(): Reply? = coroutineScope {
         while (remaining > 0) {
             val received = withTimeoutOrNull((100 * s.speed).toLong().coerceAtLeast(1)) { receiver.await() }
             if (received != null) return@coroutineScope received
-            if (!s.micOn) remaining -= 0.1
+            if (s.micOn) return@coroutineScope receiver.await()
+            remaining -= 0.1
         }
         null
     } finally { receiver.cancel() }
