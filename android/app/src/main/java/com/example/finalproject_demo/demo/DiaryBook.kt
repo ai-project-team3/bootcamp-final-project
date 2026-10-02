@@ -97,7 +97,7 @@ const val NOT_HEARD_AFTER = "그 뒤에 어떻게 되었는지는 아직 듣지 
 const val NOT_HEARD_THERE = "거기서 있었던 일은 아직 듣지 못했어요."
 const val FEEL_LEAD = "오늘은"
 
-fun DemoState.diaryBookInput(): DiaryBookInput = DiaryBookInput(
+fun DemoState.diaryBookInput(): DiaryBookInput = readingDiary ?: DiaryBookInput(
     lines = DiaryPageKind.entries.filter { it.bookKey !in diaryDay.sameSaying }
         .mapNotNull { k -> slots[k.bookKey]?.trim()?.takeIf(String::isNotEmpty)?.let { k.bookKey to it } }.toMap(),
     by = slotBy.toMap(),

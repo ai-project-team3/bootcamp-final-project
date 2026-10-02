@@ -126,7 +126,8 @@ object Server {
     // ── /turn ──────────────────────────────────────────────────────
 
     /** What the mascot says after the child (guidelines/7 §3). Placeholders `{주인공}` · `{친구n}` stay — unmask on the phone. */
-    data class Line(val ack: String, val expand: String?, val question: String?)
+    /** [options]: up to 3 short answers for the slot [question] asks — cards, then the mascot's pick (#79). Null in diary. */
+    data class Line(val ack: String, val expand: String?, val question: String?, val options: List<String>? = null)
 
     /** Either half may be null — fill it from the script. [question] is null when [ask] was false or the story is ready. */
     data class TurnResult(val verdict: Verdict?, val line: Line?)
@@ -150,7 +151,10 @@ object Server {
         return try {
             TurnResult(
                 verdict = j.optJSONObject("judge")?.let { parseVerdict(it) },
-                line = j.optJSONObject("line")?.let { Line(it.getString("ack"), str(it, "expand"), str(it, "question")) },
+                line = j.optJSONObject("line")?.let { l ->
+                    val options = l.optJSONArray("options")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).takeIf(String::isNotBlank) } }
+                    Line(l.getString("ack"), str(l, "expand"), str(l, "question"), options?.takeIf { it.isNotEmpty() })
+                },
             )
         } catch (e: Exception) { warn("/turn parse", e); null }
     }
@@ -171,6 +175,8 @@ object Server {
         mode: String, slots: Map<String, String?>, slotBy: Map<String, String> = emptyMap(),
         keep: String? = null, template: String? = null, level: String? = null,
         pages: List<Page>? = null,
+        /** coop only: the reason the parent picked — "done" · "soon" · "dream" (#52). null = a day that happened */
+        reason: String? = null,
     ): List<String>? {
         val body = JSONObject()
             .put("mode", mode)
@@ -179,6 +185,7 @@ object Server {
             .put("keep", keep ?: JSONObject.NULL)
             .put("template", template ?: JSONObject.NULL)
             .put("level", level ?: JSONObject.NULL)
+            .put("reason", reason ?: JSONObject.NULL)
         if (pages != null) body.put("pages", JSONArray().apply {
             pages.forEach { put(JSONObject().put("kind", it.kind).put("mission", it.mission ?: JSONObject.NULL)) }
         })

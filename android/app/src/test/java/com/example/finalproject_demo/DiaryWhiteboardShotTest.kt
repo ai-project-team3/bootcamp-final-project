@@ -22,8 +22,6 @@ import com.example.finalproject_demo.ui.MascotBubble
 import com.example.finalproject_demo.ui.StageView
 import com.example.finalproject_demo.ui.TitleChip
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
-import com.github.takahirom.roborazzi.RoborazziOptions
-import com.github.takahirom.roborazzi.RoborazziTaskType
 import com.github.takahirom.roborazzi.captureRoboImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -44,7 +42,6 @@ class DiaryWhiteboardShotTest {
 
     private fun snap(name: String) = compose.onRoot().captureRoboImage(
         File("screens/$name.png").path,
-        roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
     )
 
     private fun director(): Director = Director(CoroutineScope(SupervisorJob())).apply {
@@ -66,7 +63,7 @@ class DiaryWhiteboardShotTest {
     fun whiteboardStart() {
         val d = director().apply {
             s.stage = Stage.DrawPad()
-            say("지호야, 오늘 있었던 일 하나를 그려 볼래? 생각나는 것부터 그려 줘.")
+            say("친구야, 오늘 있었던 일 하나를 그려 볼래? 생각나는 것부터 그려 줘.")
         }
         compose.mainClock.autoAdvance = false
         compose.setContent {

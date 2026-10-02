@@ -3,7 +3,6 @@ package com.example.finalproject_demo.demo
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Voice
 import com.example.finalproject_demo.net.nameMask
-import com.example.finalproject_demo.ui.ConsentStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -226,7 +225,7 @@ class Director(
      */
     private fun dumpSpoken(text: String) {
         val path = SPEECH_DUMP ?: return
-        val line = s.nameMask().speakable(text, named = false)   // what /tts would get without name consent
+        val line = s.nameMask().speakable(text)                  // what /tts gets
         synchronized(SPEECH_DUMP_LOCK) { java.io.File(path).appendText(line.replace('\n', ' ') + "\n") }
     }
 
@@ -261,7 +260,7 @@ class Director(
         // 소리를 낼 수 없으면(단위 테스트 — Voice 가 붙지 않았다) 목소리를 청하지도 않는다.
         // 들리지 않을 목소리 때문에 가짜 서버 주소로 대사마다 연결을 시도할 까닭이 없다
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
-        val line = s.nameMask().speakable(text, ConsentStore.nameVoiceAgreed)
+        val line = s.nameMask().speakable(text)          // names read as they are (10-02 · ChildCall)
         // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
         val audio = scope.async { Voice.baked(line) ?: Server.tts(line) }.also { queueVoice(it) }
         enqueue { audio.await() }
@@ -453,6 +452,7 @@ class Director(
     private fun liveMic() {
         if (s.micOn) { stopMic = true; return }            // ⏹ — 녹음을 여기서 끊는다
         stopMic = false
+        unheardWait?.cancel()                             // 되물은 뒤 다시 말하러 왔다
         hushVoice()                                       // 마스코트 소리가 녹음에 들어가지 않게
         s.micOn = true
         s.countdown = null
@@ -465,10 +465,44 @@ class Director(
             log("🎤 끝 → 우리 서버로 받아쓰기 (${audio.size / 1024}KB)")
             val text = Voice.transcribe(audio)
             when {
-                text == null -> { log("받아쓰기 실패 → 무응답으로 넘김"); send(Reply.Silent) }
-                text.isBlank() -> { log("받아쓰기: 들을 말이 없음 → 무응답"); send(Reply.Silent) }
-                else -> { log("받아쓰기: \"$text\""); send(Reply.Spoke(text)) }
+                text == null || text.isBlank() -> unheard(if (text == null) "받아쓰기 실패" else "들을 말이 없음")
+                else -> { unheardStreak = 0; log("받아쓰기: \"$text\""); send(Reply.Spoke(text)) }
             }
+        }
+    }
+
+    // ── 말했는데 못 알아들음 (10-02 조장) ───────────────────────────────
+    //
+    // 녹음에서 말소리는 들렸는데 받아쓰기가 비었거나 실패했다 — 아이가 대답을 안 한 게 아니다.
+    // 전에는 이것도 무응답으로 보내서, 받아쓰기가 두 번 틀리면 대답한 아이 앞에 카드가 떴다(#79).
+    // 이제는 같은 질문을 그대로 두고 「한 번 더 말해 줄래?」로 되묻는다 — 사다리를 내려가지 않는다.
+    // 두 번 연달아 못 알아들으면 그때는 무응답으로 넘긴다(끝없이 되묻지 않는다 · 아이가 지칠 수 있다).
+    // 되물은 뒤 아이가 아무것도 안 하면 [UNHEARD_WAIT_MS] 뒤 무응답으로 넘긴다 — 질문이 멈춰 서지 않게.
+
+    private val UNHEARD_RETRIES = 2
+    private val UNHEARD_WAIT_MS = 8_000L
+    private var unheardStreak = 0
+    private var unheardFor: Question? = null
+    private var unheardWait: Job? = null
+
+    private fun unheard(why: String) {
+        if (unheardFor !== currentQ) { unheardFor = currentQ; unheardStreak = 0 }
+        unheardStreak++
+        if (unheardStreak > UNHEARD_RETRIES) {
+            log("$why — ${UNHEARD_RETRIES}번 되물어도 못 알아들음 → 무응답으로 넘김")
+            unheardStreak = 0
+            send(Reply.Silent)
+            return
+        }
+        log("$why — 말소리는 들렸다 → 같은 질문으로 되묻기 ($unheardStreak/$UNHEARD_RETRIES)")
+        hushVoice()                                       // 「잘 들었어」 리액션이 아직 나오고 있으면 끊는다
+        say(if (unheardStreak == 1) "어? 소리가 작았나 봐. 한 번 더 말해 줄래?" else "미안, 또 못 들었어. 천천히 한 번만 더 말해 줄래?")
+        val asked = currentQ
+        unheardWait?.cancel()
+        unheardWait = scope.launch {
+            delay((UNHEARD_WAIT_MS * s.speed).toLong())
+            // 그 사이 다시 말했거나(마이크) 다른 질문으로 넘어갔으면 아무것도 하지 않는다
+            if (!s.micOn && currentQ === asked && unheardFor === asked) send(Reply.Silent)
         }
     }
 

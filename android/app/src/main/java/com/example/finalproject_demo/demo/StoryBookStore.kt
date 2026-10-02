@@ -5,6 +5,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
+const val STORY_SHELF_CAPACITY = 12
+
 data class SavedStoryPage(val kind: PageKind, val caption: String)
 
 data class SavedStoryBook(
@@ -21,6 +23,10 @@ data class SavedStoryBook(
 interface StoryBookStore {
     fun load(): List<SavedStoryBook>
     fun save(book: SavedStoryBook)
+    /** Replace in one transaction. Stores without this capability leave both books untouched. */
+    fun replace(book: SavedStoryBook, oldId: String) { error("Story replacement is not supported") }
+    /** Null means metadata cannot safely identify the files to retain. */
+    fun imageReferences(): Set<String>? = load().flatMap { listOfNotNull(it.bgName, it.visuals?.hero?.image) }.toSet()
 }
 
 fun DemoState.completedStoryBook(): SavedStoryBook? {
@@ -36,6 +42,25 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
     private val prefs = context.applicationContext.getSharedPreferences("story_books", Context.MODE_PRIVATE)
 
     init { recoverStorySounds(load()) }
+
+    override fun imageReferences(): Set<String>? {
+        val raw = prefs.getString("books", null) ?: return emptySet()
+        return runCatching {
+            val books = JSONArray(raw)
+            (0 until books.length()).flatMap { i ->
+                val entry = books.getJSONObject(i)
+                buildList {
+                    add(entry.get("bgName") as? String ?: error("Unreadable story background reference"))
+                    if (entry.has("visuals") && !entry.isNull("visuals")) {
+                        val hero = entry.getJSONObject("visuals").getJSONObject("hero")
+                        check(hero.has("image")) { "Unknown story hero references" }
+                        if (!hero.isNull("image"))
+                            add(hero.get("image") as? String ?: error("Unreadable story hero reference"))
+                    }
+                }
+            }.toSet()
+        }.getOrNull()
+    }
 
     override fun load(): List<SavedStoryBook> {
         val raw = prefs.getString("books", null) ?: return emptyList()
@@ -62,7 +87,36 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
     }
 
     override fun save(book: SavedStoryBook) {
-        val all = listOf(book) + load().filterNot { it.id == book.id }
+        val all = listOf(book) + writableBooks().filterNot { it.id == book.id }
+        require(all.size <= STORY_SHELF_CAPACITY) { "Choose a story to replace before adding a thirteenth book" }
+        write(all)
+    }
+
+    override fun replace(book: SavedStoryBook, oldId: String) {
+        val current = writableBooks()
+        require(oldId != book.id && current.any { it.id == oldId }) { "The chosen story is no longer available" }
+        val all = listOf(book) + current.filterNot { it.id == oldId || it.id == book.id }
+        require(all.size <= STORY_SHELF_CAPACITY)
+        write(all)
+    }
+
+    /** Reading can skip damaged entries, but writing must never silently erase them. */
+    private fun writableBooks(): List<SavedStoryBook> {
+        val raw = prefs.getString("books", null) ?: return emptyList()
+        check(imageReferences() != null) { "Cannot overwrite unknown story image references" }
+        val entries = JSONArray(raw)
+        val books = load()
+        check(books.size == entries.length()) { "Cannot overwrite unreadable story metadata" }
+        books.forEachIndexed { i, book ->
+            val entry = entries.getJSONObject(i)
+            check(!entry.has("visuals") || entry.isNull("visuals") || book.visuals != null) {
+                "Cannot overwrite an unsupported story art version"
+            }
+        }
+        return books
+    }
+
+    private fun write(all: List<SavedStoryBook>) {
         val array = JSONArray()
         all.forEach { entry ->
             val pages = JSONArray()

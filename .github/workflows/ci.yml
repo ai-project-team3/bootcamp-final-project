@@ -28,8 +28,40 @@ jobs:
         working-directory: backend
         run: pytest -q tests
 
-  android:
+  # Did this change touch anything the Android suite depends on? A docs-only PR (guidelines/,
+  # docs/, *.md) skips the ~7 min suite (10-02). Anything outside those paths runs it.
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.diff.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="origin/${{ github.base_ref }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          # a new branch or a force-push has no usable base: run everything
+          if ! git cat-file -e "$base^{commit}" 2>/dev/null; then echo "app=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          changed=$(git diff --name-only "$base"...HEAD 2>/dev/null || git diff --name-only "$base" HEAD)
+          echo "$changed"
+          code=$(echo "$changed" | grep -vE '^(docs/|guidelines/)|\.md$' || true)
+          if [ -n "$code" ]; then echo "app=true" >> "$GITHUB_OUTPUT"; else echo "app=false" >> "$GITHUB_OUTPUT"; fi
+
+  # The Android suite split three ways, each on its own runner (10-02: one runner took ~7 min,
+  # almost all of it the tests themselves — the Gradle cache had little left to save).
+  android-shard:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -44,16 +76,42 @@ jobs:
       - name: Make gradlew executable
         working-directory: android
         run: chmod +x gradlew
-      - name: Unit tests and debug build
+      - name: Pick this shard's test classes
+        id: pick
         working-directory: android
-        # One Gradle invocation: the second one paid configuration again.
+        # Every test class, sorted, dealt out in turn — a new test file lands in a shard by itself.
+        run: |
+          args=$(find app/src/test/java -name '*.kt' -print0 | xargs -0 grep -l '@Test' \
+            | sed -e 's|^app/src/test/java/||' -e 's|\.kt$||' -e 's|/|.|g' | sort \
+            | awk -v n=3 -v k=${{ matrix.shard }} 'NR % n == k { printf "--tests %s ", $0 }')
+          echo "args=$args" >> "$GITHUB_OUTPUT"
+      - name: Unit tests (shard ${{ matrix.shard }}) and, on shard 0, the debug build
+        working-directory: android
         # -ProborazziVerify=false: reference screenshots were captured on the lead's
         # Windows PC — Linux's font/antialiasing renders differently, so pixel-diff
         # verification always fails here regardless of code changes.
-        run: ./gradlew -q --build-cache :app:testDebugUnitTest :app:assembleDebug -ProborazziVerify=false
+        run: >
+          ./gradlew -q --build-cache :app:testDebugUnitTest ${{ steps.pick.outputs.args }}
+          ${{ matrix.shard == 0 && ':app:assembleDebug' || '' }} -ProborazziVerify=false
       - name: Upload test results on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: android-test-results
+          name: android-test-results-${{ matrix.shard }}
           path: android/app/build/test-results/testDebugUnitTest/*.xml
+
+  # The check `main` protection requires is named `android` — this job keeps that name and
+  # passes when every shard passed, or when the change was docs only and the shards were skipped.
+  android:
+    needs: [changes, android-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "changes=${{ needs.changes.result }} app=${{ needs.changes.outputs.app }} shards=${{ needs.android-shard.result }}"
+          [ "${{ needs.changes.result }}" = "success" ] || exit 1
+          case "${{ needs.android-shard.result }}" in
+            success) exit 0 ;;
+            skipped) [ "${{ needs.changes.outputs.app }}" = "false" ] && exit 0 || exit 1 ;;
+            *) exit 1 ;;
+          esac

@@ -57,6 +57,7 @@ import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.coopReady
+import com.example.finalproject_demo.demo.coopParentAdvice
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.bat
@@ -573,6 +574,18 @@ private fun CoopQuestionsTab(c: CoopDraft) {
                 Text("💡 ${h.why}", fontSize = 12.sp, color = PAccent)
                 Text(h.example, fontSize = 12.sp, color = PSub)
             }
+            // 오또가 묻기 전 갈무리와 같은 기준의 귀띔 — 막지 않고, 바꿀지는 부모가 고른다 (10-02 · CoopGuard.kt)
+            var kept by remember(text) { mutableStateOf(false) }
+            if (!kept) coopParentAdvice(text)?.let { a ->
+                Spacer(Modifier.height(4.dp))
+                a.notes.forEach { Text("💡 $it", fontSize = 12.sp, color = PAccent) }
+                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    a.suggestion?.let { sug ->
+                        CoopChip("“$sug” 로 바꿀게요", on = true) { set(i, sug) }
+                    }
+                    CoopChip("그대로 둘게요", on = false) { kept = true }
+                }
+            }
         }
     }
     if (rows < COOP_MAX) {
@@ -968,11 +981,42 @@ private fun SettingRow(title: String, desc: String, checked: Boolean, onToggle: 
 }
 
 /** 설정 — 하루 한도(토글 · 권수) · 시작 비밀번호(토글) · 그림체 4종 · 데이터. 다시 그리기 상한은 뺐다 (v0.8) */
+/**
+ * 오또가 아이를 부르는 말 (10-02 조장) — 실명 칸이 아니라 **호칭**이다. 별명이면 충분하다.
+ * 그대로 서버(대사 · 책)와 목소리로 간다(`net/ChildCall`). 비우면 「친구」.
+ */
+@Composable
+private fun ChildCallSection() {
+    var text by remember { mutableStateOf(com.example.finalproject_demo.net.ChildCall.name ?: "") }
+    PCard(Modifier.fillMaxWidth()) {
+        Text("오또가 아이를 뭐라고 부를까요?", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
+        Text("별명도 좋아요 · 오또가 이야기에서 이렇게 불러요 · 비우면 「친구」", fontSize = 12.sp, color = PSub)
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextField(
+                value = text,
+                onValueChange = { text = it.take(10) },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                placeholder = { Text("예: 콩이 · 하준이", fontSize = 14.sp, color = PSub.copy(alpha = 0.6f)) },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = PBg, unfocusedContainerColor = PBg,
+                    focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
+                ),
+            )
+            Spacer(Modifier.width(8.dp))
+            PButton("저장", PAccent) { com.example.finalproject_demo.net.ChildCall.set(text) }
+        }
+    }
+}
+
 @Composable
 private fun SettingsTab(d: Director) {
     val s = d.s
     // 정책이 요구하는 세 자리 — 내용은 `ui/Consent.kt` 에 있다 (치영 · 9/23).
     // 여기는 부르는 줄만 둔다: 소리와 진동(09-25) · 신고 · AI 음성 고지 · 보호자 동의 철회
+    ChildCallSection()
+    Spacer(Modifier.height(10.dp))
     SoundSettingsSection()
     Spacer(Modifier.height(10.dp))
     ReportSection { d.log(it) }

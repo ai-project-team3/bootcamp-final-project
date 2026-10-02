@@ -1,6 +1,8 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.demo.coopPartQuestions
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
@@ -12,8 +14,10 @@ import com.example.finalproject_demo.ui.templateQuestions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -81,6 +85,130 @@ class CoopFlowTest {
     /** 마스코트가 지금 묻고 있는 말 */
     private fun Director.asked(): String = s.line
 
+    /**
+     * 오또가 한 말을 차례로 모은다 (말은 금방 바뀌어서 지켜보는 쪽이 적는다).
+     * 코루틴으로 두면 `runBlocking` 이 끝나지 않는다 — 스레드로 두고 검사가 끝나면([stopWatchers]) 멈춘다.
+     * 안 멈추면 같은 JVM 에서 도는 다른 검사(그림일기 흐름)까지 느려져 시간 초과가 난다
+     */
+    private val watchers = mutableListOf<Thread>()
+
+    @After
+    fun stopWatchers() { watchers.forEach { it.interrupt() }; watchers.clear() }
+
+    private fun watchLines(d: Director): MutableList<String> {
+        val said = java.util.Collections.synchronizedList(mutableListOf<String>())
+        watchers += kotlin.concurrent.thread(isDaemon = true) {
+            var last = ""
+            try {
+                while (true) { val l = d.s.line; if (l != last && l.isNotBlank()) { said += l; last = l }; Thread.sleep(2) }
+            } catch (_: InterruptedException) {}
+        }
+        return said
+    }
+
+    /** 진짜 마이크 답처럼 글자만 담아 보낸다 (대본 꼬리표 없음) — 마이크가 켜질 때까지 기다렸다가 */
+    private suspend fun Director.answer(text: String) {
+        assertTrue("마이크가 안 켜졌다: ${s.line}", await(8_000) { s.micEnabled } != null)
+        // 감독은 말을 마치기 전에 들어온 입력을 버린다(`Director.drain`) — 화면이 움직일 때까지 다시 보낸다
+        // (CoopLiveAnswerTest 와 같은 방식 — 오또의 말이 바뀔 때까지)
+        val before = s.line
+        val ok = withTimeoutOrNull(10_000) { while (s.line == before || s.line.isBlank()) { send(com.example.finalproject_demo.demo.Reply.Spoke(text)); delay(60) }; true }
+        if (ok == null) throw AssertionError("답이 안 먹혔다: $text · ${s.line}")
+    }
+
+    /**
+     * 바뀐 방식 (10-02) — 받아주기는 아이 말의 이름 한마디, 다음 질문은 그 이름을 이어 받는다.
+     * 다녀왔어요에 상상 낱말이 나오면 고치지 않고 받아 준 뒤 한 번만 「진짜로는」으로 되돌리고, 그 답은 칸에 넣지 않는다
+     */
+    @Test
+    fun aWildAnswerIsTurnedBackOnceAndTheRealAnswerIsCarriedForward() = run { d ->
+        val s = d.s
+        CoopLab.followUps = true
+        val said = watchLines(d)
+        d.startCoopWith(pick = CoopPick("place", "동물원", "done"))
+        assertTrue(await(8_000) { d.asked() == "동물원에 가서 어디가 제일 좋았어?" } != null)
+
+        d.answer("공룡 나라!")
+        assertTrue("「진짜로는」으로 안 되돌렸다: $said", await(8_000) { d.asked() == "진짜로는 어디 갔었어?" } != null)
+        assertTrue("상상 낱말을 받아 주지 않았다: $said", "공룡이면 깜짝 놀라겠다!" in said)
+        assertTrue("상상 낱말이 장소 칸에 들어갔다: ${s.place}", s.place.isNullOrBlank())
+
+        d.answer("사자 우리")
+        assertTrue("장소 칸이 안 찼다: ${s.place}", await(8_000) { s.place == "사자 우리" } != null)
+        // 같이 간 사람(꼬리질문)을 지나 「무슨 일」 자리 — 앞에서 말한 곳을 이어 받는다
+        d.answer("엄마랑 나")
+        assertTrue("다음 질문이 들은 곳을 이어 받지 않았다: $said", await(10_000) { "사자 우리에서" in d.asked() } != null)
+        assertTrue("받아주기가 이름 한마디가 아니다: $said", "사자 우리!" in said && "엄마랑 너!" in said)
+        assertTrue("고정 리액션 + 「-구나」 되받기가 남아 있다: $said", said.none { it == "그랬구나~" || it.endsWith("갔어구나!") })
+    }
+
+    /** 좋아해요(상상)에서는 상상 낱말을 되돌리지 않고 이야기에 섞는다 */
+    @Test
+    fun aWildAnswerInAnImaginedStoryIsMixedIn() = run { d ->
+        val s = d.s
+        CoopLab.followUps = true
+        val said = watchLines(d)
+        d.startCoopWith(pick = CoopPick("sport", "축구", "dream"))
+        assertTrue(await(8_000) { d.asked() == "축구 경기가 어디서 열릴까?" } != null)
+        d.answer("공룡 나라에서!")
+        assertTrue("상상 이야기인데 장소 칸이 안 찼다: ${s.place}", await(8_000) { !s.place.isNullOrBlank() } != null)
+        assertTrue("「진짜로는」이 나왔다: $said", said.none { "진짜로는" in it })
+    }
+
+    /**
+     * 바뀐 방식 (10-02 · 설계 A) — 진짜 마이크 답에도 수준 신호가 달린다. 전에는 신호가 비어 늘 「내림」이었다.
+     * 「몰라」 한 번으로는 수준이 바뀌지 않는다
+     */
+    @Test
+    fun liveAnswersCarryLevelSignalsAndOneDontKnowKeepsTheLevel() = run { d ->
+        val s = d.s
+        CoopLab.followUps = true
+        d.startCoopWith(pick = CoopPick("place", "동물원", "done"))
+        assertTrue(await(8_000) { d.asked() == "동물원에 가서 어디가 제일 좋았어?" } != null)
+        val start = s.level
+        d.answer("몰라")
+        assertTrue("「몰라」가 판정에 안 닿았다", await(8_000) { s.notes.any { it.a == "몰라" } } != null)
+        assertEquals("「몰라」 한 번에 수준이 바뀌었다", start, s.level)
+
+        d.answer("사자 우리")
+        assertTrue(await(8_000) { s.place == "사자 우리" } != null)
+        d.answer("엄마랑 나")
+        assertTrue(await(10_000) { "사자 우리에서" in d.asked() } != null)
+        d.answer("사자가 문을 열고 나왔어. 그래서 다 도망갔어")
+        assertTrue("진짜 마이크 답이 판정에 안 닿았다: ${s.notes}", await(8_000) { s.notes.any { "도망" in it.a } } != null)
+        val note = s.notes.last { "도망" in it.a }
+        assertTrue("잇는 말 · 결과 신호가 안 달렸다: $note", note.a1 && "결과" in note.el)
+    }
+
+    /**
+     * 바뀐 방식이 묻는 횟수를 늘리지 않는다 (§0 「턴 수 증가 없음」) — 같은 이야기에 **같은 진짜 마이크 답을 같은 순서로** 넣고
+     * 판정을 거친 턴 수를 견준다. 🎲 시연 답은 매번 무작위로 뽑혀 걸음 수가 흔들리므로 쓰지 않는다
+     */
+    @Test
+    fun theNewWayDoesNotAskMoreTimes() {
+        val pick = CoopPick("place", "동물원", "done")
+        val answers = listOf(
+            "사자 우리", "엄마랑 나", "사자가 문을 열고 나왔어", "사육사 아저씨가 와서 도와줬어", "깜짝 놀랐어",
+            "배가 고파서", "조심하라고 했어", "다시 문을 닫았어", "그래서 사자가 들어갔어", "또 가고 싶어",
+        )
+        val counts = listOf(false, true).map { on ->
+            var n = 0
+            run { d ->
+                CoopLab.followUps = on
+                d.startCoopWith(pick = pick)
+                for (i in 0 until 16) {
+                    if (await(4_000) { d.s.micEnabled } == null) break
+                    d.answer(answers[i % answers.size])
+                }
+                n = d.s.notes.size
+            }
+            n
+        }
+        CoopLab.followUps = true
+        println("턴 수 — 지금 방식 ${counts[0]} · 바뀐 방식 ${counts[1]}")
+        assertTrue("지금 방식 ${counts[0]}턴 · 바뀐 방식 ${counts[1]}턴", counts[0] > 0 && counts[1] <= counts[0])
+    }
+
     /** 책까지 🎲(시연 답)로 밀며 오또가 물은 말을 모은다 */
     private suspend fun Director.walkToBook(): List<String> {
         val askedTexts = mutableListOf<String>()
@@ -97,9 +225,14 @@ class CoopFlowTest {
 
     private val firefighter = CoopPick("job", "소방관", "soon")
 
-    /** 오또가 실제로 물을 뼈대 네 질문 — 앞에서 말한 곳이 「거기」 자리에 들어간다 (10-01). 이야기를 다 돈 뒤에 부른다 */
+    /**
+     * 오또가 실제로 물은 뼈대 네 질문 (이야기를 다 돈 뒤에 부른다).
+     * 지금 방식은 템플릿 질문에 앞에서 말한 곳이 「거기」 자리에 들어간다 (10-01).
+     * 바뀐 방식(10-02)은 2~4번째 자리가 앞 답을 끼운 이어 받기라, 자리마다 처음 물은 질문을 협업 쪽 기록에서 읽는다 — 네 개여야 한다
+     */
     private fun Director.partsAsked(pick: CoopPick = firefighter): List<String> =
-        pick.templateQuestions().map { q -> s.heardPlace()?.let(q::here) ?: q }
+        if (CoopLab.followUps) s.coopPartQuestions.also { assertEquals("뼈대 네 자리를 다 물어야 한다: $it", 4, it.size) }
+        else pick.templateQuestions().map { q -> s.heardPlace()?.let(q::here) ?: q }
 
     @Test
     fun theMascotReadsTheParentsQuestionOutLoud() = run { d ->
@@ -197,8 +330,8 @@ class CoopFlowTest {
 
         val askedTexts = d.walkToBook()
         val places = setOf("큰 건물", "밖", "사람 많은 곳", "바쁜 곳", "소방관이 일하는 곳")
-        // 앞에서 말한 곳이 「무슨 일」 질문의 「거기」 자리에 들어간다 (10-01)
-        assertTrue("앞 답이 다음 질문에 안 들어갔다: $askedTexts", "${s.place}에서 무슨 일을 할까?" in askedTexts)
+        // 앞에서 말한 곳이 「무슨 일」 질문의 「거기」 자리에 들어간다 (10-01) — 질문은 소방관에 맞춘 말 (10-02)
+        assertTrue("앞 답이 다음 질문에 안 들어갔다: $askedTexts", "${s.place}에서 불이 나면 소방관은 무슨 일을 할까?" in askedTexts)
         assertTrue("칸 값이 그 이야기 것이 아니다: ${s.place}", s.place in places)
         // 꼬리질문 답까지 — 「블록을 높이높이 쌓아 올렸어요」 같은 일기 문장이 소방관 이야기 책에 들어가면 안 된다
         assertTrue("일기 문장이 책에 들어갔다: ${s.slots}", s.slots.values.none { "어린이집" in it || "블록" in it || "미끄럼틀" in it })

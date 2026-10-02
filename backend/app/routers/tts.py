@@ -7,6 +7,7 @@ for the variable ones (echoes, the judge's next question).
 Nothing sent here may contain a real name: names are masked on the phone and
 the mascot's lines are written not to say the child's name (0928 agenda §4-1).
 """
+import asyncio
 import logging
 import struct
 import time
@@ -16,6 +17,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from ..audio_level import level
 from ..config import settings
 
 log = logging.getLogger("tts")
@@ -56,6 +58,11 @@ async def speak(req: TtsRequest) -> Response:
         budget = max(2.0, left * (0.6 if i < len(order) - 1 else 1.0))
         try:
             audio = await (_openai_audio if provider == "openai" else _typecast_audio)(req, budget)
+            # the one mascot loudness, the same as the lines baked into the app (#42) — ~60 ms
+            try:
+                audio = await asyncio.to_thread(level, audio)
+            except Exception as e:            # an odd file still plays at its own level
+                log.warning("tts level skipped: %s", type(e).__name__)
             # who spoke, in the server log (`docker logs otto-backend`) — the text itself is not logged
             voice = settings.openai_tts_voice if provider == "openai" else (req.voice_id or settings.typecast_voice_id)
             log.info("tts %s · voice %s · %.2fs · %d chars%s", provider, voice, time.monotonic() - t0,

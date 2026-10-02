@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.ui.CoopReason
+import com.example.finalproject_demo.ui.coopItem
 import com.example.finalproject_demo.ui.reasonOrNull
 import com.example.finalproject_demo.ui.templateQuestions
 
@@ -71,7 +72,19 @@ private fun DemoState.rawPartPack(step: DiaryStep): CoopPartPack? {
         "sport" -> sportPart(pick.name.trim(), reason, part)
         else -> null
     } ?: return null
-    return CoopPartPack(listOf(first) + body.easier, body.answers, body.mascot)
+    return CoopPartPack(listOf(first) + body.easier.withItemChoices(pick.name, part), body.answers, body.mascot)
+}
+
+/**
+ * 목록에 있는 요소면 사다리 마지막 칸(선택지 질문)의 **선택지만** 그 요소다운 말로 바꾼다 — 묻는 말은 그대로 (10-02).
+ * 「입구 · 한가운데 · 맨 안쪽」 대신 동물원이면 「사자 우리 · 기린 마당 · 원숭이 산」. 직접 쓴 요소는 그대로 둔다
+ */
+private fun List<String>.withItemChoices(name: String, part: Int): List<String> {
+    val item = coopItem(name) ?: return this
+    val options = when (part) { 0 -> item.spots; 1 -> item.troubles; 2 -> item.causes; else -> item.fixes }
+    val last = lastOrNull() ?: return this
+    val ask = last.substringAfterLast(". ", "").ifBlank { return this }
+    return dropLast(1) + choices(*options.toTypedArray(), ask = ask)
 }
 
 private class Body(val easier: List<String>, val answers: List<Answer>, val mascot: Answer)
@@ -332,7 +345,7 @@ private fun jobPart(x: String, r: CoopReason, part: Int): Body? = when (part) {
             notHeard("까닭", "왜 필요한지는 체험하면서 알아보기로 했어요"),
         )
         CoopReason.DREAM -> Body(
-            listOf("그 일은 무엇 때문에 생겼을까?", choices("바람 때문에", "너무 높이 올라가서", "길이 복잡해서", ask = "왜 그랬을까?")),
+            listOf("그 일은 뭐 때문에 생겼을까?", choices("바람 때문에", "너무 높이 올라가서", "길이 복잡해서", ask = "왜 그랬을까?")),
             listOf(
                 dunno(),
                 a("바람 때문에!", "바람 때문에", "바람이 세게 불었기 때문이에요", reason = true, lv = 1),
@@ -367,7 +380,7 @@ private fun jobPart(x: String, r: CoopReason, part: Int): Body? = when (part) {
             notHeard("뒷이야기", "어떻게 끝날지는 다녀와서 들려주기로 했어요"),
         )
         CoopReason.DREAM -> Body(
-            listOf("그다음에 $x${ga(x)} 뭐 했을까?", choices("사다리를 썼어", "지도를 봤어", "친구랑 같이 했어", ask = "어떻게 해결했을까?")),
+            listOf("그다음에 $x${ga(x)} 뭐 했을까?", choices("사다리를 썼어", "지도를 봤어", "친구랑 같이 했어", ask = "어떻게 고쳤을까?")),
             listOf(
                 a("도와줬어!", "도와줌", "$x${ga(x)} 된 내가 도와주었어요", lv = 1),
                 a("친구를 병원에 데려갔어.", "병원에 데려감", "다친 친구를 병원에 데려다주었어요", lv = 1),
@@ -442,7 +455,7 @@ private fun sportPart(x: String, r: CoopReason, part: Int): Body? = when (part) 
             notHeard("일", "처음 하는 날 무슨 일이 생길지는 다녀와서 들려주기로 했어요"),
         )
         CoopReason.DREAM -> Body(
-            listOf("경기에서 깜짝 놀랄 일이 생겼대. 뭐였을까?", choices("공이 하늘로", "우리 팀이 지고 있어", "비가 와", ask = "어떤 일이 생길까?")),
+            listOf("경기에서 깜짝 놀랄 일이 뭐였을까?", choices("공이 하늘로", "우리 팀이 지고 있어", "비가 와", ask = "어떤 일이 생길까?")),
             listOf(
                 a("우리 팀이 지고 있었어!", "우리 팀이 지고 있음", "우리 팀이 지고 있었어요", lv = 1),
                 a("비가 왔어.", "비가 옴", "경기 중에 비가 쏟아졌어요", lv = 1),
@@ -477,7 +490,7 @@ private fun sportPart(x: String, r: CoopReason, part: Int): Body? = when (part) 
             notHeard("까닭", "왜 그럴지는 배우면서 알아보기로 했어요"),
         )
         CoopReason.DREAM -> Body(
-            listOf("그 일은 무엇 때문에 생겼을까?", choices("바람 때문에", "상대 팀이 세서", "마법 때문에", ask = "왜 그랬을까?")),
+            listOf("그 일은 뭐 때문에 생겼을까?", choices("바람 때문에", "상대 팀이 세서", "마법 때문에", ask = "왜 그랬을까?")),
             listOf(
                 dunno(),
                 a("바람 때문에!", "바람 때문에", "바람이 세게 불었기 때문이에요", reason = true, lv = 1),

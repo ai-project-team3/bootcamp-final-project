@@ -402,7 +402,7 @@ class DiaryTest {
             problem = "블록"; slots["problem"] = "블록을 쌓았어요"
             cause = "몰라"; slots["cause"] = "왜 그랬는지는 아직 아무도 몰라요"
             solution = "집에 옴"; slots["solution"] = "집으로 돌아왔어요"
-            title = "지호의 놀이터 하루"
+            title = "친구의 놀이터 하루"
         }
         val rich = diaryState().apply { fillAll(); title = autoTitleFor() }
         val bareLen = (1..bare.pageCount).sumOf { bare.bookCaption(it).length }

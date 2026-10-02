@@ -1,7 +1,14 @@
 package com.example.finalproject_demo.demo
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.example.finalproject_demo.ui.coopItem
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
+import com.example.finalproject_demo.ui.CoopReason
+import com.example.finalproject_demo.ui.coopKind
+import com.example.finalproject_demo.ui.reasonOrNull
 import com.example.finalproject_demo.ui.templateQuestions
 
 /**
@@ -38,10 +45,27 @@ val DemoState.hasCoopQuestions: Boolean get() = parentQuestions.any { it.isNotBl
 /** 같이 만들기가 준비됐나 — 템플릿을 골랐거나 질문을 하나라도 적었으면. 소파의 🎁 · 새 흐름이 이것을 본다 */
 val DemoState.coopReady: Boolean get() = coopPick != null || hasCoopQuestions
 
+/**
+ * 같이 만들기 화면 배경 (10-02 사용자 요청 — 고른 요소에 맞춰야 한다). 일기 모드는 이 길을 타지 않는다.
+ *
+ * 1. 목록에 있는 요소면 그 요소의 배경([COOP_ITEMS]) — 소방관이면 소방서, 축구면 축구장.
+ *    아이 말보다 앞선다: 「불 난 집에 갔어」의 「집」이 일기 장소 낱말에 걸려 거실이 나오면 안 된다
+ * 2. 직접 쓴 요소면 아이가 말한 곳, 그다음 요소 이름에서 일기 장소 낱말을 찾는다(「할머니 집」 → 할머니 집)
+ * 3. 고른 이야기가 없으면(질문만 적었으면) 일기와 같이 아이가 말한 곳으로
+ */
+internal fun DemoState.coopBackdrop(): String {
+    val pick = coopPick ?: return diaryPlaceBg(placeLabel)
+    coopItem(pick.name)?.let { return it.bg }
+    val spoken = diaryPlaceBg(placeLabel)
+    return if (spoken != DIARY_BG_FALLBACK) spoken else diaryPlaceBg(pick.name)
+}
+
 /** 이 걸음에 누구의 질문을 쓰나 — 템플릿 맥락으로 만든 오또 질문, 부모가 적은 질문, 앱 질문(null) */
 private sealed interface CoopLine {
     data class Template(val text: String) : CoopLine
     data class Parent(val text: String) : CoopLine
+    /** 서버(`/turn`)의 LLM 이 앞 답을 보고 만든 다음 질문 (10-01 · #53 A) */
+    data class Llm(val text: String) : CoopLine
 }
 
 /**
@@ -74,6 +98,66 @@ private class CoopTrack {
     val askedSteps = mutableSetOf<String>()
     var parentUsed = 0
     val asked = mutableListOf<CoopAsked>()
+    /** 방금 `/turn` 이 정한 다음 칸과 그 칸을 묻는 LLM 질문 — 바로 다음 걸음에서 한 번만 쓰고 버린다 */
+    var llmNext: Pair<String, String>? = null
+    /** 앞 답에서 뗀 이름 — place · who · thing (이어 받기 질문에 끼운다 · CoopHeard.kt) */
+    val heard = mutableMapOf<String, String>()
+    /** 이 이야기에서 나간 「왜」 질문 수 — 두 번까지 (CoopQuestions.kt) */
+    var whyAsked = 0
+    /** 뼈대 네 자리(0~3)에서 처음 물은 질문 — 이어 받기로 문장이 바뀌어도 네 자리를 다 물었는지 본다 */
+    val partQuestions = sortedMapOf<Int, String>()
+    /** 엉뚱한 답이 나온 자리 · 「진짜로는」으로 다시 물은 자리 — 자리마다 한 번만 되돌린다 */
+    var wildFor: String? = null
+    var wildAsked: String? = null
+    /** 바로 앞 받아주기 — 같은 말이 이어 나오지 않게 */
+    var lastAck: String? = null
+    /** 받아주기 직후 한 번 부른 `/turn` — 수준 신호와 칸 값이 같이 쓴다(두 번 부르지 않는다). 아이 말이 키 */
+    var liveTurn: LiveTurn? = null
+    /** 지금 방식 · 바뀐 방식을 견주는 이야기 하나의 수치 (§11) — 끝날 때 `coop_session` 으로 남긴다 */
+    val stats = CoopSessionStats()
+}
+
+/**
+ * 이야기 하나의 수치 — 「몰라」 수 · 말로 한 답의 평균 길이(공백 뺀 글자) · 갈무리에 걸린 수(출처별) · 걸린 시간.
+ * 점수가 아니다 — 부모 화면에 보이지 않고 로그 · 이벤트에만 남는다
+ */
+internal class CoopSessionStats(val startedAt: Long = System.currentTimeMillis()) {
+    var dontKnows = 0
+    val answerChars = mutableListOf<Int>()
+    val guardHits = sortedMapOf<String, Int>()
+
+    fun count(r: Reply) {
+        if (r !is Reply.Spoke) return
+        val t = r.text.trim()
+        if (isNonAnswer(t) || dontKnow(t)) dontKnows++ else answerChars += t.count { !it.isWhitespace() }
+    }
+
+    val averageChars: Double get() = if (answerChars.isEmpty()) 0.0 else answerChars.average()
+}
+
+/** 이 이야기의 수치 — 검사가 읽는다 */
+internal val DemoState.coopStats: CoopSessionStats? get() = trackByState[this]?.stats
+
+/** 진짜 마이크 답 하나에 부른 `/turn` 결과 — 서버가 꺼졌거나 응답이 없으면 [result] 가 null */
+private class LiveTurn(val utterance: String, val result: Server.TurnResult?)
+
+/** 이 이야기에서 뼈대 네 자리마다 처음 물은 질문 (자리 순서대로). 검사 · 로그가 읽는다 */
+internal val DemoState.coopPartQuestions: List<String> get() = trackByState[this]?.partQuestions?.values?.toList().orEmpty()
+
+/**
+ * 협업 질문 방식 — **바뀐 방식**(이어 받기 · 갈무리 · 짧은 받아주기)과 **지금 방식**(09-30 흐름 그대로)을 견줘 보는 스위치.
+ * 시연 서랍에서 협업일 때만 보인다. 기본은 바뀐 방식 (10-02)
+ */
+object CoopLab {
+    var followUps by mutableStateOf(true)
+}
+
+/** 걸음 자리 → 이름이 놓이는 모양 */
+private fun roleOf(stepKey: String): Pair<String, CoopRole>? = when (stepKey) {
+    "place" -> "place" to CoopRole.PLACE
+    "companion" -> "who" to CoopRole.WHO
+    "problem" -> "thing" to CoopRole.THING
+    else -> null
 }
 
 /**
@@ -85,6 +169,39 @@ private val DemoState.coopTrack: CoopTrack
     get() = trackByState[this] ?: CoopTrack().also { trackByState[this] = it }
 
 private fun DemoState.newCoopTrack() { trackByState[this] = CoopTrack() }
+
+/** LLM 질문을 받을 수 있는 걸음 — 칸 이름이 걸음과 하나로 맞는 것만. 꼬리질문 `extra` 는 여러 걸음이 같은 칸이라 뺀다 */
+private val LLM_QUESTION_STEPS = setOf("place", "problem", "cause", "solution", "companion", "reaction")
+
+/**
+ * 이 걸음에 서버 LLM 질문을 쓸까 (#53 A · 동화의 `Director.askSlot` 과 같은 방식).
+ * **앱이 지금 물을 칸과 서버가 정한 다음 칸이 같을 때만** 쓴다 — 걸음 순서 · 뼈대 네 칸 · 부모 질문 자리는 앱 규칙 그대로다.
+ * 서버가 꺼졌거나 질문이 없으면 null → 대본.
+ */
+private fun DemoState.llmQuestionFor(q: Question, next: Pair<String, String>?): String? {
+    if (next == null || !Server.liveFor(mode) || !coopLlmQuestionsFit) return null
+    val key = q.id.removePrefix("diary_")
+    return next.second.takeIf { key in LLM_QUESTION_STEPS && next.first == key && it.isNotBlank() }
+}
+
+/**
+ * 서버 질문의 시제가 이 이야기와 맞나. 서버 프롬프트(`eval/line_prompt.md`)는 협업을 「오늘 있었던 일 · 과거형」으로 묻는다.
+ * 그래서 **지난 일(다녀왔어요)과 이야기를 안 고른 경우만** 켠다 — 곧 해요 · 좋아해요에 쓰면 「뭐 했어?」로 묻게 된다.
+ * ⚠️ 서버가 고른 이유로 시제를 가르게 되면(#53 C) 이 조건을 `true` 로 바꾼다.
+ */
+private val DemoState.coopLlmQuestionsFit: Boolean
+    get() = coopPick.let { it == null || it.reasonOrNull() == CoopReason.DONE }
+
+/**
+ * `/turn` 에 함께 보내는 고른 이야기 (#53 B) — 「같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)」.
+ * 서버는 지금 이 칸을 동화 틀 이름으로만 읽는다. 시제를 가르는 일은 서버가 정하면(#53 C) 그쪽이 한다
+ */
+internal fun DemoState.coopTurnContext(): String? = coopPick?.let { p ->
+    val k = coopKind(p.kind) ?: return@let null
+    val r = p.reasonOrNull()
+    val tense = when (r) { CoopReason.DONE -> "지난 일"; CoopReason.SOON -> "앞으로 할 일"; else -> "상상 이야기" }
+    "같이 만들기 · ${k.title} · ${p.name} · ${r?.let { k.reasonLabels[it] } ?: "이유 없음"}($tense)"
+}
 
 /**
  * 묻지 않고 지나간 뼈대 걸음을 「물은 것」으로 친다 — 앞 답에서 이미 찬 칸이라 건너뛴 걸음 (10-01).
@@ -128,14 +245,116 @@ suspend fun Director.askOrCoopAsk(q: Question): Reply = when {
  * 사다리(쉬운 질문)는 앱 것을 그대로 둔다: 아이가 답을 못 하면 앱이 더 쉬운 말로 바꿔 묻는다.
  */
 private suspend fun Director.coopAskInFlow(q: Question): Reply {
+    if (!CoopLab.followUps) return coopAskInFlowBefore(q).also { s.coopTrack.stats.count(it) }
     mark("coop")
-    val line = s.takeCoopLine(q)
+    val track = s.coopTrack
+    val llm = track.llmNext.also { track.llmNext = null }
+    val firstAsk = q.id !in track.askedSteps
+    val idx = partIndexOf(q)
+    val key = q.id.removePrefix("diary_")
+    val reason = s.coopPick?.reasonOrNull() ?: CoopReason.DREAM
+    val scripted = s.takeCoopLine(q)
+
+    /** 갈무리 — 통과하면 그 말, 못 고치면 null. 어디서 왔고 무엇에 걸렸는지 남긴다 */
+    fun guarded(text: String, src: CoopSource): String? {
+        val g = coopGuard(text, reason, src)
+        if (g.issues.isNotEmpty()) log("[$key] 갈무리(${src.label}) ${if (g.ok) "고침" else "사다리로"} — ${g.issues.joinToString(" · ")} · 원문 \"$text\"" + (g.text?.let { " → \"$it\"" } ?: ""))
+        if (g.issues.isNotEmpty()) event("coop_guard", "source" to src.name, "ok" to g.ok, "issues" to g.issues.joinToString("|"))
+        if (g.issues.isNotEmpty()) track.stats.guardHits.merge(src.name, 1, Int::plus)
+        return g.text
+    }
+
+    // 서버 LLM 질문은 처음 묻는 자리에서만 · 갈무리를 통과했을 때만 (부모 질문 자리면 묻지 않는다)
+    val llmText = if (firstAsk && scripted !is CoopLine.Parent) s.llmQuestionFor(q, llm)?.let { guarded(it, CoopSource.LLM) } else null
+    // 엉뚱한 답(다녀왔어요 · 곧 해요의 상상 낱말) 뒤 한 번 — 같은 자리를 「진짜로는」으로
+    val redirect = !firstAsk && track.wildFor == key && track.wildAsked != key
+
+    // 부모 질문이 먼저 — 몰래 바꾸지 않는다(질문 하나만 남긴다). 그다음 서버 LLM 질문, 그다음 이어 받기 · 템플릿, 그다음 사다리
+    val (text, src) = when {
+        scripted is CoopLine.Parent -> (guarded(scripted.text, CoopSource.PARENT) ?: scripted.text) to CoopSource.PARENT
+        llmText != null -> llmText to CoopSource.LLM
+        redirect -> {
+            track.wildAsked = key
+            coopRedirect(key, reason) to CoopSource.HEARD
+        }
+        scripted is CoopLine.Template && idx != null && idx >= 1 -> {
+            // 2~4번째 자리 — 앞 답을 끼운 이어 받기. 못 만들면 템플릿 질문 그대로 (첫 자리는 미리 본 템플릿 그대로)
+            val raw = s.coopPick?.templateQuestions()?.getOrNull(idx)
+            coopFollowUp(key, s.level, reason, track.heard, s.coopPick, track.whyAsked, raw, listOf(q.text) + q.ladder)
+                ?.let { it to CoopSource.HEARD }
+                ?: ((guarded(scripted.text, CoopSource.TEMPLATE) ?: q.text) to CoopSource.TEMPLATE)
+        }
+        scripted is CoopLine.Template -> (guarded(scripted.text, CoopSource.TEMPLATE) ?: q.text) to CoopSource.TEMPLATE
+        else -> (guarded(q.text, CoopSource.LADDER) ?: q.text) to CoopSource.LADDER
+    }
+    log("[$key] ${src.label} 질문 → \"$text\" · 수준 ${s.level.label}" + (if (src == CoopSource.HEARD) " · 들은 이름 ${track.heard}" else ""))
+    if ("왜" in text) track.whyAsked++
+    if (idx != null && firstAsk) track.partQuestions[idx] = text
+    val r = ask(q.copy(text = text, silent = false))
+    track.stats.count(r)
+    // 부모 리포트 「고른 이야기 · 적은 질문에 한 답」 — 지금 방식과 같이 앱 기본 질문 · 사다리는 남기지 않는다
+    if (src != CoopSource.LADDER) track.asked += when (r) {
+        is Reply.Spoke -> CoopAsked(text, r.text, "child")
+        is Reply.Tapped -> CoopAsked(text, r.label, if (r.byMascot) "mascot" else "card")
+        else -> CoopAsked(text, null, null)
+    }
+    if (src == CoopSource.PARENT) {
+        event("utterance", "speaker" to "adult", "mode" to "typed", "text" to text)
+        s.partnerTurns++
+        s.adultLine = text
+    }
+    if (r is Reply.Spoke) {
+        // 다녀왔어요 · 곧 해요에 상상 낱말 — 한 번만 「진짜로는」으로 되돌린다. 두 번째면 그대로 받는다
+        val wild = isWildForReality(r.text, reason) && track.wildFor != key
+        if (wild) { track.wildFor = key; log("[$key] 실제 일 이야기에 상상 낱말 → 고치지 않고 받아 준 뒤 한 번만 「진짜로는」으로 묻는다") }
+        // 앞 답에서 이름 하나 — 다음 자리 질문에 끼운다. 거친 말이 섞인 이름 · 되돌릴 상상 낱말은 끼우지 않는다
+        if (!wild) roleOf(key)?.let { (slot, role) ->
+            coopNameFrom(r.text, role)?.takeIf { !hasRoughWord(it) }?.let { track.heard[slot] = it; log("[$key] 들은 이름 $slot=「$it」 (다음 질문에 끼운다)") }
+        }
+        // 받아주기 한마디 — 아이 말에서 뗀 이름 하나. 「몰라」 · 「응」은 되비추지 않는다. 다음 질문과 합쳐 두 문장
+        coopAck(r.text, roleOf(key)?.second, reason, wild, track.lastAck)?.let { track.lastAck = it; say(it); pause(700) }
+        // 진짜 마이크 답에 수준 신호를 단다 — 공용 판정이 신호 없는 답을 늘 「내림」으로 세던 것 (CoopSignals.kt)
+        if (r.isLiveSpeech()) return r.copy(answer = coopLiveSignals(q, text, r.text, wild))
+    }
+    return r
+}
+
+/**
+ * 진짜 마이크 답의 수준 신호. 서버를 켰으면 `/turn` 을 **여기서 한 번** 부르고(받아주기 직후 — 기다림은 전과 같다)
+ * 그 결과를 [coopLiveValue] 가 칸 값에 다시 쓴다. 「몰라」 · 되돌릴 엉뚱한 답이면 전처럼 부르지 않는다.
+ */
+private suspend fun Director.coopLiveSignals(q: Question, question: String, said: String, wild: Boolean): Answer {
+    val text = said.trim()
+    val step = COOP_STEPS.firstOrNull { "diary_${it.bookKey}" == q.id }
+    val turn = if (step != null && !wild && !isNonAnswer(text) && Server.liveFor(s.mode)) {
+        val asked = step.slot.takeIf { it in Server.SLOTS && it != "extra" }
+        s.exchangeTurn("coop", asked, question, text, template = s.coopTurnContext())
+    } else null
+    s.coopTrack.liveTurn = LiveTurn(text, turn)
+    val a = coopSignals(text, question, turn?.verdict)
+    log("[${q.id.removePrefix("diary_")}] 수준 신호 — " + (if (turn?.verdict != null) "서버 판정" else "앱 규칙") +
+        " · 까닭 ${if (a.reason) "○" else "×"} · 요소 ${a.el.ifEmpty { setOf("-") }.joinToString("·")} · 잇는 말 ${if (a.con) "○" else "×"}" +
+        (if (isChoiceQuestion(question)) " (선택지 답이라 신호 없음)" else ""))
+    return a
+}
+
+/** 지금 방식(09-30 흐름) — 비교용으로 그대로 둔다. 시연 서랍에서 고른다 */
+private suspend fun Director.coopAskInFlowBefore(q: Question): Reply {
+    mark("coop")
+    val llm = s.coopTrack.llmNext.also { s.coopTrack.llmNext = null }
+    val firstAsk = q.id !in s.coopTrack.askedSteps
+    val line = s.takeCoopLine(q).let { scripted ->
+        // 부모 질문이 먼저다. 그다음이 LLM 질문, 그다음이 대본 (#53 A)
+        if (scripted is CoopLine.Parent || !firstAsk) scripted
+        else s.llmQuestionFor(q, llm)?.let { CoopLine.Llm(it) } ?: scripted
+    }
     val text = when (line) {
         null -> {
             log("[${q.id}] 앱 질문을 그대로 묻는다: \"${q.text}\"")
             return ask(q)
         }
         is CoopLine.Template -> line.text.also { log("[${q.id}] 고른 이야기에 맞춘 질문 → \"$it\" (LLM 대역 · 앱 질문 \"${q.text}\" 은 사다리 뒤에 남는다)") }
+        is CoopLine.Llm -> line.text.also { log("[${q.id}] 서버 LLM 이 앞 답을 보고 만든 질문 → \"$it\" (대본 \"${q.text}\" 은 사다리 뒤에 남는다 · #53)") }
         is CoopLine.Parent -> line.text.also { log("[${q.id}] 부모가 적은 질문을 끼워 묻는다: \"$it\" (앱 질문 \"${q.text}\" 은 사다리 뒤에 남는다)") }
     }
     val r = ask(q.copy(text = text, silent = false))
@@ -225,6 +444,7 @@ fun Director.coopFinishLog() {
         val left = s.parentQuestions.count { it.isNotBlank() } - s.parentQIndex
         log("같이 짓기 — 부모가 적은 질문 ${s.parentQIndex}개를 꼬리질문 자리에 끼워 물었다" +
             (if (left > 0) " · ${left}개는 꼬리질문 자리가 모자라 못 물었다" else "") + ". 부모 리포트 「함께하기」 축의 재료다 (협업 §4-2)")
+        coopSessionLog()
         // 이야기마다 비운다 — 오늘 고른 이야기 · 적은 질문이 내일 또 나오면 안 된다(조장). 비우는 자리는 **이야기가 끝난 여기**다.
         // 리포트에 남는 것은 `partnerTurns` · `adultLine` · `utterance speaker=adult` 이벤트라 홀더가 비어도 된다.
         s.clearParentQuestions()
@@ -234,6 +454,19 @@ fun Director.coopFinishLog() {
     // "어른이 아무것도 안 했다"로 읽힌다. 실제로는 어른이 **모든 질문을 읽어 주었다** (9/21).
     val byChild = s.slotBy.values.count { it == "child" }
     log("같이 짓기 — 어른이 읽어 준 질문 ${s.partnerTurns}번 · 그중 아이가 자기 말로 채운 자리 $byChild. 채점처럼 보이면 안 되므로 책에는 남기지 않는다 (협업 §6)")
+}
+
+/** 지금 방식 · 바뀐 방식을 견주는 수치 한 줄 (협업 질문 업그레이드 §11) */
+private fun Director.coopSessionLog() {
+    val st = s.coopTrack.stats
+    val way = if (CoopLab.followUps) "바뀐 방식" else "지금 방식"
+    val secs = (System.currentTimeMillis() - st.startedAt) / 1000
+    val avg = "%.1f".format(st.averageChars)
+    val end = s.endReason ?: "done"
+    log("협업 수치($way) — 「몰라」 ${st.dontKnows}번 · 답 평균 ${avg}자(공백 뺌, ${st.answerChars.size}개) · 끝 $end · ${secs}초 · 갈무리 ${st.guardHits.ifEmpty { mapOf("없음" to 0) }}")
+    event("coop_session", "way" to if (CoopLab.followUps) "new" else "before", "dont_know" to st.dontKnows,
+        "avg_chars" to avg, "answers" to st.answerChars.size, "end" to end, "secs" to secs,
+        "guard" to st.guardHits.entries.joinToString("|") { "${it.key}:${it.value}" })
 }
 
 /**
@@ -280,7 +513,7 @@ val DemoState.coopQuestionsAllAsked: Boolean
  * 진짜 마이크로 들은 답인가. 대본 답은 `value`(칸 값)와 [Answer] 꼬리표를 달고 오고,
  * 받아쓰기 답은 글자(`text`)만 있다 (`AGENTS.md` 「진짜 마이크 답에는 대본 꼬리표가 없다」).
  */
-internal fun Reply.Spoke.isLiveSpeech(): Boolean = value.isEmpty() && answer == null
+internal fun Reply.Spoke.isLiveSpeech(): Boolean = value.isEmpty() && (answer == null || answer.lv == COOP_LIVE_LV)
 
 /** 칸에 넣지 않는 짧은 말 — 「몰라」 · 「글쎄」 · 「응」. 이때는 사다리를 한 칸 내려가 쉬운 말로 다시 묻는다 */
 private val NON_ANSWER_STARTS = listOf("몰라", "모르겠", "모름", "글쎄", "기억 안", "기억이 안", "생각 안", "생각이 안", "잘 모르")
@@ -308,9 +541,19 @@ internal fun isNonAnswer(text: String): Boolean {
 internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r: Reply.Spoke): String? {
     val text = r.text.trim()
     if (isNonAnswer(text)) return null
+    // 다녀왔어요 · 곧 해요의 엉뚱한 답 — 처음 한 번은 칸에 넣지 않고 「진짜로는」으로 다시 묻는다 (바뀐 방식 · 10-02)
+    if (CoopLab.followUps && s.coopTrack.wildFor == step.bookKey && s.coopTrack.wildAsked != step.bookKey) {
+        log("[${step.bookKey}] 상상 낱말이라 이번엔 칸에 넣지 않는다 → 「진짜로는」으로 한 번 더")
+        return null
+    }
     if (!Server.liveFor(s.mode)) return text
     val asked = step.slot.takeIf { it in Server.SLOTS && it != "extra" }
-    val verdict = s.exchangeTurn("coop", asked, question, text)?.verdict
+    // 바뀐 방식은 받아주기 직후 이미 한 번 불렀다(coopLiveSignals) — 그 결과를 쓴다
+    val cached = s.coopTrack.liveTurn?.takeIf { it.utterance == text }.also { s.coopTrack.liveTurn = null }
+    val turn = if (cached != null) cached.result else s.exchangeTurn("coop", asked, question, text, template = s.coopTurnContext())
+    // 서버가 정한 다음 칸 · 질문을 다음 걸음에 쓸 수 있게 둔다 (#53 A) — 맞지 않으면 다음 걸음이 버린다
+    s.coopTrack.llmNext = turn?.verdict?.nextSlot?.let { slot -> turn.line?.question?.takeIf(String::isNotBlank)?.let { slot to it } }
+    val verdict = turn?.verdict
     if (verdict == null) {
         log("[${step.bookKey}] /turn 응답 없음 → 아이 말 그대로 칸에 넣는다")
         return text
@@ -361,11 +604,45 @@ suspend fun Director.coopWriteBook() {
         slotBy = s.slotBy.filterKeys { it in Server.SLOTS },
         keep = s.slots["keep"]?.takeIf(String::isNotBlank)?.let(mask::mask),
         level = s.level.name.lowercase(),
-        pages = pages.map { Server.Page(it.kind.name) },
+        // 미션 쪽에 미션 ID 를 단다 — 서버가 그 쪽을 미션 직전 상황으로 끝맺는다 (#52 3번 · 동화 `storyPagePlan` 과 같은 표)
+        pages = pages.map { Server.Page(it.kind.name, s.coopPageMission(it.kind)) },
+        // 고른 이야기와 이유 — 이유에 따라 책 시제가 갈린다(곧 해요 = 앞으로 할 일 · 좋아해요 = 상상) (#52 1번 · 서버 `77a9d5c`)
+        template = s.coopTurnContext()?.let(mask::mask),
+        reason = s.coopStoryReason(),
     )?.map(mask::unmask)
     if (s.useCoopCaptions(captions)) log("서버가 쓴 협업 책 문장 ${pages.size}쪽을 받음 (/story)")
     else log("협업 책 문장 생성 실패 또는 쪽 수 불일치 → 틀 문장 그대로")
 }
+
+/**
+ * 서버가 쓴 협업 책에서 **미션을 끝낸 뒤** 그 쪽에 붙는 결과 문장 (#52 2번). 서버 문장은 미션 직전에서 끝나고 결과는 앱이 쓴다.
+ * 틀 문장 책에는 이 결과가 원래 들어 있었다(「먼지를 탈탈 털어 냈어」) — 서버 문장 책에서만 빠졌던 것을 채운다.
+ * 아직 안 끝냈거나 미션 쪽이 아니면 null
+ */
+internal fun DemoState.coopMissionResult(kind: PageKind): String? = when (kind) {
+    PageKind.RUB -> if (m1Result != null) mission1().blobName.let { "${it}${ga(it)} 사라졌어요." } else null
+    PageKind.DRAG -> if (m2Result != null) {
+        if (templateKey in setOf("A", "G")) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
+        else "$childName${eun(childName)} ${m2Clause()}"     // 같이 간 사람이 없으면 「오늘 이야기를 들어준 마스코트에게 …」
+    } else null
+    else -> null
+}
+
+/**
+ * 협업 책 쪽의 미션 ID (`docs/미션_구상.md` §3). 미션 1 = 문지르기(A6), 미션 2 = 건네주기(E1) ·
+ * 틀 A · G 면 그림 퍼즐(A3) — 책 화면(`Book.kt`)이 그리는 미션과 같아야 한다. 미션 쪽이 아니면 null
+ */
+internal fun DemoState.coopPageMission(kind: PageKind): String? = when (kind) {
+    PageKind.RUB -> "A6"
+    PageKind.DRAG -> if (templateKey in setOf("A", "G")) "A3" else "E1"
+    else -> null
+}
+
+/**
+ * `/story` 의 `reason` — 고른 이야기가 있으면 그 이유. **이유를 안 골랐으면 `dream`** — 앱이 질문을 상상 이야기로 했으니
+ * 책도 상상으로 써야 한다(서버는 비면 「있었던 일」로 쓴다). 이야기를 안 고르고 질문만 적었으면 null(있었던 일 · 일기형).
+ */
+internal fun DemoState.coopStoryReason(): String? = coopPick?.let { (it.reasonOrNull() ?: CoopReason.DREAM).key }
 
 /** 쪽 수가 맞고 빈 문장이 없을 때만 쓴다 — 하나라도 어긋나면 틀 문장 책 */
 fun DemoState.useCoopCaptions(captions: List<String>?): Boolean {
