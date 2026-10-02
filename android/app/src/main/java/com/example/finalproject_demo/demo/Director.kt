@@ -257,10 +257,11 @@ class Director(
     private val LINE_GAP_MS = 400L
 
     /**
-     * 아이 말이 끝나고 리액션까지. VAD 가 이미 0.5초 침묵을 듣고 끊으므로(`Voice.vad`) 여기 0.5초를 더하면
-     * 아이가 말을 멈춘 뒤 **약 1초**에 「음~」이 나온다. 받아쓰기(약 1.1초)와 겹쳐 흐르므로 질문은 늦어지지 않는다.
+     * 아이 말이 끝나고 리액션까지. VAD 가 이미 0.5초 침묵을 듣고 끊으므로(`Voice.vad`) 여기 0.8초를 더하면
+     * 아이가 말을 멈춘 뒤 **약 1.3초**에 리액션이 나온다(10-02 조장: 1초도 「조금 빠르다」).
+     * 받아쓰기와 겹쳐 흐른다. 리액션이 3~5초로 길어서(10-02) 질문이 빨리 오면 리액션이 끝날 때까지 기다린다.
      */
-    private val NEUTRAL_DELAY_MS = 500L
+    private val NEUTRAL_DELAY_MS = 800L
 
     @Volatile private var lastVoiceEnd = 0L
 
