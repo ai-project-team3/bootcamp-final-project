@@ -430,7 +430,9 @@ private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: 
     }
     val r = try { awaitReply() } finally { watch.cancel() }
     // 실기기에서 어느 길로 끝났는지 본다 — 질문 · 끝난 까닭만(아이 말은 남기지 않는다)
-    runCatching { android.util.Log.i("Diary", "D1 「${q.text}」 → ${when (r) { is Reply.Spoke -> "answered"; is Reply.Tapped -> r.value; else -> r.javaClass.simpleName }}") }         // 단위 테스트에는 Log 가 없다
+    val outcome = when (r) { is Reply.Spoke -> "answered"; is Reply.Tapped -> r.value; else -> r.javaClass.simpleName }
+    runCatching { android.util.Log.i("Diary", "D1 「${q.text}」 → $outcome") }         // 단위 테스트에는 Log 가 없다
+    DiaryTrace.ask(q.text, outcome)
     when {
         r is Reply.Spoke -> acceptSpoken(r.text)
         r is Reply.Tapped && r.value == MOVED_ON -> { s.line = ""; log("「${q.text}」 — 다른 조각을 그리기 시작했다 → 조용히 거둔다(지금 그리는 그림이 먼저)") }
@@ -502,6 +504,7 @@ private suspend fun Director.nameThePiece(day: DiaryDay, piece: DiaryPiece, r: R
     quote(said.text)
     say("${you(name)}${ida(you(name))}구나!")
     log("조각 이름 「$name」 — 아이가 말한 이름 (extra · whiteboard · child)")
+    DiaryTrace.name(piece.id, name)
     pause(700)
     return name
 }
@@ -617,6 +620,7 @@ private suspend fun Director.showOttoDrawing(day: DiaryDay, piece: DiaryPiece) {
 private fun Director.keepBoard() {
     if (s.drawing.isEmpty()) return
     s.diaryDay.catchUp(s.drawing)
+    DiaryTrace.pieces(s.diaryDay, s.drawing)                 // 다 그렸을 때 조각 묶음 — 기준값을 정할 정답 자리
     s.keepSceneDrawing()
     s.reactions++
     event("make", "kind" to "draw")

@@ -78,6 +78,7 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.BRUSH_PAUSE_MS
 import com.example.finalproject_demo.demo.COLOR_PAUSE_MS
 import com.example.finalproject_demo.demo.CRAYON_PAUSE
+import com.example.finalproject_demo.demo.DiaryTrace
 import com.example.finalproject_demo.demo.BoardBox
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.DiaryAsk
@@ -253,6 +254,10 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
     // 판을 만질 때마다(획 시작 · 획 끝 · 크레용) 붓 멈춤 시계를 다시 건다. 크레용을 바꿨으면 더 오래 기다린다
     var touched by remember { mutableIntStateOf(0) }
     var quietFor by remember { mutableLongStateOf(BRUSH_PAUSE_MS) }
+    var downAt by remember { mutableLongStateOf(0L) }
+    // 획 기록(디버그 빌드 · 폰 안에만) — 조각 묶기 기준값을 실제 아이 그림으로 정한다 (DiaryTrace)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(day) { DiaryTrace.open(context, day) }
 
     // 붓 멈춤 — 마지막으로 만진 뒤로 조용하면 알린다
     LaunchedEffect(touched) {
@@ -262,7 +267,9 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
         // 오또가 지켜보는 중에만 — 묻는 중 · 고르는 중 · 아이가 말하는 중(녹음)에는 보내지 않는다
         val label = if (quietFor == COLOR_PAUSE_MS) CRAYON_PAUSE else "붓 멈춤"
         // 지켜보는 중이면 바로 알리고, 아니면(말하는 중 · 묻는 중 · 고르는 중) 남겨 둔다 — 흐름이 돌아오면 받는다
-        if (day.watching && !s.micOn && stage.pick == null) { day.pendingPause = null; d.send(Reply.Tapped("pause", label)) } else day.pendingPause = label
+        val now = day.watching && !s.micOn && stage.pick == null
+        DiaryTrace.pause(label, delivered = now)
+        if (now) { day.pendingPause = null; d.send(Reply.Tapped("pause", label)) } else day.pendingPause = label
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -279,7 +286,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                                 .shadow(cq * 0.4f, CircleShape)
                                 .background(c, CircleShape)
                                 .border(cq * 0.35f, Color.White.copy(alpha = 0.9f), CircleShape)
-                                .clickable { color = c; quietFor = COLOR_PAUSE_MS; touched++ }
+                                .clickable { color = c; quietFor = COLOR_PAUSE_MS; touched++; DiaryTrace.crayon(c) }
                                 .testTag("crayon-${DIARY_CRAYONS.indexOf(c)}")
                         )
                     }
@@ -295,12 +302,14 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                 .testTag("diary-board")
                 .pointerInput(color) {
                     detectDragGestures(
-                        onDragStart = { p -> live.clear(); live += p; day.penDown = true; touched++ },
+                        onDragStart = { p -> live.clear(); live += p; day.penDown = true; downAt = DiaryTrace.now(); touched++ },
                         onDrag = { change, _ -> live += change.position; change.consume() },
                         onDragEnd = {
                             if (live.size >= 2) {
-                                s.drawing += DrawStroke(color, live.map { Offset(it.x / box.width, it.y / box.height) }, PEN_W)
+                                val stroke = DrawStroke(color, live.map { Offset(it.x / box.width, it.y / box.height) }, PEN_W)
+                                s.drawing += stroke
                                 strokes++
+                                DiaryTrace.stroke(s.drawing.size - 1, downAt, stroke, s.drawingAspect)
                             }
                             live.clear()
                             day.penDown = false                       // 획을 넣은 뒤에 — 질문이 새 획을 먼저 본다
