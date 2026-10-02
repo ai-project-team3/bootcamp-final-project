@@ -470,6 +470,29 @@ class PictureDiaryFlowTest {
         assertTrue("말=${s.line}", await { s.line == "나도 로켓을 그려볼까?" } != null)
     }
 
+    /**
+     * 오또가 말하는 사이(「좋아, 네 그림이 최고야!」) 새로 그린 조각 — 그 사이 온 붓 멈춤을 남겨 두었다가,
+     * 말이 끝나고 흐름이 돌아오면 새 획 없이도 그 조각을 묻는다 (10-02 실기기)
+     */
+    @Test
+    fun aPieceDrawnWhileOttoTalksIsAskedAfter() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("강아지")
+        assertTrue(await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        assertTrue(await { s.line == "좋아, 네 그림이 최고야!" } != null)
+        s.drawing += stroke(0.7f)                                    // 오또가 말하는 사이 멀리 새로 그렸다
+        s.diaryDay.pendingPause = "붓 멈춤"                           // 그림판이 남겨 둔 붓 멈춤
+        assertTrue("말이 끝난 뒤 새 조각을 묻지 않았다 — 말=${s.line}",
+            await { s.line == "우와, 지금 그리는 건 뭐야?" && s.diaryDay.askingPiece != s.diaryDay.pieces.first().id } != null)
+        assertNull(s.diaryDay.pendingPause)
+    }
+
     /** D1 질문 중 다른 조각을 그리기 시작하면 조용히 거두고, 다음 멈춤에 지금 그리는 조각을 먼저 묻는다 (10-01 안 A) */
     @Test
     fun drawingSomethingElseWithdrawsTheQuestion() = run { d ->

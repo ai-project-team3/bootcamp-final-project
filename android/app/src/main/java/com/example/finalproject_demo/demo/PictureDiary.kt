@@ -99,7 +99,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             DemoBtn("🗣 (먼저 말함) \"너도 그려줘!\"") { send(Reply.Spoke("너도 그려줘!")) },
             DemoBtn("🗣 (먼저 말함) \"이건 강아지야\"") { send(Reply.Spoke("이건 강아지야")) },
         )
-        // 아이는 아무 때나 먼저 말해도 된다 — 마이크를 열어 둔다. 붓 멈춤은 오또가 지켜보는 동안에만 온다
+        // 아이는 아무 때나 먼저 말해도 된다 — 마이크를 열어 둔다. 오또가 말하는 사이 온 붓 멈춤은 남겨 두었다가 받는다
         inputs(mic = true, next = false)
         day.watching = true
         // 오또 그림이 다 되면 붓 멈춤을 또 기다리지 않는다 — 아이가 멈추고 기다리면 그림이 영영 안 떴다(10-02 실기기).
@@ -111,7 +111,10 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             while (day.penDown || s.micOn) delay(WATCH_STEP_MS)
             send(Reply.Tapped("pause", "오또 그림"))
         }
-        val r = try { awaitReply() } finally { wake.cancel() }
+        // 오또가 말하던 사이 남겨 둔 붓 멈춤이 있으면 기다리지 않고 받는다 — 아이가 새로 그린 것을 놓치지 않는다
+        val missed = day.pendingPause?.takeIf { !s.micOn && !day.penDown }
+        if (missed != null) { day.pendingPause = null; log("오또가 말하는 사이 온 붓 멈춤 → 이제 받는다") }
+        val r = try { if (missed != null) Reply.Tapped("pause", missed) else awaitReply() } finally { wake.cancel() }
         day.watching = false
         when {
             r is Reply.Tapped && r.value == "pause" -> afterCrayon = r.label == CRAYON_PAUSE
