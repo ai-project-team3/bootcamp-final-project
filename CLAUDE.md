@@ -64,15 +64,18 @@
 
 | 자리 | 현재 기본값 · 경로 | 근거 |
 |---|---|---|
-| 판정 · 이야기 · 마스코트 대사 | `gpt-6-luna`; 판정·대사 effort `none`, 이야기 `high` | `backend/app/config.py` · `eval/results.md` |
-| 받아쓰기 | 자체 GPU faster-whisper `large-v3`; 원본은 우리 서버까지만 | 규칙 6 · `guidelines/10` §10 |
-| 배경 · 다시 그리기 | 자체 ComfyUI; 현재 코드 기본값 SDXL + Lightning 8-step. 안전 검사 후 표시 | 규칙 8 · `backend/app/config.py` |
-| 마스코트 목소리 | 10-01 저녁 조장 결정: OpenAI `gpt-4o-mini-tts-2025-03-20` · `sage` · 짧은 playful 지시. 고정 대사는 앱 번들, 가변 대사는 `/tts` | `backend/app/config.py` · `eval/bake_lines.py` |
-| 빠른 판단 Jev · 책 낭독 · 음성 후보 | 적용 조건과 미결 여부를 해당 기능 기록에서 확인 | `guidelines/10` · 아래 이력 |
+| 판정 · 이야기 · 마스코트 대사 | `gpt-6-luna`; 판정·대사 effort `none`, 이야기 `high` | 09-25 같은 100문항의 이전 루나 3회 범위 대비 네 지표 위·아래 없음, 판정 세션 원가 **10.5원**. `claude-haiku-4-5`는 품질 동률·값 7배 — ZDR 실패 때만. `backend/app/config.py` · `eval/results.md` |
+| 받아쓰기 | 자체 GPU faster-whisper `large-v3`; 원본은 우리 서버까지만 | 09-23 3~6세 CER turbo 대비 약 절반(3세 **57→37%**), 지연 **+0.23초**. ⚠️ `gpt-4o-mini-transcribe`는 음성이 외부 업체로 나가 **차별점 1 포기** — 비상구로만. 규칙 6 · `guidelines/10` §10 |
+| 배경 · 다시 그리기 | 자체 ComfyUI; 현재 코드 기본값 SDXL + Lightning 8-step. 안전 검사 후 표시 | 09-25 받아쓰기를 같이 올린 채 배경 **3.86초**. ⚠️ 화자분리를 올려 두면 **5.10초** — 쓸 때만 올린다. 규칙 8 · `backend/app/config.py` · `eval/results.md` |
+| 마스코트 목소리 | 10-01 저녁 조장 결정: OpenAI `gpt-4o-mini-tts-2025-03-20` · `sage` · 짧은 playful 지시. 고정 대사는 앱 번들, 가변 대사는 `/tts` | 10-01 아이 음높이(중앙값 F0 **262~296Hz**)에 든 유일한 조합. TypeCast 쉬는 중·무료 키 돌려쓰기 안 함. `coral`·ElevenLabs Flash는 귀 판정 탈락. `eval/voice_pitch.py` · `eval/bake_lines.py` |
+| 빠른 판단 Jev · 책 낭독 · 음성 후보 | Jev 적용 조건·붙일 자리와 책 낭독·음성 후보의 미결 여부를 해당 기능 기록에서 확인 | 09-26 Jev **p95 0.73초**, 9필드 **88.6% 대 루나 88.0% 동률**. 이미지 안 받음·가린 글자만. `docs/Jev_붙일_자리_검토.md` · `guidelines/10` · 아래 이력 |
 
 **모델 ID는 설정에서 읽고 코드에 상수로 박지 않는다.** 루트 `.env.example`는 설정 목록, `backend/app/config.py`는 기본값이다. 실제 키·비밀번호는 읽거나 출력하지 않는다.
 
 **측정 없이 모델·프롬프트를 바꾸지 않는다.** 추천은 측정 우선순위만 바꾼다. 신뢰구간이 겹치면 동률이며, 품질이 동률일 때 값으로 정한다. `no_longer_needed` F1 하나로 모델을 가르지 않는다.
+
+⚠️ **동률에서 값이 결정권을 갖는다** — 「가격만으로 안 바꾼다」는 측정 없이 값만 보고 바꾸지 말라는 뜻이다.
+⚠️ **필수해제(`no_longer_needed`) F1 하나로 모델을 가르지 않는다** — 같은 모델이 3회에서 **0.583~0.810**을 오갔다(`eval/results.md` 09-25).
 
 이전 선택·대안·탈락 이유·수치와 조건은 [모델 선정 이력](docs/규칙_모델선정_이력_1002.md)에 그대로 보존했다. 모델·프롬프트 작업에서는 이력과 `guidelines/10` · `eval/results.md`를 함께 읽는다.
 
