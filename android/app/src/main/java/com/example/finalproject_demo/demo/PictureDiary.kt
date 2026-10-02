@@ -144,9 +144,12 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
                     ?.let { askRename(day, it) }
                 continue
             }
-            // 그냥 이름표를 톡 — 이름을 불러 준다 (프로토타입 tapTag)
+            // 그냥 이름표를 톡 — 이름을 불러 준다 (프로토타입 tapTag). 새 획을 긋기 전까지 「그려줘」는 이 조각이다
             r is Reply.Tapped && r.value.startsWith("name:") -> {
-                day.pieces.firstOrNull { it.id == r.value.removePrefix("name:").toIntOrNull() }?.name?.let { say("${you(it)}!") }
+                day.pieces.firstOrNull { it.id == r.value.removePrefix("name:").toIntOrNull() }?.let { p ->
+                    day.focus = p.id to s.drawing.size
+                    p.name?.let { say("${you(it)}!") }
+                }
                 continue
             }
             r is Reply.Spoke -> {
@@ -154,8 +157,9 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
                     Heard.DONE -> break
                     Heard.DRAW_ME -> {
                         day.catchUp(s.drawing)
-                        // 「강아지 그려줘」면 강아지를 — 이름을 안 불렀으면 방금 그리던 조각
-                        val target = day.namedIn(r.text, except = -1)
+                        // 「강아지 그려줘」면 강아지를 — 이름을 안 불렀으면 방금 누른 이름표(그 뒤로 새 획이 없을 때), 아니면 방금 그리던 조각 (10-02 실기기)
+                        val tapped = day.focus?.takeIf { it.second == s.drawing.size }?.let { (id, _) -> day.pieces.firstOrNull { it.id == id } }
+                        val target = day.namedIn(r.text, except = -1) ?: tapped
                             ?: day.pieces.lastOrNull { s.drawing.lastOrNull() in it.strokes } ?: day.pieces.lastOrNull()
                         val what = target?.name?.let { "${you(it)}${eul(you(it))} " }.orEmpty()
                         when {

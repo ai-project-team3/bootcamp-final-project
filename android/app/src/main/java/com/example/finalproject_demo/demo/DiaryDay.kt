@@ -110,6 +110,9 @@ class DiaryDay {
     /** 오또가 지금 「뭐 그린 거야?」라고 묻는 조각 — 그림판이 그 조각에 고리를 띄운다 */
     var askingPiece by mutableStateOf<Int?>(null)
 
+    /** 방금 누른 이름표의 조각과 그때의 획 수 — 새 획을 긋기 전까지 「그려줘」는 이 조각이다 (10-02 실기기) */
+    var focus: Pair<Int, Int>? = null
+
     /**
      * 서버 대화 호출(`/turn`) 수 — **세기만 하고 막지 않는다.**
      * 상한을 둘지 · 얼마로 둘지는 #30 에서 정한다. 정해지면 [turnBudget] 에 넣는다(null = 제한 없음).

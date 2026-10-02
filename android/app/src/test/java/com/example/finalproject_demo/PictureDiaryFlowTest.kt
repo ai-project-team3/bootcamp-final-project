@@ -376,6 +376,30 @@ class PictureDiaryFlowTest {
         assertEquals("child", s.slotBy["whiteboard"])
     }
 
+    /** 다른 조각의 이름표를 누르고 「그려줘」 — 마지막에 그린 조각이 아니라 누른 조각을. 새 획을 그으면 다시 방금 그린 조각 (10-02 실기기) */
+    @Test
+    fun drawMeAfterTappingATagAimsAtThatPiece() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("강아지")
+        assertTrue(await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        s.drawing += stroke(0.7f)                                    // 멀리 — 마지막 조각은 이쪽
+        assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("해야")
+        assertTrue(await { s.line == "나도 해를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        val dog = s.diaryDay.pieces.first { it.name == "강아지" }.id
+        assertTrue(await { s.diaryDay.watching } != null)
+        d.send(Reply.Tapped("name:$dog", "이름 부르기"))
+        assertTrue(await { s.line == "강아지!" } != null)
+        d.tell("그려줘") { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" }
+    }
+
     /** 「강아지 그려줘」 — 마지막에 그린 조각이 아니라 부른 조각을. 이미 그리는 중이면 다시 주문하지 않고 그렇다고 말한다 (프로토타입) */
     @Test
     fun drawMeAimsAtThePieceTheChildNames() = run { d ->
