@@ -13,6 +13,7 @@ import com.example.finalproject_demo.ui.COOP_KINDS
 import com.example.finalproject_demo.ui.CoopReason
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -55,7 +56,7 @@ class CoopGuardTest {
         assertNull(g("누구랑 뭐 했어?").text)                                   // 의문사 둘
         assertNull(g("재밌었어?").text)                                         // 예/아니오
         assertNull(g("거기서 무엇을 하셨습니까?").text)                          // 존댓말
-        assertNull(g("소방관이 불을 끄다가 칼에 찔렸어. 누가 도와줬어?").text)     // 거친 말
+        assertNull(g("소방관이 칼로 찔러서 피가 났어. 누가 도와줬어?").text)     // 거친 말(금칙어 §1-2)
         assertNull(g("커다란 소방서 마당 옆에서 소방관 아저씨들이 무슨 일을 했어?").text) // 길이
         assertNull(g("뭐 했어").text)                                           // 물음표 없음
     }
@@ -104,7 +105,24 @@ class CoopGuardTest {
     @Test
     fun wordLists() {
         assertTrue(hasRoughWord("칼로 찔렀어"))
+        assertTrue(hasRoughWord("불 질러 버릴 거야"))
         assertFalse(hasRoughWord("피자 먹고 칼국수 먹었어"))
+        assertFalse(hasRoughWord("시발점에서 출발했어"))
+    }
+
+    /** 금칙어 정본 §0 허용 목록 — 감정 · 갈등 · 동화 단골 · 실패는 어떤 필터에도 걸리면 안 된다 (CLAUDE.md 규칙 7) */
+    @Test
+    fun theAllowListFromTheGuidelineNeverTrips() {
+        listOf(
+            "무섭다", "무서워", "슬프다", "울었다", "화났다", "짜증나", "싫어", "밉다", "억울해", "외로워", "부끄러워", "놀랐어",
+            "싸웠다", "다퉜다", "화냈다", "안 놀아줬다", "뺏었다", "밀었다", "넘어졌다", "다쳤다", "아프다",
+            "괴물", "귀신", "도깨비", "마녀", "용", "공룡", "외계인", "어둠", "밤", "숲속", "길을 잃다",
+            "못했다", "틀렸다", "졌다", "떨어뜨렸다", "부서졌다",
+        ).forEach { w -> assertFalse(w, hasRoughWord(w)); assertNotNull(w, coopGuard("$w 그다음에 뭐 했어?", CoopReason.DREAM, CoopSource.LLM).text) }
+    }
+
+    @Test
+    fun fantasyWords() {
         assertTrue(hasFantasyWord("공룡이 불을 뿜었어"))
         assertTrue(hasFantasyWord("용이 나왔어"))
         assertFalse(hasFantasyWord("용기를 냈어"))
