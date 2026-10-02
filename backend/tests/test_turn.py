@@ -152,3 +152,13 @@ def test_a_slow_judge_costs_the_line_not_the_verdict(monkeypatch):
     req = TurnRequest(mode="story", slots={}, question="q", utterance="바닷속")
     out = aio.run(turn_route.turn(req))
     assert out.judge == v and out.line is None and not called
+
+
+# #53 C: a coop question follows the reason the parent picked, the same as the book (#52)
+def test_coop_sends_the_reason_and_other_modes_do_not():
+    def block(mode, reason=None):
+        return turn_route.user(TurnRequest(mode=mode, slots={}, question="거기서 무슨 일을 할까?", utterance="불 꺼",
+                                           template="직업 · 소방관", reason=reason), None)
+    assert "reason:soon" in block("coop", "soon")
+    assert "reason:done" in block("coop")
+    assert "\nreason:" not in block("story", "soon") and "\nreason:" not in block("diary")   # not next_reason
