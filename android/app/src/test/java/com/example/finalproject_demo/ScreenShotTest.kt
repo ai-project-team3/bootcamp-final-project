@@ -247,7 +247,6 @@ class ScreenShotTest {
         compose.setContent { Box(Modifier.fillMaxSize().background(Bg)) { StageView(d) } }
         compose.onRoot().captureRoboImage(
             File("screens/puzzle.png").path,
-            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
         )
     }
 
@@ -273,7 +272,6 @@ class ScreenShotTest {
         compose.setContent { Box(Modifier.fillMaxSize().background(Bg)) { StageView(d) } }
         compose.onRoot().captureRoboImage(
             File("screens/gift.png").path,
-            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
         )
     }
 

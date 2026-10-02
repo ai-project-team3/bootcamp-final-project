@@ -197,8 +197,8 @@ class CoopFlowTest {
 
         val askedTexts = d.walkToBook()
         val places = setOf("큰 건물", "밖", "사람 많은 곳", "바쁜 곳", "소방관이 일하는 곳")
-        // 앞에서 말한 곳이 「무슨 일」 질문의 「거기」 자리에 들어간다 (10-01)
-        assertTrue("앞 답이 다음 질문에 안 들어갔다: $askedTexts", "${s.place}에서 무슨 일을 할까?" in askedTexts)
+        // 앞에서 말한 곳이 「무슨 일」 질문의 「거기」 자리에 들어간다 (10-01) — 질문은 소방관에 맞춘 말 (10-02)
+        assertTrue("앞 답이 다음 질문에 안 들어갔다: $askedTexts", "${s.place}에서 불이 나면 소방관은 무슨 일을 할까?" in askedTexts)
         assertTrue("칸 값이 그 이야기 것이 아니다: ${s.place}", s.place in places)
         // 꼬리질문 답까지 — 「블록을 높이높이 쌓아 올렸어요」 같은 일기 문장이 소방관 이야기 책에 들어가면 안 된다
         assertTrue("일기 문장이 책에 들어갔다: ${s.slots}", s.slots.values.none { "어린이집" in it || "블록" in it || "미끄럼틀" in it })

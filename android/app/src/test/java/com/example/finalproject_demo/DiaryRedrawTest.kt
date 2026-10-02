@@ -125,6 +125,29 @@ class DiaryRedrawTest {
         }
     }
 
+    /**
+     * 오또 그림이 다 되면 붓 멈춤을 또 기다리지 않는다 — 아이가 그리기를 멈추고 기다리면 그림이 영영 안 떴다(10-02 실기기).
+     * 그리는 중(손가락이 판에) · 말하는 중이면 끝날 때까지 기다렸다가 보여 준다
+     */
+    @Test
+    fun ottosDrawingShowsWhenItArrivesWhileTheChildWaits() {
+        live({ _, _ -> delay(200); byteArrayOf(1, 2, 3) }) { d ->
+            val s = d.s
+            d.go(Scene.DIARY)
+            assertTrue(await { d.send(Reply.Tapped("draw", "그릴래")); s.buttons.any { "붓이 멈춤" in it.label } } != null)
+            s.drawing += line(Color.Blue, .10f, .40f, .30f, .40f, .30f, .80f, .10f, .80f)
+            assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+            d.say("우리 집이야") { "우리 집이구나" in s.line }
+            assertTrue(await { s.line == "나도 우리 집을 그려볼까?" } != null)
+            s.diaryDay.penDown = true                                // 오는 사이 다시 긋기 시작했다
+            d.say("응!") { "나도 그려 볼게" in s.line }
+            delay(600)
+            assertTrue("그리는 중에 그림 고르기를 띄웠다", "짠!" !in s.line)
+            s.diaryDay.penDown = false                               // 손을 떼고 기다린다 — 붓 멈춤 없이
+            assertTrue("다 된 그림을 보여 주지 않았다 — 말=${s.line}", await { "짠!" in s.line } != null)
+        }
+    }
+
     @Test
     fun whenOttoCannotDrawItTheChildsOwnStays() {
         live({ _, _ -> null }) { d ->

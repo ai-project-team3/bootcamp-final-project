@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.ui
 
 import com.example.finalproject_demo.demo.hasDiaryCover
+import com.example.finalproject_demo.demo.coverKey
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -161,7 +162,7 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
             ) {
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     // 그림일기는 아이 그림이 표지다 (ui/DiaryViews.kt · #46 과 같은 한 줄 요청)
-                    if (d.s.hasDiaryCover(b.title)) DiaryShelfCover(d.s, b.title, Modifier.fillMaxSize())
+                    if (d.s.hasDiaryCover(b.coverKey())) DiaryShelfCover(d.s, b.coverKey(), Modifier.fillMaxSize())
                     else AssetImage(b.bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { Box(Modifier.fillMaxSize().background(Sun2)) }
                     // 책등 그림자
                     Box(Modifier.width(7.dp).fillMaxHeight().background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent))))

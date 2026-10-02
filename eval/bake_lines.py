@@ -10,7 +10,8 @@ line (the server's, one with a name read aloud, a child's echo) still goes to /t
 "written whole in the app" filter kept 60 of 359 and missed plain lines like 「무슨 일이 생겼어?」.
 
 Voice: the server's own settings (backend/app/config.py openai_tts_*), so a baked line and
-a live one sound like the same mascot. Re-encoded to 40 kbps mono to keep the app small.
+a live one sound like the same mascot. Re-encoded to 40 kbps mono to keep the app small, at one
+loudness (backend/app/audio_level.py · #42: the first 365 spread over 14 dB).
 
   OTTO_SPEECH_DUMP=… ./gradlew :app:testDebugUnitTest     (android/)
   py eval/bake_lines.py <dump file>     → android/app/src/main/assets/voice/<key>.mp3
@@ -25,16 +26,18 @@ import re
 import sys
 from pathlib import Path
 
-import av
 import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
+from app.audio_level import level  # noqa: E402
 from app.config import settings  # noqa: E402
 
 OUT = ROOT / "android/app/src/main/assets/voice"
 LIST = Path(__file__).parent / "baked_lines.tsv"
-KBPS = 40
+
+
+TITLE = re.compile("『")
 
 
 def norm(s: str) -> str:
@@ -62,30 +65,16 @@ def speak(text: str) -> bytes:
 
 
 def shrink(mp3: bytes) -> bytes:
-    """mono · 24 kHz · KBPS kbps mp3"""
-    src = av.open(io.BytesIO(mp3))
-    buf = io.BytesIO()
-    dst = av.open(buf, "w", format="mp3")
-    st = dst.add_stream("libmp3lame", rate=24000)
-    st.layout = "mono"
-    st.bit_rate = KBPS * 1000
-    res = av.AudioResampler(format=st.format, layout="mono", rate=24000)
-    for frame in src.decode(audio=0):
-        for f in res.resample(frame):
-            for p in st.encode(f):
-                dst.mux(p)
-    for f in res.resample(None):
-        for p in st.encode(f):
-            dst.mux(p)
-    for p in st.encode(None):
-        dst.mux(p)
-    dst.close()
-    return buf.getvalue()
-
+    """mono · 24 kHz · 40 kbps mp3 at the one mascot loudness — the same function /tts uses (#42),
+    so a baked line and a live one come out equally loud"""
+    return level(mp3)
 
 def main() -> None:
     dump = Path(sys.argv[1])
     said = {norm(l) for l in dump.read_text(encoding="utf-8").splitlines() if l.strip()}
+    # a book title is made of the child's own words (「"그만!" 용감한 너」) — the test script's
+    # title never matches a real child's, so baking it only adds weight. Titles go to /tts (#42 · 10-02)
+    said = {l for l in said if not TITLE.search(l)}
     lines = sorted(said)
     print(f"baking {len(lines)} lines")
     OUT.mkdir(parents=True, exist_ok=True)
