@@ -422,6 +422,20 @@ suspend fun Director.coopWriteBook() {
 }
 
 /**
+ * 서버가 쓴 협업 책에서 **미션을 끝낸 뒤** 그 쪽에 붙는 결과 문장 (#52 2번). 서버 문장은 미션 직전에서 끝나고 결과는 앱이 쓴다.
+ * 틀 문장 책에는 이 결과가 원래 들어 있었다(「먼지를 탈탈 털어 냈어」) — 서버 문장 책에서만 빠졌던 것을 채운다.
+ * 아직 안 끝냈거나 미션 쪽이 아니면 null
+ */
+internal fun DemoState.coopMissionResult(kind: PageKind): String? = when (kind) {
+    PageKind.RUB -> if (m1Result != null) mission1().blobName.let { "${it}${ga(it)} 사라졌어요." } else null
+    PageKind.DRAG -> if (m2Result != null) {
+        if (templateKey in setOf("A", "G")) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
+        else "$childName${eun(childName)} ${m2Clause()}"     // 같이 간 사람이 없으면 「오늘 이야기를 들어준 마스코트에게 …」
+    } else null
+    else -> null
+}
+
+/**
  * 협업 책 쪽의 미션 ID (`docs/미션_구상.md` §3). 미션 1 = 문지르기(A6), 미션 2 = 건네주기(E1) ·
  * 틀 A · G 면 그림 퍼즐(A3) — 책 화면(`Book.kt`)이 그리는 미션과 같아야 한다. 미션 쪽이 아니면 null
  */
