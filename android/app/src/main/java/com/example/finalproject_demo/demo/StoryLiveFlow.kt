@@ -61,7 +61,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     if (s.storyStartedAtMs == 0L) s.storyStartedAtMs = System.currentTimeMillis()
     run {
         while (true) {
-            val end = s.storyEndCondition(s.storyStartedAtMs, System.currentTimeMillis())
+            val end = s.storyEndCondition()
             if (end != null) { s.endReason = end; break }
             val prompt = s.nextStoryPrompt(s.storyServerQuestion) ?: break
             if (prompt.slot == "sound" && !s.storySoundAttempted) {
