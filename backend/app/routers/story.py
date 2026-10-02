@@ -4,15 +4,14 @@ The prompt is read from eval/, not copied (one thing in one place):
 story → story_prompt.md, diary · coop → story_prompt_diary.md.
 """
 import json
-import re
 from functools import lru_cache
 
 from fastapi import APIRouter, HTTPException
 
 from ..config import REPO, settings
-from ..filters.blocklist import BLOCK, ALLOW
+from ..filters.blocklist import has_unknown_placeholder, is_blocked
 from ..llm.client import LLMError, complete
-from ..llm.judge_prompt import system_block
+from ..llm.judge_prompt import load_schema, system_block
 from ..schemas.story import Scene, StoryRequest, StoryResult
 
 router = APIRouter()
@@ -30,10 +29,8 @@ def system(mode: str) -> str:
     return system_block(EVAL / ("story_prompt.md" if mode == "story" else "story_prompt_diary.md"))
 
 
-@lru_cache(maxsize=1)
 def schema() -> dict:
-    s = json.loads((EVAL / "story_schema.json").read_text(encoding="utf-8"))
-    return {k: v for k, v in s.items() if k not in ("name", "description")}
+    return load_schema("story_schema.json")
 
 
 # What each page is for. The app's PageKind names; the meanings follow StoryBank.kt templates.
@@ -93,8 +90,18 @@ def plan(req: StoryRequest) -> str:
                          " 미션 이름 · 도구 이름 · '직전' 같은 설명 말은 쓰지 않고 이야기 속 장면으로만 보여 준다")
         lines.append(line)
     if req.mode != "story":
-        lines.append("있었던 일이다. 미션 쪽도 칸에 있는 일로만 쓰고, 없던 일을 지어내지 않는다.")
+        lines.append(f"{TENSE[req.reason if req.mode == 'coop' else None]} 미션 쪽도 칸에 있는 일로만 쓰고, 없던 일을 지어내지 않는다.")
     return "\n".join(lines)
+
+
+# What kind of day the book is about. diary is always a day that happened; coop follows the
+# reason the parent picked (#52) — a field trip next week must not come out as "다녀왔어요".
+TENSE = {
+    None: "있었던 일이다.",
+    "done": "있었던 일이다.",
+    "soon": "앞으로 할 일이다. 아직 일어나지 않았으니 「~할 거예요」 · 「~할까요?」처럼 기대하는 말로 쓰고, 이미 한 일처럼 쓰지 않는다.",
+    "dream": "아이가 좋아해서 상상한 이야기다. 그림책처럼 지난 일로 써도 되지만, 실제로 있었던 일이라고 말하지 않는다.",
+}
 
 
 def user(req: StoryRequest) -> str:
@@ -105,11 +112,11 @@ def user(req: StoryRequest) -> str:
                 f"이야기 템플릿: {req.template or '(없음)'}\n아이 수준: {req.level or '(없음)'}{tail}")
     by = json.dumps(req.slot_by, ensure_ascii=False, separators=(",", ":"))
     keep = json.dumps(req.keep, ensure_ascii=False)
-    return f"모드: {req.mode}\n채워진 칸: {slots}\n칸마다 by: {by}\n맺음: {keep}{tail}"
-
-
-def _eojeol(text: str) -> list[str]:
-    return [w.strip(".,!?~…\"'") for w in text.split()]
+    head = f"모드: {req.mode}\n"
+    if req.mode == "coop":
+        # without a page plan the tense still has to reach the model
+        head += f"고른 이야기: {req.template or '(없음)'}\n" + ("" if req.pages else f"{TENSE[req.reason]}\n")
+    return f"{head}채워진 칸: {slots}\n칸마다 by: {by}\n맺음: {keep}{tail}"
 
 
 def check(result: StoryResult, mode: str, pages: list | None = None) -> str | None:
@@ -123,11 +130,9 @@ def check(result: StoryResult, mode: str, pages: list | None = None) -> str | No
         if not lo <= len(result.scenes) <= hi:
             return f"{len(result.scenes)} scenes (want {lo}-{hi})"
     for sc in result.scenes:
-        words = _eojeol(sc.caption)
-        if any(w in BLOCK for w in words) and not any(w in ALLOW for w in words):
+        if is_blocked(sc.caption):
             return f"blocked word in scene {sc.index}"
-        # a real name would mean the model invented one: names come in only as {주인공} · {친구n}
-        if re.search(r"\{(?!주인공\}|친구\d\})[^}]*\}", sc.caption):
+        if has_unknown_placeholder(sc.caption):
             return f"unknown placeholder in scene {sc.index}"
     return None
 

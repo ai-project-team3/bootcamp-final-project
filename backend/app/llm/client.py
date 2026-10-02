@@ -1,7 +1,7 @@
 """One LLM, two effort settings. Spec: 노션 「기능별 모델선정」 §2-2.
 
-Judge and story have opposite latency budgets (2s vs 20s) but that is an
-effort setting, not a reason for two models. Split only if story quality
+Judge and story have opposite latency budgets (judge_deadline_s 18 s vs story_deadline_s
+55 s, effort none vs high) but that is a setting, not a reason for two models. Split only if story quality
 misses the bar in 노션 「오늘 모델검증 역할」 §5.
 
 Provider is a setting. Only OpenAI is wired: gpt-6-luna won the 09-25

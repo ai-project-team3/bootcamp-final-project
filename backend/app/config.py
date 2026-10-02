@@ -26,7 +26,6 @@ class Settings(BaseSettings):
     # the mascot line waits on the judge, so it gets the judge's latency budget
     llm_effort_line: str = "none"
 
-    stt_provider: str = "local"
     # 09-23 measured: large-v3 halves CER for ages 3-6 against turbo (57->37% at 3,
     # 26->15% at 5) for +0.23s. .env is gitignored, so this default is what a fresh
     # checkout or CI actually runs with — it has to be the confirmed model, not turbo.
@@ -38,7 +37,7 @@ class Settings(BaseSettings):
     stt_debug_dir: str = ""
 
     # 09-25 vendor, 09-28 team scores: Ruri (smart) was the only 12/12. The lineup is
-    # still open, so the voice is a setting and the app may pass its own voice_id.
+    # still open, so the voice is a setting and the app may pass its own voice_id (TypeCast only — OpenAI ignores it).
     typecast_api_key: str = ""
     typecast_model: str = "ssfm-v30"
     typecast_voice_id: str = "tc_6699eb3849dfac016c29444c"   # Siwoo (10-01 조장 · was Ruri tc_65a8c82a7e7bded32947497e)
@@ -81,8 +80,6 @@ class Settings(BaseSettings):
     image_warmup: bool = True            # draw one picture at start so models are loaded
     # rule 8: our image model has no safety filter — every picture is checked
     moderation_model: str = "omni-moderation-latest"
-
-    port: int = 8000
 
 
 settings = Settings()
