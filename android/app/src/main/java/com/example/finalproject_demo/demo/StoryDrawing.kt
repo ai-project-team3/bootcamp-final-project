@@ -24,7 +24,8 @@ suspend fun Director.prepareStoryFriendDrawing() {
         log("아이 그림 ${s.drawing.size}획 · 원본을 책에 사용 · 서버 전송 없음")
     }
     s.reactions++
-    s.stage = Stage.Show(s.friendArt, "우리 이야기 친구")
+    val label = s.slots["name"]?.takeIf(String::isNotBlank) ?: newcomer
+    s.stage = Stage.Show(s.friendArt, label)
     say("좋아! 이 모습 그대로 책에 넣을게.")
     pause(900)
     mark("draw")
