@@ -1,4 +1,5 @@
-"""POST /judge — one call per turn. ~16 per session.
+"""POST /judge — the verdict alone. The app calls /turn (judge + line); this route serves the tests,
+the eval harness and judge.run() for /turn.
 
 The model reads the whole slot state and decides what to ask next; the rules
 here keep the story from wandering. Spec: guidelines/7_프롬프트.md §2.

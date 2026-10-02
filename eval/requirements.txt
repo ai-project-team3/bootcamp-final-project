@@ -1,3 +1,6 @@
-# 외부 패키지 없음.
-# 실제 API 호출도 Python 표준 라이브러리(urllib)로 SSE를 직접 처리합니다.
-# 권장 Python: 3.10+
+# 하네스 본체(run_judge · score · preflight)는 표준 라이브러리(urllib)만 쓴다 — 설치 없이 돈다.
+# 아래는 그 밖의 측정 스크립트가 쓰는 것. 필요한 것만 깐다. 권장 Python: 3.10+
+httpx          # bake_lines · bake_neutral · bench_tts_pace · bench_turn_split · stt_live_check
+av<19          # bake_lines(mp3 줄이기) · voice_pitch — backend 와 같은 고정 (10-01: av 19 에서 /stt 502)
+numpy          # voice_pitch · backend stt
+# faster-whisper   # stt_child_bench · stt_bias_bench — GPU PC 에서만, backend/requirements.txt 를 따른다

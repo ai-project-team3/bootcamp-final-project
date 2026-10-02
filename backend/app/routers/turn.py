@@ -7,18 +7,16 @@ The phone fills any missing half from its script (spec §3-0).
 
 The prompt is read from eval/line_prompt.md, not copied (one thing in one place).
 """
-import json
 import logging
-import re
 import time
 from functools import lru_cache
 
 from fastapi import APIRouter, HTTPException
 
 from ..config import REPO, settings
-from ..filters.blocklist import ALLOW, BLOCK
+from ..filters.blocklist import eojeol, has_unknown_placeholder, is_blocked
 from ..llm.client import LLMError, complete
-from ..llm.judge_prompt import system_block
+from ..llm.judge_prompt import load_schema, system_block
 from ..schemas.judge import JudgeResult
 from ..schemas.turn import Line, TurnRequest, TurnResult
 from . import judge
@@ -37,10 +35,8 @@ def system() -> str:
     return system_block(EVAL / "line_prompt.md")
 
 
-@lru_cache(maxsize=1)
 def schema() -> dict:
-    s = json.loads((EVAL / "line_schema.json").read_text(encoding="utf-8"))
-    return {k: v for k, v in s.items() if k not in ("name", "description")}
+    return load_schema("line_schema.json")
 
 
 def user(req: TurnRequest, v: JudgeResult | None) -> str:
@@ -65,21 +61,17 @@ def user(req: TurnRequest, v: JudgeResult | None) -> str:
     )
 
 
-def _eojeol(text: str) -> list[str]:
-    return [w.strip(".,!?~…\"'") for w in text.split()]
-
-
 def check(line: Line) -> str | None:
     """Why this line must not reach the child, or None. An unsafe line is dropped, not patched."""
     for field in ("ack", "expand", "question"):
         text = getattr(line, field)
         if not text:
             continue
-        words = _eojeol(text)
-        if any(w in BLOCK for w in words) and not any(w in ALLOW for w in words):
+        if is_blocked(text):
             return f"blocked word in {field}"
-        if re.search(r"\{(?!주인공\}|친구\d\})[^}]*\}", text):
+        if has_unknown_placeholder(text):
             return f"unknown placeholder in {field}"
+        words = eojeol(text)
         if len(words) > _LIMITS[field]:
             log.info("line %s over %d eojeol: %d", field, _LIMITS[field], len(words))
     return None

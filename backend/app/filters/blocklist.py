@@ -8,6 +8,7 @@ Two things this must get right, and one is easy to miss:
   - never block the allow-list. Fear, monsters and fighting are what a
     five-year-old's story is made of; a filter that eats them eats the product.
 """
+import re
 from pathlib import Path
 
 WORDS = Path(__file__).parent / "words"
@@ -29,15 +30,23 @@ ALLOW = _load("allow.txt")        # wins over BLOCK, always
 REPORT_GUARD = _load("report_guard.txt")
 
 
-def _eojeol(text: str) -> list[str]:
+def eojeol(text: str) -> list[str]:
     return [w.strip(".,!?~…\"'") for w in text.split()]
 
 
 def is_blocked(utterance: str) -> bool:
-    words = _eojeol(utterance)
+    words = eojeol(utterance)
     if any(w in ALLOW for w in words):
         return False
     return any(w in BLOCK for w in words)
+
+
+# names reach the model only as {주인공} · {친구n}; any other {…} means the model made one up
+_UNKNOWN_PLACEHOLDER = re.compile(r"\{(?!주인공\}|친구\d\})[^}]*\}")
+
+
+def has_unknown_placeholder(text: str) -> bool:
+    return bool(_UNKNOWN_PLACEHOLDER.search(text))
 
 
 def guard_report(sentence: str) -> bool:

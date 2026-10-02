@@ -1,7 +1,7 @@
-"""POST /tts — the mascot's voice. TypeCast relay; the key stays on the server.
+"""POST /tts — the mascot's voice. OpenAI by default (settings.tts_provider), TypeCast when set; the key stays on the server.
 
 Only the mascot's lines come here. What the child recorded never leaves the
-phone (difference 1). Fixed lines are baked per voice and bundled; this route is
+phone (difference 1). The app's own lines are baked into the app (eval/bake_lines.py); this route is
 for the variable ones (echoes, the judge's next question).
 
 Nothing sent here may contain a real name: names are masked on the phone and
@@ -40,7 +40,7 @@ def _silence_wav(seconds: float = 0.3, rate: int = 16000) -> bytes:
 
 @router.post("/tts")
 async def speak(req: TtsRequest) -> Response:
-    """TypeCast first, OpenAI if it fails (settings.tts_provider · tts_fallback · 10-01).
+    """settings.tts_provider first, then tts_fallback if set (10-01 lead: openai alone, no fallback).
     The whole thing stays inside tts_deadline_s (the phone waits 20 s); the answer says who spoke
     in `X-Otto-TTS` so a deploy can be checked from outside."""
     if settings.mock:
