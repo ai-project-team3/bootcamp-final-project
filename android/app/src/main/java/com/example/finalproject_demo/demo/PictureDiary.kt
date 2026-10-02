@@ -1145,12 +1145,24 @@ internal fun pieceNameFrom(r: Reply.Spoke): String? {
     t = t.substringBefore("인데").trim()                      // 「자동차인데 빨간 거」 → 「자동차」
     t = withoutEnding(t)
     t = DREW.replace(t, "").trim()
+    t = withoutRepeat(t)
     if (t.isEmpty() || PREDICATE.containsMatchIn(t)) return null
     val words = t.split(Regex("\\s+"))
     if (t.length <= 12 && words.size <= 4) return t
     // 긴 말 — 「내가 좋아하는 티라노사우루스」처럼 마지막 낱말을 꾸미는 말이면 그 낱말만
     val last = words.last()
     return last.takeIf { words.size >= 2 && ADNOMINAL.containsMatchIn(words[words.size - 2]) && last.length in 2..12 }
+}
+
+/**
+ * 받아쓰기가 말을 되풀이해 적은 것을 하나로 — 「나무 나무」 → 「나무」 · 「우리 집 우리 집」 → 「우리 집」 (10-02 실기기).
+ * 같은 낱말이 잇달아 오거나, 말 전체가 같은 두 토막이면 앞 토막만 둔다. 「엄마 아빠」처럼 다른 낱말은 그대로
+ */
+internal fun withoutRepeat(t: String): String {
+    val w = t.split(Regex("\\s+")).filter(String::isNotEmpty)
+    val once = w.filterIndexed { i, x -> i == 0 || x != w[i - 1] }
+    if (once.size % 2 == 0 && once.size >= 2 && once.take(once.size / 2) == once.drop(once.size / 2)) return once.take(once.size / 2).joinToString(" ")
+    return once.joinToString(" ")
 }
 
 /** 「집이야」 → 「집」 · 「고양이에요」 → 「고양이」 · 「강아지요」 → 「강아지」. 끝이 없으면 그대로 */
