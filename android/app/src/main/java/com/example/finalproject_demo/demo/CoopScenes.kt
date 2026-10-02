@@ -427,13 +427,24 @@ suspend fun Director.coopWriteBook() {
         slotBy = s.slotBy.filterKeys { it in Server.SLOTS },
         keep = s.slots["keep"]?.takeIf(String::isNotBlank)?.let(mask::mask),
         level = s.level.name.lowercase(),
-        pages = pages.map { Server.Page(it.kind.name) },
+        // 미션 쪽에 미션 ID 를 단다 — 서버가 그 쪽을 미션 직전 상황으로 끝맺는다 (#52 3번 · 동화 `storyPagePlan` 과 같은 표)
+        pages = pages.map { Server.Page(it.kind.name, s.coopPageMission(it.kind)) },
         // 고른 이야기와 이유 — 이유에 따라 책 시제가 갈린다(곧 해요 = 앞으로 할 일 · 좋아해요 = 상상) (#52 1번 · 서버 `77a9d5c`)
         template = s.coopTurnContext()?.let(mask::mask),
         reason = s.coopStoryReason(),
     )?.map(mask::unmask)
     if (s.useCoopCaptions(captions)) log("서버가 쓴 협업 책 문장 ${pages.size}쪽을 받음 (/story)")
     else log("협업 책 문장 생성 실패 또는 쪽 수 불일치 → 틀 문장 그대로")
+}
+
+/**
+ * 협업 책 쪽의 미션 ID (`docs/미션_구상.md` §3). 미션 1 = 문지르기(A6), 미션 2 = 건네주기(E1) ·
+ * 틀 A · G 면 그림 퍼즐(A3) — 책 화면(`Book.kt`)이 그리는 미션과 같아야 한다. 미션 쪽이 아니면 null
+ */
+internal fun DemoState.coopPageMission(kind: PageKind): String? = when (kind) {
+    PageKind.RUB -> "A6"
+    PageKind.DRAG -> if (templateKey in setOf("A", "G")) "A3" else "E1"
+    else -> null
 }
 
 /**
