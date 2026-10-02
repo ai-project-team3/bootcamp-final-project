@@ -129,7 +129,24 @@ class Director(
     }
 
     fun send(r: Reply) {
+        // 마스코트가 말하는 중에 아이가 화면을 눌렀다 — 말을 끊고 그 입력으로 바로 넘어간다(10-02 조장).
+        // 전에는 목소리가 끝날 때까지 기다린 뒤 [drain] 이 그 탭을 버려서 「눌러도 안 넘어간다」였다.
+        // 「붓 멈춤」(DiaryViews)은 누른 게 아니라 그리기가 보낸 신호라 끊지 않는다
+        if (r is Reply.Tapped && !r.byMascot && r.value != "pause") cutVoiceFor(r)
         input.trySend(r)
+    }
+
+    // 말 끊고 들어온 입력 — 곧바로 오는 [drain] 한 번은 이것을 버리지 않는다.
+    // 짧게만 살린다: 한참 뒤의 drain 은 다른 화면이라 그때 살리면 앞 화면 탭이 다음 화면에 들어간다(#50 ④)
+    private var cutIn: Reply? = null
+    private var cutInAt = 0L
+    private val CUT_IN_KEEP_MS = 1_500L
+
+    private fun cutVoiceFor(r: Reply) {
+        if (synchronized(voiceLines) { voiceLines.isEmpty() }) return
+        hushVoice()
+        cutIn = r
+        cutInAt = System.currentTimeMillis()
     }
 
     /** 화면을 탭할 때까지 기다린다 (대기 타이머 없는 장면용). */
@@ -156,7 +173,14 @@ class Director(
     }
 
     private fun drain() {
-        while (input.tryReceive().isSuccess) { /* 이전 장면의 입력 버리기 */ }
+        val keep = cutIn?.takeIf { System.currentTimeMillis() - cutInAt < CUT_IN_KEEP_MS }
+        cutIn = null
+        var kept = false
+        while (true) {
+            val r = input.tryReceive().getOrNull() ?: break      // 이전 장면의 입력 버리기
+            if (r === keep && !kept) kept = true
+        }
+        if (kept) input.trySend(keep!!)                          // 말을 끊고 누른 것만 이 화면의 답으로
     }
 
     /**
@@ -446,6 +470,7 @@ class Director(
     fun skip() {
         if (!s.nextEnabled) return
         s.micOn = false
+        cutVoiceFor(Reply.Silent)                     // ➡️ 도 말하는 중이면 끊고 넘어간다(10-02)
         send(Reply.Silent)
     }
 
