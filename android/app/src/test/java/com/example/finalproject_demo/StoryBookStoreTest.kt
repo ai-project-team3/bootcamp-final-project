@@ -116,23 +116,6 @@ class StoryBookStoreTest {
         assertEquals(listOf(second, first), LocalStoryBookStore(context).load())
     }
 
-    /** 같이 만들기 책은 모드까지 남아 같이 만들기로 다시 열린다. 모드가 없던 예전 저장분은 동화다 (10-02) */
-    @Test
-    fun aCoopBookKeepsItsModeAndOldBooksStayStories() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val prefs = context.getSharedPreferences("story_books", Context.MODE_PRIVATE)
-        prefs.edit().clear().commit()
-        val coop = SavedStoryBook("c", "같이 지은 오늘 이야기", "space", "bg_firestation",
-            listOf(SavedStoryPage(PageKind.DEPART, "소방서에 갔어요")), mode = com.example.finalproject_demo.demo.StoryMode.COOP)
-        LocalStoryBookStore(context).save(coop)
-        assertEquals(coop, LocalStoryBookStore(context).load().single())
-
-        val old = JSONArray().put(JSONObject().put("id", "o").put("title", "옛 책").put("themeKey", "sea")
-            .put("bgName", "bg_sea").put("pages", JSONArray().put(JSONObject().put("kind", "DEPART").put("caption", "문장"))))
-        prefs.edit().putString("books", old.toString()).commit()
-        assertEquals(com.example.finalproject_demo.demo.StoryMode.STORY, LocalStoryBookStore(context).load().single().mode)
-    }
-
     @Test
     fun incompleteOrOtherModeIsNotSaved() {
         val s = DemoState()

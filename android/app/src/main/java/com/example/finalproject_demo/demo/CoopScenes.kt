@@ -54,7 +54,6 @@ val DemoState.coopReady: Boolean get() = coopPick != null || hasCoopQuestions
  * 3. 고른 이야기가 없으면(질문만 적었으면) 일기와 같이 아이가 말한 곳으로
  */
 internal fun DemoState.coopBackdrop(): String {
-    storyBackground?.let { return it }   // 책장에서 다시 연 책 — 저장해 둔 배경 그대로 (10-02)
     val pick = coopPick ?: return diaryPlaceBg(placeLabel)
     coopItem(pick.name)?.let { return it.bg }
     val spoken = diaryPlaceBg(placeLabel)
