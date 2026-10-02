@@ -107,7 +107,7 @@ class PictureDiaryFlowTest {
     private fun stroke(x: Float) = Stroke(Color.Blue, listOf(Offset(x, 0.3f), Offset(x + 0.1f, 0.6f)))
 
     @Test
-    fun aTalkingDayAsksAtMostThreeThingsAndBecomesAPictureDiary() = run { d ->
+    fun aTalkingDayAsksThreeSlotsThenTomorrowAndBecomesAPictureDiary() = run { d ->
         val s = d.s
         d.go(Scene.DIARY)
         assertTrue("D0 은 방에서 묻는 시작 화면이다", await { s.stage is DiaryStart } != null)
@@ -119,16 +119,17 @@ class PictureDiaryFlowTest {
             if (await(2_000) { s.buttons.any { "🎬 오늘 이야기 시연 답" in it.label } } == null) break
             d.push("🎬 오늘 이야기 시연 답")
         }
-        assertEquals("다 그린 뒤 묻는 것은 세 번까지", ASK_AFTER_DRAWING, s.stepsDone)
+        assertEquals("다 그린 뒤 칸 질문 세 번 + 「내일」 한 번 (「내일」은 칸 질문 수에 안 센다 · 10-02)", ASK_AFTER_DRAWING + 1, s.stepsDone)
         assertEquals("story_ready", s.endReason)
         assertEquals(listOf("child", "child", "child"), listOf("place", "problem", "solution").map { s.slotBy[it] })
         assertTrue("빈 칸을 마스코트가 메웠다: ${s.slotBy}", s.slotBy.values.none { it == "mascot" })
-        assertNull("세 번을 넘겨 내일 이야기까지 물었다", s.slots["keep"])
+        assertEquals("칸 질문을 세 번 다 물어도 「내일」은 묻는다", "child", s.slotBy["keep"])
 
         assertTrue("그림일기로 안 왔다", await { s.stage is DiaryPaper && "나는 오늘" in s.line } != null)
         val book = buildDiaryBook(s.diaryBookInput())
         assertEquals(
-            listOf("나는 오늘 어린이집에 갔어요.", "높이 쌓은 블록이 와르르 무너졌어요.", "마침내 다시 쌓은 블록은 이번엔 무너지지 않았어요."),
+            listOf("나는 오늘 어린이집에 갔어요.", "높이 쌓은 블록이 와르르 무너졌어요.", "마침내 다시 쌓은 블록은 이번엔 무너지지 않았어요.",
+                "내일은 아래를 튼튼하게 해서 쌓기로 마음먹었어요."),
             book.map { it.text },
         )
         assertTrue("오늘 기분을 묻지 않았다", book.last().asksFeel)
@@ -138,7 +139,7 @@ class PictureDiaryFlowTest {
         assertEquals("얼굴로 고른 기분", "오늘은 참 신났어요.", s.diaryDay.feel?.line)
         assertTrue(d.push("책장에 꽂기"))
         assertTrue("책장으로 안 갔다", await { s.scene == Scene.SHELF } != null)
-        assertEquals("오늘 그림일기가 책장 맨 앞에 꽂히지 않았다", 3, s.shelf.first().pages)
+        assertEquals("오늘 그림일기가 책장 맨 앞에 꽂히지 않았다", 4, s.shelf.first().pages)
     }
 
     @Test
