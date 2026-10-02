@@ -980,14 +980,38 @@ private suspend fun Director.giveDiaryBook() {
     // 표지는 오늘 그린 그림 — 조각이 없으면 화이트보드 한 덩어리
     val coverPieces = s.diaryDay.pieces.toList().ifEmpty { if (s.sceneDrawing.isEmpty()) emptyList() else listOf(DiaryPiece(0, s.sceneDrawing.toList())) }
     if (coverPieces.isNotEmpty()) s.diaryCovers[title] = DiaryCover(coverPieces, s.drawingAspect)
-    s.shelf.add(0, ShelfBook(title, s.themeKey, s.bgName, pages = pages, fresh = true))
+    // 폰 안에 저장한다(#37) — 앱을 꺼도 책장에 남고 「다시 읽기」로 연다. 서버에는 보내지 않는다
+    val book = s.completedDiaryBook(title)
+    when {
+        !DiaryShelf.attached(s) -> {
+            s.shelf.add(0, ShelfBook(title, s.themeKey, s.bgName, pages = pages, fresh = true))
+            log("책장에 꽂기 → 저장소가 없다 · 앱을 켜 둔 동안만 남는다")
+        }
+        book != null && DiaryShelf.save(s, book) -> {
+            s.shelf.add(0, book.onShelf(fresh = true))
+            log("책장에 꽂기 → 폰 안에 저장(diary_books · 그림 ${book.pieces.size}조각) · 서버에는 보내지 않음")
+        }
+        // 저장에 실패한 책은 저장된 것처럼 꽂지 않는다 — 동화와 같은 원칙(`Director.saveFinishedStory`)
+        else -> log("책장에 꽂기 → 저장 실패 · 책장에 꽂지 않는다")
+    }
     event("session_end", "duration" to "15분", "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
-    log("책장에 꽂기 → 그림일기는 기기에만 둔다 · 서버에는 저장하지 않음")
     go(Scene.SHELF)
 }
 
+/**
+ * 책장에서 그림일기를 다시 연다(#37) — [shelfId] 가 그림일기면 그 책을 펼쳐 끝까지 읽고 참. 아니면 false(동화 등).
+ * 읽는 동안만 그 책의 조각 · 문장 · 날씨로 바꿨다가 되돌린다 — 제목은 다시 묻지 않는다
+ */
+suspend fun Director.openSavedDiary(shelfId: String): Boolean {
+    if (!shelfId.startsWith(DIARY_SHELF_ID)) return false
+    val book = DiaryShelf.book(s, shelfId) ?: return false
+    log("책장 → 그림일기 『${book.title}』 다시 읽기 (${book.madeAt})")
+    s.withSavedDiary(book) { day -> readPictureDiary(day, reread = true) }
+    return true
+}
+
 /** 한 쪽씩 넘긴다. 마지막 줄이 비었으면(오늘 기분을 말하지 않았다) 얼굴을 눌러 채운다 */
-private suspend fun Director.readPictureDiary(day: DiaryDay) {
+private suspend fun Director.readPictureDiary(day: DiaryDay, reread: Boolean = false) {
     var i = 0
     while (true) {
         val pages = buildDiaryBook(s.diaryBookInput())
@@ -1022,11 +1046,11 @@ private suspend fun Director.readPictureDiary(day: DiaryDay) {
                 event("utterance", "speaker" to "child", "mode" to "card", "text" to r.label)
                 log("오늘 기분을 얼굴로 골랐다 → by: card (주고받기에는 세고, 수준 신호 · 인용에는 안 넣는다)")
             }
-            r.value == "title" -> askTitle()
+            r.value == "title" -> if (!reread) askTitle()
             r.value == "prev" -> i = (i - 1).coerceAtLeast(0)
             r.value == "next" -> if (!last) i++ else {
                 // 다 읽고 나면 제목을 한 번 묻는다 — 내용을 다 본 뒤라 아이가 붙이기 쉽다. 이미 붙였으면 묻지 않는다 (10-01 안 2)
-                if (s.slotBy["title"] != "child") askTitle()
+                if (!reread && s.slotBy["title"] != "child") askTitle()     // 책장에서 다시 읽을 때는 묻지 않는다
                 return
             }
         }
