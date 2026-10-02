@@ -4,7 +4,8 @@ import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
-
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 
 // 장면별 대본. 기준: 구현대본.md(9/16) + v0.8 요청 + v0.9 요청(9/17).
@@ -177,17 +178,21 @@ suspend fun Director.pinGate(purpose: String): Boolean {
         DemoBtn("🔢 (시연) 비밀번호 4자리 입력") { send(Reply.Tapped("pin:ok", "통과")) },
         DemoBtn("✖ 취소") { send(Reply.Tapped("pin:cancel", "취소")) },
     )
+    var typed = 0
     while (true) {
         val r = awaitReply() as? Reply.Tapped ?: continue
-        when (r.value) {
-            "pin:cancel" -> { log("비밀번호 취소"); return false }
-            "pin:ok" -> {
-                // PinView validates the PIN; this scene only consumes its result.
-                s.stage = Stage.Pin(purpose, 4)
-                pause(350)
-                log(if (purpose == "start") "비밀번호 통과 → 이야기 시작 (부모 설정: 시작할 때 비밀번호)" else "비밀번호 통과 → 부모 모드")
-                return true
-            }
+        when {
+            r.value == "pin:ok" -> { typed = 4 }
+            r.value == "pin:cancel" -> { log("비밀번호 취소"); return false }
+            r.value == "pin:back" -> typed = (typed - 1).coerceAtLeast(0)
+            r.value.startsWith("pin:") -> typed++
+            else -> continue
+        }
+        s.stage = Stage.Pin(purpose, typed.coerceAtMost(4))
+        if (typed >= 4) {
+            pause(350)
+            log(if (purpose == "start") "비밀번호 통과 → 이야기 시작 (부모 설정: 시작할 때 비밀번호)" else "비밀번호 통과 → 부모 모드")
+            return true
         }
     }
 }
@@ -723,9 +728,28 @@ private suspend fun Director.scenePlace() {
     if (s.generatedBg) {
         s.stage = Stage.Making("${s.placeName} 배경을 만드는 중…")
         say("${s.placeName}? 그런 데는 처음이야. 그림을 만들어 볼게!")
-        log("장소 유형에 없는 답 → 배경 프리셋 (시연 모드)")
-        s.images++
-        pause(2400)
+        if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
+            val png = coroutineScope {
+                val request = async { Server.image(s.nameMask().mask(s.placeName), mode = "story") }
+                val early = withTimeoutOrNull(8_000) { request.await() }
+                if (early != null || request.isCompleted) early
+                else {
+                    say("그림이 조금 늦게 오고 있어. 잠깐만 기다려 줘!")
+                    val late = withTimeoutOrNull(7_000) { request.await() }
+                    if (!request.isCompleted) request.cancel()
+                    late
+                }
+            }
+            if (png != null && keepStoryBackground(png)) {
+                s.images++
+                log("서버 배경 PNG를 기기에 저장해 책과 퍼즐에서 사용")
+            } else log("배경 생성 실패 또는 시간 초과 → 눈 배경 프리셋 사용")
+            event("image_request", "type" to "background", "reason" to "no_preset_type", "result" to if (s.storyBackground != null) "generated" else "preset")
+        } else {
+            log("장소 유형에 없는 답 → 배경 프리셋 (시연 모드)")
+            s.images++
+            pause(2400)
+        }
     } else {
         s.images++
         log("${s.th.label} 배경은 프리셋 — 대기 0초 (⭐26)")
@@ -817,7 +841,7 @@ private suspend fun Director.sceneEvent() {
     // 창문에 새 친구가 나타난다
     val shown = base.map { it.copy(shake = false) } + WorldItem(s.newcomerArt, 0.82f, 0.18f, 0.12f, depth = 0.85f)
     s.stage = world(shown)
-    if (r is Reply.Spoke) log("LLM 판정: 이름을 가린 문장({주인공}: ${r.text}) → 서버 LLM → S1 · S2 표시 JSON → 수준은 규칙이 계산")
+    if (r is Reply.Spoke) log("LLM 판정: 이름을 가린 문장({주인공}: ${r.text}) → Anthropic → S1 · S2 표시 JSON → 수준은 규칙이 계산")
 
     // 질문 은행 — 그다음 (결과 · 대응 · 누가 놀랐나 중 하나)
     val (v2, r2) = askSlot("reaction")
@@ -1322,7 +1346,8 @@ private suspend fun Director.sceneSolution() {
     // ── 함께 하는 사람 참여 — 누구냐에 따라 말투 · 답이 다르다 (9/17)
     val pn = s.pn
     say(
-        if (s.partner.adult) "${f}${wa(f)} 친해지려면 ${pn} 도움도 있으면 좋겠다!"
+        if (s.partner.honor) "${f}${wa(f)} 친해지려면 ${pn} 도움도 있으면 좋겠다!"
+        else if (s.partner.adult) "${f}${wa(f)} 친해지려면 ${pn} 도움도 있으면 좋겠다!"
         else "${f}${wa(f)} 친해지려면 친구 도움도 있으면 좋겠다!"
     )
     pause(1400)
@@ -1348,7 +1373,7 @@ private suspend fun Director.sceneSolution() {
     val (est, why) = s.ruleEstimate()
     log("세션 누적 판단: ${est.label} — $why · 템플릿 ${t.code}은 3턴째 확정이라 그대로 (다음 세션 시작점 ${(s.nextLevel ?: s.level).label})")
     say("이야기가 다 모였어! 이제 동화책을 만들자!")
-    log("시연 대본의 마무리 질문 완료 → 동화책 제작")
+    log("필수 칸 6개 완료 → 진행 막대 끝의 별이 켜짐 → 동화책 시작")
     pause(2200)
     go(Scene.MAKING)
 }
@@ -1361,13 +1386,13 @@ private suspend fun Director.sceneMaking() {
     val t = s.template ?: templateOf(chooseTemplate(s.level, s.causeKind).first).also { s.templateKey = it.key }
     say("동화책을 만들고 있어! 조금만 기다려 줘.")
     log(
-        "템플릿 ${t.code} ${t.name}(${t.pages.size}쪽) + 모은 칸들(이름은 가림) → 서버 LLM → 쪽마다 자막(−어요체) · 제목 JSON → " +
+        "템플릿 ${t.code} ${t.name}(${t.pages.size}쪽) + 모은 칸들(이름은 가림) → Anthropic → 쪽마다 자막(−어요체) · 제목 JSON → " +
             "폰에서 {주인공} → ${s.childName}, {친구1} → ${s.friendName} 복원 · 확정 그림은 다시 그리지 않음 (⭐26)"
     )
     if (s.isDiary) {
         val mascot = listOf("place", "problem", "cause", "solution").filter { s.slotBy[it] == "mascot" }
         log(
-            "부모 협업 모드 — 결과물은 동화 모드와 똑같은 ${t.pages.size}쪽 동화책이다 (§0 · §7-1 ①). " +
+            "일기 모드 — 결과물은 동화 모드와 똑같은 ${t.pages.size}쪽 동화책이다 (§0 · §7-1 ①). " +
                 if (mascot.isEmpty()) "네 자리를 아이 말로 다 채웠다"
                 else "빈 자리 [${mascot.joinToString(" · ")}] 는 LLM이 이야기로 메웠다 → by: mascot (§5)"
         )
@@ -1430,7 +1455,7 @@ private suspend fun Director.sceneBook() {
             i == 0 -> "▶ 를 눌러 펼쳐 봐!"
             i == rubPage -> if (s.m1Result == null) s.m1Line() else s.m1Done()
             i == dragPage -> if (s.m2Result == null) s.m2Line(s.m1Result == "helped") else s.m2Done()
-            // 부모 협업 모드에는 공룡 소리 칸이 없다 — 묻지 않는 칸이다 (§2-2)
+            // 일기 모드에는 공룡 소리 칸이 없다 — 묻지 않는 칸이다 (§2-2)
             i == last && s.isDiary -> "오른쪽 책 버튼을 눌러 봐! 오늘 이야기가 여기서 끝나."
             i == last && s.storySoundClip != null -> "${d}${eul(d)} 눌러 봐! 내가 만든 소리가 나와."
             i == last && Server.liveFor(s.mode) -> "오른쪽 책 버튼을 눌러 봐! 우리 이야기가 여기서 끝나."
@@ -1445,7 +1470,7 @@ private suspend fun Director.sceneBook() {
                 else "${i}쪽 미션 1 (쉬움 · 문지르기) — 장면 4의 \"${s.newcomerKind}\"에서 나온 ${m1.blobName} · 도구 ${m1.toolName}"
             )
             i == dragPage && s.m2Result == null -> log("${i}쪽 미션 2 (${if (s.m1Result == "helped") "쉬움 · 탭" else "보통 · 끌어다 놓기"}) — ${if (s.isDiary) "4턴째에 말한" else "장면 10에서 말한"} ${m2.itemName}${eul(m2.itemName)} ${s.friendCallName}에게")
-            i == last && s.isDiary -> log("${i}쪽(마지막): 부모 협업 모드도 미션 난이도 신호가 그대로 나온다 (§7-1 ②) · 공룡 소리 칸은 묻지 않았다 (§2-2)")
+            i == last && s.isDiary -> log("${i}쪽(마지막): 일기 모드도 미션 난이도 신호가 그대로 나온다 (§7-1 ②) · 공룡 소리 칸은 묻지 않았다 (§2-2)")
             i == last -> log("${i}쪽(마지막): ${if (s.partnerHelpLine != null) "${s.pn} 참여 한 줄 들어감" else "${s.pn}${ga(s.pn)} 답하지 않아 그 줄 없음"} · ${d}${eul(d)} 누르면 녹음한 소리")
             else -> log("${i}쪽 [${s.pageKind(i)}] — 템플릿 ${s.template?.code} 칸으로 만든 자막")
         }
@@ -1476,7 +1501,7 @@ private suspend fun Director.sceneBook() {
                 else { go(Scene.FRIENDS); return }
             }
             vv == "prev" -> { if (s.bookPage > 0) { s.bookPage--; show(); announce(); refreshButtons() } }
-            vv == "speak" -> log("🔊 자막 낭독 (설정된 목소리 · 이름 부르기 동의 반영)")
+            vv == "speak" -> log("🔊 자막 낭독 (CLOVA Voice, 이름 없는 문장)")
             vv == "mission" && s.bookPage == rubPage && s.m1Result == null -> {
                 s.m1Result = "solo"; s.reactions++; feel(Mood.CHEER)
                 s.achievements += "${m1.blobName} 치운 손"
@@ -1526,12 +1551,12 @@ private suspend fun Director.sceneFriends() {
         go(Scene.END)
         return
     }
-    // 부모 협업 모드에는 공룡(동행 칸)이 없다. 아이가 아무도 그리지 않았으면 평가할 친구도 없다 (§2-2)
+    // 일기 모드에는 공룡(동행 칸)이 없다. 아이가 아무도 그리지 않았으면 평가할 친구도 없다 (§2-2)
     val items = if (liveStory) {
         mutableListOf(RateItem("friend", s.friendCallName, s.friendArt))
     } else if (s.isDiary) {
         if (s.newcomer == null) {
-            log("부모 협업 모드 · 오늘 그린 친구가 없다 → 친구 평가를 건너뛴다 (동행 · 소리 칸은 묻지 않는다 · §2-2)")
+            log("일기 모드 · 오늘 그린 친구가 없다 → 친구 평가를 건너뛴다 (동행 · 소리 칸은 묻지 않는다 · §2-2)")
             go(Scene.END)
             return
         }
@@ -1630,16 +1655,16 @@ private suspend fun Director.sceneEnd() {
         log("오늘은 그림을 안 그려서 무지개 크레용은 없다 — 안 한 일에 선물을 주지 않는다 (조사3 §1-3)")
     }
     say("책 다 만들었다! 고생했어~~")
+    buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
     while (true) {
-        buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
         awaitValue("shelf")
-        if (s.mode != StoryMode.STORY || saveStoryWithChoice()) break
-        say("책장에는 아직 넣지 않았어. 다시 눌러도 돼.")
+        if (s.mode != StoryMode.STORY || saveFinishedStory()) break
+        say("책을 기기에 저장하지 못했어. 다시 눌러 줘.")
     }
     mark("end")
     if (s.mode != StoryMode.STORY)
         s.shelf.add(0, ShelfBook(s.title ?: s.autoTitleFor(), s.themeKey, s.bgName, pages = s.pageCount, fresh = true))
-    event("session_end", "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
+    event("session_end", "duration" to "15분", "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
     log("책장에 꽂기 → 동화책 자막과 쪽 종류를 기기에 저장 · 서버에는 저장하지 않음 (⭐26)")
     go(Scene.SHELF)
 }
