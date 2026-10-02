@@ -2,6 +2,10 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.PageKind
+import com.example.finalproject_demo.demo.mission1
+import com.example.finalproject_demo.demo.mission2
+import com.example.finalproject_demo.demo.pageKind
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
@@ -314,6 +318,27 @@ class CoopLiveAnswerTest {
             val req = server.requests.first { it.first == "/story" }.second
             assertEquals("soon", req.optString("reason"))
             assertEquals("같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)", req.optString("template"))
+        } finally { server.close() }
+    }
+
+    /** #52 2번 — 서버가 쓴 협업 책도 미션을 끝내면 그 쪽에 결과 문장이 붙는다. 끝내기 전에는 서버 문장만 */
+    @Test
+    fun theServerWrittenCoopBookGetsTheMissionResultAfterTheMission() = run { d ->
+        val server = storyServer()
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.filledCoop()
+            d.coopWriteBook()
+            val s = d.s
+            val rub = (1..s.pageCount).first { s.pageKind(it) == PageKind.RUB }
+            val drag = (1..s.pageCount).first { s.pageKind(it) == PageKind.DRAG }
+            assertEquals("미션 전인데 결과가 붙었다", "서버 문장 $rub", s.bookCaption(rub))
+            s.m1Result = "solo"
+            s.m2Result = "solo"
+            val item = s.mission1().blobName
+            assertTrue("미션 1 결과가 안 붙었다: ${s.bookCaption(rub)}", s.bookCaption(rub).startsWith("서버 문장 $rub ") && s.bookCaption(rub).endsWith("사라졌어요.") && item in s.bookCaption(rub))
+            assertTrue("미션 2 결과가 안 붙었다: ${s.bookCaption(drag)}", s.bookCaption(drag).startsWith("서버 문장 $drag ${s.childName}") && s.bookCaption(drag).endsWith("${s.mission2().give}."))
         } finally { server.close() }
     }
 
