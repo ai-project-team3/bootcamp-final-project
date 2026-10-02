@@ -58,7 +58,8 @@ import com.example.finalproject_demo.ui.TitleChip
 
 /**
  * 말로 짓는 인형극 — 데모 (가로 전용).
- * 서버 모드는 실행 인자로만 켠다(`-e server … -e live …` · 저장하지 않는다) — 아니면 대본으로 흐름과 화면을 보여 준다.
+ * 서버 모드는 실행 인자(`-e server … -e live …` · 저장하지 않는다)로 켠다. 인자가 없으면 디버그 빌드는 [DEFAULT_SERVER] 로
+ * 세 모드를 켜고(10-02 #47), 스토어 빌드는 대본으로 흐름과 화면을 보여 준다.
  *
  * 켜면 팀 이름 스플래시(CLAP) → 첫 화면.
  * 화면 구성 (v0.8): 무대가 화면 전체를 쓴다.
@@ -66,6 +67,9 @@ import com.example.finalproject_demo.ui.TitleChip
  *  - 아래 왼쪽: 마스코트 말풍선 (떠 있음) · 아래 오른쪽: 🎤 ➡️ (쓸 수 있을 때만)
  *  - 시작 화면 · 책 · 부모 모드 · 비밀번호에서는 마스코트 말풍선을 숨긴다
  */
+/** 팀 서버의 공개 주소(https · Cloudflare 터널) — 인자 없이 켠 디버그 빌드가 붙는 곳 */
+const val DEFAULT_SERVER = "https://otto-back.shelldocs.cloud"
+
 class MainActivity : ComponentActivity() {
     /** 지금 흐름 — 검사(`ShellFlowTest`)가 상태를 들여다볼 때 쓴다 */
     var director: Director? = null
@@ -74,10 +78,15 @@ class MainActivity : ComponentActivity() {
         // 동의를 기기에서 읽어 온다 — 없으면 켤 때마다 동의 화면이 다시 뜬다 (09-25)
         ConsentStore.attach(this)
         FeelPrefs.load(this)      // 효과음 · 진동 켬/끔 (부모 설정 · 09-25)
-        // 서버는 주소를 줄 때만 켠다 — 없으면 지금처럼 대본으로 돈다 (net/Server.kt)
-        intent?.getStringExtra("server")?.let { Server.base = it.trimEnd('/') }
-        // 어느 모드를 서버로 돌릴지 — 없으면 전부 대본 (`-e live story,diary,coop` 또는 `all`)
-        intent?.getStringExtra("live")?.let { Server.liveModes = Server.parseLive(it) }
+        // 서버 주소 — `-e server` 가 먼저. 없으면 **테스트용(디버그) 빌드만** 공개 주소로 세 모드를 켠다(10-02 #47):
+        // 폰을 PC 에 꽂지 않아도 붙는다. 스토어(릴리스) 빌드는 그대로 꺼진 채 대본 — 서버 연결판은 처리방침 · 데이터 보안이 먼저다.
+        // 화면 검사(Robolectric)는 디버그라도 끈다 — 검사가 진짜 서버를 부르면 안 된다
+        val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        val byDefault = debuggable && !android.os.Build.FINGERPRINT.contains("robolectric", ignoreCase = true)
+        (intent?.getStringExtra("server") ?: DEFAULT_SERVER.takeIf { byDefault })?.let { Server.base = it.trimEnd('/') }
+        // 어느 모드를 서버로 돌릴지 — `-e live story,diary,coop` 또는 `all`. 기본 주소로 켰으면 전부
+        (intent?.getStringExtra("live") ?: "all".takeIf { byDefault && Server.base == DEFAULT_SERVER })
+            ?.let { Server.liveModes = Server.parseLive(it) }
         Voice.attach(this)        // 진짜 마이크 · 마스코트 목소리 — 서버 모드에서만 쓴다 (net/Voice.kt)
         com.example.finalproject_demo.sound.ChildSound.attach(this)   // 아이가 만든 소리 — 폰에만 (#42)
         com.example.finalproject_demo.sound.ChildSound.discardSession()   // 책에 안 넣은 채 앱이 꺼졌던 소리

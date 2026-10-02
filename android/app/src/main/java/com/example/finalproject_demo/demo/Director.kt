@@ -267,6 +267,9 @@ class Director(
         enqueue { audio.await() }
     }
 
+    /** 방금 한 말을 다시 들려준다 — 아이가 오또 얼굴을 눌렀을 때(#56). 서버 모드가 아니면 아무것도 안 한다 */
+    fun replayLine() = speakLive(s.line)
+
     /** 앞 대사가 끝난 뒤 [sound] 를 튼다 — 대사 줄의 맨 끝에 선다. null 이면 조용히 지나간다 */
     private fun enqueue(sound: suspend () -> ByteArray?) {
         val before = voiceJob

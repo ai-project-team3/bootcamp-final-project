@@ -39,7 +39,12 @@ class StoryRequest(BaseModel):
     # the closing wish, verbatim (diary · coop). Kept apart from `extra` so the
     # prompt can leave its tense alone
     keep: Optional[str] = None
+    # story: the template letter. coop: the story the parent picked, as words
+    # ("직업 · 소방관 · 곧 체험해요") — context for the model, never a page plan
     template: Optional[str] = None
+    # coop only: why the parent picked it (CoopTemplates.kt CoopReason) — sets the book's
+    # tense. done = it happened · soon = it is coming · dream = imagined. None = done (#52)
+    reason: Optional[Literal["done", "soon", "dream"]] = None
     level: Optional[str] = None
     # the page plan, in order. When given, the book has exactly these pages;
     # when absent, the old shape (story: six · diary/coop: 3-6) for old callers.

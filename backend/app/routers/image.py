@@ -55,6 +55,12 @@ def preset(reason: str, scene: str | None = None) -> ImageResult:
     return ImageResult(preset=True, reason=reason, scene=scene)
 
 
+# GPU order when several phones ask at once (#32, 10-02): a child waits for a background or a
+# character, nobody waits for a redraw (it shows at the next brush pause). So story pictures go to
+# the front of ComfyUI's queue and keep the 13 s deadline counted from arrival, queue included;
+# redraws go one at a time behind them with a longer deadline, and still arrive late rather than never.
+_redraw_turn = asyncio.Semaphore(1)
+
 _uploaded: dict[str, str] = {}          # rig → name in ComfyUI's input folder (uploaded once per server)
 
 
@@ -65,14 +71,17 @@ async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
         # the child's drawing lives only in this call: decoded, sent to ComfyUI through
         # memory (comfy_nodes/otto_memory.py), history entry deleted in comfy.run
         drawing = await asyncio.to_thread(character.prepare_drawing, base64.b64decode(req.png_base64))
-        raw = await comfy.run(comfy.redraw_workflow(scene, random.randrange(2 ** 31),
-                                                    base64.b64encode(drawing).decode(), mode=req.mode))
+        # one redraw in ComfyUI at a time: the queue behind a story picture stays at most one
+        # redraw long (~5 s), and the story picture still jumps the rest (front=True)
+        async with _redraw_turn:
+            raw = await comfy.run(comfy.redraw_workflow(scene, random.randrange(2 ** 31),
+                                                        base64.b64encode(drawing).decode(), mode=req.mode))
         del drawing
         return await asyncio.to_thread(character.cut_out_all, raw)
     tmpl = character.template(rig)
     if tmpl is not None and rig not in _uploaded:
         _uploaded[rig] = await comfy.upload(tmpl, f"otto_mannequin_{rig}.png")
-    raw = await comfy.run(comfy.character_workflow(scene, rig, random.randrange(2 ** 31), _uploaded.get(rig)))
+    raw = await comfy.run(comfy.character_workflow(scene, rig, random.randrange(2 ** 31), _uploaded.get(rig)), front=True)
     return await asyncio.to_thread(character.cut_and_fit, raw)
 
 
@@ -120,7 +129,8 @@ async def image(req: ImageRequest) -> ImageResult:
         return ImageResult(preset=False, reason="mock", scene="mock scene",
                            rig="human" if req.kind == "character" else None,
                            png_base64=base64.b64encode(_MOCK_PNG).decode())
+    limit = settings.redraw_deadline_s if req.kind == "redraw" else settings.image_deadline_s
     try:
-        return await asyncio.wait_for(_draw(req), timeout=settings.image_deadline_s)
+        return await asyncio.wait_for(_draw(req), timeout=limit)
     except asyncio.TimeoutError:
-        return preset(f"over {settings.image_deadline_s:.0f}s")
+        return preset(f"over {limit:.0f}s")
