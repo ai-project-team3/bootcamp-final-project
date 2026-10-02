@@ -11,6 +11,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     var backgroundPending = false
     var waitingConversation: Stage.Show? = null
     var friendDrawingPrepared = false
+    var deferredSlot: String? = null
 
     fun conversationWorld() = Stage.World(listOf(
         WorldItem(s.storyHeroArt, 0.25f, 0.32f, 0.11f, depth = 1f),
@@ -63,7 +64,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         while (true) {
             val end = s.storyEndCondition()
             if (end != null) { s.endReason = end; break }
-            val prompt = s.nextStoryPrompt(s.storyServerQuestion) ?: break
+            val prompt = s.nextStoryPrompt(s.storyServerQuestion, deferredSlot) ?: break
             if (prompt.slot == "sound" && !s.storySoundAttempted) {
                 recordStorySound()
                 notifyStorySoundChoice(prompt)
@@ -75,7 +76,11 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             val question = base.copy(text = if (prompt.templateOnly) base.text else prompt.text)
             val reply = askStory(question, prompt.slot)
             // Silence leaves this slot open; it is neither speech nor a mascot choice.
-            if (reply !is Reply.Spoke && reply !is Reply.Tapped) continue
+            if (reply !is Reply.Spoke && reply !is Reply.Tapped) {
+                deferredSlot = prompt.slot
+                continue
+            }
+            deferredSlot = null
             val by = when {
                 reply is Reply.Spoke -> "child"
                 reply is Reply.Tapped && !reply.byMascot -> "card"

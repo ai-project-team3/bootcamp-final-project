@@ -23,15 +23,25 @@ class StorySilenceTest {
         val d = Director(scope)
         d.s.speed = 0.01
         d.s.timerOn = true
+        val questions = mutableListOf<String>()
         Server.base = server.base
         Server.liveModes = setOf(StoryMode.STORY)
         try {
             d.go(Scene.PLACE)
+            val observer = launch {
+                while (isActive) {
+                    if (d.s.line in listOf("오늘은 어디로 가 볼까?", "어떤 일이 생겼어?") && questions.lastOrNull() != d.s.line)
+                        questions += d.s.line
+                    delay(1)
+                }
+            }
             withTimeout(5_000) {
                 while (d.s.events.none { "mode=silent" in it }) delay(5)
                 // Observe a complete no-answer fallback, including the next question.
                 while (d.s.events.count { "mode=silent" in it } < 2) delay(5)
             }
+            observer.cancelAndJoin()
+            assertEquals("an unanswered slot must wait until another question", listOf("오늘은 어디로 가 볼까?", "어떤 일이 생겼어?"), questions.take(2))
             assertTrue("silence is not a filled slot", d.s.slots.isEmpty())
             assertTrue("silence must not be sent as invented speech", server.requests.isEmpty())
             assertFalse("do not propose a placeholder as a real choice",

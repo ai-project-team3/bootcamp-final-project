@@ -84,7 +84,7 @@ class Director(
     val s = DemoState()
     private val savedStories = mutableListOf<SavedStoryBook>()
 
-    init { reloadSavedStories() }
+    init { reloadSavedStories(); recoverStoryImages() }
 
     private fun reloadSavedStories() {
         savedStories.clear()
@@ -96,15 +96,41 @@ class Director(
         ShelfBook(title, themeKey, bgName, pages.size, fresh, id)
 
     /** 실패한 저장은 책장에 성공한 것처럼 표시하지 않는다. */
+    fun storyBooks(): List<SavedStoryBook> = savedStories.toList()
+
+    /** Null means unreadable metadata, never an empty shelf that is safe to overwrite. */
+    fun storyBookCount(): Int? = runCatching { storyBookStore?.count() ?: savedStories.size }.getOrNull()
+
+    /** Call after the parent's PIN and deletion confirmation; child scenes cannot delete books. */
+    fun deleteStoryBook(id: String): Boolean {
+        if (s.scene != Scene.PARENT || savedStories.none { it.id == id }) return false
+        return try {
+            if (storyBookStore?.delete(id) != true) return false
+            savedStories.removeAll { it.id == id }
+            s.shelf.removeAll { it.savedStoryId == id }
+            runCatching { com.example.finalproject_demo.sound.ChildSound.deleteBook(id) }
+            recoverStoryImages()
+            true
+        } catch (_: Exception) { false }
+    }
+
     fun saveFinishedStory(): Boolean {
-        val book = s.completedStoryBook() ?: return false
+        val completed = s.completedStoryBook() ?: return false
+        val previous = savedStories.firstOrNull { it.id == completed.id }
+        val book = completed.copy(madeAt = previous?.madeAt ?: completed.madeAt)
+        val count = storyBookCount() ?: return false
+        if (count >= STORY_SHELF_CAPACITY && previous == null) return false
         return try {
             if (book.soundClipId != null && storyBookStore == null) return false
             if (!s.keepStorySound(book)) return false
             storyBookStore?.save(book)
+            s.storySoundBookId = book.id
             s.commitStorySound()
+            savedStories.removeAll { it.id == book.id }
+            s.shelf.removeAll { it.savedStoryId == book.id }
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))
+            recoverStoryImages()
             true
         } catch (_: Exception) { false }
     }
@@ -117,6 +143,14 @@ class Director(
         return true
     }
     fun saveStoryImage(png: ByteArray): String? = storyImageStore?.save(png)
+
+    private fun recoverStoryImages() {
+        // Retain even unrecognized saved-book versions; corrupt metadata disables deletion.
+        val saved = storyBookStore?.let { runCatching { it.imageReferences() }.getOrNull() ?: return }
+            ?: savedStories.flatMap { listOfNotNull(it.bgName, it.visuals?.hero?.image) }.toSet()
+        val active = listOfNotNull(s.storyBackground, s.storyHeroImage) + s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName }
+        storyImageStore?.recover(saved + active)
+    }
     private var job: Job? = null
     private val input = Channel<Reply>(Channel.BUFFERED)
 
