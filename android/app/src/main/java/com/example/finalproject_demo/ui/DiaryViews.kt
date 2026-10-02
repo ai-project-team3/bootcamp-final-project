@@ -63,6 +63,8 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -79,6 +81,9 @@ import com.example.finalproject_demo.demo.BRUSH_PAUSE_MS
 import com.example.finalproject_demo.demo.COLOR_PAUSE_MS
 import com.example.finalproject_demo.demo.CRAYON_PAUSE
 import com.example.finalproject_demo.demo.DiaryTrace
+import com.example.finalproject_demo.demo.UndoneStroke
+import com.example.finalproject_demo.demo.redoStroke
+import com.example.finalproject_demo.demo.undoStroke
 import com.example.finalproject_demo.demo.BoardBox
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.DiaryAsk
@@ -255,6 +260,8 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
     var touched by remember { mutableIntStateOf(0) }
     var quietFor by remember { mutableLongStateOf(BRUSH_PAUSE_MS) }
     var downAt by remember { mutableLongStateOf(0L) }
+    // ↶ 로 지운 획 — ↷ 로 되살린다. 새로 그으면 비운다
+    val redo = remember { mutableStateListOf<UndoneStroke>() }
     // 획 기록(디버그 빌드 · 폰 안에만) — 조각 묶기 기준값을 실제 아이 그림으로 정한다 (DiaryTrace)
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(day) { DiaryTrace.open(context, day) }
@@ -292,6 +299,15 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                     }
                 }
             }
+            // 획 지우기 ↶ · 되살리기 ↷ — 할 것이 없으면 흐리게(누를 수 없음). 그림 고르는 중에는 둘 다 쉰다
+            Row(Modifier.padding(top = cq * 0.6f), horizontalArrangement = Arrangement.spacedBy(cq * 0.8f)) {
+                ArrowButton(left = true, enabled = s.drawing.isNotEmpty() && stage.pick == null, cq = cq, tag = "stroke-undo") {
+                    day.undoStroke(s.drawing)?.let { redo += it; touched++ }
+                }
+                ArrowButton(left = false, enabled = redo.isNotEmpty() && stage.pick == null, cq = cq, tag = "stroke-redo") {
+                    redo.removeLastOrNull()?.let { day.redoStroke(s.drawing, it); touched++ }
+                }
+            }
         }
         BoxWithConstraints(
             Modifier.padding(start = cq * 12, end = cq * 1.5f, top = cq * 1.5f, bottom = cq * 1.5f).fillMaxSize()
@@ -309,6 +325,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                                 val stroke = DrawStroke(color, live.map { Offset(it.x / box.width, it.y / box.height) }, PEN_W)
                                 s.drawing += stroke
                                 strokes++
+                                redo.clear()
                                 DiaryTrace.stroke(s.drawing.size - 1, downAt, stroke, s.drawingAspect)
                             }
                             live.clear()
@@ -1182,5 +1199,32 @@ private fun PuzzlePanel(d: Director, page: DiaryPage, cq: Dp, pageIndex: Int) {
 private fun StripArt(pieces: List<DiaryPiece>, crop: BoardBox, alpha: Float) {
     BoxWithConstraints(Modifier.fillMaxSize().clip(RoundedCornerShape(0.dp)).alpha(alpha)) {
         pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
+    }
+}
+
+/** 그림판 ↶ · ↷ — 크레용과 같은 크기의 동그란 단추에 화살표. [enabled] 가 아니면 흐린 회색이고 눌리지 않는다 */
+@Composable
+private fun ArrowButton(left: Boolean, enabled: Boolean, cq: Dp, tag: String, onClick: () -> Unit) {
+    val ink = if (enabled) InkBrown else InkSoft.copy(alpha = 0.45f)
+    Box(
+        Modifier.size(cq * 4.1f)
+            .shadow(if (enabled) cq * 0.4f else 0.dp, CircleShape)
+            .background(if (enabled) Color.White else Color.White.copy(alpha = 0.55f), CircleShape)
+            .border(cq * 0.3f, if (enabled) PaperLine else PaperLine.copy(alpha = 0.4f), CircleShape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .semantics { contentDescription = if (left) "획 지우기" else "획 되살리기" }
+            .testTag(tag),
+    ) {
+        Canvas(Modifier.fillMaxSize().padding(cq * 1.05f)) {
+            val w = size.width; val h = size.height
+            val dir = if (left) -1f else 1f
+            val cx = w / 2f; val cy = h / 2f
+            val stroke = Stroke(width = w * 0.16f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            val tip = Offset(cx + dir * w * 0.42f, cy)
+            drawLine(ink, Offset(cx - dir * w * 0.42f, cy), tip, strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawPath(Path().apply {
+                moveTo(tip.x - dir * w * 0.32f, cy - h * 0.32f); lineTo(tip.x, tip.y); lineTo(tip.x - dir * w * 0.32f, cy + h * 0.32f)
+            }, ink, style = stroke)
+        }
     }
 }

@@ -151,6 +151,38 @@ fun DiaryDay.mergeInto(from: Int, into: Int) {
     pieces.removeAt(a)
 }
 
+/** 지운 획 하나 — 되살릴 때 그 획이 속했던 조각(이름 · 고른 모습 · 오또 그림까지)을 그대로 돌려놓는다 */
+class UndoneStroke(val stroke: Stroke, val pieceBefore: DiaryPiece?, val pieceAt: Int)
+
+/**
+ * 마지막 획을 지운다(그림판 ↶). 조각에서도 빼고, 조각에 남은 획이 없으면 조각도 뺀다. 지울 획이 없으면 null
+ */
+fun DiaryDay.undoStroke(drawing: MutableList<Stroke>): UndoneStroke? {
+    val last = drawing.lastOrNull() ?: return null
+    catchUp(drawing)
+    val at = pieces.indexOfFirst { last in it.strokes }
+    val before = pieces.getOrNull(at)
+    drawing.removeAt(drawing.lastIndex)
+    if (before != null) {
+        val left = before.strokes - last
+        if (left.isEmpty()) pieces.removeAt(at) else pieces[at] = before.copy(strokes = left)
+    }
+    lastStroke = drawing.lastOrNull()
+    continuing = null
+    return UndoneStroke(last, before, at)
+}
+
+/** 지운 획을 되살린다(그림판 ↷) — 그 획이 속했던 조각을 지우기 전 모습으로 돌려놓는다 */
+fun DiaryDay.redoStroke(drawing: MutableList<Stroke>, u: UndoneStroke) {
+    catchUp(drawing)
+    drawing += u.stroke
+    val before = u.pieceBefore
+    if (before == null) { addStroke(u.stroke); return }
+    val now = pieces.indexOfFirst { it.id == before.id }
+    if (now >= 0) pieces[now] = before else pieces.add(u.pieceAt.coerceIn(0, pieces.size), before)
+    lastStroke = u.stroke
+}
+
 /** 화이트보드의 획 중 아직 어느 조각에도 안 붙은 것을 붙인다. 붙인 수를 돌려준다 */
 fun DiaryDay.catchUp(drawing: List<Stroke>): Int {
     val known = pieces.sumOf { it.strokes.size }

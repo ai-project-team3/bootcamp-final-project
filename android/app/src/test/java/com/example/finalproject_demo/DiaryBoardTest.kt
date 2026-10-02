@@ -12,6 +12,8 @@ import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.addStroke
 import com.example.finalproject_demo.demo.boxOf
 import com.example.finalproject_demo.demo.catchUp
+import com.example.finalproject_demo.demo.redoStroke
+import com.example.finalproject_demo.demo.undoStroke
 import com.example.finalproject_demo.demo.cropFor
 import com.example.finalproject_demo.demo.newDiaryDay
 import org.junit.Assert.assertEquals
@@ -132,6 +134,33 @@ class DiaryBoardTest {
         assertEquals(null, day.namedIn("해님이야", except = next))
         assertEquals("해", day.namedIn("해가 웃고 있어", except = next)?.name)
         assertEquals("강아", day.namedIn("강아 꼬리야", except = next)?.name)
+    }
+
+    /** ↶ 마지막 획을 지우면 조각에서도 빠지고, 마지막 획이었으면 조각도 빠진다. ↷ 되살리면 이름까지 그대로 돌아온다 */
+    @Test
+    fun undoAndRedoKeepPiecesInStep() {
+        val day = DiaryDay()
+        val drawing = mutableListOf(diaryLine(.10f, .40f, .30f, .40f), diaryLine(.12f, .42f, .28f, .45f), diaryLine(.80f, .30f, .90f, .30f))
+        day.catchUp(drawing)
+        day.pieces[0] = day.pieces[0].copy(name = "우리 집")
+        assertEquals(2, day.pieces.size)
+
+        val far = day.undoStroke(drawing)!!
+        assertEquals("멀리 그린 한 획짜리 조각이 남았다", 1, day.pieces.size)
+        val inHouse = day.undoStroke(drawing)!!
+        assertEquals("집에서 획이 안 빠졌다", 1, day.pieces.single().strokes.size)
+        assertEquals("우리 집", day.pieces.single().name)
+
+        day.redoStroke(drawing, inHouse)
+        assertEquals(2, day.pieces.single().strokes.size)
+        day.redoStroke(drawing, far)
+        assertEquals(3, drawing.size)
+        assertEquals(2, day.pieces.size)
+        assertEquals("조각과 그림판 획 수가 어긋났다", drawing.size, day.pieces.sumOf { it.strokes.size })
+
+        day.undoStroke(drawing); day.undoStroke(drawing); day.undoStroke(drawing)
+        assertTrue(drawing.isEmpty() && day.pieces.isEmpty())
+        assertEquals(null, day.undoStroke(drawing))
     }
 
     private fun diaryLine(vararg xy: Float) =

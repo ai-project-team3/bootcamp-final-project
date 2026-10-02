@@ -1,5 +1,7 @@
 package com.example.finalproject_demo
 
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.click
 import androidx.compose.foundation.background
@@ -213,6 +215,33 @@ class DiaryViewsTest {
         compose.onNodeWithTag("diary-board").performTouchInput { swipe(Offset(100f, 100f), Offset(300f, 200f), 200) }
         compose.mainClock.advanceTimeBy(BRUSH_PAUSE_MS + 300)
         assertEquals("말하는 사이 온 붓 멈춤을 버렸다", "붓 멈춤", day.pendingPause)
+    }
+
+    /** 팔레트 아래 ↶ · ↷ — 할 것이 없으면 눌리지 않는다. 지우면 되살릴 수 있고, 새로 그으면 되살릴 것이 사라진다 */
+    @Test
+    fun undoAndRedoButtonsUnderThePalette() {
+        val d = director()
+        d.s.newDiaryDay()
+        d.s.stage = DiaryBoard()
+        show(d)
+        compose.onNodeWithTag("stroke-undo").assertIsNotEnabled()
+        compose.onNodeWithTag("stroke-redo").assertIsNotEnabled()
+        compose.onNodeWithTag("diary-board").performTouchInput { swipe(Offset(100f, 100f), Offset(300f, 200f), 200) }
+        compose.mainClock.advanceTimeBy(300)
+        compose.onNodeWithTag("stroke-undo").assertIsEnabled().performClick()
+        compose.mainClock.advanceTimeBy(100)
+        assertEquals("획이 안 지워졌다", 0, d.s.drawing.size)
+        compose.onNodeWithTag("stroke-undo").assertIsNotEnabled()
+        compose.onNodeWithTag("stroke-redo").assertIsEnabled().performClick()
+        compose.mainClock.advanceTimeBy(100)
+        assertEquals("획이 안 되살아났다", 1, d.s.drawing.size)
+        assertEquals(1, d.s.diaryDay.pieces.sumOf { it.strokes.size })
+        compose.onNodeWithTag("stroke-undo").performClick()
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithTag("diary-board").performTouchInput { swipe(Offset(400f, 100f), Offset(500f, 200f), 200) }
+        compose.mainClock.advanceTimeBy(300)
+        compose.onNodeWithTag("stroke-redo").assertIsNotEnabled()
+        snap("diary_board_undo")
     }
 
     /** 천천히 긋는 둘째 획 — 앞 획 뒤 1.6초가 지나도 손가락이 판에 있으면 묻지 않는다. 손을 떼고 조용하면 묻는다 */
