@@ -47,6 +47,9 @@ class DiaryLiveTurnTest {
         return JSONObject().put("judge", judge).put("line", line).toString()
     }
 
+    /** 「내일」 답 — 판정이 ready 를 줘도 앱은 「내일」을 한 번 묻는다([tomorrowIsStillAskedWhenTheVerdictSaysReady]) */
+    private fun wish() = turn(listOf("extra" to "또 가고 싶어"), null, "또 가고 싶구나!", null, ready = true)
+
     /**
      * 서버 모드 — 앞에 가짜 `/turn` 서버를 띄운다([FakeHttp]). [fake] 는 받은 요청 → 돌려줄 JSON (null = 502).
      * 앱은 판정을 `exchangeTurn` 의 기본 요청으로 부른다 — 요청 함수를 넘기면 Kotlin IR 백엔드가 죽어서다
@@ -100,7 +103,8 @@ class DiaryLiveTurnTest {
             asked += t
             when (asked.size) {
                 1 -> turn(listOf("place" to "놀이터"), "reaction", "놀이터에 갔구나!", "거기서 기분이 어땠어?")
-                else -> turn(listOf("reaction" to "신났다", "problem" to "미끄럼틀을 탔다"), null, "신났구나!", null, ready = true, s1 = true)
+                2 -> turn(listOf("reaction" to "신났다", "problem" to "미끄럼틀을 탔다"), null, "신났구나!", null, ready = true, s1 = true)
+                else -> turn(listOf("extra" to "또 타고 싶어"), null, "또 타고 싶구나!", null, ready = true)
             }
         }) { d ->
             val s = d.s
@@ -111,13 +115,14 @@ class DiaryLiveTurnTest {
             assertEquals("place", asked[0].getString("asked_slot"))
             assertEquals("놀이터 갔어", s.slots["place"])
             assertEquals("child", s.slotBy["place"])
-            d.answer("미끄럼틀 타서 신났어") { asked.size == 2 && s.stage !is DiaryAsk }
+            d.answer("미끄럼틀 타서 신났어") { asked.size == 2 && s.line == "내일 또 하고 싶은 거 있어?" }
+            d.answer("또 타고 싶어") { asked.size == 3 && s.stage !is DiaryAsk }
             assertEquals("고정 차례가 아니라 판정이 고른 칸을 물었다", "reaction", asked[1].getString("asked_slot"))
             assertEquals("첫 칸의 책 문장은 아이 말 그대로", "미끄럼틀 타서 신났어", s.slots["reaction"])
             assertEquals("둘째 칸은 판정이 채운 값", "미끄럼틀을 탔다", s.slots["problem"])
             assertTrue(s.slotBy.values.all { it == "child" })
             assertEquals("story_ready", s.endReason)
-            assertEquals(2, s.diaryDay.turnCalls)
+            assertEquals(3, s.diaryDay.turnCalls)
         }
     }
 
@@ -140,6 +145,33 @@ class DiaryLiveTurnTest {
             d.answer("또 미끄럼틀 타고 싶어") { asked.size == 2 && s.line != "내일 또 하고 싶은 거 있어?" }
             assertEquals("또 미끄럼틀 타고 싶어", s.slots["keep"])
             assertTrue("이미 답한 「내일」을 또 물었다 — 말=${s.line}", await(1_500) { s.line == "내일 또 하고 싶은 거 있어?" } == null)
+        }
+    }
+
+    /**
+     * 판정이 결말을 듣고 `story_ready` 를 줘도 「내일」은 묻는다 — 모드 절을 넣은 판정은 결말 답에서 ready · next 없음을 준다
+     * (`eval/results.md` 10-02). 그대로 멈추면 일기의 맺음 질문이 빠진다 (10-02 진웅)
+     */
+    @Test
+    fun tomorrowIsStillAskedWhenTheVerdictSaysReady() {
+        val asked = mutableListOf<JSONObject>()
+        live({ t ->
+            asked += t
+            when (t.getString("asked_slot")) {
+                "place" -> turn(listOf("place" to "놀이터", "problem" to "그네 탔다"), "solution", "그네 탔구나!", "그래서 어떻게 됐어?")
+                "solution" -> turn(listOf("solution" to "집에 왔다"), null, "그랬구나!", null, ready = true)
+                else -> turn(listOf("extra" to "또 그네 타고 싶어"), null, "또 타고 싶구나!", null, ready = true)
+            }
+        }) { d ->
+            val s = d.s
+            d.toQuestions()
+            assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+            d.answer("놀이터 가서 그네 탔어") { s.line == "그래서 어떻게 됐어?" }
+            d.answer("집에 왔어") { asked.size == 2 && s.line != "그래서 어떻게 됐어?" }
+            assertTrue("판정이 ready 라고 「내일」을 건너뛰었다 — 말=${s.line}", await { s.line == "내일 또 하고 싶은 거 있어?" } != null)
+            d.answer("또 그네 타고 싶어") { asked.size == 3 }
+            assertEquals("extra", asked[2].getString("asked_slot"))
+            assertEquals("또 그네 타고 싶어", s.slots["keep"])
         }
     }
 
@@ -198,13 +230,14 @@ class DiaryLiveTurnTest {
     fun theBookIsWrittenByTheServer() {
         var sent: Map<String, String?>? = null
         live(
-            { turn(listOf("place" to "놀이터"), null, "놀이터에 갔구나!", null, ready = true) },
+            { t -> if (t.getString("asked_slot") == "extra") wish() else turn(listOf("place" to "놀이터"), null, "놀이터에 갔구나!", null, ready = true) },
             { slots, _, _ -> sent = slots; listOf("나는 오늘 놀이터에 갔어요.", "그 뒤에 어떻게 되었는지는 아직 듣지 못했어요.", "재미있었어요.") },
         ) { d ->
             val s = d.s
             d.toQuestions()
             assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
-            d.answer("놀이터 갔어") { s.stage is DiaryPaper }
+            d.answer("놀이터 갔어") { s.line == "내일 또 하고 싶은 거 있어?" }
+            d.answer("또 가고 싶어") { s.stage is DiaryPaper }
             assertEquals("놀이터 갔어", sent?.get("place"))
             assertEquals("나는 오늘 놀이터에 갔어요.", buildDiaryBook(s.diaryBookInput()).first().text)
         }
@@ -219,7 +252,8 @@ class DiaryLiveTurnTest {
         var sent: Map<String, String?>? = null
         live(
             { t ->
-                if (t.getString("asked_slot") == "place") turn(listOf("place" to "놀이터"), "problem", "놀이터에 갔구나!", "놀이터에서 무슨 일이 있었어?")
+                if (t.getString("asked_slot") == "extra") wish()
+                else if (t.getString("asked_slot") == "place") turn(listOf("place" to "놀이터"), "problem", "놀이터에 갔구나!", "놀이터에서 무슨 일이 있었어?")
                 else turn(listOf("problem" to "뽀삐가 미끄럼틀에서 넘어졌다", "reaction" to "울었다"), null, "그랬구나!", null, ready = true)
             },
             { slots, _, _ -> sent = slots; null },
@@ -228,7 +262,8 @@ class DiaryLiveTurnTest {
             d.toQuestions()
             assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
             d.answer("놀이터 갔어") { s.line == "놀이터에서 무슨 일이 있었어?" }
-            d.answer("뽀삐가 미끄럼틀에서 넘어져서 울었어") { s.stage is DiaryPaper }
+            d.answer("뽀삐가 미끄럼틀에서 넘어져서 울었어") { s.line == "내일 또 하고 싶은 거 있어?" }
+            d.answer("또 가고 싶어") { s.stage is DiaryPaper }
             assertEquals("판정 상태에는 남는다", "울었다", s.slots["reaction"])
             assertEquals("뽀삐가 미끄럼틀에서 넘어져서 울었어", sent?.get("problem"))
             assertEquals("둘째 칸을 /story 에 보냈다", null, sent?.get("reaction"))
@@ -239,11 +274,12 @@ class DiaryLiveTurnTest {
 
     @Test
     fun whenTheBookServerFailsTheAppWritesTheBook() {
-        live({ turn(listOf("place" to "놀이터"), null, "놀이터에 갔구나!", null, ready = true) }) { d ->
+        live({ t -> if (t.getString("asked_slot") == "extra") wish() else turn(listOf("place" to "놀이터"), null, "놀이터에 갔구나!", null, ready = true) }) { d ->
             val s = d.s
             d.toQuestions()
             assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
-            d.answer("놀이터 갔어") { s.stage is DiaryPaper }
+            d.answer("놀이터 갔어") { s.line == "내일 또 하고 싶은 거 있어?" }
+            d.answer("또 가고 싶어") { s.stage is DiaryPaper }
             assertEquals(null, s.diaryDay.written)
             assertEquals("앱이 아이 말로 짠 문장", "나는 오늘 놀이터 갔어요.", buildDiaryBook(s.diaryBookInput()).first().text)
         }
