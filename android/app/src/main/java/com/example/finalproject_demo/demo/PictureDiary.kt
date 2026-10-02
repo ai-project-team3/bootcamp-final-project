@@ -769,6 +769,38 @@ private fun Director.firstEmptyQuestion(skip: Set<String> = emptySet()): Triple<
  */
 internal fun askedKeyOf(slot: String): String = if (slot == "extra") "keep" else slot
 
+/**
+ * 판정이 채운 칸을 **아이 출처로** 넣는다 — 첫 칸의 책 문장은 아이 말 그대로(판정의 요약이 아니다 · 차별점 「오늘 아이가 한 말 그대로」).
+ * 한 말이 두 칸을 채우면 둘째 칸은 책에 다시 보내지 않는다([DiaryDay.sameSaying]). D3 · D1 이야기 질문이 같이 쓴다
+ */
+private fun Director.fillFromVerdict(day: DiaryDay, v: Server.Verdict, r: Reply.Spoke, askedKey: String) {
+    v.fills.forEachIndexed { i, (fillSlot, value) ->
+        if (fillSlot !in Server.SLOTS || value.isBlank()) return@forEachIndexed
+        val line = if (i == 0) r.text.trim() else value.trim()
+        val bookKey = bookKeyOf(fillSlot, askedKey)
+        setDiarySlot(fillSlot, bookKey, value.trim(), line, "child")
+        if (i > 0) day.sameSaying += bookKey else day.sameSaying -= bookKey
+    }
+}
+
+/** 오또의 받아 주기 — 서버 대사(받아주기 + 되돌려주기)가 있으면 그것, 없고 칸이 찼으면 아이 말을 되받는다 */
+private suspend fun Director.sayReaction(result: Server.TurnResult, r: Reply.Spoke) {
+    val reaction = listOfNotNull(result.line?.ack?.takeIf(String::isNotBlank), result.line?.expand?.takeIf(String::isNotBlank)).joinToString(" ")
+    if (reaction.isNotBlank()) { say(reaction); pause(600) }
+    else if (result.verdict?.fills?.isNotEmpty() == true) { say(echoBack(r.text)); pause(600) }
+}
+
+/**
+ * 판정이 고른 다음 질문 — (판정 슬롯 · 질문 · 책 키). 아직 빈 칸이고 서버가 질문을 썼을 때만.
+ * 서버 질문은 앞 말을 받아 「놀이터에서 무슨 일이 있었어?」처럼 맥락을 담는다 — 그림 질문이 사이에 끼어도 알아듣게
+ */
+private fun Director.serverNext(result: Server.TurnResult): Triple<String, String, String>? {
+    val slot = result.verdict?.nextSlot?.takeIf { it in Server.SLOTS && s.slots[askedKeyOf(it)].isNullOrBlank() } ?: return null
+    val question = result.line?.question?.takeIf(String::isNotBlank) ?: return null
+    log("판정이 다음 칸을 골랐다 → [$slot] 「$question」")
+    return Triple(slot, question, askedKeyOf(slot))
+}
+
 private fun bookKeyOf(slot: String, askedKey: String): String = when (slot) {
     "extra" -> if (askedKey == "keep") "keep" else "extra"
     else -> slot
@@ -844,14 +876,7 @@ private suspend fun Director.askEmptySlotsLive() {
             el = if (v.s2Addition) setOf("추가") else emptySet(),
             emo = v.emotion.orEmpty(),
         )), q.text)
-        v.fills.forEachIndexed { i, (fillSlot, value) ->
-            if (fillSlot !in Server.SLOTS || value.isBlank()) return@forEachIndexed
-            // 첫 칸의 책 문장은 아이가 한 말 그대로 — 판정의 요약이 아니다(차별점 「오늘 아이가 한 말 그대로」)
-            val line = if (i == 0) r.text.trim() else value.trim()
-            val bookKey = bookKeyOf(fillSlot, key)
-            setDiarySlot(fillSlot, bookKey, value.trim(), line, "child")
-            if (i > 0) day.sameSaying += bookKey else day.sameSaying -= bookKey
-        }
+        fillFromVerdict(day, v, r, key)
         if (v.fills.isEmpty()) {
             if (easyTried != key && step != null) {
                 easyTried = key
@@ -866,19 +891,8 @@ private suspend fun Director.askEmptySlotsLive() {
             s.endReason = "story_ready"
             log("판정 story_ready — 남은 물음은 판정이 고른 칸만")
         }
-        val reaction = listOfNotNull(result.line?.ack?.takeIf(String::isNotBlank), result.line?.expand?.takeIf(String::isNotBlank)).joinToString(" ")
-        if (reaction.isNotBlank()) { say(reaction); pause(600) }
-        else if (v.fills.isNotEmpty()) { say(echoBack(r.text)); pause(600) }
-        val serverSlot = v.nextSlot?.takeIf { it in Server.SLOTS && s.slots[askedKeyOf(it)].isNullOrBlank() }
-        val serverQuestion = result.line?.question?.takeIf(String::isNotBlank)
-        next = when {
-            serverSlot != null && serverQuestion != null -> {
-                log("판정이 다음 칸을 골랐다 → [$serverSlot] 「$serverQuestion」")
-                Triple(serverSlot, serverQuestion, askedKeyOf(serverSlot))
-            }
-            v.storyReady -> null
-            else -> firstEmptyQuestion(gaveUp)
-        }
+        sayReaction(result, r)
+        next = serverNext(result) ?: if (v.storyReady) null else firstEmptyQuestion(gaveUp)
     }
     if (s.endReason == null && PICTURE_REQUIRED.all { !s.slots[it].isNullOrBlank() }) s.endReason = "story_ready"
     log("다 그린 뒤 ${asked}번 물었다 · /turn ${day.turnCalls}번 (#30 — 세기만)")
