@@ -26,6 +26,12 @@ sealed interface DiaryStage : Stage
 enum class PieceLook { ORIGINAL, OTTO }
 
 /**
+ * 조각의 역할 — 물체(앞에서 움직인다) · 배경(땅 · 하늘처럼 판을 가로지르는 선 — 맨 뒤 겹, 움직이지 않는다).
+ * 색칠은 따로 역할을 두지 않고 칠한 조각에 붙는다(`addStroke`). 기준값은 획 기록(`DiaryTrace`)으로 다시 잡는다
+ */
+enum class PieceRole { OBJECT, BACKGROUND }
+
+/**
  * 화이트보드에서 위치로 묶인 획 한 덩어리 (D1).
  *
  * [name] 은 **아이가 말한 이름**이다. 인식한 낱말은 여기 넣지 않는다 — 질문 문구에만 쓴다(규칙 5).
@@ -38,9 +44,10 @@ data class DiaryPiece(
     val look: PieceLook = PieceLook.ORIGINAL,
     /** 오또가 그린 모습 (투명 PNG). 받기 전이거나 실패하면 null — 원본으로 간다 */
     val ottoPng: ByteArray? = null,
+    val role: PieceRole = PieceRole.OBJECT,
 ) {
     override fun equals(other: Any?) = other is DiaryPiece && other.id == id && other.strokes == strokes &&
-        other.name == name && other.look == look && other.ottoPng.contentEquals(ottoPng)
+        other.name == name && other.look == look && other.ottoPng.contentEquals(ottoPng) && other.role == role
 
     override fun hashCode() = id
 }

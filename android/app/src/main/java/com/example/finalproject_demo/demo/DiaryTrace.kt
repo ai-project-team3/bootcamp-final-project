@@ -64,7 +64,7 @@ object DiaryTrace {
     fun pieces(d: DiaryDay, drawing: List<Stroke>) = write("pieces") {
         put("pieces", JSONArray().apply {
             d.pieces.forEach { p ->
-                put(JSONObject().put("id", p.id).put("name", p.name ?: JSONObject.NULL).put("look", p.look.name)
+                put(JSONObject().put("id", p.id).put("name", p.name ?: JSONObject.NULL).put("look", p.look.name).put("role", p.role.name)
                     .put("strokes", JSONArray(p.strokes.map { s -> drawing.indexOf(s) })))
             }
         })

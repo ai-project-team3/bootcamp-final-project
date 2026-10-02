@@ -163,6 +163,33 @@ class DiaryBoardTest {
         assertEquals(null, day.undoStroke(drawing))
     }
 
+    /** 판을 가로지르는 납작한 선은 배경 — 그 위에 그린 물체를 빨아들이지 않고, 배경선끼리만 묶인다 */
+    @Test
+    fun aLineAcrossTheBoardIsBackgroundAndKeepsToItself() {
+        val day = DiaryDay()
+        val ground = day.addStroke(diaryLine(.05f, .85f, .40f, .88f, .95f, .86f))
+        assertEquals(com.example.finalproject_demo.demo.PieceRole.BACKGROUND, day.pieces.single().role)
+        val tree = day.addStroke(diaryLine(.30f, .50f, .30f, .84f))                 // 땅에 닿게 세운 나무
+        assertNotEquals("땅선이 나무를 빨아들였다", ground, tree)
+        assertEquals(com.example.finalproject_demo.demo.PieceRole.OBJECT, day.pieces.first { it.id == tree }.role)
+        assertEquals("땅을 두 번 그었는데 따로 갈렸다", ground, day.addStroke(diaryLine(.08f, .90f, .92f, .91f)))
+        assertNotEquals("하늘선이 땅에 붙었다", ground, day.addStroke(diaryLine(.05f, .10f, .95f, .12f)))
+        val short = day.addStroke(diaryLine(.60f, .40f, .75f, .40f))
+        assertNotEquals("작은 가로선을 배경으로 봤다", com.example.finalproject_demo.demo.PieceRole.BACKGROUND, day.pieces.first { it.id == short }.role)
+    }
+
+    /** 조각 안을 촘촘히 오가는 획은 색칠 — 이름이 붙은 조각이어도 그 조각에 붙는다(묻지 않는다) */
+    @Test
+    fun scribblingInsideAPieceColorsIt() {
+        val day = DiaryDay()
+        val house = day.addStroke(diaryLine(.10f, .40f, .30f, .40f, .30f, .80f, .10f, .80f, .10f, .40f))
+        day.pieces[0] = day.pieces[0].copy(name = "우리 집")
+        val zigzag = (0..12).flatMap { i -> listOf(.13f + (i % 2) * .14f, .45f + i * .025f) }.toFloatArray()
+        assertEquals("집 안 색칠이 새 조각이 됐다", house, day.addStroke(diaryLine(*zigzag)))
+        assertEquals("이름이 바뀌었다", "우리 집", day.pieces.single().name)
+        assertNotEquals("집 안의 짧은 선 하나까지 색칠로 봤다", house, day.addStroke(diaryLine(.18f, .55f, .22f, .58f)))
+    }
+
     private fun diaryLine(vararg xy: Float) =
         com.example.finalproject_demo.demo.Stroke(androidx.compose.ui.graphics.Color.Blue, xy.toList().chunked(2).map { androidx.compose.ui.geometry.Offset(it[0], it[1]) })
 }
