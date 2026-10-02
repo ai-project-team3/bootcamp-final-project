@@ -29,9 +29,9 @@ class NonCoopQuestionsGoldenTest {
 
     private fun dump(): String = buildString {
         fun line(key: String, f: () -> String) {
-            val a = runCatching(f).getOrElse { "!${it.javaClass.simpleName}" }
-            val b = runCatching(f).getOrElse { "!${it.javaClass.simpleName}" }
-            appendLine(if (a == b) "$key = $a" else "$key = <random>")
+            // 선택지 순서를 섞는 질문이 있다 — 여러 번 펼쳐 한 번이라도 다르면 무작위로 친다
+            val seen = (1..12).map { runCatching(f).getOrElse { e -> "!${e.javaClass.simpleName}" } }.toSet()
+            appendLine(if (seen.size == 1) "$key = ${seen.single()}" else "$key = <random>")
         }
         BANK.forEach { v -> v.levels.sortedBy { it.rank }.forEach { lv ->
             val s = state(StoryMode.STORY, lv)
@@ -58,7 +58,14 @@ class NonCoopQuestionsGoldenTest {
     fun nonCoopQuestionsAreUnchanged() {
         val now = dump()
         if (System.getenv("GOLDEN_RECORD") == "1") { golden.parentFile.mkdirs(); golden.writeText(now); return }
-        assertEquals("협업이 아닌 모드의 질문 · 공용 도구 결과가 바뀌었다 (기준: ${golden.path})", golden.readText().lf(), now.lf())
+        // 어느 한쪽이라도 무작위로 표시된 줄은 견주지 않는다 (나머지는 한 글자도 같아야 한다)
+        fun lines(t: String) = t.lf().lines().filter { it.isNotBlank() }.associate { it.substringBefore(" = ") to it.substringAfter(" = ") }
+        val want = lines(golden.readText())
+        val got = lines(now)
+        assertEquals("질문 목록이 달라졌다", want.keys, got.keys)
+        val changed = want.keys.filter { k -> want[k] != "<random>" && got[k] != "<random>" && want[k] != got[k] }
+            .map { k -> "$k · 기준: ${want[k]} · 지금: ${got[k]}" }
+        assertEquals("협업이 아닌 모드의 질문 · 공용 도구 결과가 바뀌었다 (기준: ${golden.path})", emptyList<String>(), changed)
     }
 
     @Test
