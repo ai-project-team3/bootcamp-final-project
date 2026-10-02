@@ -1672,6 +1672,7 @@ private suspend fun Director.sceneShelf() {
                 s.stage = Stage.Shelf(fromEnd)
             }
             "book" -> {
+                if (openSavedDiary(tapped.label)) { s.stage = Stage.Shelf(fromEnd); continue }   // 그림일기 다시 읽기(#37)
                 val book = savedStory(tapped.label) ?: continue
                 var page = 0
                 s.line = ""

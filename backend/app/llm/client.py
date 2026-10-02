@@ -9,10 +9,18 @@ measurement. Adding another provider is a branch here, not a change in callers.
 """
 import asyncio
 import json
+import logging
+from typing import Callable
 
 import httpx
 
 from ..config import settings
+
+log = logging.getLogger("llm")
+
+# Every call's tokens, for cost (#30 · 10-02): the server log gets one line per call, and a
+# measurement script can hook in to add them up. Never the text — only the call name and counts.
+on_usage: Callable[[str, int, int], None] | None = None
 
 
 class LLMError(RuntimeError):
@@ -77,7 +85,13 @@ async def complete(system: str, user: str, schema: dict, *, effort: str,
         raise LLMError(f"network: {type(e).__name__}") from e
     if r.status_code != 200:
         raise LLMError(f"HTTP {r.status_code}")
+    body = r.json()
+    usage = body.get("usage") or {}
+    tin, tout = int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0)
+    log.info("llm %s · in %d · out %d tokens", name, tin, tout)
+    if on_usage:
+        on_usage(name, tin, tout)
     try:
-        return json.loads(_output_text(r.json()))
+        return json.loads(_output_text(body))
     except json.JSONDecodeError as e:
         raise LLMError("output is not JSON") from e

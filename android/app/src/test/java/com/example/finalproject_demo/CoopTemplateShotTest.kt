@@ -14,8 +14,6 @@ import com.example.finalproject_demo.ui.COOP_KINDS
 import com.example.finalproject_demo.ui.CoopReason
 import com.example.finalproject_demo.ui.coopKind
 import com.example.finalproject_demo.ui.ParentView
-import com.github.takahirom.roborazzi.RoborazziOptions
-import com.github.takahirom.roborazzi.RoborazziTaskType
 import com.github.takahirom.roborazzi.captureRoboImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -39,7 +37,7 @@ class CoopTemplateShotTest {
     @get:Rule val compose = createComposeRule()
 
     private fun snap(path: String) = compose.onRoot().captureRoboImage(
-        File(path).path, roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+        File(path).path,
     )
 
     private fun parent(): Director {
