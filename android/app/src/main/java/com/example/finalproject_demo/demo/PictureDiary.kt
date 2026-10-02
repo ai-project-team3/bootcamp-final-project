@@ -30,9 +30,12 @@ import kotlinx.coroutines.withTimeoutOrNull
  * 오또 그림은 서버 모드면 `/image` redraw(#32 · `DiaryRedraw.kt`), 대본이면 그림 글자다. 시연 버튼으로도 붓 멈춤을 낼 수 있다.
  */
 
-/** 그리는 동안 묻는 질문 수 · 오또가 그려 주겠다고 하는 수 · 다 그린 뒤 묻는 수 */
-internal const val ASK_WHILE_DRAWING = 2
-internal const val OTTO_OFFERS = 2
+/**
+ * 오또가 먼저 「나도 ○○ 그려볼까?」라고 하는 수(한 판) · 다 그린 뒤 묻는 수.
+ * 제안마다 GPU 가 약 8초씩 그려서 상한을 둔다 — 아이가 「그려줘」로 직접 부탁하는 건 세지 않는다 (10-02 진웅: 2 → 4).
+ * 그리는 동안의 이름 질문에는 상한이 없다
+ */
+internal const val OTTO_OFFERS = 4
 
 /**
  * 그리면서 듣는 D1 질문의 첫 답 기다림(초). 기본 5초는 손을 멈추고 답하기엔 짧다(10-01 진웅 · 프로토타입 15초 · 흐름 10초).
@@ -83,7 +86,6 @@ internal const val DONE_CHECK_EVERY = 2
  * 그림판 옆 버튼은 없다 — 물을 것이 떨어지면 오또가 멈춘 틈에 「다 그렸어?」라고 묻는다 (docs/일기모드_UI.html 규칙)
  */
 private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
-    var asked = 0
     var offers = 0
     var quiet = 0                                // 물을 것 없이 지나간 멈춤 수
     var afterCrayon = false                      // 이번 멈춤이 크레용을 고른 뒤에 왔나
@@ -186,14 +188,14 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
 
         day.catchUp(s.drawing)
         val piece = pieceBeingDrawn(day)?.takeIf { it.id !in askedPieces }
-        if (piece != null && asked < ASK_WHILE_DRAWING) {
-            asked++
+        // 그린 조각마다 묻는다 — 몇 번까지라는 상한은 없다. 빈도는 붓 멈춤 · 손 움직임이 정한다 (10-02 진웅 · 흐름 「간격으로만」)
+        if (piece != null) {
             askedPieces += piece.id
             val linesBefore = s.drawing.size
             val answer = askPieceName(day, piece)
             if (answer.finished) break
             // 다른 조각을 그리러 갔다 — 이 조각은 안 물은 것으로 두고(나중에 · D3), 다음 멈춤에 지금 그리는 조각을 먼저 묻는다
-            if (answer.movedOn) { asked--; askedPieces -= piece.id; continue }
+            if (answer.movedOn) { askedPieces -= piece.id; continue }
             val name = answer.name
             if (name == null || offers >= OTTO_OFFERS) continue
             // 답하는 사이 새 선을 긋기 시작했으면 그리기를 끊지 않는다 — 제안은 물을 것 없는 다음 멈춤에
@@ -218,10 +220,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             }
             continue
         }
-        log(
-            if (piece != null) "붓 멈춤 — 이번 판에 물을 만큼 물었다(${ASK_WHILE_DRAWING}번). 그리기를 지켜본다"
-            else "붓 멈춤 — 방금 그린 조각은 이름이 있거나 이미 물었다. 묻지 않는다"
-        )
+        log("붓 멈춤 — 방금 그린 조각은 이름이 있거나 이미 물었다. 묻지 않는다")
         if (afterCrayon) continue                      // 색을 고르고 이어 그릴 참이다 — 「다 그렸어?」로 세지 않는다
         if (++quiet < DONE_CHECK_EVERY) continue
         quiet = 0
