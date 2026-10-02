@@ -30,6 +30,7 @@ enum class PieceMove { TOPPLE, BUILD, DROOP, WALK, HOP, BOB }
  *
  * @param cast 앞으로 나와 움직이는 조각 이름. 나머지 조각은 흐리게 뒤에 남는다
  * @param still 문장이 **장소로** 쓴 조각(「우리 집 앞에」) — 앞으로 나오되 걷지 않는다
+ * @param with 「엄마랑 미끄럼틀 탔어」의 엄마처럼 **같이 있던** 조각 — 문장의 움직임 대신 통통 뛴다 (프로토타입 `withWho`)
  * @param closing 마지막 쪽의 오늘 기분 줄. [asksFeel] 이면 아직 안 골랐다 — 「오늘은」까지 써 두고 얼굴을 누르게 한다
  */
 data class DiaryPage(
@@ -39,6 +40,7 @@ data class DiaryPage(
     val cast: List<String>,
     val move: PieceMove,
     val still: Set<String> = emptySet(),
+    val with: Set<String> = emptySet(),
     val tail: String? = null,
     val closing: String? = null,
     val asksFeel: Boolean = false,
@@ -56,7 +58,24 @@ data class DiaryBookInput(
     val written: List<String>? = null,
     /** 놀이(미션) 쪽을 붙이나 — 앱의 책은 붙이고, 쪽 짜기만 보는 검사는 끈다 */
     val missions: Boolean = false,
+    /** 그림을 세 줄로 나눠 줄마다 선이 있나 — 없으면 🧩 조각 하나가 흰 카드다([puzzleStripsAllDrawn]) */
+    val puzzle: Boolean = true,
 )
+
+/** 🧩 퍼즐 조각 수 — 화면(`DiaryViews` PuzzlePanel)도 이 수로 나눈다 */
+const val PUZZLE_STRIPS = 3
+
+/**
+ * 그림을 퍼즐처럼 세로 [PUZZLE_STRIPS] 줄로 나눴을 때 줄마다 선이 지나가나. 화면과 같은 자르기([cropFor])로 본다.
+ * 10-01 실기기: 떨어진 동그라미 둘을 그린 날 가운데 조각이 흰 카드라 무엇을 맞추는지 알 수 없었다
+ */
+fun puzzleStripsAllDrawn(strokes: List<Stroke>, aspect: Float): Boolean {
+    val pts = strokes.flatMap { it.pts }
+    if (pts.isEmpty()) return false
+    val crop = cropFor(strokes, aspect)
+    val w = crop.width / PUZZLE_STRIPS
+    return (0 until PUZZLE_STRIPS).all { i -> val l = crop.left + i * w; pts.any { it.x in l..(l + w) } }
+}
 
 /** 퍼즐 쪽의 글 — 원고지 대신 놀이 안내가 들어간다 */
 const val PUZZLE_TEXT = "놀이 · 내 그림 맞추기"
@@ -66,7 +85,7 @@ private val ACTION = Regex("(갔|왔|했|놀았|놀고|놀다|탔|먹|쌓|그렸
 
 /** 그림이 있고 아이가 한 행동을 말한 날이면 맨 뒤에 퍼즐 쪽 — 기분 줄은 그 앞 쪽에 남는다 */
 private fun withMissions(pages: MutableList<DiaryPage>, input: DiaryBookInput): List<DiaryPage> {
-    if (!input.missions || !input.hasDrawing) return pages
+    if (!input.missions || !input.hasDrawing || !input.puzzle) return pages
     // 앱이 지은 문장(「…에 갔어요」)이 아니라 아이가 한 말 원문으로 본다
     val acted = listOf("place", "problem", "solution").any { k -> input.lines[k]?.let(ACTION::containsMatchIn) == true }
     if (!acted) return pages
@@ -79,13 +98,18 @@ const val NOT_HEARD_THERE = "거기서 있었던 일은 아직 듣지 못했어�
 const val FEEL_LEAD = "오늘은"
 
 fun DemoState.diaryBookInput(): DiaryBookInput = DiaryBookInput(
-    lines = DiaryPageKind.entries.mapNotNull { k -> slots[k.bookKey]?.trim()?.takeIf(String::isNotEmpty)?.let { k.bookKey to it } }.toMap(),
+    lines = DiaryPageKind.entries.filter { it.bookKey !in diaryDay.sameSaying }
+        .mapNotNull { k -> slots[k.bookKey]?.trim()?.takeIf(String::isNotEmpty)?.let { k.bookKey to it } }.toMap(),
     by = slotBy.toMap(),
     pieceNames = diaryDay.pieceNames,
     hasDrawing = sceneDrawing.isNotEmpty() || diaryDay.pieces.isNotEmpty(),
     feel = diaryDay.feel,
     written = diaryDay.written,
     missions = true,
+    puzzle = puzzleStripsAllDrawn(
+        diaryDay.pieces.flatMap { it.strokes }.ifEmpty { sceneDrawing.toList() },
+        drawingAspect.takeIf { it > 0f } ?: 1f,
+    ),
 )
 
 /** 그림일기 쪽 목록. 그림도 말도 없으면 빈 목록 — 책 없이 조용히 끝난다(D6) */
@@ -102,11 +126,13 @@ fun buildDiaryBook(input: DiaryBookInput): List<DiaryPage> {
         cast = if (castAll) names else names.filter { mentions(text, it) },
         move = moveFrom(text),
         still = names.filter { asPlace(text, it) }.toSet(),
+        with = if (castAll) emptySet() else names.filter { Regex(Regex.escape(it) + "(이랑|랑|하고|와|과)").containsMatchIn(text) }.toSet(),
     )
 
     val pages = mutableListOf<DiaryPage>()
     if (input.hasDrawing) {
-        val text = if (names.isEmpty()) "내가 오늘 그린 그림이에요." else "나는 오늘 ${names.joinToString(", ")}${eul(names.last())} 그렸어요."
+        val listed = drawnList(names)
+        val text = if (listed.isEmpty()) "내가 오늘 그린 그림이에요." else "나는 오늘 ${listed.joinToString(", ")}${eul(listed.last())} 그렸어요."
         pages += page(DiaryPageKind.DRAWING, text, castAll = true).copy(by = if (names.isEmpty()) null else "child")
     }
     val written = input.written?.map(String::trim)?.filter(String::isNotEmpty)
@@ -205,6 +231,13 @@ internal fun mentions(text: String, name: String): Boolean {
     val re = Regex("(^|[\\s,])${Regex.escape(name)}($PARTICLES)?(?=[\\s,.!?]|$)")
     return re.containsMatchIn(text) || (name == "나" && Regex("(^|\\s)내가(\\s|$)").containsMatchIn(text))
 }
+
+/**
+ * 1쪽 「나는 오늘 ○○를 그렸어요」에 늘어놓을 이름 — 다른 이름 안에 낱말로 들어 있는 이름은 뺀다.
+ * 「강아지, 우리 집 강아지 뽀삐」 → 「우리 집 강아지 뽀삐」 · 「나, 엄마랑 나」 → 「엄마랑 나」. 조각은 그대로 다 나온다(문장만)
+ */
+internal fun drawnList(names: List<String>): List<String> =
+    names.filter { n -> names.none { m -> m != n && mentions(m, n) } }
 
 /** 문장이 그 조각을 장소로 쓰나 (「우리 집 앞에」 · 「놀이터에서」) — 그 조각은 걷지 않는다 */
 internal fun asPlace(text: String, name: String): Boolean =

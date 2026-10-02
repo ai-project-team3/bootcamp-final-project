@@ -3,6 +3,7 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.namedNeighborOf
 import com.example.finalproject_demo.demo.namedIn
 import com.example.finalproject_demo.demo.mergeInto
+import com.example.finalproject_demo.demo.touching
 import com.example.finalproject_demo.demo.DiaryDay
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -14,6 +15,7 @@ import com.example.finalproject_demo.demo.catchUp
 import com.example.finalproject_demo.demo.cropFor
 import com.example.finalproject_demo.demo.newDiaryDay
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -89,9 +91,47 @@ class DiaryBoardTest {
         assertEquals(null, day.namedNeighborOf(day.pieces.first { it.id == mom }))
         assertEquals("우리 집", day.namedIn("우리 집 창문이야", except = window)?.name)
         assertEquals(null, day.namedIn("엄마야", except = mom))
+        assertEquals("우리 집", day.namedIn("우리 집에 그렸어", except = window)?.name)
+        assertTrue(day.touching(window, house))
+        assertFalse("멀리 떨어진 조각이 닿았다고 했다", day.touching(mom, house))
         day.mergeInto(window, house)
         assertEquals(2, day.pieces.size)
         assertEquals(2, day.pieces.first { it.id == house }.strokes.size)
+    }
+
+    /**
+     * 색을 바꿔 방금 그리던 조각에 이어 그리면 — 그새 이름이 붙었어도 같은 조각. 새 색으로 이어 긋는 선도 붙고,
+     * 다른 데에 그으면 거기서 끝난다. 같은 색으로 이름 조각에 닿게 그린 선은 전처럼 새 조각(「더 그린 거야?」) (10-01 진웅)
+     */
+    @Test
+    fun aNewCrayonOnThePieceJustDrawnKeepsDrawingIt() {
+        fun line(c: androidx.compose.ui.graphics.Color, vararg xy: Float) =
+            com.example.finalproject_demo.demo.Stroke(c, xy.toList().chunked(2).map { androidx.compose.ui.geometry.Offset(it[0], it[1]) })
+        val blue = androidx.compose.ui.graphics.Color.Blue
+        val red = androidx.compose.ui.graphics.Color.Red
+        val day = DiaryDay()
+        val house = day.addStroke(line(blue, .10f, .40f, .30f, .40f, .30f, .80f, .10f, .80f))
+        day.pieces[0] = day.pieces[0].copy(name = "우리 집")            // 색을 고르는 사이 오또가 묻고 이름이 붙었다
+        assertEquals("색을 바꿔 이어 그린 지붕", house, day.addStroke(line(red, .08f, .40f, .20f, .25f, .32f, .40f)))
+        assertEquals("새 색으로 이어 긋는 선", house, day.addStroke(line(red, .15f, .30f, .25f, .30f)))
+        val far = day.addStroke(line(red, .70f, .30f, .80f, .30f))
+        assertNotEquals("멀리 그은 선은 다른 조각", house, far)
+        assertNotEquals("다른 데에 그은 뒤 같은 색으로 돌아와 닿은 선은 묻는 쪽(새 조각)", house, day.addStroke(line(red, .29f, .60f, .33f, .62f)))
+    }
+
+    /** 이름은 낱말로 불러야 한다 — 10-01 실기기에서 「강아」 조각이 「이건 우리 집 강아지 뽀삐야」에 합쳐졌다 */
+    @Test
+    fun aNameInsideAnotherWordDoesNotCallThatPiece() {
+        val day = DiaryDay()
+        day.addStroke(diaryLine(.10f, .40f, .30f, .40f))
+        day.pieces[0] = day.pieces[0].copy(name = "강아")
+        day.addStroke(diaryLine(.70f, .30f, .90f, .30f))
+        day.pieces[1] = day.pieces[1].copy(name = "해")
+        val next = day.addStroke(diaryLine(.50f, .80f, .55f, .85f))
+        assertEquals(null, day.namedIn("이건 우리 집 강아지 뽀삐야", except = next))
+        assertEquals(null, day.namedIn("해님이야", except = next))
+        assertEquals("해", day.namedIn("해가 웃고 있어", except = next)?.name)
+        assertEquals("강아", day.namedIn("강아 꼬리야", except = next)?.name)
     }
 
     private fun diaryLine(vararg xy: Float) =

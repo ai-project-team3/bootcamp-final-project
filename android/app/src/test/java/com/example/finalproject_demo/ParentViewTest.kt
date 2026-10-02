@@ -100,6 +100,7 @@ class ParentViewTest {
             var guard = 0
             while (s.scene == Scene.DIARY && s.stage !is DiaryGift && guard++ < 40) {
                 val b = s.buttons.firstOrNull { "😄" in it.label } ?: s.buttons.firstOrNull { "다음 쪽" in it.label || "다 읽었어" in it.label }
+                    ?: s.buttons.firstOrNull { "대답 없음" in it.label }      // 다 읽은 뒤 제목을 묻는다 — 말 없이 넘긴다
                 if (b == null) { delay(20); continue }
                 b.onClick(); delay(30)
             }
