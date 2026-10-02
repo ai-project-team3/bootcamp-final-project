@@ -430,7 +430,7 @@ class PictureDiaryFlowTest {
         assertTrue(await { s.slots["place"] == "놀이터 갔어" } != null)
         assertEquals("child", s.slotBy["place"])
         assertTrue("둘째 이야기를 묻지 않았다 — 말=${s.line}",
-            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "여기서 무슨 일이 있었어?" } != null)
+            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "거기서 무슨 일이 있었어?" } != null)
         d.speak("몰라")
         assertTrue(await { s.line == "괜찮아, 계속 그려 봐!" } != null)
         assertTrue(d.push("✅ 다 그렸어"))

@@ -232,10 +232,11 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
         }
         log("붓 멈춤 — 방금 그린 조각은 이름이 있거나 이미 물었다. 묻지 않는다")
         if (afterCrayon) continue                      // 색을 고르고 이어 그릴 참이다 — 「다 그렸어?」로 세지 않는다
-        // 물을 조각이 없는 멈춤 — 이야기를 하나 묻는다(어디 → 무슨 일). 칸마다 한 번 · 답한 칸은 D3 에서 다시 묻지 않는다 (10-02 진웅 · 프로토타입)
-        val story = D1_STORY.firstOrNull { it.key !in storyAsked && s.slots[it.key].isNullOrBlank() }
+        // 물을 조각이 없는 멈춤 — 이야기를 하나 묻는다. 첫 질문은 고정(구워 둔 목소리), 다음은 서버가 앞 말을 받아 쓴 질문
+        // (「놀이터에서 무슨 일이 있었어?」 — 그림 질문이 사이에 끼어도 알아듣게). 칸마다 한 번 · [D1_STORY_MAX] 번까지 · 나머지는 D3 (10-02 진웅)
+        val story = nextD1Story(day, storyAsked)
         if (story != null) {
-            storyAsked += story.key
+            storyAsked += story.third
             if (askStoryWhileDrawing(day, story) == "done") break
             continue
         }
@@ -341,40 +342,68 @@ private fun Director.pieceBeingDrawn(day: DiaryDay): DiaryPiece? {
     return day.pieces.firstOrNull { lastStroke in it.strokes }?.takeIf { it.name == null }
 }
 
-/** 그리는 중에 묻는 이야기 — 책 키 · 질문. 그림을 보며 묻는 말이라 D3 질문보다 짧다 */
-private class StoryAsk(val key: String, val text: String)
+/** 그리는 중에 묻는 이야기 질문 수 — 나머지 칸은 다 그린 뒤(D3)에 묻는다. 그림이 중심이다 */
+private const val D1_STORY_MAX = 2
 
-private val D1_STORY = listOf(
-    StoryAsk("place", "여기는 어디야?"),
-    StoryAsk("problem", "여기서 무슨 일이 있었어?"),
-)
+/** 그리는 중 첫 이야기 질문 — 모든 아이에게 같은 말이라 앱에 구운 목소리로 바로 나간다 */
+private const val D1_FIRST_STORY = "여기는 어디야?"
+
+/**
+ * 다음 이야기 질문 — (판정 슬롯 · 질문 · 책 키) 또는 null.
+ * 1. 서버가 앞 답을 받아 고른 질문이 있으면 그것(맥락이 담긴 질문)
+ * 2. 아직 하나도 안 물었고 장소가 비었으면 「여기는 어디야?」
+ * 3. 서버가 없으면(대본) 「거기서 무슨 일이 있었어?」
+ */
+private fun Director.nextD1Story(day: DiaryDay, asked: Set<String>): Triple<String, String, String>? {
+    if (asked.size >= D1_STORY_MAX) return null
+    fun open(key: String) = key !in asked && s.slots[key].isNullOrBlank()
+    day.nextStory?.takeIf { open(it.third) }?.let { return it }
+    if (asked.isEmpty() && open("place")) return Triple("place", D1_FIRST_STORY, "place")
+    if (!Server.liveFor(s.mode) && open("problem")) return Triple("problem", "거기서 무슨 일이 있었어?", "problem")
+    return null
+}
 
 /**
  * 그리는 중 이야기 질문 하나 — 그리기를 막지 않는다(다른 조각을 그리기 시작하면 조용히 거둔다).
- * 답은 **아이 말 그대로** 그 칸에(아이 출처 · 규칙 5). 서버 판정은 D3 의 다음 질문이 이 칸까지 보고 고른다. 「몰라」 · 말이 없으면 비워 두고 D3 가 묻는다
+ * 서버 모드면 `/turn` 으로 판정해 칸을 아이 출처로 채우고, 오또가 받아 준 뒤 서버가 고른 다음 질문을 [DiaryDay.nextStory] 에 둔다.
+ * 서버가 없거나 실패하면 아이 말 그대로 물은 칸에. 「몰라」 · 말이 없으면 비워 두고 D3 가 묻는다.
  * 돌려주는 값: done(그리기를 끝냈다) · 그 밖
  */
-private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: StoryAsk): String {
+private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: Triple<String, String, String>): String {
+    val (slot, text, key) = story
+    day.nextStory = null
     val q = Question(
-        text = story.text, kind = Kind.EASY, noCards = true,
-        spoken = DIARY_STEPS.firstOrNull { it.bookKey == story.key }?.answers(s).orEmpty(),
+        text = text, kind = Kind.EASY, noCards = true,
+        spoken = DIARY_STEPS.firstOrNull { it.bookKey == key }?.answers(s).orEmpty(),
         extra = listOf(DemoBtn("✅ 다 그렸어") { send(Reply.Tapped("done", "완료")) }),
-        id = "diary_d1_${story.key}", waitSec = D1_WAIT_SEC,
+        id = "diary_d1_$key", waitSec = D1_WAIT_SEC,
     )
     val r = askWhileDrawing(q, day, about = null)
     if (r is Reply.Tapped && (r.value == "done" || r.value == "skip")) return "done"
-    val text = (r as? Reply.Spoke)?.text?.trim().orEmpty()
-    if (text.isEmpty() || dontKnow(text)) {
+    val said = (r as? Reply.Spoke)?.text?.trim().orEmpty()
+    if (r !is Reply.Spoke || said.isEmpty() || dontKnow(said)) {
         if (r is Reply.Spoke) { say("괜찮아, 계속 그려 봐!"); pause(600) }
-        log("그리는 중 이야기 [${story.key}] — 못 들었다 → 비워 두고 다 그린 뒤 묻는다")
+        log("그리는 중 이야기 [$key] — 못 들었다 → 비워 두고 다 그린 뒤 묻는다")
         return "skip"
     }
-    val scripted = (r as Reply.Spoke).answer?.value?.takeIf(String::isNotBlank)    // 시연 대본 답이면 값이 붙어 온다
-    val value = scripted?.let(::diarySlotOf) ?: text
-    val line = scripted?.let(::diaryLineOf) ?: text
-    setDiarySlot(judgeSlotOf(story.key), story.key, value, line, "child")
-    say(echoBack(text)); pause(600)
-    log("그리는 중 이야기 [${story.key}] = 「$text」 (child) — 다 그린 뒤에는 묻지 않는다")
+    if (Server.liveFor(s.mode)) {
+        day.turnCalls++
+        val result = s.exchangeTurn("diary", slot, text, said)
+        val v = result?.verdict
+        if (v != null && v.reason != "blocked_by_filter") {
+            fillFromVerdict(day, v, r, key)
+            sayReaction(result, r)
+            day.nextStory = serverNext(result)
+            log("그리는 중 이야기 [$key] — 판정이 칸을 채웠다 · 다음 이야기 ${day.nextStory?.second ?: "없음(D3)"}")
+            return "ok"
+        }
+        if (v != null) { log("서버 안전 판정 — 이 답은 책 재료에서 뺀다"); return "skip" }
+        log("판정 서버가 답하지 않았다 → 아이 말을 물은 칸에 그대로")
+    }
+    val scripted = r.answer?.value?.takeIf(String::isNotBlank)          // 시연 대본 답이면 값이 붙어 온다
+    setDiarySlot(slot, key, scripted?.let(::diarySlotOf) ?: said, scripted?.let(::diaryLineOf) ?: said, "child")
+    say(echoBack(said)); pause(600)
+    log("그리는 중 이야기 [$key] = 「$said」 (child) — 다 그린 뒤에는 묻지 않는다")
     return "ok"
 }
 
@@ -815,7 +844,9 @@ private fun bookKeyOf(slot: String, askedKey: String): String = when (slot) {
  */
 private suspend fun Director.askEmptySlotsLive() {
     val day = s.diaryDay
-    var next = firstEmptyQuestion()
+    // 그리는 중에 서버가 골라 둔 다음 이야기가 있으면 그것부터 — 아이가 이어서 들은 맥락 그대로
+    var next = day.nextStory?.takeIf { s.slots[it.third].isNullOrBlank() } ?: firstEmptyQuestion()
+    day.nextStory = null
     var asked = 0
     var wrapOffered = false
     val gaveUp = mutableSetOf<String>()          // 두 번 모른다고 한 칸 — 다시 묻지 않는다

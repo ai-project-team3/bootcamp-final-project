@@ -7,6 +7,7 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.diaryDay
+import com.example.finalproject_demo.demo.catchUp
 import com.example.finalproject_demo.demo.DiaryPaper
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.diaryBookInput
@@ -139,6 +140,44 @@ class DiaryLiveTurnTest {
             d.answer("또 미끄럼틀 타고 싶어") { asked.size == 2 && s.line != "내일 또 하고 싶은 거 있어?" }
             assertEquals("또 미끄럼틀 타고 싶어", s.slots["keep"])
             assertTrue("이미 답한 「내일」을 또 물었다 — 말=${s.line}", await(1_500) { s.line == "내일 또 하고 싶은 거 있어?" } == null)
+        }
+    }
+
+    /**
+     * 그리는 중 이야기 — 첫 질문은 고정(「여기는 어디야?」), 다음은 서버가 앞 말을 받아 쓴 질문(「놀이터에서 무슨 일이 있었어?」).
+     * 사이에 그림 질문이 끼어도 그 질문 그대로 묻고, 다 그린 뒤 D3 는 답한 칸을 다시 묻지 않는다 (10-02 진웅)
+     */
+    @Test
+    fun storyQuestionsWhileDrawingFollowTheServer() {
+        val asked = mutableListOf<JSONObject>()
+        live({ t ->
+            asked += t
+            when (asked.size) {
+                1 -> turn(listOf("place" to "놀이터"), "problem", "놀이터에 갔구나!", "놀이터에서 무슨 일이 있었어?")
+                2 -> turn(listOf("problem" to "미끄럼틀 탔다"), "solution", "미끄럼틀 탔구나!", "미끄럼틀 타고 나서 어떻게 됐어?")
+                else -> turn(emptyList(), null, "그랬구나!", null, ready = true)
+            }
+        }) { d ->
+            val s = d.s
+            d.go(Scene.DIARY)
+            assertTrue(await { s.stage is DiaryStart } != null)
+            assertTrue(await { if (s.stage is DiaryStart) d.send(Reply.Tapped("draw", "그릴래")); s.stage is com.example.finalproject_demo.demo.DiaryBoard } != null)
+            s.drawing += com.example.finalproject_demo.demo.Stroke(androidx.compose.ui.graphics.Color.Blue,
+                listOf(androidx.compose.ui.geometry.Offset(.1f, .3f), androidx.compose.ui.geometry.Offset(.2f, .6f)))
+            s.diaryDay.catchUp(s.drawing)
+            s.diaryDay.pieces[0] = s.diaryDay.pieces[0].copy(name = "미끄럼틀")                // 조각은 이미 이름이 있다 — 물을 조각이 없다
+            fun pause() { if (s.diaryDay.watching) d.send(Reply.Tapped("pause", "붓 멈춤")) }
+            assertTrue("첫 이야기는 고정 질문 — 말=${s.line}", await { pause(); s.line == "여기는 어디야?" } != null)
+            d.answer("놀이터 갔어") { asked.size == 1 && s.line != "여기는 어디야?" }
+            assertEquals("diary", asked[0].getString("mode"))
+            assertEquals("place", asked[0].getString("asked_slot"))
+            assertEquals("child", s.slotBy["place"])
+            assertTrue("다음 이야기가 서버 질문이 아니다 — 말=${s.line}", await { pause(); s.line == "놀이터에서 무슨 일이 있었어?" } != null)
+            d.answer("미끄럼틀 탔어") { asked.size == 2 && s.line != "놀이터에서 무슨 일이 있었어?" }
+            assertEquals("problem", asked[1].getString("asked_slot"))
+            // 그리는 중 이야기는 두 번까지 — 다 그린 뒤 D3 는 서버가 골라 둔 질문으로 잇는다
+            assertTrue(await { if (s.diaryDay.watching) d.send(Reply.Tapped("done", "완료")); s.stage is DiaryAsk } != null)
+            assertTrue("D3 가 서버가 골라 둔 질문으로 잇지 않았다 — 말=${s.line}", await { s.line == "미끄럼틀 타고 나서 어떻게 됐어?" } != null)
         }
     }
 

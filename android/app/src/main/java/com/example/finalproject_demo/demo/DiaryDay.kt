@@ -125,6 +125,12 @@ class DiaryDay {
     internal var lastStroke: Stroke? = null
     internal var continuing: Int? = null
 
+    /**
+     * 서버가 앞 이야기 답을 받아 골라 둔 다음 질문 — (판정 슬롯 · 질문 · 책 키). 그리는 중 다음 이야기 차례나 D3 첫 질문이 이것을 쓴다.
+     * 서버 질문은 맥락을 담는다(「놀이터에서 무슨 일이 있었어?」) — 그림 질문이 사이에 끼어도 아이가 알아듣게
+     */
+    var nextStory: Triple<String, String, String>? = null
+
     /** 이 그림일기를 만든 날 — 책장에서 다시 열 때만 있다. null 이면 오늘 */
     var madeOn: java.time.LocalDate? = null
 
