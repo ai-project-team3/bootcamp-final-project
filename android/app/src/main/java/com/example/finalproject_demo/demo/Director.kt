@@ -129,7 +129,24 @@ class Director(
     }
 
     fun send(r: Reply) {
+        // 마스코트가 말하는 중에 아이가 화면을 눌렀다 — 말을 끊고 그 입력으로 바로 넘어간다(10-02 조장).
+        // 전에는 목소리가 끝날 때까지 기다린 뒤 [drain] 이 그 탭을 버려서 「눌러도 안 넘어간다」였다.
+        // 「붓 멈춤」(DiaryViews)은 누른 게 아니라 그리기가 보낸 신호라 끊지 않는다
+        if (r is Reply.Tapped && !r.byMascot && r.value != "pause") cutVoiceFor(r)
         input.trySend(r)
+    }
+
+    // 말 끊고 들어온 입력 — 곧바로 오는 [drain] 한 번은 이것을 버리지 않는다.
+    // 짧게만 살린다: 한참 뒤의 drain 은 다른 화면이라 그때 살리면 앞 화면 탭이 다음 화면에 들어간다(#50 ④)
+    private var cutIn: Reply? = null
+    private var cutInAt = 0L
+    private val CUT_IN_KEEP_MS = 1_500L
+
+    private fun cutVoiceFor(r: Reply) {
+        if (synchronized(voiceLines) { voiceLines.isEmpty() }) return
+        hushVoice()
+        cutIn = r
+        cutInAt = System.currentTimeMillis()
     }
 
     /** 화면을 탭할 때까지 기다린다 (대기 타이머 없는 장면용). */
@@ -156,7 +173,14 @@ class Director(
     }
 
     private fun drain() {
-        while (input.tryReceive().isSuccess) { /* 이전 장면의 입력 버리기 */ }
+        val keep = cutIn?.takeIf { System.currentTimeMillis() - cutInAt < CUT_IN_KEEP_MS }
+        cutIn = null
+        var kept = false
+        while (true) {
+            val r = input.tryReceive().getOrNull() ?: break      // 이전 장면의 입력 버리기
+            if (r === keep && !kept) kept = true
+        }
+        if (kept) input.trySend(keep!!)                          // 말을 끊고 누른 것만 이 화면의 답으로
     }
 
     /**
@@ -197,12 +221,12 @@ class Director(
     /**
      * Writes each mascot line to the file named by `OTTO_SPEECH_DUMP`, only when it is set — the
      * test suite runs with it to list every line the app itself can say, to bake into audio once
-     * (eval/fixed_lines.py · 10-01: fixed lines going to TypeCast every time used up the month).
+     * (eval/bake_lines.py · 10-01: the app's own lines went to the voice vendor every time).
      * The app never has the variable, so this does nothing there.
      */
     private fun dumpSpoken(text: String) {
         val path = SPEECH_DUMP ?: return
-        val line = s.nameMask().speakable(text, named = false)   // what TypeCast would get
+        val line = s.nameMask().speakable(text, named = false)   // what /tts would get without name consent
         synchronized(SPEECH_DUMP_LOCK) { java.io.File(path).appendText(line.replace('\n', ' ') + "\n") }
     }
 
@@ -238,12 +262,20 @@ class Director(
         // 들리지 않을 목소리 때문에 가짜 서버 주소로 대사마다 연결을 시도할 까닭이 없다
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text, ConsentStore.nameVoiceAgreed)
-        val before = voiceJob
         // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
         val audio = scope.async { Voice.baked(line) ?: Server.tts(line) }.also { queueVoice(it) }
+        enqueue { audio.await() }
+    }
+
+    /** 방금 한 말을 다시 들려준다 — 아이가 오또 얼굴을 눌렀을 때(#56). 서버 모드가 아니면 아무것도 안 한다 */
+    fun replayLine() = speakLive(s.line)
+
+    /** 앞 대사가 끝난 뒤 [sound] 를 튼다 — 대사 줄의 맨 끝에 선다. null 이면 조용히 지나간다 */
+    private fun enqueue(sound: suspend () -> ByteArray?) {
+        val before = voiceJob
         voiceJob = queueVoice(scope.launch {
             before?.join()
-            audio.await()?.let { play(it) }
+            sound()?.let { play(it) }
         })
     }
 
@@ -272,7 +304,7 @@ class Director(
     }
 
     /**
-     * 아이 말이 끝나고 약 1초 뒤([NEUTRAL_DELAY_MS]) 폰에 든 중립 소리(「음~」 「응응.」 「응, 그랬구나.」)를 낸다 — 리액션 1단계(10-01).
+     * 아이 말이 끝나고 약 1.3초 뒤([NEUTRAL_DELAY_MS]) 폰에 든 중립 소리(「음~」 「응응.」 「응, 그랬구나.」)를 낸다 — 리액션 1단계(10-01).
      * 받아쓰기 + 판정 + 목소리(공개 주소로 5~6초)를 기다리는 동안 마스코트가 듣고 있다는 걸 알린다.
      * 아직 아이 말을 모르므로 감정 · 칭찬 · 질문이 없다. 말풍선은 바꾸지 않고, 세지도 않는다(마스코트 말).
      * 뒤에 오는 대사는 이 소리 뒤에 줄을 선다.
@@ -280,14 +312,12 @@ class Director(
     private fun speakNeutral() {
         if (!Server.liveFor(s.mode) || !Voice.canSpeak) return
         val clip = Voice.neutral() ?: return
-        val before = voiceJob
         val heardAt = System.currentTimeMillis()
-        voiceJob = queueVoice(scope.launch {
-            before?.join()
+        enqueue {
             val wait = NEUTRAL_DELAY_MS - (System.currentTimeMillis() - heardAt)
             if (wait > 0) delay(wait)
-            play(clip)
-        })
+            clip
+        }
     }
 
     /** 마스코트가 하던 말을 끝낼 때까지 기다린다 — 서버 모드가 아니면 바로 돌아온다 */
@@ -399,7 +429,7 @@ class Director(
         if (!s.micOn) {
             s.micOn = true
             s.countdown = null
-            log("🎤 켬 — 듣는 중 (실제 앱: 우리 서버 Whisper로 스트리밍, 침묵으로 끊지 않음)")
+            log("🎤 켬 — 듣는 중 (대본 모드: 한 번 더 누르면 끝 · 서버 모드는 말이 끝나면 저절로 끊는다)")
             return
         }
         s.micOn = false
@@ -411,7 +441,7 @@ class Director(
 
     // ── 진짜 마이크 (서버 모드일 때만 · 09-29 오케스트레이터 ①) ────────────
     //
-    // 🎤 누름 → 녹음 → 말이 끝나면 VAD 가 0.3초 뒤 스스로 끊는다(⏹ 로 먼저 끊어도 된다)
+    // 🎤 누름 → 녹음 → 말이 끝나면 VAD 가 0.5초 뒤 스스로 끊는다(⏹ 로 먼저 끊어도 된다)
     // → 우리 서버 `/stt` → 들은 글자를 대본 답과 **같은 모양**(`Reply.Spoke`)으로 흐름에 넣는다.
     // 그래서 장면 코드는 대본인지 진짜인지 모른다. 글자는 **실명 그대로**다 — 서버로 다시
     // 보낼 때는 모드 담당자가 `s.nameMask().mask(...)` 를 거친다(규칙 6).
@@ -426,7 +456,7 @@ class Director(
         hushVoice()                                       // 마스코트 소리가 녹음에 들어가지 않게
         s.micOn = true
         s.countdown = null
-        log("🎤 켬 — 진짜 녹음 · 말이 끝나면 저절로 끊는다 (VAD 0.3초)")
+        log("🎤 켬 — 진짜 녹음 · 말이 끝나면 저절로 끊는다 (VAD 0.5초)")
         micJob = scope.launch {
             val audio = Voice.listen { stopMic }
             s.micOn = false
@@ -446,6 +476,7 @@ class Director(
     fun skip() {
         if (!s.nextEnabled) return
         s.micOn = false
+        cutVoiceFor(Reply.Silent)                     // ➡️ 도 말하는 중이면 끊고 넘어간다(10-02)
         send(Reply.Silent)
     }
 
@@ -591,7 +622,6 @@ class Director(
         return null
     }
 
-    private fun shuffled(list: List<Card>) = list.shuffled()
 
     private fun scriptButtons(q: Question): MutableList<DemoBtn> {
         val b = mutableListOf<DemoBtn>()
@@ -652,7 +682,7 @@ class Director(
         scripted += DemoBtn("🤐 대답 없음 (➡️와 같음)") { send(Reply.Silent) }
 
         if (q.kind == Kind.CHOICE) {
-            showCards(shuffled(q.choices), q.drawerHint)
+            showCards(q.choices.shuffled(), q.drawerHint)
             scripted += DemoBtn("🖐 화면의 첫 카드를 탭 (고르기형)") {
                 val c = (s.stage as? Stage.CardsRow)?.cards?.firstOrNull() ?: return@DemoBtn
                 send(Reply.Tapped(c.value, c.label))
@@ -844,7 +874,7 @@ class Director(
             else "쉬운 질문에도 무응답 → 그림 3장 (순서 섞음) · 최대 3번 교체 (구현대본 §5)"
         )
 
-        var set = shuffled(q.choices)
+        var set = q.choices.shuffled()
         var round = 0
         var reread = q.kind == Kind.CHOICE // 확인 카드는 이미 떠 있었으므로 '다시 읽기'부터
         while (true) {
@@ -880,9 +910,9 @@ class Director(
             }
             if (reread) {
                 reread = false
-                set = shuffled(q.choices)
+                set = q.choices.shuffled()
             } else if (round < 3) {   // 최대 3번 교체 (⭐22 · 구현대본 §5)
-                set = shuffled(q.choices)
+                set = q.choices.shuffled()
                 round++
             } else {
                 val c = set.first()

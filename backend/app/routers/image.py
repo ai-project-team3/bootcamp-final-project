@@ -8,11 +8,11 @@ unchecked picture. So every way out that is not "drawn and checked in time" is
   moderation flags it, fails, or has no key → preset
 
 The deadline here (13 s) sits under the app's 15 s preset line so the answer
-lands before the app gives up. The app's 8 s "조금 뒤에 올 거야" is its own.
+lands before the app gives up. What the app shows while it waits is the app's (10-02: story no longer
+says 「조금 뒤에 올 거야」; the diary still does).
 """
 import asyncio
 import base64
-import json
 import logging
 import random
 import time
@@ -24,7 +24,7 @@ from ..config import REPO, settings
 from ..filters.blocklist import is_blocked
 from ..image import character, check, comfy
 from ..llm.client import LLMError, complete
-from ..llm.judge_prompt import system_block
+from ..llm.judge_prompt import load_schema, system_block
 from ..schemas.image import ImageRequest, ImageResult
 
 router = APIRouter()
@@ -46,10 +46,8 @@ def system(kind: str = "background") -> str:
     return system_block(EVAL / f"{_ORDER[kind]}_prompt.md")
 
 
-@lru_cache(maxsize=3)
 def schema(kind: str = "background") -> dict:
-    s = json.loads((EVAL / f"{_ORDER[kind]}_schema.json").read_text(encoding="utf-8"))
-    return {k: v for k, v in s.items() if k not in ("name", "description")}
+    return load_schema(f"{_ORDER[kind]}_schema.json")
 
 
 def preset(reason: str, scene: str | None = None) -> ImageResult:
