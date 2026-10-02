@@ -865,7 +865,7 @@ private suspend fun Director.finishPictureDiary(day: DiaryDay) {
     say("그림일기를 만들고 있어. 조금만 기다려 줘!")
     if (Server.liveFor(s.mode)) writeDiaryBook(day) else pause(1500)
     day.weatherFromDrawing()
-    s.title = s.slots["title"]?.takeIf { it.isNotBlank() } ?: s.diaryTitle()
+    s.title = s.slots["title"]?.takeIf { it.isNotBlank() } ?: dateTitle()
     event("book", "template" to "그림일기", "pages" to pages.size, "title" to s.title)
     log("그림일기 ${pages.size}쪽 — ${pages.joinToString(" · ") { it.kind.name.lowercase() }} · 날씨 ${day.weather?.label ?: "아이가 고른다"}")
 
@@ -979,6 +979,12 @@ private suspend fun Director.readPictureDiary(day: DiaryDay) {
         }
     }
 }
+
+/**
+ * 아이가 제목을 말하기 전의 제목 — 날짜뿐(「10월 2일 그림일기」). 아이가 하지 않은 말을 제목에 넣지 않는다:
+ * 전의 「{장소}에서 만난 {친구}」(공용 `diaryTitle`)는 같이 놀러 간 친구도 「만난」이 됐다. 책장 표지가 제목으로 찾으니 날마다 다르다
+ */
+internal fun dateTitle(today: java.time.LocalDate = java.time.LocalDate.now()) = "${today.monthValue}월 ${today.dayOfMonth}일 그림일기"
 
 /**
  * 제목을 눌렀다 — 「이 일기 제목은 뭐로 할까?」 아이가 말한 그대로 제목 칸(`title` · 아이 출처)에 넣는다.

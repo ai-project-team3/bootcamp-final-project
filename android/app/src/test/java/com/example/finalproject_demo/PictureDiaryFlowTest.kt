@@ -21,6 +21,7 @@ import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.diaryDay
+import com.example.finalproject_demo.demo.dateTitle
 import com.example.finalproject_demo.demo.drawWords
 import com.example.finalproject_demo.demo.echoBack
 import com.example.finalproject_demo.demo.hasDiaryCover
@@ -571,6 +572,22 @@ class PictureDiaryFlowTest {
         assertTrue(d.push("신나는 하루"))
         assertTrue(await { s.title == "신나는 하루" } != null)
         assertEquals("child", s.slotBy["title"])
+    }
+
+    /** 아이가 제목을 말하기 전에는 날짜 제목 — 아이가 하지 않은 말(「○○에서 만난 ○○」)을 넣지 않는다 */
+    @Test
+    fun beforeTheChildNamesItTheTitleIsJustTheDate() = run { d ->
+        assertEquals("10월 2일 그림일기", dateTitle(java.time.LocalDate.of(2026, 10, 2)))
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그림 없이 이야기할래"))
+        var guard = 0
+        while (s.stage !is DiaryPaper && guard++ < 20) {
+            if (await(2_000) { s.buttons.any { "🎬 오늘 이야기 시연 답" in it.label } } == null) break
+            d.push("🎬 오늘 이야기 시연 답")
+        }
+        assertTrue(await { s.stage is DiaryPaper } != null)
+        assertEquals(dateTitle(), s.title)
     }
 
     /** 제목을 안 붙였으면 다 읽은 뒤 한 번 묻는다 · 붙였으면 묻지 않고 바로 책을 준다 (10-01 안 2) */
