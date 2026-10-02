@@ -176,11 +176,11 @@ class DiaryLiveTurnTest {
     }
 
     /**
-     * 칸 질문 세 번을 다 써도 「내일」은 묻는다 — 모으는 칸이 달라 상한을 같이 쓰지 않는다 (10-02 진웅).
-     * 결말은 세 번 안에 못 채워 비워 두지만, 「내일」은 그 뒤에 따로 한 번 묻는다
+     * 전체 상한 없이 칸마다만 막는다 — 다른 모드와 같은 방식 (#89).
+     * 결말을 못 채우면 쉽게 바꿔 한 번 더 묻고, 그래도 못 채우면 비워 두고 「내일」로 간다. 결말을 지어 넣지 않는다
      */
     @Test
-    fun tomorrowDoesNotShareTheSlotQuestionCap() {
+    fun anEmptySlotIsAskedTwiceThenLeftAndTomorrowStillComes() {
         val asked = mutableListOf<JSONObject>()
         live({ t ->
             asked += t
@@ -196,10 +196,12 @@ class DiaryLiveTurnTest {
             assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
             d.answer("놀이터") { s.line == "놀이터에서 무슨 일이 있었어?" }
             d.answer("그네 탔어") { s.line == "그래서 어떻게 됐어?" }
-            d.answer("음") { asked.size == 3 }                                   // 세 번째 칸 질문 — 못 채웠다
-            assertTrue("칸 질문 세 번 뒤 「내일」을 안 물었다 — 말=${s.line}", await { s.line == "내일 또 하고 싶은 거 있어?" } != null)
-            d.answer("또 가고 싶어") { asked.size == 4 }
-            assertEquals(listOf("place", "problem", "solution", "extra"), asked.map { it.getString("asked_slot") })
+            d.answer("음") { asked.size == 3 }                                   // 결말 — 못 채웠다
+            assertTrue("못 채운 결말을 쉽게 바꿔 한 번 더 묻지 않았다 — 말=${s.line}", await { s.line == "그다음엔 뭐 했어?" } != null)
+            d.answer("음") { asked.size == 4 }                                   // 두 번째도 못 채웠다 → 비워 둔다
+            assertTrue("결말을 비워 두고 「내일」로 안 갔다 — 말=${s.line}", await { s.line == "내일 또 하고 싶은 거 있어?" } != null)
+            d.answer("또 가고 싶어") { asked.size == 5 }
+            assertEquals(listOf("place", "problem", "solution", "solution", "extra"), asked.map { it.getString("asked_slot") })
             assertEquals("또 가고 싶어", s.slots["keep"])
             assertTrue("결말을 지어 넣었다", s.slots["solution"].isNullOrBlank())
         }

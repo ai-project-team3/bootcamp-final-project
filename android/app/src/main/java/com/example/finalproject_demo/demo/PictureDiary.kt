@@ -44,13 +44,10 @@ internal const val OTTO_OFFERS = 4
 internal const val D1_WAIT_SEC = 10.0
 
 /**
- * 다 그린 뒤(D3) 오또가 먼저 꺼내는 **칸 채우기** 질문 수 — 흐름 문서 「최대 2~3개」. 아이가 더 말하는 건 막지 않는다.
- * 그림에 대한 질문(「이건 뭐 그린 거야?」)도, 맺음 질문 「내일 또 하고 싶은 거 있어?」도 다른 질문이라 여기에 세지 않는다 (10-02 진웅)
+ * 다 그린 뒤(D3) 한 칸을 묻는 횟수 — 한 번 묻고, 쉽게 바꿔 한 번 더. 그래도 못 들으면 비워 둔다(카드 · 마스코트 채움 없음).
+ * 전체 질문 수 상한은 없다 — 다른 모드처럼 칸마다만 막는다(규칙 3 · 10-02 진웅 #89). 전에는 전체 3번이라 결말을 못 묻고 비웠다
  */
-internal const val ASK_AFTER_DRAWING = 3
-
-/** 「내일」 질문을 묻는 횟수 — [ASK_AFTER_DRAWING] 에 안 세니 따로 막는다. 쉽게 바꿔 한 번 더까지 */
-private const val KEEP_TRIES = 2
+internal const val SLOT_TRIES = 2
 
 /** 마무리를 제안하는 때 — 끝내는 시간이 아니다 (guidelines/2 §1-1 · 09-30) */
 internal const val WRAP_UP_MS = 30L * 60 * 1000
@@ -63,7 +60,7 @@ suspend fun Director.pictureDiary() {
     val day = s.newDiaryDay()
     s.diaryStart = System.currentTimeMillis()
     s.diaryTimeUp = false
-    log("그림일기 — 그리는 동안 짧게 묻고, 다 그리면 빈 칸만 ${ASK_AFTER_DRAWING}번까지 묻는다. 빈 칸은 메우지 않는다 (흐름 HTML)")
+    log("그림일기 — 그리는 동안 짧게 묻고, 다 그리면 빈 칸을 칸마다 ${SLOT_TRIES}번까지 묻는다. 빈 칸은 메우지 않는다 (흐름 HTML · #89)")
 
     s.progressVisible = false        // 위쪽 별 막대는 일기 화면이 따로 그린다 (D3 별 두 개)
     if (startDrawing() == "draw") drawWhileTalking(day) else log("그림 없이 말로 — D3 로 바로 간다")
@@ -716,7 +713,7 @@ private fun Director.keepBoard() {
 // ── D3 ─────────────────────────────────────────────────────────
 
 /**
- * 다 그린 뒤 — 빈 칸만 묻는다. 필수(place · problem)가 먼저, 남으면 결말 · 내일. 칸 질문은 합쳐 [ASK_AFTER_DRAWING] 번까지(이름 없는 조각 질문 · 「내일」은 따로).
+ * 다 그린 뒤 — 빈 칸만 묻는다. 필수(place · problem)가 먼저, 남으면 결말 · 내일. 칸마다 [SLOT_TRIES] 번까지 · 전체 상한은 없다(#89).
  * 서버 모드면 판정의 `next_slot` 과 오또 대사가 다음 질문을 정한다([askEmptySlotsLive]). 대본이면 이 차례다.
  */
 private suspend fun Director.askEmptySlots() {
@@ -727,31 +724,26 @@ private suspend fun Director.askEmptySlots() {
     var wrapOffered = false
     var pieceAsked = false
     while (queue.isNotEmpty()) {
-        if (asked >= ASK_AFTER_DRAWING) {
-            val left = queue.filter { it.key != "keep" }
-            if (left.isNotEmpty()) log("칸 질문 ${ASK_AFTER_DRAWING}번을 다 물었다 — 남은 칸 [${left.joinToString(" · ") { it.key }}] 은 비워 둔다 · 「내일」은 따로 센다")
-            queue.removeAll(left)
-            if (queue.isEmpty()) break
-        }
         if (!wrapOffered && diaryRanLong()) {
             wrapOffered = true
             if (offerWrapUp()) break
         }
-        // 필수 두 칸을 물은 뒤 — 이름 없는 조각 하나를 묻는다(칸 질문 수와 따로 · 10-02)
+        // 필수 두 칸을 물은 뒤 — 이름 없는 조각 하나를 묻는다(10-02)
         if (!pieceAsked && queue.none { it.key in PICTURE_REQUIRED }) {
             pieceAsked = true
             val unnamed = firstUnnamedPiece()
-            if (unnamed != null) { askPieceOnD3(unnamed); continue }      // 그림 질문 — 칸 채우기 질문 수([ASK_AFTER_DRAWING])에 세지 않는다
+            if (unnamed != null) { askPieceOnD3(unnamed); continue }
         }
         val pq = queue.removeAt(0)
-        if (pq.key != "keep") asked++                                    // 「내일」은 칸 채우기 질문 수에 세지 않는다 (10-02 진웅)
+        asked++
         s.stepsDone++
         askPictureSlot(pq)
         if (s.endReason == null && PICTURE_REQUIRED.all { !s.slots[it].isNullOrBlank() }) {
             s.endReason = "story_ready"
-            log("필수 두 칸(place · problem)이 찼다 → story_ready. 남은 물음 ${ASK_AFTER_DRAWING - asked}번까지는 결말 · 내일을 더 듣는다")
+            log("필수 두 칸(place · problem)이 찼다 → story_ready. 남은 칸(결말 · 내일)도 묻는다")
         }
     }
+    log("다 그린 뒤 ${asked}칸 물었다")
 }
 
 /**
@@ -874,30 +866,31 @@ private suspend fun Director.askEmptySlotsLive() {
     day.nextStory = null
     var asked = 0
     var wrapOffered = false
-    val gaveUp = mutableSetOf<String>()          // 두 번 모른다고 한 칸 — 다시 묻지 않는다
+    val gaveUp = mutableSetOf<String>()          // [SLOT_TRIES] 번 물어도 못 채운 칸 — 다시 묻지 않는다
+    val tries = mutableMapOf<String, Int>()     // 칸마다 물은 수 — 전체 상한 없이 칸마다만 막는다 (#89)
     var easyTried: String? = null
     var pieceAsked = false
-    var keepAsked = 0
     while (next != null) {
-        // 칸 질문을 다 물었으면 「내일」만 남긴다 — 「내일」은 칸 채우기 질문 수에 세지 않는다 (10-02 진웅)
-        if (asked >= ASK_AFTER_DRAWING && next.third != "keep") {
-            log("칸 질문 ${ASK_AFTER_DRAWING}번을 다 물었다 — 「${next.third}」 는 비워 둔다 · 「내일」은 따로 센다")
-            next = tomorrowQuestion(gaveUp) ?: break
+        if ((tries[next.third] ?: 0) >= SLOT_TRIES) {
+            gaveUp += next.third
+            log("[${next.third}] ${SLOT_TRIES}번 물었다 → 비워 둔다")
+            next = firstEmptyQuestion(gaveUp) ?: break
+            continue
         }
-        if (next.third == "keep" && keepAsked >= KEEP_TRIES) break
         if (!wrapOffered && diaryRanLong()) {
             wrapOffered = true
             if (offerWrapUp()) break
         }
         val (slot, text, key) = next
-        // 필수 칸 질문이 아닌 차례가 오면 — 이름 없는 조각 하나를 먼저 묻는다(칸 질문 수와 따로 · 10-02)
+        // 필수 칸 질문이 아닌 차례가 오면 — 이름 없는 조각 하나를 먼저 묻는다(10-02)
         if (!pieceAsked && key !in PICTURE_REQUIRED) {
             pieceAsked = true
             val unnamed = firstUnnamedPiece()
-            if (unnamed != null) { askPieceOnD3(unnamed); continue }      // 그림 질문 — 칸 채우기 질문 수([ASK_AFTER_DRAWING])에 세지 않는다
+            if (unnamed != null) { askPieceOnD3(unnamed); continue }
         }
         val step = DIARY_STEPS.firstOrNull { it.bookKey == key } ?: DIARY_STEPS.firstOrNull { it.slot == slot }
-        if (key == "keep") keepAsked++ else asked++
+        tries[key] = (tries[key] ?: 0) + 1
+        asked++
         s.stepsDone++
         val q = Question(
             text = text,

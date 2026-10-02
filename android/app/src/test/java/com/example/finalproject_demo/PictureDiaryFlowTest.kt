@@ -2,7 +2,6 @@ package com.example.finalproject_demo
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import com.example.finalproject_demo.demo.ASK_AFTER_DRAWING
 import com.example.finalproject_demo.demo.DONE_CHECK_EVERY
 import com.example.finalproject_demo.demo.CRAYON_PAUSE
 import com.example.finalproject_demo.demo.DiaryAsk
@@ -107,7 +106,7 @@ class PictureDiaryFlowTest {
     private fun stroke(x: Float) = Stroke(Color.Blue, listOf(Offset(x, 0.3f), Offset(x + 0.1f, 0.6f)))
 
     @Test
-    fun aTalkingDayAsksThreeSlotsThenTomorrowAndBecomesAPictureDiary() = run { d ->
+    fun aTalkingDayAsksEveryEmptySlotAndBecomesAPictureDiary() = run { d ->
         val s = d.s
         d.go(Scene.DIARY)
         assertTrue("D0 은 방에서 묻는 시작 화면이다", await { s.stage is DiaryStart } != null)
@@ -119,11 +118,11 @@ class PictureDiaryFlowTest {
             if (await(2_000) { s.buttons.any { "🎬 오늘 이야기 시연 답" in it.label } } == null) break
             d.push("🎬 오늘 이야기 시연 답")
         }
-        assertEquals("다 그린 뒤 칸 질문 세 번 + 「내일」 한 번 (「내일」은 칸 질문 수에 안 센다 · 10-02)", ASK_AFTER_DRAWING + 1, s.stepsDone)
+        assertEquals("다 그린 뒤 빈 칸 넷(어디 · 무슨 일 · 결말 · 내일)을 다 묻는다 — 전체 상한 없음 (#89)", 4, s.stepsDone)
         assertEquals("story_ready", s.endReason)
         assertEquals(listOf("child", "child", "child"), listOf("place", "problem", "solution").map { s.slotBy[it] })
         assertTrue("빈 칸을 마스코트가 메웠다: ${s.slotBy}", s.slotBy.values.none { it == "mascot" })
-        assertEquals("칸 질문을 세 번 다 물어도 「내일」은 묻는다", "child", s.slotBy["keep"])
+        assertEquals("「내일」까지 묻는다", "child", s.slotBy["keep"])
 
         assertTrue("그림일기로 안 왔다", await { s.stage is DiaryPaper && "나는 오늘" in s.line } != null)
         val book = buildDiaryBook(s.diaryBookInput())
