@@ -84,7 +84,7 @@ class Director(
     val s = DemoState()
     private val savedStories = mutableListOf<SavedStoryBook>()
 
-    init { reloadSavedStories() }
+    init { reloadSavedStories(); recoverStoryImages() }
 
     private fun reloadSavedStories() {
         savedStories.clear()
@@ -105,6 +105,7 @@ class Director(
             s.commitStorySound()
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))
+            recoverStoryImages()
             true
         } catch (_: Exception) { false }
     }
@@ -117,6 +118,14 @@ class Director(
         return true
     }
     fun saveStoryImage(png: ByteArray): String? = storyImageStore?.save(png)
+
+    private fun recoverStoryImages() {
+        // Retain even unrecognized saved-book versions; corrupt metadata disables deletion.
+        val saved = storyBookStore?.let { runCatching { it.imageReferences() }.getOrNull() ?: return }
+            ?: savedStories.flatMap { listOfNotNull(it.bgName, it.visuals?.hero?.image) }.toSet()
+        val active = listOfNotNull(s.storyBackground, s.storyHeroImage) + s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName }
+        storyImageStore?.recover(saved + active)
+    }
     private var job: Job? = null
     private val input = Channel<Reply>(Channel.BUFFERED)
 
