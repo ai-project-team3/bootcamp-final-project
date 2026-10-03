@@ -336,6 +336,7 @@ private suspend fun Director.onHeroPicked(v: String) {
     s.heroAttr = s.heroes[idx].attr
     s.storyHeroImage = s.heroes[idx].image
     s.storyHeroRig = s.heroes[idx].rig
+    s.storyHeroCall = s.heroes[idx].called
     mark("bestiary")
     log("주인공 고름: ${s.heroes[idx].name} → 고정 스프라이트 그대로 씀 (⭐20 · ⭐26)")
     say("${s.heroes[idx].name}${ya(s.heroes[idx].name)}, 준비됐지?")
@@ -363,7 +364,8 @@ private suspend fun Director.sceneMakeHero() {
     }
 
     suspend fun save() {
-        s.heroes += Hero(heroName(), attr, generatedImage, generatedRig)
+        val called = askHeroName(attr, generatedImage)          // 말로 · 글로 이름 짓기 (10-02 · demo/HeroName.kt)
+        s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called)
         s.heroAttr = attr
         s.storyHeroImage = generatedImage
         s.storyHeroRig = generatedRig
@@ -1658,11 +1660,12 @@ private suspend fun Director.sceneEnd() {
     buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
     while (true) {
         awaitValue("shelf")
-        if (s.mode != StoryMode.STORY || saveFinishedStory()) break
+        // 같이 만들기는 협업 책장에 따로 저장한다(#83 · CoopBookStore.kt)
+        if (if (s.isCoop) shelveCoopBook() else s.mode != StoryMode.STORY || saveFinishedStory()) break
         say("책을 기기에 저장하지 못했어. 다시 눌러 줘.")
     }
     mark("end")
-    if (s.mode != StoryMode.STORY)
+    if (s.mode != StoryMode.STORY && !s.isCoop)
         s.shelf.add(0, ShelfBook(s.title ?: s.autoTitleFor(), s.themeKey, s.bgName, pages = s.pageCount, fresh = true))
     event("session_end", "duration" to "15분", "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
     log("책장에 꽂기 → 동화책 자막과 쪽 종류를 기기에 저장 · 서버에는 저장하지 않음 (⭐26)")
@@ -1698,7 +1701,7 @@ private suspend fun Director.sceneShelf() {
             }
             "book" -> {
                 if (openSavedDiary(tapped.label)) { s.stage = Stage.Shelf(fromEnd); continue }   // 그림일기 다시 읽기(#37)
-                val book = savedStory(tapped.label) ?: continue
+                val book = savedStory(tapped.label) ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
                 var page = 0
                 s.line = ""
                 buttons()

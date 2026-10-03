@@ -339,6 +339,23 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * 되돌리기 · 앞으로 가기 (10-02 조장 · #87) — 잘못 알아들은 답을 무른다. 화면 **양끝 가운데**(↩ 왼쪽 · ↪ 오른쪽) —
+ * 책의 ◀ ▶ 와 같은 자리 · 같은 64dp 펠트 원이라 「왼쪽 = 뒤로」를 아이가 이미 안다. 아이 차례에, 무를 차례가 있을 때만
+ * 보인다(`MainActivity`). 누르면 말하던 마스코트도 끊긴다(`Director.send`). 흐름은 `demo/TurnHistory`.
+ */
+@Composable
+fun TurnNavButton(d: Director, undo: Boolean, modifier: Modifier = Modifier) {
+    FeltButton(
+        WoolCream,
+        onClick = {
+            if (undo) d.send(Reply.Tapped(com.example.finalproject_demo.demo.TurnHistory.UNDO, "되돌리기"))
+            else d.send(Reply.Tapped(com.example.finalproject_demo.demo.TurnHistory.REDO, "앞으로"))
+        },
+        modifier = modifier.size(64.dp), shape = CircleShape,
+    ) { Text(if (undo) "↩" else "↪", fontSize = 28.sp, color = InkBrown) }
+}
+
 /** 나레이션 위 여유 — 오또 점프(18dp) · 파동 · 「!」가 투명도 버퍼 안에 들어오게 */
 private val BubbleHeadroom = 40.dp
 

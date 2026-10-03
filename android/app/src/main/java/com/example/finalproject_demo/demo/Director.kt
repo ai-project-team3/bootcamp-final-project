@@ -3,7 +3,6 @@ package com.example.finalproject_demo.demo
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Voice
 import com.example.finalproject_demo.net.nameMask
-import com.example.finalproject_demo.ui.ConsentStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -156,6 +155,16 @@ class Director(
     }
 
     /**
+     * 앞 입력을 비운 **다음에** 화면을 띄우고 기다린다. 화면을 먼저 띄우고 [awaitReply] 를 부르면,
+     * 뜨자마자 누른 탭이 그 사이 비워져 사라진다(10-02 · 이름 확인 「맞아」).
+     */
+    suspend fun awaitReplyShowing(show: () -> Unit): Reply {
+        drain()
+        show()
+        return input.receive()
+    }
+
+    /**
      * 정해진 시간만 기다린다.
      * 아이 무응답 타이머(⭐5)와는 별개라 시연 서랍의 [무응답 타이머]와 무관하게 늘 동작한다.
      */
@@ -226,7 +235,7 @@ class Director(
      */
     private fun dumpSpoken(text: String) {
         val path = SPEECH_DUMP ?: return
-        val line = s.nameMask().speakable(text, named = false)   // what /tts would get without name consent
+        val line = s.nameMask().speakable(text)                  // what /tts gets
         synchronized(SPEECH_DUMP_LOCK) { java.io.File(path).appendText(line.replace('\n', ' ') + "\n") }
     }
 
@@ -261,7 +270,7 @@ class Director(
         // 소리를 낼 수 없으면(단위 테스트 — Voice 가 붙지 않았다) 목소리를 청하지도 않는다.
         // 들리지 않을 목소리 때문에 가짜 서버 주소로 대사마다 연결을 시도할 까닭이 없다
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
-        val line = s.nameMask().speakable(text, ConsentStore.nameVoiceAgreed)
+        val line = s.nameMask().speakable(text)          // names read as they are (10-02 · ChildCall)
         // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
         val audio = scope.async { Voice.baked(line) ?: Server.tts(line) }.also { queueVoice(it) }
         enqueue { audio.await() }
@@ -733,6 +742,12 @@ class Director(
         if (Server.liveFor(s.mode)) { awaitVoice(); pause(300) } else pause(1200)
         val sec = q.waitSec ?: when (q.kind) { Kind.EASY -> 5.0; Kind.HARD -> 8.0; Kind.CHOICE -> 7.0 }
         val first = waitReply(sec)
+        // 되돌리기 · 앞으로 가기는 답이 아니다 — 흐름(TurnHistory)이 받도록 그대로 돌려준다 (10-02)
+        if (first != null && TurnHistory.isNav(first)) {
+            currentQ = null
+            inputs(mic = false, next = false)
+            return first
+        }
 
         val result = when {
             first is Reply.Spoke -> {

@@ -12,9 +12,11 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     var waitingConversation: Stage.Show? = null
     var friendDrawingPrepared = false
 
-    fun conversationWorld() = Stage.World(listOf(
+    // 친구는 아이가 그렸을 때만 선다 — 안 그렸으면 friendArt 가 대본의 기본 낙서라
+    // 배경이 생기면 오른쪽에 「이상한 애」가 늘 떠 있었다 (10-02 조장 실기기)
+    fun conversationWorld() = Stage.World(listOfNotNull(
         WorldItem(s.storyHeroArt, 0.25f, 0.32f, 0.11f, depth = 1f),
-        WorldItem(s.friendArt, 0.72f, 0.32f, 0.13f, depth = 0.9f),
+        if (s.drawing.isNotEmpty()) WorldItem(s.friendArt, 0.72f, 0.32f, 0.13f, depth = 0.9f) else null,
     ))
 
     fun showConversation() {
@@ -59,6 +61,8 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         }
     }
     if (s.storyStartedAtMs == 0L) s.storyStartedAtMs = System.currentTimeMillis()
+    // 되돌리기 · 앞으로 가기 — 잘못 알아들은 답을 직전 차례째로 무른다 (10-02 · demo/TurnHistory)
+    val history = TurnHistory(s)
     run {
         while (true) {
             val end = s.storyEndCondition()
@@ -73,7 +77,18 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             val variant = liveVariant(prompt)
             val base = variant.toQuestion(s)
             val question = base.copy(text = if (prompt.templateOnly) base.text else prompt.text)
+            history.before()
             val reply = askStory(question, prompt.slot)
+            if (TurnHistory.isNav(reply)) {
+                val undo = (reply as Reply.Tapped).value == TurnHistory.UNDO
+                if (if (undo) history.undo() else history.redo()) {
+                    event(if (undo) "turn_undone" else "turn_redone")
+                    log(if (undo) "↩ 직전 차례를 되돌림 — 같은 질문을 다시" else "↪ 되돌린 차례를 다시 적용")
+                    say(if (undo) "그럼 다시 말해 줄래?" else "좋아, 아까 그 이야기로 갈게!")
+                    updateBackground()
+                }
+                continue
+            }
             // Silence leaves this slot open; it is neither speech nor a mascot choice.
             if (reply !is Reply.Spoke && reply !is Reply.Tapped) continue
             val by = when {
@@ -107,6 +122,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             // still needs a page plan, but does not force extra questions just to reach turn 3.
             if (s.templateKey == null && (s.turn >= 3 || s.storyReady)) decideTemplate("서버 대화")
             mark("live:${prompt.slot ?: "extra"}")
+            history.done()
         }
         true
     }
