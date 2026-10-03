@@ -193,6 +193,7 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
         judge(v, r, q.text)
 
         if (r is Reply.Tapped && r.byMascot) {
+            if (keepChildAnswer(step)) return
             s.mascotPicks++
             setDiarySlot(step.slot, step.bookKey, diarySlotOf(r.value), diaryLineOf(r.value), "mascot")
             log("사다리가 다 떨어짐 → mascot_pick ${s.mascotPicks}회 연속 (일기 §3 · §4)")
@@ -216,8 +217,10 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
             return
         }
 
-        // 말은 했는데 칸이 안 찼다 ("몰라") — 사다리에 남은 칸이 있으면 질문을 바꿔 다시 묻는다
-        if (rungs.size <= 1) {
+        // 말은 했는데 칸이 안 찼다 ("몰라") — 사다리에 남은 칸이 있으면 질문을 바꿔 다시 묻는다.
+        // 협업에서 아이가 진짜로 답했는데 판정이 두 번 거절했으면 더 내려가지 않는다 — 다시 묻는 건 한 번까지
+        if (rungs.size <= 1 || (step.required && s.coopRejectedCount(step) >= 2)) {
+            if (keepChildAnswer(step)) return
             val fb = if (pack != null) pack.mascot else step.mascot?.invoke(s)
             if (fb == null) {
                 // 꼬리질문은 마스코트가 지어내지 않는다 — 없으면 없는 대로 간다
@@ -235,6 +238,20 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
         log("말은 했지만 칸이 안 찼다 → 답을 고르게 하지 않고 사다리 한 칸 아래 질문으로 바꾼다 (일기 §4)")
         pause(700)
     }
+}
+
+/**
+ * 협업 — 사다리 끝에서 마스코트가 짓기 전에, 판정이 거절한 아이 답이 있으면 그 말을 칸에 넣는다 (10-03 실기기).
+ * 넣었으면 true. 뼈대 칸만(마스코트가 채우는 자리) — 꼬리질문은 원래 아이 말을 그대로 받는다
+ */
+private fun Director.keepChildAnswer(step: DiaryStep): Boolean {
+    if (!step.required) return false
+    val said = s.coopRejectedAnswer(step) ?: return false
+    s.mascotPicks = 0
+    setDiarySlot(step.slot, step.bookKey, said, said, "child")
+    log("[${step.bookKey}] 판정은 이 칸 답이 아니라고 했지만 아이가 진짜로 한 말 \"$said\" 을 넣는다 — 마스코트가 지어 채우지 않는다")
+    s.stage = diaryStage(bump = true)
+    return true
 }
 
 /** 말로 답했을 때 따라오는 것들 — 마음 · 이름 사전 · 같이 있던 사람 · 순차 답 함정 */

@@ -57,7 +57,7 @@ val DemoState.coopReady: Boolean get() = coopPick != null || hasCoopQuestions
  */
 internal fun DemoState.coopBackdrop(): String {
     coopReadingBackdrop?.let { return it }   // 책장에서 다시 연 책 — 만들 때의 배경 그대로 (#83 · 읽기 화면 상태에만 있다)
-    val pick = coopPick ?: return diaryPlaceBg(placeLabel)
+    val pick = bookPick ?: return diaryPlaceBg(placeLabel)
     coopItem(pick.name)?.let { return it.bg }
     val spoken = diaryPlaceBg(placeLabel)
     return if (spoken != DIARY_BG_FALLBACK) spoken else diaryPlaceBg(pick.name)
@@ -87,6 +87,7 @@ private fun DemoState.takeCoopLine(q: Question): CoopLine? {
     val mine = parentQuestions.filter { it.isNotBlank() }.getOrNull(track.parentUsed) ?: return null
     track.parentUsed++
     parentQIndex++
+    track.parentSteps += q.id
     return CoopLine.Parent(mine)
 }
 
@@ -118,6 +119,12 @@ private class CoopTrack {
     var liveTurn: LiveTurn? = null
     /** 지금 방식 · 바뀐 방식을 견주는 이야기 하나의 수치 (§11) — 끝날 때 `coop_session` 으로 남긴다 */
     val stats = CoopSessionStats()
+    /** 부모가 적은 질문으로 물은 걸음 — 판정이 거절한 답을 그 칸에 넣지 않는다(부모 질문은 칸과 안 맞을 수 있다) */
+    val parentSteps = mutableSetOf<String>()
+    /** 걸음마다 아이가 진짜로 답했는데 `/turn` 판정이 이 칸 답이 아니라고 한 말 — 순서대로 (10-03 실기기) */
+    val rejected = mutableMapOf<String, MutableList<String>>()
+    /** 이 이야기를 시작할 때 고른 이야기 — 리포트를 열 때는 `coopPick` 이 이미 비어 있다(`clearParentQuestions`) */
+    var pick: CoopPick? = null
 }
 
 /**
@@ -191,7 +198,7 @@ private fun DemoState.llmQuestionFor(q: Question, next: Pair<String, String>?): 
  * The picked story sent with `/turn` and `/story` (#53 B · #52), e.g. "같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)".
  * The server splits the tense on the `reason` sent alongside ([coopStoryReason]), not on this text (#53 C 8da67b0 · #52 77a9d5c).
  */
-internal fun DemoState.coopTurnContext(): String? = coopPick?.let { p ->
+internal fun DemoState.coopTurnContext(): String? = bookPick?.let { p ->
     val k = coopKind(p.kind) ?: return@let null
     val r = p.reasonOrNull()
     val tense = when (r) { CoopReason.DONE -> "지난 일"; CoopReason.SOON -> "앞으로 할 일"; else -> "상상 이야기" }
@@ -207,9 +214,21 @@ internal fun DemoState.coopCoverPart(stepId: String) { coopTrack.askedSteps += s
 /** 이 이야기에서 템플릿 · 부모 질문에 아이가 한 답들 — 부모 리포트가 읽는다. 이야기가 끝나도 남는다(다음 이야기가 시작되면 새로) */
 val DemoState.coopAsked: List<CoopAsked> get() = trackByState[this]?.asked.orEmpty()
 
+/** 이 이야기를 시작할 때 고른 이야기 · 부모 질문을 몇 개 썼나 — 부모 리포트의 말을 가른다 (CoopReport.kt) */
+val DemoState.coopStoryPick: CoopPick? get() = trackByState[this]?.pick
+val DemoState.coopParentUsed: Int get() = trackByState[this]?.parentUsed ?: 0
+
+/**
+ * 지금 이야기의 고른 이야기 — 부모가 고른 것(`coopPick`), 비었으면 이 이야기를 시작할 때 남겨 둔 것.
+ * 이야기가 끝나면 `coopFinishLog` 가 `coopPick` 을 비우고 **그다음에** 책을 만든다(배경 · `/story` · 책장 저장).
+ * 그래서 책 쪽이 `coopPick` 만 보면 기본 배경(`bg_today`)이 깔리고 `/story` 에 이유 · 고른 이야기가 빠졌다 (10-03 실기기)
+ */
+private val DemoState.bookPick: CoopPick? get() = coopPick ?: coopStoryPick
+
 /** 협업 모드에서만 붙는 첫 안내. 일기 모드는 이 함수를 부르지 않는다. */
 suspend fun Director.coopIntro(childName: String) {
     s.newCoopTrack()
+    s.coopTrack.pick = s.coopPick
     if (s.coopReady) {
         // 템플릿으로 골랐으면 무슨 이야기인지 먼저 알려 준다 (09-29) — 호칭은 "부모님" (사용자 결정)
         val pick = s.coopPick
@@ -566,9 +585,27 @@ internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r
     }
     if (asked == null) return text
     return fills.firstOrNull { it.first == step.slot }?.second?.trim().also {
-        if (it == null) log("[${step.slot}] /turn 이 이 칸을 못 찾았다 — 질문에 맞는 답이 아니었다 → 사다리")
+        if (it != null) return@also
+        log("[${step.slot}] /turn 이 이 칸을 못 찾았다 — 질문에 맞는 답이 아니었다 → 사다리")
+        // 우리가 물은 걸음에 아이가 진짜로 한 답 — 사다리가 끝나면 마스코트가 짓는 대신 이 말을 넣는다 (상상 낱말은 빼고)
+        val id = step.variant.id
+        if (id !in s.coopTrack.parentSteps && s.coopTrack.wildFor != step.bookKey) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
     }
 }
+
+/**
+ * 판정이 거절했지만 아이가 이 걸음에 진짜로 한 말 — 마지막 것. 없으면 null.
+ * 실기기(10-03): 「불 끄기」(곧 해요의 문제) · 「사람 구하기」(해결)를 판정이 사건이 아니라며 받지 않아
+ * 사다리 끝에서 마스코트가 「아직 못 들은 ○○」로 지어 채웠다 — 아이 말을 버리고 지어낸 말이 책에 들어갔다.
+ * 그래서 쉬운 질문으로 **한 번** 더 묻고, 그래도 거절되면 아이 말을 그 칸에 넣는다(by child).
+ * 부모 질문 걸음 · 「몰라」 · 상상 낱말 · 안전 판정은 여기 오지 않는다
+ */
+internal fun DemoState.coopRejectedAnswer(step: DiaryStep): String? =
+    if (!isCoop) null else trackByState[this]?.rejected?.get(step.variant.id)?.lastOrNull()
+
+/** 이 걸음에서 판정이 거절한 아이 답이 몇 번이었나 — 두 번이면 사다리를 더 내려가지 않는다 */
+internal fun DemoState.coopRejectedCount(step: DiaryStep): Int =
+    if (!isCoop) 0 else trackByState[this]?.rejected?.get(step.variant.id)?.size ?: 0
 
 private val COOP_SKELETON = setOf("place", "problem", "cause", "solution")
 
@@ -635,7 +672,7 @@ internal fun DemoState.coopPageMission(kind: PageKind): String? = missionFor(kin
  * `/story` 의 `reason` — 고른 이야기가 있으면 그 이유. **이유를 안 골랐으면 `dream`** — 앱이 질문을 상상 이야기로 했으니
  * 책도 상상으로 써야 한다(서버는 비면 「있었던 일」로 쓴다). 이야기를 안 고르고 질문만 적었으면 null(있었던 일 · 일기형).
  */
-internal fun DemoState.coopStoryReason(): String? = coopPick?.let { (it.reasonOrNull() ?: CoopReason.DREAM).key }
+internal fun DemoState.coopStoryReason(): String? = bookPick?.let { (it.reasonOrNull() ?: CoopReason.DREAM).key }
 
 /**
  * The tense the server writes in for this story: the pick's reason, DREAM for a pick with no reason, and DONE
@@ -643,7 +680,7 @@ internal fun DemoState.coopStoryReason(): String? = coopPick?.let { (it.reasonOr
  * against this, so the guard and the server agree (#53 review).
  */
 internal fun DemoState.coopServerTense(): CoopReason =
-    coopPick?.let { it.reasonOrNull() ?: CoopReason.DREAM } ?: CoopReason.DONE
+    bookPick?.let { it.reasonOrNull() ?: CoopReason.DREAM } ?: CoopReason.DONE
 
 /** 쪽 수가 맞고 빈 문장이 없을 때만 쓴다 — 하나라도 어긋나면 틀 문장 책 */
 fun DemoState.useCoopCaptions(captions: List<String>?): Boolean {
