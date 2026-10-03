@@ -223,7 +223,7 @@ val DemoState.coopParentUsed: Int get() = trackByState[this]?.parentUsed ?: 0
  * 이야기가 끝나면 `coopFinishLog` 가 `coopPick` 을 비우고 **그다음에** 책을 만든다(배경 · `/story` · 책장 저장).
  * 그래서 책 쪽이 `coopPick` 만 보면 기본 배경(`bg_today`)이 깔리고 `/story` 에 이유 · 고른 이야기가 빠졌다 (10-03 실기기)
  */
-private val DemoState.bookPick: CoopPick? get() = coopPick ?: coopStoryPick
+internal val DemoState.bookPick: CoopPick? get() = coopPick ?: coopStoryPick
 
 /** 협업 모드에서만 붙는 첫 안내. 일기 모드는 이 함수를 부르지 않는다. */
 suspend fun Director.coopIntro(childName: String) {

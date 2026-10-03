@@ -2,6 +2,12 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.demo.autoTitleFor
+import com.example.finalproject_demo.demo.feelingThatWas
+import com.example.finalproject_demo.demo.coopTitle
+import com.example.finalproject_demo.demo.coopFriendsLine
+import com.example.finalproject_demo.demo.coopMetLabel
+import com.example.finalproject_demo.demo.coopDrawLine
 import com.example.finalproject_demo.ui.coopItem
 import com.example.finalproject_demo.demo.coopFinishLog
 import com.example.finalproject_demo.demo.CoopSource
@@ -422,6 +428,49 @@ class CoopLiveAnswerTest {
         assertEquals("오늘 있었던 일로 · 어른이 넣어 둔 질문으로 지은 책이에요", copy.madeFrom)
         assertEquals("어른이 넣어 둔 질문에 한 답", copy.askedTitle)
         assertNull("일기 모드 놀이 카드를 써야 한다", copy.playCards)
+    }
+
+    /**
+     * 실기기(10-03) — 곧 해요인데 그리기 안내 「오늘 만난 엄마와 아빠를 그려 줄래?」, 제목 「…에서 만난 엄마와 아빠」,
+     * 책 끝 「오늘 만난 친구들이야」, 리포트 「오늘 어디 갔었어?」 · 「질문 0개로 이야기했어요」가 나왔다.
+     * 이야기가 끝나 고른 이야기를 비운 뒤(실제 순서)에도 고른 이유대로 말한다
+     */
+    @Test
+    fun aSoonStoryNeverSaysItHappenedToday() = run { d ->
+        d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+        d.coopFinishLog()
+        val s = d.s
+        assertEquals("같이 갈 엄마와 아빠를 그려 줄래?", s.coopDrawLine("엄마와 아빠"))
+        assertEquals("같이 갈 사람", s.coopMetLabel())
+        val friends = s.coopFriendsLine()!!
+        assertTrue(friends, "오늘" !in friends && "친구" !in friends)
+        val title = s.autoTitleFor()
+        assertTrue(title, "두근두근 소방관 이야기" in title && "만난" !in title)
+        val copy = s.coopReportCopy()
+        assertEquals("소방관은 어디서 일할까?", copy.firstQuestion)
+        assertEquals("부모님이 고른 ‘소방관’ 이야기로 함께 지었어요", copy.together(0))
+        assertEquals("어른이 넣어 둔 질문 2개로 이야기했어요", copy.together(2))
+        assertNull("질문 규칙에 걸렸다: $friends", questionHint(friends))   // 그리기 안내는 부탁이라 질문 규칙 대상이 아니다
+    }
+
+    /** 다녀왔어요는 일기 문구 그대로 — 오늘 있었던 일이 맞다 */
+    @Test
+    fun aDoneStoryKeepsTheDiaryWording() = run { d ->
+        d.toFirstQuestionWith(CoopPick("job", "소방관", "done"))
+        d.coopFinishLog()
+        assertNull(d.s.coopDrawLine("엄마"))
+        assertNull(d.s.coopFriendsLine())
+        assertNull(d.s.coopTitle())
+    }
+
+    /** 서버 판정의 마음 낱말은 「신나다」 · 「기쁨」 꼴도 온다 — 「신나다던」 · 「기쁨던」이 되지 않게 */
+    @Test
+    fun feelingWordsReadAsKorean() {
+        assertEquals("신났던", feelingThatWas("신났"))
+        assertEquals("기뻤던", feelingThatWas("기뻤"))
+        assertEquals("신나던", feelingThatWas("신나다"))
+        assertEquals("좋던", feelingThatWas("좋다"))
+        assertEquals("‘기쁨’", feelingThatWas("기쁨"))
     }
 
     /** 협업 책을 만들 수 있게 칸을 채워 둔다 */

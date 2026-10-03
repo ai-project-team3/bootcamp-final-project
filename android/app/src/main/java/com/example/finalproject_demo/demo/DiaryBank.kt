@@ -622,6 +622,7 @@ private fun tail(s: DemoState, key: String): String {
 
 /** 제목 — 아이에게 묻지 않고 지어 준다 (동화 모드와 같다) */
 fun DemoState.diaryTitle(): String {
+    coopTitle()?.let { return it }                       // 협업 곧 해요 · 좋아해요 — 「○○에서 만난」이 아니다 (CoopReport.kt)
     val p = placeName
     val f = friendName.takeUnless { it.startsWith("{") }
         ?: companionKind.takeUnless { it.isBlank() || "혼자" in it || !isRealName(it) }
