@@ -84,6 +84,7 @@ private fun DemoState.takeCoopLine(q: Question): CoopLine? {
     val mine = parentQuestions.filter { it.isNotBlank() }.getOrNull(track.parentUsed) ?: return null
     track.parentUsed++
     parentQIndex++
+    track.parentSteps += q.id
     return CoopLine.Parent(mine)
 }
 
@@ -115,6 +116,10 @@ private class CoopTrack {
     var liveTurn: LiveTurn? = null
     /** 지금 방식 · 바뀐 방식을 견주는 이야기 하나의 수치 (§11) — 끝날 때 `coop_session` 으로 남긴다 */
     val stats = CoopSessionStats()
+    /** 부모가 적은 질문으로 물은 걸음 — 판정이 거절한 답을 그 칸에 넣지 않는다(부모 질문은 칸과 안 맞을 수 있다) */
+    val parentSteps = mutableSetOf<String>()
+    /** 걸음마다 아이가 진짜로 답했는데 `/turn` 판정이 이 칸 답이 아니라고 한 말 — 순서대로 (10-03 실기기) */
+    val rejected = mutableMapOf<String, MutableList<String>>()
 }
 
 /**
@@ -563,9 +568,27 @@ internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r
     }
     if (asked == null) return text
     return fills.firstOrNull { it.first == step.slot }?.second?.trim().also {
-        if (it == null) log("[${step.slot}] /turn 이 이 칸을 못 찾았다 — 질문에 맞는 답이 아니었다 → 사다리")
+        if (it != null) return@also
+        log("[${step.slot}] /turn 이 이 칸을 못 찾았다 — 질문에 맞는 답이 아니었다 → 사다리")
+        // 우리가 물은 걸음에 아이가 진짜로 한 답 — 사다리가 끝나면 마스코트가 짓는 대신 이 말을 넣는다 (상상 낱말은 빼고)
+        val id = step.variant.id
+        if (id !in s.coopTrack.parentSteps && s.coopTrack.wildFor != step.bookKey) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
     }
 }
+
+/**
+ * 판정이 거절했지만 아이가 이 걸음에 진짜로 한 말 — 마지막 것. 없으면 null.
+ * 실기기(10-03): 「불 끄기」(곧 해요의 문제) · 「사람 구하기」(해결)를 판정이 사건이 아니라며 받지 않아
+ * 사다리 끝에서 마스코트가 「아직 못 들은 ○○」로 지어 채웠다 — 아이 말을 버리고 지어낸 말이 책에 들어갔다.
+ * 그래서 쉬운 질문으로 **한 번** 더 묻고, 그래도 거절되면 아이 말을 그 칸에 넣는다(by child).
+ * 부모 질문 걸음 · 「몰라」 · 상상 낱말 · 안전 판정은 여기 오지 않는다
+ */
+internal fun DemoState.coopRejectedAnswer(step: DiaryStep): String? =
+    if (!isCoop) null else trackByState[this]?.rejected?.get(step.variant.id)?.lastOrNull()
+
+/** 이 걸음에서 판정이 거절한 아이 답이 몇 번이었나 — 두 번이면 사다리를 더 내려가지 않는다 */
+internal fun DemoState.coopRejectedCount(step: DiaryStep): Int =
+    if (!isCoop) 0 else trackByState[this]?.rejected?.get(step.variant.id)?.size ?: 0
 
 private val COOP_SKELETON = setOf("place", "problem", "cause", "solution")
 

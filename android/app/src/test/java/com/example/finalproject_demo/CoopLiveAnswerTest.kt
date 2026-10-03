@@ -334,6 +334,45 @@ class CoopLiveAnswerTest {
         } finally { server.close() }
     }
 
+    /**
+     * 실기기(10-03) — 판정이 우리 질문에 한 아이 답을 거절해도 쉬운 질문으로 **한 번만** 더 묻고,
+     * 또 거절되면 마스코트가 「아직 못 들은 ○○」로 짓지 않고 아이가 마지막에 한 말을 그 칸에 넣는다
+     */
+    @Test
+    fun aRealAnswerTheJudgeRejectsTwiceGoesIntoTheSlotInsteadOfTheMascotsGuess() = run { d ->
+        val server = StoryTestServer { path, _ ->
+            if (path != "/turn") JSONObject() else JSONObject().put("judge", JSONObject().put("reason", "앞으로 할 체험 활동이라 사건이 아님"))
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+            d.answer("불 끄기")                                   // 한 번 거절 → 쉬운 질문으로 다시
+            assertNull("한 번 거절됐는데 벌써 칸을 채웠다", d.s.place)
+            d.speakUntil("소방차 타기") { d.s.place != null }
+            assertEquals("아이가 마지막에 한 말이 아니다", "소방차 타기", d.s.place)
+            assertEquals("아이 말인데 출처가 바뀌었다", "child", d.s.slotBy["place"])
+            assertEquals("마스코트가 지어 채운 것으로 셌다", 0, d.s.mascotPicks)
+            val placeTurns = server.requests.count { it.first == "/turn" && it.second.optString("asked_slot") == "place" }
+            assertEquals("다시 묻는 건 한 번까지인데 더 물었다", 2, placeTurns)
+        } finally { server.close() }
+    }
+
+    /** 「몰라」만 했으면 받을 말이 없다 — 지금처럼 사다리 끝에서 마스코트가 채운다 */
+    @Test
+    fun withOnlyDontKnowsTheMascotStillFillsTheSlot() = run { d ->
+        val server = StoryTestServer { path, _ ->
+            if (path != "/turn") JSONObject() else JSONObject().put("judge", JSONObject().put("reason", "ok"))
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+            d.speakUntil("몰라") { d.s.place != null }
+            assertEquals("「몰라」뿐인데 아이 말로 채웠다", "mascot", d.s.slotBy["place"])
+        } finally { server.close() }
+    }
+
     /** 협업 책을 만들 수 있게 칸을 채워 둔다 */
     private fun Director.filledCoop() {
         s.mode = StoryMode.COOP
