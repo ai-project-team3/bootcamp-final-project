@@ -99,10 +99,18 @@ internal fun banmal(q: String): String = when {
     else -> q
 }
 
-/** 지난 일을 묻는 꼴 — 「했어? · 갔어? · 있었어?」 */
+/**
+ * Asks about something already done: a past syllable (ㅆ final, not 있 · 없) before a question ending —
+ * 했어? · 만났니? · 갔나? · 봤냐? · 했지? · 했을까? · 그랬을 것 같아? — or before 던 anywhere (가 봤던 데).
+ * It is the only tense net for 곧 해요 once server lines are on (#53 review).
+ */
+private val PAST_ENDING = Regex("([가-힣])(어|니|나|냐|지|을까|을 것 같아)$")
+private val PAST_DEON = Regex("([가-힣])던(?=[ ?]|$)")
+
 private fun asksPast(q: String): Boolean {
-    val t = q.trimEnd('?', ' ')
-    return t.endsWith("어") && t.length >= 2 && pastSyllable(t[t.length - 2])
+    val t = q.trimEnd('?', ' ', '.', '!')
+    PAST_ENDING.find(t)?.let { if (pastSyllable(it.groupValues[1][0])) return true }
+    return PAST_DEON.findAll(t).any { pastSyllable(it.groupValues[1][0]) }
 }
 
 /**
