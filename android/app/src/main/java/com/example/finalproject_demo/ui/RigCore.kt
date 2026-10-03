@@ -585,7 +585,7 @@ object RigBuilder {
      * 배경을 지울 때 남은 **회색 반투명 그림자**를 지운다 — 시연 도구의 `clean_halo` 와 같다 (09-28 6차).
      * 팔 옆에 이게 남아 있으면 팔을 들 때 옅은 선 조각이 제자리에 남는다. 색이 있는 가장자리(살 · 셔츠)는 그대로
      */
-    private fun cleanHalo(src: IntArray): IntArray = IntArray(src.size) { i ->
+    internal fun cleanHalo(src: IntArray): IntArray = IntArray(src.size) { i ->
         val c = src[i]; val a = c ushr 24
         val r = (c shr 16) and 255; val g = (c shr 8) and 255; val b = c and 255
         if (a in 1..219 && maxOf(r, g, b) - minOf(r, g, b) < 28) c and 0x00FFFFFF else c
