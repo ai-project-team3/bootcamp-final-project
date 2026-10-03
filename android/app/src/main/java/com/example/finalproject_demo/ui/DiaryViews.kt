@@ -146,6 +146,22 @@ private val BandTop = 112.dp
 /** 앱 틀의 🏠 · 🔒 (`KidTopBar`)가 차지하는 폭 — 그 오른쪽부터 글을 둔다 */
 private val TopBarEnd = 160.dp
 
+/** 🏠 · 🔒 의 오른쪽 끝(12 + 56 + 4 + 56dp)에 틈을 더한 자리 — 그림판 · 일기 종이는 여기서 시작한다. 전에는 🔒 가 판 위에 얹혔다 (#98) */
+private val TopBarRight = 136.dp
+
+/**
+ * 🎤 — 일기 화면 어디서나 **오른쪽 아래 같은 자리 · 같은 크기**(다른 일기 화면의 대사 칸 마이크와 같은 96dp · 끝 12dp).
+ * 전에는 그림판 말풍선 안에 있어 말이 길고 짧음에 따라 움직였다 (#46 조장 요청 — 그리다가 손을 뻗을 때 늘 같은 자리)
+ */
+private val DiaryMicSize = 96.dp
+private val DiaryMicGap = 12.dp
+
+/** 그림판이 비켜 두는 오른쪽 띠 — 🎤 가 판을 가리지 않게 */
+private val DiaryMicRail = DiaryMicSize + DiaryMicGap * 2
+
+/** 그림판 왼쪽 끝 — 크레용 두 줄 자리와 🏠 · 🔒 자리 중 넓은 쪽 */
+private fun boardStart(cq: Dp) = maxOf(cq * 12, TopBarRight)
+
 @Composable
 fun DiaryStageView(d: Director, stage: DiaryStage) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Bg)) {
@@ -159,9 +175,16 @@ fun DiaryStageView(d: Director, stage: DiaryStage) {
             DiaryGift -> DiaryGiftView(d, cq)
         }
         when (stage) {
-            is DiaryBoard -> DiaryBubble(d, cq, Modifier.align(Alignment.BottomStart))
+            // 말풍선은 그림판 왼쪽 아래 — 크레용 · ↶ ↷ 를 가리지 않게 판이 시작하는 자리부터 (#98)
+            is DiaryBoard -> {
+                DiaryBubble(d, cq, Modifier.align(Alignment.BottomStart).padding(start = boardStart(cq) - cq * 1.2f))
+                DiaryMic(d, Modifier.align(Alignment.BottomEnd))
+            }
             // 그림일기 한 장에는 대사 칸이 없다 — 오또가 묻는 동안(제목)만 작은 말풍선과 마이크
-            is DiaryPaper -> if (d.s.micEnabled) DiaryBubble(d, cq, Modifier.align(Alignment.BottomCenter))
+            is DiaryPaper -> if (d.s.micEnabled) {
+                DiaryBubble(d, cq, Modifier.align(Alignment.BottomCenter))
+                DiaryMic(d, Modifier.align(Alignment.BottomEnd))
+            }
             else -> MascotBubble(d, Modifier.align(Alignment.BottomCenter).padding(start = 8.dp, bottom = 6.dp))
         }
     }
@@ -312,7 +335,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
             }
         }
         BoxWithConstraints(
-            Modifier.padding(start = cq * 12, end = cq * 1.5f, top = cq * 1.5f, bottom = cq * 1.5f).fillMaxSize()
+            Modifier.padding(start = boardStart(cq), end = DiaryMicRail, top = cq * 1.5f, bottom = cq * 1.5f).fillMaxSize()
                 .shadow(cq * 2, RoundedCornerShape(cq * 2.5f))
                 .background(Color.White, RoundedCornerShape(cq * 2.5f))
                 .clip(RoundedCornerShape(cq * 2.5f))
@@ -457,11 +480,13 @@ private fun DiaryBubble(d: Director, cq: Dp, modifier: Modifier) {
             Spacer(Modifier.width(cq * 1.2f))
             Text(text.take(shown), fontSize = (cq.value * 2.2f).sp, color = InkBrown, lineHeight = (cq.value * 2.9f).sp, modifier = Modifier.widthIn(max = cq * 52))
         }
-        if (s.micEnabled) {
-            Spacer(Modifier.width(cq))
-            MicButton(d, size = cq * 7)
-        }
     }
+}
+
+/** 🎤 — 오른쪽 아래 고정([DiaryMicSize]). 들을 차례에만 보인다 */
+@Composable
+private fun DiaryMic(d: Director, modifier: Modifier) {
+    if (d.s.micEnabled) Box(modifier.padding(end = DiaryMicGap, bottom = DiaryMicGap).testTag("diary-mic")) { MicButton(d, size = DiaryMicSize) }
 }
 
 /** 「어떤 게 좋아?」 — 그림판 위에 고르기 칸. 내 그림이 먼저(기본값), 오또 그림이 옆 */
@@ -675,7 +700,7 @@ private fun DiaryPaperView(d: Director, stage: DiaryPaper, cq: Dp) {
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // 종이 — 가운데. 오른쪽에 쪽 점과 ▶ 자리를 남긴다
-        val left = cq * 9.5f
+        val left = maxOf(cq * 9.5f, TopBarRight)          // 🏠 · 🔒 가 종이 위에 얹히지 않게 (#98)
         val right = cq * 11.5f
         Box(
             Modifier.padding(start = left, end = right, top = cq * 1.6f, bottom = cq * 1.4f).fillMaxSize()
@@ -725,7 +750,7 @@ private fun DiaryPaperView(d: Director, stage: DiaryPaper, cq: Dp) {
         NavDot("◀", Color.White, enabled = stage.index > 0, cq = cq, modifier = Modifier.align(Alignment.BottomStart).padding(start = cq * 1.4f, bottom = cq * 3)) {
             d.send(Reply.Tapped("prev", "앞"))
         }
-        NavDot(if (last) "📔" else "▶", FeltMustard, enabled = true, cq = cq, modifier = Modifier.align(Alignment.BottomEnd).padding(end = cq * 1.4f, bottom = cq * 3).testTag("d5-next")) {
+        NavDot(if (last) "📔" else "▶", FeltMustard, enabled = true, cq = cq, modifier = Modifier.align(Alignment.BottomEnd).padding(end = cq * 1.4f, bottom = if (s.micEnabled) DiaryMicSize + DiaryMicGap * 2 else cq * 3).testTag("d5-next")) {
             d.send(Reply.Tapped("next", "다음"))
         }
     }

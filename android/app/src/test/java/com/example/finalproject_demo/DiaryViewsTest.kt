@@ -4,6 +4,8 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -239,6 +241,29 @@ class DiaryViewsTest {
         compose.mainClock.advanceTimeBy(300)
         compose.onNodeWithTag("stroke-redo").assertIsNotEnabled()
         snap("diary_board_undo")
+    }
+
+    /**
+     * 그림판 자리 (#98 · #46) — 판은 앱 틀의 🏠 · 🔒(오른쪽 끝 128dp) 오른쪽에서 시작하고, 🎤 는 판 밖 오른쪽 아래에 고정된다.
+     * 말풍선은 판 쪽에 있어 크레용 아래 ↶ ↷ 를 가리지 않는다
+     */
+    @Test
+    fun theBoardLeavesRoomForTheTopButtonsAndTheMic() {
+        val d = director()
+        d.s.newDiaryDay()
+        d.s.stage = DiaryBoard()
+        d.say("우와, 지금 그리는 건 뭐야?")
+        d.inputs(mic = true, next = false)
+        show(d)
+        val board = compose.onNodeWithTag("diary-board").getUnclippedBoundsInRoot()
+        val mic = compose.onNodeWithTag("diary-mic").getUnclippedBoundsInRoot()
+        val bubble = compose.onNodeWithTag("diary-bubble").getUnclippedBoundsInRoot()
+        val undo = compose.onNodeWithTag("stroke-undo").getUnclippedBoundsInRoot()
+        assertTrue("🔒 가 판 위에 얹힌다 — 판 왼쪽 ${board.left}", board.left >= 128.dp)
+        assertTrue("🎤 가 판을 가린다 — 판 오른쪽 ${board.right} · 🎤 왼쪽 ${mic.left}", mic.left >= board.right)
+        val root = compose.onRoot().getUnclippedBoundsInRoot()
+        assertTrue("🎤 가 오른쪽 아래가 아니다", root.right - mic.right < 24.dp && root.bottom - mic.bottom < 24.dp)
+        assertTrue("말풍선이 ↶ 를 가린다", bubble.left >= undo.right || bubble.top >= undo.bottom)
     }
 
     /** 천천히 긋는 둘째 획 — 앞 획 뒤 1.6초가 지나도 손가락이 판에 있으면 묻지 않는다. 손을 떼고 조용하면 묻는다 */
