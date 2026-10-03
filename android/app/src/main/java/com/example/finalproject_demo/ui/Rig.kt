@@ -56,8 +56,12 @@ import kotlin.math.min
  * `assets/rig/<이름>/` 은 마네킹 틀로 뽑은 시연용 둘뿐이다 (`tools/rig_mesh_export.py` · `docs/캐릭터_생성_규격.md` §8)
  */
 
-/** 캐릭터 하나 — 그물(계산은 `RigCore.kt`) + 그림 */
-class MeshRig(val mesh: RigMesh, val bitmap: Bitmap) {
+/**
+ * 캐릭터 하나 — 그물(계산은 `RigCore.kt`) + 그릴 그림판.
+ * [drawTex] 는 [bitmap] 위의 점 좌표다. 뼈대는 512 로 줄여 붙여도 **그릴 때는 원래 해상도**로 그린다 (10-03 —
+ * 줄인 그림을 화면 크기로 다시 키워 그려서, 그림 한 장(원본)에서 움직이는 그림으로 바뀌는 순간 흐려졌다)
+ */
+class MeshRig(val mesh: RigMesh, val bitmap: Bitmap, val drawTex: FloatArray = mesh.tex) {
     val kind get() = mesh.kind
 }
 
@@ -110,9 +114,43 @@ fun buildMeshRig(src: Bitmap, hint: RigHint = RigHint.AUTO): MeshRig? {
     val px = IntArray(bmp.width * bmp.height)
     bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
     val mesh = RigBuilder.build(px, bmp.width, bmp.height, hint) ?: return null
-    // 팔을 떼어 냈으면 [몸 층 | 팔 층] 그림판을 그린다
-    val tex = mesh.atlas?.let { Bitmap.createBitmap(it, mesh.atlasW, bmp.height, Bitmap.Config.ARGB_8888) } ?: bmp
-    return MeshRig(mesh, tex)
+    if (bmp === bmp0) {
+        // 줄이지 않았다 — 팔을 떼어 냈으면 [몸 층 | 팔 층] 그림판, 아니면 그림 그대로
+        val tex = mesh.atlas?.let { Bitmap.createBitmap(it, mesh.atlasW, bmp.height, Bitmap.Config.ARGB_8888) } ?: bmp
+        return MeshRig(mesh, tex)
+    }
+    val kx = bmp0.width.toFloat() / bmp.width; val ky = bmp0.height.toFloat() / bmp.height
+    val drawTex = FloatArray(mesh.tex.size) { i -> mesh.tex[i] * if (i % 2 == 0) kx else ky }
+    return MeshRig(mesh, fullTexture(bmp0, px, bmp.width, bmp.height, mesh), drawTex)
+}
+
+/**
+ * 줄여서 붙인 뼈대에 입힐 **원래 해상도 그림판**. 떼어 낸 팔이 없으면 원래 그림 그대로.
+ * 팔을 떼어 냈으면 [몸 층 | 팔 층] 을 원래 해상도로 다시 만든다:
+ *   팔 층 = 작은 그림판에서 팔이던 자리의 원래 화소
+ *   몸 층 = 작은 그림과 같은 자리는 원래 화소, 팔이 가리던 자리(거울로 메웠거나 비운 곳)는 작은 그림판 값
+ * 원래 그림도 뼈대를 붙일 때와 같게 회색 반투명 그림자를 지운다([RigBuilder.cleanHalo]).
+ */
+private fun fullTexture(big: Bitmap, small: IntArray, w: Int, h: Int, mesh: RigMesh): Bitmap {
+    val atlas = mesh.atlas ?: return big
+    val bw = big.width; val bh = big.height
+    val orig = IntArray(bw * bh).also { big.getPixels(it, 0, bw, 0, 0, bw, bh) }
+    val clean = RigBuilder.cleanHalo(orig)
+    val smallClean = RigBuilder.cleanHalo(small)
+    val aw = mesh.atlasW
+    val out = IntArray(2 * bw * bh)
+    for (y in 0 until bh) {
+        val sy = min(h - 1, y * h / bh)
+        for (x in 0 until bw) {
+            val sx = min(w - 1, x * w / bw)
+            val o = y * bw + x
+            val under = atlas[sy * aw + sx]
+            out[y * 2 * bw + x] = if (under == smallClean[sy * w + sx]) clean[o] else under
+            // 팔 층 — 작은 그림판과 같은 규칙: 거의 투명한 가장자리(60 미만)는 넣지 않는다
+            if ((atlas[sy * aw + w + sx] ushr 24) != 0 && (clean[o] ushr 24) >= 60) out[y * 2 * bw + bw + x] = clean[o]
+        }
+    }
+    return Bitmap.createBitmap(out, 2 * bw, bh, Bitmap.Config.ARGB_8888)
 }
 
 /** 서버가 보낸 PNG 바이트 → 뼈대. 그림을 못 읽으면 null */
@@ -173,7 +211,10 @@ object RigCache {
         if (motionFrozen || key.isEmpty() || !started.add(key)) return
         pool.execute {
             val t0 = System.nanoTime()
-            val rig = runCatching { make() }.getOrNull()
+            val result = runCatching { make() }
+            // 못 붙인 것(null)은 다시 해도 같다. 던진 것(메모리 부족 같은 일시적인 일)은 다음 부를 때 다시 해 본다 (10-03)
+            if (result.isFailure) started.remove(key)
+            val rig = result.getOrNull()
             val ms = (System.nanoTime() - t0) / 1_000_000
             android.util.Log.i("Rig", "$key → ${rig?.kind ?: "실패"} · 뼈 ${rig?.mesh?.bones?.size ?: 0} · 점 ${rig?.mesh?.vertexCount ?: 0} · ${ms}ms")
             main.post { done[key] = rig; timings[key] = ms }
@@ -232,7 +273,7 @@ fun RigView(
             // 흔들림은 캔버스 512 기준 화소로 잡았다
             if (bobbing) nc.translate(0f, bob * mesh.canvasH / 512f)
             nc.drawVertices(
-                android.graphics.Canvas.VertexMode.TRIANGLES, mesh.out.size, mesh.out, 0, mesh.tex, 0,
+                android.graphics.Canvas.VertexMode.TRIANGLES, mesh.out.size, mesh.out, 0, rig.drawTex, 0,
                 null, 0, mesh.indices, 0, mesh.indices.size, paint,
             )
             nc.restore()
