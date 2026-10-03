@@ -20,6 +20,57 @@ class StoryOptionsLadderTest {
     @Test fun twoSilentAnswersShowServerCardsAndKeepTheCardSource() = exercise(select = true)
     @Test fun noCardSelectionUsesTheFirstServerOptionWithoutChildSignals() = exercise(select = false)
 
+    @Test fun unheardRetriesStayBeforeTheEasierQuestionAndServerCards() = runBlocking {
+        val previousBase = Server.base
+        val previousModes = Server.liveModes
+        val previousListen = Voice.listen
+        val previousTranscribe = Voice.transcribe
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope)
+        var transcriptions = 0
+        Server.base = "http://127.0.0.1:1"
+        Server.liveModes = setOf(StoryMode.STORY)
+        d.s.speed = 0.01
+        d.s.timerOn = false
+        Voice.listen = { byteArrayOf(1) }
+        Voice.transcribe = { transcriptions++; null }
+        suspend fun until(condition: () -> Boolean) = withTimeout(3_000) {
+            while (!condition()) delay(1)
+        }
+        try {
+            d.s.exchangeStoryTurn("problem", "무슨 일이야?", "떠났어") {
+                Server.TurnResult(verdict("place"), Server.Line("그랬구나!", null, "어디로 갈까?", listOf("숲", "바다", "우주")))
+            }
+            val answer = async {
+                d.askStory(Question("어디로 갈까?", Kind.EASY, easierText = "가고 싶은 곳이 있어?"), "place") {
+                    Server.TurnResult(verdict("problem", listOf("place" to it.utterance)), null)
+                }
+            }
+            until { d.s.micEnabled }
+            repeat(2) { retry ->
+                d.toggleMic()
+                until { transcriptions == retry + 1 && d.s.line.contains(if (retry == 0) "한 번 더" else "또 못 들었어") }
+                assertFalse("unheard speech must not immediately show cards", d.s.stage is Stage.CardsRow)
+                assertFalse(answer.isCompleted)
+            }
+            d.toggleMic()
+            until { d.s.line == "가고 싶은 곳이 있어?" }
+            assertEquals(3, transcriptions)
+            assertFalse("the easier question must come before cards", d.s.stage is Stage.CardsRow)
+            d.send(Reply.Silent)
+            until { d.s.stage is Stage.CardsRow }
+            d.send(Reply.Tapped("숲", "숲"))
+            assertEquals("숲", (withTimeout(3_000) { answer.await() } as Reply.Tapped).label)
+            assertEquals("card", d.s.slotBy["place"])
+        } finally {
+            scope.coroutineContext[Job]!!.cancelAndJoin()
+            Voice.listen = previousListen
+            Voice.transcribe = previousTranscribe
+            Server.base = previousBase
+            Server.liveModes = previousModes
+        }
+    }
+
     @Test fun undoDuringServerCardsReturnsWithoutSubmittingAnAnswer() = runBlocking {
         val previousBase = Server.base
         val previousModes = Server.liveModes
