@@ -940,8 +940,8 @@ private suspend fun Director.sceneDraw() {
     val v = awaitValue("preset", "done")
     if (v == "preset" || s.drawing.isEmpty()) {
         s.drawing.clear()
-        s.stage = Stage.CardsRow((0..2).map { Card(listOf("뿌뿌", "반짝", "동글")[it] + " " + nc, Art.Alien(it), "$it") })
-        say("그럼 이 중에 누가 $nc${ga(nc)} 닮았어?")
+        s.stage = Stage.CardsRow((0..2).map { Card(listOf("뿌뿌", "반짝", "동글")[it] + " " + nc, storyPresetArt(nc, it), "$it") })
+        say("그럼 이 중에 누가 $nc${rang(nc)} 닮았어?")
         log("그리기 싫어함 → 프리셋 3장 (초안 장면 6 ↳) · 프리셋을 골라도 \"아이 것\"으로 취급")
         buttons(DemoBtn("🖐 첫 번째 프리셋 탭") { send(Reply.Tapped("0", "뿌뿌")) })
         s.drawnPreset = awaitValue("0", "1", "2").toInt()
@@ -1413,16 +1413,19 @@ private suspend fun Director.sceneMaking() {
         s.stage = Stage.Making("이야기 문장을 쓰는 중… (${t.pages.size}쪽)")
         val mask = s.nameMask()
         val storyInput = s.storyServerInput()
-        val captions = Server.story(
+        val book = Server.storyBook(
             mode = "story",
             slots = mask.maskSlots(storyInput.slots),
             slotBy = storyInput.sources,
             template = t.key,
             level = s.level.name.lowercase(),
             pages = s.storyPagePlan(),
-        )?.map(mask::unmask)
-        if (s.useGeneratedStory(captions)) log("서버가 쓴 동화 ${s.pageCount}쪽을 받음")
-        else log("동화 생성 실패 또는 쪽 목록 불일치 → 템플릿 책 사용")
+        )
+        if (s.useGeneratedStory(book?.captions?.map(mask::unmask))) {
+            book?.title?.let { s.title = mask.unmask(it) }
+            log("서버가 쓴 동화 ${s.pageCount}쪽을 받음")
+            completeStoryBackgroundFromBook()
+        } else log("동화 생성 실패 또는 쪽 목록 불일치 → 템플릿 책 사용")
     }
     coopWriteBook()                             // 협업 책 문장 — 서버를 켰을 때만 (CoopScenes.kt · #47)
     s.stage = Stage.Making("『${s.title}』", 1f)
