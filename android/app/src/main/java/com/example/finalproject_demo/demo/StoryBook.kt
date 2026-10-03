@@ -1,18 +1,22 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.MissionId
+import com.example.finalproject_demo.demo.missions.missions
 import com.example.finalproject_demo.net.Server
+
+/** The mission on a book page — the two mission slots are still the RUB and DRAG pages (design §5-1) */
+fun DemoState.missionFor(kind: PageKind): MissionId? = when (kind) {
+    PageKind.RUB -> missions().slot1
+    PageKind.DRAG -> missions().slot2
+    else -> null
+}
 
 /** 현재 동화 템플릿의 쪽 순서를 그대로 서버에 보낸다. 다른 모드의 책 구성은 각 담당자가 정한다. */
 fun DemoState.storyPagePlan(): List<Server.Page> {
     if (mode != StoryMode.STORY) return emptyList()
     val pages = template?.pages ?: return emptyList()
     return pages.map { page ->
-        val mission = when (page.kind) {
-            PageKind.RUB -> "A6"
-            PageKind.DRAG -> if (templateKey in setOf("A", "G")) "A3" else "E1"
-            else -> null
-        }
-        Server.Page(page.kind.name, mission)
+        Server.Page(page.kind.name, missionFor(page.kind)?.name)
     }
 }
 

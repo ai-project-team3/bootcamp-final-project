@@ -4,6 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.example.finalproject_demo.ui.coopItem
+import com.example.finalproject_demo.demo.missions.MissionId
+import com.example.finalproject_demo.demo.missions.missions
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.CoopReason
@@ -622,7 +624,7 @@ suspend fun Director.coopWriteBook() {
 internal fun DemoState.coopMissionResult(kind: PageKind): String? = when (kind) {
     PageKind.RUB -> if (m1Result != null) mission1().blobName.let { "${it}${ga(it)} 사라졌어요." } else null
     PageKind.DRAG -> if (m2Result != null) {
-        if (templateKey in setOf("A", "G")) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
+        if (missions().slot2 == MissionId.A3) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
         else "$childName${eun(childName)} ${m2Clause()}"     // 같이 간 사람이 없으면 「오늘 이야기를 들어준 마스코트에게 …」
     } else null
     else -> null
@@ -632,11 +634,7 @@ internal fun DemoState.coopMissionResult(kind: PageKind): String? = when (kind) 
  * 협업 책 쪽의 미션 ID (`docs/미션_구상.md` §3). 미션 1 = 문지르기(A6), 미션 2 = 건네주기(E1) ·
  * 틀 A · G 면 그림 퍼즐(A3) — 책 화면(`Book.kt`)이 그리는 미션과 같아야 한다. 미션 쪽이 아니면 null
  */
-internal fun DemoState.coopPageMission(kind: PageKind): String? = when (kind) {
-    PageKind.RUB -> "A6"
-    PageKind.DRAG -> if (templateKey in setOf("A", "G")) "A3" else "E1"
-    else -> null
-}
+internal fun DemoState.coopPageMission(kind: PageKind): String? = missionFor(kind)?.name
 
 /**
  * `/story` 의 `reason` — 고른 이야기가 있으면 그 이유. **이유를 안 골랐으면 `dream`** — 앱이 질문을 상상 이야기로 했으니
