@@ -38,6 +38,15 @@ class DiaryLiveTurnTest {
     private suspend fun await(ms: Long = 6_000, cond: () -> Boolean): Boolean? =
         withTimeoutOrNull(ms) { while (!cond()) delay(5); true }
 
+    /**
+     * 칸이 [value] 가 될 때까지 기다렸다가 본다. 가짜 `/turn` 은 요청이 **들어올 때** `asked` 에 적고, 앱은 응답을 **받은 뒤** 칸을 채운다 —
+     * `asked.size` 만 보고 바로 칸을 읽으면 느린 CI(리눅스)에서 아직 null 이다 (#94 · 응답을 300ms 늦추면 그대로 재현)
+     */
+    private suspend fun Director.slotBecomes(key: String, value: String) {
+        await { s.slots[key] == value }
+        assertEquals(value, s.slots[key])
+    }
+
     /** `/turn` 응답 JSON — 서버 명세(guidelines/3 §3-2-1)의 judge 16필드 중 쓰는 것만 */
     private fun turn(fills: List<Pair<String, String>>, next: String?, ack: String, question: String?, ready: Boolean = false, s1: Boolean = false): String {
         val judge = JSONObject().put("reason", "ok").put("next_slot", next ?: JSONObject.NULL)
@@ -143,7 +152,7 @@ class DiaryLiveTurnTest {
             assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
             d.answer("놀이터 갔어") { s.line == "내일 또 하고 싶은 거 있어?" }
             d.answer("또 미끄럼틀 타고 싶어") { asked.size == 2 && s.line != "내일 또 하고 싶은 거 있어?" }
-            assertEquals("또 미끄럼틀 타고 싶어", s.slots["keep"])
+            d.slotBecomes("keep", "또 미끄럼틀 타고 싶어")
             assertTrue("이미 답한 「내일」을 또 물었다 — 말=${s.line}", await(1_500) { s.line == "내일 또 하고 싶은 거 있어?" } == null)
         }
     }
@@ -171,7 +180,7 @@ class DiaryLiveTurnTest {
             assertTrue("판정이 ready 라고 「내일」을 건너뛰었다 — 말=${s.line}", await { s.line == "내일 또 하고 싶은 거 있어?" } != null)
             d.answer("또 그네 타고 싶어") { asked.size == 3 }
             assertEquals("extra", asked[2].getString("asked_slot"))
-            assertEquals("또 그네 타고 싶어", s.slots["keep"])
+            d.slotBecomes("keep", "또 그네 타고 싶어")
         }
     }
 
@@ -202,7 +211,7 @@ class DiaryLiveTurnTest {
             assertTrue("결말을 비워 두고 「내일」로 안 갔다 — 말=${s.line}", await { s.line == "내일 또 하고 싶은 거 있어?" } != null)
             d.answer("또 가고 싶어") { asked.size == 5 }
             assertEquals(listOf("place", "problem", "solution", "solution", "extra"), asked.map { it.getString("asked_slot") })
-            assertEquals("또 가고 싶어", s.slots["keep"])
+            d.slotBecomes("keep", "또 가고 싶어")
             assertTrue("결말을 지어 넣었다", s.slots["solution"].isNullOrBlank())
         }
     }
@@ -235,6 +244,7 @@ class DiaryLiveTurnTest {
             d.answer("놀이터 갔어") { asked.size == 1 && s.line != "여기는 어디야?" }
             assertEquals("diary", asked[0].getString("mode"))
             assertEquals("place", asked[0].getString("asked_slot"))
+            await { s.slotBy["place"] != null }
             assertEquals("child", s.slotBy["place"])
             assertTrue("다음 이야기가 서버 질문이 아니다 — 말=${s.line}", await { pause(); s.line == "놀이터에서 무슨 일이 있었어?" } != null)
             d.answer("미끄럼틀 탔어") { asked.size == 2 && s.line != "놀이터에서 무슨 일이 있었어?" }
