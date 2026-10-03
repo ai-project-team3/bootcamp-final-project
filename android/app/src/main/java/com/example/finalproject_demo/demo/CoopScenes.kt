@@ -120,6 +120,8 @@ private class CoopTrack {
     val parentSteps = mutableSetOf<String>()
     /** 걸음마다 아이가 진짜로 답했는데 `/turn` 판정이 이 칸 답이 아니라고 한 말 — 순서대로 (10-03 실기기) */
     val rejected = mutableMapOf<String, MutableList<String>>()
+    /** 이 이야기를 시작할 때 고른 이야기 — 리포트를 열 때는 `coopPick` 이 이미 비어 있다(`clearParentQuestions`) */
+    var pick: CoopPick? = null
 }
 
 /**
@@ -209,9 +211,14 @@ internal fun DemoState.coopCoverPart(stepId: String) { coopTrack.askedSteps += s
 /** 이 이야기에서 템플릿 · 부모 질문에 아이가 한 답들 — 부모 리포트가 읽는다. 이야기가 끝나도 남는다(다음 이야기가 시작되면 새로) */
 val DemoState.coopAsked: List<CoopAsked> get() = trackByState[this]?.asked.orEmpty()
 
+/** 이 이야기를 시작할 때 고른 이야기 · 부모 질문을 몇 개 썼나 — 부모 리포트의 말을 가른다 (CoopReport.kt) */
+val DemoState.coopStoryPick: CoopPick? get() = trackByState[this]?.pick
+val DemoState.coopParentUsed: Int get() = trackByState[this]?.parentUsed ?: 0
+
 /** 협업 모드에서만 붙는 첫 안내. 일기 모드는 이 함수를 부르지 않는다. */
 suspend fun Director.coopIntro(childName: String) {
     s.newCoopTrack()
+    s.coopTrack.pick = s.coopPick
     if (s.coopReady) {
         // 템플릿으로 골랐으면 무슨 이야기인지 먼저 알려 준다 (09-29) — 호칭은 "부모님" (사용자 결정)
         val pick = s.coopPick

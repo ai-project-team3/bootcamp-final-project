@@ -2,6 +2,11 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.demo.CoopSource
+import com.example.finalproject_demo.demo.coopGuard
+import com.example.finalproject_demo.demo.coopReportCopy
+import com.example.finalproject_demo.ui.CoopReason
+import com.example.finalproject_demo.ui.questionHint
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.PageKind
 import com.example.finalproject_demo.demo.mission1
@@ -371,6 +376,50 @@ class CoopLiveAnswerTest {
             d.speakUntil("몰라") { d.s.place != null }
             assertEquals("「몰라」뿐인데 아이 말로 채웠다", "mascot", d.s.slotBy["place"])
         } finally { server.close() }
+    }
+
+    /**
+     * 실기기(10-03) — 「곧 체험해요」 소방관 책인데 리포트가 「오늘 있었던 일로 · 어른이 넣어 둔 질문으로」라고 적었다.
+     * 리포트를 열 때는 `coopPick` 이 비어 있어도(`clearParentQuestions`) 시작할 때 고른 이유대로 말한다
+     */
+    @Test
+    fun theParentReportSpeaksInTheReasonThePickedStoryHad() = run { d ->
+        d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+        d.s.clearParentQuestions()
+        val soon = d.s.coopReportCopy()
+        assertTrue(soon.madeFrom, "앞으로 할 일" in soon.madeFrom && "곧 체험해요" in soon.madeFrom && "오늘 있었던" !in soon.madeFrom)
+        assertEquals("고른 이야기 질문에 한 답", soon.askedTitle)
+        assertTrue(soon.who, "어른 질문" !in soon.who)
+        val cards = soon.playCards!!
+        assertEquals(3, cards.size)
+        (cards.map { it.trim('"') } + soon.nextQuestion).forEach { q ->
+            assertNull("질문 규칙에 걸렸다: $q", questionHint(q))
+            assertNotNull("곧 해요에 맞지 않는 말: $q", coopGuard(q, CoopReason.SOON, CoopSource.TEMPLATE).text)
+            assertTrue("오늘 있었던 일처럼 묻는다: $q", "오늘" !in q || "지은" in q)
+        }
+    }
+
+    @Test
+    fun aDreamStoryReportAsksImaginingQuestions() = run { d ->
+        d.toFirstQuestionWith(CoopPick("place", "동물원", null))
+        d.s.clearParentQuestions()
+        val dream = d.s.coopReportCopy()
+        assertTrue(dream.madeFrom, "상상" in dream.madeFrom)
+        (dream.playCards!!.map { it.trim('"') } + dream.nextQuestion).forEach { q ->
+            assertNull("질문 규칙에 걸렸다: $q", questionHint(q))
+            assertNotNull("상상 이야기에 맞지 않는 말: $q", coopGuard(q, CoopReason.DREAM, CoopSource.TEMPLATE).text)
+        }
+    }
+
+    /** 이야기를 안 고르고 질문만 넣었으면 지금 말 그대로 — 어른이 넣어 둔 질문으로 지은 책 */
+    @Test
+    fun withoutAPickTheReportKeepsTheParentQuestionWording() = run { d ->
+        d.toFirstQuestion()
+        d.s.clearParentQuestions()
+        val copy = d.s.coopReportCopy()
+        assertEquals("오늘 있었던 일로 · 어른이 넣어 둔 질문으로 지은 책이에요", copy.madeFrom)
+        assertEquals("어른이 넣어 둔 질문에 한 답", copy.askedTitle)
+        assertNull("일기 모드 놀이 카드를 써야 한다", copy.playCards)
     }
 
     /** 협업 책을 만들 수 있게 칸을 채워 둔다 */

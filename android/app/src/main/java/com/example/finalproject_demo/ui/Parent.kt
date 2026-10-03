@@ -54,6 +54,7 @@ import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.coopAsked
+import com.example.finalproject_demo.demo.coopReportCopy
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.coopReady
@@ -272,7 +273,7 @@ private fun RecordTab(d: Director) {
                 // 일기 · 협업 모드는 "누구랑 같이 만들래?"를 묻지 않는다 →
                 // 물어보지 않은 사람 이름을 지어내지 않는다. 협업은 어른이 질문을 넣어 둔 것이 확실하므로 그렇게만 적는다
                 val who = when {
-                    s.isCoop -> "어른 질문으로 · "
+                    s.isCoop -> s.coopReportCopy().who
                     s.isDiary -> ""
                     else -> "${s.pn}${wa(s.pn)} 함께 · "
                 }
@@ -281,7 +282,8 @@ private fun RecordTab(d: Director) {
                 val took = minutes?.let { "약 ${it}분 · " } ?: ""
                 Text("오늘 · $took$who${s.placeName} · ${s.pageCount}쪽", fontSize = 12.sp, color = PSub)
                 // 일기 · 협업으로 만든 책은 부모 화면에서만 그렇게 보인다 (아이 화면에는 이 말이 없다 · 일기 §0)
-                if (s.isCoop) Text("오늘 있었던 일로 · 어른이 넣어 둔 질문으로 지은 책이에요", fontSize = 12.sp, color = PAccent)
+                // 협업은 고른 이유대로 — 곧 해요를 「오늘 있었던 일」로 적지 않는다 (10-03 실기기 · CoopReport.kt)
+                if (s.isCoop) Text(s.coopReportCopy().madeFrom, fontSize = 12.sp, color = PAccent)
                 else if (s.isDiary) Text("오늘 있었던 일로 만든 책이에요", fontSize = 12.sp, color = PAccent)
             }
             Chip("${s.modeVoice}번 말했어요", PMint)
@@ -393,7 +395,8 @@ private fun RecordTab(d: Director) {
     // 협업 모드의 결과물 — **부모가 궁금해한 것에 아이가 뭐라고 했나** (부모협업모드_설계 §0 · 구현설계 §2-3).
     // 인용은 아이가 말한 것(`by: child`)만 따옴표로. 카드 · 마스코트가 채운 것은 그렇다고 적는다 (guidelines/2 §1-4)
     if (s.isCoop && s.coopAsked.isNotEmpty()) {
-        Section("어른이 넣어 둔 질문에 한 답", "넣은 순서대로 · 아이가 말한 것만 따옴표")
+        val copy = s.coopReportCopy()
+        Section(copy.askedTitle, copy.askedSub)
         PCard(Modifier.fillMaxWidth()) {
             s.coopAsked.forEachIndexed { i, qa ->
                 if (i > 0) Spacer(Modifier.height(8.dp))
@@ -419,13 +422,10 @@ private fun RecordTab(d: Director) {
     if (s.isCoop) {
         Section("다음에 넣어 볼 질문", "부모 협업 모드에서만 · 점수가 아니라 질문 한 개예요")
         PCard(Modifier.fillMaxWidth()) {
-            Text("“오늘 제일 재밌었던 거 하나만 말해 줄래?”", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
+            val copy = s.coopReportCopy()
+            Text("“${copy.nextQuestion}”", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
-            Text(
-                "“재밌었어?” 처럼 예/아니오로 끝나는 질문 대신 이렇게 넣어 보세요. " +
-                    "의문사는 하나만, 선택지는 질문보다 먼저.",
-                fontSize = 13.sp, color = PSub,
-            )
+            Text(copy.nextWhy, fontSize = 13.sp, color = PSub)
             Spacer(Modifier.height(4.dp))
             Text("ⓘ 부모 질문에 점수를 매기지 않습니다. 이 칸은 다음에 넣어 볼 질문 한 개만 알려 드려요.", fontSize = 11.sp, color = PSub)
         }
@@ -443,7 +443,8 @@ private fun RecordTab(d: Director) {
     // 일기 모드의 질문 카드는 오늘 있었던 일에서 나온다 — 공룡 · 소리 칸은 묻지 않았다 (일기 설계 §2-2).
     // ⚠️ 아이가 아무도 말하지 않은 날에는 "새 친구" 질문을 넣지 않는다 — 없는 친구를 앱이 만들어 내면 안 된다 (§3-2)
     // ⚠️ 일기 · 협업은 "누구랑 같이 만들래?"를 묻지 않았다 — `s.pn` 은 기본값 "엄마"라 질문 카드에 쓰면 없는 사람이 생긴다 (9/22)
-    val playCards = if (s.isDiary) listOfNotNull(
+    // 협업 곧 해요 · 좋아해요는 「오늘 있었던 일」 카드가 맞지 않는다 — 고른 이유대로 (CoopReport.kt)
+    val playCards = (if (s.isCoop) s.coopReportCopy().playCards else null) ?: if (s.isDiary) listOfNotNull(
         s.friendName.takeUnless { it.startsWith("{") }?.let { n -> "\"${n}${eun(n)} 내일은 뭐 하고 놀까?\"" },
         "\"오늘 ${s.placeName}에서 제일 재밌었던 게 뭐였어?\"",
         "\"내일 ${s.placeName}에 가면 뭐 하고 싶어?\"",
