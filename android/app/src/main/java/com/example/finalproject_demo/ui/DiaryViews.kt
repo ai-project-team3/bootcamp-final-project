@@ -112,6 +112,7 @@ import com.example.finalproject_demo.demo.boxOf
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.cropFor
 import com.example.finalproject_demo.demo.diaryBookInput
+import com.example.finalproject_demo.demo.diaryPlaceBg
 import com.example.finalproject_demo.demo.diaryCovers
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.ottoEmoji
@@ -846,7 +847,8 @@ private fun PicturePanel(
             .testTag("d5-picture")
     ) {
         if (pieces.isEmpty()) {
-            Text("✏️", fontSize = (cq.value * 5).sp, modifier = Modifier.align(Alignment.Center).alpha(0.4f))
+            // 그림 없이 만든 일기 — 아이가 말한 곳의 펠트 그림(모르는 곳은 어디라고 말하지 않는 저녁 들판). 전에는 ✏️ 하나였다 (#98)
+            AssetImage(diaryPlaceBg(s.diaryBookInput().lines["place"]), Modifier.fillMaxSize().testTag("d5-place"), contentScale = ContentScale.Crop)
             return@BoxWithConstraints
         }
         val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f)
@@ -1073,7 +1075,8 @@ private fun DiaryGiftView(d: Director, cq: Dp) {
                 if (pieces.isNotEmpty()) {
                     val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)
                     pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
-                } else Text("📔", fontSize = (cq.value * 4).sp, modifier = Modifier.align(Alignment.Center))
+                // 그림 없이 만든 일기 — 책장 표지와 같은 그림(아이가 말한 곳). 전에는 📔 하나였다 (#98)
+                } else AssetImage(diaryPlaceBg(s.diaryBookInput().lines["place"]), Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }
             Spacer(Modifier.height(cq * 1.6f))
             Text(s.title ?: "나의 그림일기", fontSize = (cq.value * 1.8f).sp, color = Color.White, maxLines = 1)

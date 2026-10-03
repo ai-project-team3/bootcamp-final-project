@@ -338,6 +338,18 @@ class DiaryViewsTest {
         assertEquals("wx:RAIN", (d.replyTo { compose.onNodeWithTag("wx-${DiaryWeather.RAIN.name}").performClick() } as? Reply.Tapped)?.value)
     }
 
+    /** 그림 없이 만든 일기 — 그림 칸에 아이가 말한 곳의 펠트 그림. 전에는 ✏️ 하나였다 (#98) */
+    @Test
+    fun aDiaryWithoutDrawingShowsThePlaceItWasAbout() {
+        val d = director()
+        d.s.newDiaryDay()
+        d.s.slots["place"] = "놀이터 갔어"; d.s.slotBy["place"] = "child"
+        d.s.slots["problem"] = "그네 탔어"; d.s.slotBy["problem"] = "child"
+        d.s.stage = DiaryPaper(0)
+        show(d)
+        compose.onNodeWithTag("d5-place").assertExists()
+    }
+
     @Test
     fun theFirstPageIsTheWholeDrawing() {
         val d = director()
