@@ -1569,7 +1569,7 @@ private suspend fun Director.sceneFriends() {
             RateItem("dino", s.dino.name, Art.DinoArt(s.dinoColor, s.dinoKey)),
         )
     }
-    say("오늘 만난 친구들이야. 누구를 또 만나고 싶어?")
+    say(s.coopFriendsLine() ?: "오늘 만난 친구들이야. 누구를 또 만나고 싶어?")   // 협업 곧 해요 · 좋아해요 (CoopReport.kt)
     log("친구 평가 — 고르지 않아도 넘어갈 수 있다. 지우는 선택지는 없다")
     fun refresh() {
         s.stage = Stage.FriendRate(items.toList())
