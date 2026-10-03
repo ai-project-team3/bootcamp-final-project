@@ -129,14 +129,26 @@ fun DemoState.coopTitle(): String? {
 }
 
 /**
- * 마음 낱말 + 「던」 — 「신났」 → 「신났던」. 서버 판정은 「신나다」 · 「기쁨」 꼴도 준다:
- * 「다」로 끝나면 떼고(「신나던」), 말끝이 아니면(「기쁨」) 따옴표로 두어 「기쁨던」이 되지 않게 한다
+ * 마음 낱말 + 「던」 — 앱 대본 꼴(「신났」 · 「기뻤」, 받침 ㅆ)만 「신났던」으로 잇는다. 아니면 null.
+ * 서버 판정은 「신나다」 · 「떨려」 · 「기쁨」 · 「무섭다, 신나다」 꼴로도 준다 — 활용을 짐작하지 않는다 (10-03 실기기 「신나다던」)
  */
-fun feelingThatWas(emo: String): String {
+fun feelingThatWas(emo: String): String? {
     val e = emo.trim()
-    if (e.isEmpty()) return e
-    val stem = e.removeSuffix("다").ifEmpty { e }
-    val last = stem.last()
-    val verbLike = e.endsWith("다") || (last in '가'..'힣' && (last - '가') % 28 == 20)   // 「다」로 끝나거나 받침 ㅆ(신났 · 기뻤)
-    return if (verbLike) "${stem}던" else "‘$e’"
+    val last = e.lastOrNull() ?: return null
+    return if (last in '가'..'힣' && (last - '가') % 28 == 20) "${e}던" else null
+}
+
+/** 일기 reaction 문장의 마음 — 「신났던」 또는 「‘떨려’라는」 */
+fun feelingPhrase(emo: String): String =
+    feelingThatWas(emo) ?: emo.trim().let { "‘$it’${if (bat(it)) "이라는" else "라는"}" }
+
+/**
+ * 리포트 「마음 말하기」 — 다 대본 꼴이면 「신났던, 기뻤던 마음을 말했어요」,
+ * 서버 낱말이 섞이면 들은 그대로 「마음을 말했어요 — ‘무섭다’ · ‘신나다’ · ‘떨려’」
+ */
+fun feelingsSaid(feelings: List<String>): String {
+    val words = feelings.flatMap { it.split(',', '·', '/') }.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+    val joined = words.map { feelingThatWas(it) }
+    return if (joined.all { it != null }) "${joined.joinToString(", ")} 마음을 말했어요"
+    else "마음을 말했어요 — ${words.joinToString(" · ") { "‘$it’" }}"
 }

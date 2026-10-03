@@ -57,7 +57,7 @@ import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.CoopPlan
 import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.coopReportCopy
-import com.example.finalproject_demo.demo.feelingThatWas
+import com.example.finalproject_demo.demo.feelingsSaid
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.coopReady
@@ -308,7 +308,7 @@ private fun RecordTab(d: Director) {
         // 카드마다 다른 말을 보여 준다 (같은 문장이 되풀이되지 않게)
         Axis("🗣", "말하기", s.modeVoice, "마이크로 ${s.modeVoice}번 말했어요", talkQuote),
         Axis("💡", "이유 말하기", s.s1count, if (s.s1count == 0) "오늘은 까닭을 말하지 않았어요" else "까닭을 ${s.s1count}번 말했어요", reasonQuote),
-        Axis("💗", "마음 말하기", s.feelings.size, if (s.feelings.isEmpty()) "오늘은 마음을 말하지 않았어요" else "${s.feelings.distinct().joinToString(", ") { feelingThatWas(it) }} 마음을 말했어요", null),
+        Axis("💗", "마음 말하기", s.feelings.size, if (s.feelings.isEmpty()) "오늘은 마음을 말하지 않았어요" else feelingsSaid(s.feelings), null),
         Axis("🧩", "이야기 채우기", s2.size, if (s2.isEmpty()) "물어본 것에 답했어요" else "묻지 않은 것을 ${s2.size}번 덧붙였어요", fillQuote),
         Axis("🖍", "만들기", made.size, made.joinToString(" · ").ifEmpty { "오늘은 프리셋을 골랐어요" }, null),
         Axis(
