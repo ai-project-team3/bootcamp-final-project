@@ -208,8 +208,7 @@ private fun Backdrop(name: String, soft: Boolean) {
 private fun DiaryStartView(d: Director, cq: Dp) {
     Box(Modifier.fillMaxSize()) {
         Backdrop("bg_home", soft = false)
-        // 앱의 대사 칸이 프로토타입보다 높다(98dp) — 오또와 버튼을 그 위에 세운다
-        Otto(Pose.WAVE, Modifier.align(Alignment.BottomStart).padding(start = cq * 10, bottom = BandTop).height(cq * 27))
+        // 오또는 아래 대사 칸의 얼굴 하나만 — 방에 서 있는 오또까지 두면 한 화면에 둘이었다 (#98)
         Column(
             Modifier.align(Alignment.TopEnd).padding(end = cq * 8, top = cq * 4.5f),
             verticalArrangement = Arrangement.spacedBy(cq * 2.6f),
