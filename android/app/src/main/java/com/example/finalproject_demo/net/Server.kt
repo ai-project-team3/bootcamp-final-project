@@ -78,6 +78,8 @@ object Server {
         val turn: Int = 0,
         val template: String? = null,
         val level: String? = null,
+        /** coop only: the reason the parent picked — "done" · "soon" · "dream" decides the question's tense (#53 C) */
+        val reason: String? = null,
     )
 
     /** The verdict fields the app reads (guidelines/2 §2). Slot names are already checked against the 12 by the server. */
@@ -146,6 +148,7 @@ object Server {
             .put("turn", t.turn)
             .put("question", t.question)
             .put("utterance", t.utterance)
+            .put("reason", t.reason ?: JSONObject.NULL)
             .put("ask", ask)
         val j = postJson("/turn", body, readMs = 30_000) ?: return null   // server answers within 25 s (turn_deadline_s)
         return try {

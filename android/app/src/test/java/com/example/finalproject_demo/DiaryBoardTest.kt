@@ -12,6 +12,11 @@ import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.addStroke
 import com.example.finalproject_demo.demo.boxOf
 import com.example.finalproject_demo.demo.catchUp
+import com.example.finalproject_demo.demo.clusters
+import com.example.finalproject_demo.demo.ottoSpots
+import com.example.finalproject_demo.demo.redrawSample
+import com.example.finalproject_demo.demo.redoStroke
+import com.example.finalproject_demo.demo.undoStroke
 import com.example.finalproject_demo.demo.cropFor
 import com.example.finalproject_demo.demo.newDiaryDay
 import org.junit.Assert.assertEquals
@@ -132,6 +137,80 @@ class DiaryBoardTest {
         assertEquals(null, day.namedIn("해님이야", except = next))
         assertEquals("해", day.namedIn("해가 웃고 있어", except = next)?.name)
         assertEquals("강아", day.namedIn("강아 꼬리야", except = next)?.name)
+    }
+
+    /** ↶ 마지막 획을 지우면 조각에서도 빠지고, 마지막 획이었으면 조각도 빠진다. ↷ 되살리면 이름까지 그대로 돌아온다 */
+    @Test
+    fun undoAndRedoKeepPiecesInStep() {
+        val day = DiaryDay()
+        val drawing = mutableListOf(diaryLine(.10f, .40f, .30f, .40f), diaryLine(.12f, .42f, .28f, .45f), diaryLine(.80f, .30f, .90f, .30f))
+        day.catchUp(drawing)
+        day.pieces[0] = day.pieces[0].copy(name = "우리 집")
+        assertEquals(2, day.pieces.size)
+
+        val far = day.undoStroke(drawing)!!
+        assertEquals("멀리 그린 한 획짜리 조각이 남았다", 1, day.pieces.size)
+        val inHouse = day.undoStroke(drawing)!!
+        assertEquals("집에서 획이 안 빠졌다", 1, day.pieces.single().strokes.size)
+        assertEquals("우리 집", day.pieces.single().name)
+
+        day.redoStroke(drawing, inHouse)
+        assertEquals(2, day.pieces.single().strokes.size)
+        day.redoStroke(drawing, far)
+        assertEquals(3, drawing.size)
+        assertEquals(2, day.pieces.size)
+        assertEquals("조각과 그림판 획 수가 어긋났다", drawing.size, day.pieces.sumOf { it.strokes.size })
+
+        day.undoStroke(drawing); day.undoStroke(drawing); day.undoStroke(drawing)
+        assertTrue(drawing.isEmpty() && day.pieces.isEmpty())
+        assertEquals(null, day.undoStroke(drawing))
+    }
+
+    /** 판을 가로지르는 납작한 선은 배경 — 그 위에 그린 물체를 빨아들이지 않고, 배경선끼리만 묶인다 */
+    @Test
+    fun aLineAcrossTheBoardIsBackgroundAndKeepsToItself() {
+        val day = DiaryDay()
+        val ground = day.addStroke(diaryLine(.05f, .85f, .40f, .88f, .95f, .86f))
+        assertEquals(com.example.finalproject_demo.demo.PieceRole.BACKGROUND, day.pieces.single().role)
+        val tree = day.addStroke(diaryLine(.30f, .50f, .30f, .84f))                 // 땅에 닿게 세운 나무
+        assertNotEquals("땅선이 나무를 빨아들였다", ground, tree)
+        assertEquals(com.example.finalproject_demo.demo.PieceRole.OBJECT, day.pieces.first { it.id == tree }.role)
+        assertEquals("땅을 두 번 그었는데 따로 갈렸다", ground, day.addStroke(diaryLine(.08f, .90f, .92f, .91f)))
+        assertNotEquals("하늘선이 땅에 붙었다", ground, day.addStroke(diaryLine(.05f, .10f, .95f, .12f)))
+        val short = day.addStroke(diaryLine(.60f, .40f, .75f, .40f))
+        assertNotEquals("작은 가로선을 배경으로 봤다", com.example.finalproject_demo.demo.PieceRole.BACKGROUND, day.pieces.first { it.id == short }.role)
+    }
+
+    /** 조각 안을 촘촘히 오가는 획은 색칠 — 이름이 붙은 조각이어도 그 조각에 붙는다(묻지 않는다) */
+    @Test
+    fun scribblingInsideAPieceColorsIt() {
+        val day = DiaryDay()
+        val house = day.addStroke(diaryLine(.10f, .40f, .30f, .40f, .30f, .80f, .10f, .80f, .10f, .40f))
+        day.pieces[0] = day.pieces[0].copy(name = "우리 집")
+        val zigzag = (0..12).flatMap { i -> listOf(.13f + (i % 2) * .14f, .45f + i * .025f) }.toFloatArray()
+        assertEquals("집 안 색칠이 새 조각이 됐다", house, day.addStroke(diaryLine(*zigzag)))
+        assertEquals("이름이 바뀌었다", "우리 집", day.pieces.single().name)
+        assertNotEquals("집 안의 짧은 선 하나까지 색칠로 봤다", house, day.addStroke(diaryLine(.18f, .55f, .22f, .58f)))
+    }
+
+    /** 같은 색 작은 것을 떨어진 곳에 또 그리면 무리 — 한 조각에 덩어리 여럿. 오또에게는 가장 큰 덩어리 하나만, 그림은 덩어리마다 */
+    @Test
+    fun scatteredSmallMarksOfOneColorBecomeAGroup() {
+        fun mark(c: Color, x: Float, y: Float, r: Float = .04f) = com.example.finalproject_demo.demo.Stroke(c, listOf(Offset(x - r, y), Offset(x, y - r), Offset(x + r, y), Offset(x, y + r), Offset(x - r, y)))
+        val day = DiaryDay()
+        day.addStroke(mark(Color.Yellow, .10f, .20f))
+        day.addStroke(mark(Color.Yellow, .40f, .15f))
+        assertEquals("둘은 따로 둔다(엄마 · 아빠 · 두 눈)", 2, day.pieces.size)
+        val first = day.addStroke(mark(Color.Yellow, .70f, .25f, .05f))
+        val star = day.pieces.single()
+        assertEquals(first, star.id)
+        assertEquals("넷째도 무리에", first, day.addStroke(mark(Color.Yellow, .25f, .45f)))
+        assertEquals(com.example.finalproject_demo.demo.PieceRole.GROUP, star.role)
+        assertEquals(4, day.pieces.single().clusters().size)
+        assertEquals("오또에게 덩어리 여럿을 보냈다", 1, star.redrawSample().clusters().size)
+        assertEquals(4, day.pieces.single().ottoSpots().size)
+        assertNotEquals("다른 색까지 무리에 넣었다", first, day.addStroke(mark(Color.Red, .90f, .80f)))
+        assertNotEquals("큰 것까지 무리에 넣었다", first, day.addStroke(mark(Color.Yellow, .50f, .70f, .2f)))
     }
 
     private fun diaryLine(vararg xy: Float) =

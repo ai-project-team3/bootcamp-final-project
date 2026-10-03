@@ -63,6 +63,8 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -78,6 +80,10 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.BRUSH_PAUSE_MS
 import com.example.finalproject_demo.demo.COLOR_PAUSE_MS
 import com.example.finalproject_demo.demo.CRAYON_PAUSE
+import com.example.finalproject_demo.demo.DiaryTrace
+import com.example.finalproject_demo.demo.UndoneStroke
+import com.example.finalproject_demo.demo.redoStroke
+import com.example.finalproject_demo.demo.undoStroke
 import com.example.finalproject_demo.demo.BoardBox
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.DiaryAsk
@@ -97,6 +103,8 @@ import com.example.finalproject_demo.demo.FEEL_LEAD
 import com.example.finalproject_demo.demo.PEN_W
 import com.example.finalproject_demo.demo.PICTURE_REQUIRED
 import com.example.finalproject_demo.demo.PieceLook
+import com.example.finalproject_demo.demo.PieceRole
+import com.example.finalproject_demo.demo.ottoSpots
 import com.example.finalproject_demo.demo.readingDiary
 import com.example.finalproject_demo.demo.PieceMove
 import com.example.finalproject_demo.demo.Reply
@@ -253,6 +261,12 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
     // 판을 만질 때마다(획 시작 · 획 끝 · 크레용) 붓 멈춤 시계를 다시 건다. 크레용을 바꿨으면 더 오래 기다린다
     var touched by remember { mutableIntStateOf(0) }
     var quietFor by remember { mutableLongStateOf(BRUSH_PAUSE_MS) }
+    var downAt by remember { mutableLongStateOf(0L) }
+    // ↶ 로 지운 획 — ↷ 로 되살린다. 새로 그으면 비운다
+    val redo = remember { mutableStateListOf<UndoneStroke>() }
+    // 획 기록(디버그 빌드 · 폰 안에만) — 조각 묶기 기준값을 실제 아이 그림으로 정한다 (DiaryTrace)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(day) { DiaryTrace.open(context, day) }
 
     // 붓 멈춤 — 마지막으로 만진 뒤로 조용하면 알린다
     LaunchedEffect(touched) {
@@ -262,7 +276,9 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
         // 오또가 지켜보는 중에만 — 묻는 중 · 고르는 중 · 아이가 말하는 중(녹음)에는 보내지 않는다
         val label = if (quietFor == COLOR_PAUSE_MS) CRAYON_PAUSE else "붓 멈춤"
         // 지켜보는 중이면 바로 알리고, 아니면(말하는 중 · 묻는 중 · 고르는 중) 남겨 둔다 — 흐름이 돌아오면 받는다
-        if (day.watching && !s.micOn && stage.pick == null) { day.pendingPause = null; d.send(Reply.Tapped("pause", label)) } else day.pendingPause = label
+        val now = day.watching && !s.micOn && stage.pick == null
+        DiaryTrace.pause(label, delivered = now)
+        if (now) { day.pendingPause = null; d.send(Reply.Tapped("pause", label)) } else day.pendingPause = label
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -279,10 +295,19 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                                 .shadow(cq * 0.4f, CircleShape)
                                 .background(c, CircleShape)
                                 .border(cq * 0.35f, Color.White.copy(alpha = 0.9f), CircleShape)
-                                .clickable { color = c; quietFor = COLOR_PAUSE_MS; touched++ }
+                                .clickable { color = c; quietFor = COLOR_PAUSE_MS; touched++; DiaryTrace.crayon(c) }
                                 .testTag("crayon-${DIARY_CRAYONS.indexOf(c)}")
                         )
                     }
+                }
+            }
+            // 획 지우기 ↶ · 되살리기 ↷ — 할 것이 없으면 흐리게(누를 수 없음). 그림 고르는 중에는 둘 다 쉰다
+            Row(Modifier.padding(top = cq * 0.6f), horizontalArrangement = Arrangement.spacedBy(cq * 0.8f)) {
+                ArrowButton(left = true, enabled = s.drawing.isNotEmpty() && stage.pick == null, cq = cq, tag = "stroke-undo") {
+                    day.undoStroke(s.drawing)?.let { redo += it; touched++ }
+                }
+                ArrowButton(left = false, enabled = redo.isNotEmpty() && stage.pick == null, cq = cq, tag = "stroke-redo") {
+                    redo.removeLastOrNull()?.let { day.redoStroke(s.drawing, it); touched++ }
                 }
             }
         }
@@ -295,12 +320,15 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                 .testTag("diary-board")
                 .pointerInput(color) {
                     detectDragGestures(
-                        onDragStart = { p -> live.clear(); live += p; day.penDown = true; touched++ },
+                        onDragStart = { p -> live.clear(); live += p; day.penDown = true; downAt = DiaryTrace.now(); touched++ },
                         onDrag = { change, _ -> live += change.position; change.consume() },
                         onDragEnd = {
                             if (live.size >= 2) {
-                                s.drawing += DrawStroke(color, live.map { Offset(it.x / box.width, it.y / box.height) }, PEN_W)
+                                val stroke = DrawStroke(color, live.map { Offset(it.x / box.width, it.y / box.height) }, PEN_W)
+                                s.drawing += stroke
                                 strokes++
+                                redo.clear()
+                                DiaryTrace.stroke(s.drawing.size - 1, downAt, stroke, s.drawingAspect)
                             }
                             live.clear()
                             day.penDown = false                       // 획을 넣은 뒤에 — 질문이 새 획을 먼저 본다
@@ -315,13 +343,15 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
             val otto = day.pieces.filter { it.look == PieceLook.OTTO }
             val hidden = otto.flatMap { it.strokes }.toSet()
             Canvas(Modifier.fillMaxSize()) {
-                s.drawing.filter { it !in hidden }.forEach { drawBoardStroke(it, whole) }
+                // 배경 획을 먼저 — 나중에 그은 땅 · 하늘이 물체를 덮지 않는다
+                val behind = day.pieces.filter { it.role == PieceRole.BACKGROUND }.flatMap { it.strokes }.toSet()
+                s.drawing.filter { it !in hidden }.sortedBy { if (it in behind) 0 else 1 }.forEach { drawBoardStroke(it, whole) }
                 if (live.size >= 2) {
                     val p = Path().apply { live.forEachIndexed { i, o -> if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) } }
                     drawPath(p, color, style = Stroke(size.width * PEN_W, cap = StrokeCap.Round, join = StrokeJoin.Round))
                 }
             }
-            otto.forEach { p -> boxOf(p.strokes)?.let { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
+            otto.forEach { p -> p.ottoSpots().forEach { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
             PieceRings(day.pieces.toList(), day.askingPiece, cq)
             day.pieces.filter { it.name != null }.forEach { p ->
                 val b = boxOf(p.strokes) ?: return@forEach
@@ -337,9 +367,17 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                         .background(if (ready) FeltCoral else FeltMustard, RoundedCornerShape(cq * 2))
                         .then(
                             when {
-                                ready -> Modifier.clickable { d.send(Reply.Tapped("look:${p.id}", "오또 그림 보기")) }
-                                // 그냥 이름표 — 오또가 이름을 불러 준다. 묻는 중에는 답으로 섞이지 않게 지켜볼 때만
-                                day.watching -> Modifier.clickable { d.send(Reply.Tapped("name:${p.id}", "이름 부르기")) }.testTag("tag-${p.id}")
+                                // 톡 = ✨ 오또 그림 다시 고르기 · 그냥 이름표는 이름 부르기. 길게 = 이름 고치기(지켜볼 때만 · 10-02 진웅).
+                                // 묻는 중에는 답으로 섞이지 않게 지켜볼 때만 받는다 — ✨ 는 전처럼 언제든
+                                ready || day.watching -> Modifier.pointerInput(p.id, ready, day.watching) {
+                                    detectTapGestures(
+                                        onTap = {
+                                            if (ready) d.send(Reply.Tapped("look:${p.id}", "오또 그림 보기"))
+                                            else d.send(Reply.Tapped("name:${p.id}", "이름 부르기"))
+                                        },
+                                        onLongPress = { if (day.watching) d.send(Reply.Tapped("rename:${p.id}", "이름 고치기")) },
+                                    )
+                                }.testTag("tag-${p.id}")
                                 else -> Modifier
                             }
                         )
@@ -579,7 +617,7 @@ private fun TwoStars(filled: Int, cq: Dp, modifier: Modifier) {
 /** 책에 들어갈 조각 — 묶인 조각이 없으면 화이트보드 그림 한 덩어리 */
 private fun bookPieces(s: DemoState): List<DiaryPiece> = s.diaryDay.pieces.toList().ifEmpty {
     if (s.sceneDrawing.isEmpty()) emptyList() else listOf(DiaryPiece(0, s.sceneDrawing.toList()))
-}
+}.sortedBy { if (it.role == PieceRole.BACKGROUND) 0 else 1 }       // 배경이 맨 뒤 겹
 
 // ── D4 만드는 중 ────────────────────────────────────────────────
 
@@ -821,8 +859,9 @@ private fun PicturePanel(
                 }
         ) {
             pieces.forEach { p ->
-                val front = everyone || (p.name != null && p.name in page.cast) || p.id in moved || p.id == glow?.first
-                val moves = front && !everyone && p.name !in page.still
+                val backdrop = p.role == PieceRole.BACKGROUND             // 배경은 흐리지도 움직이지도 않고 뒤에 있다
+                val front = backdrop || everyone || (p.name != null && p.name in page.cast) || p.id in moved || p.id == glow?.first
+                val moves = front && !backdrop && !everyone && p.name !in page.still
                 val a = if (front) 1f else 0.25f
                 val mine = poke?.takeIf { it.first == p.id }?.second ?: 0
                 // 글 칸을 다시 누르면 앞에 나온 조각이 모두 통통 — 누른 조각의 반응이 먼저다
@@ -903,7 +942,7 @@ private fun PieceLayer(
             null -> {}
         }
     }
-    if (p.look == PieceLook.OTTO) Box(layer) { OttoLook(p, b, crop, wDp, hDp) }
+    if (p.look == PieceLook.OTTO) Box(layer) { p.ottoSpots().forEach { spot -> OttoLook(p, spot, crop, wDp, hDp) } }
     else Canvas(layer) {
         // 날씨를 눌러 반짝 — 선 뒤로 겨자빛을 두껍게 한 번 더
         if (glowing) p.strokes.forEach { drawBoardStroke(it.copy(color = FeltMustard.copy(alpha = 0.45f), w = it.w * 3.5f), crop) }
@@ -1173,5 +1212,32 @@ private fun PuzzlePanel(d: Director, page: DiaryPage, cq: Dp, pageIndex: Int) {
 private fun StripArt(pieces: List<DiaryPiece>, crop: BoardBox, alpha: Float) {
     BoxWithConstraints(Modifier.fillMaxSize().clip(RoundedCornerShape(0.dp)).alpha(alpha)) {
         pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
+    }
+}
+
+/** 그림판 ↶ · ↷ — 크레용과 같은 크기의 동그란 단추에 화살표. [enabled] 가 아니면 흐린 회색이고 눌리지 않는다 */
+@Composable
+private fun ArrowButton(left: Boolean, enabled: Boolean, cq: Dp, tag: String, onClick: () -> Unit) {
+    val ink = if (enabled) InkBrown else InkSoft.copy(alpha = 0.45f)
+    Box(
+        Modifier.size(cq * 4.1f)
+            .shadow(if (enabled) cq * 0.4f else 0.dp, CircleShape)
+            .background(if (enabled) Color.White else Color.White.copy(alpha = 0.55f), CircleShape)
+            .border(cq * 0.3f, if (enabled) PaperLine else PaperLine.copy(alpha = 0.4f), CircleShape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .semantics { contentDescription = if (left) "획 지우기" else "획 되살리기" }
+            .testTag(tag),
+    ) {
+        Canvas(Modifier.fillMaxSize().padding(cq * 1.05f)) {
+            val w = size.width; val h = size.height
+            val dir = if (left) -1f else 1f
+            val cx = w / 2f; val cy = h / 2f
+            val stroke = Stroke(width = w * 0.16f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            val tip = Offset(cx + dir * w * 0.42f, cy)
+            drawLine(ink, Offset(cx - dir * w * 0.42f, cy), tip, strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawPath(Path().apply {
+                moveTo(tip.x - dir * w * 0.32f, cy - h * 0.32f); lineTo(tip.x, tip.y); lineTo(tip.x - dir * w * 0.32f, cy + h * 0.32f)
+            }, ink, style = stroke)
+        }
     }
 }

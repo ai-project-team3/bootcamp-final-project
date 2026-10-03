@@ -1,5 +1,6 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.PageKind
@@ -213,7 +214,7 @@ class CoopLiveAnswerTest {
         } finally { server.close() }
     }
 
-    /** 고른 이유가 「다녀왔어요」면 서버 질문(과거형)과 맞아서 쓴다. 그리고 /turn 에 고른 이야기가 실린다 (#53 B) */
+    /** 다녀왔어요 — 서버 LLM 질문을 쓰고, /turn 에 고른 이야기와 이유(done)를 싣는다. 이유별 시제는 서버가 가른다(#53 C) */
     @Test
     fun aPastStoryUsesTheLlmQuestionAndSendsThePickedStory() = run { d ->
         val server = llmServer(mapOf("place" to ("companion" to "소방서에서 누구를 제일 먼저 만났어?")))
@@ -224,25 +225,96 @@ class CoopLiveAnswerTest {
             assertEquals("서버 LLM 질문을 안 물었다", "소방서에서 누구를 제일 먼저 만났어?", d.answer("쉬는 방"))
             val turn = server.requests.first { it.first == "/turn" }.second
             assertEquals("같이 만들기 · 직업 · 소방관 · 체험했어요(지난 일)", turn.optString("template"))
+            assertEquals("done", turn.optString("reason"))
         } finally { server.close() }
     }
 
     /**
-     * 「곧 해요」 · 「좋아해요」는 서버가 시제를 가르기 전까지(#53 C) **대본**으로 묻는다 —
-     * 서버 프롬프트가 협업을 과거형으로 물어 「소방관 체험에서 뭐 했어?」가 나가면 안 된다
+     * 「곧 해요」도 이제 서버 LLM 질문을 쓴다 — 서버가 `reason` 으로 질문 시제를 가른다(#53 C `8da67b0`, 배포됨).
+     * 앱은 `/turn` 에 고른 이유를 실어 보낸다
      */
     @Test
-    fun aFutureStoryKeepsTheScriptUntilTheServerKnowsTheTense() = run { d ->
-        val server = llmServer(mapOf("place" to ("companion" to "거기서 누구를 만났어?")))
+    fun aFutureStoryAsksTheLlmQuestionAndSendsItsReason() = run { d ->
+        val server = llmServer(mapOf("place" to ("companion" to "소방서에 누구랑 같이 가 볼까?")))
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+            assertEquals("곧 해요인데 서버 LLM 질문을 안 물었다", "소방서에 누구랑 같이 가 볼까?", d.answer("큰 건물"))
+            val turn = server.requests.first { it.first == "/turn" }.second
+            assertEquals("soon", turn.optString("reason"))
+            assertEquals("같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)", turn.optString("template"))
+        } finally { server.close() }
+    }
+
+    /** 비교용 「지금 방식」 경로도 서버 질문을 갈무리한다 — 조건을 푼 뒤 이 경로만 시제 검사 없이 남지 않게 (#53 review) */
+    @Test
+    fun theComparisonPathAlsoGuardsAWrongTenseLlmQuestion() = run { d ->
+        val server = llmServer(mapOf("place" to ("companion" to "소방서에서 누구를 만났니?")))
+        val before = CoopLab.followUps
+        try {
+            CoopLab.followUps = false
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+            val next = d.answer("큰 건물")
+            assertTrue("지금 방식에서 곧 해요에 지난 일 질문이 나갔다: $next", next != "소방서에서 누구를 만났니?")
+        } finally { CoopLab.followUps = before; server.close() }
+    }
+
+    /** 이야기를 안 골랐으면 서버는 「있었던 일」로 묻는다 — 서버 질문은 그 기준(다녀왔어요)으로 갈무리해 단정하는 말을 막는다 */
+    @Test
+    fun withoutAPickServerLinesAreCheckedAsADayThatHappened() = run { d ->
+        // 둘째 걸음은 부모 질문 자리라 셋째 걸음(무슨 일)에 서버 질문이 온다. 「~지?」는 다녀왔어요에서만 막히는 단정 말
+        val server = llmServer(mapOf("companion" to ("problem" to "놀이터에서 무슨 일이 있었지?")))
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestion()
+            d.answer("놀이터")
+            val third = d.answer("엄마랑")
+            assertTrue("있었던 일에 단정하는 서버 말이 나갔다: $third", third != "놀이터에서 무슨 일이 있었지?")
+        } finally { server.close() }
+    }
+
+    /**
+     * 그래도 서버가 「곧 해요」에 지난 일을 물으면(「뭐 했어?」) 말하기 직전 갈무리가 막고 **대본**으로 묻는다 (`CoopGuard` 6번)
+     */
+    @Test
+    fun aPastTenseLlmQuestionInAFutureStoryFallsBackToTheScript() = run { d ->
+        val server = llmServer(mapOf("place" to ("companion" to "소방서에서 누구를 만났어?")))
         try {
             Server.base = server.base
             Server.liveModes = setOf(StoryMode.COOP)
             d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
             val next = d.answer("큰 건물")
-            assertTrue("곧 해요인데 서버 질문을 썼다: $next", next != "거기서 누구를 만났어?")
-            assertEquals("대본(곧 해요) 질문이 아니다", "누구랑 같이 갈 거야?", next)
-            val turn = server.requests.first { it.first == "/turn" }.second
-            assertEquals("같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)", turn.optString("template"))
+            assertTrue("곧 해요에 지난 일을 묻는 서버 질문이 나갔다: $next", next != "소방서에서 누구를 만났어?")
+            assertTrue("대본 질문으로 안 돌아갔다: $next", "누구랑" in next && "갈" in next)
+        } finally { server.close() }
+    }
+
+    /** 이야기를 골랐는데 이유가 없으면 `dream`(앱이 상상으로 물었다) · 이야기를 안 골랐으면 비운다(서버는 있었던 일로) — 책(`/story`)과 같은 기준 */
+    @Test
+    fun theTurnReasonFollowsTheSameRuleAsTheBook() = run { d ->
+        val server = llmServer(emptyMap())
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("place", "동물원", null))
+            d.answer("사자 우리")
+            assertEquals("dream", server.requests.first { it.first == "/turn" }.second.optString("reason"))
+        } finally { server.close() }
+    }
+
+    @Test
+    fun withoutAPickTheTurnSendsNoReason() = run { d ->
+        val server = llmServer(emptyMap())
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestion()                       // 부모 질문만 · 이야기는 안 고름
+            d.answer("놀이터")
+            assertTrue("이야기를 안 골랐는데 이유가 갔다", server.requests.first { it.first == "/turn" }.second.isNull("reason"))
         } finally { server.close() }
     }
 

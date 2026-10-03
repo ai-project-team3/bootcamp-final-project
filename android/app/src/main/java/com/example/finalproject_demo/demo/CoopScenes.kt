@@ -56,6 +56,7 @@ val DemoState.coopReady: Boolean get() = coopPick != null || hasCoopQuestions
  * 3. 고른 이야기가 없으면(질문만 적었으면) 일기와 같이 아이가 말한 곳으로
  */
 internal fun DemoState.coopBackdrop(): String {
+    coopReadingBackdrop?.let { return it }   // 책장에서 다시 연 책 — 만들 때의 배경 그대로 (#83 · 읽기 화면 상태에만 있다)
     val pick = coopPick ?: return diaryPlaceBg(placeLabel)
     coopItem(pick.name)?.let { return it.bg }
     val spoken = diaryPlaceBg(placeLabel)
@@ -181,22 +182,14 @@ private val LLM_QUESTION_STEPS = setOf("place", "problem", "cause", "solution", 
  * 서버가 꺼졌거나 질문이 없으면 null → 대본.
  */
 private fun DemoState.llmQuestionFor(q: Question, next: Pair<String, String>?): String? {
-    if (next == null || !Server.liveFor(mode) || !coopLlmQuestionsFit) return null
+    if (next == null || !Server.liveFor(mode)) return null
     val key = q.id.removePrefix("diary_")
     return next.second.takeIf { key in LLM_QUESTION_STEPS && next.first == key && it.isNotBlank() }
 }
 
 /**
- * 서버 질문의 시제가 이 이야기와 맞나. 서버 프롬프트(`eval/line_prompt.md`)는 협업을 「오늘 있었던 일 · 과거형」으로 묻는다.
- * 그래서 **지난 일(다녀왔어요)과 이야기를 안 고른 경우만** 켠다 — 곧 해요 · 좋아해요에 쓰면 「뭐 했어?」로 묻게 된다.
- * ⚠️ 서버가 고른 이유로 시제를 가르게 되면(#53 C) 이 조건을 `true` 로 바꾼다.
- */
-private val DemoState.coopLlmQuestionsFit: Boolean
-    get() = coopPick.let { it == null || it.reasonOrNull() == CoopReason.DONE }
-
-/**
- * `/turn` 에 함께 보내는 고른 이야기 (#53 B) — 「같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)」.
- * 서버는 지금 이 칸을 동화 틀 이름으로만 읽는다. 시제를 가르는 일은 서버가 정하면(#53 C) 그쪽이 한다
+ * The picked story sent with `/turn` and `/story` (#53 B · #52), e.g. "같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)".
+ * The server splits the tense on the `reason` sent alongside ([coopStoryReason]), not on this text (#53 C 8da67b0 · #52 77a9d5c).
  */
 internal fun DemoState.coopTurnContext(): String? = coopPick?.let { p ->
     val k = coopKind(p.kind) ?: return@let null
@@ -259,7 +252,8 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
 
     /** 갈무리 — 통과하면 그 말, 못 고치면 null. 어디서 왔고 무엇에 걸렸는지 남긴다 */
     fun guarded(text: String, src: CoopSource): String? {
-        val g = coopGuard(text, reason, src)
+        // server lines are checked in the tense the server was asked for; our own lines in the flow's reason
+        val g = coopGuard(text, if (src == CoopSource.LLM) s.coopServerTense() else reason, src)
         if (g.issues.isNotEmpty()) log("[$key] 갈무리(${src.label}) ${if (g.ok) "고침" else "사다리로"} — ${g.issues.joinToString(" · ")} · 원문 \"$text\"" + (g.text?.let { " → \"$it\"" } ?: ""))
         if (g.issues.isNotEmpty()) event("coop_guard", "source" to src.name, "ok" to g.ok, "issues" to g.issues.joinToString("|"))
         if (g.issues.isNotEmpty()) track.stats.guardHits.merge(src.name, 1, Int::plus)
@@ -330,7 +324,7 @@ private suspend fun Director.coopLiveSignals(q: Question, question: String, said
     val step = COOP_STEPS.firstOrNull { "diary_${it.bookKey}" == q.id }
     val turn = if (step != null && !wild && !isNonAnswer(text) && Server.liveFor(s.mode)) {
         val asked = step.slot.takeIf { it in Server.SLOTS && it != "extra" }
-        s.exchangeTurn("coop", asked, question, text, template = s.coopTurnContext())
+        s.exchangeTurn("coop", asked, question, text)
     } else null
     s.coopTrack.liveTurn = LiveTurn(text, turn)
     val a = coopSignals(text, question, turn?.verdict)
@@ -348,7 +342,8 @@ private suspend fun Director.coopAskInFlowBefore(q: Question): Reply {
     val line = s.takeCoopLine(q).let { scripted ->
         // 부모 질문이 먼저다. 그다음이 LLM 질문, 그다음이 대본 (#53 A)
         if (scripted is CoopLine.Parent || !firstAsk) scripted
-        else s.llmQuestionFor(q, llm)?.let { CoopLine.Llm(it) } ?: scripted
+        // the guard runs here too: with the past-only gate gone, this path would otherwise speak a wrong-tense line
+        else s.llmQuestionFor(q, llm)?.let { coopGuard(it, s.coopServerTense(), CoopSource.LLM).text }?.let { CoopLine.Llm(it) } ?: scripted
     }
     val text = when (line) {
         null -> {
@@ -552,7 +547,7 @@ internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r
     val asked = step.slot.takeIf { it in Server.SLOTS && it != "extra" }
     // 바뀐 방식은 받아주기 직후 이미 한 번 불렀다(coopLiveSignals) — 그 결과를 쓴다
     val cached = s.coopTrack.liveTurn?.takeIf { it.utterance == text }.also { s.coopTrack.liveTurn = null }
-    val turn = if (cached != null) cached.result else s.exchangeTurn("coop", asked, question, text, template = s.coopTurnContext())
+    val turn = if (cached != null) cached.result else s.exchangeTurn("coop", asked, question, text)
     // 서버가 정한 다음 칸 · 질문을 다음 걸음에 쓸 수 있게 둔다 (#53 A) — 맞지 않으면 다음 걸음이 버린다
     s.coopTrack.llmNext = turn?.verdict?.nextSlot?.let { slot -> turn.line?.question?.takeIf(String::isNotBlank)?.let { slot to it } }
     val verdict = turn?.verdict
@@ -641,6 +636,14 @@ internal fun DemoState.coopPageMission(kind: PageKind): String? = missionFor(kin
  * 책도 상상으로 써야 한다(서버는 비면 「있었던 일」로 쓴다). 이야기를 안 고르고 질문만 적었으면 null(있었던 일 · 일기형).
  */
 internal fun DemoState.coopStoryReason(): String? = coopPick?.let { (it.reasonOrNull() ?: CoopReason.DREAM).key }
+
+/**
+ * The tense the server writes in for this story: the pick's reason, DREAM for a pick with no reason, and DONE
+ * when nothing was picked (the server reads a missing reason as a day that happened). Server lines are checked
+ * against this, so the guard and the server agree (#53 review).
+ */
+internal fun DemoState.coopServerTense(): CoopReason =
+    coopPick?.let { it.reasonOrNull() ?: CoopReason.DREAM } ?: CoopReason.DONE
 
 /** 쪽 수가 맞고 빈 문장이 없을 때만 쓴다 — 하나라도 어긋나면 틀 문장 책 */
 fun DemoState.useCoopCaptions(captions: List<String>?): Boolean {
