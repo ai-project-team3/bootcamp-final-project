@@ -456,7 +456,7 @@ val DINOS = listOf(
 )
 
 val SPACE_BUDDIES = listOf(
-    DinoKind("alienbud", "외계인 친구", "삐뽀", "삐비빅 삐뽀!", "bud_alien", "눈이 세 개", "눈이 세 개인"),
+    DinoKind("alienbud", "외계인 친구", "우주콩", "삐비빅 삐뽀!", "bud_alien", "눈이 세 개", "눈이 세 개인"),
     DinoKind("robot", "로봇", "또각이", "위잉 위잉!", "bud_robot", "몸이 네모", "몸이 네모난"),
     DinoKind("babystar", "아기 별", "반짝이", "반짝 반짝!", "bud_star", "혼자서 빛나요", "혼자 빛나는"),
 )
