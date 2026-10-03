@@ -336,6 +336,7 @@ private suspend fun Director.onHeroPicked(v: String) {
     s.heroAttr = s.heroes[idx].attr
     s.storyHeroImage = s.heroes[idx].image
     s.storyHeroRig = s.heroes[idx].rig
+    s.storyHeroCall = s.heroes[idx].called
     mark("bestiary")
     log("주인공 고름: ${s.heroes[idx].name} → 고정 스프라이트 그대로 씀 (⭐20 · ⭐26)")
     say("${s.heroes[idx].name}${ya(s.heroes[idx].name)}, 준비됐지?")
@@ -363,7 +364,8 @@ private suspend fun Director.sceneMakeHero() {
     }
 
     suspend fun save() {
-        s.heroes += Hero(heroName(), attr, generatedImage, generatedRig)
+        val called = askHeroName(attr, generatedImage)          // 말로 · 글로 이름 짓기 (10-02 · demo/HeroName.kt)
+        s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called)
         s.heroAttr = attr
         s.storyHeroImage = generatedImage
         s.storyHeroRig = generatedRig
