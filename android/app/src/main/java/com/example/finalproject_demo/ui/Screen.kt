@@ -491,7 +491,9 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                             val cw = if (stage.redraws >= 0) 150 else 176
                             ArtView(stage.art, Modifier.size(170.dp, 170.dp))
                             BigCard(Card(stage.ok, Art.Img("ic_good", Art.Emoji("🙂")), "ok"), false, width = cw) { d.send(Reply.Tapped("ok", stage.ok)) }
-                            BigCard(Card(stage.no, Art.Img("ic_bad", Art.Emoji("✏️")), "no"), false, width = cw) { d.send(Reply.Tapped("no", stage.no)) }
+                            val noArt = if (s.mode == StoryMode.STORY) Art.Img("ic_sad", Art.Emoji("🙁"))
+                                else Art.Img("ic_bad", Art.Emoji("✏️"))
+                            BigCard(Card(stage.no, noArt, "no"), false, width = cw) { d.send(Reply.Tapped("no", stage.no)) }
                             if (stage.redraws >= 0) {
                                 BigCard(Card("직접 그리기", Art.Img("ic_draw", Art.Emoji("🖍️")), "draw"), false, width = cw) { d.send(Reply.Tapped("draw", "직접 그리기")) }
                             }
