@@ -190,8 +190,6 @@ internal suspend fun Director.notifyStorySoundChoice(prompt: StoryPrompt) {
 
 suspend fun DemoState.exchangeTurn(
     mode: String, askedSlot: String?, question: String, utterance: String,
-    /** 동화가 아닌 모드의 이야기 맥락 — 협업은 고른 이야기(`coopTurnContext`) · #53 B. 동화는 늘 `templateKey` */
-    template: String? = null,
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult? {
     if (utterance.isBlank()) return null
@@ -203,8 +201,15 @@ suspend fun DemoState.exchangeTurn(
         question = mask.mask(question),
         utterance = mask.mask(utterance),
         turn = turn,
-        template = if (mode == "story") templateKey else template,
+        // story: the template key. coop: the picked story (#53 B), masked like everything else that leaves
+        // the phone, plus the reason the server uses for the question's tense (#53 C). Other modes: neither.
+        template = when (mode) {
+            "story" -> templateKey
+            "coop" -> coopTurnContext()?.let(mask::mask)
+            else -> null
+        },
         level = level.name.lowercase(),
+        reason = if (mode == "coop") coopStoryReason() else null,
     )) ?: return null
     val verdict = response.verdict?.copy(
         fills = response.verdict.fills.map { (slot, value) -> slot to mask.unmask(value) },

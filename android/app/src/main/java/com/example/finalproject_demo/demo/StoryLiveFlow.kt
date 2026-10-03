@@ -14,9 +14,11 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     var deferredSlot: String? = null
     var finalPlaceChecked = false
 
-    fun conversationWorld() = Stage.World(listOf(
+    // 친구는 아이가 그렸을 때만 선다 — 안 그렸으면 friendArt 가 대본의 기본 낙서라
+    // 배경이 생기면 오른쪽에 「이상한 애」가 늘 떠 있었다 (10-02 조장 실기기)
+    fun conversationWorld() = Stage.World(listOfNotNull(
         WorldItem(s.storyHeroArt, 0.25f, 0.32f, 0.11f, depth = 1f),
-        WorldItem(s.friendArt, 0.72f, 0.32f, 0.13f, depth = 0.9f),
+        if (s.drawing.isNotEmpty()) WorldItem(s.friendArt, 0.72f, 0.32f, 0.13f, depth = 0.9f) else null,
     ))
 
     fun showConversation() {

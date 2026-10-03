@@ -56,6 +56,7 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.ShelfBook
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.restoreStoryBook
+import com.example.finalproject_demo.demo.restoreCoopBook
 import com.example.finalproject_demo.demo.playStorySound
 import kotlinx.coroutines.isActive
 import kotlin.math.roundToInt
@@ -201,7 +202,8 @@ fun SavedStoryView(d: Director, stage: Stage.SavedStory) {
     val page = stage.index
     if (book.visuals != null) {
         val scope = rememberCoroutineScope()
-        val reader = remember(book.id) { Director(scope).apply { s.restoreStoryBook(book) } }
+        // 같이 만들기 책은 같이 만들기로 되살린다 — 쪽 구성 · 그림 재료가 동화와 다르다 (#83 · CoopBookStore.kt)
+        val reader = remember(book.id) { Director(scope).apply { if (!s.restoreCoopBook(book)) s.restoreStoryBook(book) } }
         LaunchedEffect(reader, book.id) {
             while (isActive) {
                 if ((reader.awaitReply() as? Reply.Tapped)?.value == "dino") reader.playStorySound(book)

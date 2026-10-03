@@ -29,6 +29,9 @@ class TurnState internal constructor(
     private val answerOptions: StoryOptions?,
 ) {
     internal fun restoreInto(s: DemoState) {
+        // 배경은 그림이 늦게 온다 — 차례를 찍은 뒤에 도착한 생성 배경을, 같은 장소로 되돌릴 때 지우지 않는다.
+        // 10-02 실기기: 되돌리기 하면 생성 배경 대신 프리셋이 떴다. 장소가 바뀔 때만 그때 배경으로 돌린다
+        val keepBackground = s.place == place
         s.slots.clear(); s.slots.putAll(slots)
         s.slotBy.clear(); s.slotBy.putAll(slotBy)
         s.storyUnneededSlots.clear(); s.storyUnneededSlots.addAll(unneeded)
@@ -44,7 +47,8 @@ class TurnState internal constructor(
         s.causeLine = causeLine; s.causeKind = causeKind
         s.newcomer = newcomer; s.newcomerKind = newcomerKind; s.friendName = friendName
         s.solution = solution; s.solutionLine = solutionLine; s.solutionKey = solutionKey; s.solutionItem = solutionItem
-        s.sound = sound; s.soundLine = soundLine; s.storyBackground = storyBackground
+        s.sound = sound; s.soundLine = soundLine
+        if (!keepBackground) s.storyBackground = storyBackground
     }
 }
 

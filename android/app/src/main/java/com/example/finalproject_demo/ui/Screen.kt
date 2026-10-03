@@ -824,13 +824,29 @@ val HERO_ROWS: List<Triple<String, String, List<Pair<String, String>>>> = listOf
  */
 @Composable
 private fun NameEntryView(d: Director, stage: Stage.NameEntry) {
-    var typed by remember(stage) { mutableStateOf("") }
+    // 들은 이름이 있으면 글 칸에 미리 넣어 둔다 — 틀렸으면 고쳐 적으면 된다 (10-02 · 「삐죽이」가 「비주기」로)
+    var typed by remember(stage) { mutableStateOf(stage.heard ?: "") }
     Centered {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.size(170.dp, 210.dp)) {
                 ArtView(stage.image?.let { Art.Img(it, Art.HeroArt(stage.attr)) } ?: Art.HeroArt(stage.attr), Modifier.fillMaxSize())
             }
             Spacer(Modifier.height(12.dp))
+            if (stage.heard != null) {
+                Text("「${stage.heard}」 맞아?", fontSize = 26.sp, color = InkBrown, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped(com.example.finalproject_demo.demo.NAME_OK, "맞아")) },
+                        modifier = Modifier.height(Touch.KidMin), shape = RoundedCornerShape(24.dp)) {
+                        Text("맞아!", fontSize = 20.sp, color = FeltWhite, modifier = Modifier.padding(horizontal = 22.dp))
+                    }
+                    FeltButton(WoolCream, onClick = { d.send(Reply.Tapped(com.example.finalproject_demo.demo.NAME_AGAIN, "다시")) },
+                        modifier = Modifier.height(Touch.KidMin), shape = RoundedCornerShape(24.dp)) {
+                        Text("아니야, 다시 말할래", fontSize = 18.sp, color = InkBrown, modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
             Row(
                 Modifier.felt(WoolCream, RoundedCornerShape(24.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,

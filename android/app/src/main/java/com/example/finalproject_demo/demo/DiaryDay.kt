@@ -26,6 +26,13 @@ sealed interface DiaryStage : Stage
 enum class PieceLook { ORIGINAL, OTTO }
 
 /**
+ * 조각의 역할 — 물체(앞에서 움직인다) · 배경(땅 · 하늘처럼 판을 가로지르는 선 — 맨 뒤 겹, 움직이지 않는다) ·
+ * 무리(별 · 빗방울처럼 같은 색 작은 것이 흩어진 것 — 이름은 한 번, 오또 그림은 하나를 받아 자리마다 찍는다).
+ * 색칠은 따로 역할을 두지 않고 칠한 조각에 붙는다(`addStroke`). 기준값은 획 기록(`DiaryTrace`)으로 다시 잡는다
+ */
+enum class PieceRole { OBJECT, BACKGROUND, GROUP }
+
+/**
  * 화이트보드에서 위치로 묶인 획 한 덩어리 (D1).
  *
  * [name] 은 **아이가 말한 이름**이다. 인식한 낱말은 여기 넣지 않는다 — 질문 문구에만 쓴다(규칙 5).
@@ -38,9 +45,10 @@ data class DiaryPiece(
     val look: PieceLook = PieceLook.ORIGINAL,
     /** 오또가 그린 모습 (투명 PNG). 받기 전이거나 실패하면 null — 원본으로 간다 */
     val ottoPng: ByteArray? = null,
+    val role: PieceRole = PieceRole.OBJECT,
 ) {
     override fun equals(other: Any?) = other is DiaryPiece && other.id == id && other.strokes == strokes &&
-        other.name == name && other.look == look && other.ottoPng.contentEquals(ottoPng)
+        other.name == name && other.look == look && other.ottoPng.contentEquals(ottoPng) && other.role == role
 
     override fun hashCode() = id
 }
@@ -102,6 +110,9 @@ class DiaryDay {
     /** 오또가 지금 「뭐 그린 거야?」라고 묻는 조각 — 그림판이 그 조각에 고리를 띄운다 */
     var askingPiece by mutableStateOf<Int?>(null)
 
+    /** 방금 누른 이름표의 조각과 그때의 획 수 — 새 획을 긋기 전까지 「그려줘」는 이 조각이다 (10-02 실기기) */
+    var focus: Pair<Int, Int>? = null
+
     /**
      * 서버 대화 호출(`/turn`) 수 — **세기만 하고 막지 않는다.**
      * 상한을 둘지 · 얼마로 둘지는 #30 에서 정한다. 정해지면 [turnBudget] 에 넣는다(null = 제한 없음).
@@ -124,6 +135,12 @@ class DiaryDay {
     /** 마지막으로 붙인 획 · 색을 바꿔 이어 그리는 중인 조각 — [addStroke] 가 본다 */
     internal var lastStroke: Stroke? = null
     internal var continuing: Int? = null
+
+    /**
+     * 서버가 앞 이야기 답을 받아 골라 둔 다음 질문 — (판정 슬롯 · 질문 · 책 키). 그리는 중 다음 이야기 차례나 D3 첫 질문이 이것을 쓴다.
+     * 서버 질문은 맥락을 담는다(「놀이터에서 무슨 일이 있었어?」) — 그림 질문이 사이에 끼어도 아이가 알아듣게
+     */
+    var nextStory: Triple<String, String, String>? = null
 
     /** 이 그림일기를 만든 날 — 책장에서 다시 열 때만 있다. null 이면 오늘 */
     var madeOn: java.time.LocalDate? = null

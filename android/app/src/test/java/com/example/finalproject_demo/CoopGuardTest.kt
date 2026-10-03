@@ -25,6 +25,26 @@ import org.junit.Test
 class CoopGuardTest {
     private fun g(t: String, r: CoopReason? = CoopReason.DONE, src: CoopSource = CoopSource.LLM) = coopGuard(t, r, src)
 
+    /** 곧 해요에 지난 일을 묻는 서버 질문은 어떤 끝이든 막는다 — 서버 질문을 다 켠 뒤로 이것이 앱의 유일한 시제 그물이다 (#53 review) */
+    @Test
+    fun aSoonStoryRejectsEveryPastForm() {
+        listOf("소방서에서 누구를 만났어?", "소방서에서 누구 만났니?", "거기서 누구를 봤나?", "거기서 뭐 했을까?",
+            "그때 뭐 했을 것 같아?", "가 봤던 데는 어디야?").forEach { q ->
+            val out = g(q, CoopReason.SOON)
+            assertNull("곧 해요에 지난 일 질문이 통과했다: $q", out.text)
+            assertTrue("시제가 아닌 다른 이유로 막혔다: $q ${out.issues}", out.issues.any { "시제" in it })
+            assertEquals("다녀왔어요에서는 같은 질문이 통과해야 한다: $q", q, g(q, CoopReason.DONE).text)
+        }
+    }
+
+    /** 앞일 · 지금 꼴은 곧 해요에서 그대로 — 있 · 없 은 지난 꼴이 아니다 */
+    @Test
+    fun aSoonStoryKeepsFutureAndPresentQuestions() {
+        listOf("소방서에 누구랑 같이 가 볼까?", "거기서 무슨 일을 할 것 같아?", "거기 누가 있니?", "거기서 뭐가 제일 하고 싶어?").forEach { q ->
+            assertEquals("곧 해요의 앞일 질문이 막혔다: $q", q, g(q, CoopReason.SOON).text)
+        }
+    }
+
     @Test
     fun aGoodQuestionPassesUntouched() {
         val out = g("큰 소방서에서 무슨 일이 생겼어?")
