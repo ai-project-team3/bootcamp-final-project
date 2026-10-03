@@ -39,13 +39,24 @@ class CoopQuestionLevelTest {
     @Test
     fun theCauseQuestionNamesTheThingAndFollowsTheLevel() {
         // 까닭 짓기 — 열린 「왜」
-        assertEquals("불이 왜 그럴까?", f("cause", Level.REASON, CoopReason.SOON, mapOf("thing" to "불")))
         assertEquals("곰이 왜 그랬을까?", f("cause", Level.REASON, CoopReason.DREAM, mapOf("thing" to "곰")))
         // 이어 · 고르며 짓기 — 선택지 먼저, 질문 마지막
         val chain = f("cause", Level.CHAIN, CoopReason.DONE, mapOf("thing" to "불"), pick = CoopPick("job", "소방관", "done"))!!
         assertTrue(chain, chain.endsWith(". 불이 왜 그랬을까?") && "불장난을 해서" in chain)
         val pick = f("cause", Level.PICK, CoopReason.DONE, mapOf("thing" to "소방차"), pick = CoopPick("job", "소방관", "done"))!!
         assertTrue(pick, pick.endsWith(". 소방차가 왜 그랬을까?"))
+    }
+
+    /** 곧 해요의 「왜」는 이어 받지 않는다 — 앞 칸 답이 사건이 아니라 할 일이라 사건 까닭 선택지가 어긋난다 (실기기 10-03) */
+    @Test
+    fun aSoonStoryAsksTheTemplateWhyInsteadOfAFollowUp() {
+        Level.entries.forEach { lv ->
+            listOf(mapOf("thing" to "훈련"), emptyMap()).forEach { heard ->
+                assertNull("$lv $heard", f("cause", lv, CoopReason.SOON, heard, rungs = listOf("불장난을 해서, 전선이 낡아서. 왜 그럴까?")))
+            }
+        }
+        // 다녀왔어요 · 좋아해요는 그대로 이어 받는다
+        assertEquals("훈련이 왜 그랬을까?", f("cause", Level.REASON, CoopReason.DONE, mapOf("thing" to "훈련")))
     }
 
     @Test
