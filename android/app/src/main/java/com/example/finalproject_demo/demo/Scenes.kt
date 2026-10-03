@@ -1660,11 +1660,12 @@ private suspend fun Director.sceneEnd() {
     buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
     while (true) {
         awaitValue("shelf")
-        if (s.mode != StoryMode.STORY || saveFinishedStory()) break
+        // 같이 만들기는 협업 책장에 따로 저장한다(#83 · CoopBookStore.kt)
+        if (if (s.isCoop) shelveCoopBook() else s.mode != StoryMode.STORY || saveFinishedStory()) break
         say("책을 기기에 저장하지 못했어. 다시 눌러 줘.")
     }
     mark("end")
-    if (s.mode != StoryMode.STORY)
+    if (s.mode != StoryMode.STORY && !s.isCoop)
         s.shelf.add(0, ShelfBook(s.title ?: s.autoTitleFor(), s.themeKey, s.bgName, pages = s.pageCount, fresh = true))
     event("session_end", "duration" to "15분", "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
     log("책장에 꽂기 → 동화책 자막과 쪽 종류를 기기에 저장 · 서버에는 저장하지 않음 (⭐26)")
@@ -1700,7 +1701,7 @@ private suspend fun Director.sceneShelf() {
             }
             "book" -> {
                 if (openSavedDiary(tapped.label)) { s.stage = Stage.Shelf(fromEnd); continue }   // 그림일기 다시 읽기(#37)
-                val book = savedStory(tapped.label) ?: continue
+                val book = savedStory(tapped.label) ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
                 var page = 0
                 s.line = ""
                 buttons()

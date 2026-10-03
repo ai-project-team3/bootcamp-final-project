@@ -116,7 +116,10 @@ class MainActivity : ComponentActivity() {
 fun DemoApp() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val d = remember { Director(scope, LocalStoryBookStore(context), StoryImageStore(context)).also { com.example.finalproject_demo.demo.DiaryShelf.attach(context, it.s) } }  // 그림일기 책장 저장(#37)
+    val d = remember { Director(scope, LocalStoryBookStore(context), StoryImageStore(context)).also {
+        com.example.finalproject_demo.demo.DiaryShelf.attach(context, it.s)   // 그림일기 책장 저장(#37)
+        com.example.finalproject_demo.demo.CoopShelf.attach(context, it.s)    // 같이 만들기 책장 저장(#83)
+    } }
     (context as? MainActivity)?.director = d
     var drawerOpen by remember { mutableStateOf(false) }
     val s = d.s

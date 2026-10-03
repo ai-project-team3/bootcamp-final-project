@@ -131,7 +131,7 @@ td:first-child{white-space:nowrap}
   <nav class="flow" aria-label="화면 순서">
     <a href="#d0"><b>D0 시작</b><span>그려볼래?</span></a><span class="arrow">→</span>
     <a href="#d1"><b>D1 그리며 묻기</b><span>조각마다 이건 뭐야?</span></a><span class="arrow">→</span>
-    <a href="#d3"><b>D3 빈 칸만 묻기</b><span>최대 2~3개</span></a><span class="arrow">→</span>
+    <a href="#d3"><b>D3 빈 칸만 묻기</b><span>칸마다 두 번까지</span></a><span class="arrow">→</span>
     <a href="#d4"><b>D4 책 만드는 중</b><span><code>/story</code></span></a><span class="arrow">→</span>
     <a href="#d5"><b>D5 그림일기</b><span>3~6쪽</span></a><span class="arrow">→</span>
     <a href="#d6" class="end"><b>D6 끝</b><span>책장 · 부모 기록</span></a>
@@ -254,7 +254,7 @@ td:first-child{white-space:nowrap}
 
 
   <article class="screen" id="d3">
-    <div class="screen-head"><span class="sid">D3</span><h3>빈 필수 칸만 묻기 · 최대 2~3개</h3><span class="tag t-now">이번 주</span></div>
+    <div class="screen-head"><span class="sid">D3</span><h3>빈 칸만 묻기 · 칸마다 두 번까지 (전체 상한 없음 · #89)</h3><span class="tag t-now">이번 주</span></div>
     <div class="say">"오늘 어디 갔었어?" (<code>place</code>가 비었을 때) · "거기서 무슨 일이 있었어?" (<code>problem</code>이 비었을 때)<br>남은 질문이 있으면: "그래서 어떻게 됐어?" · "내일 또 하고 싶은 거 있어?"<small>마스코트 · 무엇을 물을지는 판정의 <code>next_slot</code>이 정한다</small></div>
     <dl class="six">
       <dt>1 누가 말하나</dt><dd>마스코트 → 아이</dd>
@@ -313,7 +313,7 @@ td:first-child{white-space:nowrap}
       <thead><tr><th>무엇</th><th>지금 (main)</th><th>이 흐름</th><th>어디</th></tr></thead>
       <tbody>
         <tr><td>필수 칸</td><td>기승전결 넷 (<code>place</code> · <code>problem</code> · <code>cause</code> · <code>solution</code>)</td><td><code>place</code> · <code>problem</code> 둘. 나머지는 선택</td><td><code>DiaryBank.kt</code> <code>DIARY_REQUIRED</code></td></tr>
-        <tr><td>질문 수</td><td>화이트보드 뒤 11걸음</td><td>그리는 중엔 간격으로만(붓 멈춤 + 5초) · 뒤에 최대 2~3</td><td><code>DIARY_STEPS</code> · <code>sceneDiary()</code></td></tr>
+        <tr><td>질문 수</td><td>화이트보드 뒤 11걸음</td><td>그리는 중엔 간격으로만(붓 멈춤 + 5초) · 뒤에 빈 칸마다 두 번까지(#89)</td><td><code>DIARY_STEPS</code> · <code>sceneDiary()</code></td></tr>
         <tr><td>빈 칸</td><td>마스코트가 이야기로 메움 (<code>by: mascot</code>)</td><td>비워 두고 "아직 듣지 못했어요"</td><td><code>finishDiary()</code></td></tr>
         <tr><td>쪽수</td><td>6~8쪽</td><td>칸이 찬 만큼 3~6쪽</td><td><code>diaryTemplate()</code></td></tr>
         <tr><td>주어</td><td>「지호는 오늘…」</td><td>「나는 오늘…」</td><td><code>diaryTemplate()</code> · <code>guidelines/7</code> §5-1 · <code>eval/story_prompt_diary.md</code></td></tr>
