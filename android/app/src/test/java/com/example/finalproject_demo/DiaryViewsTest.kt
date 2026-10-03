@@ -102,6 +102,8 @@ class DiaryViewsTest {
 
     private fun show(d: Director) {
         compose.mainClock.autoAdvance = false
+        // 그림일기 머리의 날짜는 오늘 — 기준 그림이 날마다 달라지지 않게 날을 박는다
+        if (d.s.diaryDay.madeOn == null) d.s.diaryDay.madeOn = java.time.LocalDate.of(2026, 10, 2)
         compose.setContent {
             // 일기 화면은 대사 칸을 스스로 그린다(D1 작은 말풍선 · D5 없음) — 앱 틀의 칸은 얹지 않는다
             Box(Modifier.fillMaxSize().background(Bg)) { StageView(d) }

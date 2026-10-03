@@ -1059,7 +1059,7 @@ private fun DiaryGiftView(d: Director, cq: Dp) {
     val pieces = bookPieces(s)
     val pop = remember { Animatable(0.9f) }
     LaunchedEffect(Unit) { pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)) }
-    val today = LocalDate.now()
+    val today = s.diaryDay.madeOn ?: LocalDate.now()        // 그림일기 머리와 같은 날 — 다시 연 일기는 만든 날
     Box(Modifier.fillMaxSize()) {
         Backdrop("bg_shelf", soft = true)
         Column(
