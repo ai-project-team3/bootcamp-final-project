@@ -57,6 +57,20 @@ class TurnHistoryTest {
         assertEquals("바닷속", s.slots["place"])
     }
 
+    /** 10-02 device: the background arrived after the turn was recorded; undo on the same place showed a preset */
+    @Test
+    fun aBackgroundThatArrivedLaterStaysWhenThePlaceDoesNotChange() {
+        val s = DemoState()
+        val h = TurnHistory(s)
+        s.answer({ slots["place"] = "바닷속"; place = "바닷속" }, h)
+        s.answer({ slots["newcomer"] = "문어" }, h)
+        s.storyBackground = "local:/bg/sea.png"          // the picture came in after both turns
+        h.undo()
+        assertEquals("local:/bg/sea.png", s.storyBackground)
+        h.undo()                                          // now back before the place itself
+        assertNull(s.storyBackground)
+    }
+
     @Test
     fun nothingToUndoAtTheStart() {
         val s = DemoState()

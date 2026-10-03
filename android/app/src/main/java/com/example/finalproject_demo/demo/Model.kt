@@ -638,7 +638,7 @@ sealed interface Stage {
     data class Show(val art: Art, val caption: String = "") : Stage
     data class HeroBuilder(val attr: HeroAttr) : Stage
     /** 만든 주인공에 이름 붙이기 — 말로 하거나 글로 적는다 (`demo/HeroName.kt` · 10-02) */
-    data class NameEntry(val attr: HeroAttr, val image: String?) : Stage
+    data class NameEntry(val attr: HeroAttr, val image: String?, val heard: String? = null) : Stage
     data class Making(val label: String, val progress: Float = -1f) : Stage
 
     /** ⭐21 좋아 / 싫어 그림 카드. redraws >= 0 이면 "다시 그리기 n/2" 를 함께 보여준다 (24) */
@@ -1273,6 +1273,8 @@ class DemoState {
     /** 되돌리기 · 앞으로 가기를 보일 차례인가 — `TurnHistory` 가 정한다 (10-02) */
     /** 이 이야기 주인공의 이름 — 아이가 인형에 지어 준 것. 없으면 `{주인공}` 은 아이 호칭으로 읽는다 */
     var storyHeroCall by mutableStateOf<String?>(null)
+    /** 이름 확인 중 글 칸에서 고쳐 적은 이름 (`demo/HeroName.kt`) */
+    var typedName: String? = null
     var canUndo by mutableStateOf(false)
     var canRedo by mutableStateOf(false)
     var nextEnabled by mutableStateOf(false)

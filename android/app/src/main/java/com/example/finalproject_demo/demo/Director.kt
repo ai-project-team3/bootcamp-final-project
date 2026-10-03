@@ -155,6 +155,16 @@ class Director(
     }
 
     /**
+     * 앞 입력을 비운 **다음에** 화면을 띄우고 기다린다. 화면을 먼저 띄우고 [awaitReply] 를 부르면,
+     * 뜨자마자 누른 탭이 그 사이 비워져 사라진다(10-02 · 이름 확인 「맞아」).
+     */
+    suspend fun awaitReplyShowing(show: () -> Unit): Reply {
+        drain()
+        show()
+        return input.receive()
+    }
+
+    /**
      * 정해진 시간만 기다린다.
      * 아이 무응답 타이머(⭐5)와는 별개라 시연 서랍의 [무응답 타이머]와 무관하게 늘 동작한다.
      */
