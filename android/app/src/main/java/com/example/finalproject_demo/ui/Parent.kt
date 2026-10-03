@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -455,12 +456,14 @@ private fun RecordTab(d: Director) {
         "\"${s.dino.name}${ga(s.dino.name)} 또 울면 어떻게 할까?\"",
         "\"${s.placeName}에 또 가면 누구를 만날까?\"",
     )
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // 카드 높이는 가장 긴 질문에 맞춘다 — 고정 높이면 협업 질문(「…해 보고 싶은 게 뭐야?」)의 끝이 잘렸다 (10-03 실기기)
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         playCards.forEachIndexed { i, q ->
             Column(
                 Modifier
                     .weight(1f)
-                    .height(86.dp)
+                    .fillMaxHeight()
+                    .heightIn(min = 86.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(listOf(Color(0xFFFFE7DD), Color(0xFFFFF1CC), Color(0xFFDDF2EA))[i])
                     .padding(12.dp)
