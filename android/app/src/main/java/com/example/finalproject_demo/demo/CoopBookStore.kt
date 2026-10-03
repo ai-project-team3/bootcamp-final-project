@@ -61,7 +61,7 @@ private val COOP_BOOK_FIELDS: Map<String, Pair<(DemoState) -> String?, (DemoStat
 )
 
 /** 저장된 같이 만들기 책 한 권 — 겉(책장 · 읽기 화면) + 다시 그리는 재료 */
-data class SavedCoopBook(val book: SavedStoryBook, val snapshot: CoopBookSnapshot)
+data class SavedCoopBook(val book: SavedStoryBook, val snapshot: CoopBookSnapshot?)
 
 interface CoopBookStore {
     fun load(): List<SavedCoopBook>
@@ -168,8 +168,17 @@ internal fun coopBooksToJson(books: List<SavedCoopBook>): String {
     books.forEach { (b, s) ->
         val pages = JSONArray()
         b.pages.forEach { p -> pages.put(JSONObject().put("kind", p.kind.name).put("caption", p.caption)) }
+        val snap = s?.let { snapshotToJson(it) } ?: JSONObject.NULL
+        array.put(JSONObject().put("id", b.id).put("title", b.title).put("themeKey", b.themeKey)
+            .put("bgName", b.bgName).put("pages", pages)
+            .put("visuals", b.visuals?.toJson() ?: JSONObject.NULL).put("coop", snap))
+    }
+    return array.toString()
+}
+
+private fun snapshotToJson(s: CoopBookSnapshot): JSONObject {
         val slots = JSONObject().also { o -> s.slots.forEach { (k, v) -> o.put(k, v) } }
-        val snap = JSONObject().put("childName", s.childName).put("slots", slots)
+        return JSONObject().put("childName", s.childName).put("slots", slots)
             .put("placeLabel", s.placeLabel ?: JSONObject.NULL).put("companionKind", s.companionKind)
             .put("friendName", s.friendName).put("sceneDrawing", strokesToJson(s.sceneDrawing))
             .put("sceneDrawingAspect", s.sceneDrawingAspect.toDouble()).put("partnerKey", s.partnerKey)
@@ -178,11 +187,6 @@ internal fun coopBooksToJson(books: List<SavedCoopBook>): String {
             .put("fields", JSONObject().also { o -> s.fields.forEach { (k, v) -> o.put(k, v) } })
             .put("slotBy", JSONObject().also { o -> s.slotBy.forEach { (k, v) -> o.put(k, v) } })
             .put("feelings", JSONArray().also { a -> s.feelings.forEach { a.put(it) } })
-        array.put(JSONObject().put("id", b.id).put("title", b.title).put("themeKey", b.themeKey)
-            .put("bgName", b.bgName).put("pages", pages)
-            .put("visuals", b.visuals?.toJson() ?: JSONObject.NULL).put("coop", snap))
-    }
-    return array.toString()
 }
 
 /** 망가진 책은 건너뛴다(읽기). 쓰기는 [LocalCoopBookStore.save] 가 수를 맞춰 보고 막는다 */
@@ -199,7 +203,8 @@ internal fun coopBooksFromJson(raw: String): List<SavedCoopBook> = runCatching {
             if (pages.isEmpty() || pages.any { it.caption.isBlank() }) return@runCatching null
             val visuals = o.optJSONObject("visuals")?.let(::storyVisualsFromJson)
             val book = SavedStoryBook(o.getString("id"), o.getString("title"), o.getString("themeKey"), o.getString("bgName"), pages, visuals)
-            val c = o.getJSONObject("coop")
+            // 앞 빌드(10-02 c68b857 전)가 남긴 책은 다시 그리는 재료가 없다 — 글자 책으로 남긴다(지우지 않는다)
+            val c = o.optJSONObject("coop") ?: return@runCatching SavedCoopBook(book, null)
             val sl = c.getJSONObject("slots")
             val snap = CoopBookSnapshot(
                 c.getString("childName"), sl.keys().asSequence().associateWith { sl.getString(it) },
@@ -234,7 +239,7 @@ object CoopShelf {
         stores[s] = store
         val saved = runCatching { store.load() }.getOrDefault(emptyList())
         books[s] = saved.toMutableList()
-        saved.forEach { snapshots[it.book.id] = it.snapshot }
+        saved.forEach { b -> b.snapshot?.let { snapshots[b.book.id] = it } }
         s.shelf.addAll(0, saved.map { it.book.onCoopShelf() })
     }
 
@@ -254,7 +259,7 @@ object CoopShelf {
         return try {
             store.save(book)
             books.getOrPut(s) { mutableListOf() }.add(0, book)
-            snapshots[book.book.id] = book.snapshot
+            book.snapshot?.let { snapshots[book.book.id] = it }
             s.shelf.add(0, book.book.onCoopShelf(fresh = true))
             CoopShelved.SAVED
         } catch (_: Exception) { CoopShelved.FAILED }
