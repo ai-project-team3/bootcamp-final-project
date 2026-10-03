@@ -533,8 +533,12 @@ internal fun Reply.Spoke.isLiveSpeech(): Boolean = value.isEmpty() && (answer ==
 private val NON_ANSWER_STARTS = listOf("몰라", "모르겠", "모름", "글쎄", "기억 안", "기억이 안", "생각 안", "생각이 안", "잘 모르")
 private val NON_ANSWER_WORDS = setOf("응", "어", "음", "아니", "네", "예", "없어", "몰라요", "싫어")
 
+/** 말 앞에 붙는 망설임 — 「음… 몰라」 · 「어, 모르겠어」. 뒤에 말이 더 올 때만 뗀다(「아빠」의 「아」는 안 뗀다) */
+private val HESITATION = Regex("^(?:(?:으*음+|어+|흠+|아+|그+)[.…,~!\\s]+)+")
+
 internal fun isNonAnswer(text: String): Boolean {
-    val t = text.trim().trimEnd('.', '!', '?', '~', ' ')
+    // 만 3~7세는 「음… 몰라」처럼 망설인 뒤 말한다 — 실기기(10-03)에서 이 말이 책 재료 칸에 들어갔다
+    val t = text.trim().trimEnd('.', '!', '?', '~', ' ').replace(HESITATION, "").trim()
     if (t.isEmpty() || t in NON_ANSWER_WORDS) return true
     // 짧은 말에서만 본다 — 「친구가 없어서 슬펐어」 같은 긴 답을 「몰라」로 버리면 안 된다
     return t.length <= 10 && NON_ANSWER_STARTS.any { t.startsWith(it) }

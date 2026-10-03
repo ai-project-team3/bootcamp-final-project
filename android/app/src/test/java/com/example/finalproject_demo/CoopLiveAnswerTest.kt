@@ -2,6 +2,8 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.demo.feelingsSaid
+import com.example.finalproject_demo.demo.feelingPhrase
 import com.example.finalproject_demo.demo.autoTitleFor
 import com.example.finalproject_demo.demo.feelingThatWas
 import com.example.finalproject_demo.demo.coopTitle
@@ -463,14 +465,22 @@ class CoopLiveAnswerTest {
         assertNull(d.s.coopTitle())
     }
 
-    /** 서버 판정의 마음 낱말은 「신나다」 · 「기쁨」 꼴도 온다 — 「신나다던」 · 「기쁨던」이 되지 않게 */
+    /** 서버 판정의 마음 낱말은 「신나다」 · 「떨려」 · 「무섭다, 신나다」 꼴도 온다 — 「신나다던」이 되지 않게 (실기기 10-03) */
     @Test
     fun feelingWordsReadAsKorean() {
         assertEquals("신났던", feelingThatWas("신났"))
-        assertEquals("기뻤던", feelingThatWas("기뻤"))
-        assertEquals("신나던", feelingThatWas("신나다"))
-        assertEquals("좋던", feelingThatWas("좋다"))
-        assertEquals("‘기쁨’", feelingThatWas("기쁨"))
+        assertNull(feelingThatWas("신나다"))
+        assertEquals("‘떨려’라는", feelingPhrase("떨려"))
+        assertEquals("‘기쁨’이라는", feelingPhrase("기쁨"))
+        assertEquals("신났던, 기뻤던 마음을 말했어요", feelingsSaid(listOf("신났", "기뻤", "신났")))
+        assertEquals("마음을 말했어요 — ‘무섭다’ · ‘신나다’ · ‘떨려’", feelingsSaid(listOf("무섭다, 신나다", "떨려")))
+    }
+
+    /** 만 3~7세는 망설인 뒤 「몰라」라고 한다 — 「음… 몰라」가 책 재료 칸에 들어가면 안 된다 (실기기 10-03) */
+    @Test
+    fun aHesitantDontKnowIsStillADontKnow() {
+        listOf("음… 몰라", "어, 모르겠어", "으음 몰라요", "음... 글쎄").forEach { assertTrue(it, isNonAnswer(it)) }
+        listOf("아빠", "음… 아빠랑", "어, 소방서").forEach { assertFalse(it, isNonAnswer(it)) }
     }
 
     /** 협업 책을 만들 수 있게 칸을 채워 둔다 */

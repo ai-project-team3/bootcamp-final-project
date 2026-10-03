@@ -260,7 +260,7 @@ private fun Director.afterDiaryAnswer(step: DiaryStep, a: Answer) {
 
     // 마음을 말했으면 선택 칸 reaction 이 찬다. 마음 말하기는 수준 판단에 쓰지 않는다 (일기 §2-2 · 안치영 #4)
     if (a.emo.isNotEmpty() && s.reaction == null && step.slot != "reaction") {
-        val felt = feelingThatWas(a.emo)                // 서버 판정은 「신나다」 꼴도 준다 — 「신나다던」이 되지 않게 (CoopReport.kt)
+        val felt = feelingPhrase(a.emo)                 // 서버 판정은 「신나다」 · 「떨려」 꼴도 준다 — 「신나다던」이 되지 않게 (CoopReport.kt)
         setDiarySlot("reaction", "reaction", "$felt 마음", "$c${eun(c)} $felt 마음이 한참 남았어요", "child")
         log("묻지 않았는데 마음을 말했다 → 선택 칸 reaction 이 찼고, 그 걸음은 건너뛴다 (같은 걸 두 번 묻지 않는다)")
     }
