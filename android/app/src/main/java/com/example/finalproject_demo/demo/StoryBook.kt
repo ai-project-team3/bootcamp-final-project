@@ -38,7 +38,7 @@ fun DemoState.storyMissionResult(i: Int): String? {
             "${item}${ga(item)} 사라졌어요."
         } else null
         PageKind.DRAG -> if (m2Result != null) {
-            if (templateKey in setOf("A", "G")) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
+            if (missions().slot2 == MissionId.A3) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
             else "${childName}${eun(childName)} ${friendCallName}에게 ${mission2().give}."
         } else null
         else -> null
