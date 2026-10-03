@@ -55,7 +55,7 @@ val DemoState.coopReady: Boolean get() = coopPick != null || hasCoopQuestions
  */
 internal fun DemoState.coopBackdrop(): String {
     coopReadingBackdrop?.let { return it }   // 책장에서 다시 연 책 — 만들 때의 배경 그대로 (#83 · 읽기 화면 상태에만 있다)
-    val pick = coopPick ?: return diaryPlaceBg(placeLabel)
+    val pick = bookPick ?: return diaryPlaceBg(placeLabel)
     coopItem(pick.name)?.let { return it.bg }
     val spoken = diaryPlaceBg(placeLabel)
     return if (spoken != DIARY_BG_FALLBACK) spoken else diaryPlaceBg(pick.name)
@@ -196,7 +196,7 @@ private fun DemoState.llmQuestionFor(q: Question, next: Pair<String, String>?): 
  * The picked story sent with `/turn` and `/story` (#53 B · #52), e.g. "같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)".
  * The server splits the tense on the `reason` sent alongside ([coopStoryReason]), not on this text (#53 C 8da67b0 · #52 77a9d5c).
  */
-internal fun DemoState.coopTurnContext(): String? = coopPick?.let { p ->
+internal fun DemoState.coopTurnContext(): String? = bookPick?.let { p ->
     val k = coopKind(p.kind) ?: return@let null
     val r = p.reasonOrNull()
     val tense = when (r) { CoopReason.DONE -> "지난 일"; CoopReason.SOON -> "앞으로 할 일"; else -> "상상 이야기" }
@@ -215,6 +215,13 @@ val DemoState.coopAsked: List<CoopAsked> get() = trackByState[this]?.asked.orEmp
 /** 이 이야기를 시작할 때 고른 이야기 · 부모 질문을 몇 개 썼나 — 부모 리포트의 말을 가른다 (CoopReport.kt) */
 val DemoState.coopStoryPick: CoopPick? get() = trackByState[this]?.pick
 val DemoState.coopParentUsed: Int get() = trackByState[this]?.parentUsed ?: 0
+
+/**
+ * 지금 이야기의 고른 이야기 — 부모가 고른 것(`coopPick`), 비었으면 이 이야기를 시작할 때 남겨 둔 것.
+ * 이야기가 끝나면 `coopFinishLog` 가 `coopPick` 을 비우고 **그다음에** 책을 만든다(배경 · `/story` · 책장 저장).
+ * 그래서 책 쪽이 `coopPick` 만 보면 기본 배경(`bg_today`)이 깔리고 `/story` 에 이유 · 고른 이야기가 빠졌다 (10-03 실기기)
+ */
+private val DemoState.bookPick: CoopPick? get() = coopPick ?: coopStoryPick
 
 /** 협업 모드에서만 붙는 첫 안내. 일기 모드는 이 함수를 부르지 않는다. */
 suspend fun Director.coopIntro(childName: String) {
@@ -667,7 +674,7 @@ internal fun DemoState.coopPageMission(kind: PageKind): String? = when (kind) {
  * `/story` 의 `reason` — 고른 이야기가 있으면 그 이유. **이유를 안 골랐으면 `dream`** — 앱이 질문을 상상 이야기로 했으니
  * 책도 상상으로 써야 한다(서버는 비면 「있었던 일」로 쓴다). 이야기를 안 고르고 질문만 적었으면 null(있었던 일 · 일기형).
  */
-internal fun DemoState.coopStoryReason(): String? = coopPick?.let { (it.reasonOrNull() ?: CoopReason.DREAM).key }
+internal fun DemoState.coopStoryReason(): String? = bookPick?.let { (it.reasonOrNull() ?: CoopReason.DREAM).key }
 
 /**
  * The tense the server writes in for this story: the pick's reason, DREAM for a pick with no reason, and DONE
@@ -675,7 +682,7 @@ internal fun DemoState.coopStoryReason(): String? = coopPick?.let { (it.reasonOr
  * against this, so the guard and the server agree (#53 review).
  */
 internal fun DemoState.coopServerTense(): CoopReason =
-    coopPick?.let { it.reasonOrNull() ?: CoopReason.DREAM } ?: CoopReason.DONE
+    bookPick?.let { it.reasonOrNull() ?: CoopReason.DREAM } ?: CoopReason.DONE
 
 /** 쪽 수가 맞고 빈 문장이 없을 때만 쓴다 — 하나라도 어긋나면 틀 문장 책 */
 fun DemoState.useCoopCaptions(captions: List<String>?): Boolean {

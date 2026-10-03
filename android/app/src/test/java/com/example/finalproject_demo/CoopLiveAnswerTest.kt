@@ -2,6 +2,8 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.ui.coopItem
+import com.example.finalproject_demo.demo.coopFinishLog
 import com.example.finalproject_demo.demo.CoopSource
 import com.example.finalproject_demo.demo.coopGuard
 import com.example.finalproject_demo.demo.coopReportCopy
@@ -477,6 +479,29 @@ class CoopLiveAnswerTest {
             d.coopWriteBook()
             val req = server.requests.first { it.first == "/story" }.second
             assertEquals("soon", req.optString("reason"))
+            assertEquals("같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)", req.optString("template"))
+        } finally { server.close() }
+    }
+
+    /**
+     * 실기기(10-03) — 이야기가 끝나면 `coopFinishLog` 가 고른 이야기를 비우고 **그다음에** 책을 만든다.
+     * 그래서 책 배경이 기본 배경(`bg_today`)으로, `/story` 에는 이유 · 고른 이야기가 빠진 채(=지난 일)로 갔다.
+     * 실제 순서대로 — 비운 뒤에도 책은 고른 요소의 배경 · 고른 이유로 만든다
+     */
+    @Test
+    fun theBookMadeAfterTheStoryEndsKeepsThePickedBackdropAndReason() = run { d ->
+        val server = storyServer()
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+            d.coopFinishLog()                                   // 이야기 끝 — 여기서 coopPick 이 비워진다
+            assertNull("이 테스트의 전제(이야기 끝에 고른 이야기를 비운다)가 바뀌었다", d.s.coopPick)
+            assertEquals("책 배경이 고른 요소(소방관)의 배경이 아니다", coopItem("소방관")!!.bg, d.s.bgName)
+            d.filledCoop()
+            d.coopWriteBook()
+            val req = server.requests.first { it.first == "/story" }.second
+            assertEquals("이야기가 끝난 뒤 /story 에 고른 이유가 빠졌다", "soon", req.optString("reason"))
             assertEquals("같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)", req.optString("template"))
         } finally { server.close() }
     }
