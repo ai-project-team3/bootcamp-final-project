@@ -4,6 +4,9 @@ import com.example.finalproject_demo.demo.PageKind
 import com.example.finalproject_demo.ui.LimbRole
 import com.example.finalproject_demo.ui.RigHint
 import com.example.finalproject_demo.ui.tearScore
+import com.example.finalproject_demo.ui.tearScores
+import kotlin.math.max
+import kotlin.math.min
 import com.example.finalproject_demo.ui.buildMeshRig
 import com.example.finalproject_demo.ui.buddyActFrom
 import com.example.finalproject_demo.ui.heroActFrom
@@ -144,7 +147,7 @@ class RigBuilderTest {
             if (m == null) { bad += "${f.name}: 뼈대 없음"; continue }
             val arms = m.bones.count { it.role == LimbRole.ARM && it.parent == 0 }
             val legs = m.bones.count { it.role == LimbRole.LEG }
-            val tear = tearScore(m)
+            val tear = tearScore(m, m.atlas ?: px, m.atlasW, bmp.height)
             val ok = when (hint) {
                 RigHint.HUMAN -> m.kind == "human" && arms == 2
                 RigHint.QUAD -> m.kind == "quad" && legs >= 2 && arms == 0
@@ -163,10 +166,10 @@ class RigBuilderTest {
      */
     @Test
     fun 생성_캐릭터_모음() {
-        val dir = File(System.getProperty("rig.corpus") ?: System.getenv("RIG_CORPUS") ?: File(System.getProperty("user.home"),
-            "AppData/Local/Temp/claude/C--dev-final-project/344838c4-f7ce-48e6-9be7-ad3985d432f5/scratchpad/rigcorpus").path)
-        val files = dir.listFiles { f -> f.name.endsWith(".png") && f.name.contains("__") }?.sorted().orEmpty()
-        if (files.isEmpty()) return
+        // 기본은 레포의 22장 — 예전에는 개인 Temp 폴더를 봐서 다른 PC · CI 에서는 아무것도 안 하고 통과했다 (10-03)
+        val dir = File(System.getProperty("rig.corpus") ?: System.getenv("RIG_CORPUS") ?: "src/test/resources/rig_corpus")
+        val files = dir.listFiles { f -> (f.name.endsWith(".png") || f.name.endsWith(".webp")) && f.name.contains("__") }?.sorted().orEmpty()
+        assertTrue("생성 캐릭터 그림이 없다: $dir", files.isNotEmpty())
         fun img(path: String): Img {
             val bmp = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
             val sc = 512f / maxOf(bmp.width, bmp.height)
@@ -183,23 +186,146 @@ class RigBuilderTest {
             val i = img(f.path)
             val hint = RigHint.of(f.name.substringBefore("__"))
             val m = RigBuilder.build(i.px, i.w, i.h, hint)
+            val ts = m?.let { tearScores(it, it.atlas ?: i.px, it.atlasW, i.h) }
             sb.appendLine("${f.name}: 힌트 ${hint.key} → ${m?.kind} · 뼈 ${m?.bones?.drop(1)?.joinToString { it.name }} · " +
-                "찢어짐 ${m?.let { "%.3f".format(tearScore(it)) }} ·${RigBuilder.why}")
+                "찢어짐 ${ts?.let { "%.3f · 가지 %.3f".format(it.first, it.second) }} ·${RigBuilder.why}")
         }
         File(outDir, "corpus_tear.txt").writeText(sb.toString())
         println(sb)
     }
 
-    /** 앱에 든 그림들의 찢어짐 점수 — 사용자가 「잘 된다」고 확인한 뼈대들이 기준선이다 (`build/rig_auto/tear.txt`) */
+    /**
+     * 앱에 든 그림들의 찢어짐 점수 — 사용자가 「잘 된다」고 확인한 뼈대들이 기준선이다 (`build/rig_auto/tear.txt`).
+     * 10-03: 기록만 하고 단언이 없어 점수가 나빠져도 통과했다 → 모두 뼈대가 붙고 두 기준 안이어야 한다
+     */
     @Test
     fun 찢어짐_점수_기준선() {
         val sb = StringBuilder()
+        val bad = ArrayList<String>()
         for (n in heroes + others) {
-            val m = build(load(n)) ?: run { sb.appendLine("$n: 뼈대 없음"); null } ?: continue
-            sb.appendLine("$n: ${m.kind} · 뼈 ${m.bones.size - 1} · 찢어짐 ${"%.4f".format(tearScore(m))}")
+            val img = load(n)
+            val m = build(img) ?: run { sb.appendLine("$n: 뼈대 없음"); bad += "$n 뼈대 없음"; null } ?: continue
+            val (tear, limb) = tearScores(m, m.atlas ?: img.px, m.atlasW, img.h)
+            sb.appendLine("$n: ${m.kind} · 뼈 ${m.bones.size - 1} · 찢어짐 ${"%.4f".format(tear)} · 가지 ${"%.4f".format(limb)}")
+            if (tear > RigBuilder.MAX_TEAR || limb > RigBuilder.MAX_TEAR_LIMB) bad += "$n ${"%.3f/%.3f".format(tear, limb)}"
         }
         File(outDir, "tear.txt").writeText(sb.toString())
         println(sb)
+        assertEquals("기준을 넘은 그림: $bad", 0, bad.size)
+    }
+
+    // ── 10-03 검토에서 더한 검사 ─────────────────────────────────────
+
+    private fun corpus(): List<File> =
+        File("src/test/resources/rig_corpus").listFiles { f -> f.name.endsWith(".webp") }?.sorted().orEmpty()
+
+    private fun decode(f: File): Bitmap =
+        BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
+
+    private fun pixels(b: Bitmap) = IntArray(b.width * b.height).also { b.getPixels(it, 0, b.width, 0, 0, b.width, b.height) }
+
+    private fun shape(m: RigMesh?) = m?.let { "${it.kind} 팔 ${it.bones.count { b -> b.role == LimbRole.ARM && b.parent == 0 }} 다리 ${it.bones.count { b -> b.role == LimbRole.LEG }}" }
+
+    @Test
+    fun 빈_그림_작은_그림은_예외_없이_null() {
+        assertEquals(null, RigBuilder.build(IntArray(64 * 64), 64, 64))
+        assertEquals(null, RigBuilder.build(intArrayOf(0xFF336699.toInt()), 1, 1))
+        // 화소 200 개 미만 — 몸만 들썩이기도 못 한다
+        val tiny = IntArray(64 * 64).also { for (y in 20 until 30) for (x in 20 until 30) it[y * 64 + x] = 0xFF336699.toInt() }
+        assertEquals(null, RigBuilder.build(tiny, 64, 64, RigHint.HUMAN))
+    }
+
+    /**
+     * 몸통 + 팔 · 다리 · 꼬리를 무작위로 붙인 그림 300 장 — 어떤 그림이 와도 **던지지 않고**, 그림이 충분히 크면 ③(몸만)까지는 붙는다.
+     * 예전에는 ① 안에서 던지면(좁은 팔 뿌리 · coerceIn) build 전체가 끝나 ③도 못 갔다
+     */
+    @Test
+    fun 이상한_모양도_던지지_않고_뼈대가_붙는다() {
+        val rnd = java.util.Random(20261003)
+        val w = 256; val h = 256
+        var stageErrors = 0
+        for (k in 0 until 300) {
+            val px = IntArray(w * h)
+            fun fill(x0: Int, y0: Int, x1: Int, y1: Int, ellipse: Boolean, col: Int) {
+                for (y in max(0, y0) until min(h, y1)) for (x in max(0, x0) until min(w, x1)) {
+                    if (ellipse) {
+                        val ex = (x - (x0 + x1) / 2f) / ((x1 - x0) / 2f); val ey = (y - (y0 + y1) / 2f) / ((y1 - y0) / 2f)
+                        if (ex * ex + ey * ey > 1f) continue
+                    }
+                    px[y * w + x] = col
+                }
+            }
+            val bw = 40 + rnd.nextInt(80); val bh = 60 + rnd.nextInt(120)
+            val bx = (w - bw) / 2; val by = 20 + rnd.nextInt(40)
+            val skin = 0xFFF0C8A0.toInt(); val cloth = listOf(0xFF3366CC, 0xFFCC3344, 0xFF55AA55)[rnd.nextInt(3)].toInt()
+            fill(bx, by, bx + bw, by + bh, rnd.nextBoolean(), cloth)
+            fill(w / 2 - 18, by - 34, w / 2 + 18, by + 4, true, skin)                      // 머리
+            repeat(rnd.nextInt(5)) {                                                         // 가지: 몸에 붙었거나 1~3 화소 떨어짐
+                val side = if (rnd.nextBoolean()) -1 else 1
+                val gap = rnd.nextInt(4)
+                val tw = 2 + rnd.nextInt(14); val tl = 10 + rnd.nextInt(70)
+                val ty = by + rnd.nextInt(max(1, bh - 10))
+                val x0 = if (side < 0) bx - gap - tw else bx + bw + gap
+                fill(x0, ty, x0 + tw, min(h, ty + tl), false, if (rnd.nextBoolean()) skin else cloth)
+            }
+            RigBuilder.why = ""
+            val m = RigBuilder.build(px, w, h, listOf(RigHint.AUTO, RigHint.HUMAN, RigHint.QUAD, RigHint.BLOB)[k % 4])
+            if (RigBuilder.why.contains("오류")) stageErrors++
+            assertNotNull("그림 $k 에 뼈대가 없다 (${RigBuilder.why})", m)
+        }
+        println("단계 안에서 던졌다가 다음 단계로 넘어간 그림: $stageErrors / 300")
+    }
+
+    @Test
+    fun 좌우를_뒤집어도_같은_몸으로_붙는다() {
+        val bad = ArrayList<String>()
+        for (f in corpus()) {
+            val b = decode(f); val px = pixels(b); val w = b.width; val h = b.height
+            val flip = IntArray(px.size) { i -> px[(i / w) * w + (w - 1 - i % w)] }
+            val hint = RigHint.of(f.name.substringBefore("__"))
+            val a = shape(RigBuilder.build(px, w, h, hint)); val c = shape(RigBuilder.build(flip, w, h, hint))
+            if (a != c) bad += "${f.name}: $a ↔ 뒤집으면 $c"
+        }
+        assertEquals("뒤집으면 달라진 그림: " + bad.joinToString(" / "), 0, bad.size)
+    }
+
+    /**
+     * 서버와 같은 길 — 640² PNG 바이트 → `buildMeshRig`(512 로 줄여 붙임). 생성 캐릭터 22장 전부.
+     * 그리고 **그릴 그림판은 원래 해상도**여야 한다(10-03 — 512 그림을 화면 크기로 키워 그려 흐려졌다)
+     */
+    @Test
+    fun 서버가_보낸_640_생성_캐릭터도_몸_종류대로_붙고_원래_해상도로_그린다() {
+        val bad = ArrayList<String>()
+        for (f in corpus()) {
+            val big = Bitmap.createScaledBitmap(decode(f), 640, 640, true)
+            val png = java.io.ByteArrayOutputStream().also { big.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+            val hint = RigHint.of(f.name.substringBefore("__"))
+            val rig = buildMeshRig(png, hint)
+            if (rig == null) { bad += "${f.name}: 뼈대 없음"; continue }
+            val ok = when (hint) {
+                RigHint.HUMAN -> rig.kind == "human"
+                RigHint.QUAD -> rig.kind == "quad"
+                else -> rig.kind == "blob"
+            }
+            if (!ok) bad += "${f.name}: ${shape(rig.mesh)}"
+            val layers = if (rig.mesh.atlas != null) 2 else 1
+            if (rig.bitmap.width != 640 * layers || rig.bitmap.height != 640) bad += "${f.name}: 그림판 ${rig.bitmap.width}×${rig.bitmap.height}"
+            val maxU = rig.drawTex.filterIndexed { i, _ -> i % 2 == 0 }.max()
+            if (maxU > rig.bitmap.width + 64f || maxU < 0.5f * rig.bitmap.width) bad += "${f.name}: 그림 좌표 ${maxU.toInt()} / ${rig.bitmap.width}"
+            // 눈으로 보는 확인표 — 원래 해상도 그림판 · 그 좌표로 만세 · 손 흔들기를 640 에 그린다 (`build/rig_auto/server640/`)
+            val dir = File(outDir, "server640").apply { mkdirs() }
+            val texPx = pixels(rig.bitmap)
+            val k = 640f / rig.mesh.canvasW
+            val row = IntArray(640 * 3 * 640) { 0xFFF4EFE6.toInt() }
+            listOf(null, RigMotion.HOORAY to 1.0f, RigMotion.WAVE to 1.3f).forEachIndexed { c, mo ->
+                skin(rig.mesh, mo?.let { poseAt(rig.mesh.bones, it.first, it.second).first } ?: FloatArray(rig.mesh.bones.size))
+                val pos = FloatArray(rig.mesh.out.size) { rig.mesh.out[it] * k }
+                val pic = draw(texPx, rig.bitmap.width, rig.bitmap.height, rig.drawTex, pos, rig.mesh.indices, 640, 640)
+                for (y in 0 until 640) for (x in 0 until 640) { val v = pic[y * 640 + x]; if (v ushr 24 != 0) row[y * 1920 + c * 640 + x] = blend(row[y * 1920 + c * 640 + x], v) }
+            }
+            File(dir, f.name.replace(".webp", ".png")).outputStream().use { Bitmap.createBitmap(row, 1920, 640, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        assertEquals("640 길에서 어긋난 그림: " + bad.joinToString(" / "), 0, bad.size)
     }
 
     @Test
@@ -245,7 +371,8 @@ class RigBuilderTest {
     fun 마스코트_오또_움직임_프레임() {
         val path = System.getProperty("otto.frames") ?: File(System.getProperty("user.home"),
             "AppData/Local/Temp/claude/C--dev-final-project/344838c4-f7ce-48e6-9be7-ad3985d432f5/scratchpad/apose2/apose_2.png").path
-        if (!File(path).exists()) return
+        // 개인 시험 그림이 없는 PC 에서는 「건너뜀」으로 보이게 — 조용히 통과하지 않는다 (10-03)
+        org.junit.Assume.assumeTrue("시험 그림 없음: $path (-Dotto.frames=...)", File(path).exists())
         val bmp = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })
         val sc = 512f / maxOf(bmp.width, bmp.height)
         val b2 = Bitmap.createScaledBitmap(bmp, (bmp.width * sc).toInt(), (bmp.height * sc).toInt(), true)
@@ -349,6 +476,32 @@ class RigBuilderTest {
         File(outDir, "$tag.png").outputStream().use { out.compress(Bitmap.CompressFormat.PNG, 100, it) }
         File(outDir, "$tag.txt").writeText(log.toString())
         println(log)
+    }
+
+    /** 점 자리 [pos] · 그림 좌표 [uv] 로 삼각형마다 [tex] 를 입혀 outW×outH 에 그린다 (뒤 → 앞 순, 앱의 drawVertices 와 같은 일) */
+    private fun draw(tex: IntArray, tw: Int, th: Int, uv: FloatArray, pos: FloatArray, indices: ShortArray, outW: Int, outH: Int): IntArray {
+        val out = IntArray(outW * outH)
+        for (t in 0 until indices.size / 3) {
+            val a = indices[3 * t].toInt(); val b = indices[3 * t + 1].toInt(); val c = indices[3 * t + 2].toInt()
+            val x0 = pos[2 * a]; val y0 = pos[2 * a + 1]; val x1 = pos[2 * b]; val y1 = pos[2 * b + 1]; val x2 = pos[2 * c]; val y2 = pos[2 * c + 1]
+            val den = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+            if (kotlin.math.abs(den) < 1e-6f) continue
+            val bx0 = maxOf(0, kotlin.math.floor(minOf(x0, x1, x2)).toInt()); val bx1 = minOf(outW - 1, kotlin.math.ceil(maxOf(x0, x1, x2)).toInt())
+            val by0 = maxOf(0, kotlin.math.floor(minOf(y0, y1, y2)).toInt()); val by1 = minOf(outH - 1, kotlin.math.ceil(maxOf(y0, y1, y2)).toInt())
+            for (y in by0..by1) for (x in bx0..bx1) {
+                val fx = x + 0.5f; val fy = y + 0.5f
+                val l0 = ((y1 - y2) * (fx - x2) + (x2 - x1) * (fy - y2)) / den
+                val l1 = ((y2 - y0) * (fx - x2) + (x0 - x2) * (fy - y2)) / den
+                val l2 = 1 - l0 - l1
+                if (l0 < -0.01f || l1 < -0.01f || l2 < -0.01f) continue
+                val fu = (l0 * uv[2 * a] + l1 * uv[2 * b] + l2 * uv[2 * c] - 0.5f).coerceIn(0f, tw - 1.001f)
+                val fv = (l0 * uv[2 * a + 1] + l1 * uv[2 * b + 1] + l2 * uv[2 * c + 1] - 0.5f).coerceIn(0f, th - 1.001f)
+                val v = bilinear(tex, tw, th, fu, fv)
+                if (v ushr 24 == 0) continue
+                out[y * outW + x] = if (out[y * outW + x] ushr 24 == 0) v else blend(out[y * outW + x], v)
+            }
+        }
+        return out
     }
 
     /** 미리 곱한 알파로 네 화소를 섞는다 — 투명한 이웃의 검은색이 가장자리에 번지지 않게 */
