@@ -467,19 +467,30 @@ object RigBuilder {
         // 생성 캐릭터는 모양이 다 달라 가지를 잘못 잡을 수 있다 → **쉬운 쪽으로 내려가며** 찢어지지 않는 첫 뼈대를 쓴다 (09-30)
         //   ① 사람형 팔 떼어 내기(사람형이거나 모를 때) → ② 튀어나온 가지(몸 종류에 맞게) → ③ 몸 전체만 들썩이기
         // 각 단계는 [tearScore] 로 검사한다. ③은 뼈가 root 하나라 찢어질 수 없다 — 어떤 그림이 와도 깨진 모습은 안 나온다
+        // ①② 안에서 예외가 나도 ③까지는 내려간다 (10-03 검토 — 좁은 팔 뿌리에서 coerceIn 이 던지자 build 전체가 끝나 정지 그림이 됐다)
         if (hint == RigHint.AUTO || hint == RigHint.HUMAN) {
-            humanRig(argb, w, h, anyHands = hint == RigHint.HUMAN)?.let { if (passes(it, "①사람형", argb, w, h)) return it }
+            stage("①사람형") { humanRig(argb, w, h, anyHands = hint == RigHint.HUMAN)?.takeIf { passes(it, "①사람형", argb, w, h) } }
+                ?.let { return it }
         }
         // ② 튀어나온 가지 — 다리를 둘 넘게 못 찾았고 다리가 있는 몸(네발 · 사람)이면 「배 아래 선」으로 다리를 떼어 한 번 더
-        val plain = bodyPart(argb, w, h, allowArms = true, hint = hint)
-        val needLegs = hint == RigHint.QUAD || hint == RigHint.HUMAN
-        val legsOf = { p: Part? -> p?.bones?.count { it.role == LimbRole.LEG } ?: 0 }
-        val carved = if (needLegs && legsOf(plain) < 2) bodyPart(argb, w, h, allowArms = true, hint = hint, carveLegs = true) else null
-        for (p in listOfNotNull(if (legsOf(carved) > legsOf(plain)) carved else null, plain)) {
-            val m = merge(w, h, listOf(p), null) ?: continue
-            if (passes(m, if (p === carved) "②가지(배 아래)" else "②가지", argb, w, h)) return m
-        }
+        stage("②가지") {
+            val plain = bodyPart(argb, w, h, allowArms = true, hint = hint)
+            val needLegs = hint == RigHint.QUAD || hint == RigHint.HUMAN
+            val legsOf = { p: Part? -> p?.bones?.count { it.role == LimbRole.LEG } ?: 0 }
+            val carved = if (needLegs && legsOf(plain) < 2) bodyPart(argb, w, h, allowArms = true, hint = hint, carveLegs = true) else null
+            listOfNotNull(if (legsOf(carved) > legsOf(plain)) carved else null, plain).firstNotNullOfOrNull { p ->
+                merge(w, h, listOf(p), null)?.takeIf { passes(it, if (p === carved) "②가지(배 아래)" else "②가지", argb, w, h) }
+            }
+        }?.let { return it }
         return calmRig(argb, w, h)
+    }
+
+    /** 한 단계를 돌린다 — 예외는 [why] 에 적고 null(다음 단계로). 메모리 부족 같은 Error 는 그대로 올려 보낸다 */
+    private inline fun stage(name: String, make: () -> RigMesh?): RigMesh? = try {
+        make()
+    } catch (e: Exception) {
+        why += " $name 오류(${e.javaClass.simpleName})"
+        null
     }
 
     /**
@@ -898,7 +909,7 @@ object RigBuilder {
      */
     private fun attachedArms(argb: IntArray, w: Int, h: Int, anyHands: Boolean = false): Pair<List<ArmLayer>, IntArray>? {
         val n = w * h
-        val sc = w / 512f
+        val sc = max(w, h) / 512f      // 긴 변 기준 — buildMeshRig 가 긴 변을 512 로 맞춘다. 폭만 재면 세로로 긴 그림에서 반경이 줄었다
         var by0 = h; var by1 = 0; var sx = 0.0; var cnt = 0
         for (i in 0 until n) if ((argb[i] ushr 24) > 128) { val y = i / w; by0 = min(by0, y); by1 = max(by1, y); sx += i % w; cnt++ }
         if (cnt == 0) run { why = "R1"; return null }
@@ -1035,7 +1046,8 @@ object RigBuilder {
             var ax = axis(if (bot > freeTop) min(bot, freeTop) else bot)
             if (attached) {
                 val hemY = ax[1] + (ax[3] - ax[1]) * ax[4]
-                ax = axis(hemY.toInt().coerceIn(top + 4, bot))
+                // 팔 뿌리가 4화소보다 얇으면 범위가 뒤집혀 coerceIn 이 던진다 — 그때는 겨드랑이를 뿌리 아래 끝으로
+                ax = axis(hemY.toInt().coerceIn(min(top + 4, bot), bot))
             }
             val px = ax[0]; val py = ax[1]; val tipX = ax[2]; val tipY = ax[3]; val hem = ax[4]
             val len = max(1f, hypot(tipX - px, tipY - py))
