@@ -3,6 +3,8 @@ package com.example.finalproject_demo
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.test.core.app.ApplicationProvider
+import com.example.finalproject_demo.demo.DIARY_BG_FALLBACK
+import com.example.finalproject_demo.demo.onShelf
 import com.example.finalproject_demo.demo.DIARY_SHELF_ID
 import com.example.finalproject_demo.demo.DiaryBookInput
 import com.example.finalproject_demo.demo.DiaryBookStore
@@ -88,6 +90,15 @@ class DiaryBookStoreTest {
         assertArrayEquals("오또 그림이 돌아오지 않았다", byteArrayOf(9, 8, 7), back.pieces[0].ottoPng)
         assertNull("받지 않은 오또 그림이 생겼다", back.pieces[1].ottoPng)
         assertTrue("오또 그림이 앱 내부 파일이 아니다", File(context.filesDir, "diary_images/b1_0.png").exists())
+    }
+
+    /** 그림 없이 만든 일기의 책장 표지 — 아이가 말한 곳의 펠트 그림. 전에는 빈 노란 표지였다 (#98) */
+    @Test
+    fun aDiaryWithoutDrawingIsCoveredWithThePlace() {
+        val talked = sample.copy(pieces = emptyList(), input = sample.input.copy(hasDrawing = false))
+        assertEquals("bg_playground", talked.onShelf().bgName)
+        val nowhere = talked.copy(input = talked.input.copy(lines = mapOf("problem" to "그네 탔어")))
+        assertEquals("어디라고 말하지 않은 날은 어디라고 말하지 않는 그림", DIARY_BG_FALLBACK, nowhere.onShelf().bgName)
     }
 
     /** 겉은 세 모드 공통 — 서버 책장 API(`book_id · title · made_at · pages`)와 같은 모양 */
