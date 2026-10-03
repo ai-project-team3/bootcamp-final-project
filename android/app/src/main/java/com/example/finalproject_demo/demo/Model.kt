@@ -245,7 +245,15 @@ data class WorldItem(
     val wf: Float,
     val shake: Boolean = false,
     val depth: Float = 1f,
+    val enter: Enter = Enter.WALK,
 )
+
+/**
+ * How a figure comes on stage the first time it is shown (10-03 · puppet show).
+ * WALK — waddles in from the nearer edge, tilting like a stick puppet. DROP — falls from above and bounces.
+ * Only the first showing plays it; [DemoState.enteredOnStage] remembers who is already on.
+ */
+enum class Enter { WALK, DROP, NONE }
 
 /**
  * 배경 그림 **안에 이미 그려져 있는 것** — 구름 · 행성 · 화산 · 산호 …
@@ -1051,6 +1059,8 @@ class DemoState {
     var generatedBg by mutableStateOf(false)
     /** 서버 PNG를 앱 전용 파일에 보관한 뒤 이 책이 끝날 때까지 사용한다. */
     var storyBackground by mutableStateOf<String?>(null)
+    /** Figures that already made their entrance this story — a new Stage.World each turn must not replay it */
+    val enteredOnStage: MutableSet<String> = mutableSetOf()
     // 일기 모드의 장소는 아이가 말한 실제 장소다. 아직 못 들었으면 상상 세계 이름("우주")이 새어 나오지 않게 막는다
     val placeName: String get() = placeLabel ?: if (isDiary) "오늘 있었던 곳" else th.label
 
@@ -1338,6 +1348,7 @@ class DemoState {
     /** 이야기 한 권 분량만 지운다. 책장 · 부모 설정 · 하루 별 · 도감 · 수준(다음 세션 시작점) · 쓴 질문은 남긴다 */
     fun resetStory() {
         clearStorySound()
+        enteredOnStage.clear()
         canUndo = false; canRedo = false
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null

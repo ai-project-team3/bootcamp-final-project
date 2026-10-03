@@ -73,6 +73,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Art
@@ -526,7 +527,7 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                 HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake, state = hot, part = HotspotPart.Pieces)
                 // ② 인물 층
                 Box(Modifier.fillMaxSize().offset { IntOffset(0, quake.roundToInt()) }) {
-                    stage.items.sortedBy { it.depth }.forEach { item -> WorldItemView(item) }
+                    stage.items.sortedBy { it.depth }.forEach { item -> WorldItemView(item, s.enteredOnStage) }
                     // 인물 **뒤에** 깔면 아무 소용이 없다 — 발끝을 덮어야 묻힌 것으로 보인다
                     FrontGround(s.bgName)
                 }
@@ -610,7 +611,7 @@ private const val TALL_CAP = 0.80f
  * 그림자가 없으면 크기를 맞춰도 여전히 떠 보인다 — 바닥과 닿았다는 증거가 그림자뿐이다.
  */
 @Composable
-private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem) {
+private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem, entered: MutableSet<String>) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val d = item.depth.coerceIn(0f, 1f)
         // 깊이가 기본 키를 정하고, 거기에 **인물마다의 크기 차이**를 곱한다.
@@ -648,6 +649,40 @@ private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem) {
             Modifier.offset { IntOffset(dx.roundToInt(), 0) }
         } else Modifier
 
+        // 등장 · 서 있는 흔들림 — 막대 인형처럼 (10-03 조장). 처음 보일 때만 등장한다
+        val motion = rememberPuppetMotion(item, entered)
+        val p = motion.progress
+        val fromLeft = item.xf < 0.5f
+        val (dx, dy, tilt, squash) = when (item.enter) {
+            com.example.finalproject_demo.demo.Enter.WALK -> {
+                val away = if (fromLeft) -(left + wide) else (maxWidth - left)
+                val steps = 5f
+                val swing = kotlin.math.sin(p * steps * 2f * Math.PI.toFloat())
+                val fade = (1f - p).coerceIn(0f, 0.25f) / 0.25f      // steps settle in the last quarter
+                PuppetPose(away * (1f - easeOut(p)), -tall * 0.05f * kotlin.math.abs(swing) * fade, 11f * swing * fade, 1f)
+            }
+            com.example.finalproject_demo.demo.Enter.DROP -> {
+                val fall = -(top + tall) * (1f - bounce(p))
+                val land = if (p > 0.55f) kotlin.math.sin(((p - 0.55f) / 0.45f) * Math.PI.toFloat()) * 0.12f else 0f
+                PuppetPose(0.dp, fall, 0f, 1f - land)
+            }
+            com.example.finalproject_demo.demo.Enter.NONE -> PuppetPose(0.dp, 0.dp, 0f, 1f)
+        }
+        val idle = if (p >= 1f) motion.sway else 0f
+        val pose = Modifier.graphicsLayer {
+            translationX = dx.toPx()
+            translationY = dy.toPx()
+            rotationZ = tilt + idle
+            scaleY = squash
+            scaleX = 2f - squash
+            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+        }
+        // 그림자는 땅에 붙어 있다 — 걸어올 때는 따라오고, 떨어질 때는 가까워질수록 진해진다
+        val shadowPose = Modifier.graphicsLayer {
+            translationX = dx.toPx()
+            alpha = if (item.enter == com.example.finalproject_demo.demo.Enter.DROP) bounce(p) else 1f
+        }
+
         // 접지 그림자 — 발밑 납작 타원. 멀수록 옅다.
         // 상자 폭이 아니라 **몸통 폭**에 맞춘다 — 상자 기준으로 잡으면 인물 두 배짜리 웅덩이가 생긴다
         // 몸통보다 조금 넓어야 발 옆으로 샐여 나온다 — 딱 맞추면 다리에 가려 보이지 않는다
@@ -662,6 +697,7 @@ private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem) {
                 .width(shadowW)
                 .height(shadowH)
                 .then(shakeMod)
+                .then(shadowPose)
         ) {
             Canvas(Modifier.fillMaxSize()) {
                 // 가장자리를 풀어 준다 — 또렷한 타원은 바닥에 붙인 스티커처럼 보인다
@@ -684,7 +720,52 @@ private fun WorldItemView(item: com.example.finalproject_demo.demo.WorldItem) {
                 .width(wide)
                 .height(tall)
                 .then(shakeMod)
+                .then(pose)
         ) { ArtView(item.art, Modifier.fillMaxSize()) }
+    }
+}
+
+private data class PuppetPose(val dx: Dp, val dy: Dp, val tilt: Float, val squash: Float)
+
+private class PuppetMotion(val progress: Float, val sway: Float)
+
+/** Walk/drop length; the idle sway is a held stick puppet that never quite stands still */
+private const val ENTER_MS = 1600
+private const val DROP_MS = 1100
+
+/**
+ * 0 → 1 the first time this figure is on stage, 1 from then on. Screen tests (Robolectric) skip
+ * straight to 1 so screenshots stay the same picture.
+ */
+@Composable
+private fun rememberPuppetMotion(item: com.example.finalproject_demo.demo.WorldItem, entered: MutableSet<String>): PuppetMotion {
+    val key = remember(item.art) { item.art.hashCode().toString() }
+    val still = android.os.Build.FINGERPRINT == "robolectric"
+    val first = remember(key) { item.enter != com.example.finalproject_demo.demo.Enter.NONE && !still && entered.add(key) }
+    val anim = remember(key) { androidx.compose.animation.core.Animatable(if (first) 0f else 1f) }
+    LaunchedEffect(key) {
+        if (anim.value < 1f) anim.animateTo(1f, tween(
+            if (item.enter == com.example.finalproject_demo.demo.Enter.DROP) DROP_MS else ENTER_MS,
+            easing = androidx.compose.animation.core.LinearEasing,
+        ))
+    }
+    val sway = if (still) 0f else {
+        val t = rememberInfiniteTransition(label = "sway")
+        val a by t.animateFloat(-2.2f, 2.2f, infiniteRepeatable(tween(1300 + (key.hashCode() and 0x1FF)), RepeatMode.Reverse), label = "sway")
+        a
+    }
+    return PuppetMotion(anim.value, sway)
+}
+
+private fun easeOut(p: Float): Float = 1f - (1f - p) * (1f - p)
+
+/** Falls, hits the ground at 55 %, then two small bounces */
+private fun bounce(p: Float): Float {
+    fun hop(x: Float, h: Float) = 1f - h * 4f * x * (1f - x)
+    return when {
+        p < 0.55f -> { val x = p / 0.55f; x * x }
+        p < 0.82f -> hop((p - 0.55f) / 0.27f, 0.12f)
+        else -> hop((p - 0.82f) / 0.18f, 0.04f)
     }
 }
 
