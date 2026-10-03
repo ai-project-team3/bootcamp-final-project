@@ -940,8 +940,8 @@ private suspend fun Director.sceneDraw() {
     val v = awaitValue("preset", "done")
     if (v == "preset" || s.drawing.isEmpty()) {
         s.drawing.clear()
-        s.stage = Stage.CardsRow((0..2).map { Card(listOf("뿌뿌", "반짝", "동글")[it] + " " + nc, Art.Alien(it), "$it") })
-        say("그럼 이 중에 누가 $nc${ga(nc)} 닮았어?")
+        s.stage = Stage.CardsRow((0..2).map { Card(listOf("뿌뿌", "반짝", "동글")[it] + " " + nc, storyPresetArt(nc, it), "$it") })
+        say("그럼 이 중에 누가 $nc${rang(nc)} 닮았어?")
         log("그리기 싫어함 → 프리셋 3장 (초안 장면 6 ↳) · 프리셋을 골라도 \"아이 것\"으로 취급")
         buttons(DemoBtn("🖐 첫 번째 프리셋 탭") { send(Reply.Tapped("0", "뿌뿌")) })
         s.drawnPreset = awaitValue("0", "1", "2").toInt()

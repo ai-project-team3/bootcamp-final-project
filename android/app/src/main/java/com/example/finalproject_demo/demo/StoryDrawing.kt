@@ -1,5 +1,14 @@
 package com.example.finalproject_demo.demo
 
+/** Story presets reuse felt artwork; the saved kind/index reproduce the same selection. */
+internal fun storyPresetResource(kind: String): String = THEMES.asSequence()
+    .flatMap { it.newcomers.asSequence() }
+    .firstOrNull { it.value == kind || it.label == kind }
+    ?.art.let { (it as? Art.Img)?.name } ?: "nc_alien"
+
+internal fun storyPresetArt(kind: String, preset: Int): Art =
+    Art.ChildDrawing(emptyList(), preset, presetAsset = storyPresetResource(kind))
+
 /** The child chooses the newcomer's appearance. Original strokes never enter an AI request. */
 suspend fun Director.prepareStoryFriendDrawing() {
     val newcomer = s.slots["newcomer"]?.takeIf(String::isNotBlank) ?: return
@@ -14,7 +23,7 @@ suspend fun Director.prepareStoryFriendDrawing() {
     val answer = awaitValue("done", "preset")
     if (answer == "preset" || s.drawing.isEmpty()) {
         s.drawing.clear()
-        s.stage = Stage.CardsRow((0..2).map { Card(listOf("뿌뿌", "반짝", "동글")[it], Art.Alien(it), "$it") })
+        s.stage = Stage.CardsRow((0..2).map { Card(listOf("뿌뿌", "반짝", "동글")[it], storyPresetArt(newcomer, it), "$it") })
         say("그럼 이 중에 어떤 모습이 좋을까?")
         buttons(DemoBtn("첫 번째 그림") { send(Reply.Tapped("0", "뿌뿌")) })
         s.drawnPreset = awaitValue("0", "1", "2").toInt()

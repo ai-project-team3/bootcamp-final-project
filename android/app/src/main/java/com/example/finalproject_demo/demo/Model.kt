@@ -210,7 +210,10 @@ sealed interface Art {
     data object Mascot : Art
 
     /** 아이 그림 원본 그대로 (27). 안 그렸으면 프리셋 외계인. */
-    data class ChildDrawing(val strokes: List<Stroke>, val preset: Int, val aspect: Float = 1f) : Art
+    data class ChildDrawing(
+        val strokes: List<Stroke>, val preset: Int, val aspect: Float = 1f,
+        val presetAsset: String? = null,
+    ) : Art
 
     /** ComfyUI로 만든 그림(res/drawable/<name>). 없으면 fallback으로 그린다. */
     data class Img(val name: String, val fallback: Art, val rig: String? = null) : Art
@@ -1174,7 +1177,8 @@ class DemoState {
     /** 장면 4에서 나온 새 친구의 그림 */
     val newcomerArt: Art get() = th.newcomers.firstOrNull { it.value == newcomerKind }?.art ?: Art.Emoji(newcomerEmoji)
     val dino: DinoKind get() = dinoKind(dinoKey)
-    val friendArt: Art get() = Art.ChildDrawing(drawing.toList(), drawnPreset, drawingAspect)
+    val friendArt: Art get() = Art.ChildDrawing(drawing.toList(), drawnPreset, drawingAspect,
+        presetAsset = if (mode == StoryMode.STORY && drawing.isEmpty()) storyPresetResource(newcomerKind) else null)
 
     // ── 일기 모드의 소품 · 호칭 ─────────────────────────────────
     // 뼈대(문지르기 · 끌어다 놓기 · 쪽 구성)는 그대로 두고 **소품 그림과 말만 바꾼다** (일기 설계 §7-1 ②).

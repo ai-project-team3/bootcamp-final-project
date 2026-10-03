@@ -129,7 +129,7 @@ fun ArtView(art: Art, modifier: Modifier = Modifier, motion: RigMotion? = null) 
         is Art.Emoji -> EmojiView(art.text, modifier)
         Art.Rocket -> AssetImage("rocket", modifier) { FigureView(Rocket, modifier) }
         Art.Mascot -> AssetImage("mascot", modifier) { FigureView(Mascot, modifier) }
-        is Art.ChildDrawing -> ChildDrawingView(art.strokes, art.preset, modifier, art.aspect)
+        is Art.ChildDrawing -> ChildDrawingView(art.strokes, art.preset, modifier, art.aspect, art.presetAsset)
         is Art.Img -> if (art.rig != null) StoryCharacterImage(art, modifier, motion)
             else AssetImage(art.name, modifier) { ArtView(art.fallback, modifier) }
     }
@@ -137,9 +137,13 @@ fun ArtView(art: Art, modifier: Modifier = Modifier, motion: RigMotion? = null) 
 
 /** 아이 그림 원본 그대로 + 흰 오려낸 테두리 (27). 안 그렸으면 프리셋. */
 @Composable
-fun ChildDrawingView(strokes: List<DrawStroke>, preset: Int, modifier: Modifier = Modifier, aspect: Float = 1f) {
+fun ChildDrawingView(strokes: List<DrawStroke>, preset: Int, modifier: Modifier = Modifier, aspect: Float = 1f, presetAsset: String? = null) {
     if (strokes.isEmpty()) {
-        FigureView(alienPreset(preset), modifier)
+        if (presetAsset == null) FigureView(alienPreset(preset), modifier)
+        else AssetImage(presetAsset, modifier,
+            colorFilter = if (preset == 1) null else hueRotate(if (preset == 0) -45f else 45f)) {
+            FigureView(alienPreset(preset), modifier)
+        }
         return
     }
     Canvas(modifier) {
