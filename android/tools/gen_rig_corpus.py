@@ -22,7 +22,7 @@ REPO = r"C:\dev\bootcamp-final-project\backend"
 sys.path.insert(0, REPO)
 from app.image.character import cut_and_fit  # noqa: E402  서버 오려 내기 그대로
 
-API = "http://127.0.0.1:8188"
+API = os.environ.get("COMFY_URL", "http://127.0.0.1:8188").rstrip("/")  # 다른 PC 의 ComfyUI 는 COMFY_URL (ART.md)
 TEMPLATES = os.path.join(REPO, "app", "image", "templates")
 
 # backend/app/image/comfy.py 에서 그대로 옮김 (09-29 조장 판)

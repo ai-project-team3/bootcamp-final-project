@@ -2,6 +2,13 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.ui.coopItem
+import com.example.finalproject_demo.demo.coopFinishLog
+import com.example.finalproject_demo.demo.CoopSource
+import com.example.finalproject_demo.demo.coopGuard
+import com.example.finalproject_demo.demo.coopReportCopy
+import com.example.finalproject_demo.ui.CoopReason
+import com.example.finalproject_demo.ui.questionHint
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.PageKind
 import com.example.finalproject_demo.demo.mission1
@@ -334,6 +341,89 @@ class CoopLiveAnswerTest {
         } finally { server.close() }
     }
 
+    /**
+     * 실기기(10-03) — 판정이 우리 질문에 한 아이 답을 거절해도 쉬운 질문으로 **한 번만** 더 묻고,
+     * 또 거절되면 마스코트가 「아직 못 들은 ○○」로 짓지 않고 아이가 마지막에 한 말을 그 칸에 넣는다
+     */
+    @Test
+    fun aRealAnswerTheJudgeRejectsTwiceGoesIntoTheSlotInsteadOfTheMascotsGuess() = run { d ->
+        val server = StoryTestServer { path, _ ->
+            if (path != "/turn") JSONObject() else JSONObject().put("judge", JSONObject().put("reason", "앞으로 할 체험 활동이라 사건이 아님"))
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+            d.answer("불 끄기")                                   // 한 번 거절 → 쉬운 질문으로 다시
+            assertNull("한 번 거절됐는데 벌써 칸을 채웠다", d.s.place)
+            d.speakUntil("소방차 타기") { d.s.place != null }
+            assertEquals("아이가 마지막에 한 말이 아니다", "소방차 타기", d.s.place)
+            assertEquals("아이 말인데 출처가 바뀌었다", "child", d.s.slotBy["place"])
+            assertEquals("마스코트가 지어 채운 것으로 셌다", 0, d.s.mascotPicks)
+            val placeTurns = server.requests.count { it.first == "/turn" && it.second.optString("asked_slot") == "place" }
+            assertEquals("다시 묻는 건 한 번까지인데 더 물었다", 2, placeTurns)
+        } finally { server.close() }
+    }
+
+    /** 「몰라」만 했으면 받을 말이 없다 — 지금처럼 사다리 끝에서 마스코트가 채운다 */
+    @Test
+    fun withOnlyDontKnowsTheMascotStillFillsTheSlot() = run { d ->
+        val server = StoryTestServer { path, _ ->
+            if (path != "/turn") JSONObject() else JSONObject().put("judge", JSONObject().put("reason", "ok"))
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+            d.speakUntil("몰라") { d.s.place != null }
+            assertEquals("「몰라」뿐인데 아이 말로 채웠다", "mascot", d.s.slotBy["place"])
+        } finally { server.close() }
+    }
+
+    /**
+     * 실기기(10-03) — 「곧 체험해요」 소방관 책인데 리포트가 「오늘 있었던 일로 · 어른이 넣어 둔 질문으로」라고 적었다.
+     * 리포트를 열 때는 `coopPick` 이 비어 있어도(`clearParentQuestions`) 시작할 때 고른 이유대로 말한다
+     */
+    @Test
+    fun theParentReportSpeaksInTheReasonThePickedStoryHad() = run { d ->
+        d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+        d.s.clearParentQuestions()
+        val soon = d.s.coopReportCopy()
+        assertTrue(soon.madeFrom, "앞으로 할 일" in soon.madeFrom && "곧 체험해요" in soon.madeFrom && "오늘 있었던" !in soon.madeFrom)
+        assertEquals("고른 이야기 질문에 한 답", soon.askedTitle)
+        assertTrue(soon.who, "어른 질문" !in soon.who)
+        val cards = soon.playCards!!
+        assertEquals(3, cards.size)
+        (cards.map { it.trim('"') } + soon.nextQuestion).forEach { q ->
+            assertNull("질문 규칙에 걸렸다: $q", questionHint(q))
+            assertNotNull("곧 해요에 맞지 않는 말: $q", coopGuard(q, CoopReason.SOON, CoopSource.TEMPLATE).text)
+            assertTrue("오늘 있었던 일처럼 묻는다: $q", "오늘" !in q || "지은" in q)
+        }
+    }
+
+    @Test
+    fun aDreamStoryReportAsksImaginingQuestions() = run { d ->
+        d.toFirstQuestionWith(CoopPick("place", "동물원", null))
+        d.s.clearParentQuestions()
+        val dream = d.s.coopReportCopy()
+        assertTrue(dream.madeFrom, "상상" in dream.madeFrom)
+        (dream.playCards!!.map { it.trim('"') } + dream.nextQuestion).forEach { q ->
+            assertNull("질문 규칙에 걸렸다: $q", questionHint(q))
+            assertNotNull("상상 이야기에 맞지 않는 말: $q", coopGuard(q, CoopReason.DREAM, CoopSource.TEMPLATE).text)
+        }
+    }
+
+    /** 이야기를 안 고르고 질문만 넣었으면 지금 말 그대로 — 어른이 넣어 둔 질문으로 지은 책 */
+    @Test
+    fun withoutAPickTheReportKeepsTheParentQuestionWording() = run { d ->
+        d.toFirstQuestion()
+        d.s.clearParentQuestions()
+        val copy = d.s.coopReportCopy()
+        assertEquals("오늘 있었던 일로 · 어른이 넣어 둔 질문으로 지은 책이에요", copy.madeFrom)
+        assertEquals("어른이 넣어 둔 질문에 한 답", copy.askedTitle)
+        assertNull("일기 모드 놀이 카드를 써야 한다", copy.playCards)
+    }
+
     /** 협업 책을 만들 수 있게 칸을 채워 둔다 */
     private fun Director.filledCoop() {
         s.mode = StoryMode.COOP
@@ -389,6 +479,29 @@ class CoopLiveAnswerTest {
             d.coopWriteBook()
             val req = server.requests.first { it.first == "/story" }.second
             assertEquals("soon", req.optString("reason"))
+            assertEquals("같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)", req.optString("template"))
+        } finally { server.close() }
+    }
+
+    /**
+     * 실기기(10-03) — 이야기가 끝나면 `coopFinishLog` 가 고른 이야기를 비우고 **그다음에** 책을 만든다.
+     * 그래서 책 배경이 기본 배경(`bg_today`)으로, `/story` 에는 이유 · 고른 이야기가 빠진 채(=지난 일)로 갔다.
+     * 실제 순서대로 — 비운 뒤에도 책은 고른 요소의 배경 · 고른 이유로 만든다
+     */
+    @Test
+    fun theBookMadeAfterTheStoryEndsKeepsThePickedBackdropAndReason() = run { d ->
+        val server = storyServer()
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+            d.coopFinishLog()                                   // 이야기 끝 — 여기서 coopPick 이 비워진다
+            assertNull("이 테스트의 전제(이야기 끝에 고른 이야기를 비운다)가 바뀌었다", d.s.coopPick)
+            assertEquals("책 배경이 고른 요소(소방관)의 배경이 아니다", coopItem("소방관")!!.bg, d.s.bgName)
+            d.filledCoop()
+            d.coopWriteBook()
+            val req = server.requests.first { it.first == "/story" }.second
+            assertEquals("이야기가 끝난 뒤 /story 에 고른 이유가 빠졌다", "soon", req.optString("reason"))
             assertEquals("같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)", req.optString("template"))
         } finally { server.close() }
     }

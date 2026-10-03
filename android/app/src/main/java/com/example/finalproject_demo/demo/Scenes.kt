@@ -841,7 +841,7 @@ private suspend fun Director.sceneEvent() {
     judge(BASE_WHO, r, q.text)
     event("slot_filled", "slot" to "problem", "value" to s.problem, "source" to sourceOf(r))
     // 창문에 새 친구가 나타난다
-    val shown = base.map { it.copy(shake = false) } + WorldItem(s.newcomerArt, 0.82f, 0.18f, 0.12f, depth = 0.85f)
+    val shown = base.map { it.copy(shake = false) } + WorldItem(s.newcomerArt, 0.82f, 0.18f, 0.12f, depth = 0.85f, enter = Enter.DROP)
     s.stage = world(shown)
     if (r is Reply.Spoke) log("LLM 판정: 이름을 가린 문장({주인공}: ${r.text}) → Anthropic → S1 · S2 표시 JSON → 수준은 규칙이 계산")
 

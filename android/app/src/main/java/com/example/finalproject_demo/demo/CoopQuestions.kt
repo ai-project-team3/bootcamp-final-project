@@ -49,7 +49,9 @@ internal fun coopFollowUpCandidates(
                 reason.pick("{place:에서} 무슨 일이 있었어?", "{place:에서} 무슨 일이 생길까?", "{place:에서} 무슨 일이 생겼을까?"),
             )
         }
-        "cause" -> {
+        // 곧 해요 — 앞 칸 답은 사건이 아니라 앞으로 할 일(「불 끄기」)이라 「○○가 왜 그럴까?」 · 사건 까닭 선택지
+        // (「불장난을 해서」)가 맞지 않는다. 실기기(10-03) 「…불장난을 해서. 훈련이 왜 그럴까?」 → 템플릿(「왜 그 일이 필요할까?」) 그대로
+        "cause" -> if (reason == CoopReason.SOON) emptyList() else {
             val ask = if (whyOk) reason.pick("{thing:가} 왜 그랬을까?", "{thing:가} 왜 그럴까?", "{thing:가} 왜 그랬을까?")
                 else reason.pick("{thing:가} 뭐 때문에 그랬을까?", "{thing:가} 뭐 때문에 그럴까?", "{thing:가} 뭐 때문에 그랬을까?")
             when (level) {

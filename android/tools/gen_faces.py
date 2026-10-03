@@ -15,7 +15,7 @@ import urllib.request
 
 from PIL import Image
 
-API = "http://127.0.0.1:8188"
+API = os.environ.get("COMFY_URL", "http://127.0.0.1:8188").rstrip("/")  # 다른 PC 의 ComfyUI 는 COMFY_URL (ART.md)
 DRAW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "src", "main", "res", "drawable")
 REF = os.path.join(DRAW, "otto_face_talk.png")
 # 전신 자세(apose)는 전신 그림에서 시작하고, 「같은 틀(얼굴 가까이)」 대신 전신을 유지하라고 한다

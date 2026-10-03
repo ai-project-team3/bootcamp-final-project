@@ -64,3 +64,6 @@ keystore.properties
 store/shot_*.png
 store/_*.jpg
 eval/image_out/
+
+# 그림 공방 — 고르기 전 후보 그림 (android/tools/ART.md). 고른 것만 res/drawable + art_recipes 로 올린다
+android/tools/art_out/
