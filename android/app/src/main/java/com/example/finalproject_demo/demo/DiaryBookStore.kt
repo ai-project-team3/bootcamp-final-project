@@ -143,7 +143,7 @@ internal fun SavedDiaryBook.toJson(): JSONObject {
         .put("pieces", JSONArray().apply {
             pieces.forEach { p ->
                 put(JSONObject().put("id", p.id).put("name", p.name ?: JSONObject.NULL).put("look", p.look.name)
-                    .put("otto", p.ottoPng != null).put("strokes", strokesToJson(p.strokes)))
+                    .put("otto", p.ottoPng != null).put("role", p.role.name).put("strokes", strokesToJson(p.strokes)))
             }
         })
     return JSONObject().put("id", id).put("title", title).put("madeAt", madeAt).put("pages", pages)
@@ -175,6 +175,7 @@ internal fun diaryBookFromJson(obj: JSONObject, png: (String, Int) -> ByteArray?
                 if (p.isNull("name")) null else p.getString("name"),
                 PieceLook.valueOf(p.getString("look")),
                 if (p.getBoolean("otto")) png(id, pid) else null,
+                PieceRole.valueOf(p.optString("role", PieceRole.OBJECT.name)),
             )
         }
     }

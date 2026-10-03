@@ -85,17 +85,40 @@ fun boxOf(strokes: List<Stroke>): BoardBox? {
 fun DiaryDay.addStroke(stroke: Stroke): Int {
     val b = boxOf(listOf(stroke)) ?: return -1
     fun near(p: DiaryPiece) = boxOf(p.strokes)?.grow(PIECE_GAP)?.touches(b) == true
+    fun put(target: DiaryPiece): Int {
+        val i = pieces.indexOfFirst { it.id == target.id }
+        pieces[i] = target.copy(strokes = target.strokes + stroke)
+        lastStroke = stroke
+        return target.id
+    }
+    // 배경선 — 판을 가로지르는 납작한 선(땅 · 하늘 · 바다). 배경 조각끼리만 묶고, 물체와 섞지 않는다
+    if (isBackgroundStroke(b)) {
+        continuing = null
+        pieces.lastOrNull { it.role == PieceRole.BACKGROUND && near(it) }?.let { return put(it) }
+        lastStroke = stroke
+        val p = DiaryPiece(id = (pieces.maxOfOrNull { it.id } ?: -1) + 1, strokes = listOf(stroke), role = PieceRole.BACKGROUND)
+        pieces += p
+        return p.id
+    }
+    // 색칠 — 한 조각 안에 들어가 촘촘히 오가는 획은 그 조각을 칠한 것이다(이름이 있어도 · 묻지 않는다). 가장 작은 조각에
+    if (isFilling(stroke, b)) {
+        pieces.filter { p -> boxOf(p.strokes)?.grow(PIECE_GAP / 3)?.contains(b) == true }
+            .minByOrNull { p -> boxOf(p.strokes)!!.let { it.width * it.height } }
+            ?.let { continuing = null; return put(it) }
+    }
     val prev = lastStroke
     val prevPiece = prev?.let { p -> pieces.firstOrNull { p in it.strokes } }
     val recolored = prev != null && prev.color != stroke.color
     val keepOn = prevPiece?.takeIf { it.name != null && near(it) && (recolored || it.id == continuing) }
     continuing = keepOn?.id
     lastStroke = stroke
-    val last = pieces.lastOrNull()
+    val last = pieces.lastOrNull { it.role == PieceRole.OBJECT }
     val target = keepOn
         ?: last?.takeIf { it.name == null && near(it) }
-        ?: pieces.lastOrNull { it.name == null && near(it) }
+        ?: pieces.lastOrNull { it.role == PieceRole.OBJECT && it.name == null && near(it) }
     if (target == null) {
+        // 무리 — 떨어진 곳에 같은 색 · 비슷한 크기의 작은 것을 또 그렸다(별 · 빗방울 · 꽃). 새 조각 대신 그 무리에 넣는다
+        groupFor(stroke, b)?.let { return it }
         val p = DiaryPiece(id = (pieces.maxOfOrNull { it.id } ?: -1) + 1, strokes = listOf(stroke))
         pieces += p
         return p.id
@@ -149,6 +172,114 @@ fun DiaryDay.mergeInto(from: Int, into: Int) {
     if (a < 0 || b < 0 || a == b) return
     pieces[b] = pieces[b].copy(strokes = pieces[b].strokes + pieces[a].strokes)
     pieces.removeAt(a)
+}
+
+/** 배경선 — 판 폭의 이만큼 이상을 가로지르고 */
+internal const val BG_MIN_WIDTH = 0.55f
+/** 높이는 이만큼 이하인 납작한 선 (판 높이 비율) */
+internal const val BG_MAX_HEIGHT = 0.25f
+/** 색칠 — 획 길이가 획 상자 긴 변의 이만큼 배 이상이면 촘촘히 오간 것이다(지그재그 · 덧칠) */
+internal const val FILL_DENSITY = 3.0f
+
+/** 무리로 묶을 만큼 작은가 — 덩어리의 긴 변이 판의 이만큼 이하 */
+internal const val GROUP_MAX_SIDE = 0.15f
+
+/** 무리가 되는 수 — 비슷한 것이 이만큼 모이면 묶는다. 둘(엄마 · 아빠, 두 눈)은 따로 둔다 */
+internal const val GROUP_MIN = 3
+
+/**
+ * [stroke] 를 무리에 넣고 그 조각 id 를 돌려준다. 넣을 곳이 없으면 null(새 조각).
+ * - 이미 있는 무리와 같은 색 · 비슷한 크기(½~2배)면 그 무리에
+ * - 같은 색 · 비슷한 크기의 작은 조각이 [GROUP_MIN] - 1 개 이상 있으면 그것들과 함께 새 무리로(이름이 서로 다르면 묶지 않는다 · 이름은 이어받는다)
+ * 붙여 그린 획은 이미 위에서 그 조각에 붙었다 — 여기는 떨어져 새로 그린 것만 온다
+ */
+private fun DiaryDay.groupFor(stroke: Stroke, b: BoardBox): Int? {
+    val side = maxOf(b.width, b.height)
+    if (side > GROUP_MAX_SIDE) return null
+    fun alike(p: DiaryPiece) = p.role != PieceRole.BACKGROUND && p.strokes.all { it.color == stroke.color } &&
+        p.clusters().all { c -> boxOf(c)!!.let { cb -> maxOf(cb.width, cb.height).let { it <= GROUP_MAX_SIDE && side in it / 2..it * 2 } } }
+    pieces.lastOrNull { it.role == PieceRole.GROUP && alike(it) }?.let { g ->
+        pieces[pieces.indexOfFirst { it.id == g.id }] = g.copy(strokes = g.strokes + stroke)
+        return g.id
+    }
+    val mates = pieces.filter { it.role == PieceRole.OBJECT && alike(it) }
+    if (mates.size + 1 < GROUP_MIN || mates.mapNotNull { it.name }.distinct().size > 1) return null
+    val keep = mates.last()
+    mates.dropLast(1).forEach { mergeInto(it.id, keep.id) }
+    val i = pieces.indexOfFirst { it.id == keep.id }
+    val merged = pieces[i]
+    pieces[i] = merged.copy(strokes = merged.strokes + stroke, role = PieceRole.GROUP, name = mates.firstNotNullOfOrNull { it.name })
+    return keep.id
+}
+
+/** 조각 안의 덩어리들 — 서로 닿는 획끼리. 무리면 덩어리가 여럿이다(별 하나하나) */
+fun DiaryPiece.clusters(): List<List<Stroke>> {
+    val groups = mutableListOf<MutableList<Stroke>>()
+    strokes.forEach { s ->
+        val sb = boxOf(listOf(s)) ?: return@forEach
+        val touching = groups.filter { g -> boxOf(g)!!.grow(PIECE_GAP).touches(sb) }
+        if (touching.isEmpty()) groups += mutableListOf(s)
+        else {
+            val into = touching.first()
+            into += s
+            touching.drop(1).forEach { other -> into += other; groups.remove(other) }
+        }
+    }
+    return groups
+}
+
+/** 오또에게 보낼 조각 — 무리면 가장 큰 덩어리 하나(별 하나), 아니면 조각 그대로 */
+fun DiaryPiece.redrawSample(): DiaryPiece =
+    if (role != PieceRole.GROUP) this
+    else copy(strokes = clusters().maxByOrNull { c -> boxOf(c)!!.let { it.width * it.height } } ?: strokes)
+
+/** 오또 그림을 놓을 자리 — 무리면 덩어리마다, 아니면 조각 하나 */
+fun DiaryPiece.ottoSpots(): List<BoardBox> =
+    if (role == PieceRole.GROUP) clusters().mapNotNull { boxOf(it) } else listOfNotNull(boxOf(strokes))
+
+/** 판을 가로지르는 납작한 선인가 — 땅 · 하늘 · 바다. 3~7세 값은 획 기록으로 다시 잡는다 */
+internal fun isBackgroundStroke(b: BoardBox): Boolean = b.width >= BG_MIN_WIDTH && b.height <= BG_MAX_HEIGHT
+
+/** 촘촘히 오간 획인가 — 색칠 */
+internal fun isFilling(s: Stroke, b: BoardBox): Boolean {
+    val side = maxOf(b.width, b.height)
+    if (side <= 0f || s.pts.size < 3) return false
+    val length = s.pts.zipWithNext { a, c -> kotlin.math.hypot((c.x - a.x).toDouble(), (c.y - a.y).toDouble()) }.sum()
+    return length / side >= FILL_DENSITY
+}
+
+private fun BoardBox.contains(o: BoardBox) = o.left >= left && o.right <= right && o.top >= top && o.bottom <= bottom
+
+/** 지운 획 하나 — 되살릴 때 그 획이 속했던 조각(이름 · 고른 모습 · 오또 그림까지)을 그대로 돌려놓는다 */
+class UndoneStroke(val stroke: Stroke, val pieceBefore: DiaryPiece?, val pieceAt: Int)
+
+/**
+ * 마지막 획을 지운다(그림판 ↶). 조각에서도 빼고, 조각에 남은 획이 없으면 조각도 뺀다. 지울 획이 없으면 null
+ */
+fun DiaryDay.undoStroke(drawing: MutableList<Stroke>): UndoneStroke? {
+    val last = drawing.lastOrNull() ?: return null
+    catchUp(drawing)
+    val at = pieces.indexOfFirst { last in it.strokes }
+    val before = pieces.getOrNull(at)
+    drawing.removeAt(drawing.lastIndex)
+    if (before != null) {
+        val left = before.strokes - last
+        if (left.isEmpty()) pieces.removeAt(at) else pieces[at] = before.copy(strokes = left)
+    }
+    lastStroke = drawing.lastOrNull()
+    continuing = null
+    return UndoneStroke(last, before, at)
+}
+
+/** 지운 획을 되살린다(그림판 ↷) — 그 획이 속했던 조각을 지우기 전 모습으로 돌려놓는다 */
+fun DiaryDay.redoStroke(drawing: MutableList<Stroke>, u: UndoneStroke) {
+    catchUp(drawing)
+    drawing += u.stroke
+    val before = u.pieceBefore
+    if (before == null) { addStroke(u.stroke); return }
+    val now = pieces.indexOfFirst { it.id == before.id }
+    if (now >= 0) pieces[now] = before else pieces.add(u.pieceAt.coerceIn(0, pieces.size), before)
+    lastStroke = u.stroke
 }
 
 /** 화이트보드의 획 중 아직 어느 조각에도 안 붙은 것을 붙인다. 붙인 수를 돌려준다 */
