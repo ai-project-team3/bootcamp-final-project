@@ -102,7 +102,7 @@ private suspend fun Director.askLiveStoryReply(question: Question, options: List
         easierText = if (singleAttempt) null else question.easierText,
         ladder = if (singleAttempt) emptyList() else listOf(question.easierText ?: "천천히 생각해 봐. ${question.text}"),
     )
-    val reply = ask(open)
+    val reply = ask(open, silentFollowUp = options.isNotEmpty() && !singleAttempt)
     if (reply != Reply.Silent || options.isEmpty() || singleAttempt) return reply
     val cards = options.map { Card(it, Art.Mascot, it) }
     try {

@@ -160,6 +160,7 @@ class StoryOptionsLadderTest {
         Server.liveModes = setOf(StoryMode.STORY)
         var sent: Server.Turn? = null
         var cardsSeen = false
+        val observedLines = mutableListOf<String>()
         val candidates = listOf("숲속", "바닷가", "구름 위")
         try {
             d.s.exchangeStoryTurn("problem", "무슨 일이야?", "길을 떠났어") {
@@ -173,18 +174,21 @@ class StoryOptionsLadderTest {
             }
             val feeder = launch {
                 while (job.isActive) {
+                    observedLines += d.s.line
                     val cards = d.s.stage as? Stage.CardsRow
                     if (cards != null) {
                         cardsSeen = true
                         assertEquals(candidates.toSet(), cards.cards.map { it.label }.toSet())
                         if (select) d.send(Reply.Tapped("바닷가", "바닷가")) else d.send(Reply.Silent)
                     }
-                    delay(5)
+                    delay(1)
                 }
             }
             val reply = withTimeout(5_000) { job.await() }
             feeder.cancelAndJoin()
             assertTrue("server candidates must reach the card stage", cardsSeen)
+            assertFalse("the question continues with cards; it must not promise to skip",
+                observedLines.any { "괜찮아, 다음에 같이 생각해 보자!" in it })
             assertTrue(reply is Reply.Tapped)
             assertEquals(!select, (reply as Reply.Tapped).byMascot)
             assertEquals(if (select) "바닷가" else "숲속", reply.label)
