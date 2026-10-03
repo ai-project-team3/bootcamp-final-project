@@ -268,24 +268,56 @@ fun skin(mesh: RigMesh, raw: FloatArray) {
  * 그런 뼈대는 움직이면 그림이 찢어진다 — 뼈대를 만든 뒤 이 점수로 **써도 되는지** 가른다([RigBuilder.build]).
  * 재고 나면 [RigMesh.out] 은 쉬는 자리로 돌려 둔다.
  */
-fun tearScore(mesh: RigMesh): Float {
+fun tearScore(mesh: RigMesh, tex: IntArray? = mesh.atlas, texW: Int = mesh.atlasW, texH: Int = mesh.canvasH.toInt()): Float =
+    tearScores(mesh, tex, texW, texH).first
+
+/**
+ * 찢어짐 두 가지 — (그림 전체 대비, **가지마다** 대비 중 가장 나쁜 것).
+ *
+ * 10-03 검토: ① 그물은 그림보다 넓게(팔과 몸 사이 틈 · 테두리 밖) 씌워져 있어 **투명한 삼각형**까지 세면
+ * 멀쩡한 뼈대가 떨어지거나 진짜 찢어짐이 묽어졌다 → [tex] 를 주면 그림이 있는 삼각형만 센다(세 꼭짓점 · 가운데 중 하나라도 보이면).
+ * ② 전체 넓이 대비 하나로는 꼬리처럼 작은 가지가 통째로 접혀도 기준 안이다 → 삼각형을 가장 많이 따르는 뼈로 나눠 따로 잰다
+ * (그림의 1% 보다 작은 가지는 뺀다 — 몇 개 삼각형으로 비율이 튄다).
+ */
+fun tearScores(mesh: RigMesh, tex: IntArray? = mesh.atlas, texW: Int = mesh.atlasW, texH: Int = mesh.canvasH.toInt()): Pair<Float, Float> {
     val idx = mesh.indices; val r = mesh.rest; val o = mesh.out
     val nt = idx.size / 3
-    if (nt == 0 || mesh.bones.size <= 1) return 0f
-    val a0 = FloatArray(nt); val e0 = FloatArray(nt)
+    if (nt == 0 || mesh.bones.size <= 1) return 0f to 0f
+    val uv = mesh.tex
+    fun seen(u: Float, v: Float): Boolean {
+        val x = u.toInt(); val y = v.toInt()
+        return tex == null || (x in 0 until texW && y in 0 until texH && (tex[y * texW + x] ushr 24) > 8)
+    }
+    // 꼭짓점 셋 · 변 가운데 셋 · 무게중심 — 그물 한 칸(~8화소)보다 가는 끈 · 꼬리 끝도 놓치지 않게
+    fun mid(a: Int, b: Int, c: Int) = seen((uv[2 * a] + uv[2 * b]) / 2f, (uv[2 * a + 1] + uv[2 * b + 1]) / 2f) ||
+        seen((uv[2 * a] + uv[2 * b] + uv[2 * c]) / 3f, (uv[2 * a + 1] + uv[2 * b + 1] + uv[2 * c + 1]) / 3f)
+    fun visible(i: Int, j: Int, k: Int) = tex == null ||
+        seen(uv[2 * i], uv[2 * i + 1]) || seen(uv[2 * j], uv[2 * j + 1]) || seen(uv[2 * k], uv[2 * k + 1]) ||
+        mid(i, j, k) || mid(j, k, i) || mid(k, i, j)
+    /** 점이 가장 많이 따르는 뼈 */
+    fun lead(v: Int): Int { val wv = mesh.wVal[v]; var b = 0; var best = -1f; for (q in wv.indices) if (wv[q] > best) { best = wv[q]; b = mesh.wBone[v][q] }; return b }
+    val a0 = FloatArray(nt); val e0 = FloatArray(nt); val boneOf = IntArray(nt)
+    val nb = mesh.bones.size
+    val boneArea = FloatArray(nb)
     var total = 0f
     fun edge(p: FloatArray, i: Int, j: Int) = hypot(p[2 * i] - p[2 * j], p[2 * i + 1] - p[2 * j + 1])
     for (t in 0 until nt) {
         val i = idx[3 * t].toInt(); val j = idx[3 * t + 1].toInt(); val k = idx[3 * t + 2].toInt()
+        if (!visible(i, j, k)) continue                     // a0 = 0 → 아래에서 건너뛴다
         a0[t] = (r[2 * j] - r[2 * i]) * (r[2 * k + 1] - r[2 * i + 1]) - (r[2 * k] - r[2 * i]) * (r[2 * j + 1] - r[2 * i + 1])
         e0[t] = max(edge(r, i, j), max(edge(r, j, k), edge(r, k, i)))
-        total += abs(a0[t])
+        // 세 꼭짓점이 따르는 뼈 중 가장 많은 것 (셋이 다 다르면 첫 점)
+        val bi = lead(i); val bj = lead(j); val bk = lead(k)
+        boneOf[t] = if (bj == bk) bj else bi
+        total += abs(a0[t]); boneArea[boneOf[t]] += abs(a0[t])
     }
-    if (total <= 0f) return 0f
-    var worst = 0f
+    if (total <= 0f) return 0f to 0f
+    var worst = 0f; var worstLimb = 0f
+    val badBone = FloatArray(nb)
     for ((motion, time) in TEAR_POSES) {
         skin(mesh, poseAt(mesh.bones, motion, time).first)
         var bad = 0f
+        badBone.fill(0f)
         for (t in 0 until nt) {
             if (a0[t] == 0f) continue
             val i = idx[3 * t].toInt(); val j = idx[3 * t + 1].toInt(); val k = idx[3 * t + 2].toInt()
@@ -294,12 +326,13 @@ fun tearScore(mesh: RigMesh): Float {
             val folded = a0[t] * a1 <= 0f
             val squashed = abs(a1) < 0.25f * abs(a0[t])
             val stretched = e1 > 2.2f * e0[t]
-            if (folded || squashed || stretched) bad += abs(a0[t])
+            if (folded || squashed || stretched) { bad += abs(a0[t]); badBone[boneOf[t]] += abs(a0[t]) }
         }
         worst = max(worst, bad / total)
+        for (b in 1 until nb) if (boneArea[b] >= 0.01f * total) worstLimb = max(worstLimb, badBone[b] / boneArea[b])
     }
     r.copyInto(o)
-    return worst
+    return worst to worstLimb
 }
 
 /**
@@ -498,18 +531,27 @@ object RigBuilder {
      * 떨어지면 [why] 에 적는다. [argb] 는 원래 그림(떼어 낸 팔이 없을 때 그물이 쓰는 그림)
      */
     private fun passes(m: RigMesh, stage: String, argb: IntArray, w: Int, h: Int): Boolean {
-        val tear = tearScore(m)
+        val tex = m.atlas ?: argb
+        val (tear, limb) = tearScores(m, tex, m.atlasW, h)
         if (tear > MAX_TEAR) { why += " $stage 찢어짐 ${"%.3f".format(tear)}"; return false }
-        val stray = m.atlas?.let { strayPieces(m, it, m.atlasW, h) } ?: strayPieces(m, argb, w, h)
+        if (limb > MAX_TEAR_LIMB) { why += " $stage 가지 찢어짐 ${"%.3f".format(limb)}"; return false }
+        val stray = strayPieces(m, tex, m.atlasW, h)
         if (stray > 0) { why += " $stage 조각 $stray"; return false }
         return true
     }
 
     /**
-     * 찢어짐 기준 — 앱에 든 주인공 27장 · 공룡 · 친구들(사용자가 「잘 된다」고 확인한 뼈대)이 0.008~0.068 (09-30 `tear.txt`).
-     * 그 위로 조금 여유를 둔다
+     * 찢어짐 기준 — 「잘 된다」고 확인한 뼈대(앱 그림 39장 · 생성 캐릭터 22장)의 최댓값에 약 1.5배 여유.
+     * 09-30 처음 잴 때는 투명한 삼각형까지 세서 0.008~0.068 → 기준 0.10 이었다. 10-03 그림이 있는 삼각형만 세게 고치자
+     * 대부분의 접힘이 투명한 틈에서 난 것이라 0~0.036 으로 내려갔다(목 긴 공룡: 접힌 넓이 5,100 중 보이는 것 0) → 0.055
      */
-    const val MAX_TEAR = 0.10f
+    const val MAX_TEAR = 0.055f
+
+    /**
+     * 가지 하나 안의 찢어짐 기준 — [tearScores] 두 번째 값. 같은 61장이 0~0.257(만세 때 어깨 · 소매가 눌리는 사람형이 높다) → 0.40.
+     * 꼬리 · 코처럼 작은 가지가 통째로 접히면(비율 1 에 가깝다) 전체 기준 안이어도 여기서 걸린다
+     */
+    const val MAX_TEAR_LIMB = 0.40f
 
     /** ① 사람형 — 팔을 몸에서 떼어 팔 층 · 몸 층으로. 팔을 못 찾으면 null */
     private fun humanRig(argb: IntArray, w: Int, h: Int, anyHands: Boolean): RigMesh? {
