@@ -93,6 +93,9 @@ fun coopNameFrom(raw: String, role: CoopRole): String? {
 private fun looksLikeAPhrase(name: String): Boolean {
     val words = name.split(" ")
     val last = words.last()
+    // 서술어 — 받침 ㅆ(했 · 었 · 왔 · 렸)이 들었거나 말끝이 문장 꼴. 실기기 #98 「기다렸어구나!」
+    if (last.any { c -> c in '가'..'힣' && (c - '가') % 28 == 20 }) return true
+    if (Regex("(요|줘|봐|려)$").containsMatchIn(last)) return true      // 「바다 · 할머니 · 노래」는 지나간다
     if (last in setOf("거", "것", "게", "데", "때", "줄", "수")) return true
     if (Regex("(을|를)$").containsMatchIn(name.substringBeforeLast(" ", ""))) return true      // 앞 어절에 목적어 → 문장
     if (words.size == 1) return Regex("(을|를|기|고|서|면|지만)$").containsMatchIn(last)
