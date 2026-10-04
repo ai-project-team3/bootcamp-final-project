@@ -373,6 +373,28 @@ class CoopLiveAnswerTest {
         } finally { server.close() }
     }
 
+    /**
+     * #99 리뷰 2 — 상상 낱말(「공룡 나라」) 뒤 「진짜로는」으로 다시 물어 받은 **진짜 답**은, 판정이 거절해도
+     * 다른 자리처럼 아이 말로 지킨다. 전에는 상상 낱말이 한 번 나온 걸음 전체가 빠져 마스코트가 채웠다
+     */
+    @Test
+    fun aRealAnswerAfterTheImaginaryOneIsKeptToo() = run { d ->
+        val server = StoryTestServer { path, _ ->
+            if (path != "/turn") JSONObject() else JSONObject().put("judge", JSONObject().put("reason", "앞으로 할 체험 활동이라 장소가 아님"))
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+            val redirect = d.answer("공룡 나라!")                       // 상상 낱말 → 「진짜로는」
+            assertTrue("「진짜로는」으로 다시 묻지 않았다: $redirect", "진짜로는" in redirect)
+            d.answer("소방서")                                          // 진짜 답 · 판정 거절 → 쉬운 질문으로 한 번 더
+            d.speakUntil("큰 소방서") { d.s.place != null }              // 또 거절 → 아이 말로
+            assertEquals("큰 소방서", d.s.place)
+            assertEquals("child", d.s.slotBy["place"])
+        } finally { server.close() }
+    }
+
     /** 「몰라」만 했으면 받을 말이 없다 — 지금처럼 사다리 끝에서 마스코트가 채운다 */
     @Test
     fun withOnlyDontKnowsTheMascotStillFillsTheSlot() = run { d ->

@@ -238,6 +238,8 @@ private fun ParentViewBody(d: Director, tab: String) {
 @Composable
 private fun RecordTab(d: Director) {
     val s = d.s
+    // 협업 리포트의 말 — 한 번만 만들어 아래 여러 칸이 같이 쓴다 (#99 리뷰 4)
+    val coopCopy = if (s.isCoop) s.coopReportCopy() else null
     if (s.title == null && s.quotes.isEmpty()) {
         // 빈 화면도 막다른 곳이 아니게 — 무엇이 여기에 생기는지 보여 주고, 아이 화면으로 돌아갈 길 (09-29)
         PCard(Modifier.fillMaxWidth()) {
@@ -276,7 +278,7 @@ private fun RecordTab(d: Director) {
                 // 일기 · 협업 모드는 "누구랑 같이 만들래?"를 묻지 않는다 →
                 // 물어보지 않은 사람 이름을 지어내지 않는다. 협업은 어른이 질문을 넣어 둔 것이 확실하므로 그렇게만 적는다
                 val who = when {
-                    s.isCoop -> s.coopReportCopy().who
+                    s.isCoop -> coopCopy!!.who
                     s.isDiary -> ""
                     else -> "${s.pn}${wa(s.pn)} 함께 · "
                 }
@@ -286,7 +288,7 @@ private fun RecordTab(d: Director) {
                 Text("오늘 · $took$who${s.placeName} · ${s.pageCount}쪽", fontSize = 12.sp, color = PSub)
                 // 일기 · 협업으로 만든 책은 부모 화면에서만 그렇게 보인다 (아이 화면에는 이 말이 없다 · 일기 §0)
                 // 협업은 고른 이유대로 — 곧 해요를 「오늘 있었던 일」로 적지 않는다 (10-03 실기기 · CoopReport.kt)
-                if (s.isCoop) Text(s.coopReportCopy().madeFrom, fontSize = 12.sp, color = PAccent)
+                if (coopCopy != null) Text(coopCopy.madeFrom, fontSize = 12.sp, color = PAccent)
                 else if (s.isDiary) Text("오늘 있었던 일로 만든 책이에요", fontSize = 12.sp, color = PAccent)
             }
             Chip("${s.modeVoice}번 말했어요", PMint)
@@ -315,7 +317,7 @@ private fun RecordTab(d: Director) {
             "🤝", "함께하기", s.partnerTurns,
             when {
                 // 협업 모드는 어른이 넣어 둔 질문으로 아이에게 묻는다 — 이 축이 처음으로 제대로 찬다 (협업 §4-2 · guidelines/9 §9-5)
-                s.isCoop -> s.coopReportCopy().together(s.partnerTurns)
+                s.isCoop -> coopCopy!!.together(s.partnerTurns)
                 // 일기 모드는 함께할 사람을 묻지 않았다. 없는 사람 이름을 지어내지 않는다
                 s.isDiary -> if (s.companionKind.isBlank()) "오늘은 마스코트와 주고받았어요" else "오늘 ${s.companionKind}${wa(s.companionKind)} 있었던 이야기예요"
                 else -> "${s.pn}${wa(s.pn)} ${s.partnerTurns}번 주고받았어요"
@@ -381,7 +383,7 @@ private fun RecordTab(d: Director) {
             Text("같은 질문에 한 답", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
             // 일기 · 협업 모드의 기준 질문 ①은 "오늘 어디 갔었어?" 다 — 같은 자리, 다른 재료 (일기 설계 §0 · §4-1)
             // 협업은 고른 이야기의 첫 질문 — 곧 해요에 「오늘 어디 갔었어?」가 나오지 않게 (10-03 실기기)
-            val firstQ = if (s.isCoop) s.coopReportCopy().firstQuestion else null
+            val firstQ = coopCopy?.firstQuestion
             Text("\"${firstQ ?: if (s.isDiary) "오늘 어디 갔었어?" else "어디로 가 볼까?"}\"", fontSize = 13.sp, color = PSub)
             Spacer(Modifier.height(8.dp))
             // ⚠️ "지난번" 줄은 뺐다 (9/22). 전에는 "\"바다\" 한 낱말" 같은 **글자 상수**를 지난번 답인 것처럼 보여 줬는데,
@@ -400,7 +402,7 @@ private fun RecordTab(d: Director) {
     // 협업 모드의 결과물 — **부모가 궁금해한 것에 아이가 뭐라고 했나** (부모협업모드_설계 §0 · 구현설계 §2-3).
     // 인용은 아이가 말한 것(`by: child`)만 따옴표로. 카드 · 마스코트가 채운 것은 그렇다고 적는다 (guidelines/2 §1-4)
     if (s.isCoop && s.coopAsked.isNotEmpty()) {
-        val copy = s.coopReportCopy()
+        val copy = coopCopy!!
         Section(copy.askedTitle, copy.askedSub)
         PCard(Modifier.fillMaxWidth()) {
             s.coopAsked.forEachIndexed { i, qa ->
@@ -427,7 +429,7 @@ private fun RecordTab(d: Director) {
     if (s.isCoop) {
         Section("다음에 넣어 볼 질문", "부모 협업 모드에서만 · 점수가 아니라 질문 한 개예요")
         PCard(Modifier.fillMaxWidth()) {
-            val copy = s.coopReportCopy()
+            val copy = coopCopy!!
             Text("“${copy.nextQuestion}”", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             Text(copy.nextWhy, fontSize = 13.sp, color = PSub)
@@ -449,7 +451,7 @@ private fun RecordTab(d: Director) {
     // ⚠️ 아이가 아무도 말하지 않은 날에는 "새 친구" 질문을 넣지 않는다 — 없는 친구를 앱이 만들어 내면 안 된다 (§3-2)
     // ⚠️ 일기 · 협업은 "누구랑 같이 만들래?"를 묻지 않았다 — `s.pn` 은 기본값 "엄마"라 질문 카드에 쓰면 없는 사람이 생긴다 (9/22)
     // 협업 곧 해요 · 좋아해요는 「오늘 있었던 일」 카드가 맞지 않는다 — 고른 이유대로 (CoopReport.kt)
-    val playCards = (if (s.isCoop) s.coopReportCopy().playCards else null) ?: if (s.isDiary) listOfNotNull(
+    val playCards = coopCopy?.playCards ?: if (s.isDiary) listOfNotNull(
         s.friendName.takeUnless { it.startsWith("{") }?.let { n -> "\"${n}${eun(n)} 내일은 뭐 하고 놀까?\"" },
         "\"오늘 ${s.placeName}에서 제일 재밌었던 게 뭐였어?\"",
         "\"내일 ${s.placeName}에 가면 뭐 하고 싶어?\"",

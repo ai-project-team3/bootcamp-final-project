@@ -591,9 +591,12 @@ internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r
     return fills.firstOrNull { it.first == step.slot }?.second?.trim().also {
         if (it != null) return@also
         log("[${step.slot}] /turn 이 이 칸을 못 찾았다 — 질문에 맞는 답이 아니었다 → 사다리")
-        // 우리가 물은 걸음에 아이가 진짜로 한 답 — 사다리가 끝나면 마스코트가 짓는 대신 이 말을 넣는다 (상상 낱말은 빼고)
+        // 우리가 물은 걸음에 아이가 진짜로 한 답 — 사다리가 끝나면 마스코트가 짓는 대신 이 말을 넣는다.
+        // 빼는 것은 상상 낱말이 든 그 말 하나뿐 — 「진짜로는」 뒤의 진짜 답은 받는다 (#99 리뷰 2)
+        // 「딴 얘기」(「쉬 마려」)도 지금은 아이 말로 지킨다 — 판정에 딴 얘기 신호가 생기면 그것으로 가른다 (#99 리뷰 1 · #100)
         val id = step.variant.id
-        if (id !in s.coopTrack.parentSteps && s.coopTrack.wildFor != step.bookKey) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
+        val reason = s.bookPick?.reasonOrNull() ?: CoopReason.DREAM
+        if (id !in s.coopTrack.parentSteps && !isWildForReality(text, reason)) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
     }
 }
 
