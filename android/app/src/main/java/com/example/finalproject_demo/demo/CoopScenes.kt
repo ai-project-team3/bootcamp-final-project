@@ -502,6 +502,12 @@ private fun Director.coopSessionLog() {
  * 묻고 있던 질문은 **취소한다.** 탭 · 무응답 신호로 깨우면 그 값이 칸에 들어가거나 쉬운 질문으로 다시 묻는다.
  */
 fun Director.stopCoopByParent() {
+    // 그리기 단계(이야기 칸이 다 찬 뒤 · 끝난 이유가 이미 있다) — 그리기를 마치고 바로 책으로. 그린 게 있으면 그 그림으로 (#98)
+    if (s.isCoop && s.scene == Scene.DIARY && s.stage is Stage.DrawPad) {
+        log("부모가 그리기 단계에서 「그만하기」를 눌렀다 → ${if (s.drawing.isEmpty()) "그리지 않고" else "그린 그림으로"} 책을 만든다 (#98)")
+        send(if (s.drawing.isEmpty()) Reply.Tapped("skip", "안 그림") else Reply.Tapped("done", "완료"))
+        return
+    }
     if (!s.isCoop || s.scene != Scene.DIARY || s.endReason != null) return
     s.endReason = "parent_stop"
     log("부모가 「그만하기」를 눌렀다 → 묻던 질문을 거두고, 지금까지 모인 답으로 책을 만든다 (#36)")

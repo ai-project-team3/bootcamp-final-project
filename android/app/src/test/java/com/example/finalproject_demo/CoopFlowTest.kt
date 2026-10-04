@@ -504,6 +504,24 @@ class CoopFlowTest {
         assertEquals("꽂을 때의 마지막 쪽 안내가 다시 연 책에 남았다 (#98)", "", reader.bookNote)
     }
 
+    /** #98 — 그리기 단계에서도 부모 「그만하기」가 듣는다: 그리기를 마치고 책으로 간다 */
+    @Test
+    fun theParentCanStopAtTheDrawingStep() = run { d ->
+        val s = d.s
+        d.startCoopWith(pick = CoopPick("job", "소방관", "done"))
+        var guard = 0
+        while (s.scene == Scene.DIARY && s.stage !is com.example.finalproject_demo.demo.Stage.DrawPad && guard++ < 40) {
+            if (await(2_000) { s.buttons.any { "🎲" in it.label } || s.stage is com.example.finalproject_demo.demo.Stage.DrawPad } == null) break
+            if (s.stage is com.example.finalproject_demo.demo.Stage.DrawPad) break
+            if (!d.push("🎲")) break
+            delay(40)
+        }
+        assertTrue("그리기 단계까지 못 갔다: ${s.stage}", await(5_000) { s.stage is com.example.finalproject_demo.demo.Stage.DrawPad } != null)
+        assertTrue("끝난 이유가 이미 있어야 이 경우다", s.endReason != null)
+        d.stopCoopByParent()
+        assertTrue("그리기에서 그만했는데 책으로 안 갔다: ${s.scene}", await(20_000) { s.scene == Scene.BOOK } != null)
+    }
+
     /** #98 — 같이 만들기 미션 쪽은 아이가 하기 전에 「슥슥 치웠어요」 · 「건네주었어요」라고 하지 않는다 */
     @Test
     fun theMissionPagesDoNotSayItIsDoneBeforeTheChildDoesIt() = run { d ->

@@ -704,7 +704,9 @@ fun KidTopBar(d: Director, modifier: Modifier = Modifier) {
         // 10-01 — 옆 🏠 · 🔒 와 같은 펠트 버튼(크림 펠트 · 바느질 · 같은 높이 · 누르면 꾹)에 ComfyUI 펠트 손바닥 그림.
         // 글씨는 어른용 고딕 그대로 — 어른이 누르는 버튼이다
         val s = d.s
-        if (s.isCoop && s.scene == com.example.finalproject_demo.demo.Scene.DIARY && s.endReason == null) {
+        // 그리기 단계에도 둔다 — 이야기 칸이 다 차 끝난 이유가 정해진 뒤라 전에는 사라졌다 (#98)
+        if (s.isCoop && s.scene == com.example.finalproject_demo.demo.Scene.DIARY &&
+            (s.endReason == null || s.stage is com.example.finalproject_demo.demo.Stage.DrawPad)) {
             Spacer(Modifier.width(4.dp))
             TopSlot({ Shell.askStop = true }, Modifier.height(TopSlot).padding(horizontal = 4.dp)) {
                 FeltButton(WoolCream, onClick = { Shell.askStop = true }, modifier = Modifier.height(TopFace), shape = RoundedCornerShape(Radius.Round)) {
