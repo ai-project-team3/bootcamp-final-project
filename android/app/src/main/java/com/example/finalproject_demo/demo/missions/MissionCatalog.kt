@@ -29,7 +29,7 @@ enum class MissionId(
     B3(setOf(1), MissionInput.TOUCH, "search: light up the dark"),
     C1(setOf(1), MissionInput.MIC_LEVEL, "breath: blow", built = true),
     C2(setOf(2), MissionInput.MIC_LEVEL, "voice: call out"),
-    C3(setOf(1), MissionInput.MIC_LEVEL, "voice: make the sound"),
+    C3(setOf(1), MissionInput.MIC_LEVEL, "voice: make the sound", built = true),
     D1(setOf(2), MissionInput.TOUCH, "persistence: tap fast to push away"),
     D2(setOf(1), MissionInput.SHAKE, "gross motor: shake"),
     D3(setOf(1), MissionInput.TOUCH, "rhythm: tap on the beat"),

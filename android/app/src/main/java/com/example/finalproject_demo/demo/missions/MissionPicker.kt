@@ -51,7 +51,13 @@ fun pickMissions(facts: StoryFacts): BookMissions {
     val slot2 = if (facts.templateKey in PUZZLE_FRAMES) MissionId.A3 else MissionId.E1
     // 1-b (co-op first · design §7-1): slot 1 blows (C1) when the child's own words have something to blow —
     // 촛불 · 생일 · 민들레 · 먼지 · 바람. The story mode follows once more co-op missions exist (§7-3)
-    val slot1 = if (facts.mode == StoryMode.COOP && blowPropIn(facts.slot1Words, facts.realDay) != null) MissionId.C1 else MissionId.A6
+    // C3 (sound) waits until the server knows its ID (SERVER_KNOWS_C3 · design §8)
+    val coop = facts.mode == StoryMode.COOP
+    val slot1 = when {
+        coop && blowPropIn(facts.slot1Words, facts.realDay) != null -> MissionId.C1
+        coop && SERVER_KNOWS_C3 && soundPropIn(facts.slot1Words) != null -> MissionId.C3
+        else -> MissionId.A6
+    }
     check(slot1.built && slot2.built) { "picked a mission without a screen: $slot1 / $slot2" }
     return BookMissions(slot1, slot2)
 }

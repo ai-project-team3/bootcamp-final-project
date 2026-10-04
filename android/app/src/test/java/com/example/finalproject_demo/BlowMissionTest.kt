@@ -16,6 +16,7 @@ import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.missions.BlowProp
+import com.example.finalproject_demo.demo.missions.SoundProp
 import com.example.finalproject_demo.demo.missions.blowProp
 import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.demo.pageKind
@@ -100,5 +101,30 @@ class BlowMissionTest {
 
         val reply = runBlocking { withTimeoutOrNull(3_000) { got.await() } }
         assertTrue("탭만으로 미션이 안 끝났다: $reply", reply is Reply.Tapped && reply.value == "mission")
+    }
+
+    /** C3 소리 흉내 — 마이크 없이 소품을 세 번 누르면 끝난다(탭 길). 서버에 C3 가 들어가기 전이라 화면을 바로 띄운다 */
+    @Test
+    fun tappingTheFireTruckThreeTimesEndsTheSoundMission() {
+        val d = coopBirthdayBook()
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            Box(Modifier.fillMaxSize().background(Bg)) {
+                com.example.finalproject_demo.ui.missions.SoundMission(d, false, com.example.finalproject_demo.demo.Art.Emoji("🧒"), SoundProp.SIREN)
+            }
+        }
+        compose.mainClock.advanceTimeBy(600)
+        snap("build/touch/sound_before.png")
+        val got = kotlinx.coroutines.CompletableDeferred<Reply>()
+        CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch { got.complete(d.awaitReply()) }
+        Thread.sleep(200)
+        repeat(3) {
+            compose.onRoot().performTouchInput { click(Offset(width * 0.56f, height * 0.48f)) }
+            compose.mainClock.advanceTimeBy(300)
+        }
+        compose.mainClock.advanceTimeBy(1500)
+        snap("build/touch/sound_after.png")
+        val reply = runBlocking { withTimeoutOrNull(3_000) { got.await() } }
+        assertTrue("세 번 눌렀는데 소리 미션이 안 끝났다: $reply", reply is Reply.Tapped && reply.value == "mission")
     }
 }

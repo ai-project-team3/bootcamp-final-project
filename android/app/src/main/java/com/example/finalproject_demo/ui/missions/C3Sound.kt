@@ -1,0 +1,187 @@
+package com.example.finalproject_demo.ui.missions
+
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import com.example.finalproject_demo.demo.Art
+import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.missions.SoundProp
+import com.example.finalproject_demo.ui.ArtView
+import com.example.finalproject_demo.ui.Coral
+import com.example.finalproject_demo.ui.FeltWhite
+import com.example.finalproject_demo.ui.Ink
+import com.example.finalproject_demo.ui.Radius
+import com.example.finalproject_demo.ui.Sfx
+import com.example.finalproject_demo.ui.Sound
+import com.example.finalproject_demo.ui.Stand
+import com.example.finalproject_demo.ui.felt
+import com.example.finalproject_demo.ui.motionFrozen
+import com.example.finalproject_demo.ui.rememberBlowLevel
+import com.example.finalproject_demo.ui.touchOutline
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+
+/** 목소리 세기가 이만큼 넘으면 「소리 낸다」로 친다 — 불기(0.22)보다 낮다. 말소리는 바람보다 약하다(실기기로 다시 정한다 · 설계 §10) */
+internal const val VOICE_ON = 0.18f
+
+/** 한 번 누를 때 차는 양 — 세 번이면 다 찬다(탭 길) */
+internal const val SOUND_TAP = 0.34f
+
+/**
+ * C3 소리 흉내 — 미션 자리 1 (`docs/맞춤미션_설계.md` §4 ★C3 · #101 둘째 순서).
+ *
+ * 아이가 이야기에서 말한 소리(삐뽀삐뽀 · 부릉부릉 · 어흥 · 슛 …)를 **크게 따라 하면** 그것이 움직인다. 발달 목표는 발성 · 의성어.
+ * - 마이크는 **크기만** 본다(무슨 말인지 안 본다 · `Blow.kt`) — 다른 말이어도 크게 하면 찬다(실패 없음)
+ * - **탭 길(원칙 6)** — 소품을 세 번 톡톡 누르면 소리 말이 뜨며 똑같이 찬다. 마이크가 없어도 끝난다
+ * - 8초 진전이 없으면 손이 소품을 눌러 보인다 · 듣는 중 표시는 화면 아래(#98 겹침)
+ */
+@Composable
+internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundProp) {
+    val view = LocalView.current
+    val ctx = LocalContext.current
+    val density = LocalDensity.current.density
+    val scope = rememberCoroutineScope()
+    var fill by remember { mutableFloatStateOf(if (done) 1f else 0f) }
+    var pops by remember { mutableIntStateOf(0) }
+    val finished = done || fill >= 1f
+    val voice = rememberBlowLevel(!finished)
+    val micOn = remember {
+        ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+    }
+    val idle = rememberIdleHint(fill, finished)
+    MissionDoneSignal(d, finished, done, "미션1")
+    val bounce = remember { Animatable(1f) }
+    fun nudge() { scope.launch { bounce.snapTo(1.12f); bounce.animateTo(1f, spring(dampingRatio = 0.35f)) } }
+
+    // 크게 소리 내는 동안 찬다 — 1.5초쯤 힘차게 내면 다 찬다
+    LaunchedEffect(done) {
+        if (done || motionFrozen) return@LaunchedEffect
+        var last = 0L
+        while (fill < 1f) {
+            withFrameNanos { }
+            if (voice > VOICE_ON) {
+                fill = minOf(1f, fill + voice * 0.012f)
+                val now = System.currentTimeMillis()
+                if (now - last > 450) { last = now; pops++; nudge() }
+            }
+        }
+    }
+    LaunchedEffect(finished) { if (finished && !done) Sfx.play(Sound.SPARKLE, 0L, view = view) }
+    // 다 차면 소품이 제 할 일을 한다 — 탈것은 오른쪽으로 달려 나가고, 동물 · 공은 통통 뛴다
+    val go by animateFloatAsState(if (finished) 1f else 0f, tween(1200, easing = FastOutSlowInEasing), label = "go")
+    val vehicle = prop == SoundProp.SIREN || prop == SoundProp.CAR || prop == SoundProp.TRAIN
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
+        // 소품은 가운데 조금 위 — 아래에는 채움 막대 · 마이크 표시 · 책 문장 띠가 온다
+        val size = 0.17f * wpx
+        val cx = 0.56f * wpx; val cy = 0.48f * hpx
+        Stand(0.18f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
+
+        val dx = if (vehicle) go * wpx * 0.5f else 0f
+        val dy = if (vehicle) 0f else -go * hpx * 0.08f
+        Box(
+            Modifier
+                .offset { IntOffset((cx - size / 2 + dx).roundToInt(), (cy - size / 2 + dy).roundToInt()) }
+                .size((size / density).dp)
+                .scale(bounce.value)
+                .alpha(if (vehicle) 1f - go * 0.6f else 1f)
+                .pointerInput(finished) {
+                    if (finished) return@pointerInput
+                    detectTapGestures {
+                        fill = minOf(1f, fill + SOUND_TAP); pops++; nudge()
+                        Sfx.play(Sound.SPARKLE, minGapMs = 120L, view = view)
+                    }
+                },
+        ) {
+            Box(Modifier.fillMaxSize().touchOutline(!finished)) { ArtView(Art.Img(prop.art, Art.Emoji(prop.emoji)), Modifier.fillMaxSize()) }
+        }
+
+        // 따라 할 소리 — 크게 띄운다. 소리를 낼 때마다 한 번씩 톡 커진다
+        val beat by animateFloatAsState(if (pops % 2 == 0) 1f else 1.15f, spring(dampingRatio = 0.4f), label = "beat")
+        Text(
+            "「${prop.sound}!」",
+            fontSize = 34.sp, color = Coral, fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .offset { IntOffset((cx - size * 0.55f).roundToInt(), (cy - size * 0.95f).roundToInt()) }
+                .scale(beat)
+                .felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
+                .padding(horizontal = 18.dp, vertical = 6.dp),
+        )
+
+        // 얼마나 찼나 — 펠트 막대(점수가 아니라 「조금만 더」를 보이는 것)
+        Box(
+            Modifier
+                .offset { IntOffset((cx - 110.dp.toPx()).roundToInt(), (cy + size * 0.36f).roundToInt()) }
+                .width(220.dp).height(18.dp)
+                .clip(RoundedCornerShape(Radius.Round))
+                .background(FeltWhite.copy(alpha = 0.85f)),
+        ) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(fill.coerceIn(0f, 1f)).clip(RoundedCornerShape(Radius.Round)).background(Coral))
+        }
+
+        if (idle && !finished) {
+            val press by rememberInfiniteTransition(label = "c3hint").animateFloat(
+                0f, 1f, infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "press",
+            )
+            Box(
+                Modifier
+                    .offset { IntOffset((cx - wpx * 0.02f).roundToInt(), (cy + press * hpx * 0.03f).roundToInt()) }
+                    .size((wpx * 0.05f / density).dp)
+                    .alpha(0.8f),
+            ) { ArtView(Art.Img("ic_hand", Art.Emoji("👆")), Modifier.fillMaxSize()) }
+        }
+        MicListeningTag(micOn && !finished, voice > VOICE_ON, "🎤 「${prop.sound}!」 크게 말해 봐! (눌러도 돼)", "${prop.sound}~! 잘한다!")
+        if (!micOn && !finished) Text(
+            "눌러서 「${prop.sound}!」 해 볼까?", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 92.dp)
+                .felt(FeltWhite.copy(alpha = 0.95f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+        )
+    }
+}

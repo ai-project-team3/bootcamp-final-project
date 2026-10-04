@@ -8,6 +8,9 @@ import com.example.finalproject_demo.demo.missionFor
 import com.example.finalproject_demo.demo.missions.MissionId
 import com.example.finalproject_demo.demo.missions.StoryFacts
 import com.example.finalproject_demo.demo.missions.pickMissions
+import com.example.finalproject_demo.demo.missions.SERVER_KNOWS_C3
+import com.example.finalproject_demo.demo.missions.soundPropIn
+import com.example.finalproject_demo.demo.missions.SoundProp
 import com.example.finalproject_demo.demo.coopMissionResult
 import com.example.finalproject_demo.demo.m1Done
 import com.example.finalproject_demo.demo.m1Before
@@ -112,5 +115,28 @@ class MissionPickerTest {
         s.m1Result = "solo"
         assertEquals("촛불이 다 꺼졌어요.", s.coopMissionResult(PageKind.RUB))
         assertEquals("후~ 촛불이 다 꺼졌어!", s.m1Done())
+    }
+
+    // ── 1-b C3 소리 흉내 (#101) ─────────────────────────────────────
+
+    @Test
+    fun soundWordsFindTheirProp() {
+        mapOf(
+            "소방차가 삐뽀삐뽀 왔어" to SoundProp.SIREN,
+            "자동차가 부릉부릉" to SoundProp.CAR,
+            "기차를 탔어" to SoundProp.TRAIN,
+            "사자가 어흥 했어" to SoundProp.LION,
+            "강아지가 멍멍 짖었어" to SoundProp.DOG,
+            "내가 슛 했어" to SoundProp.CHEER,
+        ).forEach { (said, prop) -> assertEquals(said, prop, soundPropIn(said)) }
+        assertNull(soundPropIn("블록이 무너졌어"))
+    }
+
+    /** 서버 `MissionId` 에 C3 가 들어가기 전에는 고르지 않는다 — 보내면 /story 가 422 (설계 §8) */
+    @Test
+    fun c3WaitsForTheServer() {
+        val f = coop("소방차가 삐뽀삐뽀 왔어")
+        assertEquals(if (SERVER_KNOWS_C3) MissionId.C3 else MissionId.A6, pickMissions(f).slot1)
+        assertTrue("화면은 만들어 둔다", MissionId.C3.built)
     }
 }
