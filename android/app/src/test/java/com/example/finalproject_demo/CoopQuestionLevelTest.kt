@@ -9,6 +9,7 @@ import com.example.finalproject_demo.demo.coopGuard
 import com.example.finalproject_demo.ui.COOP_KINDS
 import com.example.finalproject_demo.ui.CoopReason
 import com.example.finalproject_demo.ui.questionHint
+import com.example.finalproject_demo.ui.coopSuggestions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -83,6 +84,18 @@ class CoopQuestionLevelTest {
         }
         listOf(CoopReason.DONE, CoopReason.SOON).forEach { r ->
             assertTrue("$r", f("solution", Level.REASON, r, emptyMap())?.contains("였다면") != true)
+        }
+    }
+
+    /** #98 — 부모 화면의 추천 질문도 고른 이유의 시제를 따르고, 우리 귀띔에 걸리지 않는다 */
+    @Test
+    fun theParentSuggestionsFollowThePickedReason() {
+        (CoopReason.entries + listOf<CoopReason?>(null)).forEach { r ->
+            coopSuggestions(r).forEach { q ->
+                assertNull("$r: $q", questionHint(q))
+                assertNull("$r 귀띔에 걸린다: $q", com.example.finalproject_demo.demo.coopParentAdvice(q))
+                assertNotNull("$r 시제가 안 맞는다: $q", coopGuard(q, r ?: CoopReason.DONE, CoopSource.PARENT).text)
+            }
         }
     }
 

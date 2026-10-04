@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -214,6 +215,7 @@ private fun ParentViewBody(d: Director, tab: String) {
                 Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .clipToBounds()       // 스크롤된 칩이 고정 머리 밑으로 그려져 머리가 눌리지 않게 (#98)
                     .verticalScroll(rememberScrollState())
                     .padding(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 22.dp)
             ) {
@@ -527,6 +529,16 @@ val COOP_SUGGESTIONS = listOf(
 )
 
 /**
+ * 고른 이유에 맞춘 추천 — 곧 해요에 「뭐였어? · 만났어?」를 권하면 오또의 갈무리(시제)와 어긋난다.
+ * 다녀왔어요 · 이유 없이 질문만이면 [COOP_SUGGESTIONS] 그대로
+ */
+fun coopSuggestions(reason: CoopReason?): List<String> = when (reason) {
+    CoopReason.SOON -> listOf("거기서 제일 해 보고 싶은 게 뭐야?", "거기서 누구를 만날 것 같아?", "가기 전에 어떤 기분이 들어?", "다녀오면 뭐 해 보고 싶어?")
+    CoopReason.DREAM -> listOf("그 이야기에서 뭐가 제일 좋아?", "누가 같이 나오면 좋겠어?", "그러면 어떤 기분일까?", "그다음엔 무슨 일이 생길까?")
+    else -> COOP_SUGGESTIONS
+}
+
+/**
  * 같이 만들기(옛 이름 협업 질문) — **부모가 이야기를 고르고, 더 물어볼 질문을 적어 두는 곳** (09-30 개정).
  * 이 화면이 협업 모드의 절반이다 — 나머지 절반은 오또가 일반 모드처럼 묻되 고른 이야기에 맞추는 것(CoopScenes).
  *
@@ -552,6 +564,7 @@ private fun CoopQuestionsTab(c: CoopDraft) {
     }
 
     CoopTemplateCards(c)
+    val suggestions = coopSuggestions(c.pick?.reasonOrNull())
 
     Section("더 물어볼 질문 (선택)", "오또가 이야기 중간에 적은 순서대로 끼워서 물어봐요 · ${COOP_MAX}개까지")
     val rows = maxOf(1, qs.size)
@@ -566,7 +579,7 @@ private fun CoopQuestionsTab(c: CoopDraft) {
                     onValueChange = { set(i, it) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    placeholder = { Text("예: ${COOP_SUGGESTIONS[i % COOP_SUGGESTIONS.size]}", fontSize = 14.sp, color = PSub.copy(alpha = 0.6f)) },
+                    placeholder = { Text("예: ${suggestions[i % suggestions.size]}", fontSize = 14.sp, color = PSub.copy(alpha = 0.6f), fontFamily = ParentFont) },   // 글꼴을 맞춘다 (#98)
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = PBg, unfocusedContainerColor = PBg,
                         focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
@@ -608,10 +621,12 @@ private fun CoopQuestionsTab(c: CoopDraft) {
         ) { Text("＋ 하나 더", fontSize = 13.sp, color = Ink) }
     }
 
-    Section("이런 질문은 어때요", "탭하면 빈 자리에 들어가요")
+    // 이미 넣은 질문은 목록에서 뺀다 — 다 넣었으면 칸째로 숨긴다 (#98)
+    val left = suggestions.filter { q -> qs.none { it.trim() == q } }
+    if (left.isNotEmpty()) Section("이런 질문은 어때요", "탭하면 빈 자리에 들어가요")
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Column(Modifier.weight(1f)) {
-            COOP_SUGGESTIONS.forEach { q ->
+            left.forEach { q ->
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -649,7 +664,7 @@ private fun CoopQuestionsTab(c: CoopDraft) {
  * 이 맥락에 맞춰 묻고([templateQuestions]), 부모에게는 그 질문을 미리 보여 준다([CoopTemplatePreview]).
  * 고른 것은 초안([CoopDraft])에만 담기고, [저장하기]를 눌러야 `s.coopPick` 에 남는다.
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun CoopTemplateCards(c: CoopDraft) {
     val pick = c.pick
@@ -658,6 +673,10 @@ private fun CoopTemplateCards(c: CoopDraft) {
     var draft by remember { mutableStateOf("") }
     var err by remember { mutableStateOf<String?>(null) }
     val kind = kindKey?.let { coopKind(it) }
+    // 종류를 누르면 다음 단계(하나 고르기)가 화면 아래에 생겨 변화가 안 보였다 — 그 자리로 끌어온다 (#98)
+    val nextStep = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    var tappedKind by remember { mutableStateOf(0) }
+    LaunchedEffect(tappedKind) { if (tappedKind > 0) { kotlinx.coroutines.delay(60); nextStep.bringIntoView() } }
 
     fun reasonOf(p: CoopPick?) = p?.reasonOrNull()
 
@@ -677,7 +696,7 @@ private fun CoopTemplateCards(c: CoopDraft) {
                     .clip(RoundedCornerShape(14.dp))
                     .background(if (on) Color(0xFFFFF1CC) else Color.White)
                     .border(1.dp, if (on) PAccent else PLine, RoundedCornerShape(14.dp))
-                    .clickable { kindKey = k.key; typing = false; err = null }
+                    .clickable { kindKey = k.key; typing = false; err = null; tappedKind++ }
                     .padding(10.dp),
             ) {
                 AssetImage(coopKindArt(k), Modifier.size(48.dp)) { Text(k.emoji, fontSize = 20.sp) }
@@ -691,7 +710,7 @@ private fun CoopTemplateCards(c: CoopDraft) {
     val picked = pick?.takeIf { it.kind == kind.key }
 
     Section("${kind.title} 하나 고르기", "목록에 없으면 직접 써도 돼요")
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    FlowRow(Modifier.bringIntoViewRequester(nextStep), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         kind.items.forEach { name ->
             CoopChip(name, on = picked?.name == name, art = COOP_ITEM_ART[name]) { typing = false; err = null; apply(kind, name, reasonOf(picked)) }
         }
@@ -708,7 +727,7 @@ private fun CoopTemplateCards(c: CoopDraft) {
                 onValueChange = { draft = it.take(COOP_NAME_MAX + 4); err = null },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                placeholder = { Text("${kind.title} 이름 (예: ${kind.customExample})", fontSize = 13.sp, color = PSub.copy(alpha = 0.6f)) },
+                placeholder = { Text("${kind.title} 이름 (예: ${kind.customExample})", fontSize = 13.sp, color = PSub.copy(alpha = 0.6f), fontFamily = ParentFont) },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = PBg, unfocusedContainerColor = PBg,
                     focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
@@ -873,7 +892,7 @@ private fun CoopSaveBar(c: CoopDraft) {
         Text(
             when {
                 c.canSave -> "저장하지 않은 변경이 있어요 · 저장해야 소파에 🎁가 붙어요"
-                !c.filled -> "템플릿을 고르거나 질문을 하나 이상 적어 주세요"
+                !c.filled -> "이야기를 고르거나 질문을 하나 이상 적어 주세요"   // 「템플릿」은 개발 용어 (#98)
                 else -> "바뀐 것이 없어요"
             },
             fontSize = 13.sp, color = if (c.canSave) PAccent else PSub, modifier = Modifier.weight(1f),
