@@ -15,11 +15,11 @@ KITS = {
     "common": {
         "sun": "smiling yellow sun",
         "cloud": "fluffy white cloud",
-        "round_tree": "round green tree",
+        "round_tree": "round green tree with a short brown trunk",   # 줄기가 없으면 덤불과 같아졌다
         "bush": "round green bush",
         "tulip": "red tulip flower",
         "daisy": "white daisy flower",
-        "stone": "round grey stone",
+        "stone": "plain smooth round grey stone, no spots",       # 색 점이 박혀 알처럼 보였다
         "grass": "tuft of green grass",
         "butterfly": "colorful butterfly",
     },
@@ -28,7 +28,7 @@ KITS = {
         "slide": "playground slide",
         "swing": "playground swing set",
         "seesaw": "seesaw",
-        "sandbox": "sandbox with a bucket",
+        "sandbox": "low square wooden sandbox filled with sand and a small bucket, no roof",   # 지붕 달린 가판대가 나왔다
         "bench": "park bench",
         "street_lamp": "old street lamp",
         "ball": "red and white ball",
