@@ -878,6 +878,7 @@ class DemoState {
      */
     fun clearParentQuestions() {
         parentQuestions.clear(); parentQIndex = 0; coopPick = null
+        CoopPlan.saved(this)      // 폰에 남긴 것도 비운다 — 오늘 고른 이야기가 내일 또 나오지 않게 (#98)
     }
 
     /**

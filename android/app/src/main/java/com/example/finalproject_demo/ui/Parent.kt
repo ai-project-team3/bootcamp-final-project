@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.CoopPlan
 import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.coopReportCopy
 import com.example.finalproject_demo.demo.CoopPick
@@ -781,6 +782,7 @@ private class CoopDraft(private val s: DemoState) {
         s.parentQuestions.clear(); s.parentQuestions.addAll(qs.dropLastWhile { it.isBlank() })
         s.parentQIndex = 0
         s.coopPick = pick
+        CoopPlan.saved(s)         // 앱을 껐다 켜도 남는다 (#98 · CoopPlanStore.kt)
         load(); editing = false
     }
 
