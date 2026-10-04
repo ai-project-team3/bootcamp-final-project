@@ -114,9 +114,15 @@ fun DemoState.coopMetLabel(): String? = when (coopNotYet) {
     else -> null
 }
 
-/** 책 끝 친구 고르기 — 「오늘 만난 친구들이야」 대신. 엄마 · 아빠도 나오므로 「친구」라고 하지 않는다 */
-fun DemoState.coopFriendsLine(): String? =
-    if (coopNotYet == null) null else "이야기에 나온 사람들이야. 누구를 또 만나고 싶어?"
+/**
+ * 책 끝 친구 고르기 — 「오늘 만난 친구들이야」 대신. 할머니 · 아빠도 나오므로 「친구」라고 하지 않는다 (#98).
+ * 다녀왔어요 · 이야기 안 고름은 오늘 있었던 일이라 「오늘 함께한 사람들」, 곧 해요 · 좋아해요는 「이야기에 나온 사람들」
+ */
+fun DemoState.coopFriendsLine(): String? = when {
+    !isCoop -> null
+    coopNotYet == null -> "오늘 함께한 사람들이야. 누구를 또 만나고 싶어?"
+    else -> "이야기에 나온 사람들이야. 누구를 또 만나고 싶어?"
+}
 
 /** 책 제목 — 「불 나는 데에서 만난 엄마와 아빠」 대신. 다녀왔어요는 일기 제목 그대로 */
 fun DemoState.coopTitle(): String? {

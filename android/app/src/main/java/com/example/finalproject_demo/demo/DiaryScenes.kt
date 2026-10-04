@@ -362,7 +362,7 @@ internal suspend fun Director.finishDiary() {
     val tails = COOP_STEPS.filterNot { it.required }.count { s.slots[it.bookKey] != null }
     log("일기 모드 끝 — 끝난 조건: $why · 아이 · 카드가 채운 필수 칸 $bySelf/4 · 꼬리질문으로 더 모은 문장 ${tails}개 (이만큼 마스코트가 메울 자리가 줄었다)")
     coopFinishLog()                             // 협업 쪽은 CoopScenes.kt (진웅)
-    say("오늘 이야기가 다 모였어! 이제 동화책으로 만들어 줄게.")
+    say("오늘 이야기가 다 모였어! 이제 ${if (s.isCoop) "이야기책" else "동화책"}으로 만들어 줄게.")   // 같이 만들기는 이야기책 (#98)
     pause(2000)
     go(Scene.MAKING)
 }

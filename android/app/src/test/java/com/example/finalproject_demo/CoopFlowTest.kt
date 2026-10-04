@@ -501,6 +501,24 @@ class CoopFlowTest {
         assertEquals("쪽 문장이 다르다", saved.pages.map { it.caption }, (1..reader.pageCount).map { reader.bookCaption(it) })
         assertEquals("배경이 다르다", s.bgName, reader.bgName)
         assertEquals("반짝이는 자리가 다르다", s.diaryGlow, reader.diaryGlow)
+        assertEquals("꽂을 때의 마지막 쪽 안내가 다시 연 책에 남았다 (#98)", "", reader.bookNote)
+    }
+
+    /** #98 — 같이 만들기 미션 쪽은 아이가 하기 전에 「슥슥 치웠어요」 · 「건네주었어요」라고 하지 않는다 */
+    @Test
+    fun theMissionPagesDoNotSayItIsDoneBeforeTheChildDoesIt() = run { d ->
+        val s = d.s
+        d.startCoopWith(pick = CoopPick("job", "소방관", "done"))
+        d.walkToShelfButton()
+        s.m1Result = null; s.m2Result = null
+        val rub = (1..s.pageCount).first { s.pageKind(it) == PageKind.RUB }
+        val drag = (1..s.pageCount).first { s.pageKind(it) == PageKind.DRAG }
+        val before = s.bookCaption(rub) to s.bookCaption(drag)
+        assertTrue("미션 1 전에 치웠다고 한다: ${before.first}", "치웠어요" !in before.first && "남아 있어요" in before.first)
+        assertTrue("미션 2 전에 건넸다고 한다: ${before.second}", "건네주었어요" !in before.second && "줄 선물" in before.second)
+        s.m1Result = "solo"; s.m2Result = "solo"
+        assertTrue("미션 1 뒤: ${s.bookCaption(rub)}", "치웠어요" in s.bookCaption(rub))
+        assertTrue("미션 2 뒤: ${s.bookCaption(drag)}", "건네" in s.bookCaption(drag))
     }
 
     /** 12권이 차 있으면 **아무것도 지우지 않고** 이번 책은 꽂지 않는다 — 뺄 책 고르기는 책장 전체의 일이다 (guidelines/3 §3-5) */

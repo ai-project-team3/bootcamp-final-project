@@ -495,7 +495,7 @@ class CoopLiveAnswerTest {
         d.toFirstQuestionWith(CoopPick("job", "소방관", "done"))
         d.coopFinishLog()
         assertNull(d.s.coopDrawLine("엄마"))
-        assertNull(d.s.coopFriendsLine())
+        assertEquals("오늘 함께한 사람들이야. 누구를 또 만나고 싶어?", d.s.coopFriendsLine())   // 할머니 · 아빠를 「친구들」이라 하지 않는다 (#98)
         assertNull(d.s.coopTitle())
     }
 

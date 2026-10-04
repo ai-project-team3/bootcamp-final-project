@@ -1386,7 +1386,9 @@ private suspend fun Director.sceneMaking() {
     inputs(false, false)
     buttons()
     val t = s.template ?: templateOf(chooseTemplate(s.level, s.causeKind).first).also { s.templateKey = it.key }
-    say("동화책을 만들고 있어! 조금만 기다려 줘.")
+    // 같이 만들기는 동화가 아니라 같이 지은 이야기책이다 (#98)
+    val bookWord = if (s.isCoop) "이야기책" else "동화책"
+    say("${bookWord}을 만들고 있어! 조금만 기다려 줘.")
     log(
         "템플릿 ${t.code} ${t.name}(${t.pages.size}쪽) + 모은 칸들(이름은 가림) → Anthropic → 쪽마다 자막(−어요체) · 제목 JSON → " +
             "폰에서 {주인공} → ${s.childName}, {친구1} → ${s.friendName} 복원 · 확정 그림은 다시 그리지 않음 (⭐26)"
@@ -1404,7 +1406,7 @@ private suspend fun Director.sceneMaking() {
     log("이번 책에 들어가는 이야기 조각: ${filled.joinToString(" · ").ifEmpty { "기본 문장" }} · 까닭 \"${s.causeLine}\" · 해결 \"${s.solutionLine}\"")
     var p = 0f
     while (p < 1f) {
-        s.stage = Stage.Making("동화책을 만드는 중… (${t.pages.size}쪽)", p)
+        s.stage = Stage.Making("${bookWord}을 만드는 중… (${t.pages.size}쪽)", p)
         pause(120)
         p += 0.05f
     }
