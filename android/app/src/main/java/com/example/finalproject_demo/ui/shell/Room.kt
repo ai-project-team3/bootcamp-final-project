@@ -272,7 +272,8 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
         scope.launch {
             // 오또가 물건 쪽으로 걸어간다 — 지나간 자리에 발자국
             paws.clear()
-            val to = (t.x + t.w / 2 - OTTO / 2).coerceIn(10f, 800f - OTTO)
+            // 소파는 오른쪽 끝 옆에 선다 — 가운데에 서면 「같이 만들기 · 어른이랑 함께」 이름표를 가렸다 (#98 · 10-03 실기기)
+            val to = (if (t == Thing.SOFA) t.x + t.w - OTTO * 0.2f else t.x + t.w / 2 - OTTO / 2).coerceIn(10f, 800f - OTTO)
             val from = walkX.value
             goingLeft = to < from
             moving = true
