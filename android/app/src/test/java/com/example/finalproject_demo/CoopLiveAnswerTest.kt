@@ -395,6 +395,18 @@ class CoopLiveAnswerTest {
         } finally { server.close() }
     }
 
+    /** #99 리뷰 3 — 소방관 이야기를 끝낸 뒤 질문만 적고 다음 이야기를 시작하면, 주인공 고르기에서 지난 소방서 배경이 나오지 않는다 */
+    @Test
+    fun theNextStoryDoesNotShowTheLastStorysBackdrop() = run { d ->
+        d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+        d.coopFinishLog()
+        assertEquals("끝난 이야기의 책은 고른 배경이어야 한다", coopItem("소방관")!!.bg, d.s.bgName)
+        d.go(Scene.ADULT)
+        assertTrue(d.tap("같이 만들기"))                    // 다음 이야기 — 이번엔 고른 이야기 없음
+        assertNotNull(await { d.s.scene == Scene.BESTIARY })
+        assertTrue("지난 이야기 배경이 남았다: ${d.s.bgName}", d.s.bgName != coopItem("소방관")!!.bg)
+    }
+
     /** 「몰라」만 했으면 받을 말이 없다 — 지금처럼 사다리 끝에서 마스코트가 채운다 */
     @Test
     fun withOnlyDontKnowsTheMascotStillFillsTheSlot() = run { d ->
