@@ -119,7 +119,7 @@ class BlowMissionTest {
         CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch { got.complete(d.awaitReply()) }
         Thread.sleep(200)
         repeat(3) {
-            compose.onRoot().performTouchInput { click(Offset(width * 0.56f, height * 0.48f)) }
+            compose.onRoot().performTouchInput { click(Offset(width * 0.56f, height * 0.44f)) }
             compose.mainClock.advanceTimeBy(300)
         }
         compose.mainClock.advanceTimeBy(1500)

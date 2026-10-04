@@ -79,6 +79,7 @@ internal const val SOUND_TAP = 0.34f
  * - 마이크는 **크기만** 본다(무슨 말인지 안 본다 · `Blow.kt`) — 다른 말이어도 크게 하면 찬다(실패 없음)
  * - **탭 길(원칙 6)** — 소품을 세 번 톡톡 누르면 소리 말이 뜨며 똑같이 찬다. 마이크가 없어도 끝난다
  * - 8초 진전이 없으면 손이 소품을 눌러 보인다 · 듣는 중 표시는 화면 아래(#98 겹침)
+ * - 소품 그림 `prop_firetruck` · `prop_car` · `prop_lion` · `prop_puppy`(10-04 · `gen_room.py` 파이프라인) · 기차는 있던 `train`
  */
 @Composable
 internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundProp) {
@@ -112,15 +113,16 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
         }
     }
     LaunchedEffect(finished) { if (finished && !done) Sfx.play(Sound.SPARKLE, 0L, view = view) }
-    // 다 차면 소품이 제 할 일을 한다 — 탈것은 오른쪽으로 달려 나가고, 동물 · 공은 통통 뛴다
+    // 다 차면 소품이 제 할 일을 한다 — 옆모습인 소방차는 오른쪽으로 달려 나가고, 정면 그림(자동차 · 기차)과
+    // 동물 · 공은 제자리에서 통통 뛴다(정면 그림이 옆으로 미끄러지면 어색하다)
     val go by animateFloatAsState(if (finished) 1f else 0f, tween(1200, easing = FastOutSlowInEasing), label = "go")
-    val vehicle = prop == SoundProp.SIREN || prop == SoundProp.CAR || prop == SoundProp.TRAIN
+    val vehicle = prop == SoundProp.SIREN
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
         // 소품은 가운데 조금 위 — 아래에는 채움 막대 · 마이크 표시 · 책 문장 띠가 온다
         val size = 0.17f * wpx
-        val cx = 0.56f * wpx; val cy = 0.48f * hpx
+        val cx = 0.56f * wpx; val cy = 0.44f * hpx
         Stand(0.18f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
 
         val dx = if (vehicle) go * wpx * 0.5f else 0f
@@ -157,7 +159,7 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
         // 얼마나 찼나 — 펠트 막대(점수가 아니라 「조금만 더」를 보이는 것)
         Box(
             Modifier
-                .offset { IntOffset((cx - 110.dp.toPx()).roundToInt(), (cy + size * 0.36f).roundToInt()) }
+                .offset { IntOffset((cx - 110.dp.toPx()).roundToInt(), (cy + size / 2 + 4.dp.toPx()).roundToInt()) }
                 .width(220.dp).height(18.dp)
                 .clip(RoundedCornerShape(Radius.Round))
                 .background(FeltWhite.copy(alpha = 0.85f)),
