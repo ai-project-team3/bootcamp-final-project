@@ -346,7 +346,9 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
         when (stage) {
             Stage.Empty -> {}
 
-            Stage.Adult -> AdultScreen(d)
+            // 첫 화면은 오또의 방(`OttoShell` · `OttoRoom`)이 그린다 — `MainActivity` 가 이 단계에서는 StageView 를 부르지 않는다.
+            // 옛 시작 화면(`AdultScreen` · `ModeButton`, 약 110줄)은 그래서 닿지 않아 지웠다 (#65)
+            Stage.Adult -> {}
 
             is Stage.Bestiary -> Centered {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -787,119 +789,6 @@ private fun bounce(p: Float): Float {
         p < 0.55f -> { val x = p / 0.55f; x * x }
         p < 0.82f -> hop((p - 0.55f) / 0.27f, 0.12f)
         else -> hop((p - 0.82f) / 0.18f, 0.04f)
-    }
-}
-
-/** 시작 화면의 모드 버튼 — 무엇으로 짓는가를 고르는 자리 */
-@Composable
-private fun ModeButton(label: String, bg: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    FeltButton(bg, onClick = onClick, modifier = modifier) {
-        Text(label, fontSize = 17.sp, color = FeltWhite, modifier = Modifier.padding(vertical = 12.dp))
-    }
-}
-
-/** 장면 1 — 시작 화면. 아래 마스코트 말풍선은 없다. 위 왼쪽 아이/부모 전환 · 위 오른쪽 별(크롬) */
-@Composable
-private fun AdultScreen(d: Director) {
-    val s = d.s
-    Box(Modifier.fillMaxSize()) {
-        AssetImage("bg_start", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Sun2, Sun))))
-        }
-        // 아이 · 부모 모드 전환
-        Row(
-            Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 14.dp, top = 12.dp)
-                .felt(FeltWhite.copy(alpha = 0.95f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
-                .padding(3.dp)
-        ) {
-            Box(Modifier.felt(FeltMustard, RoundedCornerShape(Radius.Round), lift = 0.dp, stitch = false).padding(horizontal = 14.dp, vertical = 6.dp)) {
-                Text("🧒 아이", fontSize = 15.sp, color = InkBrown)
-            }
-            Box(Modifier.clip(RoundedCornerShape(999.dp)).clickable { d.send(Reply.Tapped("parent", "부모 모드")) }.padding(horizontal = 14.dp, vertical = 6.dp)) {
-                Text("👪 부모", fontSize = 15.sp, color = Muted)
-            }
-        }
-        Row(Modifier.fillMaxSize().padding(start = 30.dp, end = 30.dp, top = 56.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                val t = rememberInfiniteTransition(label = "hi")
-                val bob by t.animateFloat(-5f, 5f, infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "bob")
-                // 앱 이름 로고 v2 (09-28 디자인 시스템) — 펠트 패치 글자 「오또」 + 손 흔드는 고양이 오또 + 청록 리본
-                // 「말로 만드는 그림책」. 오또가 로고 안에 있어 마스코트 그림을 따로 두지 않는다
-                AssetImage("logo_otto_v2", Modifier.width(330.dp).offset { IntOffset(0, bob.roundToInt()) }) {
-                    ArtView(Art.Mascot, Modifier.size(190.dp))
-                }
-            }
-            Column(
-                Modifier
-                    .weight(1.15f)
-                    .felt(FeltWhite.copy(alpha = 0.96f), RoundedCornerShape(Radius.L), lift = 8.dp, texture = false)
-                    .padding(horizontal = 22.dp, vertical = 16.dp),
-            ) {
-                Text("${s.childName}${if (com.example.finalproject_demo.demo.bat(s.childName)) "과" else "와"} 함께 이야기를 만들어요", fontSize = 22.sp, color = Ink, fontWeight = FontWeight.Bold)
-                Text("약 15분 · 책장에 ${s.shelf.size}권", fontSize = 13.sp, color = Muted)
-                Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 주 버튼 — 코랄 펠트 (디자인 시스템: 주 버튼 = --felt-coral)
-                    FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped("start", "이야기 만들기")) }, modifier = Modifier.weight(1f)) {
-                        Text(if (s.pinToStart) "🔒 이야기 만들기" else "이야기 만들기", fontSize = 22.sp, color = FeltWhite, modifier = Modifier.padding(vertical = 14.dp))
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    FeltButton(WoolCream, onClick = { d.send(Reply.Tapped("shelf", "책장")) }) {
-                        Text("📚 책장", fontSize = 18.sp, color = InkBrown, modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp))
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                // 갈래가 갈라지는 유일한 자리 (일기 §1 · 협업 §3).
-                // ⚠️ 문구에 "일기"를 쓰지 않는다 — 아이가 옆에서 보고 숙제로 듣는다 (일기 §0)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // 모드 색 — 디자인 시스템 09-28 저녁판: 이야기 만들기 빨강 · 오늘 이야기 파랑 · 같이 만들기 청록
-                    ModeButton(
-                        "🌙 오늘 있었던 일로", FeltSky, Modifier.weight(1f),
-                    ) { d.send(Reply.Tapped("diary", "오늘 있었던 일로")) }
-                    // 부모에게 소재를 받는 모드가 아니라 **질문하는 사람을 바꾸는 모드**다 (협업 §0)
-                    ModeButton(
-                        "👪 같이 만들기", FeltTeal, Modifier.weight(1f),
-                    ) { d.send(Reply.Tapped("coop", "같이 만들기")) }
-                }
-                Spacer(Modifier.height(10.dp))
-                Text("어른과 함께 하는 놀이예요", fontSize = 13.sp, color = Ink, fontWeight = FontWeight.Bold)
-                Text("어른이 옆에서 함께할 때 가장 좋아요", fontSize = 12.sp, color = Muted)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(
-                        if (s.limitOn) "하루 ${s.dailyLimit}권" else "한도 없음",
-                        if (s.pinToStart) "시작 비밀번호 켜짐" else "바로 시작",
-                        com.example.finalproject_demo.demo.ART_STYLES.first { it.key == s.artStyle }.name,
-                    ).forEach {
-                        Box(Modifier.clip(RoundedCornerShape(Radius.Round)).background(WoolCream).padding(horizontal = 9.dp, vertical = 4.dp)) {
-                            Text(it, fontSize = 11.sp, color = Ink)
-                        }
-                    }
-                }
-            }
-        }
-        // 하루 별을 다 썼을 때 한 번만 뜨는 안내
-        s.notice?.let { msg ->
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)), contentAlignment = Alignment.Center) {
-                Column(
-                    Modifier
-                        .width(380.dp)
-                        .felt(Wool, RoundedCornerShape(Radius.L), lift = 10.dp)
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    ArtView(Art.Mascot, Modifier.size(70.dp))
-                    Text(msg, fontSize = 17.sp, color = Ink, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        PillButton("📚 책장 보기", Sun, Ink, 16) { d.send(Reply.Tapped("notice:shelf", "책장")) }
-                        PillButton("🙂 괜찮아", WoolCream, Ink, 16) { d.send(Reply.Tapped("notice:ok", "괜찮아")) }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -1355,7 +1244,6 @@ private fun DrawerControls(d: Director) {
     }
     Row {
         DrawerChip("⭐ 하루 별 0으로", s.dayStars == 0) { s.usedToday = if (s.dayStars == 0) 0 else s.dailyLimit }
-        DrawerChip("⏩ 8턴 지난 것으로 (남은 칸 자동)", s.turn >= 8) { s.turn = if (s.turn >= 8) 0 else 8 }
     }
     Spacer(Modifier.height(8.dp))
     Text("아이 반응 (대본 버튼 — 화면의 🎤 · 카드 · ➡️와 같음)", fontSize = 13.sp, color = Muted)
