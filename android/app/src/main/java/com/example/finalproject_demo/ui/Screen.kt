@@ -483,10 +483,7 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                     if (stage.progress >= 0f) {
                         Spacer(Modifier.height(12.dp))
                         StitchLoading(p)
-                        if (stage.progress >= 1f) {
-                            Spacer(Modifier.height(6.dp))
-                            ParentText { Text("책 이름은 책장에서 바꿀 수 있어요", fontSize = 13.sp, color = InkSoft) }
-                        }
+                        // 「책 이름은 책장에서 바꿀 수 있어요」를 뺐다 — 책장에는 아직 이름 바꾸기가 없다(✏️ 「곧 생겨요」) (#65 3번)
                     }
                 }
             }
