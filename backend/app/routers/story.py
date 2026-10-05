@@ -145,6 +145,8 @@ def check(result: StoryResult, mode: str, pages: list | None = None) -> str | No
 
 def stamp(result: StoryResult, req: StoryRequest) -> StoryResult:
     """Page kinds come from the request, in order — the app's plan, never the model's word."""
+    title = (result.title or "").strip()
+    result.title = title if title and not is_blocked(title) and not has_unknown_placeholder(title) else None
     for i, sc in enumerate(result.scenes):
         sc.index = i + 1
         sc.kind = req.pages[i].kind if req.pages else None

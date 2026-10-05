@@ -54,4 +54,7 @@ class StoryRequest(BaseModel):
 
 
 class StoryResult(BaseModel):
+    # the cover line (10-05 · #86: the app no longer asks the child for one). Optional — an unsafe
+    # or empty title is dropped and the app keeps its own, the book itself still goes
+    title: Optional[str] = None
     scenes: list[Scene]
