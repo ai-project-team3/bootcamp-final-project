@@ -34,13 +34,13 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
         slotBy[slot] = by
     }
 
-    verdict.noLongerNeeded?.takeIf { it in Server.SLOTS && it != "extra" }?.let {
+    verdict.noLongerNeeded?.takeIf { it in Server.SLOTS }?.let {
         if (it !in storyUnneededSlots) storyUnneededSlots += it
     }
 
     if (verdict.storyReady) endReason = "story_ready"
     storyNextSlot = verdict.nextSlot?.takeIf {
-        !storyReady && it in Server.SLOTS && it != "extra" &&
+        !storyReady && it in Server.SLOTS &&
             it !in storyUnneededSlots && (slots[it].isNullOrBlank() || verdict.unclear)
     }
     storyClarificationSlot = storyNextSlot?.takeIf { verdict.unclear }

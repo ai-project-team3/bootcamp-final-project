@@ -14,6 +14,7 @@ private val CORE_QUESTIONS = mapOf(
     "sound" to "그 친구는 어떤 소리를 낼까?",
     "adult" to "함께 있는 사람은 뭐라고 했어?",
     "solution" to "이야기는 어떻게 끝났어?",
+    "extra" to "이야기를 조금 더 들려줄래?",
 )
 
 fun DemoState.nextStoryPrompt(serverQuestion: String? = null, deferredSlot: String? = null): StoryPrompt? {

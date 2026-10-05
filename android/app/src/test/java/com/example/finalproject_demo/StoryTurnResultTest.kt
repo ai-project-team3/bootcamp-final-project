@@ -127,6 +127,60 @@ class StoryTurnResultTest {
     }
 
     @Test
+    fun serverExtraQuestionAndAnswerReachTheNextTurnBeforeBookReadiness() = runBlocking {
+        val s = DemoState().apply {
+            turn = 3
+            templateKey = "C"
+            slots["place"] = "숲"
+            slots["problem"] = "길을 잃었어"
+        }
+        s.exchangeStoryTurn("reaction", "그다음에는 어떻게 했어?", "곰인형을 안고 쉬었어") {
+            Server.TurnResult(
+                verdict(fills = listOf("reaction" to it.utterance), next = "extra"),
+                Server.Line("곰인형을 안고 쉬었구나!", null, "쉬고 난 뒤에는 어떻게 돌아왔어?"),
+            )
+        }
+        val prompt = s.nextStoryPrompt(s.storyServerQuestion)!!
+        assertEquals("extra", prompt.slot)
+        assertEquals("쉬고 난 뒤에는 어떻게 돌아왔어?", prompt.text)
+        assertFalse(prompt.templateOnly)
+        assertFalse(s.storyReady)
+
+        var sent: Server.Turn? = null
+        s.exchangeStoryTurn(prompt.slot, prompt.text, "엄마와 집에 돌아왔어", by = "child") {
+            sent = it
+            Server.TurnResult(verdict(fills = listOf("extra" to it.utterance), ready = true), null)
+        }
+        assertEquals("extra", sent!!.askedSlot)
+        assertEquals(prompt.text, sent!!.question)
+        assertEquals("엄마와 집에 돌아왔어", s.slots["extra"])
+        assertEquals("child", s.slotBy["extra"])
+        assertTrue(s.storyReady)
+        assertNull(s.nextStoryPrompt())
+    }
+
+    @Test
+    fun filledExtraIsOnlyReopenedForAnExplicitClarification() {
+        val s = DemoState().apply {
+            turn = 3
+            slots["extra"] = "곰인형을 안고 쉬었어"
+        }
+        s.applyStoryVerdict(verdict(next = "extra"), "child")
+        assertNull(s.storyNextSlot)
+        s.applyStoryVerdict(verdict(next = "extra").copy(unclear = true, unclearOf = "돌아온 방법"), "child")
+        assertEquals("extra", s.nextStoryPrompt("집에는 어떻게 돌아왔어?")?.slot)
+        assertEquals("집에는 어떻게 돌아왔어?", s.nextStoryPrompt("집에는 어떻게 돌아왔어?")?.text)
+    }
+
+    @Test
+    fun extraDeclaredUnneededCannotBeReopenedByTheServer() {
+        val s = DemoState().apply { turn = 3 }
+        s.applyStoryVerdict(verdict(next = "extra", noLongerNeeded = "extra").copy(unclear = true), "child")
+        assertTrue("extra" in s.storyUnneededSlots)
+        assertNull(s.storyNextSlot)
+    }
+
+    @Test
     fun failedLiveTurnDoesNotInventAnAnswerOrAdvanceTheQuestion() = runBlocking {
         val s = DemoState()
         val result = s.exchangeStoryTurn("problem", "무슨 일이야?", "몰라") { null }
