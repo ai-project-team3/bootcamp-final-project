@@ -11,9 +11,16 @@ fun DemoState.storyServerInput(): StoryServerInput {
         .distinct().joinToString("\n")
     val values = slots.toMutableMap()
     val sources = slotBy.toMutableMap()
+    // The sound slot holds the app's own note when the child recorded a sound (StorySound) — not story content.
+    // 10-05 device: /story read it and wrote 「과학을 싫어하는 원주민이 친구의 소리를 직접 만들었어요」.
+    // The recording itself plays from the book; the server gets no sound line for it.
+    if (values["sound"] == RECORDED_SOUND_NOTE) { values.remove("sound"); sources.remove("sound") }
     if (extra.isNotBlank()) values["extra"] = extra
     val contributingSources = (if (original.isNotBlank()) listOf(slotBy["extra"]) else emptyList()) + additions.map { slotBy[it.first] }
     val source = contributingSources.distinct().singleOrNull()
     if (source != null) sources["extra"] = source else sources.remove("extra")
     return StoryServerInput(values, sources)
 }
+
+/** What StorySound writes into the sound slot after the child records — an app note, never sent to /story */
+const val RECORDED_SOUND_NOTE = "친구의 소리를 직접 만들었어요"

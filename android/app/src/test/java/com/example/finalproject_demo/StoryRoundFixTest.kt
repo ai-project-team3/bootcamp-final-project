@@ -4,6 +4,12 @@ import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.nextStoryPrompt
 import com.example.finalproject_demo.demo.reported
+import com.example.finalproject_demo.demo.fixKnownNames
+import com.example.finalproject_demo.demo.storyServerInput
+import com.example.finalproject_demo.demo.RECORDED_SOUND_NOTE
+import com.example.finalproject_demo.demo.scene.SceneKits
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import com.example.finalproject_demo.demo.storyReaction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -43,5 +49,28 @@ class StoryRoundFixTest {
         assertNotEquals("sound", s.nextStoryPrompt("사육사 아저씨는 어떤 소리를 낼까?")?.slot)
         s.storyNextSlot = "companion"; s.storyClarificationSlot = null
         assertNotEquals("companion", s.nextStoryPrompt("또치와 누가 함께할까?")?.slot)
+    }
+
+    /** 10-05 second round: 「우가우가」 came back 「우거우거랑」 */
+    @Test
+    fun aNameHeardSlightlyWrongIsPutBack() {
+        val names = listOf("우가우가")
+        assertEquals("과학자랑 우가우가랑 싸웠어.", fixKnownNames("과학자랑 우거우거랑 싸웠어.", names))
+        assertEquals("우가가 사과했어.", fixKnownNames("우가가 사과했어.", names))          // shorter: the child's own form, kept
+        assertEquals("고기를 구워 먹었어", fixKnownNames("고기를 구워 먹었어", names))
+        assertEquals("하늘 나는 자동차", fixKnownNames("하늘 나는 자동차", listOf("하나")))  // a different word stays
+    }
+
+    @Test
+    fun theRecordedSoundNoteIsNotSentToTheStory() {
+        val s = DemoState().apply { slots["sound"] = RECORDED_SOUND_NOTE; slotBy["sound"] = "child"; slots["place"] = "미래 도시" }
+        assertFalse("sound" in s.storyServerInput().slots)
+        assertEquals("만들었대", reported("만들었다"))
+    }
+
+    @Test
+    fun onlyParkPlacesUseTheKit() {
+        assertEquals("park", SceneKits.matching("놀이터")?.key)
+        assertNull("미래 도시 is generated", SceneKits.matching("과학이 발전한 미래 도시"))
     }
 }

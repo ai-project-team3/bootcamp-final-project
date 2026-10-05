@@ -533,7 +533,12 @@ class Director(
             val text = Voice.transcribe(audio)
             when {
                 text == null || text.isBlank() -> unheard(if (text == null) "받아쓰기 실패" else "들을 말이 없음")
-                else -> { unheardStreak = 0; log("받아쓰기: \"$text\""); send(Reply.Spoke(text)) }
+                else -> {
+                    unheardStreak = 0
+                    val fixed = fixKnownNames(text, s.knownNames())
+                    log(if (fixed == text) "받아쓰기: \"$text\"" else "받아쓰기: \"$text\" → 정한 이름으로 \"$fixed\"")
+                    send(Reply.Spoke(fixed))
+                }
             }
         }
     }

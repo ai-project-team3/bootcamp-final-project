@@ -216,7 +216,7 @@ internal fun DemoState.syncStoryPresentation() {
         s.generatedBg = theme == null
         // a new place gets a new kit layout seed; the same place keeps its scene (turn after turn, undo/redo)
         if (s.place != place) s.sceneSeed = kotlin.random.Random.nextLong()
-        s.sceneKit = if (theme == null && SceneKits.liveStory) SceneKits.forPlace(place).key else null
+        s.sceneKit = if (theme == null && SceneKits.liveStory) SceneKits.matching(place)?.key else null
         s.place = place
     }
     s.problem = s.slots["problem"]
