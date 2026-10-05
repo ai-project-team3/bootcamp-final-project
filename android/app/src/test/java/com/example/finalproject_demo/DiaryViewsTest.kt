@@ -280,17 +280,58 @@ class DiaryViewsTest {
         assertTrue("말풍선이 ↶ 를 가린다 — 말풍선 위 ${bubble.top} · ↶ 아래 ${undo.bottom}", bubble.top >= undo.bottom)
     }
 
-    /** 오른쪽 띠 [다 그렸어] · [그려 줘] — 말로 「다 그렸어」 · 「그려줘」와 같은 신호. 지켜보는 중에만 [그려 줘]를 받는다 */
+    /** 오른쪽 띠 [다 그렸어] · [그려 줘] — 말로 「다 그렸어」 · 「그려줘」와 같은 신호. [그려 줘]는 그리기 단계(D1) 안에서 받는다 */
     @Test
     fun theRailButtonsSendDoneAndDrawMe() {
         val d = director()
-        d.s.newDiaryDay().watching = true
+        d.s.newDiaryDay().apply { watching = true; drawingTalk = true }
         d.s.drawing += Stroke(Color.Red, listOf(Offset(.1f, .3f), Offset(.2f, .6f)))
         d.s.stage = DiaryBoard()
         d.inputs(mic = true, next = false)
         show(d)
         assertEquals("drawme", (d.replyTo { compose.onNodeWithTag("rail-drawme").onChildren().onFirst().performClick() } as? Reply.Tapped)?.value)
         assertEquals("done", (d.replyTo { compose.onNodeWithTag("rail-done").onChildren().onFirst().performClick() } as? Reply.Tapped)?.value)
+    }
+
+    /** 오또가 말하거나 묻는 중에도 [그려 줘] · [이름 고치기]가 눌린다 — 전에는 지켜볼 때만이라 흐리게 꺼졌다 (10-05 진웅) */
+    @Test
+    fun theRailToolsWorkWhileOttoTalks() {
+        val d = director()
+        drawDay(d)
+        d.s.diaryDay.apply { watching = false; drawingTalk = true }     // 오또가 묻는 중
+        d.s.stage = DiaryBoard()
+        d.say("우와, 지금 그리는 건 뭐야?")
+        show(d)
+        assertEquals("drawme", (d.replyTo { compose.onNodeWithTag("rail-drawme").onChildren().onFirst().performClick() } as? Reply.Tapped)?.value)
+        assertEquals("rename", (d.replyTo { compose.onNodeWithTag("rail-rename").onChildren().onFirst().performClick() } as? Reply.Tapped)?.value)
+    }
+
+    /** 다 그린 뒤(D1 밖)에는 꺼 둔다 — 다음 질문의 답으로 섞이지 않게 */
+    @Test
+    fun theRailToolsAreOffOnceDrawingIsOver() {
+        val d = director()
+        drawDay(d)
+        d.s.diaryDay.drawingTalk = false
+        d.s.stage = DiaryBoard()
+        show(d)
+        compose.onNodeWithTag("rail-drawme").onChildren().onFirst().assertIsNotEnabled()
+        compose.onNodeWithTag("rail-rename").onChildren().onFirst().assertIsNotEnabled()
+    }
+
+    /** 이름표를 누르면 그 조각이 골라지고(청록 이름표) 오또가 묻는 중에도 받는다. 새 획을 그으면 고른 것이 풀린다 (10-05 진웅) */
+    @Test
+    fun tappingATagWhileOttoAsksSelectsThatPiece() {
+        val d = director()
+        drawDay(d)
+        val day = d.s.diaryDay.apply { watching = false; drawingTalk = true }
+        d.s.stage = DiaryBoard()
+        d.say("우와, 지금 그리는 건 뭐야?")
+        show(d)
+        val sun = day.pieces.first { it.name == "해" }.id
+        assertEquals("name:$sun", (d.replyTo { compose.onNodeWithTag("tag-$sun").performClick() } as? Reply.Tapped)?.value)
+        assertEquals(sun to d.s.drawing.size, day.focus)
+        compose.mainClock.advanceTimeBy(300)
+        snap("diary_board_tag_selected")
     }
 
     /** 천천히 긋는 둘째 획 — 앞 획 뒤 1.6초가 지나도 손가락이 판에 있으면 묻지 않는다. 손을 떼고 조용하면 묻는다 */

@@ -65,7 +65,10 @@ suspend fun Director.pictureDiary() {
     log("그림일기 — 그리는 동안 짧게 묻고, 다 그리면 빈 칸을 칸마다 ${SLOT_TRIES}번까지 묻는다. 빈 칸은 메우지 않는다 (흐름 HTML · #89)")
 
     s.progressVisible = false        // 위쪽 별 막대는 일기 화면이 따로 그린다 (D3 별 두 개)
-    if (startDrawing() == "draw") drawWhileTalking(day) else log("그림 없이 말로 — D3 로 바로 간다")
+    if (startDrawing() == "draw") {
+        day.drawingTalk = true
+        try { drawWhileTalking(day) } finally { day.drawingTalk = false; day.pendingTap = null }
+    } else log("그림 없이 말로 — D3 로 바로 간다")
     askEmptySlots()
     finishPictureDiary(day)
 }
@@ -126,9 +129,12 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             send(Reply.Tapped("pause", "오또 그림"))
         }
         // 오또가 말하던 사이 남겨 둔 붓 멈춤이 있으면 기다리지 않고 받는다 — 아이가 새로 그린 것을 놓치지 않는다
-        val missed = day.pendingPause?.takeIf { !s.micOn && !day.penDown }
+        // 오또가 묻는 사이 누른 그림판 조작이 먼저다 — 아이가 직접 누른 것이라 붓 멈춤보다 앞에 둔다 (10-05 진웅)
+        val tapped = day.pendingTap?.also { day.pendingTap = null; log("오또가 묻는 사이 누른 「${it.label}」 → 이제 받는다") }
+        val missed = if (tapped != null) null else day.pendingPause?.takeIf { !s.micOn && !day.penDown }
         if (missed != null) { day.pendingPause = null; log("오또가 말하는 사이 온 붓 멈춤 → 이제 받는다") }
-        val r = try { if (missed != null) Reply.Tapped("pause", missed) else awaitReply() } finally { wake.cancel() }
+        val r = try { tapped ?: if (missed != null) Reply.Tapped("pause", missed) else awaitReply() } finally { wake.cancel() }
+        if (r == day.pendingTap) day.pendingTap = null           // 남겨 둔 것과 같은 탭이 줄로도 왔다 — 두 번 하지 않는다
         day.watching = false
         when {
             r is Reply.Tapped && r.value == "pause" -> afterCrayon = r.label == CRAYON_PAUSE
@@ -506,6 +512,7 @@ private suspend fun Director.askRename(day: DiaryDay, piece: DiaryPiece) {
     val q = Question(text = "이건 뭐야? 다시 말해 줘!", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_rename", waitSec = D1_WAIT_SEC)
     day.askingPiece = piece.id
     val r = try { askWhileDrawing(q, day, about = piece.id) } finally { day.askingPiece = null }
+    if (r is Reply.Tapped && r.value == MOVED_ON) return          // 다른 걸 그리러 갔거나 다른 조작을 눌렀다 — 「그대로 둘게」 없이
     val name = (r as? Reply.Spoke)?.let { pieceNameFrom(it) }
     val now = you(piece.name.orEmpty())
     when {
@@ -513,6 +520,22 @@ private suspend fun Director.askRename(day: DiaryDay, piece: DiaryPiece) {
         name == piece.name -> { say("맞아, ${now}${ida(now)}!"); pause(600) }
         else -> setPieceName(day, piece.id, name, (r as Reply.Spoke).text)
     }
+}
+
+/**
+ * 그림판에서 누른 조작 — [그려 줘] · [이름 고치기] · 이름표(톡 · 길게 · ✨). 오또가 묻는 중에도 받고, 답으로 섞지 않는다.
+ * [다 그렸어](done)는 여기 없다 — 묻는 질문이 끝을 알아야 해서 전처럼 답으로 돌려준다
+ */
+internal fun isBoardTool(value: String): Boolean =
+    value == "drawme" || value == "rename" || value.startsWith("rename:") || value.startsWith("name:") || value.startsWith("look:")
+
+/**
+ * 그림판 조작을 보낸다. 오또가 지켜보는 중이 아니면 [DiaryDay.pendingTap] 에도 남긴다 — 묻는 말이 끝나고 답을 기다리기 직전에
+ * 누르면 기다리기 전에 비우는 입력과 함께 사라졌다. 줄로 먼저 닿으면 그리기 흐름이 남긴 것을 지운다(두 번 하지 않는다)
+ */
+fun Director.sendBoardTool(r: Reply.Tapped) {
+    if (!s.diaryDay.watching) s.diaryDay.pendingTap = r
+    send(r)
 }
 
 /** D1 질문을 조용히 거둔 까닭 — 아이가 다른 조각을 그리기 시작했다 · 손을 놓고 말이 없었다 */
@@ -568,13 +591,19 @@ private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: 
             if (quietMs >= quietLimitMs) { send(Reply.Tapped(WENT_QUIET, "조용함")); return@launch }
         }
     }
-    val r = try { awaitReply() } finally { watch.cancel() }
+    val got = try { awaitReply() } finally { watch.cancel() }
+    // 그림판 조작([그려 줘] · [이름 고치기] · 이름표)은 이 질문의 답이 아니다 — 남겨 두고 질문을 거둔다.
+    // 부르는 쪽은 다른 조각을 그리러 간 것처럼([MOVED_ON]) 조용히 넘어가고, 그리기 흐름이 그 조작을 바로 받는다 (10-05 진웅)
+    val tool = got is Reply.Tapped && isBoardTool(got.value)
+    if (tool) day.pendingTap = got as Reply.Tapped
+    val r = if (tool) Reply.Tapped(MOVED_ON, (got as Reply.Tapped).label) else got
     // 실기기에서 어느 길로 끝났는지 본다 — 질문 · 끝난 까닭만(아이 말은 남기지 않는다)
-    val outcome = when (r) { is Reply.Spoke -> "answered"; is Reply.Tapped -> r.value; else -> r.javaClass.simpleName }
+    val outcome = when (got) { is Reply.Spoke -> "answered"; is Reply.Tapped -> got.value; else -> got.javaClass.simpleName }
     runCatching { android.util.Log.i("Diary", "D1 「${q.text}」 → $outcome") }         // 단위 테스트에는 Log 가 없다
     DiaryTrace.ask(q.text, outcome)
     when {
         r is Reply.Spoke -> acceptSpoken(r.text)
+        tool -> { s.line = ""; log("「${q.text}」 — 아이가 「${(got as Reply.Tapped).label}」을 눌렀다 → 거두고 그 조작으로") }
         r is Reply.Tapped && r.value == MOVED_ON -> { s.line = ""; log("「${q.text}」 — 다른 조각을 그리기 시작했다 → 조용히 거둔다(지금 그리는 그림이 먼저)") }
         // 거둔 질문을 말풍선에 남기지 않는다 — 묻는 말은 접히지 않아서 답을 기다리는 것처럼 보였다(10-02 실기기)
         r is Reply.Tapped && r.value == WENT_QUIET -> { s.line = ""; log("「${q.text}」 — 손을 놓고 ${waitMs / 1000}초 말이 없었다 → 거둔다") }
