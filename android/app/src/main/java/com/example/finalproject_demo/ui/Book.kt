@@ -471,7 +471,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
             // 미션 자리 1 — 아이 말에 불 것(촛불 · 민들레 · 먼지 · 바람)이 있으면 C1 불기, 아니면 A6 문지르기 (#101)
             PageKind.RUB -> s.blowProp()?.let { BlowMission(d, stage.m1Done, heroArt, it) }
                 ?: s.soundProp()?.let { SoundMission(d, stage.m1Done, heroArt, it) }
-                ?: RubMission(d, stage.m1Done, heroArt, dinoArt, tool)
+                ?: RubMission(d, stage.m1Done, heroArt, dinoArt, tool, scripted = scripted)
             // 미션 2가 **틀에 따라 갈라진다** (9/23 · 미션 구상 §4).
             // 「다시 쌓다 · 맞추다 · 되돌리다」로 푸는 틀(A 도전-성취 · G 우화-교훈)은 퍼즐이,
             // 「건네다 · 나누다」로 푸는 나머지 틀은 지금까지의 건네주기가 맞다.

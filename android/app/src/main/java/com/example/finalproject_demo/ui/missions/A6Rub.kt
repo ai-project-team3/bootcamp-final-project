@@ -99,10 +99,11 @@ import com.example.finalproject_demo.ui.*
  * 탈것 위에 붙은 것 3개를 손가락으로 문지르면 줄어들다 없어진다. 도구가 손가락을 따라온다. 공룡을 문지르면 장난 반응.
  */
 @Composable
-internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool: String) {
+internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, tool: String,
+    scripted: Boolean = !com.example.finalproject_demo.net.Server.liveFor(d.s.mode)) {
     val view = LocalView.current   // 효과음과 같이 진동 (Sfx · 09-25)
     val s = d.s
-    val m = s.mission1()
+    val m = s.mission1(liveStory = !scripted)
     val density = LocalDensity.current.density
     val rub = remember { mutableStateListOf(0f, 0f, 0f) }
     // 불·물·김은 **그림이 아니라 계산**이다 (9/23). 흔적 그림은 그대로 두고 그 위에 입자를 얹는다 —
@@ -145,7 +146,6 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
         // 일기·협업에는 탈것이 없다 (§2-2). 전에는 **가방**을 띄워 놓고 거기에 흙을 묻혔는데,
         // 아이가 가방 이야기를 한 적이 없어서 "놀이터에 남은 모래를 치웠어요" 자막 옆에
         // 뜬금없는 가방이 떠 있었다 (9/22). 이제 흔적은 **놀던 자리(바닥)** 에 흩어진다.
-        val scripted = !com.example.finalproject_demo.net.Server.liveFor(s.mode)
         val liveStory = s.mode == StoryMode.STORY && !scripted
         // A live story has no scripted ride. Put its marks on a visible patch, not the hidden ride's roof.
         val blobs = when {

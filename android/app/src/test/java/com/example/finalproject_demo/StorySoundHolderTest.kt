@@ -179,6 +179,31 @@ class StorySoundHolderTest {
 
     @Test fun aStoredScriptedBooksDinosaurStillPlaysWhenTheServerIsEnabled() = storedReplay(live = false)
 
+    @Test fun aStoredLiveRubPageKeepsItsFiguresAfterDisconnecting() = storedRubFigures(live = true)
+
+    @Test fun aStoredScriptedRubPageKeepsItsFiguresAfterConnecting() = storedRubFigures(live = false)
+
+    @OptIn(com.github.takahirom.roborazzi.ExperimentalRoborazziApi::class)
+    private fun storedRubFigures(live: Boolean) {
+        setLive(live)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        try {
+            val made = Director(scope).apply { prepareBook() }
+            val book = mutableStateOf(made.s.completedStoryBook()!!)
+            val page = book.value.pages.indexOfFirst { it.kind == PageKind.RUB } + 1
+            assertTrue(page > 0)
+            compose.setContent { SavedStoryView(made, Stage.SavedStory(book.value, page)) }
+            val before = File(folder, "rub-before.png")
+            val after = File(folder, "rub-after.png")
+            val options = RoborazziOptions(taskType = RoborazziTaskType.Record)
+            compose.onRoot().captureRoboImage(before.path, roborazziOptions = options)
+            compose.runOnIdle { setLive(!live); book.value = book.value.copy(id = "reopened-rub") }
+            compose.onRoot().captureRoboImage(after.path, roborazziOptions = options)
+            assertTrue("A stored mission's figures must not depend on the current server connection",
+                BitmapFactory.decodeFile(before.path).sameAs(BitmapFactory.decodeFile(after.path)))
+        } finally { compose.runOnIdle { scope.cancel() } }
+    }
+
     @Test fun theLiveBookFriendActuallyStartsTheActiveRecording() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         try {
