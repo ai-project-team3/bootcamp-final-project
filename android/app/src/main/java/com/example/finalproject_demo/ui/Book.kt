@@ -88,6 +88,12 @@ import com.example.finalproject_demo.demo.missions.missions
 import com.example.finalproject_demo.ui.missions.GiveMission
 import com.example.finalproject_demo.ui.missions.PuzzleMission
 import com.example.finalproject_demo.ui.missions.RubMission
+import com.example.finalproject_demo.ui.missions.BlowMission
+import com.example.finalproject_demo.ui.missions.SoundMission
+import com.example.finalproject_demo.ui.missions.HoseMission
+import com.example.finalproject_demo.ui.missions.TurnMission
+import com.example.finalproject_demo.demo.missions.soundProp
+import com.example.finalproject_demo.demo.missions.blowProp
 import com.example.finalproject_demo.demo.mission2
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -461,14 +467,21 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                 Text("…", fontSize = 40.sp, color = Color.White, fontWeight = FontWeight.Bold,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 96.dp, start = 170.dp).alpha(twinkle))
             }
-            PageKind.RUB -> RubMission(d, stage.m1Done, heroArt, dinoArt, tool)
+            // 미션 자리 1 — 아이 말에 불 것(촛불 · 민들레 · 먼지 · 바람)이 있으면 C1 불기, 아니면 A6 문지르기 (#101)
+            PageKind.RUB -> s.blowProp()?.let { BlowMission(d, stage.m1Done, heroArt, it) }
+                ?: s.soundProp()?.let { SoundMission(d, stage.m1Done, heroArt, it) }
+                ?: RubMission(d, stage.m1Done, heroArt, dinoArt, tool)
             // 미션 2가 **틀에 따라 갈라진다** (9/23 · 미션 구상 §4).
             // 「다시 쌓다 · 맞추다 · 되돌리다」로 푸는 틀(A 도전-성취 · G 우화-교훈)은 퍼즐이,
             // 「건네다 · 나누다」로 푸는 나머지 틀은 지금까지의 건네주기가 맞다.
             // 쪽 종류(DRAG)와 감독에게 보내는 신호는 그대로라 책 흐름은 안 바뀐다
             PageKind.DRAG ->
-                if (s.missions().slot2 == MissionId.A3) PuzzleMission(d, stage.m2Done)
-                else GiveMission(d, stage.m2Done, heroArt, tool)
+                when (s.missions().slot2) {
+                    MissionId.A3 -> PuzzleMission(d, stage.m2Done)
+                    MissionId.A1 -> HoseMission(d, stage.m2Done, heroArt)       // 「불을 껐어」 (#101)
+                    MissionId.A4 -> TurnMission(d, stage.m2Done, heroArt)       // 「꽉 잠갔어」 (#101)
+                    else -> GiveMission(d, stage.m2Done, heroArt, tool)
+                }
             PageKind.TOGETHER -> {
                 Scenery(glow = if (s.isDiary) s.diaryGlow else s.hotspots.map { it.key }.toSet())
                 Box(Modifier.align(Alignment.TopCenter).padding(top = 76.dp).size(110.dp, 50.dp).alpha(twinkle)) { ArtView(Art.Img("prop_sparkle", Art.Emoji("⭐✨⭐")), Modifier.fillMaxSize()) }

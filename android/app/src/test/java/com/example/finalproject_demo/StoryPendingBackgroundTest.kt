@@ -20,6 +20,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class StoryPendingBackgroundTest {
+    // the generated-background path; the felt scene kit (on by default) would skip /image
+    @get:org.junit.Rule val sceneKitOff = SceneKitOff()
+
     @Test fun firstQuestionDoesNotShowAPlaceTheChildHasNotChosen() = runBlocking {
         withLiveStory { d, _ ->
             await { d.s.micEnabled }

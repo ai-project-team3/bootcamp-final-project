@@ -27,7 +27,14 @@ fun DemoState.storyPagePlan(): List<Server.Page> {
     if (mode != StoryMode.STORY) return emptyList()
     val pages = template?.pages ?: return emptyList()
     return pages.map { page ->
-        Server.Page(page.kind.name, missionFor(page.kind)?.name)
+        // the object the mission uses, so the page sets up the same thing the child then hands over (10-05:
+        // the page said a balloon, the mission handed a shiny stone)
+        val prop = when (page.kind) {
+            PageKind.RUB -> mission1().blobName
+            PageKind.DRAG -> if (missions().slot2 == MissionId.E1) mission2().itemName else null
+            else -> null
+        }
+        Server.Page(page.kind.name, missionFor(page.kind)?.name, prop)
     }
 }
 
@@ -50,7 +57,7 @@ fun DemoState.storyMissionResult(i: Int): String? {
         } else null
         PageKind.DRAG -> if (m2Result != null) {
             if (missions().slot2 == MissionId.A3) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
-            else "${childName}${eun(childName)} ${friendCallName}에게 ${mission2().give}."
+            else "${storyActor}${eun(storyActor)} ${friendCallName}에게 ${mission2().give}."
         } else null
         else -> null
     }

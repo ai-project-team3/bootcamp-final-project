@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.demo
 
 import androidx.compose.ui.graphics.Color
+import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
@@ -474,10 +475,13 @@ private suspend fun Director.sceneMakeHero() {
         Q("우리 주인공은 머리가 어떻게 생겼을까?", "hair", "거울 속 $c 머리를 떠올려 봐. 어떤 머리야?",
             listOf(Answer("짧아!", "short"), Answer("길어!", "long"), Answer("묶었어!", "tied"), Answer("짧게 짧게!", "short"), Answer("긴 머리가 좋아! 바람에 날려!", "long")),
             listOf(Card("짧아", Art.Img("ic_hair_short", Art.Emoji("💇")), "short"), Card("길어", Art.Img("ic_hair_long", Art.Emoji("👩")), "long"), Card("묶었어", Art.Img("ic_hair_tied", Art.Emoji("🎀")), "tied"))),
-        Q("주인공은 무슨 색 옷을 입으면 좋을까?", "shirt", "$c${ga(c)} 제일 좋아하는 색은 뭐야?",
+        // 10-05 device: 「무슨 색」 narrowed the answer to a colour — 「어떤 옷」 lets the child say 「커다란 풍선 옷」.
+        // The words go to the picture as they are (descriptions); the cards stay colours for the picker
+        Q("주인공은 어떤 옷을 입고 있을까?", "shirt", "$c${ga(c)} 제일 좋아하는 옷은 뭐야? 색깔도 좋아!",
             listOf(Answer("파랑!", "3F7BD9"), Answer("빨간 거!", "F25C4C"), Answer("노랑!", "F9B233"), Answer("파란색! 하늘 색이니까!", "3F7BD9", reason = true), Answer("빨강 빨강!", "F25C4C")),
             listOf(Card("빨강", Art.Img("ic_shirt_red", Art.Emoji("🟥")), "F25C4C"), Card("파랑", Art.Img("ic_shirt_blue", Art.Emoji("🟦")), "3F7BD9"), Card("노랑", Art.Img("ic_shirt_yellow", Art.Emoji("🟨")), "F9B233"))),
-        Q("주인공이 안경을 쓰면 어떨까?", "glasses", "안경을 쓰면 뭐가 잘 보일까? 주인공도 쓸까?",
+        // 10-05 device: 「안경 얘기도 굳이 넣어야 하나」 — asked open now; glasses stay as the cards
+        Q("주인공한테 더 꾸며 주고 싶은 게 있어? 모자나 안경 같은 거!", "glasses", "머리에 쓰거나 손에 드는 거, 뭐가 좋을까?",
             listOf(Answer("동글 안경!", "round"), Answer("네모 안경!", "square"), Answer("안 써!", "none"), Answer("동그란 거! 멀리 보려고!", "round", reason = true), Answer("안경 싫어!", "none")),
             listOf(Card("동글 안경", Art.Img("ic_glasses_round", Art.Emoji("👓")), "round"), Card("네모 안경", Art.Img("ic_glasses_square", Art.Emoji("🕶️")), "square"), Card("안 써", Art.Img("ic_glasses_none", Art.Emoji("🙂")), "none"))),
     )
@@ -506,7 +510,8 @@ private suspend fun Director.sceneMakeHero() {
     suspend fun voiceStep(from: Int) {
         for (i in from until questions.size) {
             val q = questions[i]
-            s.stage = Stage.HeroShow(if (i == 0) null else attr, if (i == 0) "주인공 만드는 중 — 마이크로 말해 줘" else "이렇게 되고 있어 — 마이크로 말해 줘")
+            // No half-made preview: it was the grey mannequin, far from the finished doll (10-05 device · 3-1)
+            s.stage = Stage.HeroShow(null, "주인공 만드는 중 — 마이크로 말해 줘")
             val r = ask(Question(text = q.text, kind = Kind.EASY, spoken = q.spoken, easierText = q.easier, easierAsk = "골라 볼래?", choices = q.cards))
             when (r) {
                 is Reply.Spoke -> applySpoken(q.key, r)
@@ -1512,17 +1517,19 @@ private suspend fun Director.sceneBook() {
             vv == "speak" -> log("🔊 자막 낭독 (CLOVA Voice, 이름 없는 문장)")
             vv == "mission" && s.bookPage == rubPage && s.m1Result == null -> {
                 s.m1Result = "solo"; s.reactions++; feel(Mood.CHEER)
-                s.achievements += "${m1.blobName} 치운 손"
+                // C1 · C3 면 그 미션의 선물 · 동작 이름 — 촛불을 불었는데 「먼지 치운 손」이 나오지 않게 (#105 리뷰)
+                val p1 = s.slot1Prop()
+                s.achievements += p1?.badge ?: "${m1.blobName} 치운 손"
                 show(); announce(); refreshButtons()
-                event("mission", "id" to 1, "motion" to "rub", "result" to "solo")
+                event("mission", "id" to 1, "motion" to (p1?.motion ?: "rub"), "result" to "solo")
                 log("미션 1 완료 → mission_result: solo → 다음 미션 보통 (안치영 §7 · ⭐7) · 걸린 시간 · 시도 횟수 저장 안 함")
                 mark("book")
             }
             vv == "helped" && s.bookPage == rubPage && s.m1Result == null -> {
-                s.m1Result = "helped"; s.achievements += "${m1.blobName} 치운 손"; feel(Mood.CHEER)
+                s.m1Result = "helped"; s.achievements += s.slot1Prop()?.badge ?: "${m1.blobName} 치운 손"; feel(Mood.CHEER)
                 show(); refreshButtons()
                 s.bookNote = "같이 하자! 슥슥~ 퐁! 다 됐어!"
-                event("mission", "id" to 1, "motion" to "rub", "result" to "helped")
+                event("mission", "id" to 1, "motion" to (s.slot1Prop()?.motion ?: "rub"), "result" to "helped")
                 log("두 번 시연해도 안 됨 → 마스코트가 도와 반드시 성공 (helped) → 미션 2는 쉬움(탭)")
             }
             vv == "gag" -> log("장난 반응 (미션과 무관 · 저장 안 함)")

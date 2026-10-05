@@ -71,6 +71,8 @@ async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
         # the child's drawing lives only in this call: decoded, sent to ComfyUI through
         # memory (comfy_nodes/otto_memory.py), history entry deleted in comfy.run
         drawing = await asyncio.to_thread(character.prepare_drawing, base64.b64decode(req.png_base64))
+        if req.mode == "diary":                  # colored pencil keeps an outline an outline: fill it (10-05)
+            drawing = await asyncio.to_thread(character.fill_closed, drawing)
         # one redraw in ComfyUI at a time: the queue behind a story picture stays at most one
         # redraw long (~5 s), and the story picture still jumps the rest (front=True)
         async with _redraw_turn:

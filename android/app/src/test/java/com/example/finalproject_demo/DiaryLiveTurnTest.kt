@@ -243,6 +243,7 @@ class DiaryLiveTurnTest {
                 listOf(androidx.compose.ui.geometry.Offset(.1f, .3f), androidx.compose.ui.geometry.Offset(.2f, .6f)))
             s.diaryDay.catchUp(s.drawing)
             s.diaryDay.pieces[0] = s.diaryDay.pieces[0].copy(name = "미끄럼틀")                // 조각은 이미 이름이 있다 — 물을 조각이 없다
+            s.quotes += "미끄럼틀"                                   // 아이가 말한 이름 — 그림 실마리(DiaryClue)로 다시 짚지 않는다
             fun pause() { if (s.diaryDay.watching) d.send(Reply.Tapped("pause", "붓 멈춤")) }
             assertTrue("첫 이야기는 고정 질문 — 말=${s.line}", await { pause(); s.line == "여기는 어디야?" } != null)
             d.answer("놀이터 갔어") { asked.size == 1 && s.line != "여기는 어디야?" }
@@ -259,13 +260,53 @@ class DiaryLiveTurnTest {
         }
     }
 
+    /**
+     * 필수 칸에 아이가 진짜로 답했는데 판정이 두 번 못 받으면 — 비우지 않고 아이 말 그대로(아이 출처). 협업과 같다 (10-05 진웅).
+     * 「몰라」였다면 넣지 않는다(다른 테스트)
+     */
+    @Test
+    fun aRealAnswerTheJudgeRejectsTwiceIsKeptAsTheChilds() {
+        val asked = mutableListOf<JSONObject>()
+        live({ t ->
+            asked += t
+            when (asked.size) {
+                1, 2 -> turn(emptyList(), "place", "그랬구나!", "어디였어?")
+                else -> turn(emptyList(), null, "그랬구나!", null, ready = true)
+            }
+        }) { d ->
+            val s = d.s
+            d.toQuestions()
+            assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+            d.answer("뒷산 약수터") { asked.size == 1 && s.line != "오늘 어디 갔었어?" }
+            d.answer("뒷산 약수터") { asked.size == 2 }
+            d.slotBecomes("place", "뒷산 약수터")
+            assertEquals("child", s.slotBy["place"])
+        }
+    }
+
+    /** 서버 질문이 갈무리에 걸리면(「언제」) 서버가 고른 그 칸을 앱 질문으로 묻는다 — 순서는 판정이 정한다 */
+    @Test
+    fun aServerQuestionThatFailsTheGuardIsAskedInTheAppsWordsForTheSameSlot() {
+        live({ t ->
+            when (t.getString("asked_slot")) {
+                "place" -> turn(listOf("place" to "놀이터"), "problem", "놀이터에 갔구나!", "놀이터에는 언제 갔어?")
+                else -> turn(emptyList(), null, "그랬구나!", null, ready = true)
+            }
+        }) { d ->
+            val s = d.s
+            d.toQuestions()
+            assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+            d.answer("놀이터 갔어") { s.line == "놀이터에서 무슨 일이 있었어?" }
+        }
+    }
+
     @Test
     fun whenTheServerFailsTheChildsWordsStayAndTheFixedOrderGoesOn() {
         live({ null }) { d ->
             val s = d.s
             d.toQuestions()
             assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
-            d.answer("어린이집 갔어") { s.line == "거기서 무슨 일이 있었어?" }
+            d.answer("어린이집 갔어") { s.line == "어린이집에서 무슨 일이 있었어?" }
             assertEquals("어린이집 갔어", s.slots["place"])
             assertEquals("child", s.slotBy["place"])
         }

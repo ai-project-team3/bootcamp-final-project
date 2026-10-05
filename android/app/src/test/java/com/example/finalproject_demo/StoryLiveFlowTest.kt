@@ -25,6 +25,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class StoryLiveFlowTest {
+    // the generated-background path; the felt scene kit (on by default) would skip /image
+    @get:org.junit.Rule val sceneKitOff = SceneKitOff()
+
     @Test
     fun actualStoryEntryFollowsVerdictsAndStopsAsSoonAsTheServerIsReady() = runBlocking {
         val imageStarted = CountDownLatch(1)

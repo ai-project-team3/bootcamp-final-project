@@ -2,6 +2,11 @@ package com.example.finalproject_demo
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import com.example.finalproject_demo.demo.atPlace
+import com.example.finalproject_demo.demo.diaryPlaceWord
+import com.example.finalproject_demo.demo.renameTarget
+import com.example.finalproject_demo.demo.newDiaryDay
+import com.example.finalproject_demo.demo.catchUp
 import com.example.finalproject_demo.demo.DONE_CHECK_EVERY
 import com.example.finalproject_demo.demo.CRAYON_PAUSE
 import com.example.finalproject_demo.demo.DiaryAsk
@@ -27,12 +32,14 @@ import com.example.finalproject_demo.demo.hasDiaryCover
 import com.example.finalproject_demo.demo.coverKey
 import com.example.finalproject_demo.demo.pieceNameFrom
 import com.example.finalproject_demo.demo.praiseFor
+import com.example.finalproject_demo.demo.sendBoardTool
 import com.example.finalproject_demo.demo.soundsLikeAName
 import com.example.finalproject_demo.demo.yesNoOf
 import com.example.finalproject_demo.demo.you
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
@@ -149,7 +156,7 @@ class PictureDiaryFlowTest {
 
         assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
         d.speak("놀이터 갔어")                       // 서버 모드의 답 — 대본 값이 없다
-        assertTrue(await { s.line == "거기서 무슨 일이 있었어?" } != null)
+        assertTrue(await { s.line == "놀이터에서 무슨 일이 있었어?" } != null)
         d.speak("몰라")
         assertTrue("「몰라」에 쉬운 말로 한 번 더 묻지 않았다", await { s.line == "거기서 뭐 했어?" } != null)
         d.speak("몰라")
@@ -400,6 +407,152 @@ class PictureDiaryFlowTest {
         d.tell("그려줘") { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" }
     }
 
+    /**
+     * 오또가 「뭐 그린 거야?」라고 묻는 사이 이름표를 누르고 [그려 줘] — 질문의 답으로 섞이지 않는다.
+     * 질문을 거두고 누른 조각을 부른 뒤 그 조각을 그린다. 묻던 조각은 이름 없이 남는다 (10-05 진웅)
+     */
+    @Test
+    fun boardToolsWhileOttoAsksAreNotTakenAsTheAnswer() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("강아지")
+        assertTrue(await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        s.drawing += stroke(0.7f)
+        assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        assertTrue(s.diaryDay.drawingTalk && !s.diaryDay.watching)            // 묻는 중 — 전에는 그림판 조작이 꺼졌다
+        val dog = s.diaryDay.pieces.first { it.name == "강아지" }.id
+        s.diaryDay.focus = dog to s.drawing.size                            // 화면이 이름표를 누를 때 하는 일
+        d.sendBoardTool(Reply.Tapped("name:$dog", "이름 부르기"))
+        assertTrue("말=${s.line}", await { s.line == "강아지!" } != null)
+        assertNull("이름표 누름이 묻던 조각의 답이 됐다", s.diaryDay.pieces.last().name)
+        d.sendBoardTool(Reply.Tapped("drawme", "그려 줘"))
+        assertTrue("말=${s.line}", await { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" } != null)
+        assertNull(s.diaryDay.pendingTap)
+    }
+
+    /**
+     * 「나도 해를 그려볼까?」 사이 [이름 고치기]로 집으로 고치고 [그려 줘]로 주문했다 — 미뤄 둔 제안이
+     * 옛 이름으로 다시 나오면 안 된다(10-05 실기기: 「나도 너 안먹어를 그려볼까?」가 오또 그림을 받은 뒤 다시 나왔다)
+     */
+    @Test
+    fun aHeldOfferIsDroppedOnceThePieceIsRenamedAndOrdered() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("해야")                                               // 잘못 들었다
+        assertTrue(await { s.line == "나도 해를 그려볼까?" } != null)
+        delay(300)                                                     // 제안이 답을 기다리기 시작한 뒤에 누른다(폰: → rename)
+        d.sendBoardTool(Reply.Tapped("rename", "이름 고치기"))
+        assertTrue("말=${s.line}", await { s.line == "이건 뭐야? 다시 말해 줘!" } != null)
+        d.speak("집이야")
+        assertTrue(await { s.line == "아, 집이구나!" } != null)
+        d.sendBoardTool(Reply.Tapped("drawme", "그려 줘"))
+        assertTrue("말=${s.line}", await { s.line == "나도 집을 그려볼게! 더 그리고 있어!" } != null)
+        val said = mutableListOf<String>()
+        val ear = launch { while (true) { if (said.lastOrNull() != s.line) said += s.line; delay(3) } }
+        // 오또 그림이 오면 고르고(폰에서는 고른 뒤 다음 멈춤에 옛 제안이 나왔다), 아니면 붓을 멈춘다
+        repeat(6) {
+            await(1_000) { (s.buttons.firstOrNull { "오또 그림으로" in it.label } ?: s.buttons.firstOrNull { "붓이 멈춤" in it.label })?.onClick(); false }
+        }
+        ear.cancel()
+        assertFalse("미뤄 둔 옛 제안이 나왔다 — $said", said.any { "해를 그려볼까" in it })
+        assertFalse("주문한 조각을 또 그려 줄까 물었다 — $said", said.any { "집을 그려볼까" in it })
+    }
+
+    /** 그림판 오른쪽 [그려 줘] — 「그려줘」라고 말한 것과 같다. 방금 그린 조각을 오또가 그린다 (10-05 진웅) */
+    @Test
+    fun theDrawMeButtonOrdersOttosDrawingOfTheLastPiece() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("강아지")
+        assertTrue(await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        assertTrue(await { s.diaryDay.watching } != null)
+        d.send(Reply.Tapped("drawme", "그려 줘"))
+        assertTrue("[그려 줘]에 그리지 않았다 — 말=${s.line}", await { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" } != null)
+    }
+
+    /** 그림판 오른쪽 [이름 고치기] — 방금 그린 조각의 이름을 다시 묻고 고친다. 고친 이름도 아이 말이다 (10-05 진웅) */
+    @Test
+    fun theRenameButtonAsksAgainForTheLastNamedPiece() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("해야")                                               // 잘못 들었다
+        assertTrue(await { s.line == "나도 해를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        assertTrue(await { s.diaryDay.watching } != null)
+        d.send(Reply.Tapped("rename", "이름 고치기"))
+        assertTrue(await { s.line == "이건 뭐야? 다시 말해 줘!" } != null)
+        d.speak("집이야")
+        assertTrue(await { s.line == "아, 집이구나!" } != null)
+        assertEquals("집", s.diaryDay.pieces.single().name)
+        assertEquals("child", s.slotBy["whiteboard"])
+    }
+
+    /** [이름 고치기]가 가리키는 조각 — 방금 누른 이름표 → 방금 그린 이름 조각 → 마지막 이름 조각 */
+    @Test
+    fun theRenameButtonPicksTheTappedThenTheLastDrawnPiece() {
+        val s = Director(CoroutineScope(SupervisorJob())).s
+        s.newDiaryDay()
+        s.drawing += stroke(0.1f); s.drawing += stroke(0.8f)
+        val day = s.diaryDay
+        day.catchUp(s.drawing)
+        day.pieces[0] = day.pieces[0].copy(name = "집"); day.pieces[1] = day.pieces[1].copy(name = "해")
+        assertEquals("해", s.renameTarget(day)?.name)                   // 방금 그린 조각
+        day.focus = day.pieces[0].id to s.drawing.size
+        assertEquals("집", s.renameTarget(day)?.name)                   // 방금 누른 이름표
+        s.drawing += stroke(0.45f)
+        day.catchUp(s.drawing)                                         // 새 획 — 누른 이름표는 잊는다 · 새 조각엔 이름이 없다
+        assertEquals("해", s.renameTarget(day)?.name)
+    }
+
+    /** 아이가 말한 곳의 낱말 — 「에」 없이 말해도(「놀이터 갔어」) 뗀다. 못 떼면 null (10-05 진웅) */
+    @Test
+    fun thePlaceWordComesOutOfTheChildsAnswer() {
+        mapOf(
+            "놀이터 갔어" to "놀이터", "놀이터에 갔어" to "놀이터", "할머니 집에 다녀왔어" to "할머니 집",
+            "놀이터에서 놀았어" to "놀이터", "어린이집" to "어린이집", "바다야" to "바다",
+        ).forEach { (said, place) -> assertEquals("「$said」", place, diaryPlaceWord(said)) }
+        listOf("몰라", "응", "", null).forEach { assertNull("「$it」은 곳이 아니다", diaryPlaceWord(it)) }
+    }
+
+    /** 고정 질문이 아이가 말한 곳을 받아 묻는다 — 「거기서」 대신 「놀이터에서」. 곳을 못 떼면 「거기서」 그대로 */
+    @Test
+    fun theScriptedQuestionNamesThePlace() = run { d ->
+        val s = d.s
+        s.slots["place"] = "놀이터 갔어"
+        assertEquals("놀이터에서 무슨 일이 있었어?", atPlace(s, "무슨 일이 있었어?"))
+        s.slots["place"] = "몰라"
+        assertEquals("거기서 무슨 일이 있었어?", atPlace(s, "무슨 일이 있었어?"))
+    }
+
+    /** 받아 주기는 낱말 하나 — 「놀이터 갔어」 → 「놀이터구나!」(문장을 통째로 되받지 않는다) */
+    @Test
+    fun ottoEchoesOneWordNotTheWholeSentence() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그림 없이 이야기할래"))
+        assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+        d.speak("놀이터 갔어")
+        assertTrue("낱말 하나로 받지 않았다 — 말=${s.line}", await { s.line == "놀이터구나!" } != null)
+    }
+
     /** 「강아지 그려줘」 — 마지막에 그린 조각이 아니라 부른 조각을. 이미 그리는 중이면 다시 주문하지 않고 그렇다고 말한다 (프로토타입) */
     @Test
     fun drawMeAimsAtThePieceTheChildNames() = run { d ->
@@ -479,6 +632,25 @@ class PictureDiaryFlowTest {
     }
 
     /**
+     * 그림 실마리 (DiaryClue.kt · 10-05) — 그린 것 중 아이가 아직 말하지 않은 것이 있으면 둘째 이야기 질문이 그것을 짚는다.
+     * 「미끄럼틀에서 무슨 일이 있었어?」(탄 일을 전제)가 아니라 「미끄럼틀 이야기 해 줄래?」
+     */
+    @Test
+    fun theSecondStoryQuestionWhileDrawingTakesAnUnsaidDrawingAsItsClue() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        s.diaryDay.catchUp(s.drawing)
+        s.diaryDay.pieces[0] = s.diaryDay.pieces[0].copy(name = "미끄럼틀")       // 이름은 붙었고 아이 말에는 아직 없다
+        assertTrue("물을 조각이 없는데 이야기를 묻지 않았다 — 말=${s.line}",
+            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "여기는 어디야?" } != null)
+        d.speak("놀이터 갔어")
+        assertTrue("그린 것을 실마리로 묻지 않았다 — 말=${s.line}",
+            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "미끄럼틀도 그렸네! 미끄럼틀 이야기 해 줄래?" } != null)
+    }
+
+    /**
      * 물을 조각이 없는 붓 멈춤 — 그리는 중에 이야기를 묻는다(어디 → 무슨 일). 답은 아이 말 그대로 그 칸에(아이 출처),
      * 다 그린 뒤에는 그 칸을 다시 묻지 않는다 (10-02 진웅 · 프로토타입)
      */
@@ -499,12 +671,12 @@ class PictureDiaryFlowTest {
         assertTrue(await { s.slots["place"] == "놀이터 갔어" } != null)
         assertEquals("child", s.slotBy["place"])
         assertTrue("둘째 이야기를 묻지 않았다 — 말=${s.line}",
-            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "거기서 무슨 일이 있었어?" } != null)
+            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "놀이터에서 무슨 일이 있었어?" } != null)
         d.speak("몰라")
         assertTrue(await { s.line == "괜찮아, 계속 그려 봐!" } != null)
         assertTrue(d.push("✅ 다 그렸어"))
         assertTrue("다 그린 뒤 이미 답한 「어디」를 또 물었다 — 말=${s.line}",
-            await { s.stage is DiaryAsk && s.line == "거기서 무슨 일이 있었어?" } != null)
+            await { s.stage is DiaryAsk && s.line == "놀이터에서 무슨 일이 있었어?" } != null)
     }
 
     /**

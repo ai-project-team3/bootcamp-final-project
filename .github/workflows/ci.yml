@@ -3,8 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
+  # Every PR, whatever its base — a PR stacked on another branch used to get no tests at all
+  # until the one below it merged (10-05: #117 and #123 had to be closed and reopened).
   pull_request:
-    branches: [main, release]
 
 # A newer push to the same branch makes the older run moot — stop it instead of queueing behind it.
 concurrency:

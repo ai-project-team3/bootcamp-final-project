@@ -1,5 +1,8 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.scene.FRIEND_SPOT
+import com.example.finalproject_demo.demo.scene.HERO_SPOT
+import com.example.finalproject_demo.demo.scene.SceneKits
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
 import kotlinx.coroutines.*
@@ -17,8 +20,9 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     // 친구는 아이가 그렸을 때만 선다 — 안 그렸으면 friendArt 가 대본의 기본 낙서라
     // 배경이 생기면 오른쪽에 「이상한 애」가 늘 떠 있었다 (10-02 조장 실기기)
     fun conversationWorld() = Stage.World(listOfNotNull(
-        WorldItem(s.storyHeroArt, 0.25f, 0.32f, 0.11f, depth = 1f),
-        if (s.drawing.isNotEmpty()) WorldItem(s.friendArt, 0.72f, 0.32f, 0.13f, depth = 0.9f) else null,
+        // spots shared with the scene kit layout, which keeps them clear (demo/scene/SceneLayout.kt)
+        WorldItem(s.storyHeroArt, HERO_SPOT.x, 0.32f, 0.11f, depth = HERO_SPOT.depth),
+        if (s.drawing.isNotEmpty()) WorldItem(s.friendArt, FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth) else null,
     ))
 
     fun showConversation() {
@@ -35,6 +39,16 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         if (imagePlace == place) return
         imagePlace = place
         imageJob?.cancel()
+        if (s.sceneKit != null) {
+            // 10-05 scene kit: the place is drawn from pre-made felt pieces at once — no /image request, nothing
+            // to wait for. The generated background below stays as the documented alternative
+            // (`docs/배경_조각_목록.md` §1 (가)); `SceneKits.liveStory = false` brings it back.
+            backgroundPending = false
+            s.storyBackground = null
+            if (s.stage is Stage.World || s.stage === waitingConversation) showConversation()
+            log("scene kit ${s.sceneKit} draws the place · no /image request")
+            return
+        }
         backgroundPending = true
         s.storyBackground = null
         if (s.stage is Stage.World || s.stage === waitingConversation) showConversation()
@@ -77,10 +91,29 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 notifyStorySoundChoice(prompt)
                 continue
             }
+            // 10-05 device: the judge asks what the newcomer looks like (judge prompt example 「종류만 말했으니
+            // 생김새를 더 묻는다」) and then the app asked to draw it as well. The drawing is that answer.
+            // 10-05 second round: also when the slot is still empty — 「바늘괴물은 어떻게 생겼어?」 asked it for the
+            // first time (the monster was only in the problem), then the drawing came on top of the spoken answer
+            val looks = prompt.slot == "newcomer" && Regex("생겼|모습|생김새").containsMatchIn(prompt.text)
+            if (looks && s.slots["newcomer"].isNullOrBlank()) {
+                // the one asked about, from the question itself: 「바늘괴물은 어떻게 생겼어?」 → 바늘괴물 (the child named it earlier)
+                Regex("^(.+?)(은|는|이|가) (어떻게|어떤)").find(prompt.text)?.groupValues?.get(1)?.trim()?.let {
+                    s.slots["newcomer"] = it; s.slotBy["newcomer"] = "child"; s.syncStoryPresentation()
+                }
+            }
+            if (prompt.slot == "newcomer" && !s.slots["newcomer"].isNullOrBlank() && (looks || s.storyClarificationSlot == "newcomer")) {
+                if (!friendDrawingPrepared) { prepareStoryFriendDrawing(); friendDrawingPrepared = true }
+                s.storyClarificationSlot = null; s.storyNextSlot = null; s.storyServerQuestion = null
+                log("새 친구 생김새 질문 → 그리기로 대신함")
+                continue
+            }
             showConversation()
             val variant = liveVariant(prompt)
             val base = variant.toQuestion(s)
-            val question = base.copy(text = if (prompt.templateOnly) base.text else prompt.text)
+            // Never the script bank's wording in a live story: for a place outside the three themes the theme
+            // falls back to dino, so 「기차가 어디로 먼저 갈까?」 asked about a train nobody mentioned (10-05)
+            val question = base.copy(text = prompt.text)
             history.before()
             val reply = askStory(question, prompt.slot, singleAttempt = checkPlace)
             if (TurnHistory.isNav(reply)) {
@@ -181,6 +214,9 @@ internal fun DemoState.syncStoryPresentation() {
         s.themeKey = theme?.key ?: "dino"
         s.placeLabel = place
         s.generatedBg = theme == null
+        // a new place gets a new kit layout seed; the same place keeps its scene (turn after turn, undo/redo)
+        if (s.place != place) s.sceneSeed = kotlin.random.Random.nextLong()
+        s.sceneKit = if (theme == null && SceneKits.liveStory) SceneKits.forPlace(place).key else null
         s.place = place
     }
     s.problem = s.slots["problem"]
@@ -215,6 +251,8 @@ private fun storyCauseKind(text: String): String = when {
 
 private fun storySolutionProp(text: String): Pair<String, String>? = when {
     "딸기" in text -> "share" to "strawberry"
+    // 10-05: 「맛있는 간식을 주는 거야」 fell to the default shiny stone
+    listOf("간식", "과자", "사탕", "빵", "먹을 거", "먹을것", "밥").any { it in text } -> "share" to "snack"
     "초대" in text -> "invite" to "invite"
     "풍선" in text -> "play" to "balloon"
     "반창고" in text -> "help" to "bandaid"
