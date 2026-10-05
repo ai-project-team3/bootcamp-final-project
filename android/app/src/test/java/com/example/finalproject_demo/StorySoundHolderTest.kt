@@ -1,15 +1,24 @@
 package com.example.finalproject_demo
 
+import android.content.Context
+import android.os.Looper
+import android.graphics.BitmapFactory
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
+import com.github.takahirom.roborazzi.RoborazziOptions
+import com.github.takahirom.roborazzi.RoborazziTaskType
+import com.github.takahirom.roborazzi.captureRoboImage
+import androidx.test.core.app.ApplicationProvider
 import com.example.finalproject_demo.demo.*
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Voice
 import com.example.finalproject_demo.sound.ChildSound
 import com.example.finalproject_demo.ui.BookPageView
+import com.example.finalproject_demo.ui.SavedStoryView
 import com.example.finalproject_demo.ui.motionFrozen
 import kotlinx.coroutines.*
 import org.junit.After
@@ -19,8 +28,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowMediaPlayer
+import org.robolectric.shadows.util.DataSource
+import org.json.JSONArray
 import java.io.File
 import java.nio.file.Files
 
@@ -34,15 +47,18 @@ class StorySoundHolderTest {
     private val oldRoot = ChildSound.root
     private val oldFrozen = motionFrozen
     private lateinit var folder: File
+    private val players = mutableListOf<ShadowMediaPlayer>()
 
     @Before fun setup() {
         folder = Files.createTempDirectory("story_sound_holder").toFile()
         ChildSound.root = folder
         motionFrozen = true
         setLive(true)
+        ShadowMediaPlayer.setCreateListener { _, player -> players += player }
     }
 
     @After fun cleanup() {
+        ShadowMediaPlayer.setCreateListener(null)
         ChildSound.root = oldRoot
         Server.base = oldBase
         Server.liveModes = oldModes
@@ -130,5 +146,113 @@ class StorySoundHolderTest {
         } finally { compose.runOnIdle { scope.cancel() } }
     }
 
+    @Test fun tappingTheHeroReplaysWhenTheLiveFriendHasNoName() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        try {
+            val d = Director(scope).apply { prepareBook(); s.friendName = "{친구}"; s.newcomerKind = "" }
+            var reply: Reply? = null
+            compose.setContent { BookPageView(d, Stage.BookPage(d.s.pageCount), onReply = { reply = it }) }
+            compose.onRoot().performTouchInput { click(Offset(width * 0.17f, height * 0.49f)) }
+            compose.runOnIdle { assertEquals("sound", (reply as? Reply.Tapped)?.value) }
+        } finally { compose.runOnIdle { scope.cancel() } }
+    }
+
+    @OptIn(com.github.takahirom.roborazzi.ExperimentalRoborazziApi::class)
+    @Test fun aStoredLiveCoverDoesNotGrowADinosaurAfterDisconnecting() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        try {
+            val made = Director(scope).apply { prepareBook() }
+            val book = mutableStateOf(made.s.completedStoryBook()!!)
+            compose.setContent { SavedStoryView(made, Stage.SavedStory(book.value, 0)) }
+            val before = File(folder, "cover-before.png")
+            val after = File(folder, "cover-after.png")
+            val options = RoborazziOptions(taskType = RoborazziTaskType.Record)
+            compose.onRoot().captureRoboImage(before.path, roborazziOptions = options)
+            compose.runOnIdle { setLive(false); book.value = book.value.copy(id = "reopened-cover") }
+            compose.onRoot().captureRoboImage(after.path, roborazziOptions = options)
+            assertTrue("A stored cover's figures must not depend on the current server connection",
+                BitmapFactory.decodeFile(before.path).sameAs(BitmapFactory.decodeFile(after.path)))
+        } finally { compose.runOnIdle { scope.cancel() } }
+    }
+
+    @Test fun aStoredLiveBooksFriendPlaysItsOwnClipAfterTheServerIsDisconnected() = storedReplay(live = true)
+
+    @Test fun aStoredScriptedBooksDinosaurStillPlaysWhenTheServerIsEnabled() = storedReplay(live = false)
+
+    @Test fun theLiveBookFriendActuallyStartsTheActiveRecording() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        try {
+            val d = Director(scope).apply { prepareBook() }
+            val clip = d.s.storySoundClip!!
+            ShadowMediaPlayer.addMediaInfo(DataSource.toDataSource(clip.file.path), ShadowMediaPlayer.MediaInfo(60_000, 0))
+            compose.setContent { BookPageView(d, d.s.stage as? Stage.BookPage ?: Stage.BookPage(0)) }
+            compose.runOnIdle { d.go(Scene.BOOK) }
+            for (page in 1..d.s.pageCount) {
+                compose.runOnIdle { d.send(Reply.Tapped("next", "다음")) }
+                compose.waitUntil(3_000) { shadowOf(Looper.getMainLooper()).idle(); d.s.bookPage == page }
+            }
+            tapFriend()
+            waitForPlayback()
+            compose.runOnIdle {
+                assertEquals(DataSource.toDataSource(clip.file.path), players.single().dataSource)
+                assertTrue(players.single().isReallyPlaying)
+                players.single().invokeCompletionListener()
+            }
+        } finally { compose.runOnIdle { scope.cancel() } }
+    }
+
+    @Test fun anOlderBookWithoutLiveProvenanceStillKeepsItsFiguresAndCaptions() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("story_books", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val state = DemoState().apply { templateKey = "C"; friendName = "예전 친구" }
+        val original = state.completedStoryBook()!!
+        LocalStoryBookStore(context).save(original)
+        val raw = JSONArray(prefs.getString("books", null))
+        raw.getJSONObject(0).getJSONObject("visuals").remove("liveStory")
+        prefs.edit().putString("books", raw.toString()).commit()
+
+        val reopened = LocalStoryBookStore(context).load().single()
+        assertNotNull(reopened.visuals)
+        assertNull(reopened.visuals!!.liveStory)
+        assertEquals(original.pages, reopened.pages)
+        val reader = DemoState()
+        assertTrue(reader.restoreStoryBook(reopened))
+        assertEquals("예전 친구", reader.friendName)
+    }
+
+    private fun storedReplay(live: Boolean) {
+        setLive(live)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        try {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            context.getSharedPreferences("story_books", Context.MODE_PRIVATE).edit().clear().commit()
+            val store = LocalStoryBookStore(context)
+            val made = Director(scope).apply { prepareBook() }
+            val book = made.s.completedStoryBook()!!
+            val kept = ChildSound.keep(made.s.storySoundClip!!, book.id)!!
+            store.save(book)
+            val reloaded = LocalStoryBookStore(context).load().single()
+            assertEquals(live, reloaded.visuals!!.liveStory)
+            ShadowMediaPlayer.addMediaInfo(DataSource.toDataSource(kept.file.path), ShadowMediaPlayer.MediaInfo(60_000, 0))
+            setLive(!live)
+            val current = Director(scope).apply { s.friendName = "다른 이야기 친구"; s.storySoundClip = clip() }
+            compose.setContent { SavedStoryView(current, Stage.SavedStory(reloaded, reloaded.pages.size)) }
+            if (live) tapFriend() else compose.onRoot().performTouchInput { click(Offset(width * 0.72f, height * 0.49f)) }
+            waitForPlayback()
+            compose.runOnIdle {
+                assertEquals(DataSource.toDataSource(kept.file.path), players.single().dataSource)
+                assertTrue("The visible figure must actually start its book's recording", players.single().isReallyPlaying)
+                players.single().invokeCompletionListener()
+                assertEquals("다른 이야기 친구", current.s.friendName)
+            }
+        } finally { compose.runOnIdle { scope.cancel() } }
+    }
+
     private fun tapFriend() = compose.onRoot().performTouchInput { click(Offset(width * 0.42f, height * 0.49f)) }
+
+    private fun waitForPlayback() = compose.waitUntil(3_000) {
+        shadowOf(Looper.getMainLooper()).idle()
+        players.isNotEmpty()
+    }
 }
