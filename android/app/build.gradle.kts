@@ -7,6 +7,13 @@ plugins {
     alias(libs.plugins.roborazzi)
 }
 
+// 보호자 로그인 키 읽기 (10-05 · net/SocialLogin.kt) — android/local.properties 또는 같은 이름의 환경 변수
+val loginProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun loginKey(name: String) = (loginProps.getProperty(name) ?: System.getenv(name) ?: "").trim()
+
 android {
     namespace = "com.example.finalproject_demo"
     compileSdk = 36
@@ -31,16 +38,11 @@ android {
         // 보호자 로그인 키 (10-05 · net/SocialLogin.kt) — 레포에 올리지 않는다. android/local.properties 나
         // 환경 변수에서 읽는다. 비어 있으면 그 로그인 버튼은 「준비 중」(디버그 빌드는 개발용 가짜 로그인)이다.
         // 받는 곳 · 등록할 패키지 이름 · 키 해시는 docs/소셜로그인_키_발급.md
-        val localProps = Properties().apply {
-            val f = rootProject.file("local.properties")
-            if (f.exists()) f.inputStream().use { load(it) }
-        }
-        fun key(name: String) = (localProps.getProperty(name) ?: System.getenv(name) ?: "").trim()
-        val kakaoKey = key("OTTO_KAKAO_APP_KEY")
+        val kakaoKey = loginKey("OTTO_KAKAO_APP_KEY")
         buildConfigField("String", "KAKAO_APP_KEY", "\"$kakaoKey\"")
-        buildConfigField("String", "NAVER_CLIENT_ID", "\"${key("OTTO_NAVER_CLIENT_ID")}\"")
-        buildConfigField("String", "NAVER_CLIENT_SECRET", "\"${key("OTTO_NAVER_CLIENT_SECRET")}\"")
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${key("OTTO_GOOGLE_WEB_CLIENT_ID")}\"")
+        buildConfigField("String", "NAVER_CLIENT_ID", "\"${loginKey("OTTO_NAVER_CLIENT_ID")}\"")
+        buildConfigField("String", "NAVER_CLIENT_SECRET", "\"${loginKey("OTTO_NAVER_CLIENT_SECRET")}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${loginKey("OTTO_GOOGLE_WEB_CLIENT_ID")}\"")
         // 카카오 로그인이 돌아오는 주소(kakao{앱 키}://oauth) — 키가 없으면 아무 앱도 쓰지 않는 이름으로
         manifestPlaceholders["kakaoScheme"] = if (kakaoKey.isEmpty()) "otto-kakao-unset" else "kakao$kakaoKey"
     }
@@ -71,6 +73,11 @@ android {
         }
         release {
             if (keystoreProps.containsKey("storeFile")) signingConfig = signingConfigs.getByName("upload")
+            // 카카오는 네이티브 앱 키 하나에 패키지 하나라, 스토어(kr.clap.otto)는 키가 따로다 (10-05 · 「오또 스토어」 키).
+            // OTTO_KAKAO_APP_KEY_STORE 가 없으면 개발용 키를 그대로 쓴다(그러면 스토어 빌드의 카카오 로그인은 패키지가 달라 실패한다)
+            val storeKakao = loginKey("OTTO_KAKAO_APP_KEY_STORE").ifEmpty { loginKey("OTTO_KAKAO_APP_KEY") }
+            buildConfigField("String", "KAKAO_APP_KEY", "\"$storeKakao\"")
+            manifestPlaceholders["kakaoScheme"] = if (storeKakao.isEmpty()) "otto-kakao-unset" else "kakao$storeKakao"
             // 난독화·축소를 켠다 (9/23). 크기가 줄고, 안 쓰는 코드가 떨어져 나간다.
             // ⚠️ **출시 직전에 켜지 않는다** — R8 이 리플렉션·JNI 로 부르는 것을 «안 쓴다»고 보고 지운다.
             //    미리 켜서 한 번 돌려 봐야 한다. 지킬 것은 `proguard-rules.pro` 에 적었다
