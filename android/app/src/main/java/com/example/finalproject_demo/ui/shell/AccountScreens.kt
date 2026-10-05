@@ -140,19 +140,20 @@ fun WithdrawSheet(d: Director) {
             sub = "사유는 묻지 않아요. 앱을 지운 뒤에는 웹 페이지에서도 삭제를 요청할 수 있어요.",
             onBack = { Shell.sheet = Sheet.NONE },
             art = { Box(Modifier.size(110.dp).felt(FeltCoral, CircleShape), contentAlignment = Alignment.Center) { Text("👤", fontSize = 48.sp) } },
-            cta = "다음 — 본인 확인", ctaEnabled = checked, onCta = { Shell.sheet = Sheet.WITHDRAW_CONFIRM },
+            cta = "다음 — 본인 확인", ctaEnabled = checked, onCta = { Shell.sheet = Sheet.WITHDRAW_VERIFY },
             cta2 = "취소", onCta2 = { Shell.sheet = Sheet.NONE },
         ) {
             Text("탈퇴하면 이렇게 돼요", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = InkBrown)
             Spacer(Modifier.height(12.dp))
             Item("👤", "보호자 계정과 기록이 바로 삭제돼요")
-            Item("📚", "이 폰에 있는 책 ${books}권 · 그림 · 녹음")
+            Item("📚", if (Shell.wipeLocal) "이 폰의 책 ${books}권 · 그림 · 녹음 · 아이 이름도 지워요" else "이 폰의 책 ${books}권 · 그림 · 녹음은 남아요")
             CheckRow(Shell.wipeLocal, "폰 안의 책 · 그림 · 녹음도 함께 지우기", { Shell.wipeLocal = !Shell.wipeLocal })
             CheckRow(checked, "안내를 모두 확인했어요", { checked = !checked })
         }
+        Sheet.WITHDRAW_VERIFY -> WithdrawVerify(onPass = { Shell.sheet = Sheet.WITHDRAW_CONFIRM })
         Sheet.WITHDRAW_CONFIRM -> ObFrame(
             step = null, title = "마지막 확인", sub = "끝나면 처음 설치한 상태(⓪ CLAP)로 돌아가요.",
-            onBack = { Shell.sheet = Sheet.WITHDRAW_INFO },
+            onBack = { Shell.sheet = Sheet.WITHDRAW_VERIFY },
             art = { Box(Modifier.size(110.dp).felt(FeltCoral, CircleShape), contentAlignment = Alignment.Center) { Text("⚠️", fontSize = 48.sp) } },
             cta = if (busy) "지우는 중…" else "삭제하기", ctaEnabled = !busy,
             onCta = {
@@ -161,16 +162,19 @@ fun WithdrawSheet(d: Director) {
                     // 서버 계정 즉시 삭제 → 동의 철회 → (고르면) 폰 데이터 삭제 → 처음 상태로
                     Accounts.withdraw(ctx)          // 소셜이면 그 회사와 앱의 연결도 끊는다(unlink)
                     ConsentStore.withdraw()
-                    if (Shell.wipeLocal) d.s.shelf.clear()   // TODO: 책 · 그림 · 녹음을 파일로 저장하게 되면 그 파일도 지운다
+                    // 고르면 폰에 저장된 책 · 그림 · 녹음 · 아이 이름까지 파일째 지운다 (10-05 — 전엔 화면 목록만 비워 다시 켜면 돌아왔다)
+                    val wiped = Shell.wipeLocal
+                    if (wiped) { LocalWipe.wipe(ctx); d.s.shelf.clear() }
                     d.send(Reply.Tapped("home", "처음으로"))
                     Shell.resetToFirstRun()
+                    // 흐름 · 책장이 메모리에 쥐고 있던 책까지 놓도록 화면을 새로 띄운다(지운 저장소에서 다시 읽는다)
+                    if (wiped && !com.example.finalproject_demo.ui.motionFrozen) (ctx as? android.app.Activity)?.recreate()
                 }
             },
             cta2 = "취소", onCta2 = { Shell.sheet = Sheet.NONE },
         ) {
             Text("정말 삭제할까요?", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = InkBrown)
             Spacer(Modifier.height(8.dp))
-            // TODO(서버): 소셜 계정이면 여기서 한 번 더 로그인해 본인인지 확인한다 (지금은 SDK 가 없어 건너뜀)
             Text("${Accounts.guardian?.provider?.label ?: "보호자"} 계정을 삭제해요.", fontSize = 14.sp, color = InkSoft)
             Spacer(Modifier.height(14.dp))
             Row(
@@ -186,6 +190,62 @@ fun WithdrawSheet(d: Director) {
             }
         }
         Sheet.NONE, Sheet.PIN_CHANGE -> {}
+    }
+}
+
+/**
+ * 탈퇴 ② 본인 확인 (10-05) — 이메일 계정은 **그 계정 비밀번호**, 소셜 계정은 **부모 비밀번호(PIN)**.
+ *
+ * 다른 앱들도 소셜 재로그인까지는 잘 요구하지 않고(비밀번호 재입력 · 앱 PIN 이 흔하다), 소셜 재로그인은 스토어 패키지 키가
+ * 등록되기 전에는 실패해 **탈퇴 자체를 막는다** — Play 는 앱 안 탈퇴를 막으면 안 된다. 그래서 어떤 경우에도 막히지 않게:
+ *  - 이메일 비밀번호를 잊었으면 부모 비밀번호로 대신 확인할 수 있다
+ *  - 부모 비밀번호를 정한 적이 없으면(옛 설치) 확인 없이 다음으로 — 부모 영역은 이미 어른 확인을 거쳤다
+ */
+@Composable
+private fun WithdrawVerify(onPass: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val g = Accounts.guardian
+    var usePin by remember { mutableStateOf(g?.provider != com.example.finalproject_demo.net.AuthProvider.EMAIL) }
+    var pw by remember { mutableStateOf("") }
+    var show by remember { mutableStateOf(false) }
+    var msg by remember { mutableStateOf<String?>(null) }
+    var wrong by remember { mutableStateOf(0) }
+    var busy by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(usePin) { if (usePin && !Shell.hasPin) onPass() }
+    fun check() {
+        if (busy || g == null) return
+        busy = true
+        scope.launch {
+            if (Accounts.api.verifyPassword(g.email, pw)) onPass()
+            else {
+                wrong++; pw = ""
+                msg = if (wrong >= 3) "비밀번호가 ${wrong}번 맞지 않았어요. 잊었으면 아래 「부모 비밀번호로 확인」을 눌러 주세요" else "비밀번호가 맞지 않아요"
+            }
+            busy = false
+        }
+    }
+    ObFrame(
+        step = null, title = "본인 확인",
+        sub = if (usePin) "탈퇴는 되돌릴 수 없어서, 보호자인지 한 번 더 확인해요." else "탈퇴는 되돌릴 수 없어서, 가입한 이메일 계정의 비밀번호를 한 번 더 확인해요.",
+        onBack = { Shell.sheet = Sheet.WITHDRAW_INFO },
+        art = { AssetImage("pi_lock", Modifier.size(150.dp)) { Text("🔒", fontSize = 56.sp) } },
+        cta = if (usePin) null else if (busy) "확인 중…" else "확인", ctaEnabled = pw.isNotEmpty() && !busy, onCta = { check() },
+        cta2 = "취소", onCta2 = { Shell.sheet = Sheet.NONE },
+    ) {
+        if (usePin) {
+            PinPad("부모 비밀번호", "처음 설정에서 정한 네 자리를 넣어 주세요", onDone = { Shell.checkPin(it).also { ok -> if (ok) onPass() } })
+        } else {
+            Text("${g?.email ?: ""} 계정", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = InkBrown)
+            Spacer(Modifier.height(10.dp))
+            Field("비밀번호", pw, "이메일 계정 비밀번호", androidx.compose.ui.text.input.KeyboardType.Password, !show,
+                trailing = if (show) "숨기기" else "보기", onTrailing = { show = !show }) { pw = it; msg = null }
+            msg?.let { Spacer(Modifier.height(6.dp)); Text(it, fontSize = 12.sp, color = FeltCoral, lineHeight = 17.sp) }
+            Spacer(Modifier.height(10.dp))
+            if (Shell.hasPin) Text(
+                "비밀번호가 기억나지 않아요 — 부모 비밀번호로 확인", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = InkSoft,
+                modifier = Modifier.clickable { usePin = true; msg = null }.padding(vertical = 8.dp),
+            )
+        }
     }
 }
 

@@ -4,6 +4,7 @@ import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Voice
 import com.example.finalproject_demo.net.nameMask
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
@@ -267,13 +268,28 @@ class Director(
         return j
     }
 
+    /** Voices asked for ahead of time, by the exact spoken text ([prefetchSpeech]) */
+    private val prefetched = java.util.concurrent.ConcurrentHashMap<String, Deferred<ByteArray?>>()
+
+    /**
+     * Start making a line's voice now, before it is said (10-05 trace). The question used to be voiced only
+     * when said — after the ack had finished playing — so the child waited one more /tts (~2.5 s) every turn.
+     * The voice is kept for the same text; a line that is never said costs one unused /tts.
+     */
+    fun prefetchSpeech(text: String) {
+        if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
+        val line = s.nameMask().speakable(text)
+        if (prefetched.size > 4) prefetched.clear()
+        prefetched.getOrPut(line) { scope.async { Voice.baked(line) ?: Server.tts(line) } }
+    }
+
     private fun speakLive(text: String) {
         // 소리를 낼 수 없으면(단위 테스트 — Voice 가 붙지 않았다) 목소리를 청하지도 않는다.
         // 들리지 않을 목소리 때문에 가짜 서버 주소로 대사마다 연결을 시도할 까닭이 없다
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)          // names read as they are (10-02 · ChildCall)
         // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
-        val audio = scope.async { Voice.baked(line) ?: Server.tts(line) }.also { queueVoice(it) }
+        val audio = (prefetched.remove(line) ?: scope.async { Voice.baked(line) ?: Server.tts(line) }).also { queueVoice(it) }
         enqueue { audio.await() }
     }
 
@@ -825,9 +841,10 @@ class Director(
         feel(Mood.CHEER)
         event("utterance", "speaker" to "child", "confidence" to "0.9", "mode" to "voice", "text" to text)
         log("[${s.childName}] $text  →  우리 서버 Whisper → 글자 (음성 사본 즉시 삭제)")
-        // live: the neutral 「응, 그랬구나」 already covers the moment and the server call waits on this —
-        // 10-05 trace: 3.5~5 s between the transcript and the /turn request, 0.9 s of it this pause
-        pause(if (com.example.finalproject_demo.net.Server.liveFor(s.mode)) 150 else 900)
+        // Live: not pause() — it waits for the mascot's voice first, and the voice playing now is the neutral
+        // reaction (3~5 s sentences). The /turn request sat behind it: the 10-05 trace's 3.5~5 s gap between the
+        // transcript and the request. The reaction keeps playing while the server works.
+        if (com.example.finalproject_demo.net.Server.liveFor(s.mode)) delay((150 * s.speed).toLong()) else pause(900)
     }
 
     suspend fun acceptTap(r: Reply.Tapped) {
