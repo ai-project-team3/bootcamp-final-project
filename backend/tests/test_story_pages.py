@@ -144,6 +144,23 @@ def test_the_coop_prompt_closes_a_soon_book_without_ending_the_day():
     assert "하루가 저물었어요" in coop and "그날이 정말 기다려져요" in coop
 
 
+# #113: the spots inside the picked item reach the model as scenery, coop only
+def test_the_coop_stage_reaches_the_model_as_scenery():
+    def ask(**kw):
+        return story_route.user(StoryRequest(mode="coop", slots={"place": "소방서"}, template="직업 · 소방관", **kw))
+    assert "무대: 소방차 차고 · 출동 준비실 · 훈련장" in ask(stage=["소방차 차고", "출동 준비실", "훈련장"])
+    assert "무대" not in ask()
+    assert "무대" not in story_route.user(StoryRequest(mode="story", slots={"place": "공룡나라"}, stage=["동굴"]))
+    assert "무대" in story_route.system("coop") and "새 사건을 만들지 않습니다" in story_route.system("coop")
+
+
+def test_a_stage_too_long_or_too_many_is_refused(client):
+    base = {"mode": "coop", "slots": {"place": "소방서"}}
+    assert client.post("/story", json={**base, "stage": ["가" * 13]}).status_code == 422
+    assert client.post("/story", json={**base, "stage": ["가"] * 6}).status_code == 422
+    assert client.post("/story", json={**base, "stage": ["소방차 차고"]}).status_code == 200
+
+
 # 10-05: the mission page sets up the object the app's mission then uses
 def test_the_mission_prop_reaches_the_plan():
     req = StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1", prop="맛있는 간식")])

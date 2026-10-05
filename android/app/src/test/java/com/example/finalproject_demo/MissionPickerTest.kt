@@ -201,4 +201,16 @@ class MissionPickerTest {
         assertEquals("물이 딱 멈췄어요.", s.coopMissionResult(PageKind.DRAG))
         assertEquals("꽉! 물이 딱 멈췄어!", s.m2Done())
     }
+
+    // ── 1-b D4 기울여 굴리기 (#101) ───────────────────────────────────
+
+    @Test
+    fun rollingWordsPickD4() {
+        mapOf(
+            coop2("친구랑 축구했어", "공을 데굴데굴 굴렸어") to MissionId.D4,
+            coop2("축구 시합을 했어", "내가 골인 시켰어") to MissionId.D4,
+            coop2("공이 굴러가서 없어졌어", "다 같이 찾았어") to MissionId.D4,      // 해결에 동사가 없으면 문제 칸
+            coop2("공이 굴러갔어", "물을 뿌려서 껐어") to MissionId.A1,               // 해결 동사가 먼저
+        ).forEach { (f, want) -> assertEquals("${f.slot1Words} / ${f.slot2Words}", want, pickMissions(f).slot2) }
+    }
 }

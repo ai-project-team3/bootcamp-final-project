@@ -1,5 +1,5 @@
 """Book pages. Spec: guidelines/3_API_명세.md §3-3, prompts eval/story_prompt*.md."""
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -49,6 +49,10 @@ class StoryRequest(BaseModel):
     # tense. done = it happened · soon = it is coming · dream = imagined. None = done (#52)
     reason: Optional[Literal["done", "soon", "dream"]] = None
     level: Optional[str] = None
+    # coop only (#113): the spots inside the picked item (CoopTemplates.kt COOP_ITEMS spots —
+    # "소방차 차고 · 출동 준비실"). Scenery for the pages and keywords, never an event: the
+    # item's trouble/cause/fix choices are not sent, the child did not say them
+    stage: Optional[list[Annotated[str, Field(min_length=1, max_length=12)]]] = Field(default=None, max_length=5)
     # the page plan, in order. When given, the book has exactly these pages;
     # when absent, the old shape (story: six · diary/coop: 3-6) for old callers.
     # Today's templates run 6-8 pages, but that is the app's choice, not the API's

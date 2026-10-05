@@ -197,4 +197,27 @@ class BlowMissionTest {
         val reply = runBlocking { withTimeoutOrNull(3_000) { got.await() } }
         assertTrue("다섯 번 눌렀는데 안 잠겼다: $reply", reply is Reply.Tapped && reply.value == "mission")
     }
+
+    /** D4 — 기울기 센서가 없어도(Robolectric) 공을 끌어다 골대에 넣으면 끝난다(탭 길) */
+    @Test
+    fun draggingTheBallIntoTheGoalEndsTheRollMission() {
+        val d = coopBirthdayBook()
+        compose.mainClock.autoAdvance = false
+        compose.setContent { Box(Modifier.fillMaxSize().background(Bg)) { com.example.finalproject_demo.ui.missions.RollMission(d, false, com.example.finalproject_demo.demo.Art.Emoji("🧒")) } }
+        compose.mainClock.advanceTimeBy(600)
+        snap("build/touch/roll_before.png")
+        val got = awaitMission(d)
+        compose.onRoot().performTouchInput {
+            val from = Offset(width * 0.36f, height * 0.56f)
+            val to = Offset(width * 0.82f, height * 0.50f)
+            down(from)
+            for (k in 1..30) moveTo(from + (to - from) * (k / 30f), delayMillis = 16)
+            up()
+        }
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        snap("build/touch/roll_after.png")
+        val reply = runBlocking { withTimeoutOrNull(3_000) { got.await() } }
+        assertTrue("공을 골대에 넣었는데 안 끝났다: $reply", reply is Reply.Tapped && reply.value == "mission")
+    }
 }
