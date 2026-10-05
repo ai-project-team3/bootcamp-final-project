@@ -19,6 +19,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class StoryMissingPlaceTest {
+    // the generated-background path; the felt scene kit (on by default) would skip /image
+    @get:org.junit.Rule val sceneKitOff = SceneKitOff()
+
     @Test fun aReadyStoryWithNoPlaceAsksOnceMoreAndUsesTheConfirmedPlace() =
         finishStory(finalAnswer = "숲속 호수", confirmedPlace = "숲속 호수") { d, requests ->
             assertEquals(listOf("place", "place"), requests.filter { it.first == "/turn" }

@@ -26,6 +26,7 @@ class TurnState internal constructor(
     private val newcomer: String?, private val newcomerKind: String, private val friendName: String,
     private val solution: String?, private val solutionLine: String, private val solutionKey: String, private val solutionItem: String,
     private val sound: String?, private val soundLine: String, private val storyBackground: String?,
+    private val sceneKit: String?, private val sceneSeed: Long,
     private val answerOptions: StoryOptions?,
 ) {
     internal fun restoreInto(s: DemoState) {
@@ -49,6 +50,8 @@ class TurnState internal constructor(
         s.solution = solution; s.solutionLine = solutionLine; s.solutionKey = solutionKey; s.solutionItem = solutionItem
         s.sound = sound; s.soundLine = soundLine
         if (!keepBackground) s.storyBackground = storyBackground
+        // the kit scene follows the place it was laid out for — same seed, same scene after undo/redo
+        s.sceneKit = sceneKit; s.sceneSeed = sceneSeed
     }
 }
 
@@ -59,7 +62,7 @@ fun DemoState.captureTurn(): TurnState = TurnState(
     mascotPicks, reactions, modeCard, modeVoice, modeDraw, modeSilent,
     themeKey, placeLabel, generatedBg, place, problem, cause, reaction, causeLine, causeKind,
     newcomer, newcomerKind, friendName, solution, solutionLine, solutionKey, solutionItem,
-    sound, soundLine, storyBackground,
+    sound, soundLine, storyBackground, sceneKit, sceneSeed,
     storyAnswerOptions,
 )
 

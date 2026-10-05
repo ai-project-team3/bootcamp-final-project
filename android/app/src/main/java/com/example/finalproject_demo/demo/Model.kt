@@ -1068,6 +1068,13 @@ class DemoState {
     var generatedBg by mutableStateOf(false)
     /** 서버 PNG를 앱 전용 파일에 보관한 뒤 이 책이 끝날 때까지 사용한다. */
     var storyBackground by mutableStateOf<String?>(null)
+    /**
+     * Felt scene kit drawing this place on the stage (`demo/scene/SceneKit.kt` key, e.g. "park"), or null for the
+     * background picture. Set only by the live story for a place outside the three themes (10-05).
+     */
+    var sceneKit by mutableStateOf<String?>(null)
+    /** Seed base of the kit layout — set once per place, kept by undo/redo so the same scene comes back */
+    var sceneSeed by mutableStateOf(0L)
     /** Figures that already made their entrance this story — a new Stage.World each turn must not replay it */
     val enteredOnStage: MutableSet<String> = mutableSetOf()
     // 일기 모드의 장소는 아이가 말한 실제 장소다. 아직 못 들었으면 상상 세계 이름("우주")이 새어 나오지 않게 막는다
@@ -1382,7 +1389,7 @@ class DemoState {
         nextLevel = null; levelAtStart = level
         templateKey = null; attribute = null; causeKind = "lonely"; notes.clear(); levelWhy = ""
         askedThisStory.clear()
-        themeKey = "space"; placeLabel = null; generatedBg = false; storyBackground = null
+        themeKey = "space"; placeLabel = null; generatedBg = false; storyBackground = null; sceneKit = null
         mentioned.clear()
         newcomerKind = "외계인"; newcomerEmoji = "👽"
         dinoKey = "horn"; solutionKey = "play"; solutionItem = "star"

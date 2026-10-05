@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Art
+import com.example.finalproject_demo.demo.scene.SceneKits
 import com.example.finalproject_demo.demo.ChildProfile
 import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.Level
@@ -216,8 +217,13 @@ fun PillButton(text: String, bg: Color, fg: Color, fontSize: Int = 19, onClick: 
 }
 
 @Composable
-private fun WorldBackground(bg: List<Color>, bgName: String, framed: Boolean = false, content: @Composable () -> Unit) {
-    val image: @Composable () -> Unit = {
+private fun WorldBackground(
+    bg: List<Color>, bgName: String, framed: Boolean = false,
+    /** Drawn instead of the [bgName] picture (the felt scene kit · 10-05); gets the stage's bottom inset */
+    backdrop: (@Composable (bottomInset: Dp) -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    val picture: @Composable (Dp) -> Unit = backdrop ?: { _ ->
         AssetImage(bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
             Canvas(Modifier.fillMaxSize()) {
                 val rnd = java.util.Random(7)
@@ -236,11 +242,11 @@ private fun WorldBackground(bg: List<Color>, bgName: String, framed: Boolean = f
         // 틀 안에서는 인물 · 핫스팟 · 앞 레이어가 가로 화면과 **똑같은 비율**로 놓인다 — 규칙을 둘로 나누지 않는다.
         val portrait = framed && maxWidth < maxHeight
         if (!portrait) {
-            image()
+            picture(BottomChrome)
             CompositionLocalProvider(LocalStageBottomInset provides BottomChrome) { content() }
         } else {
             Box(Modifier.fillMaxSize()) {
-                image()
+                picture(BottomChrome)
                 Box(Modifier.fillMaxSize().background(Ink.copy(alpha = 0.45f)))
             }
             val frameH = maxWidth * (STAGE_ART_H / STAGE_ART_W)
@@ -254,7 +260,7 @@ private fun WorldBackground(bg: List<Color>, bgName: String, framed: Boolean = f
                     .height(frameH)
                     .clipToBounds(),
             ) {
-                image()
+                picture(0.dp)
                 // 틀이 말풍선 **위**에 있으니 발 높이에서 말풍선 몫을 빼지 않는다
                 CompositionLocalProvider(LocalStageBottomInset provides 0.dp) { content() }
             }
@@ -329,6 +335,7 @@ private fun Centered(content: @Composable () -> Unit) {
 fun StageView(d: Director, modifier: Modifier = Modifier) {
     val s = d.s
     val stage = s.stage
+    val kit = s.sceneKit?.takeIf { s.mode == StoryMode.STORY }?.let { SceneKits.all[it] }
     // 주인공 · 공룡이 정해지는 순간 **뒤에서 뼈대를 붙여 둔다** (09-28) — 대화가 끝나 책이 열릴 때는 이미 끝나 있다
     val ctx = LocalContext.current
     val heroName = s.heroAttr?.let { heroImageName(it) }
@@ -522,7 +529,14 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
             //   ③ 상호작용 층  핫스팟 테두리 · 반짝임 · 누르는 자리 — 맨 위라 인물에 가려 못 누르는 일이 없다
             // 전에는 핫스팟이 통째로 ① 에 있어서 커진 인물이 누를 자리를 덮었고,
             // 인물은 목록 순서대로 그려져 먼 것이 가까운 것을 덮을 수 있었다.
-            is Stage.World -> WorldBackground(s.worldBg, s.bgName, framed = true) {
+            // 10-05 scene kit (`demo/scene` · `docs/배경_조각_목록.md`): when on, a felt floor + pieces (SceneBack)
+            // replace the background picture, the actors are drawn as before, and the foreground piece (SceneFront)
+            // goes over them. Hotspots and FrontGround belong to a background picture, so they are skipped.
+            // The layout always keeps room for two actors — the scene must not reshuffle when the friend appears.
+            is Stage.World -> WorldBackground(
+                s.worldBg, s.bgName, framed = true,
+                backdrop = kit?.let { k -> { inset -> SceneBack(k, s.sceneSeed, 2, inset, if (inset > 0.dp) TopChrome else 0.dp) } },
+            ) {
                 val quake = if (stage.quake) {
                     val t = rememberInfiniteTransition(label = "quake")
                     val dy by t.animateFloat(-3f, 3f, infiniteRepeatable(tween(90), RepeatMode.Reverse), label = "dy")
@@ -530,15 +544,19 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                 } else 0f
                 val hot = rememberHotspotState(s.bgName)
                 // ① 배경 층
-                HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake, state = hot, part = HotspotPart.Pieces)
+                if (kit == null) HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake, state = hot, part = HotspotPart.Pieces)
                 // ② 인물 층
                 Box(Modifier.fillMaxSize().offset { IntOffset(0, quake.roundToInt()) }) {
                     stage.items.sortedBy { it.depth }.forEach { item -> WorldItemView(item, s.enteredOnStage) }
                     // 인물 **뒤에** 깔면 아무 소용이 없다 — 발끝을 덮어야 묻힌 것으로 보인다
-                    FrontGround(s.bgName)
+                    if (kit == null) FrontGround(s.bgName)
+                    else {
+                        val inset = LocalStageBottomInset.current
+                        SceneFront(kit, s.sceneSeed, 2, inset, if (inset > 0.dp) TopChrome else 0.dp)
+                    }
                 }
                 // ③ 상호작용 층
-                HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake, state = hot, part = HotspotPart.Marks)
+                if (kit == null) HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake, state = hot, part = HotspotPart.Marks)
                 if (stage.brush) {
                     val t = rememberInfiniteTransition(label = "brush2")
                     val a by t.animateFloat(0.4f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "a2")
@@ -582,12 +600,12 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
  */
 
 /** 앞줄(depth 1) 인물의 발 높이 · 지평선(depth 0)의 발 높이 */
-private const val FEET_NEAR = 0.84f
-private const val FEET_FAR = 0.62f
+internal const val FEET_NEAR = 0.84f
+internal const val FEET_FAR = 0.62f
 
 /** 앞줄 인물의 키 · 지평선 인물의 키 (화면 높이 기준) */
-private const val TALL_NEAR = 0.58f
-private const val TALL_FAR = 0.30f
+internal const val TALL_NEAR = 0.58f
+internal const val TALL_FAR = 0.30f
 
 /**
  * 그림 **안에서** 발이 닿는 자리 (0~1).
