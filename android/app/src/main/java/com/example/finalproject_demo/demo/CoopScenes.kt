@@ -117,7 +117,7 @@ private class CoopTrack {
     var wildAsked: String? = null
     /** 바로 앞 받아주기 — 같은 말이 이어 나오지 않게 */
     var lastAck: String? = null
-    /** 받아주기 직후 한 번 부른 `/turn` — 수준 신호와 칸 값이 같이 쓴다(두 번 부르지 않는다). 아이 말이 키 */
+    /** 받아주기 전에 한 번 부른 `/turn` — 수준 신호와 칸 값이 같이 쓴다(두 번 부르지 않는다). 아이 말이 키 */
     var liveTurn: LiveTurn? = null
     /** 지금 방식 · 바뀐 방식을 견주는 이야기 하나의 수치 (§11) — 끝날 때 `coop_session` 으로 남긴다 */
     val stats = CoopSessionStats()
@@ -334,16 +334,21 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         if (!wild) roleOf(key)?.let { (slot, role) ->
             coopNameFrom(r.text, role)?.takeIf { !hasRoughWord(it) }?.let { track.heard[slot] = it; log("[$key] 들은 이름 $slot=「$it」 (다음 질문에 끼운다)") }
         }
-        // 받아주기 한마디 — 아이 말에서 뗀 이름 하나. 「몰라」 · 「응」은 되비추지 않는다. 다음 질문과 합쳐 두 문장
-        coopAck(r.text, roleOf(key)?.second, reason, wild, track.lastAck)?.let { track.lastAck = it; say(it); pause(700) }
-        // 진짜 마이크 답에 수준 신호를 단다 — 공용 판정이 신호 없는 답을 늘 「내림」으로 세던 것 (CoopSignals.kt)
-        if (r.isLiveSpeech()) return r.copy(answer = coopLiveSignals(q, text, r.text, wild))
+        // 진짜 마이크 답이면 /turn 을 받아주기보다 먼저 부른다 — 받아주기에 서버 대사를 쓰려고 (10-05).
+        // 수준 신호도 여기서 단다 — 공용 판정이 신호 없는 답을 늘 「내림」으로 세던 것 (CoopSignals.kt)
+        val live = if (r.isLiveSpeech()) coopLiveSignals(q, text, r.text, wild) else null
+        // 받아주기 — 서버의 받아주기 + 되돌려주기(동화와 같게 · CoopServerLine.kt). 없거나 못 쓰면 앱의 한마디:
+        // 아이 말에서 뗀 이름 하나. 「몰라」 · 「응」은 되비추지 않는다. 다음 질문과 합쳐 두 문장
+        val server = if (live == null || wild) null else coopServerReaction(track.liveTurn?.result?.line)
+        if (server != null) log("[$key] 받아주기 — 서버 대사 「$server」")
+        (server ?: coopAck(r.text, roleOf(key)?.second, reason, wild, track.lastAck))?.let { track.lastAck = it; say(it); pause(700) }
+        if (live != null) return r.copy(answer = live)
     }
     return r
 }
 
 /**
- * 진짜 마이크 답의 수준 신호. 서버를 켰으면 `/turn` 을 **여기서 한 번** 부르고(받아주기 직후 — 기다림은 전과 같다)
+ * 진짜 마이크 답의 수준 신호. 서버를 켰으면 `/turn` 을 **여기서 한 번** 부르고(받아주기 전 — 서버의 받아주기 · 되돌려주기를 말하려고, 10-05)
  * 그 결과를 [coopLiveValue] 가 칸 값에 다시 쓴다. 「몰라」 · 되돌릴 엉뚱한 답이면 전처럼 부르지 않는다.
  */
 private suspend fun Director.coopLiveSignals(q: Question, question: String, said: String, wild: Boolean): Answer {
@@ -585,7 +590,7 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
     }
     if (!Server.liveFor(s.mode)) return text
     val asked = step.slot.takeIf { it in Server.SLOTS && it != "extra" }
-    // 바뀐 방식은 받아주기 직후 이미 한 번 불렀다(coopLiveSignals) — 그 결과를 쓴다
+    // 바뀐 방식은 받아주기 전에 이미 한 번 불렀다(coopLiveSignals) — 그 결과를 쓴다
     val cached = s.coopTrack.liveTurn?.takeIf { it.utterance == text }.also { s.coopTrack.liveTurn = null }
     val turn = if (cached != null) cached.result else s.exchangeTurn("coop", asked, question, text)
     // 서버가 정한 다음 칸 · 질문을 다음 걸음에 쓸 수 있게 둔다 (#53 A) — 맞지 않으면 다음 걸음이 버린다
