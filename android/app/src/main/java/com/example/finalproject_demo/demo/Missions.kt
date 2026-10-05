@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.slot1Prop
+
 /**
  * 책 미션 — 아이와 나눈 대화에서 만든다 (v0.8).
  *
@@ -132,6 +134,7 @@ fun reported(line: String): String {
 
 /** 미션 안내 · 완료 · 자막 문장 — 이름 · 탈것 · 대화에서 나온 말로 채운다 */
 fun DemoState.m1Line(): String {
+    slot1Prop()?.let { return it.ask }                   // C1 불기 · C3 소리 흉내 — 소품은 아이 말에서 (SoundProp.kt)
     val m = mission1(); val v = rideName
     if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode))
         return "이 자리에 ${m.blobName}${ga(m.blobName)} 남아 있어. ${m.toolName}${ro(m.toolName)} 슥슥 치워 줄래?"
@@ -151,6 +154,10 @@ fun DemoState.m1Line(): String {
  * "지호는 다시 쌓아 봤어요. 지호는 모래를 치웠어요." 처럼 이름이 두 번 나오지 않게 하려는 것이다 (9/22).
  */
 fun DemoState.m1Caption(withSubject: Boolean = true): String {
+    slot1Prop()?.let { b ->
+        val clause = "${placeLabel?.let { "${it}에서 " } ?: ""}${b.did} ${b.result}"
+        return if (withSubject) "$childName${eun(childName)} $clause" else clause
+    }
     val m = mission1(); val v = rideName; val f = friendCallName
     if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode)) return m1Before()
     if (isDiary) {
@@ -167,6 +174,7 @@ fun DemoState.m1Caption(withSubject: Boolean = true): String {
 
 /** 같이 만들기 · 미션 1 전 — 「소방서에 물방울이 잔뜩 남아 있어요.」 아직 아이가 치우지 않았다 (#98) */
 fun DemoState.m1Before(): String {
+    slot1Prop()?.let { b -> return "${placeLabel?.let { "${it}에 " } ?: ""}${b.before}" }
     val m = mission1()
     val where = placeLabel?.let { "${it}에 " } ?: ""
     return "${where}${m.blobName}${ga(m.blobName)} 잔뜩 남아 있어요."
@@ -187,7 +195,7 @@ fun DemoState.m2Clause(): String =
     else "오늘 이야기를 들어준 마스코트에게 ${mission2().give}."
 
 fun DemoState.m1Done(): String =
-    if (isDiary) "${mission1().done} 자리가 다시 깨끗해졌어!"
+    slot1Prop()?.cheer ?: if (isDiary) "${mission1().done} 자리가 다시 깨끗해졌어!"
     else if (com.example.finalproject_demo.net.Server.liveFor(mode)) mission1().done
     else "${mission1().done} $storyActor 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
 
