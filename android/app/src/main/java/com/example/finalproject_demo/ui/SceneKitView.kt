@@ -5,7 +5,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -21,11 +26,17 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -33,12 +44,15 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.example.finalproject_demo.demo.scene.KitScene
 import com.example.finalproject_demo.demo.scene.PieceBase
+import com.example.finalproject_demo.demo.scene.PieceMotion
 import com.example.finalproject_demo.demo.scene.PieceRole
 import com.example.finalproject_demo.demo.scene.PlacedPiece
 import com.example.finalproject_demo.demo.scene.SceneFrame
 import com.example.finalproject_demo.demo.scene.SceneKitDef
+import com.example.finalproject_demo.demo.scene.SceneMotions
 import com.example.finalproject_demo.demo.scene.bestScene
 import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
@@ -49,7 +63,44 @@ import kotlin.math.sin
  *   [SceneBack]  sky · sky pieces · two felt hills · hazy far band · ground · ground pieces (sorted by feet)
  *   [SceneFront] the one foreground piece cut by a bottom corner — over the actors' feet
  * Both compute the same scene from the same inputs (`bestScene` is deterministic for a seed base).
+ *
+ * **The living background** (10-05 · doc §6-3): the pieces keep moving by rule — trees and flowers lean with one
+ * wind, clouds drift, butterflies go from flower to flower (`demo/scene/SceneMotion.kt`). Both layers read the
+ * same clock ([sceneClock]), only inside the draw pass, so a frame redraws the canvas and recomposes nothing.
  */
+
+/**
+ * The one switch for the living background. Off: every piece stands where the layout put it.
+ * It is also still when the phone has animations removed (animator scale 0) and under Robolectric — the
+ * reference screenshots are of the layout, not of a moment in the wind.
+ */
+object SceneLife {
+    @Volatile var on: Boolean = true
+    /** frame time of the first living frame — one epoch for both layers, so front and back share the wind */
+    internal var epoch = 0L
+}
+
+/** Pins the scene time in seconds (the reel test · previews). null = the frame clock, or still (see [SceneLife]) */
+val LocalSceneTime = compositionLocalOf<Double?> { null }
+
+/** Seconds of scene time as a state to read **in the draw pass**, or null when the scene stands still */
+@Composable
+private fun sceneClock(): State<Double>? {
+    val pinned = LocalSceneTime.current
+    if (pinned != null) return rememberUpdatedState(pinned)
+    val ctx = LocalContext.current
+    val still = remember {
+        !SceneLife.on || android.os.Build.FINGERPRINT == "robolectric" ||
+            android.provider.Settings.Global.getFloat(ctx.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }
+    if (still) return null
+    return produceState(0.0) {
+        while (true) withFrameNanos { n ->
+            if (SceneLife.epoch == 0L) SceneLife.epoch = n
+            value = (n - SceneLife.epoch) / 1e9
+        }
+    }
+}
 
 /** ↩ ↪ edge tabs (`TurnNavButton`) — the layout keeps pieces out from behind them */
 private val TAB_W = 56.dp
@@ -119,30 +170,42 @@ fun SceneBack(kit: SceneKitDef, seedBase: Long, actors: Int, bottomInset: Dp, to
         val skyTop = Color(kit.skyTop)
         val skyBottom = Color(kit.skyBottom)
         val grain = remember { ShaderBrush(ImageShader(FeltNoise.grain, TileMode.Repeated, TileMode.Repeated)) }
-        Canvas(Modifier.fillMaxSize()) {
+        val motions = remember(scene, f) { SceneMotions(scene, f) }
+        // the hills never move — their paths are made once, not every living frame
+        val hills = remember(scene, f) {
             val seed = scene.seed.toFloat()
+            listOf(
+                hillShape(f, seed, f.horizon - 0.13f * f.h, 16f, 120f),
+                hillShape(f, seed + 2, f.horizon - 0.07f * f.h, 12f, 90f),
+                hillShape(f, seed + 4, f.horizon, 5f, 140f),
+            )
+        }
+        val clock = sceneClock()
+        Canvas(Modifier.fillMaxSize()) {
+            val t = clock?.value
+            fun drawPiece(p: PlacedPiece) = drawPiece(imgs, p, skyBottom, if (t == null) PieceMotion.NONE else motions.of(p, t))
             // sky — two-colour felt gradient with soft blotches
             drawRect(Brush.verticalGradient(listOf(skyTop, skyBottom), endY = f.horizon))
             drawImage(FeltNoise.blotch, srcSize = IntSize(FeltNoise.blotch.width, FeltNoise.blotch.height),
                 dstSize = IntSize(size.width.roundToInt(), f.horizon.roundToInt()), alpha = 0.10f,
                 blendMode = BlendMode.Overlay, filterQuality = FilterQuality.Low)
             scene.pieces.filter { it.piece.base == PieceBase.CENTER && it.piece.role != PieceRole.FLOAT }
-                .sortedBy { it.h }.forEach { drawPiece(imgs, it, skyBottom) }
+                .sortedBy { it.h }.forEach { drawPiece(it) }
             // hills — two felt layers above the horizon, then the hazy far band
-            hill(f, seed, f.horizon - 0.13f * f.h, 16f, 120f, Color(kit.hillFar))
-            hill(f, seed + 2, f.horizon - 0.07f * f.h, 12f, 90f, Color(kit.hillNear))
-            scene.pieces.filter { it.fade > 0f }.forEach { drawPiece(imgs, it, skyBottom) }
+            hill(f, hills[0], Color(kit.hillFar))
+            hill(f, hills[1], Color(kit.hillNear))
+            scene.pieces.filter { it.fade > 0f }.forEach { drawPiece(it) }
             // ground — from the actors' depth-0 feet line down, soft wavy stitched edge
-            hill(f, seed + 4, f.horizon, 5f, 140f, Color(kit.ground))
+            hill(f, hills[2], Color(kit.ground))
             drawRect(grain, alpha = 0.07f, blendMode = BlendMode.Overlay)
             // ground pieces: flat first, then by feet (far → near), then what floats
             val ground = scene.pieces.filter { it.piece.base == PieceBase.FEET && it.fade == 0f && !it.front }
-            ground.filter { it.piece.role == PieceRole.FLAT }.forEach { drawPiece(imgs, it, skyBottom) }
+            ground.filter { it.piece.role == PieceRole.FLAT }.forEach { drawPiece(it) }
             ground.filter { it.piece.role != PieceRole.FLAT }.sortedBy { it.y }.forEach {
-                shadow(it)
-                drawPiece(imgs, it, skyBottom)
+                shadow(it)          // the feet never move (a tree bends, it does not slide), so the shadow stays
+                drawPiece(it)
             }
-            scene.pieces.filter { it.piece.role == PieceRole.FLOAT }.forEach { drawPiece(imgs, it, skyBottom) }
+            scene.pieces.filter { it.piece.role == PieceRole.FLOAT }.forEach { drawPiece(it) }
         }
     }
 }
@@ -153,17 +216,24 @@ fun SceneFront(kit: SceneKitDef, seedBase: Long, actors: Int, bottomInset: Dp, t
     val imgs = kitBitmaps(kit)
     BoxWithConstraints(modifier.fillMaxSize()) {
         val density = LocalDensity.current
-        val (scene, _) = rememberKitScene(kit, seedBase, actors,
+        val (scene, f) = rememberKitScene(kit, seedBase, actors,
             with(density) { maxWidth.toPx() }, with(density) { maxHeight.toPx() }, bottomInset, topInset)
         val skyBottom = Color(kit.skyBottom)
+        val motions = remember(scene, f) { SceneMotions(scene, f) }
+        val clock = sceneClock()
         Canvas(Modifier.fillMaxSize()) {
-            scene.pieces.filter { it.front }.forEach { drawPiece(imgs, it, skyBottom) }
+            val t = clock?.value
+            scene.pieces.filter { it.front }.forEach {
+                drawPiece(imgs, it, skyBottom, if (t == null) PieceMotion.NONE else motions.of(it, t))
+            }
         }
     }
 }
 
-/** A felt layer whose top edge is a soft wave, filled down to the bottom, with a shade line and running stitches */
-private fun DrawScope.hill(f: SceneFrame, seed: Float, y0: Float, amp: Float, freq: Float, color: Color) {
+/** The three paths of one felt layer: the wavy top edge, the fill down to the bottom, the running stitches under the edge */
+private class HillShape(val edge: Path, val fill: Path, val stitch: Path, val y0: Float)
+
+private fun hillShape(f: SceneFrame, seed: Float, y0: Float, amp: Float, freq: Float): HillShape {
     // the prototype's numbers are for a 1344 × 768 picture — scale them to this stage
     val sx = f.w / 1344f
     val sy = f.h / 768f
@@ -181,12 +251,19 @@ private fun DrawScope.hill(f: SceneFrame, seed: Float, y0: Float, amp: Float, fr
         x += step
     }
     fill.lineTo(f.w + step, f.h); fill.lineTo(0f, f.h); fill.close()
-    drawPath(edge, Color.Black.copy(alpha = 0.10f), style = Stroke(width = 8f * sy))
+    return HillShape(edge, fill, stitch, y0)
+}
+
+/** A felt layer whose top edge is a soft wave, filled down to the bottom, with a shade line and running stitches */
+private fun DrawScope.hill(f: SceneFrame, shape: HillShape, color: Color) {
+    val sx = f.w / 1344f
+    val sy = f.h / 768f
+    drawPath(shape.edge, Color.Black.copy(alpha = 0.10f), style = Stroke(width = 8f * sy))
     val dark = Color(
         max(0f, color.red - 18f / 255f), max(0f, color.green - 18f / 255f), max(0f, color.blue - 18f / 255f),
     )
-    drawPath(fill, Brush.verticalGradient(listOf(color, dark), startY = y0, endY = f.h))
-    drawPath(stitch, Color(0xFFFFFAEE).copy(alpha = 0.6f), style = Stroke(width = 2f * sy,
+    drawPath(shape.fill, Brush.verticalGradient(listOf(color, dark), startY = shape.y0, endY = f.h))
+    drawPath(shape.stitch, Color(0xFFFFFAEE).copy(alpha = 0.6f), style = Stroke(width = 2f * sy,
         pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f * sx, 8f * sx))))
 }
 
@@ -203,24 +280,77 @@ private fun DrawScope.shadow(p: PlacedPiece) {
     )
 }
 
-private fun DrawScope.drawPiece(imgs: Map<String, ImageBitmap>, p: PlacedPiece, haze: Color) {
+/** Rows of the bend mesh — enough that a leaning trunk reads as a curve, not as a fold */
+private const val BEND_ROWS = 8
+
+private fun DrawScope.drawPiece(imgs: Map<String, ImageBitmap>, p: PlacedPiece, haze: Color, m: PieceMotion = PieceMotion.NONE) {
     val img = imgs[p.piece.res] ?: return
     val b = p.box
     val pivot = Offset(p.x, (b.t + b.b) / 2)
     val dst = IntSize(max(1, (b.r - b.l).roundToInt()), max(1, (b.b - b.t).roundToInt()))
     val at = IntOffset(b.l.roundToInt(), b.t.roundToInt())
     val src = IntSize(img.width, img.height)
-    rotate(p.tilt, pivot) {
-        scale(if (p.flip) -1f else 1f, 1f, pivot) {
-            if (p.fade > 0f) {
-                // far band: less colour, then a veil of the sky's lower colour — air between us and the horizon
-                val grey = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(1f - p.fade * 0.6f) })
-                drawImage(img, srcSize = src, dstOffset = at, dstSize = dst, colorFilter = grey, filterQuality = FilterQuality.Medium)
-                drawImage(img, srcSize = src, dstOffset = at, dstSize = dst, alpha = p.fade * 0.55f,
-                    colorFilter = ColorFilter.tint(haze, BlendMode.SrcIn), filterQuality = FilterQuality.Medium)
-            } else {
-                drawImage(img, srcSize = src, dstOffset = at, dstSize = dst, filterQuality = FilterQuality.Medium)
+    translate(m.dx, m.dy) {
+        rotate(p.tilt + m.tilt, pivot) {
+            scale((if (p.flip) -1f else 1f) * m.scaleX, m.scaleY, pivot) {
+                if (m.bend != 0f) {
+                    // inside the flip the x axis runs backwards — turn the lean so the wind still blows one way
+                    bent(p.piece.res, img, b, if (p.flip) -m.bend else m.bend, m.stiff, p.fade, haze)
+                } else if (p.fade > 0f) {
+                    // far band: less colour, then a veil of the sky's lower colour — air between us and the horizon
+                    val grey = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(1f - p.fade * 0.6f) })
+                    drawImage(img, srcSize = src, dstOffset = at, dstSize = dst, colorFilter = grey, filterQuality = FilterQuality.Medium)
+                    drawImage(img, srcSize = src, dstOffset = at, dstSize = dst, alpha = p.fade * 0.55f,
+                        colorFilter = ColorFilter.tint(haze, BlendMode.SrcIn), filterQuality = FilterQuality.Medium)
+                } else {
+                    drawImage(img, srcSize = src, dstOffset = at, dstSize = dst, filterQuality = FilterQuality.Medium)
+                }
             }
         }
+    }
+}
+
+/**
+ * Far-band pictures with their haze already in them — the still path lays the haze on in two passes every time,
+ * but a mesh takes neither the saturation filter nor the veil's alpha, so the bent path draws one ready picture.
+ * A handful of entries: far pieces of the kit on screen × its sky colour.
+ */
+private object HazedPieces {
+    private val made = HashMap<Triple<String, Int, Int>, Bitmap>()
+
+    fun of(res: String, img: ImageBitmap, fade: Float, haze: Color): Bitmap =
+        made.getOrPut(Triple(res, (fade * 100).roundToInt(), haze.toArgb())) {
+            val src = img.asAndroidBitmap().let { if (it.config == Bitmap.Config.HARDWARE) it.copy(Bitmap.Config.ARGB_8888, false) else it }
+            val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(out)
+            val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+            paint.colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix().apply { setSaturation(1f - fade * 0.6f) })
+            c.drawBitmap(src, 0f, 0f, paint)
+            paint.colorFilter = android.graphics.PorterDuffColorFilter(haze.toArgb(), android.graphics.PorterDuff.Mode.SRC_IN)
+            paint.alpha = (fade * 0.55f * 255).roundToInt()
+            c.drawBitmap(src, 0f, 0f, paint)
+            out
+        }
+}
+
+/**
+ * The picture bent by the wind: the bottom row stays on the bottom edge of [box] and each row above leans further,
+ * the top by [bend] px (`Canvas.drawBitmapMesh`, the way the character rig draws its skin). A rotation would swing
+ * the feet off their shadow; a bend keeps the tree planted. A far-band piece is drawn from its hazed copy ([HazedPieces]).
+ */
+private fun DrawScope.bent(res: String, img: ImageBitmap, box: com.example.finalproject_demo.demo.scene.Box, bend: Float, stiff: Float, fade: Float, haze: Color) {
+    val verts = FloatArray((BEND_ROWS + 1) * 4)
+    val h = box.b - box.t
+    for (j in 0..BEND_ROWS) {
+        val up = 1f - j / BEND_ROWS.toFloat()          // 1 at the top row, 0 at the feet
+        val lean = bend * up.pow(stiff)
+        val y = box.t + h * j / BEND_ROWS
+        verts[j * 4] = box.l + lean; verts[j * 4 + 1] = y
+        verts[j * 4 + 2] = box.r + lean; verts[j * 4 + 3] = y
+    }
+    val bmp = if (fade > 0f) HazedPieces.of(res, img, fade, haze) else img.asAndroidBitmap()
+    drawIntoCanvas { c ->
+        val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG or android.graphics.Paint.ANTI_ALIAS_FLAG)
+        c.nativeCanvas.drawBitmapMesh(bmp, 1, BEND_ROWS, verts, 0, null, 0, paint)
     }
 }
