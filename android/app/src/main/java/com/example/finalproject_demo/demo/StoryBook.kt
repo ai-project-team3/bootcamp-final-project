@@ -4,6 +4,17 @@ import com.example.finalproject_demo.demo.missions.MissionId
 import com.example.finalproject_demo.demo.missions.missions
 import com.example.finalproject_demo.net.Server
 
+data class StorySoundHolder(val target: String, val name: String)
+
+/** Replay belongs to a figure visible in this story, never to a hidden scripted companion. */
+fun DemoState.storySoundHolder(liveStory: Boolean = Server.liveFor(mode)): StorySoundHolder? {
+    if (mode != StoryMode.STORY) return null
+    if (!liveStory) return StorySoundHolder("dino", dino.name)
+    val friend = friendCallName.takeIf { it.isNotBlank() }
+    return if (friend != null) StorySoundHolder("friend", friend)
+        else StorySoundHolder("hero", childName)
+}
+
 /** The mission on a book page — the two mission slots are still the RUB and DRAG pages (design §5-1) */
 fun DemoState.missionFor(kind: PageKind): MissionId? = when (kind) {
     PageKind.RUB -> missions().slot1

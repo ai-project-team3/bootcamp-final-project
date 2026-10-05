@@ -92,7 +92,7 @@ fun diaryGiveItem(solution: String, s: DemoState): String {
     }
 }
 
-fun DemoState.mission1(): Mission1 = if (isDiary) diaryMission1(this) else when (newcomerKind) {
+fun DemoState.mission1(liveStory: Boolean = com.example.finalproject_demo.net.Server.liveFor(mode)): Mission1 = if (isDiary) diaryMission1(this) else when (newcomerKind) {
     "운석" -> Mission1("obj_rock", "🪨", "돌멩이", "prop_smoke", "💨", "prop_broom", "🧹", "빗자루", "돌멩이가 잔뜩 박혔어요", "돌멩이를 다 쓸어 냈어!")
     "바람" -> Mission1("prop_leaf", "🍂", "나뭇잎", "prop_sparkle", "✨", "prop_broom", "🧹", "빗자루", "나뭇잎이 잔뜩 붙었어요", "나뭇잎을 다 쓸어 냈어!")
     "문어" -> Mission1("prop_ink", "🟣", "먹물", "prop_splash", "💦", "prop_sponge", "🧽", "스펀지", "먹물이 잔뜩 묻었어요", "먹물을 깨끗이 닦았어!")
@@ -103,7 +103,7 @@ fun DemoState.mission1(): Mission1 = if (isDiary) diaryMission1(this) else when 
     "화산" -> Mission1("prop_lava", "🔥", "용암", "prop_smoke", "💨", "prop_hose", "🚿", "물대포", "용암이 튀어 불이 붙었어요", "불이 다 꺼졌어!")
     // a live story's newcomer is the child's own words (「고슴도치처럼 생긴 바늘괴물」), not one of the script's kinds —
     // falling to fire put 「불이 사라졌어요」 into a book with no fire (10-05). Dust fits any story
-    else -> if (com.example.finalproject_demo.net.Server.liveFor(mode))
+    else -> if (liveStory)
         Mission1("prop_cloud", "🌫", "먼지", "prop_sparkle", "✨", "ic_hand", "✋", "손", "먼지가 뽀얗게 앉았어요", "먼지를 탈탈 다 털어 냈어!")
     else Mission1("prop_fire", "🔥", "불", "prop_smoke", "💨", "prop_hose", "🚿", "물대포", "불이 붙었어요", "불이 다 꺼졌어!")
 }

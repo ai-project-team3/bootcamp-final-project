@@ -18,6 +18,8 @@ dependencyResolutionManagement {
         mavenCentral()
         // android-vad ships on JitPack only.
         maven { url = uri("https://jitpack.io") }
+        // Kakao SDK ships on Kakao's own repo only (net/SocialLogin.kt · 10-05).
+        maven { url = uri("https://devrepo.kakao.com/nexus/content/groups/public/") }
     }
 }
 
