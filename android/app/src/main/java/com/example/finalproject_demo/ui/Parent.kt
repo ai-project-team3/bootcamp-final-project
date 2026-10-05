@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -41,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -53,8 +55,10 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.CoopPlan
 import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.coopReportCopy
+import com.example.finalproject_demo.demo.feelingsSaid
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.coopReady
@@ -211,6 +215,7 @@ private fun ParentViewBody(d: Director, tab: String) {
                 Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .clipToBounds()       // 스크롤된 칩이 고정 머리 밑으로 그려져 머리가 눌리지 않게 (#98)
                     .verticalScroll(rememberScrollState())
                     .padding(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 22.dp)
             ) {
@@ -235,6 +240,8 @@ private fun ParentViewBody(d: Director, tab: String) {
 @Composable
 private fun RecordTab(d: Director) {
     val s = d.s
+    // 협업 리포트의 말 — 한 번만 만들어 아래 여러 칸이 같이 쓴다 (#99 리뷰 4)
+    val coopCopy = if (s.isCoop) s.coopReportCopy() else null
     if (s.title == null && s.quotes.isEmpty()) {
         // 빈 화면도 막다른 곳이 아니게 — 무엇이 여기에 생기는지 보여 주고, 아이 화면으로 돌아갈 길 (09-29)
         PCard(Modifier.fillMaxWidth()) {
@@ -273,7 +280,7 @@ private fun RecordTab(d: Director) {
                 // 일기 · 협업 모드는 "누구랑 같이 만들래?"를 묻지 않는다 →
                 // 물어보지 않은 사람 이름을 지어내지 않는다. 협업은 어른이 질문을 넣어 둔 것이 확실하므로 그렇게만 적는다
                 val who = when {
-                    s.isCoop -> s.coopReportCopy().who
+                    s.isCoop -> coopCopy!!.who
                     s.isDiary -> ""
                     else -> "${s.pn}${wa(s.pn)} 함께 · "
                 }
@@ -283,7 +290,7 @@ private fun RecordTab(d: Director) {
                 Text("오늘 · $took$who${s.placeName} · ${s.pageCount}쪽", fontSize = 12.sp, color = PSub)
                 // 일기 · 협업으로 만든 책은 부모 화면에서만 그렇게 보인다 (아이 화면에는 이 말이 없다 · 일기 §0)
                 // 협업은 고른 이유대로 — 곧 해요를 「오늘 있었던 일」로 적지 않는다 (10-03 실기기 · CoopReport.kt)
-                if (s.isCoop) Text(s.coopReportCopy().madeFrom, fontSize = 12.sp, color = PAccent)
+                if (coopCopy != null) Text(coopCopy.madeFrom, fontSize = 12.sp, color = PAccent)
                 else if (s.isDiary) Text("오늘 있었던 일로 만든 책이에요", fontSize = 12.sp, color = PAccent)
             }
             Chip("${s.modeVoice}번 말했어요", PMint)
@@ -305,14 +312,14 @@ private fun RecordTab(d: Director) {
         // 카드마다 다른 말을 보여 준다 (같은 문장이 되풀이되지 않게)
         Axis("🗣", "말하기", s.modeVoice, "마이크로 ${s.modeVoice}번 말했어요", talkQuote),
         Axis("💡", "이유 말하기", s.s1count, if (s.s1count == 0) "오늘은 까닭을 말하지 않았어요" else "까닭을 ${s.s1count}번 말했어요", reasonQuote),
-        Axis("💗", "마음 말하기", s.feelings.size, if (s.feelings.isEmpty()) "오늘은 마음을 말하지 않았어요" else "${s.feelings.distinct().joinToString(", ") { "${it}던" }} 마음을 말했어요", null),
+        Axis("💗", "마음 말하기", s.feelings.size, if (s.feelings.isEmpty()) "오늘은 마음을 말하지 않았어요" else feelingsSaid(s.feelings), null),
         Axis("🧩", "이야기 채우기", s2.size, if (s2.isEmpty()) "물어본 것에 답했어요" else "묻지 않은 것을 ${s2.size}번 덧붙였어요", fillQuote),
         Axis("🖍", "만들기", made.size, made.joinToString(" · ").ifEmpty { "오늘은 프리셋을 골랐어요" }, null),
         Axis(
             "🤝", "함께하기", s.partnerTurns,
             when {
                 // 협업 모드는 어른이 넣어 둔 질문으로 아이에게 묻는다 — 이 축이 처음으로 제대로 찬다 (협업 §4-2 · guidelines/9 §9-5)
-                s.isCoop -> "어른이 넣어 둔 질문 ${s.partnerTurns}개로 이야기했어요"
+                s.isCoop -> coopCopy!!.together(s.partnerTurns)
                 // 일기 모드는 함께할 사람을 묻지 않았다. 없는 사람 이름을 지어내지 않는다
                 s.isDiary -> if (s.companionKind.isBlank()) "오늘은 마스코트와 주고받았어요" else "오늘 ${s.companionKind}${wa(s.companionKind)} 있었던 이야기예요"
                 else -> "${s.pn}${wa(s.pn)} ${s.partnerTurns}번 주고받았어요"
@@ -377,7 +384,9 @@ private fun RecordTab(d: Director) {
         PCard(Modifier.weight(1f)) {
             Text("같은 질문에 한 답", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
             // 일기 · 협업 모드의 기준 질문 ①은 "오늘 어디 갔었어?" 다 — 같은 자리, 다른 재료 (일기 설계 §0 · §4-1)
-            Text(if (s.isDiary) "\"오늘 어디 갔었어?\"" else "\"어디로 가 볼까?\"", fontSize = 13.sp, color = PSub)
+            // 협업은 고른 이야기의 첫 질문 — 곧 해요에 「오늘 어디 갔었어?」가 나오지 않게 (10-03 실기기)
+            val firstQ = coopCopy?.firstQuestion
+            Text("\"${firstQ ?: if (s.isDiary) "오늘 어디 갔었어?" else "어디로 가 볼까?"}\"", fontSize = 13.sp, color = PSub)
             Spacer(Modifier.height(8.dp))
             // ⚠️ "지난번" 줄은 뺐다 (9/22). 전에는 "\"바다\" 한 낱말" 같은 **글자 상수**를 지난번 답인 것처럼 보여 줬는데,
             //    앱은 아직 아무것도 저장하지 않는다 — 지난번 기록이 없다. 없는 숫자를 진짜인 척하지 않는다 (guidelines/9 §9-5).
@@ -395,7 +404,7 @@ private fun RecordTab(d: Director) {
     // 협업 모드의 결과물 — **부모가 궁금해한 것에 아이가 뭐라고 했나** (부모협업모드_설계 §0 · 구현설계 §2-3).
     // 인용은 아이가 말한 것(`by: child`)만 따옴표로. 카드 · 마스코트가 채운 것은 그렇다고 적는다 (guidelines/2 §1-4)
     if (s.isCoop && s.coopAsked.isNotEmpty()) {
-        val copy = s.coopReportCopy()
+        val copy = coopCopy!!
         Section(copy.askedTitle, copy.askedSub)
         PCard(Modifier.fillMaxWidth()) {
             s.coopAsked.forEachIndexed { i, qa ->
@@ -422,7 +431,7 @@ private fun RecordTab(d: Director) {
     if (s.isCoop) {
         Section("다음에 넣어 볼 질문", "부모 협업 모드에서만 · 점수가 아니라 질문 한 개예요")
         PCard(Modifier.fillMaxWidth()) {
-            val copy = s.coopReportCopy()
+            val copy = coopCopy!!
             Text("“${copy.nextQuestion}”", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             Text(copy.nextWhy, fontSize = 13.sp, color = PSub)
@@ -444,7 +453,7 @@ private fun RecordTab(d: Director) {
     // ⚠️ 아이가 아무도 말하지 않은 날에는 "새 친구" 질문을 넣지 않는다 — 없는 친구를 앱이 만들어 내면 안 된다 (§3-2)
     // ⚠️ 일기 · 협업은 "누구랑 같이 만들래?"를 묻지 않았다 — `s.pn` 은 기본값 "엄마"라 질문 카드에 쓰면 없는 사람이 생긴다 (9/22)
     // 협업 곧 해요 · 좋아해요는 「오늘 있었던 일」 카드가 맞지 않는다 — 고른 이유대로 (CoopReport.kt)
-    val playCards = (if (s.isCoop) s.coopReportCopy().playCards else null) ?: if (s.isDiary) listOfNotNull(
+    val playCards = coopCopy?.playCards ?: if (s.isDiary) listOfNotNull(
         s.friendName.takeUnless { it.startsWith("{") }?.let { n -> "\"${n}${eun(n)} 내일은 뭐 하고 놀까?\"" },
         "\"오늘 ${s.placeName}에서 제일 재밌었던 게 뭐였어?\"",
         "\"내일 ${s.placeName}에 가면 뭐 하고 싶어?\"",
@@ -454,12 +463,14 @@ private fun RecordTab(d: Director) {
         "\"${s.dino.name}${ga(s.dino.name)} 또 울면 어떻게 할까?\"",
         "\"${s.placeName}에 또 가면 누구를 만날까?\"",
     )
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // 카드 높이는 가장 긴 질문에 맞춘다 — 고정 높이면 협업 질문(「…해 보고 싶은 게 뭐야?」)의 끝이 잘렸다 (10-03 실기기)
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         playCards.forEachIndexed { i, q ->
             Column(
                 Modifier
                     .weight(1f)
-                    .height(86.dp)
+                    .fillMaxHeight()
+                    .heightIn(min = 86.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(listOf(Color(0xFFFFE7DD), Color(0xFFFFF1CC), Color(0xFFDDF2EA))[i])
                     .padding(12.dp)
@@ -518,6 +529,16 @@ val COOP_SUGGESTIONS = listOf(
 )
 
 /**
+ * 고른 이유에 맞춘 추천 — 곧 해요에 「뭐였어? · 만났어?」를 권하면 오또의 갈무리(시제)와 어긋난다.
+ * 다녀왔어요 · 이유 없이 질문만이면 [COOP_SUGGESTIONS] 그대로
+ */
+fun coopSuggestions(reason: CoopReason?): List<String> = when (reason) {
+    CoopReason.SOON -> listOf("거기서 제일 해 보고 싶은 게 뭐야?", "거기서 누구를 만날 것 같아?", "가기 전에 어떤 기분이 들어?", "다녀오면 뭐 해 보고 싶어?")
+    CoopReason.DREAM -> listOf("그 이야기에서 뭐가 제일 좋아?", "누가 같이 나오면 좋겠어?", "그러면 어떤 기분일까?", "그다음엔 무슨 일이 생길까?")
+    else -> COOP_SUGGESTIONS
+}
+
+/**
  * 같이 만들기(옛 이름 협업 질문) — **부모가 이야기를 고르고, 더 물어볼 질문을 적어 두는 곳** (09-30 개정).
  * 이 화면이 협업 모드의 절반이다 — 나머지 절반은 오또가 일반 모드처럼 묻되 고른 이야기에 맞추는 것(CoopScenes).
  *
@@ -543,6 +564,7 @@ private fun CoopQuestionsTab(c: CoopDraft) {
     }
 
     CoopTemplateCards(c)
+    val suggestions = coopSuggestions(c.pick?.reasonOrNull())
 
     Section("더 물어볼 질문 (선택)", "오또가 이야기 중간에 적은 순서대로 끼워서 물어봐요 · ${COOP_MAX}개까지")
     val rows = maxOf(1, qs.size)
@@ -557,7 +579,7 @@ private fun CoopQuestionsTab(c: CoopDraft) {
                     onValueChange = { set(i, it) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    placeholder = { Text("예: ${COOP_SUGGESTIONS[i % COOP_SUGGESTIONS.size]}", fontSize = 14.sp, color = PSub.copy(alpha = 0.6f)) },
+                    placeholder = { Text("예: ${suggestions[i % suggestions.size]}", fontSize = 14.sp, color = PSub.copy(alpha = 0.6f), fontFamily = ParentFont) },   // 글꼴을 맞춘다 (#98)
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = PBg, unfocusedContainerColor = PBg,
                         focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
@@ -599,10 +621,12 @@ private fun CoopQuestionsTab(c: CoopDraft) {
         ) { Text("＋ 하나 더", fontSize = 13.sp, color = Ink) }
     }
 
-    Section("이런 질문은 어때요", "탭하면 빈 자리에 들어가요")
+    // 이미 넣은 질문은 목록에서 뺀다 — 다 넣었으면 칸째로 숨긴다 (#98)
+    val left = suggestions.filter { q -> qs.none { it.trim() == q } }
+    if (left.isNotEmpty()) Section("이런 질문은 어때요", "탭하면 빈 자리에 들어가요")
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Column(Modifier.weight(1f)) {
-            COOP_SUGGESTIONS.forEach { q ->
+            left.forEach { q ->
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -640,7 +664,7 @@ private fun CoopQuestionsTab(c: CoopDraft) {
  * 이 맥락에 맞춰 묻고([templateQuestions]), 부모에게는 그 질문을 미리 보여 준다([CoopTemplatePreview]).
  * 고른 것은 초안([CoopDraft])에만 담기고, [저장하기]를 눌러야 `s.coopPick` 에 남는다.
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun CoopTemplateCards(c: CoopDraft) {
     val pick = c.pick
@@ -649,6 +673,10 @@ private fun CoopTemplateCards(c: CoopDraft) {
     var draft by remember { mutableStateOf("") }
     var err by remember { mutableStateOf<String?>(null) }
     val kind = kindKey?.let { coopKind(it) }
+    // 종류를 누르면 다음 단계(하나 고르기)가 화면 아래에 생겨 변화가 안 보였다 — 그 자리로 끌어온다 (#98)
+    val nextStep = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    var tappedKind by remember { mutableStateOf(0) }
+    LaunchedEffect(tappedKind) { if (tappedKind > 0) { kotlinx.coroutines.delay(60); nextStep.bringIntoView() } }
 
     fun reasonOf(p: CoopPick?) = p?.reasonOrNull()
 
@@ -668,7 +696,7 @@ private fun CoopTemplateCards(c: CoopDraft) {
                     .clip(RoundedCornerShape(14.dp))
                     .background(if (on) Color(0xFFFFF1CC) else Color.White)
                     .border(1.dp, if (on) PAccent else PLine, RoundedCornerShape(14.dp))
-                    .clickable { kindKey = k.key; typing = false; err = null }
+                    .clickable { kindKey = k.key; typing = false; err = null; tappedKind++ }
                     .padding(10.dp),
             ) {
                 AssetImage(coopKindArt(k), Modifier.size(48.dp)) { Text(k.emoji, fontSize = 20.sp) }
@@ -682,7 +710,7 @@ private fun CoopTemplateCards(c: CoopDraft) {
     val picked = pick?.takeIf { it.kind == kind.key }
 
     Section("${kind.title} 하나 고르기", "목록에 없으면 직접 써도 돼요")
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    FlowRow(Modifier.bringIntoViewRequester(nextStep), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         kind.items.forEach { name ->
             CoopChip(name, on = picked?.name == name, art = COOP_ITEM_ART[name]) { typing = false; err = null; apply(kind, name, reasonOf(picked)) }
         }
@@ -699,7 +727,7 @@ private fun CoopTemplateCards(c: CoopDraft) {
                 onValueChange = { draft = it.take(COOP_NAME_MAX + 4); err = null },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                placeholder = { Text("${kind.title} 이름 (예: ${kind.customExample})", fontSize = 13.sp, color = PSub.copy(alpha = 0.6f)) },
+                placeholder = { Text("${kind.title} 이름 (예: ${kind.customExample})", fontSize = 13.sp, color = PSub.copy(alpha = 0.6f), fontFamily = ParentFont) },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = PBg, unfocusedContainerColor = PBg,
                     focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
@@ -781,6 +809,7 @@ private class CoopDraft(private val s: DemoState) {
         s.parentQuestions.clear(); s.parentQuestions.addAll(qs.dropLastWhile { it.isBlank() })
         s.parentQIndex = 0
         s.coopPick = pick
+        CoopPlan.saved(s)         // 앱을 껐다 켜도 남는다 (#98 · CoopPlanStore.kt)
         load(); editing = false
     }
 
@@ -863,7 +892,7 @@ private fun CoopSaveBar(c: CoopDraft) {
         Text(
             when {
                 c.canSave -> "저장하지 않은 변경이 있어요 · 저장해야 소파에 🎁가 붙어요"
-                !c.filled -> "템플릿을 고르거나 질문을 하나 이상 적어 주세요"
+                !c.filled -> "이야기를 고르거나 질문을 하나 이상 적어 주세요"   // 「템플릿」은 개발 용어 (#98)
                 else -> "바뀐 것이 없어요"
             },
             fontSize = 13.sp, color = if (c.canSave) PAccent else PSub, modifier = Modifier.weight(1f),

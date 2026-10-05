@@ -3,6 +3,7 @@ package com.example.finalproject_demo.demo
 import com.example.finalproject_demo.ui.CoopReason
 import com.example.finalproject_demo.ui.coopKind
 import com.example.finalproject_demo.ui.reasonOrNull
+import com.example.finalproject_demo.ui.templateQuestions
 
 /*
  * 같이 만들기 — 부모 리포트의 말 (10-03 실기기).
@@ -26,7 +27,18 @@ data class CoopReportCopy(
     val nextWhy: String,
     /** 오늘 이야기로 해 볼 놀이 질문 3장 — null 이면 일기 모드 것을 그대로 쓴다 */
     val playCards: List<String>?,
-)
+    /** 「같은 질문에 한 답」 카드의 질문 — 고른 이야기의 첫 질문. null 이면 일기 것(「오늘 어디 갔었어?」) */
+    val firstQuestion: String? = null,
+    /** 고른 이야기로 지었는가 — 「함께하기」 축의 말이 갈린다 */
+    private val storyName: String? = null,
+) {
+    /** 「함께하기」 축 — 부모 질문을 안 썼으면 「0개로 이야기했어요」 대신 고른 이야기로 지었다고 (10-03 실기기) */
+    fun together(parentAsked: Int): String = when {
+        parentAsked > 0 -> "어른이 넣어 둔 질문 ${parentAsked}개로 이야기했어요"
+        storyName != null -> "부모님이 고른 ‘$storyName’ 이야기로 함께 지었어요"
+        else -> "어른이 넣어 둔 질문으로 이야기했어요"
+    }
+}
 
 fun DemoState.coopReportCopy(): CoopReportCopy {
     val pick = coopStoryPick
@@ -64,6 +76,8 @@ fun DemoState.coopReportCopy(): CoopReportCopy {
             CoopReason.SOON -> "아직 안 해 본 일이라 “뭐 했어?” 대신 “~할까?” “~궁금해?” 처럼 앞으로의 말로 물어보세요. 다녀온 뒤 「${coopKind(pick.kind)?.reasonLabels?.get(CoopReason.DONE) ?: "다녀왔어요"}」로 한 번 더 만들면 생각한 것과 견줄 수 있어요."
             CoopReason.DREAM -> "상상 이야기라 정답이 없어요. “~했을까?” “~할까?” 처럼 열어 두면 아이가 더 길게 지어요."
         },
+        firstQuestion = pick.templateQuestions().firstOrNull(),
+        storyName = name,
         playCards = when (reason) {
             CoopReason.DONE -> null
             CoopReason.SOON -> listOf(
@@ -78,4 +92,74 @@ fun DemoState.coopReportCopy(): CoopReportCopy {
             )
         },
     )
+}
+
+// ── 아이 화면 · 책의 말 — 일기 모드 문구(「오늘 만난」)를 협업 곧 해요 · 좋아해요에 쓰지 않는다 (10-03 실기기) ──
+
+/** 협업에서 고른 이유 — 일기 · 고른 이야기 없음 · 다녀왔어요면 null(일기 문구 그대로) */
+private val DemoState.coopNotYet: CoopReason?
+    get() = if (!isCoop) null else bookPick?.let { it.reasonOrNull() ?: CoopReason.DREAM }?.takeIf { it != CoopReason.DONE }
+
+/** 그리기 안내 — 「오늘 만난 엄마와 아빠를 그려 줄래?」 대신 */
+fun DemoState.coopDrawLine(who: String): String? = when (coopNotYet) {
+    CoopReason.SOON -> "같이 갈 $who${eul(who)} 그려 줄래?"
+    CoopReason.DREAM -> "이야기 속 $who${eul(who)} 그려 줄래?"
+    else -> null
+}
+
+/** 책 등장 쪽의 이름표 — 「오늘 만난 사람」 대신 */
+fun DemoState.coopMetLabel(): String? = when (coopNotYet) {
+    CoopReason.SOON -> "같이 갈 사람"
+    CoopReason.DREAM -> "이야기 속 사람"
+    else -> null
+}
+
+/**
+ * 책 끝 친구 고르기 — 「오늘 만난 친구들이야」 대신. 할머니 · 아빠도 나오므로 「친구」라고 하지 않는다 (#98).
+ * 다녀왔어요 · 이야기 안 고름은 오늘 있었던 일이라 「오늘 함께한 사람들」, 곧 해요 · 좋아해요는 「이야기에 나온 사람들」
+ */
+fun DemoState.coopFriendsLine(): String? = when {
+    !isCoop -> null
+    coopNotYet == null -> "오늘 함께한 사람들이야. 누구를 또 만나고 싶어?"
+    else -> "이야기에 나온 사람들이야. 누구를 또 만나고 싶어?"
+}
+
+/**
+ * 책 제목 — 고른 이야기가 있으면 그 이름으로. 일기 제목(「{장소}에서 만난 {사람}」)은 아이 말을 그대로 끼워
+ * 「거실, 소파 있는 데에서 만난 엄마랑 아빠랑」이 됐다(10-05 실기기) · 곧 해요에는 「만난」이 맞지 않았다.
+ * 이야기를 안 고르고 질문만 적었으면 null — 일기 제목 그대로
+ */
+fun DemoState.coopTitle(): String? {
+    if (!isCoop) return null
+    val name = bookPick?.name?.trim() ?: return null
+    return when (coopNotYet) {
+        CoopReason.SOON -> "${childName}의 두근두근 $name 이야기"
+        CoopReason.DREAM -> "${childName}의 상상 $name 이야기"
+        else -> "${childName}의 $name 이야기"
+    }
+}
+
+/**
+ * 마음 낱말 + 「던」 — 앱 대본 꼴(「신났」 · 「기뻤」, 받침 ㅆ)만 「신났던」으로 잇는다. 아니면 null.
+ * 서버 판정은 「신나다」 · 「떨려」 · 「기쁨」 · 「무섭다, 신나다」 꼴로도 준다 — 활용을 짐작하지 않는다 (10-03 실기기 「신나다던」)
+ */
+fun feelingThatWas(emo: String): String? {
+    val e = emo.trim()
+    val last = e.lastOrNull() ?: return null
+    return if (last in '가'..'힣' && (last - '가') % 28 == 20) "${e}던" else null
+}
+
+/** 일기 reaction 문장의 마음 — 「신났던」 또는 「‘떨려’라는」 */
+fun feelingPhrase(emo: String): String =
+    feelingThatWas(emo) ?: emo.trim().let { "‘$it’${if (bat(it)) "이라는" else "라는"}" }
+
+/**
+ * 리포트 「마음 말하기」 — 다 대본 꼴이면 「신났던, 기뻤던 마음을 말했어요」,
+ * 서버 낱말이 섞이면 들은 그대로 「마음을 말했어요 — ‘무섭다’ · ‘신나다’ · ‘떨려’」
+ */
+fun feelingsSaid(feelings: List<String>): String {
+    val words = feelings.flatMap { it.split(',', '·', '/') }.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+    val joined = words.map { feelingThatWas(it) }
+    return if (joined.all { it != null }) "${joined.joinToString(", ")} 마음을 말했어요"
+    else "마음을 말했어요 — ${words.joinToString(" · ") { "‘$it’" }}"
 }

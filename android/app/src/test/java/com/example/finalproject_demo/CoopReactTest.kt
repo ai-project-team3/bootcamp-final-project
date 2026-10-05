@@ -35,6 +35,21 @@ class CoopReactTest {
         }
     }
 
+    /** 서술어를 이름으로 떼지 않는다 — 실기기 #98 「기다렸어구나!」. 진짜 이름(바다 · 할머니 · 노래 · 상어)은 그대로 */
+    @Test
+    fun aVerbIsNeverEchoedAsAName() {
+        listOf("기다렸어", "재밌었어", "놀았어요", "기다려", "같이 해 줘", "이거 봐", "좋아요").forEach { t ->
+            listOf(null, CoopRole.THING, CoopRole.PLACE, CoopRole.WHO).forEach { role ->
+                val a = coopAck(t, role, done)
+                assertFalse("$t($role) → $a", a != null && a.dropLast(1).removeSuffix("이구나").removeSuffix("구나").let { it.isNotEmpty() && it in t && a !in setOf("그랬구나!", "우와!", "응응!") })
+            }
+        }
+        assertEquals("바다구나!", coopAck("바다", CoopRole.PLACE, done))
+        assertEquals("할머니구나!", coopAck("할머니", CoopRole.WHO, done))
+        assertEquals("노래구나!", coopAck("노래", CoopRole.THING, done))
+        assertEquals("상어구나!", coopAck("상어", CoopRole.THING, done))
+    }
+
     /** 이름이 문장의 주어면 이름만 되짚지 않는다 — 일어난 일을 놓친다 (10-02 사용자 결정) */
     @Test
     fun whenTheNameIsTheSubjectTheAckIsJustThatsHowItWas() {

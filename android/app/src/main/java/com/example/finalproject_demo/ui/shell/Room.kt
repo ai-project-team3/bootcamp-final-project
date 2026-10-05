@@ -272,7 +272,8 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
         scope.launch {
             // 오또가 물건 쪽으로 걸어간다 — 지나간 자리에 발자국
             paws.clear()
-            val to = (t.x + t.w / 2 - OTTO / 2).coerceIn(10f, 800f - OTTO)
+            // 소파는 오른쪽 끝 옆에 선다 — 가운데에 서면 「같이 만들기 · 어른이랑 함께」 이름표를 가렸다 (#98 · 10-03 실기기)
+            val to = (if (t == Thing.SOFA) t.x + t.w - OTTO * 0.2f else t.x + t.w / 2 - OTTO / 2).coerceIn(10f, 800f - OTTO)
             val from = walkX.value
             goingLeft = to < from
             moving = true
@@ -704,7 +705,9 @@ fun KidTopBar(d: Director, modifier: Modifier = Modifier) {
         // 10-01 — 옆 🏠 · 🔒 와 같은 펠트 버튼(크림 펠트 · 바느질 · 같은 높이 · 누르면 꾹)에 ComfyUI 펠트 손바닥 그림.
         // 글씨는 어른용 고딕 그대로 — 어른이 누르는 버튼이다
         val s = d.s
-        if (s.isCoop && s.scene == com.example.finalproject_demo.demo.Scene.DIARY && s.endReason == null) {
+        // 그리기 단계에도 둔다 — 이야기 칸이 다 차 끝난 이유가 정해진 뒤라 전에는 사라졌다 (#98)
+        if (s.isCoop && s.scene == com.example.finalproject_demo.demo.Scene.DIARY &&
+            (s.endReason == null || s.stage is com.example.finalproject_demo.demo.Stage.DrawPad)) {
             Spacer(Modifier.width(4.dp))
             TopSlot({ Shell.askStop = true }, Modifier.height(TopSlot).padding(horizontal = 4.dp)) {
                 FeltButton(WoolCream, onClick = { Shell.askStop = true }, modifier = Modifier.height(TopFace), shape = RoundedCornerShape(Radius.Round)) {

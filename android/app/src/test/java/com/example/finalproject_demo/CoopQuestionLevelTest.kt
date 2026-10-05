@@ -9,6 +9,8 @@ import com.example.finalproject_demo.demo.coopGuard
 import com.example.finalproject_demo.ui.COOP_KINDS
 import com.example.finalproject_demo.ui.CoopReason
 import com.example.finalproject_demo.ui.questionHint
+import com.example.finalproject_demo.ui.templateQuestions
+import com.example.finalproject_demo.ui.coopSuggestions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -86,6 +88,18 @@ class CoopQuestionLevelTest {
         }
     }
 
+    /** #98 — 부모 화면의 추천 질문도 고른 이유의 시제를 따르고, 우리 귀띔에 걸리지 않는다 */
+    @Test
+    fun theParentSuggestionsFollowThePickedReason() {
+        (CoopReason.entries + listOf<CoopReason?>(null)).forEach { r ->
+            coopSuggestions(r).forEach { q ->
+                assertNull("$r: $q", questionHint(q))
+                assertNull("$r 귀띔에 걸린다: $q", com.example.finalproject_demo.demo.coopParentAdvice(q))
+                assertNotNull("$r 시제가 안 맞는다: $q", coopGuard(q, r ?: CoopReason.DONE, CoopSource.PARENT).text)
+            }
+        }
+    }
+
     @Test
     fun everyFollowUpKeepsOurRules() {
         val heard = mapOf("place" to "큰 소방서", "thing" to "소방차", "who" to "엄마랑 너")
@@ -100,5 +114,22 @@ class CoopQuestionLevelTest {
                 }
             } } }
         } } }
+    }
+
+    /** 10-05 실기기 — 즐거운 일(「내 생일이야」)의 「왜」에 사고 원인 선택지(실수로 · 바빠서 …)를 붙이지 않는다 */
+    @Test
+    fun aHappyStoryGetsAnOpenWhyWithoutTroubleChoices() {
+        val home = CoopPick("place", "우리집", "done")
+        val withTrouble = coopFollowUp("cause", Level.CHAIN, CoopReason.DONE, mapOf("thing" to "케이크"), home, 0, null, emptyList(), trouble = true)
+        val happy = coopFollowUp("cause", Level.CHAIN, CoopReason.DONE, mapOf("thing" to "케이크"), home, 0, null, emptyList(), trouble = false)
+        assertTrue("사고가 있으면 선택지를 붙인다: $withTrouble", withTrouble != null && ". " in withTrouble)
+        assertEquals("케이크가 왜 그랬을까?", happy)
+    }
+
+    /** 10-05 실기기 — 「우리집에 가서 어디가 제일 좋았어?」 */
+    @Test
+    fun homeIsNotAPlaceYouGoTo() {
+        assertEquals("우리집에서 어디가 제일 좋았어?", CoopPick("place", "우리집", "done").templateQuestions().first())
+        assertEquals("할머니 집에 가서 어디가 제일 좋았어?", CoopPick("place", "할머니 집", "done").templateQuestions().first())
     }
 }

@@ -223,7 +223,13 @@ val DemoState.coopParentUsed: Int get() = trackByState[this]?.parentUsed ?: 0
  * 이야기가 끝나면 `coopFinishLog` 가 `coopPick` 을 비우고 **그다음에** 책을 만든다(배경 · `/story` · 책장 저장).
  * 그래서 책 쪽이 `coopPick` 만 보면 기본 배경(`bg_today`)이 깔리고 `/story` 에 이유 · 고른 이야기가 빠졌다 (10-03 실기기)
  */
-private val DemoState.bookPick: CoopPick? get() = coopPick ?: coopStoryPick
+internal val DemoState.bookPick: CoopPick? get() = coopPick ?: coopStoryPick?.takeIf { scene !in BEFORE_STORY }
+
+/**
+ * 새 이야기를 고르는 화면 — 여기서는 지난 이야기를 대신 읽지 않는다. 지난 이야기를 끝내고 다음엔 질문만 적어 시작하면
+ * `coopIntro` 가 새 기록을 만들기 전까지 지난 이야기 배경이 잠깐 보였다 (#99 리뷰 3)
+ */
+private val BEFORE_STORY = setOf(Scene.ADULT, Scene.PARTNER, Scene.BESTIARY, Scene.MAKEHERO)
 
 /** 협업 모드에서만 붙는 첫 안내. 일기 모드는 이 함수를 부르지 않는다. */
 suspend fun Director.coopIntro(childName: String) {
@@ -295,7 +301,7 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         scripted is CoopLine.Template && idx != null && idx >= 1 -> {
             // 2~4번째 자리 — 앞 답을 끼운 이어 받기. 못 만들면 템플릿 질문 그대로 (첫 자리는 미리 본 템플릿 그대로)
             val raw = s.coopPick?.templateQuestions()?.getOrNull(idx)
-            coopFollowUp(key, s.level, reason, track.heard, s.coopPick, track.whyAsked, raw, listOf(q.text) + q.ladder)
+            coopFollowUp(key, s.level, reason, track.heard, s.coopPick, track.whyAsked, raw, listOf(q.text) + q.ladder, s.coopHadTrouble())
                 ?.let { it to CoopSource.HEARD }
                 ?: ((guarded(scripted.text, CoopSource.TEMPLATE) ?: q.text) to CoopSource.TEMPLATE)
         }
@@ -496,6 +502,12 @@ private fun Director.coopSessionLog() {
  * 묻고 있던 질문은 **취소한다.** 탭 · 무응답 신호로 깨우면 그 값이 칸에 들어가거나 쉬운 질문으로 다시 묻는다.
  */
 fun Director.stopCoopByParent() {
+    // 그리기 단계(이야기 칸이 다 찬 뒤 · 끝난 이유가 이미 있다) — 그리기를 마치고 바로 책으로. 그린 게 있으면 그 그림으로 (#98)
+    if (s.isCoop && s.scene == Scene.DIARY && s.stage is Stage.DrawPad) {
+        log("부모가 그리기 단계에서 「그만하기」를 눌렀다 → ${if (s.drawing.isEmpty()) "그리지 않고" else "그린 그림으로"} 책을 만든다 (#98)")
+        send(if (s.drawing.isEmpty()) Reply.Tapped("skip", "안 그림") else Reply.Tapped("done", "완료"))
+        return
+    }
     if (!s.isCoop || s.scene != Scene.DIARY || s.endReason != null) return
     s.endReason = "parent_stop"
     log("부모가 「그만하기」를 눌렀다 → 묻던 질문을 거두고, 지금까지 모인 답으로 책을 만든다 (#36)")
@@ -535,8 +547,12 @@ internal fun Reply.Spoke.isLiveSpeech(): Boolean = value.isEmpty() && (answer ==
 private val NON_ANSWER_STARTS = listOf("몰라", "모르겠", "모름", "글쎄", "기억 안", "기억이 안", "생각 안", "생각이 안", "잘 모르")
 private val NON_ANSWER_WORDS = setOf("응", "어", "음", "아니", "네", "예", "없어", "몰라요", "싫어")
 
+/** 말 앞에 붙는 망설임 — 「음… 몰라」 · 「어, 모르겠어」. 뒤에 말이 더 올 때만 뗀다(「아빠」의 「아」는 안 뗀다) */
+private val HESITATION = Regex("^(?:(?:으*음+|어+|흠+|아+|그+)[.…,~!\\s]+)+")
+
 internal fun isNonAnswer(text: String): Boolean {
-    val t = text.trim().trimEnd('.', '!', '?', '~', ' ')
+    // 만 3~7세는 「음… 몰라」처럼 망설인 뒤 말한다 — 실기기(10-03)에서 이 말이 책 재료 칸에 들어갔다
+    val t = text.trim().trimEnd('.', '!', '?', '~', ' ').replace(HESITATION, "").trim()
     if (t.isEmpty() || t in NON_ANSWER_WORDS) return true
     // 짧은 말에서만 본다 — 「친구가 없어서 슬펐어」 같은 긴 답을 「몰라」로 버리면 안 된다
     return t.length <= 10 && NON_ANSWER_STARTS.any { t.startsWith(it) }
@@ -554,7 +570,10 @@ internal fun isNonAnswer(text: String): Boolean {
  *   마스코트가 칸을 지어냈다 — 그 버그가 1번이다
  * - 「몰라」류는 null
  */
-internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r: Reply.Spoke): String? {
+internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r: Reply.Spoke): String? =
+    coopLiveValueAsSaid(step, question, r)?.let { if (step.slot == "companion") companionName(it) else it }
+
+private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: String, r: Reply.Spoke): String? {
     val text = r.text.trim()
     if (isNonAnswer(text)) return null
     // 다녀왔어요 · 곧 해요의 엉뚱한 답 — 처음 한 번은 칸에 넣지 않고 「진짜로는」으로 다시 묻는다 (바뀐 방식 · 10-02)
@@ -580,16 +599,20 @@ internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r
     }
     val fills = verdict.fills.filter { (slot, v) -> slot in Server.SLOTS && slot != "extra" && v.isNotBlank() }
     fills.filter { (slot, _) -> slot != step.slot && slot in COOP_SKELETON && !diaryFilled(slot) }.forEach { (slot, v) ->
-        setDiarySlot(slot, slot, v.trim(), v.trim(), "child")
+        val said = if (slot == "companion") companionName(v.trim()) else v.trim()
+        setDiarySlot(slot, slot, said, said, "child")
         log("아이 말에 [$slot] 도 들어 있었다 → 비어 있던 그 칸도 채운다 (/turn)")
     }
     if (asked == null) return text
     return fills.firstOrNull { it.first == step.slot }?.second?.trim().also {
         if (it != null) return@also
         log("[${step.slot}] /turn 이 이 칸을 못 찾았다 — 질문에 맞는 답이 아니었다 → 사다리")
-        // 우리가 물은 걸음에 아이가 진짜로 한 답 — 사다리가 끝나면 마스코트가 짓는 대신 이 말을 넣는다 (상상 낱말은 빼고)
+        // 우리가 물은 걸음에 아이가 진짜로 한 답 — 사다리가 끝나면 마스코트가 짓는 대신 이 말을 넣는다.
+        // 빼는 것은 상상 낱말이 든 그 말 하나뿐 — 「진짜로는」 뒤의 진짜 답은 받는다 (#99 리뷰 2)
+        // 「딴 얘기」(「쉬 마려」)도 지금은 아이 말로 지킨다 — 판정에 딴 얘기 신호가 생기면 그것으로 가른다 (#99 리뷰 1 · #100)
         val id = step.variant.id
-        if (id !in s.coopTrack.parentSteps && s.coopTrack.wildFor != step.bookKey) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
+        val reason = s.bookPick?.reasonOrNull() ?: CoopReason.DREAM
+        if (id !in s.coopTrack.parentSteps && !isWildForReality(text, reason)) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
     }
 }
 

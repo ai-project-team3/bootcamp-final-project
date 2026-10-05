@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.ui
 
 import androidx.compose.animation.core.Animatable
+import com.example.finalproject_demo.demo.coopMetLabel
 import com.example.finalproject_demo.demo.heroImageName
 import com.example.finalproject_demo.demo.storyHeroArt
 import androidx.compose.ui.platform.LocalConfiguration
@@ -216,7 +217,7 @@ internal fun reactionFor(s: DemoState, tool: String, target: String, objName: St
                 else -> "${s.childName}${eun(s.childName)} ${s.th.vehicle} 선장!"
             }
             "dino" -> "${s.dino.label} · ${s.dino.look}"
-            "friend" -> if (s.isDiary) "${s.friendCallName} · 오늘 만난 사람" else "$f · ${s.newcomerKind} 친구"
+            "friend" -> if (s.isDiary) "${s.friendCallName} · ${s.coopMetLabel() ?: "오늘 만난 사람"}" else "$f · ${s.newcomerKind} 친구"
             "vehicle" -> "${s.rideName}예요"
             "obj" -> objName ?: "?"
             else -> "?"

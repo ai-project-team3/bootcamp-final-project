@@ -229,4 +229,21 @@ class ParentViewTest {
         assertEquals(StoryMode.COOP, d.s.mode)
         shotAll(d, "coop")
     }
+
+    /** 「곧 체험해요」로 고른 협업 뒤 — 리포트가 앞으로 할 일로 말하고, 놀이 카드 질문이 잘리지 않는가(눈으로 · 10-03 실기기) */
+    @Test
+    fun parentModeDrawsAfterASoonCoopStory() {
+        val d = drive { d ->
+            val s = d.s
+            d.go(Scene.ADULT)
+            s.coopPick = com.example.finalproject_demo.demo.CoopPick("job", "소방관", "soon")
+            assertTrue(d.tap("같이 만들기"))
+            assertTrue(await { s.scene == Scene.BESTIARY } != null)
+            assertTrue(d.tap("카드를 탭"))
+            assertTrue(await { s.scene == Scene.DIARY } != null)
+            d.diaryToBook()
+        }
+        assertEquals(StoryMode.COOP, d.s.mode)
+        shotAll(d, "coop_soon")
+    }
 }

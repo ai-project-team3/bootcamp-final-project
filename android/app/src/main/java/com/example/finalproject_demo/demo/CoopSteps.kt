@@ -332,3 +332,14 @@ val COOP_STEPS: List<DiaryStep> = listOf(
 
 /** The four required steps — the progress bar and `story_ready` count only these */
 val COOP_REQUIRED = COOP_STEPS.filter { it.required }
+
+/**
+ * 이 이야기에 어긋난 일이 있었나 — 이어 받기 「왜」에 사고 원인 선택지를 붙일지 정한다(CoopQuestions.kt).
+ * 일기 낱말([TROUBLE_WORDS])에 협업 이야기에 자주 나오는 사고 낱말을 더한다. 못 찾으면 열린 「왜」 — 틀려도 질문은 자연스럽다
+ */
+internal fun DemoState.coopHadTrouble(): Boolean {
+    val said = problem.orEmpty() + " " + slots["detail"].orEmpty() + " " + cause.orEmpty()
+    return hadTrouble() || COOP_TROUBLE_WORDS.any { it in said }
+}
+
+private val COOP_TROUBLE_WORDS = listOf("잃어", "고장", "깨졌", "쏟", "다쳤", "부서", "망가", "놓쳤", "불이 났", "불났", "길을", "없어졌", "떨어뜨")

@@ -541,7 +541,9 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
         add(
             PageSpec(PageKind.RUB) { st ->
                 val tried = st.slots["try"]?.takeIf { it.isNotBlank() }
-                if (tried == null) st.m1Caption()
+                // 같이 만들기 — 미션 전에는 아직 치우지 않았다. 「슥슥 치웠어요」는 아이가 문지른 뒤에 (#98)
+                if (st.isCoop && st.m1Result == null) listOfNotNull(tried?.let(::sentence), st.m1Before()).joinToString(" ")
+                else if (tried == null) st.m1Caption()
                 else joinWith("그래서", sentence(tried)) + " 그러고는 " + st.m1Caption(withSubject = false)
             }
         )
@@ -556,7 +558,8 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
                 //  ② 마스코트가 메운 결말에는 잇는 말을 붙이지 않는다 (main · 최민우).
                 //     아이가 지어낸 결말이 아닌데 잇는 말을 붙이면 책이 아이 말인 척한다
                 val sol = st.slots["solution"]?.takeIf { it.isNotBlank() }
-                val give = st.m2Clause()
+                // 같이 만들기 — 미션 전에는 아직 건네지 않았다 (#98)
+                val give = if (st.isCoop && st.m2Result == null) st.m2Before() else st.m2Clause()
                 if (sol == null) "${st.childName}${eun(st.childName)} $give"
                 else {
                     val head = sentence(sol)
@@ -622,6 +625,7 @@ private fun tail(s: DemoState, key: String): String {
 
 /** 제목 — 아이에게 묻지 않고 지어 준다 (동화 모드와 같다) */
 fun DemoState.diaryTitle(): String {
+    coopTitle()?.let { return it }                       // 협업 곧 해요 · 좋아해요 — 「○○에서 만난」이 아니다 (CoopReport.kt)
     val p = placeName
     val f = friendName.takeUnless { it.startsWith("{") }
         ?: companionKind.takeUnless { it.isBlank() || "혼자" in it || !isRealName(it) }

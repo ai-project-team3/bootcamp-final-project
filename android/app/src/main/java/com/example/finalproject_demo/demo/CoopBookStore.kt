@@ -114,7 +114,9 @@ fun DemoState.restoreCoopBook(book: SavedStoryBook): Boolean {
     partnerKey = snap.partnerKey
     partnerCall = snap.partnerCall
     partnerHelpLine = snap.partnerHelpLine
-    bookNote = snap.bookNote
+    // 꽂을 때의 안내(마지막 쪽 「오른쪽 책 버튼을 눌러 봐!」)는 되살리지 않는다 — 읽기 화면은 쪽마다 같은 안내를 띄워
+    // 다시 연 책 2쪽에 마지막 쪽 안내가 떴다 (#98)
+    bookNote = ""
     COOP_BOOK_FIELDS.forEach { (k, f) -> f.second(this, snap.fields[k]) }
     slotBy.clear(); slotBy.putAll(snap.slotBy)
     feelings.clear(); feelings.addAll(snap.feelings)

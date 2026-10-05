@@ -260,7 +260,8 @@ private fun Director.afterDiaryAnswer(step: DiaryStep, a: Answer) {
 
     // 마음을 말했으면 선택 칸 reaction 이 찬다. 마음 말하기는 수준 판단에 쓰지 않는다 (일기 §2-2 · 안치영 #4)
     if (a.emo.isNotEmpty() && s.reaction == null && step.slot != "reaction") {
-        setDiarySlot("reaction", "reaction", "${a.emo}던 마음", "$c${eun(c)} ${a.emo}던 마음이 한참 남았어요", "child")
+        val felt = feelingPhrase(a.emo)                 // 서버 판정은 「신나다」 · 「떨려」 꼴도 준다 — 「신나다던」이 되지 않게 (CoopReport.kt)
+        setDiarySlot("reaction", "reaction", "$felt 마음", "$c${eun(c)} $felt 마음이 한참 남았어요", "child")
         log("묻지 않았는데 마음을 말했다 → 선택 칸 reaction 이 찼고, 그 걸음은 건너뛴다 (같은 걸 두 번 묻지 않는다)")
     }
 
@@ -290,7 +291,7 @@ private suspend fun Director.diaryDrawStep() {
     val f = s.friendCallName
     if (s.companionKind.isBlank() || "혼자" in s.companionKind || s.newcomer != null) return
     s.stage = Stage.DrawPad()
-    say("오늘 만난 $f${eul(f)} 그려 줄래?")
+    say(s.coopDrawLine(f) ?: "오늘 만난 $f${eul(f)} 그려 줄래?")   // 협업 곧 해요 · 좋아해요는 「오늘 만난」이 아니다 (CoopReport.kt)
     inputs(false, false)
     buttons(
         DemoBtn("✅ 지금 그린 그림으로 완료") { send(Reply.Tapped("done", "완료")) },
@@ -361,7 +362,7 @@ internal suspend fun Director.finishDiary() {
     val tails = COOP_STEPS.filterNot { it.required }.count { s.slots[it.bookKey] != null }
     log("일기 모드 끝 — 끝난 조건: $why · 아이 · 카드가 채운 필수 칸 $bySelf/4 · 꼬리질문으로 더 모은 문장 ${tails}개 (이만큼 마스코트가 메울 자리가 줄었다)")
     coopFinishLog()                             // 협업 쪽은 CoopScenes.kt (진웅)
-    say("오늘 이야기가 다 모였어! 이제 동화책으로 만들어 줄게.")
+    say("오늘 이야기가 다 모였어! 이제 ${if (s.isCoop) "이야기책" else "동화책"}으로 만들어 줄게.")   // 같이 만들기는 이야기책 (#98)
     pause(2000)
     go(Scene.MAKING)
 }

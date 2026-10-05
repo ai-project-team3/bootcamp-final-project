@@ -149,6 +149,17 @@ fun DemoState.m1Caption(withSubject: Boolean = true): String {
     return "$f${ga(f)} 너무 세게 흔드는 바람에 ${v}에 ${m.stuck}!"
 }
 
+/** 같이 만들기 · 미션 1 전 — 「소방서에 물방울이 잔뜩 남아 있어요.」 아직 아이가 치우지 않았다 (#98) */
+fun DemoState.m1Before(): String {
+    val m = mission1()
+    val where = placeLabel?.let { "${it}에 " } ?: ""
+    return "${where}${m.blobName}${ga(m.blobName)} 잔뜩 남아 있어요."
+}
+
+/** 같이 만들기 · 미션 2 전 — 아직 건네지 않았다. 앞의 「그리고」 뒤에 이어도 읽히게 절로 (#98) */
+fun DemoState.m2Before(): String =
+    if (hasCompanion) "${giveTargetName}에게 줄 선물이 있어요." else "오늘 이야기를 들어준 마스코트에게 줄 선물이 있어요."
+
 /**
  * 미션 2가 책에 남는 절 — 주어 없이. 앞의 "마침내 …" 문장에 이어 붙는다 (9/22).
  * 결(結) 한 쪽이 두 문장으로 갈라지지 않게 하려는 것이다.

@@ -2,6 +2,15 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.demo.companionName
+import com.example.finalproject_demo.demo.feelingsSaid
+import com.example.finalproject_demo.demo.feelingPhrase
+import com.example.finalproject_demo.demo.autoTitleFor
+import com.example.finalproject_demo.demo.feelingThatWas
+import com.example.finalproject_demo.demo.coopTitle
+import com.example.finalproject_demo.demo.coopFriendsLine
+import com.example.finalproject_demo.demo.coopMetLabel
+import com.example.finalproject_demo.demo.coopDrawLine
 import com.example.finalproject_demo.ui.coopItem
 import com.example.finalproject_demo.demo.coopFinishLog
 import com.example.finalproject_demo.demo.CoopSource
@@ -365,6 +374,40 @@ class CoopLiveAnswerTest {
         } finally { server.close() }
     }
 
+    /**
+     * #99 리뷰 2 — 상상 낱말(「공룡 나라」) 뒤 「진짜로는」으로 다시 물어 받은 **진짜 답**은, 판정이 거절해도
+     * 다른 자리처럼 아이 말로 지킨다. 전에는 상상 낱말이 한 번 나온 걸음 전체가 빠져 마스코트가 채웠다
+     */
+    @Test
+    fun aRealAnswerAfterTheImaginaryOneIsKeptToo() = run { d ->
+        val server = StoryTestServer { path, _ ->
+            if (path != "/turn") JSONObject() else JSONObject().put("judge", JSONObject().put("reason", "앞으로 할 체험 활동이라 장소가 아님"))
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+            val redirect = d.answer("공룡 나라!")                       // 상상 낱말 → 「진짜로는」
+            assertTrue("「진짜로는」으로 다시 묻지 않았다: $redirect", "진짜로는" in redirect)
+            d.answer("소방서")                                          // 진짜 답 · 판정 거절 → 쉬운 질문으로 한 번 더
+            d.speakUntil("큰 소방서") { d.s.place != null }              // 또 거절 → 아이 말로
+            assertEquals("큰 소방서", d.s.place)
+            assertEquals("child", d.s.slotBy["place"])
+        } finally { server.close() }
+    }
+
+    /** #99 리뷰 3 — 소방관 이야기를 끝낸 뒤 질문만 적고 다음 이야기를 시작하면, 주인공 고르기에서 지난 소방서 배경이 나오지 않는다 */
+    @Test
+    fun theNextStoryDoesNotShowTheLastStorysBackdrop() = run { d ->
+        d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+        d.coopFinishLog()
+        assertEquals("끝난 이야기의 책은 고른 배경이어야 한다", coopItem("소방관")!!.bg, d.s.bgName)
+        d.go(Scene.ADULT)
+        assertTrue(d.tap("같이 만들기"))                    // 다음 이야기 — 이번엔 고른 이야기 없음
+        assertNotNull(await { d.s.scene == Scene.BESTIARY })
+        assertTrue("지난 이야기 배경이 남았다: ${d.s.bgName}", d.s.bgName != coopItem("소방관")!!.bg)
+    }
+
     /** 「몰라」만 했으면 받을 말이 없다 — 지금처럼 사다리 끝에서 마스코트가 채운다 */
     @Test
     fun withOnlyDontKnowsTheMascotStillFillsTheSlot() = run { d ->
@@ -422,6 +465,57 @@ class CoopLiveAnswerTest {
         assertEquals("오늘 있었던 일로 · 어른이 넣어 둔 질문으로 지은 책이에요", copy.madeFrom)
         assertEquals("어른이 넣어 둔 질문에 한 답", copy.askedTitle)
         assertNull("일기 모드 놀이 카드를 써야 한다", copy.playCards)
+    }
+
+    /**
+     * 실기기(10-03) — 곧 해요인데 그리기 안내 「오늘 만난 엄마와 아빠를 그려 줄래?」, 제목 「…에서 만난 엄마와 아빠」,
+     * 책 끝 「오늘 만난 친구들이야」, 리포트 「오늘 어디 갔었어?」 · 「질문 0개로 이야기했어요」가 나왔다.
+     * 이야기가 끝나 고른 이야기를 비운 뒤(실제 순서)에도 고른 이유대로 말한다
+     */
+    @Test
+    fun aSoonStoryNeverSaysItHappenedToday() = run { d ->
+        d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+        d.coopFinishLog()
+        val s = d.s
+        assertEquals("같이 갈 엄마와 아빠를 그려 줄래?", s.coopDrawLine("엄마와 아빠"))
+        assertEquals("같이 갈 사람", s.coopMetLabel())
+        val friends = s.coopFriendsLine()!!
+        assertTrue(friends, "오늘" !in friends && "친구" !in friends)
+        val title = s.autoTitleFor()
+        assertTrue(title, "두근두근 소방관 이야기" in title && "만난" !in title)
+        val copy = s.coopReportCopy()
+        assertEquals("소방관은 어디서 일할까?", copy.firstQuestion)
+        assertEquals("부모님이 고른 ‘소방관’ 이야기로 함께 지었어요", copy.together(0))
+        assertEquals("어른이 넣어 둔 질문 2개로 이야기했어요", copy.together(2))
+        assertNull("질문 규칙에 걸렸다: $friends", questionHint(friends))   // 그리기 안내는 부탁이라 질문 규칙 대상이 아니다
+    }
+
+    /** 다녀왔어요는 일기 문구 그대로 — 오늘 있었던 일이 맞다 */
+    @Test
+    fun aDoneStoryKeepsTheDiaryWording() = run { d ->
+        d.toFirstQuestionWith(CoopPick("job", "소방관", "done"))
+        d.coopFinishLog()
+        assertNull(d.s.coopDrawLine("엄마"))
+        assertEquals("오늘 함께한 사람들이야. 누구를 또 만나고 싶어?", d.s.coopFriendsLine())   // 할머니 · 아빠를 「친구들」이라 하지 않는다 (#98)
+        assertEquals("다녀왔어요도 고른 이야기 이름으로 — 아이 말을 끼운 「…에서 만난 …」이 아니다 (10-05)", "${d.s.childName}의 소방관 이야기", d.s.coopTitle())
+    }
+
+    /** 서버 판정의 마음 낱말은 「신나다」 · 「떨려」 · 「무섭다, 신나다」 꼴도 온다 — 「신나다던」이 되지 않게 (실기기 10-03) */
+    @Test
+    fun feelingWordsReadAsKorean() {
+        assertEquals("신났던", feelingThatWas("신났"))
+        assertNull(feelingThatWas("신나다"))
+        assertEquals("‘떨려’라는", feelingPhrase("떨려"))
+        assertEquals("‘기쁨’이라는", feelingPhrase("기쁨"))
+        assertEquals("신났던, 기뻤던 마음을 말했어요", feelingsSaid(listOf("신났", "기뻤", "신났")))
+        assertEquals("마음을 말했어요 — ‘무섭다’ · ‘신나다’ · ‘떨려’", feelingsSaid(listOf("무섭다, 신나다", "떨려")))
+    }
+
+    /** 만 3~7세는 망설인 뒤 「몰라」라고 한다 — 「음… 몰라」가 책 재료 칸에 들어가면 안 된다 (실기기 10-03) */
+    @Test
+    fun aHesitantDontKnowIsStillADontKnow() {
+        listOf("음… 몰라", "어, 모르겠어", "으음 몰라요", "음... 글쎄").forEach { assertTrue(it, isNonAnswer(it)) }
+        listOf("아빠", "음… 아빠랑", "어, 소방서").forEach { assertFalse(it, isNonAnswer(it)) }
     }
 
     /** 협업 책을 만들 수 있게 칸을 채워 둔다 */
@@ -579,5 +673,18 @@ class CoopLiveAnswerTest {
             assertNull(d.s.storyCaptions)
             assertEquals(templateFirst, d.s.bookCaption(1))
         } finally { server.close() }
+    }
+
+    /** 10-05 실기기 — 「엄마랑 아빠랑이 뭐라고 했어?」 · 「오늘 만난 엄마랑 아빠랑을 그려 줄래?」 */
+    @Test
+    fun aCompanionAnswerBecomesANameBeforeItIsUsed() {
+        mapOf(
+            "엄마랑 아빠랑" to "엄마와 아빠",
+            "할머니하고" to "할머니",
+            "엄마랑… 아빠도" to "엄마와 아빠",
+            "동생이랑 형이랑 누나랑" to "동생, 형과 누나",
+            "친구" to "친구",
+            "아빠" to "아빠",
+        ).forEach { (said, name) -> assertEquals(said, name, companionName(said)) }
     }
 }
