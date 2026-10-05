@@ -82,6 +82,7 @@ import com.example.finalproject_demo.demo.COLOR_PAUSE_MS
 import com.example.finalproject_demo.demo.CRAYON_PAUSE
 import com.example.finalproject_demo.demo.DiaryTrace
 import com.example.finalproject_demo.demo.UndoneStroke
+import com.example.finalproject_demo.demo.sendBoardTool
 import com.example.finalproject_demo.demo.redoStroke
 import com.example.finalproject_demo.demo.undoStroke
 import com.example.finalproject_demo.demo.BoardBox
@@ -384,34 +385,40 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
             }
             otto.forEach { p -> p.ottoSpots().forEach { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
             PieceRings(day.pieces.toList(), day.askingPiece, cq)
+            // 방금 누른 이름표 — 새 획을 긋기 전까지 [그려 줘] · [이름 고치기]가 이 조각을 가리킨다. 청록으로 구별한다 (10-05 진웅)
+            val selected = day.focus?.takeIf { it.second == s.drawing.size }?.first
             day.pieces.filter { it.name != null }.forEach { p ->
                 val b = boxOf(p.strokes) ?: return@forEach
                 // ✨ — 오또 그림이 와 있다. 톡 하면 다시 고른다
                 val ready = p.ottoPng != null || p.look == PieceLook.OTTO
+                val picked = p.id == selected
                 Text(
                     if (ready) "✨ ${p.name}" else p.name!!,
                     fontSize = (cq.value * 1.7f).sp,
-                    color = if (ready) Color.White else InkBrown,
+                    color = if (ready || picked) Color.White else InkBrown,
                     modifier = Modifier
                         // 고리 바로 위 — 판 맨 위에 그린 조각이면 판 안으로 내려 잘리지 않게
                         .offset(x = (maxWidth.value * b.left).dp, y = ((maxHeight.value * b.top) - cq.value * 4.4f).coerceAtLeast(4f).dp)
-                        .background(if (ready) FeltCoral else FeltMustard, RoundedCornerShape(cq * 2))
-                        .then(
-                            when {
-                                // 톡 = ✨ 오또 그림 다시 고르기 · 그냥 이름표는 이름 부르기. 길게 = 이름 고치기(지켜볼 때만 · 10-02 진웅).
-                                // 묻는 중에는 답으로 섞이지 않게 지켜볼 때만 받는다 — ✨ 는 전처럼 언제든
-                                ready || day.watching -> Modifier.pointerInput(p.id, ready, day.watching) {
-                                    detectTapGestures(
-                                        onTap = {
-                                            if (ready) d.send(Reply.Tapped("look:${p.id}", "오또 그림 보기"))
-                                            else d.send(Reply.Tapped("name:${p.id}", "이름 부르기"))
-                                        },
-                                        onLongPress = { if (day.watching) d.send(Reply.Tapped("rename:${p.id}", "이름 고치기")) },
-                                    )
-                                }.testTag("tag-${p.id}")
-                                else -> Modifier
-                            }
-                        )
+                        .then(if (picked) Modifier.border(cq * 0.3f, Color.White, RoundedCornerShape(cq * 2)) else Modifier)
+                        .background(if (picked) FeltTeal else if (ready) FeltCoral else FeltMustard, RoundedCornerShape(cq * 2))
+                        // 톡 = 이 조각을 고른다(✨ 면 오또 그림 다시 고르기 · 아니면 이름 부르기). 길게 = 이름 고치기.
+                        // 오또가 말하거나 묻는 중에도 받는다 — 답으로 섞이지 않게 그리기 흐름이 질문을 거두고 받는다 (10-05 진웅)
+                        .pointerInput(p.id, ready, stage.pick, day.drawingTalk) {
+                            // 오또 그림을 고르는 중이면 그 두 장이 먼저다 · 다 그린 뒤(D3)에는 질문의 답으로 섞이지 않게 받지 않는다
+                            if (stage.pick != null || !day.drawingTalk) return@pointerInput
+                            detectTapGestures(
+                                onTap = {
+                                    day.focus = p.id to s.drawing.size
+                                    if (ready) d.sendBoardTool(Reply.Tapped("look:${p.id}", "오또 그림 보기"))
+                                    else d.sendBoardTool(Reply.Tapped("name:${p.id}", "이름 부르기"))
+                                },
+                                onLongPress = {
+                                    day.focus = p.id to s.drawing.size
+                                    d.sendBoardTool(Reply.Tapped("rename:${p.id}", "이름 고치기"))
+                                },
+                            )
+                        }
+                        .testTag("tag-${p.id}")
                         .padding(horizontal = cq * 1.2f, vertical = cq * 0.2f),
                 )
             }
@@ -493,13 +500,15 @@ private fun DiaryBubble(d: Director, cq: Dp, modifier: Modifier) {
 
 /**
  * 그림판 오른쪽 띠 — [다 그렸어](말로 「다 그렸어」와 같다) · [그려 줘](「그려줘」와 같다 · 방금 그린 조각이나 방금 누른 이름표) · 🎤(아래 고정).
- * 오또가 말하는 중에는 눌러도 받을 곳이 없어 흐리게 둔다 — [다 그렸어]는 묻는 중에도 받는다
+ * [그려 줘] · [이름 고치기]는 오또가 말하거나 묻는 중에도 받는다 — 그리기 흐름이 질문을 거두고 그 조작으로 간다 (10-05 진웅).
+ * [다 그렸어]는 전처럼 지켜볼 때 · 마이크가 있을 때
  */
 @Composable
 private fun BoardTools(d: Director, stage: DiaryBoard, modifier: Modifier) {
     val s = d.s
     val day = s.diaryDay
     val free = stage.pick == null
+    val tools = free && day.drawingTalk
     Column(
         modifier.width(BoardRail).fillMaxHeight().padding(top = 12.dp, bottom = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -508,12 +517,12 @@ private fun BoardTools(d: Director, stage: DiaryBoard, modifier: Modifier) {
             Text("✅", fontSize = 22.sp)
         }
         Spacer(Modifier.height(10.dp))
-        RailButton("그려 줘", enabled = free && day.watching && s.drawing.isNotEmpty(), tag = "rail-drawme", onClick = { d.send(Reply.Tapped("drawme", "그려 줘")) }) {
+        RailButton("그려 줘", enabled = tools && s.drawing.isNotEmpty(), tag = "rail-drawme", onClick = { d.sendBoardTool(Reply.Tapped("drawme", "그려 줘")) }) {
             OttoFace(OttoState.IDLE, Modifier.size(RailButtonSize * 0.8f))
         }
         Spacer(Modifier.height(10.dp))
         // 잘못 들은 이름 — 방금 누른 이름표나 방금 그린 조각의 이름을 다시 묻는다(이름표 길게 누르기와 같다 · 10-05 진웅)
-        RailButton("이름 고치기", enabled = free && day.watching && day.pieces.any { it.name != null }, tag = "rail-rename", onClick = { d.send(Reply.Tapped("rename", "이름 고치기")) }) {
+        RailButton("이름 고치기", enabled = tools && day.pieces.any { it.name != null }, tag = "rail-rename", onClick = { d.sendBoardTool(Reply.Tapped("rename", "이름 고치기")) }) {
             Text("🏷️", fontSize = 22.sp)
         }
         Spacer(Modifier.weight(1f))
