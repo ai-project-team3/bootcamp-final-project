@@ -39,12 +39,13 @@ fun OttoShell(d: Director) {
 
     /**
      * 로그인 · 가입 뒤 (10-05) — 처음 설정 전이면 처음 설정을 이어 간다. 이미 끝낸 폰이라도 **이 폰에서 처음 보는 보호자 계정**이면
-     * 동의 · 마이크를 그 보호자에게 다시 받는다(앞 보호자의 동의를 물려받지 않는다). 전에 동의 · 마이크를 마친 계정이면 바로 방으로
+     * 동의 · 마이크를 그 보호자에게 다시 받는다(앞 보호자의 동의를 물려받지 않는다). 전에 동의를 마친 계정은 마이크만 다시(로그아웃했으니)
      */
     fun afterLogin() {
         Shell.step = when {
             !Shell.onboarded -> Step.CONSENT
-            Shell.isReady(Accounts.guardian) -> Step.APP
+            // 마친 계정이라도 로그아웃했다 들어오면 마이크는 다시 묻는다
+            Shell.isReady(Accounts.guardian) -> if (ConsentStore.micNoticeShown) Step.APP else Step.MIC
             else -> { ConsentStore.withdraw(); Step.CONSENT }
         }
     }

@@ -129,6 +129,20 @@ object Shell {
         prefs?.edit()?.putStringSet("ready_accounts", readySet() + g.key)?.apply()
     }
 
+    /**
+     * 휴대폰 마이크 권한을 돌려준다 — 로그아웃 · 탈퇴 (10-05). 다시 들어오면 안드로이드 권한 창부터 다시 뜬다.
+     * **안드로이드 13+ 만** 앱이 스스로 물릴 수 있고(앱이 다음에 꺼질 때 적용), 12 이하는 방법이 없어 앱 안의 마이크 동의만 다시 받는다
+     * (탈퇴 마지막 화면에 「설정에서 끄기」를 보여 준다)
+     */
+    fun giveBackMic(ctx: Context) {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && android.os.Build.FINGERPRINT != "robolectric")
+            runCatching { ctx.revokeSelfPermissionOnKill(android.Manifest.permission.RECORD_AUDIO) }
+    }
+
+    /** 앱이 스스로 마이크 권한을 물릴 수 없는 폰(안드로이드 12 이하)인데 권한이 켜져 있나 */
+    fun micStuckOn(ctx: Context): Boolean = android.os.Build.VERSION.SDK_INT < 33 &&
+        androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
     fun finishOnboarding() {
         markReady(com.example.finalproject_demo.net.Accounts.guardian)
         onboarded = true

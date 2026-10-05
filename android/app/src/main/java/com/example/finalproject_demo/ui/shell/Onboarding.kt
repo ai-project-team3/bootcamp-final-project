@@ -589,7 +589,7 @@ fun MicStep(onBack: () -> Unit, onDone: () -> Unit) {
 }
 
 /** 이 앱의 설정 화면(권한 켜기) */
-private fun openAppSettings(ctx: android.content.Context) = runCatching {
+internal fun openAppSettings(ctx: android.content.Context) = runCatching {
     ctx.startActivity(
         Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", ctx.packageName, null))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),

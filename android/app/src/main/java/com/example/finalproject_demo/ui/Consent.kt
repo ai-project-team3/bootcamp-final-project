@@ -163,6 +163,12 @@ object ConsentStore {
         prefs?.edit()?.putBoolean(KEY_MIC, true)?.apply()
     }
 
+    /** 마이크 동의만 되돌린다 — 로그아웃하면 다시 로그인할 때 마이크를 다시 묻는다 (10-05 치영 · ui/shell/AccountScreens.kt) */
+    fun forgetMic() {
+        micNoticeShown = false
+        prefs?.edit()?.putBoolean(KEY_MIC, false)?.apply()
+    }
+
     fun report(reason: String, note: String) {
         reports.add(0, Report(reason, note))
     }
