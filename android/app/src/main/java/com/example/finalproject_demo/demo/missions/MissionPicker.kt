@@ -2,6 +2,9 @@ package com.example.finalproject_demo.demo.missions
 
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.demo.bookPick
+import com.example.finalproject_demo.ui.CoopReason
+import com.example.finalproject_demo.ui.reasonOrNull
 
 /**
  * What the picker may look at — only the facts that choose a mission, so the picker stays a pure
@@ -15,7 +18,12 @@ data class StoryFacts(
     val cause: String?,
     val solution: String?,
     val realDay: Boolean,
-)
+    /** 꼬리질문 「더 자세히(detail)」 — 자리 1 이 보는 칸 (design §6-1) */
+    val detail: String? = null,
+) {
+    /** 자리 1 (사건 직후) 이 보는 아이 말 — problem · cause · detail */
+    val slot1Words: String get() = listOfNotNull(problem, cause, detail).joinToString(" ")
+}
 
 fun DemoState.storyFacts() = StoryFacts(
     mode = mode,
@@ -23,10 +31,15 @@ fun DemoState.storyFacts() = StoryFacts(
     problem = problem,
     cause = cause,
     solution = solution,
-    // Co-op counts as a real day here even for 「좋아해요」(imagined) — the picker does not read it yet;
-    // stage 1-b splits it by the co-op reason (design §7-2)
-    realDay = isDiary,
+    // A real day (§3-8): a diary, or a co-op 「다녀왔어요 · 곧 해요」 or questions-only story. A co-op
+    // 「좋아해요」(or a pick with no reason, asked as imagination) is not — it may borrow a prop (1-b · §7-2)
+    realDay = isDiary && !(isCoop && coopImagined()),
+    detail = slots["detail"],
 )
+
+/** 협업에서 상상으로 물은 이야기인가 — 좋아해요, 또는 이야기를 골랐는데 이유가 없을 때 */
+private fun DemoState.coopImagined(): Boolean =
+    bookPick?.let { (it.reasonOrNull() ?: CoopReason.DREAM) == CoopReason.DREAM } ?: false
 
 /**
  * Stage 1-a (design §7-1): the rules that were copied in three places, gathered in one. Behaviour is
@@ -36,7 +49,15 @@ fun DemoState.storyFacts() = StoryFacts(
  */
 fun pickMissions(facts: StoryFacts): BookMissions {
     val slot2 = if (facts.templateKey in PUZZLE_FRAMES) MissionId.A3 else MissionId.E1
-    val slot1 = MissionId.A6
+    // 1-b (co-op first · design §7-1): slot 1 blows (C1) when the child's own words have something to blow —
+    // 촛불 · 생일 · 민들레 · 먼지 · 바람. The story mode follows once more co-op missions exist (§7-3)
+    // C3 (sound) waits until the server knows its ID (SERVER_KNOWS_C3 · design §8)
+    val coop = facts.mode == StoryMode.COOP
+    val slot1 = when {
+        coop && blowPropIn(facts.slot1Words, facts.realDay) != null -> MissionId.C1
+        coop && SERVER_KNOWS_C3 && soundPropIn(facts.slot1Words) != null -> MissionId.C3
+        else -> MissionId.A6
+    }
     check(slot1.built && slot2.built) { "picked a mission without a screen: $slot1 / $slot2" }
     return BookMissions(slot1, slot2)
 }

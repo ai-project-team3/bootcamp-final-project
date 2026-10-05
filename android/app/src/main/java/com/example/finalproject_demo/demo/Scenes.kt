@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.demo
 
 import androidx.compose.ui.graphics.Color
+import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
@@ -1516,17 +1517,19 @@ private suspend fun Director.sceneBook() {
             vv == "speak" -> log("🔊 자막 낭독 (CLOVA Voice, 이름 없는 문장)")
             vv == "mission" && s.bookPage == rubPage && s.m1Result == null -> {
                 s.m1Result = "solo"; s.reactions++; feel(Mood.CHEER)
-                s.achievements += "${m1.blobName} 치운 손"
+                // C1 · C3 면 그 미션의 선물 · 동작 이름 — 촛불을 불었는데 「먼지 치운 손」이 나오지 않게 (#105 리뷰)
+                val p1 = s.slot1Prop()
+                s.achievements += p1?.badge ?: "${m1.blobName} 치운 손"
                 show(); announce(); refreshButtons()
-                event("mission", "id" to 1, "motion" to "rub", "result" to "solo")
+                event("mission", "id" to 1, "motion" to (p1?.motion ?: "rub"), "result" to "solo")
                 log("미션 1 완료 → mission_result: solo → 다음 미션 보통 (안치영 §7 · ⭐7) · 걸린 시간 · 시도 횟수 저장 안 함")
                 mark("book")
             }
             vv == "helped" && s.bookPage == rubPage && s.m1Result == null -> {
-                s.m1Result = "helped"; s.achievements += "${m1.blobName} 치운 손"; feel(Mood.CHEER)
+                s.m1Result = "helped"; s.achievements += s.slot1Prop()?.badge ?: "${m1.blobName} 치운 손"; feel(Mood.CHEER)
                 show(); refreshButtons()
                 s.bookNote = "같이 하자! 슥슥~ 퐁! 다 됐어!"
-                event("mission", "id" to 1, "motion" to "rub", "result" to "helped")
+                event("mission", "id" to 1, "motion" to (s.slot1Prop()?.motion ?: "rub"), "result" to "helped")
                 log("두 번 시연해도 안 됨 → 마스코트가 도와 반드시 성공 (helped) → 미션 2는 쉬움(탭)")
             }
             vv == "gag" -> log("장난 반응 (미션과 무관 · 저장 안 함)")
