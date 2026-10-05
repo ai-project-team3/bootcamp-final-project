@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.filters.hallucination import check_transcript  # noqa: E402
+from app.filters.hallucination import check_transcript, strip_tail  # noqa: E402
 
 
 class HallucinationTest(unittest.TestCase):
@@ -67,3 +67,16 @@ class HallucinationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTail:
+    """10-05 phone: an outro glued onto a real answer is cut, the answer stays"""
+
+    def test_an_outro_tail_is_cut(self):
+        assert strip_tail("멋있어서 친구가 됐어 구독과 좋아요 알림 설정 부탁드립니다") == "멋있어서 친구가 됐어"
+        assert strip_tail("로봇이랑 놀았어. 시청해 주셔서 감사합니다") == "로봇이랑 놀았어"
+
+    def test_real_words_are_never_cut(self):
+        for t in ("엄마한테 감사합니다 했어", "엄마한테 감사합니다", "구독", "공룡나라 갈래", "구독과 좋아요"):
+            assert strip_tail(t) == t
+

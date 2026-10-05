@@ -44,5 +44,5 @@ Write-Host "started in server mode → $server"
 if (-not $NoLog) {
     # recording length · what ended it · baked or live voice · server failures (Ctrl+C to stop)
     Write-Host "voice log (Ctrl+C to stop):"
-    & $adb logcat -v time -s Voice:* Server:*
+    & $adb logcat -v time -s Voice:* Server:* OttoTrace:*
 }

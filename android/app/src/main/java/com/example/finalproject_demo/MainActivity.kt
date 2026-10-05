@@ -148,7 +148,7 @@ fun DemoApp() {
 
         // 왼쪽 위 = 시스템 — 🏠 방으로 · 🔒 부모 문(2초). 방 · 부모 · 책장은 자기 버튼이 있어 뺀다
         val kidScreen = pinStage == null && s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF)
-        if (kidScreen) com.example.finalproject_demo.ui.shell.KidTopBar(d, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 10.dp))
+        if (kidScreen) com.example.finalproject_demo.ui.shell.KidTopBar(d, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 10.dp), lock = !diaryOwnsChrome)
 
         // 시작 화면 오른쪽 위 — 하루 별
         if (s.scene == Scene.ADULT && pinStage == null) {
@@ -195,8 +195,8 @@ fun DemoApp() {
 
         // 되돌리기 · 앞으로 가기 — 화면 양끝 가운데 (10-02 조장 · 책의 ◀ ▶ 자리). 아이 차례 · 무를 차례가 있을 때만
         if (pinStage == null && s.micEnabled) {
-            if (s.canUndo) com.example.finalproject_demo.ui.TurnNavButton(d, undo = true, Modifier.align(Alignment.CenterStart).padding(start = 8.dp).zIndex(11f))
-            if (s.canRedo) com.example.finalproject_demo.ui.TurnNavButton(d, undo = false, Modifier.align(Alignment.CenterEnd).padding(end = 8.dp).zIndex(11f))
+            if (s.canUndo) com.example.finalproject_demo.ui.TurnNavButton(d, undo = true, Modifier.align(Alignment.CenterStart).zIndex(11f))
+            if (s.canRedo) com.example.finalproject_demo.ui.TurnNavButton(d, undo = false, Modifier.align(Alignment.CenterEnd).zIndex(11f))
         }
 
         // 오른쪽 위 구석 길게 누르기 → 시연 서랍
