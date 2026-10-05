@@ -2,6 +2,8 @@ package com.example.finalproject_demo
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import com.example.finalproject_demo.demo.atPlace
+import com.example.finalproject_demo.demo.diaryPlaceWord
 import com.example.finalproject_demo.demo.renameTarget
 import com.example.finalproject_demo.demo.newDiaryDay
 import com.example.finalproject_demo.demo.catchUp
@@ -152,7 +154,7 @@ class PictureDiaryFlowTest {
 
         assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
         d.speak("놀이터 갔어")                       // 서버 모드의 답 — 대본 값이 없다
-        assertTrue(await { s.line == "거기서 무슨 일이 있었어?" } != null)
+        assertTrue(await { s.line == "놀이터에서 무슨 일이 있었어?" } != null)
         d.speak("몰라")
         assertTrue("「몰라」에 쉬운 말로 한 번 더 묻지 않았다", await { s.line == "거기서 뭐 했어?" } != null)
         d.speak("몰라")
@@ -458,6 +460,37 @@ class PictureDiaryFlowTest {
         assertEquals("해", s.renameTarget(day)?.name)
     }
 
+    /** 아이가 말한 곳의 낱말 — 「에」 없이 말해도(「놀이터 갔어」) 뗀다. 못 떼면 null (10-05 진웅) */
+    @Test
+    fun thePlaceWordComesOutOfTheChildsAnswer() {
+        mapOf(
+            "놀이터 갔어" to "놀이터", "놀이터에 갔어" to "놀이터", "할머니 집에 다녀왔어" to "할머니 집",
+            "놀이터에서 놀았어" to "놀이터", "어린이집" to "어린이집", "바다야" to "바다",
+        ).forEach { (said, place) -> assertEquals("「$said」", place, diaryPlaceWord(said)) }
+        listOf("몰라", "응", "", null).forEach { assertNull("「$it」은 곳이 아니다", diaryPlaceWord(it)) }
+    }
+
+    /** 고정 질문이 아이가 말한 곳을 받아 묻는다 — 「거기서」 대신 「놀이터에서」. 곳을 못 떼면 「거기서」 그대로 */
+    @Test
+    fun theScriptedQuestionNamesThePlace() = run { d ->
+        val s = d.s
+        s.slots["place"] = "놀이터 갔어"
+        assertEquals("놀이터에서 무슨 일이 있었어?", atPlace(s, "무슨 일이 있었어?"))
+        s.slots["place"] = "몰라"
+        assertEquals("거기서 무슨 일이 있었어?", atPlace(s, "무슨 일이 있었어?"))
+    }
+
+    /** 받아 주기는 낱말 하나 — 「놀이터 갔어」 → 「놀이터구나!」(문장을 통째로 되받지 않는다) */
+    @Test
+    fun ottoEchoesOneWordNotTheWholeSentence() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그림 없이 이야기할래"))
+        assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+        d.speak("놀이터 갔어")
+        assertTrue("낱말 하나로 받지 않았다 — 말=${s.line}", await { s.line == "놀이터구나!" } != null)
+    }
+
     /** 「강아지 그려줘」 — 마지막에 그린 조각이 아니라 부른 조각을. 이미 그리는 중이면 다시 주문하지 않고 그렇다고 말한다 (프로토타입) */
     @Test
     fun drawMeAimsAtThePieceTheChildNames() = run { d ->
@@ -557,12 +590,12 @@ class PictureDiaryFlowTest {
         assertTrue(await { s.slots["place"] == "놀이터 갔어" } != null)
         assertEquals("child", s.slotBy["place"])
         assertTrue("둘째 이야기를 묻지 않았다 — 말=${s.line}",
-            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "거기서 무슨 일이 있었어?" } != null)
+            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "놀이터에서 무슨 일이 있었어?" } != null)
         d.speak("몰라")
         assertTrue(await { s.line == "괜찮아, 계속 그려 봐!" } != null)
         assertTrue(d.push("✅ 다 그렸어"))
         assertTrue("다 그린 뒤 이미 답한 「어디」를 또 물었다 — 말=${s.line}",
-            await { s.stage is DiaryAsk && s.line == "거기서 무슨 일이 있었어?" } != null)
+            await { s.stage is DiaryAsk && s.line == "놀이터에서 무슨 일이 있었어?" } != null)
     }
 
     /**
