@@ -124,13 +124,18 @@ fun DemoState.coopFriendsLine(): String? = when {
     else -> "이야기에 나온 사람들이야. 누구를 또 만나고 싶어?"
 }
 
-/** 책 제목 — 「불 나는 데에서 만난 엄마와 아빠」 대신. 다녀왔어요는 일기 제목 그대로 */
+/**
+ * 책 제목 — 고른 이야기가 있으면 그 이름으로. 일기 제목(「{장소}에서 만난 {사람}」)은 아이 말을 그대로 끼워
+ * 「거실, 소파 있는 데에서 만난 엄마랑 아빠랑」이 됐다(10-05 실기기) · 곧 해요에는 「만난」이 맞지 않았다.
+ * 이야기를 안 고르고 질문만 적었으면 null — 일기 제목 그대로
+ */
 fun DemoState.coopTitle(): String? {
+    if (!isCoop) return null
     val name = bookPick?.name?.trim() ?: return null
     return when (coopNotYet) {
         CoopReason.SOON -> "${childName}의 두근두근 $name 이야기"
         CoopReason.DREAM -> "${childName}의 상상 $name 이야기"
-        else -> null
+        else -> "${childName}의 $name 이야기"
     }
 }
 

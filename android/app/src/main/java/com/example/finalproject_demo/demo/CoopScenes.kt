@@ -301,7 +301,7 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         scripted is CoopLine.Template && idx != null && idx >= 1 -> {
             // 2~4번째 자리 — 앞 답을 끼운 이어 받기. 못 만들면 템플릿 질문 그대로 (첫 자리는 미리 본 템플릿 그대로)
             val raw = s.coopPick?.templateQuestions()?.getOrNull(idx)
-            coopFollowUp(key, s.level, reason, track.heard, s.coopPick, track.whyAsked, raw, listOf(q.text) + q.ladder)
+            coopFollowUp(key, s.level, reason, track.heard, s.coopPick, track.whyAsked, raw, listOf(q.text) + q.ladder, s.coopHadTrouble())
                 ?.let { it to CoopSource.HEARD }
                 ?: ((guarded(scripted.text, CoopSource.TEMPLATE) ?: q.text) to CoopSource.TEMPLATE)
         }
@@ -570,7 +570,10 @@ internal fun isNonAnswer(text: String): Boolean {
  *   마스코트가 칸을 지어냈다 — 그 버그가 1번이다
  * - 「몰라」류는 null
  */
-internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r: Reply.Spoke): String? {
+internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r: Reply.Spoke): String? =
+    coopLiveValueAsSaid(step, question, r)?.let { if (step.slot == "companion") companionName(it) else it }
+
+private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: String, r: Reply.Spoke): String? {
     val text = r.text.trim()
     if (isNonAnswer(text)) return null
     // 다녀왔어요 · 곧 해요의 엉뚱한 답 — 처음 한 번은 칸에 넣지 않고 「진짜로는」으로 다시 묻는다 (바뀐 방식 · 10-02)
@@ -596,7 +599,8 @@ internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r
     }
     val fills = verdict.fills.filter { (slot, v) -> slot in Server.SLOTS && slot != "extra" && v.isNotBlank() }
     fills.filter { (slot, _) -> slot != step.slot && slot in COOP_SKELETON && !diaryFilled(slot) }.forEach { (slot, v) ->
-        setDiarySlot(slot, slot, v.trim(), v.trim(), "child")
+        val said = if (slot == "companion") companionName(v.trim()) else v.trim()
+        setDiarySlot(slot, slot, said, said, "child")
         log("아이 말에 [$slot] 도 들어 있었다 → 비어 있던 그 칸도 채운다 (/turn)")
     }
     if (asked == null) return text
