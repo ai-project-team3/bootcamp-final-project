@@ -950,6 +950,13 @@ private suspend fun Director.askPictureSlot(pq: PictureQuestion) {
         // 대본 답은 값이 붙어 온다(빈 값 = 「몰라」 · 「그냥」). 서버 모드의 답에는 값이 없다 — 글자를 읽는다
         val raw = r.answer?.value?.takeIf { it.isNotBlank() }
         val said = if (r.answer != null) raw.orEmpty() else r.text.trim().takeUnless { dontKnow(it) }.orEmpty()
+        // 「내일」에 「없어」 — 하고 싶은 게 없다는 답이다. 다시 묻지 않고 칸을 비워 둔다 (10-05 실기기 · 「없어」가 내일 칸에 들어갔다)
+        if (pq.key == "keep" && r.answer == null && saysNothing(r.text)) {
+            log("[keep] 「${r.text.trim()}」 — 하고 싶은 게 없다 → 비워 둔다. 다시 묻지 않는다")
+            say("그렇구나!")
+            pause(700)
+            return
+        }
         if (said.isEmpty()) {
             if (tries == 0) { log("「몰라」 → 한 번만 쉽게 바꿔 묻는다"); text = pq.easy; continue }
             log("[${pq.key}] 또 모른다 → 비워 둔다. 마스코트가 대신 채우지 않는다")
@@ -1110,6 +1117,16 @@ private suspend fun Director.askEmptySlotsLive() {
         if (r !is Reply.Spoke || r.text.isBlank()) {
             judge(step?.variant, r, q.text)
             next = firstEmptyQuestion(gaveUp + key)
+            continue
+        }
+        // 「내일」에 「없어」 — 판정에 보내면 「없어」가 내일 칸에 들어간다. 비워 두고 다시 묻지 않는다 (10-05 실기기)
+        if (key == "keep" && saysNothing(r.text)) {
+            judge(step?.variant, r, q.text)
+            log("[keep] 「${r.text.trim()}」 — 하고 싶은 게 없다 → 비워 둔다. 다시 묻지 않는다")
+            say("그렇구나!")
+            pause(700)
+            gaveUp += key
+            next = firstEmptyQuestion(gaveUp)?.let { withClue(day, it) }
             continue
         }
         day.turnCalls++                            // #30 — 세기만 한다
@@ -1486,6 +1503,10 @@ private fun saysWhatWasDrawn(text: String): Boolean {
     val t = text.trim().trimEnd('.', '!', '?', '~', '…', ' ')
     return DREW.containsMatchIn(t) && !NEW_ONE.containsMatchIn(t) && t.split(Regex("\\s+")).size <= 4
 }
+private val NOTHING = Regex("(없어|없어요|없는데|없다|없을걸)[.!~ ]*$|^(음+ )?(아니|아니요|아니야)[.!~ ]*$")
+
+/** 「내일 또 하고 싶은 거 있어?」에 「없어」 · 「아니」 — 하고 싶은 게 없다. 칸을 채우지 않는다 */
+internal fun saysNothing(text: String): Boolean = NOTHING.containsMatchIn(text.trim())
 
 
 /**

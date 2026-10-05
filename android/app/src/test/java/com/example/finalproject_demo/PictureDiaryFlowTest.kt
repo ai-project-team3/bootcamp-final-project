@@ -33,6 +33,7 @@ import com.example.finalproject_demo.demo.coverKey
 import com.example.finalproject_demo.demo.pieceNameFrom
 import com.example.finalproject_demo.demo.namesIn
 import com.example.finalproject_demo.demo.splitAcross
+import com.example.finalproject_demo.demo.saysNothing
 import com.example.finalproject_demo.demo.DiaryPiece
 import com.example.finalproject_demo.demo.praiseFor
 import com.example.finalproject_demo.demo.sendBoardTool
@@ -879,6 +880,30 @@ class PictureDiaryFlowTest {
         assertTrue(soundsLikeAName("조개를 그렸어"))
         assertFalse(soundsLikeAName("놀이터에서 그네 탔어"))
         assertFalse(soundsLikeAName("새로 그렸어"))
+    }
+
+    /** 「내일 또 하고 싶은 거 있어?」에 「없어」 — 하고 싶은 게 없다는 말이라 칸을 채우지 않는다 (10-05 실기기 · 「없어」가 내일 칸에 들어갔다) */
+    @Test
+    fun nothingForTomorrowIsNotAnAnswer() {
+        listOf("없어", "없어요.", "음 없어", "하고 싶은 거 없어", "아니", "아니요", "없는데").forEach { assertTrue("「$it」", saysNothing(it)) }
+        listOf("놀이터 갈래", "또 바다 가고 싶어", "내일도 놀이터 갈래.", "강아지가 없어서 찾을 거야").forEach { assertFalse("「$it」", saysNothing(it)) }
+    }
+
+    @Test
+    fun nothingForTomorrowLeavesTheSlotEmpty() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그림 없이 이야기할래"))
+        assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+        d.speak("놀이터 갔어")
+        assertTrue(await { s.line == "놀이터에서 무슨 일이 있었어?" } != null)
+        d.speak("그네 탔어")
+        assertTrue(await { s.line == "그래서 어떻게 됐어?" } != null)
+        d.speak("집에 왔어")
+        assertTrue(await { s.line == "내일 또 하고 싶은 거 있어?" } != null)
+        d.speak("없어")
+        assertTrue("「없어」 뒤 책으로 가지 않았다 — 말=${s.line}", await { s.stage is DiaryPaper } != null)
+        assertTrue("「없어」가 내일 칸에 들어갔다 — ${s.slots["keep"]}", s.slots["keep"].isNullOrBlank())
     }
 
     /**
