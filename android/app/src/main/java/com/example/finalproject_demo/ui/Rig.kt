@@ -259,6 +259,7 @@ fun RigView(
         }
     }
     val mesh = rig.mesh
+    val renderer = remember(rig) { RigMeshRenderer(rig) }
     val (angles, bob) = poseAt(mesh.bones, motion, t)
     Canvas(modifier) {
         skin(mesh, angles)
@@ -272,10 +273,7 @@ fun RigView(
             nc.scale(sc, sc)
             // 흔들림은 캔버스 512 기준 화소로 잡았다
             if (bobbing) nc.translate(0f, bob * mesh.canvasH / 512f)
-            nc.drawVertices(
-                android.graphics.Canvas.VertexMode.TRIANGLES, mesh.out.size, mesh.out, 0, rig.drawTex, 0,
-                null, 0, mesh.indices, 0, mesh.indices.size, paint,
-            )
+            renderer.draw(nc, paint)
             nc.restore()
         }
     }
