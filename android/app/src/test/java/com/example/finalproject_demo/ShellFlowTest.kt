@@ -257,6 +257,39 @@ class ShellFlowTest {
         tap("부모 비밀번호"); compose.mainClock.advanceTimeBy(400); shot("15d_pin_change")
     }
 
+    /**
+     * 탈퇴 (10-05) — 「폰 안의 책 · 그림 · 녹음도 함께 지우기」를 고르면 저장된 책 · 그림 · 녹음이 **파일째** 지워지고,
+     * 계정 · 동의가 사라지고, 처음 설치한 상태(CLAP)로 돌아간다. 전에는 화면 목록만 비워 다시 켜면 책이 돌아왔다.
+     */
+    @Test
+    fun withdrawWithWipeDeletesSavedBooksAndStartsOver() {
+        onboard()
+        val ctx = compose.activity
+        ctx.getSharedPreferences("story_books", android.content.Context.MODE_PRIVATE).edit().putString("books", "[]x").commit()
+        val pic = File(File(ctx.filesDir, "story_images").apply { mkdirs() }, "p.png").apply { writeBytes(byteArrayOf(1)) }
+        val roar = File(File(ctx.noBackupFilesDir, "child_sounds/books/b1").apply { mkdirs() }, "roar.wav").apply { writeBytes(byteArrayOf(2)) }
+        tap("🔒")
+        compose.waitUntil(5_000) { director.s.stage is Stage.Pin }
+        "1234".forEach { tap(it.toString()) }
+        compose.mainClock.advanceTimeBy(600)
+        compose.waitUntil(5_000) { director.s.scene == com.example.finalproject_demo.demo.Scene.PARENT }
+        tap("계정"); compose.mainClock.advanceTimeBy(400)
+        compose.onAllNodes(hasText("회원 탈퇴 · 데이터 삭제") and hasClickAction()).onLast().performScrollTo().performClick()
+        waitText("탈퇴하면 이렇게 돼요"); waitText("남아요")
+        tap("폰 안의 책 · 그림 · 녹음도 함께 지우기")
+        waitText("아이 이름도 지워요"); shot("23_withdraw_info")
+        tap("안내를 모두 확인했어요"); tap("다음 — 본인 확인")
+        waitText("정말 삭제할까요?"); shot("24_withdraw_confirm")
+        tap("삭제하기")
+        compose.waitUntil(8_000) { Shell.step == Step.CLAP || Shell.step == Step.TITLE }
+        assertTrue("저장된 책 목록이 남았다", ctx.getSharedPreferences("story_books", android.content.Context.MODE_PRIVATE).all.isEmpty())
+        assertTrue("이야기 그림이 남았다", !pic.exists())
+        assertTrue("아이 녹음이 남았다", !roar.exists())
+        assertTrue("동의가 남았다", !ConsentStore.guardianAgreed)
+        assertEquals("계정이 남았다", null, com.example.finalproject_demo.net.Accounts.guardian)
+        assertTrue(!Shell.onboarded)
+    }
+
     @Test
     fun shelfHasAWayHome() {
         onboard()
