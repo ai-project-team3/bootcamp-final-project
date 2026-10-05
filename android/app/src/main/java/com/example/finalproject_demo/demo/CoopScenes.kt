@@ -86,12 +86,40 @@ private fun DemoState.takeCoopLine(q: Question): CoopLine? {
     val idx = partIndexOf(q)
     // 앞에서 말한 곳을 「거기」 자리에 — 사다리(CoopTemplatePack)와 같은 말이 나가게 (10-01)
     if (idx != null) return coopPick?.templateQuestions()?.getOrNull(idx)?.let { t -> CoopLine.Template(heardPlace()?.let(t::here) ?: t) }
+    // 부모 질문은 자유로운 꼬리 자리에만 — 같이 간 사람 · 기분 · 내일 바람은 책에서 뜻이 있는 칸이다.
+    // 「좋아하는 색은?」의 「빨강」이 같이 간 사람이 되어 책에 인물로 서던 것 (10-05)
+    val key = q.id.removePrefix("diary_")
+    if (key !in COOP_PARENT_STEPS && !key.startsWith(COOP_PARENT_KEY)) return null
     val mine = parentQuestions.filter { it.isNotBlank() }.getOrNull(track.parentUsed) ?: return null
     track.parentUsed++
     parentQIndex++
     track.parentSteps += q.id
+    val book = "$COOP_PARENT_KEY${track.parentUsed}"
+    track.parentKeyFor[q.id] = book
+    track.parentQuestionOf[book] = mine
     return CoopLine.Parent(mine)
 }
+
+/** 부모 질문을 끼우는 꼬리 자리 — 하던 일 · 한 말 · 해 본 것 · 집에 와서. 답의 뜻이 정해지지 않은 자리들이다 */
+internal val COOP_PARENT_STEPS = setOf("detail", "said", "try", "after")
+
+/** 부모 질문의 답을 담는 책 칸 — `parent1` … 적은 순서대로. 걸음의 칸(같이 간 사람 등)을 덮지 않는다 */
+internal const val COOP_PARENT_KEY = "parent"
+
+/**
+ * 이 걸음의 첫 답이 부모 질문에 한 답이면 그 답을 담을 책 칸(`parent1` …). **한 번만 준다** —
+ * 「몰라」 뒤에 사다리로 내려간 앱 질문의 답은 걸음 원래 칸으로 간다.
+ */
+internal fun DemoState.coopParentAnswerKey(stepId: String): String? = coopTrack.parentKeyFor.remove(stepId)
+
+/** 이 이야기에서 아직 안 물은 다음 부모 질문의 차례(1부터) — 다 물었으면 null. [takeCoopLine] 과 같은 셈 */
+internal val DemoState.coopNextParentTurn: Int?
+    get() = (coopTrack.parentUsed + 1).takeIf { it <= parentQuestions.count(String::isNotBlank) }
+
+/** 부모 질문과 아이 답 — 적은 순서대로 (질문, 답). `/story` 의 extra 가 읽는다 */
+internal val DemoState.coopParentAnswers: List<Pair<String, String>>
+    get() = coopTrack.parentQuestionOf.entries.sortedBy { it.key.removePrefix(COOP_PARENT_KEY).toIntOrNull() ?: 0 }
+        .mapNotNull { (book, question) -> slots[book]?.takeIf(String::isNotBlank)?.let { question to it } }
 
 /**
  * 고른 이야기의 질문 · 부모가 적은 질문 하나에 아이가 뭐라고 했나 — 부모 리포트의 재료.
@@ -123,6 +151,10 @@ private class CoopTrack {
     val stats = CoopSessionStats()
     /** 부모가 적은 질문으로 물은 걸음 — 판정이 거절한 답을 그 칸에 넣지 않는다(부모 질문은 칸과 안 맞을 수 있다) */
     val parentSteps = mutableSetOf<String>()
+    /** 부모 질문으로 물은 걸음 → 그 답을 담을 책 칸(`parent1` …). 첫 답에 한 번 쓰고 지운다 (10-05) */
+    val parentKeyFor = mutableMapOf<String, String>()
+    /** 책 칸(`parent1` …) → 그 칸에 물은 부모 질문 */
+    val parentQuestionOf = mutableMapOf<String, String>()
     /** 걸음마다 아이가 진짜로 답했는데 `/turn` 판정이 이 칸 답이 아니라고 한 말 — 순서대로 (10-03 실기기) */
     val rejected = mutableMapOf<String, MutableList<String>>()
     /** 이 이야기를 시작할 때 고른 이야기 — 리포트를 열 때는 `coopPick` 이 이미 비어 있다(`clearParentQuestions`) */
@@ -656,7 +688,9 @@ suspend fun Director.coopWriteBook() {
     val pages = s.template?.pages ?: return
     s.stage = Stage.Making("이야기 문장을 쓰는 중… (${pages.size}쪽)")
     val mask = s.nameMask()
-    val tails = COOP_TAIL_KEYS.mapNotNull { s.slots[it]?.takeIf(String::isNotBlank) }
+    // 부모 질문의 답은 질문과 함께 — 「빨강」만 가면 무엇에 한 답인지 모른다 (10-05)
+    val tails = COOP_TAIL_KEYS.mapNotNull { s.slots[it]?.takeIf(String::isNotBlank) } +
+        s.coopParentAnswers.map { (question, answer) -> "「$question」에 「$answer」" }
     val slots = mapOf(
         "place" to s.place, "problem" to s.problem, "cause" to s.cause, "solution" to s.solution,
         "reaction" to s.reaction, "companion" to s.friend,
