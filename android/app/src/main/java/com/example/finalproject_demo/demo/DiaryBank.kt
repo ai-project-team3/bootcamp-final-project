@@ -525,7 +525,11 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
             add(PageSpec(PageKind.FAIL) { st -> joinWith("그때", line(st, "reaction", "마음이 오래 남았어요.")) })
         }
         // ── 전 · 왜 그랬을까 · 뭐라고 했을까 · 그래서 나는 ───────
-        add(
+        // 같이 만들기 — 까닭도 누가 한 말도 없으면 이 쪽을 세우지 않는다. 재료 없는 쪽은 「그때의 이유는 아직
+        // 듣지 못했어요」 같은 빈 쪽이 되거나, 서버가 앞 쪽을 되풀이해 메웠다(10-05 실기기 · 설계 §5-1-2).
+        // 마음 쪽(FAIL)이 마음이 있을 때만 서는 것과 같다. 그림일기 책은 그대로 둔다(진웅 · 일기 모드)
+        val hasWhy = !s.cause.isNullOrBlank() || !s.slots["said"].isNullOrBlank()
+        if (!s.isCoop || hasWhy) add(
             PageSpec(PageKind.TALK) { st ->
                 // 까닭 쪽 — 일이 어긋난 날에만 "알고 보니"로 연다. 그냥 즐거웠던 날엔 붙이지 않는다
                 val lead = if (st.hadTrouble()) "알고 보니" else ""
