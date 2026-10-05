@@ -379,9 +379,10 @@ private const val D1_FIRST_STORY = "여기는 어디야?"
 private fun Director.nextD1Story(day: DiaryDay, asked: Set<String>): Triple<String, String, String>? {
     if (asked.size >= D1_STORY_MAX) return null
     fun open(key: String) = key !in asked && s.slots[key].isNullOrBlank()
-    day.nextStory?.takeIf { open(it.third) }?.let { return it }
+    // 첫 질문 「여기는 어디야?」는 구운 목소리 그대로 — 그 뒤 질문은 그린 것이 있으면 그것을 실마리로 (DiaryClue.kt)
+    day.nextStory?.takeIf { open(it.third) }?.let { return withClue(day, it) }
     if (asked.isEmpty() && open("place")) return Triple("place", D1_FIRST_STORY, "place")
-    if (!Server.liveFor(s.mode) && open("problem")) return Triple("problem", atPlace(s, "무슨 일이 있었어?"), "problem")
+    if (!Server.liveFor(s.mode) && open("problem")) return withClue(day, Triple("problem", atPlace(s, "무슨 일이 있었어?"), "problem"))
     return null
 }
 
@@ -1004,6 +1005,15 @@ private fun Director.serverNext(result: Server.TurnResult): Triple<String, Strin
     return Triple(slot, question, askedKeyOf(slot))
 }
 
+/**
+ * 판정이 고른 칸을 그림 실마리로 물을 수 있으면 그 틀로 — 칸은 그대로, 문구만(차별점 2). 실마리가 없으면 [q] 그대로
+ */
+private fun Director.withClue(day: DiaryDay, q: Triple<String, String, String>): Triple<String, String, String> =
+    s.clueQuestion(day, q.third)?.let { (_, text, _) ->
+        log("그림 실마리 → [${q.third}] 「$text」 (원래 「${q.second}」)")
+        Triple(q.first, text, q.third)
+    } ?: q
+
 private fun bookKeyOf(slot: String, askedKey: String): String = when (slot) {
     "extra" -> if (askedKey == "keep") "keep" else "extra"
     else -> slot
@@ -1019,7 +1029,7 @@ private fun bookKeyOf(slot: String, askedKey: String): String = when (slot) {
 private suspend fun Director.askEmptySlotsLive() {
     val day = s.diaryDay
     // 그리는 중에 서버가 골라 둔 다음 이야기가 있으면 그것부터 — 아이가 이어서 들은 맥락 그대로
-    var next = day.nextStory?.takeIf { s.slots[it.third].isNullOrBlank() } ?: firstEmptyQuestion()
+    var next = (day.nextStory?.takeIf { s.slots[it.third].isNullOrBlank() } ?: firstEmptyQuestion())?.let { withClue(day, it) }
     day.nextStory = null
     var asked = 0
     var wrapOffered = false
@@ -1112,7 +1122,7 @@ private suspend fun Director.askEmptySlotsLive() {
             log("판정 story_ready — 남은 물음은 판정이 고른 칸과 「내일」만")
         }
         sayReaction(result, r)
-        next = serverNext(result) ?: if (v.storyReady) tomorrowQuestion(gaveUp) else firstEmptyQuestion(gaveUp)
+        next = (serverNext(result) ?: if (v.storyReady) tomorrowQuestion(gaveUp) else firstEmptyQuestion(gaveUp))?.let { withClue(day, it) }
     }
     if (s.endReason == null && PICTURE_REQUIRED.all { !s.slots[it].isNullOrBlank() }) s.endReason = "story_ready"
     log("다 그린 뒤 ${asked}번 물었다 · /turn ${day.turnCalls}번 (#30 — 세기만)")

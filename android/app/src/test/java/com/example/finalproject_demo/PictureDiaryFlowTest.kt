@@ -599,6 +599,25 @@ class PictureDiaryFlowTest {
     }
 
     /**
+     * 그림 실마리 (DiaryClue.kt · 10-05) — 그린 것 중 아이가 아직 말하지 않은 것이 있으면 둘째 이야기 질문이 그것을 짚는다.
+     * 「미끄럼틀에서 무슨 일이 있었어?」(탄 일을 전제)가 아니라 「미끄럼틀 이야기 해 줄래?」
+     */
+    @Test
+    fun theSecondStoryQuestionWhileDrawingTakesAnUnsaidDrawingAsItsClue() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        s.diaryDay.catchUp(s.drawing)
+        s.diaryDay.pieces[0] = s.diaryDay.pieces[0].copy(name = "미끄럼틀")       // 이름은 붙었고 아이 말에는 아직 없다
+        assertTrue("물을 조각이 없는데 이야기를 묻지 않았다 — 말=${s.line}",
+            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "여기는 어디야?" } != null)
+        d.speak("놀이터 갔어")
+        assertTrue("그린 것을 실마리로 묻지 않았다 — 말=${s.line}",
+            await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "미끄럼틀도 그렸네! 미끄럼틀 이야기 해 줄래?" } != null)
+    }
+
+    /**
      * 물을 조각이 없는 붓 멈춤 — 그리는 중에 이야기를 묻는다(어디 → 무슨 일). 답은 아이 말 그대로 그 칸에(아이 출처),
      * 다 그린 뒤에는 그 칸을 다시 묻지 않는다 (10-02 진웅 · 프로토타입)
      */

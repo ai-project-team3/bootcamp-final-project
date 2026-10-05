@@ -243,6 +243,7 @@ class DiaryLiveTurnTest {
                 listOf(androidx.compose.ui.geometry.Offset(.1f, .3f), androidx.compose.ui.geometry.Offset(.2f, .6f)))
             s.diaryDay.catchUp(s.drawing)
             s.diaryDay.pieces[0] = s.diaryDay.pieces[0].copy(name = "미끄럼틀")                // 조각은 이미 이름이 있다 — 물을 조각이 없다
+            s.quotes += "미끄럼틀"                                   // 아이가 말한 이름 — 그림 실마리(DiaryClue)로 다시 짚지 않는다
             fun pause() { if (s.diaryDay.watching) d.send(Reply.Tapped("pause", "붓 멈춤")) }
             assertTrue("첫 이야기는 고정 질문 — 말=${s.line}", await { pause(); s.line == "여기는 어디야?" } != null)
             d.answer("놀이터 갔어") { asked.size == 1 && s.line != "여기는 어디야?" }

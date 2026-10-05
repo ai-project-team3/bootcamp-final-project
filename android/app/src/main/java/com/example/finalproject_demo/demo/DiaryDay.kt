@@ -131,6 +131,9 @@ class DiaryDay {
     /** 오또가 바로 앞에 한 받아 주기 — 같은 맞장구가 이어 나오지 않게 (`sayAck`) */
     var lastAck: String? = null
 
+    /** 그림 실마리로 이미 짚은 조각 — 다시 짚지 않는다 (`DiaryClue.kt` · [CLUE_MAX]) */
+    val cluesUsed = mutableSetOf<Int>()
+
     /**
      * 서버 대화 호출(`/turn`) 수 — **세기만 하고 막지 않는다.**
      * 상한을 둘지 · 얼마로 둘지는 #30 에서 정한다. 정해지면 [turnBudget] 에 넣는다(null = 제한 없음).
