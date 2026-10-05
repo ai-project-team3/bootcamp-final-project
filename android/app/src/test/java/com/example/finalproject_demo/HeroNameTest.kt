@@ -8,6 +8,7 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.askHeroName
 import com.example.finalproject_demo.demo.heroNameFrom
+import com.example.finalproject_demo.demo.spokenYesNo
 import com.example.finalproject_demo.ui.HeroAttr
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -55,5 +56,14 @@ class HeroNameTest {
         waitFor(null); delay(200); d.send(Reply.Spoke("삐죽이라고 할래"))
         waitFor("삐죽이"); d.send(Reply.Tapped(NAME_OK, "맞아"))
         assertEquals("삐죽이", withTimeout(3_000) { name.await() })
+    }
+
+    /** 10-05 device: the child said 「응」 to 「삐죽이 맞아?」 and nothing moved — the confirm now hears yes and no */
+    @Test
+    fun yesAndNoAreHeard() {
+        listOf("응", "응!", "어", "네", "맞아", "맞아요", "그래").forEach { assertEquals(it, true, spokenYesNo(it)) }
+        listOf("아니", "아니야", "아냐 다시", "다시 할래").forEach { assertEquals(it, false, spokenYesNo(it)) }
+        // a name said again, or 「어흥」, is not a yes
+        listOf("삐죽이", "어흥이", "응가 공주라고 할래").forEach { assertNull(it, spokenYesNo(it)) }
     }
 }
