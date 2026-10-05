@@ -39,6 +39,8 @@ data class SavedDiaryBook(
 interface DiaryBookStore {
     fun load(): List<SavedDiaryBook>
     fun save(book: SavedDiaryBook)
+    /** 한 권 빼기 — 부모 모드에서만(#80). 그런 책이 없으면 false */
+    fun delete(id: String): Boolean { error("Diary deletion is not supported") }
 }
 
 /** 책장 「다시 읽기」 표시 — 동화 책 id 와 섞이지 않게 앞에 붙인다(`ShelfBook.savedStoryId`) */
@@ -84,6 +86,19 @@ class LocalDiaryBookStore(context: Context) : DiaryBookStore {
         check(prefs.edit().putString("books", array.toString()).commit()) { "그림일기를 저장하지 못했습니다" }
     }
 
+    override fun delete(id: String): Boolean {
+        val raw = prefs.getString("books", null) ?: return false
+        val current = load()
+        // 읽지 못한 책이 있으면 다시 쓰지 않는다 — 다시 쓰면 그 책까지 지워진다
+        check(current.size == JSONArray(raw).length()) { "읽지 못한 그림일기가 있어 빼지 않는다" }
+        if (current.none { it.id == id }) return false
+        val array = JSONArray()
+        current.filterNot { it.id == id }.forEach { array.put(it.toJson()) }
+        check(prefs.edit().putString("books", array.toString()).commit()) { "그림일기를 빼지 못했습니다" }
+        images.listFiles()?.filter { it.name.startsWith("${id}_") }?.forEach { it.delete() }
+        return true
+    }
+
     private fun readPng(bookId: String, pieceId: Int): ByteArray? =
         File(images, pngName(bookId, pieceId)).takeIf { it.exists() }?.readBytes()
 
@@ -124,6 +139,20 @@ object DiaryShelf {
 
     fun book(s: DemoState, shelfId: String): SavedDiaryBook? =
         books[s]?.firstOrNull { DIARY_SHELF_ID + it.id == shelfId }
+
+    /** 꽂힌 그림일기 — 새 책이 앞. 저장소가 없으면 빈 목록 */
+    fun books(s: DemoState): List<SavedDiaryBook> = books[s]?.toList().orEmpty()
+
+    /** 한 권 빼기 — 저장소에서 먼저 지우고, 성공했을 때만 책장 · 표지에서 내린다(#80) */
+    fun delete(s: DemoState, id: String): Boolean {
+        val store = stores[s] ?: return false
+        if (books[s]?.none { it.id == id } != false) return false
+        if (!runCatching { store.delete(id) }.getOrDefault(false)) return false
+        books[s]?.removeAll { it.id == id }
+        s.diaryCovers.remove(DIARY_SHELF_ID + id)
+        s.shelf.removeAll { it.savedStoryId == DIARY_SHELF_ID + id }
+        return true
+    }
 }
 
 /** 표지 — 그림이 있으면 아이 그림(`diaryCovers`), 없으면 아이가 말한 곳의 펠트 그림. 전에는 빈 노란 표지였다 (#98) */

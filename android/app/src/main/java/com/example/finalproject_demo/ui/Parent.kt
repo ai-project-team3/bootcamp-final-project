@@ -55,6 +55,13 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.SHELF_CAPACITY
+import com.example.finalproject_demo.demo.SHELF_MODES
+import com.example.finalproject_demo.demo.ShelfEntry
+import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.demo.shelfCount
+import com.example.finalproject_demo.demo.shelfDeleteSignal
+import com.example.finalproject_demo.demo.shelfEntries
 import com.example.finalproject_demo.demo.CoopPlan
 import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.coopReportCopy
@@ -114,6 +121,7 @@ private val PTABS = listOf(
     PTab("coop", "pi_coop", "🤝", "같이 만들기", "소파에서 같이 만들 이야기를 고르고, 더 물어볼 질문을 적어 둬요"),
     PTab("ach", "pi_achieve", "🏅", "업적", "아이가 한 일로만 받는 선물과 해결 방법 도감"),
     PTab("set", "pi_settings", "⚙️", "설정", "하루 한도 · 시작할 때 확인 · 그림체 · 소리 · 동의"),
+    PTab("shelf", "pi_shelf", "📚", "책장 정리", "모드마다 ${SHELF_CAPACITY}권까지 · 뺄 책을 골라요 · 아이 화면에서는 지우지 않아요"),
     PTab("acct", "pi_account", "👤", "계정", "로그인 · 부모 비밀번호 · 처음 설정 다시 보기 · 탈퇴"),
 )
 
@@ -223,6 +231,7 @@ private fun ParentViewBody(d: Director, tab: String) {
                     "coop" -> CoopQuestionsTab(coop)
                     "ach" -> AchievementsTab(d)
                     "set" -> SettingsTab(d)
+                    "shelf" -> ShelfTidyTab(d)
                     "acct" -> com.example.finalproject_demo.ui.shell.AccountTab(d)
                     else -> RecordTab(d)
                 }
@@ -1226,6 +1235,62 @@ private fun PinViewBody(d: Director, stage: Stage.Pin) {
             }
             "forgot" -> com.example.finalproject_demo.ui.shell.YearPad(onPass = { mode = "create" }, note = "3번 틀리면 30초 기다려요")
             else -> com.example.finalproject_demo.ui.shell.PinCreate(onSet = { com.example.finalproject_demo.ui.shell.Shell.setPin(it); pass() })
+        }
+    }
+}
+
+/**
+ * 책장 정리 — 모드마다 12권. 꽉 차면 아이가 방에서 그 모드를 고를 때 알림이 뜨고, 어른이 여기서 한 권을 뺀다 (10-02 조장 #80).
+ * 빼기는 이 화면에서만 — 아이 말 · 그림 · 녹음이 같이 사라지는 일이라 「정말 뺄까요?」를 한 번 더 묻는다
+ */
+@Composable
+private fun ShelfTidyTab(d: Director) {
+    val s = d.s
+    val mode = s.shelfTidyMode ?: StoryMode.STORY
+    // 책을 빼면 목록을 다시 읽는다 — 저장소 목록은 Compose 상태가 아니라서 책장(`s.shelf`) 수로 다시 그린다
+    val shelfSize = s.shelf.size
+    val books = remember(mode, shelfSize) { d.shelfEntries(mode) }
+    var asking by remember(mode) { mutableStateOf<ShelfEntry?>(null) }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SHELF_MODES.forEach { (m, name) ->
+            val n = remember(m, shelfSize) { d.shelfCount(m) }?.toString() ?: "?"
+            CoopChip("$name $n/$SHELF_CAPACITY", on = m == mode) {
+                d.send(Reply.Tapped("shelf:mode:${m.name}", name))
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    if (books.size >= SHELF_CAPACITY) PCard(Modifier.fillMaxWidth()) {
+        Text("책장이 꽉 찼어요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        Text("한 권을 빼면 아이가 이 모드로 새 책을 만들 수 있어요. 빼지 않으면 지금 책은 모두 그대로 남아요.", fontSize = 13.sp, color = PSub)
+    }
+    if (books.isEmpty()) PCard(Modifier.fillMaxWidth()) {
+        Text("아직 꽂힌 책이 없어요", fontSize = 15.sp, color = PSub)
+    }
+    books.forEach { b ->
+        Spacer(Modifier.height(8.dp))
+        PCard(Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(b.title, fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(listOfNotNull(b.madeAt.takeIf(String::isNotBlank), "${b.pages}쪽").joinToString(" · "), fontSize = 12.sp, color = PSub)
+                }
+                if (asking != b) PButton("빼기", PAccent, Modifier.width(96.dp), outline = true) { asking = b }
+            }
+            // 「정말 뺄까요?」는 누른 책 카드 안에서 — 목록 맨 아래에 두면 12권 아래로 밀려 보이지 않는다
+            if (asking == b) {
+                Spacer(Modifier.height(10.dp))
+                Text("이 책을 뺄까요? 아이 말 · 그림 · 녹음이 폰에서 지워지고 되돌릴 수 없어요.", fontSize = 13.sp, color = Ink)
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PButton("그대로 두기", PSub, Modifier.width(140.dp), outline = true) { asking = null }
+                    PButton("네, 뺄게요", PAccent, Modifier.width(140.dp)) {
+                        asking = null
+                        d.send(Reply.Tapped(shelfDeleteSignal(b.mode, b.id), "빼기"))
+                    }
+                }
+            }
         }
     }
 }

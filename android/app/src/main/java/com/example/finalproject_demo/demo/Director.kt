@@ -104,11 +104,49 @@ class Director(
             s.commitStorySound()
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))
+            recoverStoryImages()
             true
         } catch (_: Exception) { false }
     }
 
     fun savedStory(id: String): SavedStoryBook? = savedStories.firstOrNull { it.id == id }
+
+    /** 꽂힌 동화 — 새 책이 앞 (#80 부모 책장 정리) */
+    fun storyBooks(): List<SavedStoryBook> = savedStories.toList()
+
+    /** 동화 권수. 저장 정보를 읽지 못하면 null — 0권(덮어써도 되는 빈 책장)으로 보지 않는다 (민우 #78) */
+    fun storyBookCount(): Int? = runCatching { storyBookStore?.count() ?: savedStories.size }.getOrNull()
+
+    /**
+     * 동화 한 권 빼기 — 부모 모드에서 PIN · 「정말 뺄까요?」를 거친 뒤에만 (#80 · 민우 #78).
+     * 저장소에서 먼저 지우고, 성공했을 때만 책장 · 그 책의 소리 · 아무 책도 안 쓰는 그림을 정리한다
+     */
+    fun deleteStoryBook(id: String): Boolean {
+        if (s.scene != Scene.PARENT || savedStories.none { it.id == id }) return false
+        return try {
+            if (storyBookStore != null && !storyBookStore.delete(id)) return false
+            savedStories.removeAll { it.id == id }
+            s.shelf.removeAll { it.savedStoryId == id }
+            runCatching { com.example.finalproject_demo.sound.ChildSound.deleteBook(id) }
+            recoverStoryImages()
+            true
+        } catch (_: Exception) { false }
+    }
+
+    /**
+     * 서버가 그려 준 그림(`story_images/`) 중 **아무 책도 · 지금 화면도 안 쓰는 것**만 지운다 (#61 · 민우 #78).
+     * 같이 만들기 책도 같은 그림 폴더를 쓴다. 저장 정보를 하나라도 읽지 못하면 아무것도 지우지 않는다.
+     * 앱을 켤 때는 세 책장을 다 붙인 **뒤에** 부른다(`MainActivity`) — 붙이기 전에 부르면 같이 만들기 책 그림이 지워진다
+     */
+    fun recoverStoryImages() {
+        val store = storyImageStore ?: return
+        val saved = storyBookStore?.let { runCatching { it.imageReferences() }.getOrNull() ?: return }
+            ?: savedStories.flatMap { listOfNotNull(it.bgName, it.visuals?.hero?.image) }.toSet()
+        val coop = CoopShelf.imageReferences(s) ?: return
+        val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground) +
+            s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName }
+        store.recover(saved + coop + active)
+    }
 
     fun keepStoryBackground(png: ByteArray): Boolean {
         val path = saveStoryImage(png) ?: return false
