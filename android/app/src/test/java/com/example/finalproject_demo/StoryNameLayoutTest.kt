@@ -14,6 +14,7 @@ import com.example.finalproject_demo.ui.FitScreen
 import com.example.finalproject_demo.ui.HeroAttr
 import com.example.finalproject_demo.ui.StageView
 import com.example.finalproject_demo.ui.PuppetTypography
+import com.example.finalproject_demo.ui.Touch
 import com.example.finalproject_demo.ui.motionFrozen
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.RoborazziOptions
@@ -63,7 +64,9 @@ class StoryNameLayoutTest {
                 if (fontScale > 1f) button.performScrollTo()
                 button.assertIsDisplayed()
                 val bounds = button.fetchSemanticsNode().boundsInRoot
-                assertTrue("$label is too short to tap: $bounds", bounds.height >= 48f * fittedDensity)
+                // The app requires 64dp child targets; permit only final pixel rounding.
+                assertTrue("$label is too short to tap: $bounds",
+                    bounds.height + 1f >= Touch.KidMin.value * fittedDensity)
                 val layouts = mutableListOf<TextLayoutResult>()
                 compose.onNodeWithText(label, useUnmergedTree = true)
                     .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
