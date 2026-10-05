@@ -34,7 +34,7 @@ import com.example.finalproject_demo.ui.Wool
 @Composable
 fun OttoShell(d: Director) {
     val ctx = LocalContext.current
-    remember { Shell.attach(ctx); Accounts.attach(ctx); Shell.applySetup(d.s); true }
+    remember { Shell.attach(ctx); Accounts.attach(ctx); com.example.finalproject_demo.net.SocialLogin.init(ctx); Shell.applySetup(d.s); true }
     val activity = ctx as? android.app.Activity
 
     fun afterLogin() { Shell.step = if (Shell.onboarded) Step.APP else Step.CONSENT }
@@ -45,6 +45,20 @@ fun OttoShell(d: Director) {
         else if (d.s.stage == Stage.Adult) OttoRoom(d, sample = Shell.sampleOnly)
         if (Shell.sheet == Sheet.PIN_CHANGE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { PinChangeSheet() }
         else if (Shell.sheet != Sheet.NONE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { WithdrawSheet(d) }
+        // 부모 영역 → 계정 → 기능 안내 다시 보기
+        if (Shell.guide) Shield(onBack = { Shell.guide = false }) {
+            FeatureGuide(finish = "닫기", onClose = { Shell.guide = false }) { Shell.guide = false }
+        }
+        // 부모 영역 → 계정에서 연 약관 전문 — 읽기만 한다
+        Shell.doc?.let { doc ->
+            Shield(onBack = { Shell.doc = null }) {
+                TermsSheet(
+                    doc, agreed = true,
+                    onAgree = null,
+                    onClose = { Shell.doc = null },
+                )
+            }
+        }
         // 이야기 도중 🏠 — 「방으로 갈까?」 (KidTopBar 가 켠다. 화면 전체를 덮어야 해서 여기서 그린다)
         if (Shell.askHome) Shield(onBack = { Shell.askHome = false }) {
             Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {
@@ -78,13 +92,14 @@ fun OttoShell(d: Director) {
                     Shell.step = when {
                         !Shell.onboarded -> Step.LOGIN
                         Accounts.guardian == null -> Step.EXPIRED        // 예외 · 로그인이 풀렸을 때
-                        !ConsentStore.guardianAgreed -> Step.CONSENT
+                        // 동의가 없거나, 약관이 바뀌어 새 판에 아직 동의하지 않았으면 다시 묻는다 (처리방침 제11조)
+                        !ConsentStore.guardianAgreed || Shell.consentVersion != TERMS_VERSION -> Step.CONSENT
                         else -> Step.APP
                     }
                 }
-                Step.LOGIN -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.step = Step.EMAIL })
-                Step.EXPIRED -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.step = Step.EMAIL }, expired = true)
-                Step.EMAIL -> EmailScreen(onBack = { Shell.step = if (Shell.onboarded) Step.EXPIRED else Step.LOGIN }, onDone = { afterLogin() })
+                Step.LOGIN -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL })
+                Step.EXPIRED -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL }, expired = true)
+                Step.EMAIL -> EmailScreen(Shell.emailMode, onBack = { Shell.step = if (Shell.onboarded) Step.EXPIRED else Step.LOGIN }, onDone = { afterLogin() })
                 Step.CONSENT -> ConsentStep(
                     onBack = { Shell.step = Step.LOGIN },
                     onDone = { Shell.step = if (Shell.onboarded) Step.APP else Step.MIC },
@@ -92,11 +107,12 @@ fun OttoShell(d: Director) {
                 )
                 Step.MIC -> MicStep(onBack = { Shell.step = Step.CONSENT }, onDone = { Shell.step = Step.PIN })
                 Step.PIN -> PinStep(onBack = { Shell.step = Step.MIC }, onDone = { Shell.step = Step.SETUP })
-                Step.SETUP -> SetupStep(onBack = { Shell.step = Step.PIN }, onDone = { Shell.applySetup(d.s); Shell.step = Step.HANDOFF })
+                Step.SETUP -> SetupStep(onBack = { Shell.step = Step.PIN }, onDone = { Shell.applySetup(d.s); Shell.step = Step.FEATURES })
+                // 10-05 — 보호자가 기능을 먼저 다 보고(⑥), 아이에게 건넨 뒤(⑦) 아이가 방을 둘러보고(⑧) 말해 본다(⑨)
+                Step.FEATURES -> FeatureGuide { Shell.step = Step.HANDOFF }
                 Step.HANDOFF -> HandoffStep { Shell.step = Step.TUTORIAL_TAP }
                 Step.TUTORIAL_TAP -> OttoRoom(d, tutorial = true) { Shell.step = Step.TUTORIAL_TALK }
-                Step.TUTORIAL_TALK -> TutorialTalk { Shell.step = Step.FEATURES }
-                Step.FEATURES -> FeaturesStep { Shell.finishOnboarding() }
+                Step.TUTORIAL_TALK -> TutorialTalk { Shell.finishOnboarding() }
                 Step.APP -> {}
             }
             }

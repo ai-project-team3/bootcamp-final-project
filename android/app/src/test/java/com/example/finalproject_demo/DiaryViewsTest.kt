@@ -274,6 +274,8 @@ class DiaryViewsTest {
         val root = compose.onRoot().getUnclippedBoundsInRoot()
         assertTrue("🏠 가 판 위에 얹힌다 — 판 왼쪽 ${board.left}", board.left >= 68.dp)
         assertTrue("도구 띠가 판을 가린다", mic.left >= board.right && done.left >= board.right)
+        // 오른쪽 위 48dp 는 앱 틀의 시연 서랍(길게 누르기)이 먹는다 — [다 그렸어]가 거기 있으면 눌러도 안 된다 (10-05 실기기)
+        assertTrue("[다 그렸어]가 오른쪽 위 서랍 자리에 걸렸다 — 위 ${done.top}", done.top >= 48.dp)
         assertTrue("도구 띠가 넓다 — ${root.right - board.right}", root.right - board.right <= 80.dp)
         assertTrue("🎤 가 오른쪽 아래가 아니다", root.right - mic.right < 24.dp && root.bottom - mic.bottom < 24.dp)
         assertTrue("말풍선이 화면 왼쪽 끝이 아니다 — ${bubble.left}", bubble.left < 24.dp)

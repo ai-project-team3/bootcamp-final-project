@@ -156,6 +156,17 @@ private enum class Poke(val move: OttoMove, val line: String, val millis: Long, 
     LOVE(OttoMove.HOORAY, "너 좋아!", 1600, hearts = true),
 }
 
+/**
+ * ⑧ 방 둘러보기 (10-05) — 처음 설정 끝에 아이가 물건 넷을 **차례로 직접 눌러 보며** 무엇을 하는 곳인지 듣는다.
+ * 전에는 무대 하나만 가리켜서 그림일기 · 같이 만들기 · 책장을 아이가 몰랐다. 동화(무대)를 맨 끝에 둔다 — 눌러서 바로 말해 보기 연습으로 간다.
+ */
+private val TOUR = listOf(
+    Thing.WINDOW to "여기는 창문이야! 오늘 있었던 일을 말하면 그림일기가 돼",
+    Thing.SOFA to "소파에선 엄마 아빠가 준비한 이야기를 같이 만들어",
+    Thing.SHELF to "책장엔 우리가 만든 책이 모여. 언제든 다시 볼 수 있어!",
+    Thing.THEATER to "마지막! 무대에선 상상한 동화를 만들어. 같이 해 보자!",
+)
+
 /** 오또 크기 · 쉬는 자리 (디자인 좌표) — 소파와 무대 사이 바닥. 물건과 겹치지 않게 (09-29) */
 private const val OTTO = 160f
 private const val HOME_X = 244f
@@ -256,13 +267,34 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
     val walkX = remember { Animatable(HOME_X) }
     val paws = remember { mutableStateListOf<Float>() }
     val offline = Server.on && !online(ctx)
+    /** 방 둘러보기 — 지금 가리키는 물건 (튜토리얼일 때만) */
+    var tour by remember { mutableStateOf(0) }
+    val focus: Thing? = if (tutorial) TOUR[tour].first else null
+    if (tutorial) {
+        OttoSays(TOUR[tour].second)
+        // 오또가 가리키는 물건 옆으로 걸어간다
+        LaunchedEffect(tour) {
+            val t = TOUR[tour].first
+            // 물건 **옆**에 선다 — 앞에 서면 아이가 누를 물건 · 이름표를 오또가 가린다(10-05 책장). 왼쪽에 자리가 없으면 오른쪽
+            val left = t.x - OTTO * 0.8f
+            val to = (if (left >= 10f) left else t.x + t.w - OTTO * 0.2f).coerceIn(10f, 800f - OTTO)
+            goingLeft = to < walkX.value
+            if (motionFrozen) walkX.snapTo(to) else { moving = true; walkX.animateTo(to, tween(700, easing = LinearEasing)); moving = false }
+        }
+    }
 
     LaunchedEffect(target) {
         if (target == null && !tutorial && !motionFrozen) { delay(6000); idleHint = true }
     }
 
     fun pick(t: Thing) {
-        if (tutorial) { if (t == Thing.THEATER) onTutorialTap(); return }
+        // 둘러보기 — 오또가 가리키는 물건만 받는다. 다 보면 마지막(무대)에서 말해 보기로
+        if (tutorial) {
+            if (t != focus) return
+            com.example.finalproject_demo.ui.Sfx.play(com.example.finalproject_demo.ui.Sound.POP, 0L, view = view)
+            if (tour == TOUR.lastIndex) onTutorialTap() else tour++
+            return
+        }
         // 이미 한 물건으로 가는 중이거나 묻는 중이면 다른 물건은 받지 않는다 — 알림만 누를 수 있다
         if (target != null) return
         // 샘플 책 보기(로그인 · 동의 전) — 책장만. 이야기를 만들려면 로그인부터
@@ -306,12 +338,12 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
         } }
         // 물건
         Thing.entries.forEach { t ->
-            val hinted = (idleHint || tutorial) && t == Thing.THEATER
+            val hinted = if (tutorial) t == focus else idleHint && t == Thing.THEATER
             // 만들다 멈춘 이야기가 있는 물건 — 털실 뭉치 표시 (여기서 이어 갈 수 있다)
             val resumable = !tutorial && s.paused != null && modeOf(t.value) == s.mode
             Box(
                 Modifier.offset(g.x(t.x), g.y(t.y)).width(g.dx(t.w)).height(g.dy(t.h))
-                    .alpha(if (tutorial && t != Thing.THEATER) 0.35f else 1f)
+                    .alpha(if (tutorial && t != focus) 0.35f else 1f)
                     .noRippleClickable { pick(t) }
             ) {
                 AssetImage(t.art, Modifier.fillMaxSize().padding(bottom = 22.dp), contentScale = ContentScale.Fit) {
@@ -350,12 +382,13 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
             val face = when {
                 walking -> goingLeft
                 target != null -> target!!.let { it.x + it.w / 2 } < cx
+                focus != null -> focus.x + focus.w / 2 < cx
                 else -> false
             }
             OttoPuppet(
                 move = when {
                     walking -> OttoMove.WALK
-                    target != null -> OttoMove.POINT
+                    target != null || (tutorial && !walking) -> OttoMove.POINT
                     poke != null -> poke!!.move
                     idleHint || tutorial -> OttoMove.WAVE
                     else -> OttoMove.IDLE
@@ -373,8 +406,20 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
             }
         }
         // 오또가 권하는 말 · 튜토리얼 안내
-        if (idleHint || tutorial) SpeakBubble(if (tutorial) "여기를 눌러 봐!" else "무대를 눌러 봐!", Modifier.offset(g.x(240f), g.y(14f)))
-        if (tutorial) Pointer(Modifier.offset(g.x(Thing.THEATER.x + Thing.THEATER.w / 2 - 30f), g.y(200f)))
+        if (focus != null) {
+            // 말풍선은 가리키는 물건 쪽 위에 — 화면 밖으로 나가지 않게. 몇 번째인지 점으로
+            // 창문은 맨 위에 있어 위에 띄우면 가린다 — 오른쪽 옆에
+            val bx = if (focus == Thing.WINDOW) focus.x + focus.w + 12f else (focus.x + focus.w / 2 - 190f).coerceIn(8f, 800f - 390f)
+            Column(Modifier.offset(g.x(bx), g.y(6f)).width(g.dx(380f))) {
+                SpeakBubble(TOUR[tour].second + "\n👆 눌러 봐!")
+                Row(Modifier.padding(top = 6.dp, start = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TOUR.indices.forEach { i ->
+                        Box(Modifier.size(if (i == tour) 12.dp else 9.dp).clip(CircleShape).background(if (i <= tour) focus.color else FeltWhite.copy(alpha = 0.8f)))
+                    }
+                }
+            }
+            Pointer(Modifier.offset(g.x(focus.x + focus.w / 2 - 30f), g.y(focus.y + focus.h * 0.45f)))
+        } else if (idleHint) SpeakBubble("무대를 눌러 봐!", Modifier.offset(g.x(240f), g.y(14f)))
 
         if (!tutorial) {
             // 왼쪽 위 부모 문 — 누르면 부모 비밀번호
