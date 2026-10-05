@@ -17,7 +17,8 @@ roborazzi = "1.32.2"
 robolectric = "4.14.1"
 # 보호자 로그인 (10-05) — 카카오 · 네이버 · Google. 키는 local.properties (net/SocialLogin.kt)
 kakaoSdk = "2.25.0"
-naverOauth = "5.12.0"
+# 5.11+ needs Kotlin 2.1+ stdlib — we are pinned to 2.0.21 (app/build.gradle.kts). Raise with Kotlin.
+naverOauth = "5.10.0"
 credentials = "1.5.0"
 googleId = "1.1.1"
 

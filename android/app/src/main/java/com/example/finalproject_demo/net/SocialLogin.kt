@@ -18,10 +18,11 @@ import com.kakao.sdk.common.KakaoSdk
 import com.kakao.sdk.common.model.ClientError
 import com.kakao.sdk.common.model.ClientErrorCause
 import com.kakao.sdk.user.UserApiClient
-import com.navercorp.nid.NidOAuth
-import com.navercorp.nid.oauth.util.NidOAuthCallback
-import com.navercorp.nid.profile.domain.vo.NidProfile
-import com.navercorp.nid.profile.util.NidProfileCallback
+import com.navercorp.nid.NaverIdLoginSDK
+import com.navercorp.nid.oauth.NidOAuthLogin
+import com.navercorp.nid.oauth.OAuthLoginCallback
+import com.navercorp.nid.profile.NidProfileCallback
+import com.navercorp.nid.profile.data.NidProfileResponse
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -32,7 +33,8 @@ import kotlin.coroutines.resume
  * 그것을 [AccountApi.loginSocial] 에 넘기면 우리 계정으로 기억한다. 예외는 던지지 않는다 — 실패는 [SocialResult.Fail].
  *
  *   카카오   카카오톡이 깔려 있으면 카카오톡으로, 없거나 실패하면 카카오계정(웹)으로 → 사용자 정보(me)
- *   네이버   네이버 앱 · 웹 로그인 창 → 프로필 API
+ *   네이버   네이버 앱 · 웹 로그인 창 → 프로필 API (SDK 5.10 — 5.11 부터는 Kotlin 2.1+ 표준 라이브러리가 있어야 해서
+ *           Kotlin 2.0.21 에 묶인 이 프로젝트에선 스토어 빌드(R8)가 깨지고 실행 중에 죽을 수 있다. Kotlin 을 올리면 같이 올린다)
  *   Google  Credential Manager 「Google 로 로그인」 창 → ID 토큰(이메일 · 이름)
  *
  * 키는 `local.properties`(레포에 올리지 않음) → BuildConfig. 받는 법은 `docs/소셜로그인_키_발급.md`.
@@ -73,7 +75,7 @@ object SocialLogin {
         val app = ctx.applicationContext
         if (configured(AuthProvider.KAKAO)) runCatching { KakaoSdk.init(app, BuildConfig.KAKAO_APP_KEY) }
         if (configured(AuthProvider.NAVER)) runCatching {
-            NidOAuth.initialize(app, BuildConfig.NAVER_CLIENT_ID, BuildConfig.NAVER_CLIENT_SECRET, "오또")
+            NaverIdLoginSDK.initialize(app, BuildConfig.NAVER_CLIENT_ID, BuildConfig.NAVER_CLIENT_SECRET, "오또")
         }
     }
 
@@ -100,7 +102,7 @@ object SocialLogin {
         runCatching {
             when (p) {
                 AuthProvider.KAKAO -> suspendCancellableCoroutine { c -> UserApiClient.instance.logout { c.resume(Unit) } }
-                AuthProvider.NAVER -> suspendCancellableCoroutine { c -> NidOAuth.logout(done(c)) }
+                AuthProvider.NAVER -> NaverIdLoginSDK.logout()
                 AuthProvider.GOOGLE -> CredentialManager.create(ctx).clearCredentialState(ClearCredentialStateRequest())
                 AuthProvider.EMAIL -> {}
             }
@@ -116,7 +118,7 @@ object SocialLogin {
         runCatching {
             when (p) {
                 AuthProvider.KAKAO -> suspendCancellableCoroutine { c -> UserApiClient.instance.unlink { c.resume(Unit) } }
-                AuthProvider.NAVER -> suspendCancellableCoroutine { c -> NidOAuth.disconnect(done(c)) }
+                AuthProvider.NAVER -> suspendCancellableCoroutine { c -> NidOAuthLogin().callDeleteTokenApi(done(c)) }
                 AuthProvider.GOOGLE -> CredentialManager.create(ctx).clearCredentialState(ClearCredentialStateRequest())
                 AuthProvider.EMAIL -> {}
             }
@@ -158,32 +160,36 @@ object SocialLogin {
 
     // ── 네이버 ─────────────────────────────────────────────
 
-    /** 성공이든 실패든 끝나면 이어 간다 — 로그아웃 · 연결 끊기는 실패해도 우리 쪽은 진행한다 */
-    private fun done(c: kotlinx.coroutines.CancellableContinuation<Unit>) = object : NidOAuthCallback {
+    /** 성공이든 실패든 끝나면 이어 간다 — 연결 끊기는 실패해도 우리 쪽 탈퇴는 진행한다 */
+    private fun done(c: kotlinx.coroutines.CancellableContinuation<Unit>) = object : OAuthLoginCallback {
         override fun onSuccess() { if (c.isActive) c.resume(Unit) }
-        override fun onFailure(errorCode: String, errorDesc: String) { if (c.isActive) c.resume(Unit) }
+        override fun onFailure(httpStatus: Int, message: String) { if (c.isActive) c.resume(Unit) }
+        override fun onError(errorCode: Int, message: String) = onFailure(errorCode, message)
     }
 
     private suspend fun naver(activity: Activity): SocialResult {
         val login = suspendCancellableCoroutine<SocialResult?> { c ->
-            NidOAuth.requestLogin(activity, object : NidOAuthCallback {
+            NaverIdLoginSDK.authenticate(activity, object : OAuthLoginCallback {
                 override fun onSuccess() { if (c.isActive) c.resume(null) }
-                override fun onFailure(errorCode: String, errorDesc: String) {
+                override fun onFailure(httpStatus: Int, message: String) {
                     // 보호자가 창을 닫으면 user_cancel 이 온다 — 알림 없이 그대로
-                    val cancelled = errorCode.contains("cancel", true) || errorDesc.contains("cancel", true)
+                    val why = NaverIdLoginSDK.getLastErrorDescription() ?: message
+                    val cancelled = why.contains("cancel", true) || message.contains("cancel", true)
                     if (c.isActive) c.resume(if (cancelled) SocialResult.Cancelled else SocialResult.Fail("네이버 로그인에 실패했어요. 다시 해 주세요"))
                 }
+                override fun onError(errorCode: Int, message: String) = onFailure(errorCode, message)
             })
         }
         if (login != null) return login
-        val token = NidOAuth.getAccessToken() ?: ""
+        val token = NaverIdLoginSDK.getAccessToken() ?: ""
         return suspendCancellableCoroutine { c ->
-            NidOAuth.getUserProfile(object : NidProfileCallback<NidProfile> {
-                override fun onSuccess(result: NidProfile) {
+            NidOAuthLogin().callProfileApi(object : NidProfileCallback<NidProfileResponse> {
+                override fun onSuccess(result: NidProfileResponse) {
                     val p = result.profile
                     if (c.isActive) c.resume(SocialResult.Ok(SocialIdentity(AuthProvider.NAVER, p?.id ?: "", p?.email ?: "", p?.nickname ?: p?.name ?: "", token)))
                 }
-                override fun onFailure(errorCode: String, errorDesc: String) { if (c.isActive) c.resume(SocialResult.Fail("네이버 계정 정보를 받지 못했어요")) }
+                override fun onFailure(httpStatus: Int, message: String) { if (c.isActive) c.resume(SocialResult.Fail("네이버 계정 정보를 받지 못했어요")) }
+                override fun onError(errorCode: Int, message: String) = onFailure(errorCode, message)
             })
         }
     }

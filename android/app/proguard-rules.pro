@@ -33,3 +33,7 @@
 # Credential Manager finds the Play Services provider by reflection.
 -if class androidx.credentials.CredentialManager
 -keep class androidx.credentials.playservices.** { *; }
+# OkHttp (pulled in by the Kakao / Naver SDKs) probes optional TLS providers we do not ship.
+-dontwarn org.bouncycastle.jsse.**
+-dontwarn org.conscrypt.**
+-dontwarn org.openjsse.**
