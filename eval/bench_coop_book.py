@@ -42,8 +42,10 @@ async def one(case: dict, system: str) -> dict:
                          effort=settings.llm_effort_story, max_output_tokens=6000, timeout_s=settings.story_deadline_s)
     result = StoryResult.model_validate(raw)
     caps = [s.caption for s in result.scenes]
+    sentences = [x.strip() for c in caps for x in re.split(r"(?<=[.!?])\s+", c) if x.strip()]
     return {"id": case["id"], "s": round(time.perf_counter() - t, 1), "rejected": story_route.check(result, req.mode, req.pages),
-            "empty_pages": sum(bool(EMPTY.search(c)) for c in caps), "title": result.title, "captions": caps}
+            "empty_pages": sum(bool(EMPTY.search(c)) for c in caps), "repeats": len(sentences) - len(set(sentences)),
+            "title": result.title, "captions": caps}
 
 
 async def main() -> None:
@@ -59,10 +61,11 @@ async def main() -> None:
     cases = [json.loads(l) for l in Path(a.fixtures).read_text(encoding="utf-8").splitlines() if l.strip()]
     rows = [await one(c, system) for c in cases]
     for r in rows:
-        print(f"\n[{a.label}] {r['id']} · {r['s']}s · 빈 쪽 {r['empty_pages']} · 버림 {r['rejected']} · 『{r['title']}』")
+        print(f"\n[{a.label}] {r['id']} · {r['s']}s · 빈 쪽 {r['empty_pages']} · 같은 문장 {r['repeats']} · 버림 {r['rejected']} · 『{r['title']}』")
         for i, c in enumerate(r["captions"], 1):
             print(f"  {i}. {c}")
     print(f"\n[{a.label}] 빈 쪽 합계 {sum(r['empty_pages'] for r in rows)} / {sum(len(r['captions']) for r in rows)}쪽 · "
+          f"같은 문장 되풀이 {sum(r['repeats'] for r in rows)} · "
           f"effort {settings.llm_effort_story}")
 
 
