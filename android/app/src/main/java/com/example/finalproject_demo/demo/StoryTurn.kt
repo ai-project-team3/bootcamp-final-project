@@ -75,6 +75,8 @@ suspend fun Director.askStory(
         }
         s.storyServerQuestion = response.line?.question
         val line = response.line
+        // the question's voice is made while the ack is voiced and played, not after (10-05 trace: −2.5 s a turn)
+        line?.question?.let { prefetchSpeech(it) }
         val reaction = storyReaction(line?.ack, line?.expand)
         if (reaction.isNotBlank()) {
             say(reaction)
