@@ -1,7 +1,14 @@
 package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.coopItem
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 협업에서 오또가 아이 답에 하는 말 — 서버의 받아주기(ack) + 되돌려주기(expand). 동화 모드와 같게 쓴다 (10-05).
@@ -59,3 +66,27 @@ internal suspend fun Director.askLeftoverParentQuestions() {
 
 /** 시연 서랍 🎲 · 마이크를 끈 더미 답 — 부모 질문은 무엇을 물을지 몰라 두루 맞는 말만 둔다 */
 private val LEFTOVER_DUMMY_ANSWERS = listOf(Answer("재밌었어"), Answer("음… 좋았어"), Answer("또 하고 싶어"))
+
+/**
+ * 아이가 말한 곳으로 배경을 그린다 — 동화처럼 (10-05). 대화는 기다리지 않는다: 장면 작업 안에서 따로 돌고,
+ * 15초 안에 그림이 오면 책 배경([coopBackdrop])이 그 그림으로 바뀐다. 못 그리면 고른 요소의 미리 만든 배경 그대로.
+ *
+ * 그리는 말은 「사자 우리 (동물원 이야기)」처럼 고른 요소를 붙인다 — 「사자 우리」만으로는 어떤 곳인지 흐리다.
+ * 마스코트가 채운 곳(「아직 못 들은 곳」)은 그리지 않는다 — 아이가 가지 않은 곳이 그림으로 남으면 안 된다.
+ */
+internal suspend fun Director.drawCoopBackground() {
+    if (!s.isCoop || !Server.liveFor(s.mode)) return
+    val place = s.placeLabel?.trim()?.takeIf(String::isNotEmpty) ?: return
+    if (s.slotBy["place"] == "mascot" || !s.coopClaimBackground(place)) return
+    val words = s.bookPick?.name?.takeIf { it !in place }?.let { "$place ($it 이야기)" } ?: place
+    val mask = s.nameMask()
+    CoroutineScope(currentCoroutineContext()).launch {
+        val png = withTimeoutOrNull(15_000) { Server.image(mask.mask(words), "coop") }
+        val saved = png?.let { withContext(Dispatchers.IO) { saveStoryImage(it) } }
+        when {
+            saved == null -> log("[배경] 「$words」 생성 실패 또는 15초 경과 → 고른 요소의 배경 그대로")
+            s.coopUseGeneratedBackground(saved, place) -> log("[배경] 「$words」 생성 배경을 무대와 책에 연결")
+            else -> log("[배경] 그사이 다른 곳을 말해서 「$words」 배경은 버린다")
+        }
+    }
+}
