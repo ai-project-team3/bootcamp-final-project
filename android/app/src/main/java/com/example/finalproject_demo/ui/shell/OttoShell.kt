@@ -37,7 +37,18 @@ fun OttoShell(d: Director) {
     remember { Shell.attach(ctx); Accounts.attach(ctx); com.example.finalproject_demo.net.SocialLogin.init(ctx); Shell.applySetup(d.s); true }
     val activity = ctx as? android.app.Activity
 
-    fun afterLogin() { Shell.step = if (Shell.onboarded) Step.APP else Step.CONSENT }
+    /**
+     * 로그인 · 가입 뒤 (10-05) — 처음 설정 전이면 처음 설정을 이어 간다. 이미 끝낸 폰이라도 **이 폰에서 처음 보는 보호자 계정**이면
+     * 동의 · 마이크를 그 보호자에게 다시 받는다(앞 보호자의 동의를 물려받지 않는다). 전에 동의를 마친 계정은 마이크만 다시(로그아웃했으니)
+     */
+    fun afterLogin() {
+        Shell.step = when {
+            !Shell.onboarded -> Step.CONSENT
+            // 마친 계정이라도 로그아웃했다 들어오면 마이크는 다시 묻는다
+            Shell.isReady(Accounts.guardian) -> if (ConsentStore.micNoticeShown) Step.APP else Step.MIC
+            else -> { ConsentStore.withdraw(); Step.CONSENT }
+        }
+    }
 
     if (Shell.step == Step.APP) {
         // 동의가 없으면(탈퇴 · 철회 뒤) 말하기 전에 다시 묻는다. 샘플 책 보기는 책장만이라 예외
@@ -102,10 +113,14 @@ fun OttoShell(d: Director) {
                 Step.EMAIL -> EmailScreen(Shell.emailMode, onBack = { Shell.step = if (Shell.onboarded) Step.EXPIRED else Step.LOGIN }, onDone = { afterLogin() })
                 Step.CONSENT -> ConsentStep(
                     onBack = { Shell.step = Step.LOGIN },
-                    onDone = { Shell.step = if (Shell.onboarded) Step.APP else Step.MIC },
+                    // 약관이 바뀌어 다시 동의만 받은 계정은 방으로, 새 계정 · 처음 설정은 마이크로
+                    onDone = { Shell.step = if (Shell.onboarded && Shell.isReady(Accounts.guardian)) Step.APP else Step.MIC },
                     onDecline = { activity?.finish() },      // 동의하지 않으면 앱을 닫는다 — 다음에 켜면 다시 묻는다
                 )
-                Step.MIC -> MicStep(onBack = { Shell.step = Step.CONSENT }, onDone = { Shell.step = Step.PIN })
+                Step.MIC -> MicStep(onBack = { Shell.step = Step.CONSENT }, onDone = {
+                    // 처음 설정이면 비밀번호 · 맞춤 설정으로 이어 가고, 처음 설정을 끝낸 폰의 새 계정이면 여기서 끝
+                    if (Shell.onboarded) { Shell.markReady(Accounts.guardian); Shell.step = Step.APP } else Shell.step = Step.PIN
+                })
                 Step.PIN -> PinStep(onBack = { Shell.step = Step.MIC }, onDone = { Shell.step = Step.SETUP })
                 Step.SETUP -> SetupStep(onBack = { Shell.step = Step.PIN }, onDone = { Shell.applySetup(d.s); Shell.step = Step.FEATURES })
                 // 10-05 — 보호자가 기능을 먼저 다 보고(⑥), 아이에게 건넨 뒤(⑦) 아이가 방을 둘러보고(⑧) 말해 본다(⑨)

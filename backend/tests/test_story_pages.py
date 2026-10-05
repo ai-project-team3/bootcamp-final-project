@@ -167,3 +167,48 @@ def test_the_mission_prop_reaches_the_plan():
     assert "「맛있는 간식」" in story_route.plan(req)
     assert "「" not in story_route.plan(StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1")]))
 
+
+
+# 10-05 device round: a co-op book read its pages with the story meanings — FAIL (the feeling page) as
+# 「해 봤지만 잘 안 된다」 and TALK (the why page) as 「누가 말한다」 — and wrote three empty pages in eight
+def test_a_day_book_reads_its_pages_by_the_slots_they_are_made_of():
+    pages = [Page(kind="FAIL"), Page(kind="TALK"), Page(kind="RUB", mission="A6"), Page(kind="TOGETHER")]
+    coop = story_route.plan(StoryRequest(mode="coop", slots={}, reason="done", pages=pages))
+    assert "reaction" in coop and "cause" in coop and "keep" in coop
+    assert "해 봤지만 잘 안 된다" not in coop
+    story = story_route.plan(StoryRequest(slots={}, pages=pages))
+    assert "해 봤지만 잘 안 된다" in story and "reaction" not in story
+
+
+def test_a_day_book_keeps_the_empty_place_line_to_the_last_page():
+    req = StoryRequest(mode="coop", slots={}, reason="done", pages=[Page(kind="DEPART"), Page(kind="TOGETHER")])
+    assert "마지막 쪽에 한 번만" in story_route.plan(req)
+    assert "마지막 쪽에 한 번만" not in story_route.plan(StoryRequest(slots={}, pages=[Page(kind="DEPART")]))
+
+
+def test_every_day_meaning_is_a_kind_the_app_knows():
+    assert set(story_route.DAY_KIND_MEANING) <= set(story_route.KIND_MEANING)
+
+
+# 10-05 device round: a real-day co-op book got a mission situation the child never told —
+# 「무언가 묻거나 가려진 일은 아직 듣지 못했어요」 — the app now sends a prop only from the child's words
+def test_a_real_day_mission_page_without_a_prop_sets_up_nothing():
+    pages = [Page(kind="RUB", mission="A6"), Page(kind="DRAG", mission="E1", prop="블록")]
+    done = story_route.plan(StoryRequest(mode="coop", slots={}, reason="done", pages=pages))
+    rub, drag = done.splitlines()[1:3]
+    assert "만들지 않고" in rub and "묻거나 덮여" not in rub
+    assert "「블록」" in drag and "건네주기" in drag
+    assert "만들지 않고" in story_route.plan(StoryRequest(mode="coop", slots={}, reason="soon", pages=pages)).splitlines()[1]
+
+
+def test_an_imagined_or_story_book_still_sets_the_mission_up():
+    pages = [Page(kind="RUB", mission="A6")]
+    for req in (StoryRequest(mode="coop", slots={}, reason="dream", pages=pages), StoryRequest(slots={}, pages=pages)):
+        line = story_route.plan(req).splitlines()[1]
+        assert "묻거나 덮여" in line and "만들지 않고" not in line
+
+
+# 10-05 device recheck: the ending slot fed two pages — 「기린이 고맙다고 고개를 끄덕였어요.」 on 7 and 8
+def test_a_day_book_asks_for_no_sentence_twice():
+    req = StoryRequest(mode="coop", slots={}, reason="done", pages=[Page(kind="DRAG", mission="E1"), Page(kind="TOGETHER")])
+    assert "같은 문장을 두 쪽에 쓰지 않는다" in story_route.plan(req)

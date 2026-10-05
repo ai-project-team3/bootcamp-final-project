@@ -127,6 +127,7 @@ class MissionPickerTest {
             mode = StoryMode.COOP
             problem = "생일 촛불이 너무 많았어"
             placeLabel = "우리집"
+            slotBy["problem"] = "child"                                    // 아이가 한 말 — 실제 하루 책은 아이가 이름을 말한 물건만(#134)
         }
         assertEquals("C1", s.coopPageMission(PageKind.RUB))
         assertEquals(BlowProp.CANDLE, s.blowProp())
@@ -195,6 +196,7 @@ class MissionPickerTest {
             mode = StoryMode.COOP
             problem = "수도꼭지에서 물이 샜어"
             solution = "꽉 잠갔어"
+            slotBy["problem"] = "child"; slotBy["solution"] = "child"     // 아이가 한 말 — 실제 하루 책은 아이가 이름을 말한 물건만(#134)
         }
         assertEquals("A4", s.coopPageMission(PageKind.DRAG))
         assertEquals(FixProp.FAUCET, s.slot2Prop())

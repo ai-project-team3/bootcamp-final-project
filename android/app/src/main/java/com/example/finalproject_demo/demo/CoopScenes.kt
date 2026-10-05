@@ -2,6 +2,9 @@ package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
+import com.example.finalproject_demo.demo.missions.BlowProp
+import com.example.finalproject_demo.demo.missions.FixProp
+import com.example.finalproject_demo.demo.missions.SoundProp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -718,7 +721,8 @@ suspend fun Director.coopWriteBook() {
         keep = s.slots["keep"]?.takeIf(String::isNotBlank)?.let(mask::mask),
         level = s.level.name.lowercase(),
         // 미션 쪽에 미션 ID 를 단다 — 서버가 그 쪽을 미션 직전 상황으로 끝맺는다 (#52 3번 · 동화 `storyPagePlan` 과 같은 표)
-        pages = pages.map { Server.Page(it.kind.name, s.coopPageMission(it.kind)) },
+        // 물건은 아이 말에서 나온 것만 — 없으면 서버가 미션 상황 없이 쓴다(실제 하루에 없던 먼지 · 별 · 10-05)
+        pages = pages.map { Server.Page(it.kind.name, s.coopPageMission(it.kind), s.coopMissionProp(it.kind)) },
         // 고른 이야기와 이유 — 이유에 따라 책 시제가 갈린다(곧 해요 = 앞으로 할 일 · 좋아해요 = 상상) (#52 1번 · 서버 `77a9d5c`)
         template = s.coopTurnContext()?.let(mask::mask),
         reason = s.coopStoryReason(),
@@ -734,7 +738,7 @@ suspend fun Director.coopWriteBook() {
  * 틀 문장 책에는 이 결과가 원래 들어 있었다(「먼지를 탈탈 털어 냈어」) — 서버 문장 책에서만 빠졌던 것을 채운다.
  * 아직 안 끝냈거나 미션 쪽이 아니면 null
  */
-internal fun DemoState.coopMissionResult(kind: PageKind): String? = when (kind) {
+internal fun DemoState.coopMissionResult(kind: PageKind): String? = if (!coopMissionInBook(kind)) null else when (kind) {
     PageKind.RUB -> if (m1Result != null) slot1Prop()?.result ?: mission1().blobName.let { "${it}${ga(it)} 사라졌어요." } else null
     PageKind.DRAG -> if (m2Result != null) {
         slot2Prop()?.result ?: if (missions().slot2 == MissionId.A3) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
@@ -748,6 +752,46 @@ internal fun DemoState.coopMissionResult(kind: PageKind): String? = when (kind) 
  * 틀 A · G 면 그림 퍼즐(A3) — 책 화면(`Book.kt`)이 그리는 미션과 같아야 한다. 미션 쪽이 아니면 null
  */
 internal fun DemoState.coopPageMission(kind: PageKind): String? = missionFor(kind)?.name
+
+/**
+ * 미션 쪽의 물건 — 서버가 그 쪽을 이 물건으로 세운다(`/story` `pages[].prop`). **아이가 한 말에서 나온 것만** 보낸다.
+ *
+ * 10-05 실기기: 협업 「동물원 다녀왔어요」 책에 아이가 말한 적 없는 먼지(미션 1)와 별(미션 2)이 들어갔다 —
+ * 「무언가 묻거나 가려진 일은 아직 듣지 못했어요. 먼지가 사라졌어요.」 · 「…아빠와 동생에게 반짝이는 별을 건네주었어요.」
+ * 아이 말에서 못 찾은 물건이면 null — 서버는 그 쪽을 미션 상황 없이 쓰고, 앱은 결과 문장을 붙이지 않는다([coopMissionInBook]).
+ * 미션은 화면 위 놀이로 그대로 한다
+ */
+internal fun DemoState.coopMissionProp(kind: PageKind): String? = when (kind) {
+    PageKind.RUB -> when (val p = slot1Prop()) {
+        is BlowProp -> p.word
+        is SoundProp -> SOUND_THING[p]
+        else -> if (missionFor(kind) == MissionId.A6 && mission1FromChildWords()) mission1().blobName else null
+    }
+    PageKind.DRAG -> slot2Prop()?.let { FIX_THING[it] }
+        ?: if (missionFor(kind) == MissionId.E1 && solutionItem != "star") mission2().itemName else null
+    else -> null
+}?.takeIf { coopServerTense() == CoopReason.DREAM || it.substringAfterLast(' ') in coopChildSaid() }
+// 실제 하루는 그 물건 **이름**을 아이가 말했을 때만 — 말에서 짐작한 물건(「먹었어」 → 딸기 · 「미끄럼틀」 → 모래)은
+// 아이가 말하지 않은 물건이라 책에 세우지 않는다(10-05 조장 리뷰 #134). 상상 이야기는 빌려 와도 된다
+
+/** 아이(또는 아이가 고른 카드)가 채운 칸의 말을 한데 — 마스코트가 채운 칸은 빼고 */
+private fun DemoState.coopChildSaid(): String {
+    val mine = setOf("child", "card")
+    val fields = mapOf("place" to place, "problem" to problem, "cause" to cause, "solution" to solution, "reaction" to reaction, "companion" to friend)
+    return (slots.filterKeys { slotBy[it] in mine }.values + fields.filterKeys { slotBy[it] in mine }.values.filterNotNull()).joinToString(" ")
+}
+
+private val SOUND_THING = mapOf(SoundProp.SIREN to "소방차", SoundProp.CAR to "자동차", SoundProp.TRAIN to "기차",
+    SoundProp.LION to "사자", SoundProp.DOG to "강아지", SoundProp.CHEER to "공")
+private val FIX_THING = mapOf(FixProp.FIRE to "불", FixProp.FAUCET to "수도꼭지", FixProp.BALL to "공",
+    FixProp.PIECES to "떨어진 조각", FixProp.BLOCKS to "블록")
+
+/**
+ * 이 미션 쪽이 **책 문장에** 들어가나. 상상 이야기(좋아해요)는 늘 들어간다 — 동화처럼 꾸며 써도 된다.
+ * 실제 하루(다녀왔어요 · 곧 해요)는 아이 말에서 나온 물건이 있을 때만([coopMissionProp]). 퍼즐(A3)은 장면 그 자체라 늘 들어간다
+ */
+internal fun DemoState.coopMissionInBook(kind: PageKind): Boolean =
+    coopServerTense() == CoopReason.DREAM || missionFor(kind) == MissionId.A3 || coopMissionProp(kind) != null
 
 /**
  * `/story` 의 `reason` — 고른 이야기가 있으면 그 이유. **이유를 안 골랐으면 `dream`** — 앱이 질문을 상상 이야기로 했으니

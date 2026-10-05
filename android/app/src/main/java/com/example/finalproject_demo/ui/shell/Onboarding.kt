@@ -549,15 +549,16 @@ fun MicStep(onBack: () -> Unit, onDone: () -> Unit) {
     }
     ObFrame(
         step = 2,
-        title = when (state) { "on" -> "마이크가 켜져 있어요"; "denied" -> "마이크가 꺼져 있어요"; else -> "마이크를 켜 주세요" },
+        // 휴대폰 권한이 이미 켜져 있어도(같은 폰의 다른 계정 · 다시 가입) 이 보호자에게 **직접 동의를 받는다** — 「다음」으로 흘려보내지 않는다 (10-05)
+        title = when (state) { "on" -> "마이크 사용에 동의해 주세요"; "denied" -> "마이크가 꺼져 있어요"; else -> "마이크를 켜 주세요" },
         sub = when (state) {
-            "on" -> "이미 허용되어 있어요. 오또가 말할 차례에만 들어요."
+            "on" -> "휴대폰 권한은 이미 켜져 있어요. 이 보호자 계정으로 오또가 아이 목소리를 듣는 데 동의해 주세요."
             "denied" -> "설정에서 언제든 켤 수 있어요. 켜지 않아도 그림을 골라서 만들 수 있어요."
             else -> "다음에 뜨는 휴대폰 창에서 '허용'을 눌러 주세요."
         },
         onBack = onBack,
         art = { Otto(Pose.LISTEN, Modifier.size(190.dp)) },
-        cta = when (state) { "on" -> "다음"; "denied" -> "설정에서 켜기"; else -> "마이크 켜기" },
+        cta = when (state) { "on" -> "동의하고 계속"; "denied" -> "설정에서 켜기"; else -> "마이크 켜기" },
         onCta = {
             when (state) {
                 "on" -> { ConsentStore.markMicNoticeShown(); onDone() }
@@ -588,7 +589,7 @@ fun MicStep(onBack: () -> Unit, onDone: () -> Unit) {
 }
 
 /** 이 앱의 설정 화면(권한 켜기) */
-private fun openAppSettings(ctx: android.content.Context) = runCatching {
+internal fun openAppSettings(ctx: android.content.Context) = runCatching {
     ctx.startActivity(
         Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", ctx.packageName, null))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),

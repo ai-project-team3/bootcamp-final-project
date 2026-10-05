@@ -18,6 +18,8 @@ import com.example.finalproject_demo.demo.isSequential
 import com.example.finalproject_demo.demo.mission1
 import com.example.finalproject_demo.demo.mission2
 import com.example.finalproject_demo.demo.pageCount
+import com.example.finalproject_demo.demo.PageKind
+import com.example.finalproject_demo.demo.pageKind
 import com.example.finalproject_demo.demo.pick
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -266,10 +268,12 @@ class DiaryTest {
             slotBy["solution"] = "child"
         }
 
-        assertTrue("즐거웠던 날에 결말을 극적으로 쓴다: ${ordinary.bookCaption(5)}",
-            ordinary.bookCaption(5).startsWith("그러고 나서 집에 돌아왔어요."))
-        assertTrue("문제를 해결한 결말의 흐름이 바뀌었다: ${trouble.bookCaption(5)}",
-            trouble.bookCaption(5).startsWith("마침내 다시 쌓은 블록은 무너지지 않았어요."))
+        // 결말 쪽은 쪽 번호가 아니라 종류로 찾는다 — 협업 책은 까닭이 없으면 까닭 쪽을 빼서 한 쪽 당겨진다 (10-05)
+        fun DemoState.endingPage() = (1..pageCount).first { pageKind(it) == PageKind.DRAG }
+        val ordinaryEnd = ordinary.bookCaption(ordinary.endingPage())
+        val troubleEnd = trouble.bookCaption(trouble.endingPage())
+        assertTrue("즐거웠던 날에 결말을 극적으로 쓴다: $ordinaryEnd", ordinaryEnd.startsWith("그러고 나서 집에 돌아왔어요."))
+        assertTrue("문제를 해결한 결말의 흐름이 바뀌었다: $troubleEnd", troubleEnd.startsWith("마침내 다시 쌓은 블록은 무너지지 않았어요."))
     }
 
     @Test

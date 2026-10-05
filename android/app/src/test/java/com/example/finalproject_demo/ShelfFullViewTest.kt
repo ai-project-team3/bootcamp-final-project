@@ -67,10 +67,19 @@ class ShelfFullViewTest {
         compose.setContent { OttoRoom(d) }
         d.go(Scene.ADULT)
         compose.waitUntil(5_000) { d.s.stage == Stage.Adult }
-        d.send(Reply.Tapped("start", "동화 만들기"))
+        // 흐름이 기다리기 전에 지난 입력을 비우므로(`Director.drain`) 알림이 뜰 때까지 다시 보낸다 — 느린 CI 에서 첫 탭이 버려졌다
+        compose.waitUntil(8_000) {
+            if (d.s.shelfFull == null) d.send(Reply.Tapped("start", "동화 만들기"))
+            d.s.shelfFull != null
+        }
         waitText("책장이 꽉 찼어!")
         shot("shelf_full_room")
-        tap("닫기")
+        // [닫기]도 같은 이유로 — 알림이 뜬 직후 흐름이 입력을 비우기 전에 누르면 버려진다
+        repeat(20) {
+            if (d.s.shelfFull == null) return@repeat
+            tap("닫기")
+            runCatching { compose.waitUntil(400) { d.s.shelfFull == null } }
+        }
         compose.waitUntil(5_000) { d.s.shelfFull == null }
         assertEquals(Scene.ADULT, d.s.scene)
     }

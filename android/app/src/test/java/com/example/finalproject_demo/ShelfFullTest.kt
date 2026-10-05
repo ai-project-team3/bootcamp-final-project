@@ -74,7 +74,17 @@ class ShelfFullTest {
         try { block(d, store) } finally { sup.cancel() }
     }
 
-    private fun Director.tap(value: String) = send(Reply.Tapped(value, value))
+    /**
+     * 누르고 [cond] 가 될 때까지 다시 누른다. 흐름은 화면을 바꾼 **뒤에** 지난 입력을 비우고 기다려서(`Director.drain`),
+     * 화면이 바뀌자마자 보낸 탭은 느린 기계(CI)에서 버려진다 — 10-05 main CI 에서 이 검사가 그렇게 실패했다
+     */
+    private suspend fun Director.tapUntil(value: String, cond: () -> Boolean): Boolean {
+        repeat(20) {
+            send(Reply.Tapped(value, value))
+            if (await(400, cond) != null) return true
+        }
+        return false
+    }
 
     @Test
     fun aFullStoryShelfWarnsInsteadOfStartingAndCloseGoesBackToTheRoom() = run(stories = 12) { d, _ ->
@@ -82,11 +92,9 @@ class ShelfFullTest {
         d.go(Scene.ADULT)
         assertTrue(await { s.stage == Stage.Adult } != null)
         val used = s.usedToday
-        d.tap("start")
-        assertTrue("12권인데 알림이 안 떴다", await { s.shelfFull == StoryMode.STORY } != null)
+        assertTrue("12권인데 알림이 안 떴다", d.tapUntil("start") { s.shelfFull == StoryMode.STORY })
         assertEquals(Scene.ADULT, s.scene)
-        d.tap("shelf:close")
-        assertTrue("[닫기] 뒤에 알림이 남았다", await { s.shelfFull == null && s.stage == Stage.Adult } != null)
+        assertTrue("[닫기] 뒤에 알림이 남았다", d.tapUntil("shelf:close") { s.shelfFull == null && s.stage == Stage.Adult })
         assertEquals("시작하지 않았는데 하루 별을 썼다", used, s.usedToday)
         assertEquals(12, d.storyBookCount())
     }
@@ -96,25 +104,19 @@ class ShelfFullTest {
         val s = d.s
         d.go(Scene.ADULT)
         assertTrue(await { s.stage == Stage.Adult } != null)
-        d.tap("start")
-        assertTrue(await { s.shelfFull == StoryMode.STORY } != null)
-        d.tap("shelf:tidy")
-        assertTrue("PIN 이 안 떴다", await { s.stage is Stage.Pin } != null)
-        d.tap("pin:ok")
-        assertTrue("책장 정리로 안 갔다 — ${s.stage}", await { s.stage == Stage.Parent("shelf") } != null)
+        assertTrue(d.tapUntil("start") { s.shelfFull == StoryMode.STORY })
+        assertTrue("PIN 이 안 떴다", d.tapUntil("shelf:tidy") { s.stage is Stage.Pin })
+        assertTrue("책장 정리로 안 갔다 — ${s.stage}", d.tapUntil("pin:ok") { s.stage == Stage.Parent("shelf") })
         assertEquals(StoryMode.STORY, s.shelfTidyMode)
         assertEquals(12, d.shelfEntries(StoryMode.STORY).size)
 
-        d.tap(shelfDeleteSignal(StoryMode.STORY, "s3"))
-        assertTrue("빼지 못했다", await { d.storyBookCount() == 11 } != null)
+        assertTrue("빼지 못했다", d.tapUntil(shelfDeleteSignal(StoryMode.STORY, "s3")) { d.storyBookCount() == 11 })
         assertTrue("저장소에서 먼저 지우지 않았다", store.books.none { it.id == "s3" })
         assertTrue("책장 그림에 남았다", s.shelf.none { it.savedStoryId == "s3" })
 
-        d.tap("home")
-        assertTrue(await { s.stage == Stage.Adult } != null)
+        assertTrue(d.tapUntil("home") { s.stage == Stage.Adult })
         assertNull("부모 모드를 나왔는데 정리 모드가 남았다", s.shelfTidyMode)
-        d.tap("start")
-        assertTrue("한 권 뺐는데도 시작하지 못했다 — ${s.scene}", await { s.scene != Scene.ADULT } != null)
+        assertTrue("한 권 뺐는데도 시작하지 못했다 — ${s.scene}", d.tapUntil("start") { s.scene != Scene.ADULT })
         assertNull(s.shelfFull)
     }
 
@@ -123,12 +125,9 @@ class ShelfFullTest {
         val s = d.s
         d.go(Scene.ADULT)
         assertTrue(await { s.stage == Stage.Adult } != null)
-        d.tap("diary")
-        assertTrue(await { s.shelfFull == StoryMode.DIARY } != null)
-        d.tap("shelf:close")
-        assertTrue(await { s.shelfFull == null && s.stage == Stage.Adult } != null)
-        d.tap("start")
-        assertTrue("일기 책장이 찼다고 동화까지 막았다", await { s.scene != Scene.ADULT } != null)
+        assertTrue(d.tapUntil("diary") { s.shelfFull == StoryMode.DIARY })
+        assertTrue(d.tapUntil("shelf:close") { s.shelfFull == null && s.stage == Stage.Adult })
+        assertTrue("일기 책장이 찼다고 동화까지 막았다", d.tapUntil("start") { s.scene != Scene.ADULT })
     }
 
     @Test
@@ -144,12 +143,9 @@ class ShelfFullTest {
         val s = d.s
         d.go(Scene.ADULT)
         assertTrue(await { s.stage == Stage.Adult } != null)
-        d.tap("shelf:tidy")
-        assertTrue(await { s.stage is Stage.Pin } != null)
-        d.tap("pin:ok")
-        assertTrue(await { s.scene == Scene.PARENT } != null)
-        d.tap(shelfDeleteSignal(StoryMode.DIARY, "d2"))
-        assertTrue(await { d.shelfCount(StoryMode.DIARY) == 2 } != null)
+        assertTrue(d.tapUntil("shelf:tidy") { s.stage is Stage.Pin })
+        assertTrue(d.tapUntil("pin:ok") { s.scene == Scene.PARENT })
+        assertTrue(d.tapUntil(shelfDeleteSignal(StoryMode.DIARY, "d2")) { d.shelfCount(StoryMode.DIARY) == 2 })
         assertTrue(s.shelf.none { it.savedStoryId == DIARY_SHELF_ID + "d2" })
         assertEquals(listOf("d1", "d3"), d.shelfEntries(StoryMode.DIARY).map { it.id }.sorted())
     }
