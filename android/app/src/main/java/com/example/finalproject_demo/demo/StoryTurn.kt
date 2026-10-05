@@ -2,6 +2,24 @@ package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
+import kotlinx.coroutines.*
+
+internal data class StoryOptions(val slot: String?, val question: String, val values: List<String>)
+
+private fun DemoState.optionsFor(slot: String?, question: String): List<String> =
+    storyAnswerOptions?.takeIf {
+        it.slot == slot && it.question == question && storyServerQuestion == question
+    }?.values.orEmpty()
+
+/** Keep candidates with their question, so a reset or a different slot cannot reuse them. */
+private fun DemoState.rememberStoryQuestion(response: Server.TurnResult) {
+    storyServerQuestion = response.line?.question
+    storyAnswerOptions = null
+    val line = response.line ?: return
+    val question = line.question?.takeIf(String::isNotBlank) ?: return
+    val options = line.options?.filter(String::isNotBlank)?.distinct()?.take(3).orEmpty()
+    if (options.isNotEmpty()) storyAnswerOptions = StoryOptions(storyNextSlot, question, options)
+}
 
 /** 서버 판정을 동화 모드의 자료와 다음 질문에 반영한다. 서버 호출과 이름 가리기는 공통 경로가 담당한다. */
 fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
@@ -30,13 +48,15 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
 
 suspend fun Director.askStory(
     question: Question, askedSlot: String?,
+    singleAttempt: Boolean = false,
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Reply {
     var currentQuestion = question
     val conversationStage = s.stage
     while (true) {
         s.stage = conversationStage
-        val reply = ask(currentQuestion)
+        val reply = if (Server.liveFor(s.mode)) askLiveStoryReply(currentQuestion, s.optionsFor(askedSlot, question.text), singleAttempt)
+            else ask(currentQuestion)
         if (!Server.liveFor(s.mode) || TurnHistory.isNav(reply)) return reply
         val utterance = when (reply) {
             is Reply.Spoke -> reply.text
@@ -72,6 +92,68 @@ suspend fun Director.askStory(
             emo = verdict.emotion.orEmpty(),
         ))
     }
+}
+
+/** The same question gets one easier attempt before its server candidates are revealed. */
+private suspend fun Director.askLiveStoryReply(question: Question, options: List<String>, singleAttempt: Boolean): Reply {
+    val open = question.copy(
+        kind = if (question.kind == Kind.CHOICE) Kind.EASY else question.kind,
+        choices = emptyList(), noCards = true, fallback = null, hint = null,
+        easierText = if (singleAttempt) null else question.easierText,
+        ladder = if (singleAttempt) emptyList() else listOf(question.easierText ?: "천천히 생각해 봐. ${question.text}"),
+    )
+    val reply = ask(open, silentFollowUp = options.isNotEmpty() && !singleAttempt)
+    if (reply != Reply.Silent || options.isEmpty() || singleAttempt) return reply
+    val cards = options.map { Card(it, Art.Mascot, it) }
+    try {
+        setListening(question.copy(choices = cards))
+        // Reorder the same safe choices at most three times; never invent new candidates.
+        repeat(4) { round ->
+            s.stage = Stage.CardsRow(if (round == 0) cards else cards.shuffled(), drawerHint = false)
+            inputs(mic = true, next = true)
+            say(if (round == 0) "이 중에서 골라 볼까? ${options.joinToString(", ")}." else "다시 보고 골라도 돼.")
+            log("서버 답 후보 카드 · 교체 ${round}회")
+            buttons(DemoBtn("안 고름") { send(Reply.Silent) })
+            awaitVoice()
+            val chosen = awaitStoryCardReply()
+            if (chosen != null && TurnHistory.isNav(chosen)) return chosen
+            when (chosen) {
+                is Reply.Spoke -> { acceptSpoken(chosen.text); return chosen }
+                is Reply.Tapped -> if (chosen.value in options && !chosen.byMascot) {
+                    val card = Reply.Tapped(chosen.value, chosen.value)
+                    acceptTap(card)
+                    return card
+                }
+                else -> Unit
+            }
+        }
+        val first = options.first()
+        say("그럼 오또가 고를게! $first!")
+        log("마스코트가 첫 서버 후보를 골라줌: $first · source=mascot")
+        s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = first) ?: s.stage
+        pause(1300)
+        return Reply.Tapped(first, first, byMascot = true)
+    } finally {
+        setListening(null)
+        inputs(mic = false, next = false)
+        buttons()
+    }
+}
+
+/** Once recording starts, wait through STT and unheard retries; one receiver owns the input. */
+private suspend fun Director.awaitStoryCardReply(): Reply? = coroutineScope {
+    val receiver = async { awaitReply() }
+    try {
+        if (!s.timerOn) return@coroutineScope receiver.await()
+        var remaining = 7.0
+        while (remaining > 0) {
+            val received = withTimeoutOrNull((100 * s.speed).toLong().coerceAtLeast(1)) { receiver.await() }
+            if (received != null) return@coroutineScope received
+            if (s.micOn) return@coroutineScope receiver.await()
+            remaining -= 0.1
+        }
+        null
+    } finally { receiver.cancel() }
 }
 
 private suspend fun Director.exchangeStoryTurnWithRetry(
@@ -133,7 +215,9 @@ suspend fun DemoState.exchangeTurn(
         fills = response.verdict.fills.map { (slot, value) -> slot to mask.unmask(value) },
     )
     val line = response.line?.let {
-        Server.Line(mask.unmask(it.ack), it.expand?.let(mask::unmask), it.question?.let(mask::unmask))
+        Server.Line(mask.unmask(it.ack), it.expand?.let(mask::unmask), it.question?.let(mask::unmask),
+            it.options?.map { option -> mask.unmask(option).trim() }?.filter(String::isNotBlank)?.take(3)
+                ?.takeIf(List<String>::isNotEmpty))
     }
     return Server.TurnResult(verdict, line)
 }
@@ -147,5 +231,6 @@ suspend fun DemoState.exchangeStoryTurn(
     if (mode != StoryMode.STORY) return null
     return exchangeTurn("story", askedSlot, question, utterance, request = request)?.also { response ->
         response.verdict?.let { applyStoryVerdict(it, by) }
+        rememberStoryQuestion(response)
     }
 }

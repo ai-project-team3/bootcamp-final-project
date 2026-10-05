@@ -111,7 +111,8 @@ class StoryTurnResultTest {
             sent = it
             Server.TurnResult(
                 verdict(fills = listOf("problem" to "{주인공}이 길을 잃었다"), next = "reaction"),
-                Server.Line("{주인공}이 길을 잃었구나", null, "그다음에는 어떻게 했어?"),
+                Server.Line("{주인공}이 길을 잃었구나", null, "그다음에는 어떻게 했어?",
+                    listOf("{주인공}는 친구를 불렀어", "길을 찾아봤어", " ")),
             )
         }
 
@@ -122,6 +123,7 @@ class StoryTurnResultTest {
         assertEquals("child", s.slotBy["problem"])
         assertEquals("reaction", s.storyNextSlot)
         assertEquals("친구가 길을 잃었구나", result?.line?.ack)
+        assertEquals(listOf("친구는 친구를 불렀어", "길을 찾아봤어"), result?.line?.options)
     }
 
     @Test

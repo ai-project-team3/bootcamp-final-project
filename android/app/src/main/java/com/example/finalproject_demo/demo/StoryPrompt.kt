@@ -14,12 +14,11 @@ private val CORE_QUESTIONS = mapOf(
     "sound" to "그 친구는 어떤 소리를 낼까?",
     "adult" to "함께 있는 사람은 뭐라고 했어?",
     "solution" to "이야기는 어떻게 끝났어?",
-    "title" to "이 이야기에 어떤 이름을 붙일까?",
 )
 
-fun DemoState.nextStoryPrompt(serverQuestion: String? = null): StoryPrompt? {
+fun DemoState.nextStoryPrompt(serverQuestion: String? = null, deferredSlot: String? = null): StoryPrompt? {
     if (mode != StoryMode.STORY || storyReady) return null
-    fun open(slot: String) = slot !in storyUnneededSlots && slots[slot].isNullOrBlank()
+    fun open(slot: String) = slot != deferredSlot && slot !in storyUnneededSlots && slots[slot].isNullOrBlank()
 
     // 첫 두 턴은 장소와 사건을 확인한다. 한 답이 둘 다 채웠으면 같은 질문을 되묻지 않는다.
     val probe = when {
@@ -28,7 +27,7 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null): StoryPrompt? {
         else -> null
     }
     val server = storyNextSlot?.takeIf {
-        it in CORE_QUESTIONS && it !in storyUnneededSlots && (open(it) || it == storyClarificationSlot)
+        it != deferredSlot && it in CORE_QUESTIONS && it !in storyUnneededSlots && (open(it) || it == storyClarificationSlot)
     }
     val slot = probe ?: server
     if (slot != null) return StoryPrompt(slot, serverQuestion?.takeIf { slot == server && it.isNotBlank() } ?: CORE_QUESTIONS.getValue(slot))

@@ -16,7 +16,7 @@ import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.CoroutineScope
 import org.json.JSONObject
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -78,10 +78,10 @@ class DiaryLiveTurnTest {
         Server.base = http.base
         Server.liveModes = setOf(StoryMode.DIARY)
         try { block(d) } finally {
+            scope.coroutineContext[kotlinx.coroutines.Job]!!.cancelAndJoin()
             requestDiaryStory = realStory
             Server.liveModes = emptySet()
             Server.base = null
-            scope.cancel()
             http.close()
         }
     }
@@ -169,7 +169,11 @@ class DiaryLiveTurnTest {
             when (t.getString("asked_slot")) {
                 "place" -> turn(listOf("place" to "놀이터", "problem" to "그네 탔다"), "solution", "그네 탔구나!", "그래서 어떻게 됐어?")
                 "solution" -> turn(listOf("solution" to "집에 왔다"), null, "그랬구나!", null, ready = true)
-                else -> turn(listOf("extra" to "또 그네 타고 싶어"), null, "또 타고 싶구나!", null, ready = true)
+                else -> {
+                    // Keep receipt and response completion distinct, as they are on Linux CI.
+                    Thread.sleep(250)
+                    turn(listOf("extra" to "또 그네 타고 싶어"), null, "또 타고 싶구나!", null, ready = true)
+                }
             }
         }) { d ->
             val s = d.s
@@ -178,7 +182,7 @@ class DiaryLiveTurnTest {
             d.answer("놀이터 가서 그네 탔어") { s.line == "그래서 어떻게 됐어?" }
             d.answer("집에 왔어") { asked.size == 2 && s.line != "그래서 어떻게 됐어?" }
             assertTrue("판정이 ready 라고 「내일」을 건너뛰었다 — 말=${s.line}", await { s.line == "내일 또 하고 싶은 거 있어?" } != null)
-            d.answer("또 그네 타고 싶어") { asked.size == 3 }
+            d.answer("또 그네 타고 싶어") { s.stage is DiaryPaper }
             assertEquals("extra", asked[2].getString("asked_slot"))
             d.slotBecomes("keep", "또 그네 타고 싶어")
         }
@@ -209,7 +213,7 @@ class DiaryLiveTurnTest {
             assertTrue("못 채운 결말을 쉽게 바꿔 한 번 더 묻지 않았다 — 말=${s.line}", await { s.line == "그다음엔 뭐 했어?" } != null)
             d.answer("음") { asked.size == 4 }                                   // 두 번째도 못 채웠다 → 비워 둔다
             assertTrue("결말을 비워 두고 「내일」로 안 갔다 — 말=${s.line}", await { s.line == "내일 또 하고 싶은 거 있어?" } != null)
-            d.answer("또 가고 싶어") { asked.size == 5 }
+            d.answer("또 가고 싶어") { s.stage is DiaryPaper }
             assertEquals(listOf("place", "problem", "solution", "solution", "extra"), asked.map { it.getString("asked_slot") })
             d.slotBecomes("keep", "또 가고 싶어")
             assertTrue("결말을 지어 넣었다", s.slots["solution"].isNullOrBlank())
