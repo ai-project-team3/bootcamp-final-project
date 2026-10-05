@@ -46,11 +46,15 @@ class StoryLiveRubLayoutTest {
             compose.setContent { BookPageView(d, Stage.BookPage(page)) }
             val item = d.s.mission1().blobName
             val ground = compose.onNodeWithContentDescription("$item 지우는 자리").fetchSemanticsNode().boundsInRoot
+            val hero = compose.onNodeWithContentDescription("미션 주인공 인형").fetchSemanticsNode().boundsInRoot
+            val friend = compose.onNodeWithContentDescription("미션 친구 인형").fetchSemanticsNode().boundsInRoot
             repeat(3) { i ->
                 val stain = compose.onNodeWithContentDescription("$item 흔적 ${i + 1}").fetchSemanticsNode().boundsInRoot
                 assertTrue("stain=$stain outside visible ground=$ground", ground.contains(stain.center))
                 assertTrue("stain is clipped at the edge of the ground: $stain / $ground",
                     ground.contains(stain.topLeft) && ground.contains(stain.bottomRight))
+                assertTrue("stain overlaps a puppet: $stain / hero=$hero friend=$friend",
+                    !stain.overlaps(hero) && !stain.overlaps(friend))
                 assertTrue("stains still use the hidden ride's upper-page position", stain.center.y > ground.top)
             }
             val image = File("build/qa/story-rub-$label.png").apply { parentFile?.mkdirs() }

@@ -149,7 +149,7 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
         val liveStory = s.mode == StoryMode.STORY && !scripted
         // A live story has no scripted ride. Put its marks on a visible patch, not the hidden ride's roof.
         val blobs = when {
-            liveStory -> listOf(0.30f to 0.60f, 0.46f to 0.66f, 0.63f to 0.59f)
+            liveStory -> listOf(0.36f to 0.52f, 0.445f to 0.52f, 0.4025f to 0.70f)
                 .map { (bx, by) -> Offset(bx * wpx, by * hpx) }
             s.isDiary -> listOf(0.30f to 0.66f, 0.46f to 0.73f, 0.63f to 0.65f)
                 .map { (bx, by) -> Offset(bx * wpx, by * hpx) }
@@ -157,15 +157,19 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
                 .map { (bx, by) -> Offset(vx * wpx + bx * vwPx, vy * hpx + by * vhPx) }
         }
         if (liveStory) Box(
-            Modifier.offset { IntOffset((wpx * 0.25f).roundToInt(), (hpx * 0.49f).roundToInt()) }
-                .size((wpx * 0.46f / density).dp, (hpx * 0.28f / density).dp)
+            Modifier.offset { IntOffset((wpx * 0.30f).roundToInt(), (hpx * 0.42f).roundToInt()) }
+                .size((wpx * 0.21f / density).dp, (hpx * 0.38f / density).dp)
                 .felt(WoolCream.copy(alpha = 0.88f), RoundedCornerShape(18.dp), lift = 2.dp)
                 .semantics { contentDescription = "${m.blobName} 지우는 자리" },
         )
         if (!s.isDiary && scripted) Layer(vx, vy, vw, va, Modifier.offset { IntOffset(0, lift.roundToInt()) }) { ArtView(s.rideArt, Modifier.fillMaxSize()) }
-        Stand(0.14f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
+        Stand(0.14f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize().then(
+            if (liveStory) Modifier.semantics { contentDescription = "미션 주인공 인형" } else Modifier,
+        )) }
         val rubFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
-        if (rubFriend != null) Stand(0.66f, 0.11f, 0.85f) { ArtView(rubFriend, Modifier.fillMaxSize()) }
+        if (rubFriend != null) Stand(0.66f, 0.11f, 0.85f) { ArtView(rubFriend, Modifier.fillMaxSize().then(
+            if (liveStory) Modifier.semantics { contentDescription = "미션 친구 인형" } else Modifier,
+        )) }
         if (!s.isDiary && scripted) Stand(0.86f, 0.19f, 0.92f, endInset = 88.dp) {
             ArtView(dinoArt, Modifier.fillMaxSize().semantics { contentDescription = "동행 인형 ${s.dino.name}" })
         }
@@ -344,7 +348,7 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
         }
         if (allOut) {
             Box(Modifier.offset {
-                if (liveStory) IntOffset((wpx * 0.46f - 60.dp.toPx()).roundToInt(), (hpx * 0.65f).roundToInt())
+                if (liveStory) IntOffset((wpx * 0.4025f - 60.dp.toPx()).roundToInt(), (hpx * 0.61f).roundToInt())
                 else IntOffset((vx * wpx).roundToInt(), (vy * hpx - 20).roundToInt())
             }.size(120.dp, 54.dp)) { ArtView(Art.Img("prop_sparkle", Art.Emoji("✨")), Modifier.fillMaxSize()) }
         }
