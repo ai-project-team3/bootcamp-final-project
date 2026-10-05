@@ -19,7 +19,7 @@ enum class MissionId(
     A2(setOf(2), MissionInput.TOUCH, "shape matching"),
     A3(setOf(2), MissionInput.TOUCH, "spatial: put the picture back together", built = true),
     A4(setOf(1, 2), MissionInput.TOUCH, "fine motor: turn in a circle", built = true),
-    A5(setOf(2), MissionInput.TOUCH, "balance and patience: stack"),
+    A5(setOf(2), MissionInput.TOUCH, "balance and patience: stack", built = true),
     A6(setOf(1), MissionInput.TOUCH, "fine motor: rub", built = true),
     A7(setOf(1), MissionInput.TOUCH, "waiting: press and hold"),
     A8(setOf(2), MissionInput.TOUCH, "hand control: follow a line"),
@@ -36,7 +36,7 @@ enum class MissionId(
     D4(setOf(2), MissionInput.TILT, "gross motor: tilt to roll", built = true),
     D5(setOf(1), MissionInput.TILT, "gross motor: turn over"),
     E1(setOf(2), MissionInput.TOUCH, "relationship: hand it over", built = true),
-    E2(setOf(2), MissionInput.TOUCH, "spatial: fix the broken piece"),
+    E2(setOf(2), MissionInput.TOUCH, "spatial: fix the broken piece", built = true),
 }
 
 /** Sensor and mic missions always keep a tap path on the same screen (design §3-6) */

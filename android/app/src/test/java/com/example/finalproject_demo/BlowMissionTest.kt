@@ -166,7 +166,7 @@ class BlowMissionTest {
         snap("build/touch/turn_before.png")
         val got = awaitMission(d)
         compose.onRoot().performTouchInput {
-            val c = Offset(width * (0.58f - 0.17f * 0.26f), height * 0.44f - width * 0.17f * 0.62f)
+            val c = Offset(width * (0.58f - 0.17f * 0.26f), height * 0.60f - width * 0.17f * 0.62f)
             val r = width * 0.17f * 0.30f
             fun at(t: Double) = Offset(c.x + (r * kotlin.math.cos(t)).toFloat(), c.y + (r * kotlin.math.sin(t)).toFloat())
             down(at(0.0))
@@ -190,7 +190,7 @@ class BlowMissionTest {
         compose.mainClock.advanceTimeBy(600)
         val got = awaitMission(d)
         repeat(5) {
-            compose.onRoot().performTouchInput { click(Offset(width * (0.58f - 0.17f * 0.26f), height * 0.44f - width * 0.17f * 0.62f)) }
+            compose.onRoot().performTouchInput { click(Offset(width * (0.58f - 0.17f * 0.26f), height * 0.60f - width * 0.17f * 0.62f)) }
             compose.mainClock.advanceTimeBy(300)
         }
         compose.mainClock.advanceTimeBy(1000)
@@ -219,5 +219,68 @@ class BlowMissionTest {
         snap("build/touch/roll_after.png")
         val reply = runBlocking { withTimeoutOrNull(3_000) { got.await() } }
         assertTrue("공을 골대에 넣었는데 안 끝났다: $reply", reply is Reply.Tapped && reply.value == "mission")
+    }
+
+    private fun runMission(name: String, content: @androidx.compose.runtime.Composable (Director) -> Unit, act: androidx.compose.ui.test.TouchInjectionScope.() -> Unit): Reply? {
+        val d = coopBirthdayBook()
+        compose.mainClock.autoAdvance = false
+        compose.setContent { Box(Modifier.fillMaxSize().background(Bg)) { content(d) } }
+        compose.mainClock.advanceTimeBy(600)
+        snap("build/touch/${name}_before.png")
+        val got = awaitMission(d)
+        compose.onRoot().performTouchInput(act)
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        snap("build/touch/${name}_after.png")
+        return runBlocking { withTimeoutOrNull(3_000) { got.await() } }
+    }
+
+    private val hero = com.example.finalproject_demo.demo.Art.Emoji("🧒")
+
+    /** E2 — 떨어진 조각 둘을 끌어다 원판 가운데로 가져가면 붙어서 끝난다 */
+    @Test
+    fun draggingThePiecesBackFixesIt() {
+        val reply = runMission("fix", { com.example.finalproject_demo.ui.missions.FixMission(it, false, hero) }) {
+            val home = Offset(width * 0.62f, height * 0.52f)
+            listOf(Offset(width * 0.36f, height * 0.58f), Offset(width * 0.84f, height * 0.56f)).forEach { from ->
+                down(from)
+                for (k in 1..20) moveTo(from + (home - from) * (k / 20f), delayMillis = 16)
+                up()
+            }
+        }
+        assertTrue("조각을 다 맞췄는데 안 끝났다: $reply", reply is Reply.Tapped && reply.value == "mission")
+    }
+
+    /** E2 — 조각을 톡 누르면 제자리로 간다(3~4세) */
+    @Test
+    fun tappingThePiecesAlsoFixesIt() {
+        val reply = runMission("fix_tap", { com.example.finalproject_demo.ui.missions.FixMission(it, false, hero) }) {
+            click(Offset(width * 0.36f, height * 0.58f)); click(Offset(width * 0.84f, height * 0.56f))
+        }
+        assertTrue("조각을 눌렀는데 안 끝났다: $reply", reply is Reply.Tapped && reply.value == "mission")
+    }
+
+    /** A5 — 블록 셋을 탑 자리로 끌어 올리면 쌓여서 끝난다(아래부터 한 칸씩) */
+    @Test
+    fun draggingTheBlocksUpStacksThem() {
+        val reply = runMission("stack", { com.example.finalproject_demo.ui.missions.StackMission(it, false, hero) }) {
+            val b = width * 0.075f
+            listOf(Offset(width * 0.34f, height * 0.64f), Offset(width * 0.44f, height * 0.68f), Offset(width * 0.84f, height * 0.66f)).forEachIndexed { n, from ->
+                val top = Offset(width * 0.64f, height * 0.64f - n * b * 0.88f)
+                down(from)
+                for (k in 1..20) moveTo(from + (top - from) * (k / 20f), delayMillis = 16)
+                up()
+            }
+        }
+        assertTrue("블록을 다 쌓았는데 안 끝났다: $reply", reply is Reply.Tapped && reply.value == "mission")
+    }
+
+    /** A5 — 블록을 톡 누르면 탑 맨 위로 뛰어오른다(3~4세) */
+    @Test
+    fun tappingTheBlocksAlsoStacksThem() {
+        val reply = runMission("stack_tap", { com.example.finalproject_demo.ui.missions.StackMission(it, false, hero) }) {
+            listOf(0.34f to 0.64f, 0.44f to 0.68f, 0.84f to 0.66f).forEach { (x, y) -> click(Offset(width * x, height * y)) }
+        }
+        assertTrue("블록을 눌렀는데 안 끝났다: $reply", reply is Reply.Tapped && reply.value == "mission")
     }
 }
