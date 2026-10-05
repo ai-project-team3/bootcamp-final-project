@@ -40,9 +40,10 @@ def schema() -> dict:
     return load_schema("judge_schema.json")
 
 
-@lru_cache(maxsize=1)
-def system() -> str:
-    base = judge_system(EVAL / "judge_prompt.md")
+@lru_cache(maxsize=None)
+def system(mode: str | None = None) -> str:
+    """The judge's system prompt for [mode] — only that mode's piece (#121). No mode = every piece."""
+    base = judge_system(EVAL / "judge_prompt.md", mode)
     return f"{base}\n\n[공통 JSON 스키마]\n{json.dumps(schema(), ensure_ascii=False, separators=(',', ':'))}\n"
 
 

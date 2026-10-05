@@ -35,9 +35,9 @@ GOLD = EVAL / "labels_claude_모드_초안.jsonl"
 RAW = EVAL / "raw"
 
 
-def system(prompt: Path) -> str:
-    """backend/app/llm/judge_prompt.py `system()` with the file as a parameter."""
-    return f"{judge_system(prompt)}\n\n[공통 JSON 스키마]\n{json.dumps(schema(), ensure_ascii=False, separators=(',', ':'))}\n"
+def system(prompt: Path, mode: str | None = None) -> str:
+    """backend/app/llm/judge_prompt.py `system(mode)` with the file as a parameter — the case's own mode piece (#121)."""
+    return f"{judge_system(prompt, mode)}\n\n[공통 JSON 스키마]\n{json.dumps(schema(), ensure_ascii=False, separators=(',', ':'))}\n"
 
 
 def request(case: dict) -> JudgeRequest:
@@ -109,7 +109,7 @@ async def main() -> None:
     with out.open("w", encoding="utf-8") as f:
         for run in range(a.runs):
             for c in cases:
-                v, sec, err = await one(sys_prompt, c)
+                v, sec, err = await one(system(a.prompt, c["mode"]), c)
                 r = {"label": a.label, "model": settings.llm_model, "run": run, "id": c["id"], "sec": round(sec, 2),
                      "error": err, "verdict": v, "score": score(v, gold[c["id"]]) if v else None}
                 rows.append(r)

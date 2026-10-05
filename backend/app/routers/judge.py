@@ -66,7 +66,7 @@ async def run(req: JudgeRequest) -> JudgeResult:
             return enforce(JudgeResult.model_validate(raw), req)
         except jev.JevError as e:
             log.warning("judge jev failed, luna instead: %s", e)
-    raw = await complete(judge_prompt.system(), judge_prompt.user(req), judge_prompt.schema(),
+    raw = await complete(judge_prompt.system(req.mode), judge_prompt.user(req), judge_prompt.schema(),
                          effort=settings.llm_effort_judge, timeout_s=settings.judge_deadline_s)
     return enforce(JudgeResult.model_validate(raw), req)
 
