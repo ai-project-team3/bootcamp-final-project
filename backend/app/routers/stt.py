@@ -24,7 +24,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile
 
 from ..config import settings
-from ..filters.hallucination import check_transcript
+from ..filters.hallucination import check_transcript, strip_tail
 
 router = APIRouter()
 log = logging.getLogger("uvicorn.error")      # shows up in the server console next to the access log
@@ -143,7 +143,11 @@ async def transcribe(file: UploadFile) -> dict:
     except Exception as e:      # decoder or CUDA failure: the phone falls back, it does not stop
         log.warning("stt failed: %s: %s", type(e).__name__, e)
         raise HTTPException(502, f"stt failed: {type(e).__name__}") from e
+    whole = text
+    text = strip_tail(text)
     kept = check_transcript(text).keep
+    if kept and text != whole:
+        log.info("stt dropped a hallucinated tail · %d of %d chars kept", len(text), len(whole))
     # length and timing only — the words are a child's
     log.info("stt %.2fs · %d KB · %d chars · %s · %s", time.monotonic() - t0, len(audio) // 1024,
              len(text), "kept" if kept else "dropped as hallucination", audio_stats(audio))

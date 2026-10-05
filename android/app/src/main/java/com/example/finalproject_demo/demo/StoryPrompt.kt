@@ -19,6 +19,12 @@ private val CORE_QUESTIONS = mapOf(
 fun DemoState.nextStoryPrompt(serverQuestion: String? = null, deferredSlot: String? = null): StoryPrompt? {
     if (mode != StoryMode.STORY || storyReady) return null
     fun open(slot: String) = slot != deferredSlot && slot !in storyUnneededSlots && slots[slot].isNullOrBlank()
+    // Never asked by the app in a live story (10-05 device round):
+    //  - sound once the child has recorded it — the judge read 「친구의 소리를 직접 만들었어요」 as unclear and
+    //    asked 「사육사 아저씨는 어떤 소리를 낼까?」 four turns in a row
+    //  - companion — the session already asked who is here (할아버지); 「또치와 누가 함께할까?」 came out of nowhere.
+    //    It still fills when the child brings someone in on their own
+    fun skipped(slot: String) = (slot == "sound" && storySoundAttempted) || slot == "companion"
 
     // 첫 두 턴은 장소와 사건을 확인한다. 한 답이 둘 다 채웠으면 같은 질문을 되묻지 않는다.
     val probe = when {
@@ -27,7 +33,7 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null, deferredSlot: Stri
         else -> null
     }
     val server = storyNextSlot?.takeIf {
-        it != deferredSlot && it in CORE_QUESTIONS && it !in storyUnneededSlots && (open(it) || it == storyClarificationSlot)
+        it != deferredSlot && it in CORE_QUESTIONS && it !in storyUnneededSlots && !skipped(it) && (open(it) || it == storyClarificationSlot)
     }
     val slot = probe ?: server
     if (slot != null) return StoryPrompt(slot, serverQuestion?.takeIf { slot == server && it.isNotBlank() } ?: CORE_QUESTIONS.getValue(slot))

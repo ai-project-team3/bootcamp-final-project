@@ -46,6 +46,13 @@ android {
     }
 
     buildTypes {
+        // Dev builds sit beside the Play tester app instead of replacing it (10-05): the tester app is
+        // signed by Play and must stay installed for closed testing, so a debug build with the same id
+        // could not be installed without wiping it. Own id, own data, named 「오또 개발」.
+        debug {
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+        }
         release {
             if (keystoreProps.containsKey("storeFile")) signingConfig = signingConfigs.getByName("upload")
             // 난독화·축소를 켠다 (9/23). 크기가 줄고, 안 쓰는 코드가 떨어져 나간다.
@@ -72,6 +79,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true      // net/Trace: the conversation trace is on in debug builds only
     }
 
     // 화면을 **에뮬레이터 없이** PNG로 그려 검사한다 (9/21).
