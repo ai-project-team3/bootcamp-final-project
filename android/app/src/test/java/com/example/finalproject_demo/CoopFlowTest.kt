@@ -20,6 +20,7 @@ import com.example.finalproject_demo.demo.SavedStoryPage
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.coopAsked
+import com.example.finalproject_demo.demo.coopParentAnswers
 import com.example.finalproject_demo.demo.heardPlace
 import com.example.finalproject_demo.demo.here
 import com.example.finalproject_demo.demo.stopCoopByParent
@@ -33,6 +34,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -93,6 +96,19 @@ class CoopFlowTest {
         s.coopPick = pick
         assertTrue(tap("카드를 탭"))
         assertTrue(await { s.scene == Scene.DIARY } != null)
+    }
+
+    /**
+     * 🎲(시연 답)로 걸음을 넘기며 오또가 [text] 를 물을 때까지 — 부모 질문은 자유 꼬리 자리
+     * (하던 일 · 한 말 · 해 본 것 · 집에 와서)에 들어가서 몇 번째 질문인지는 앞 답에 따라 다르다 (10-05)
+     */
+    private suspend fun Director.pushUntilAsked(text: String) {
+        var pushes = 0
+        while (asked() != text && pushes++ < 8) {
+            if (await(4_000) { s.buttons.any { "🎲" in it.label } } == null) break
+            assertTrue(push("🎲"))
+            await(3_000) { asked() == text }
+        }
     }
 
     /** 마스코트가 지금 묻고 있는 말 */
@@ -252,9 +268,9 @@ class CoopFlowTest {
         val s = d.s
         d.startCoopWith("제일 재밌었던 게 뭐였어?")
 
-        // 첫 걸음(어디)은 뼈대 자리라 앱 질문 — 부모 질문은 다음 꼬리질문 자리에 끼워진다
+        // 첫 걸음(어디)은 뼈대 자리라 앱 질문 — 부모 질문은 자유 꼬리 자리(하던 일 · 한 말 · 해 본 것 · 집에 와서)에 끼워진다 (10-05)
         assertTrue("첫 걸음이 앱 질문이 아니다: ${d.asked()}", await(8_000) { d.asked() == "오늘 어디 갔었어?" } != null)
-        assertTrue(d.push("🎲"))
+        d.pushUntilAsked("제일 재밌었던 게 뭐였어?")
         // 부모 질문이 **말풍선**에 뜬다. 띠에 소리 없이 뜨는 것이 아니다
         assertTrue("마스코트가 부모 질문을 안 읽었다: ${d.asked()}", await(8_000) { d.asked() == "제일 재밌었던 게 뭐였어?" } != null)
         assertTrue("부모 띠가 떴다 — 마스코트가 읽는 흐름에서는 띠가 없다", s.parentCard == null)
@@ -404,6 +420,24 @@ class CoopFlowTest {
         assertEquals(2, s.partnerTurns)
     }
 
+    /**
+     * 10-05 — 부모 질문의 답이 걸음 칸을 덮지 않는다. 전에는 첫 부모 질문이 「누구랑」 자리에 들어가
+     * 「좋아하는 색은?」 → 「빨강」이 같이 간 사람이 되고 책에 인물로 섰다. 이제 답은 제 칸(`parent1`)에 간다
+     */
+    @Test
+    fun aParentQuestionsAnswerGoesToItsOwnSlotNotTheCompanion() = run { d ->
+        val s = d.s
+        d.startCoopWith("좋아하는 색은?", pick = firefighter)
+        val askedTexts = d.walkToBook()
+        val at = askedTexts.indexOf("좋아하는 색은?")
+        assertTrue("부모 질문을 안 물었다: $askedTexts", at >= 0)
+        assertTrue("부모 질문이 「누구랑」보다 먼저 나왔다(같이 간 사람 자리): $askedTexts", askedTexts.take(at).any { "누구" in it })
+        val answer = s.slots["parent1"]
+        assertNotNull("부모 질문의 답이 제 칸에 없다", answer)
+        assertNotEquals("부모 질문의 답이 같이 간 사람이 됐다", answer, s.friend)
+        assertEquals(listOf("좋아하는 색은?" to answer), s.coopParentAnswers)
+    }
+
     /** 부모 화면이 받는 만큼(COOP_MAX)은 꼬리질문 자리가 모자라지 않아 다 묻는다 */
     @Test
     fun asManyQuestionsAsTheParentScreenTakesAreAllAsked() = run { d ->
@@ -439,7 +473,7 @@ class CoopFlowTest {
         assertTrue(d.tap("카드를 탭"))
         assertTrue(await { s.scene == Scene.DIARY } != null)
         assertTrue("시작하자마자 멎었다", await(8_000) { d.asked() == "오늘 어디 갔었어?" } != null)
-        assertTrue(d.push("🎲"))
+        d.pushUntilAsked("거기서 뭐가 제일 재밌었어?")
         assertTrue("넣어 둔 질문이 시작 때 사라졌다: ${d.asked()}", await(8_000) { d.asked() == "거기서 뭐가 제일 재밌었어?" } != null)
         assertEquals(2, s.parentQuestions.size)
     }
