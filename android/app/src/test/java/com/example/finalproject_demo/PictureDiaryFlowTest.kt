@@ -874,6 +874,51 @@ class PictureDiaryFlowTest {
         assertTrue(soundsLikeAName("우리 집이야!"))
         assertFalse(soundsLikeAName("나 오늘 너무 배고파"))
         assertFalse(soundsLikeAName("엄마가 그러는데 내일 비 온대"))
+        // 「조개 그렸어」 — 무엇을 그렸는지 말한 것도 이름이다 (10-05 실기기)
+        assertTrue(soundsLikeAName("조개 그렸어."))
+        assertTrue(soundsLikeAName("조개를 그렸어"))
+        assertFalse(soundsLikeAName("놀이터에서 그네 탔어"))
+        assertFalse(soundsLikeAName("새로 그렸어"))
+    }
+
+    /**
+     * 이름 붙은 조각에 이어 그리고 「조개 그렸어」 — 조각은 하나로 그대로 두고, 그린 것 목록에 조개를 더한다.
+     * 전에는 「그렇구나! 계속 그려 봐」로 넘겨 책 첫 쪽에서 조개가 빠졌다 (10-05 실기기 · 바다에 붙여 그린 조개)
+     */
+    @Test
+    fun sayingWhatWasDrawnOnANamedPieceAddsItToTheDrawing() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("바다")
+        assertTrue(await { s.line == "나도 바다를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        s.drawing += Stroke(Color.Red, listOf(Offset(0.12f, 0.3f), Offset(0.2f, 0.5f)))   // 바다에 다른 색으로 이어 그린다 — 같은 조각
+        d.tell("조개 그렸어") { "조개" in s.diaryDay.pieceNames }
+        assertTrue("받아 주기 — 말=${s.line}", await { s.line == "조개도 그렸구나!" } != null)
+        assertEquals(listOf("바다", "조개"), s.diaryDay.pieceNames)
+        assertEquals(1, s.diaryDay.pieces.size)
+    }
+
+    /** 이름 없는 새 조각을 그리며 「조개 그렸어」 — 그 조각의 이름이다(「조개야」 꼴만 받던 것을 넓혔다) */
+    @Test
+    fun sayingWhatWasDrawnNamesTheNewPiece() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("바다")
+        assertTrue(await { s.line == "나도 바다를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        s.drawing += stroke(0.12f)                                   // 같은 색으로 옆에 — 새 조각
+        d.tell("조개 그렸어") { "조개" in s.diaryDay.pieceNames }
+        assertEquals(2, s.diaryDay.pieces.size)
+        assertEquals("조개", s.diaryDay.pieces.last().name)
     }
 
     /**

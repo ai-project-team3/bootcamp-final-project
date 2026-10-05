@@ -317,6 +317,21 @@ private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke, as
     // 물었는데 이름을 못 받은 조각이면 다시 한 말은 이름을 고쳐 말하는 것이다 — 「○○야」 꼴이 아니어도 받는다
     val retry = piece != null && piece.id in asked
     if (piece != null && (retry || soundsLikeAName(r.text)) && nameThePiece(day, piece, r) != null) return Heard.NAMED
+    // 이름 붙은 조각에 이어 그리고 「조개 그렸어」 — 조각은 그대로, 그린 것 이름에 더한다(10-05 실기기 · 바다에 붙여 그린 조개)
+    if (piece == null && saysWhatWasDrawn(r.text)) {
+        val more = pieceNameFrom(r)?.takeIf { it !in day.pieceNames }
+        if (more != null) {
+            day.alsoDrawn += more
+            s.slots["whiteboard"] = day.pieceNames.joinToString(", ")
+            s.slotBy["whiteboard"] = "child"
+            event("slot_filled", "slot" to "extra", "of" to "whiteboard", "value" to more, "source" to "child")
+            quote(r.text)
+            say("${you(more)}도 그렸구나!")
+            log("「${r.text}」 — 이름 붙은 조각에 이어 그렸다 → 조각은 그대로, 그린 것에 「$more」를 더한다 (아이 말 · child)")
+            pause(700)
+            return Heard.OTHER                                  // 새 조각이 아니다 — 「나도 그려볼까?」를 다시 묻지 않는다
+        }
+    }
     say("그렇구나! 계속 그려 봐.")
     return Heard.OTHER
 }
@@ -1463,8 +1478,15 @@ private val ENDS_AS_NAME = Regex("(이야|야|이에요|예요)[.!~ ]*$")
  */
 internal fun soundsLikeAName(text: String): Boolean {
     val t = text.trim()
-    return THIS_IS.containsMatchIn(t) || (ENDS_AS_NAME.containsMatchIn(t) && t.split(Regex("\\s+")).size <= 3)
+    return THIS_IS.containsMatchIn(t) || (ENDS_AS_NAME.containsMatchIn(t) && t.split(Regex("\\s+")).size <= 3) || saysWhatWasDrawn(t)
 }
+
+/** 「조개 그렸어」 · 「조개를 그렸어」 — 무엇을 그렸는지 말했다. 「새로 그렸어」는 이름이 없다 */
+private fun saysWhatWasDrawn(text: String): Boolean {
+    val t = text.trim().trimEnd('.', '!', '?', '~', '…', ' ')
+    return DREW.containsMatchIn(t) && !NEW_ONE.containsMatchIn(t) && t.split(Regex("\\s+")).size <= 4
+}
+
 
 /**
  * 「우리 집이야!」 → 「우리 집」 · 「아니, 블록이야」 → 「블록」 · 「이건 강아지야」 → 「강아지」. 대본 답에는 값이 붙어 있어 그대로 쓴다.
