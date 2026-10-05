@@ -240,12 +240,15 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             }
             continue
         }
-        val h = held.removeFirstOrNull()
+        // 미뤄 둔 사이 바뀐 것을 본다 — 이름을 고쳤거나 [그려 줘]로 이미 주문 · 받은 조각이면 옛 이름으로 다시 묻지 않는다
+        // (10-05 실기기: 「나도 너 안먹어를 그려볼까?」가 나무로 고치고 오또 그림을 받은 뒤 다시 나왔다)
+        held.removeAll { (id, name) -> (day.offerable(id, waiting) == null).also { gone -> if (gone) log("미뤄 둔 「나도 $name 그려볼까?」 — 그사이 이미 그렸거나 주문했다 → 묻지 않는다") } }
+        val h = held.removeFirstOrNull()?.let { (id, _) -> day.offerable(id, waiting) }
         if (h != null && offers < OTTO_OFFERS) {
-            when (offerAndOrder(this, day, waiting, h.first, h.second)) {
+            when (offerAndOrder(this, day, waiting, h.id, h.name!!)) {
                 "yes" -> offers++
                 "done" -> break
-                MOVED_ON -> held.add(0, h)
+                MOVED_ON -> held.add(0, h.id to h.name!!)
             }
             continue
         }
@@ -379,9 +382,10 @@ private const val D1_FIRST_STORY = "여기는 어디야?"
 private fun Director.nextD1Story(day: DiaryDay, asked: Set<String>): Triple<String, String, String>? {
     if (asked.size >= D1_STORY_MAX) return null
     fun open(key: String) = key !in asked && s.slots[key].isNullOrBlank()
-    day.nextStory?.takeIf { open(it.third) }?.let { return it }
+    // 첫 질문 「여기는 어디야?」는 구운 목소리 그대로 — 그 뒤 질문은 그린 것이 있으면 그것을 실마리로 (DiaryClue.kt)
+    day.nextStory?.takeIf { open(it.third) }?.let { return withClue(day, it) }
     if (asked.isEmpty() && open("place")) return Triple("place", D1_FIRST_STORY, "place")
-    if (!Server.liveFor(s.mode) && open("problem")) return Triple("problem", atPlace(s, "무슨 일이 있었어?"), "problem")
+    if (!Server.liveFor(s.mode) && open("problem")) return withClue(day, Triple("problem", atPlace(s, "무슨 일이 있었어?"), "problem"))
     return null
 }
 
@@ -721,6 +725,11 @@ internal fun DiaryDay.renameInAnswer(text: String, piece: DiaryPiece): String? {
  * 「나도 ○○ 그려볼까?」를 묻고, 응이면 그 조각을 주문해 [waiting] 에 넣는다. yes · no · done.
  * 「더 그렸어」로 합쳤으면 물은 조각([id])은 없어지고 이름 조각만 남는다 — 그 조각을 그린다
  */
+/** 「나도 ○○ 그려볼까?」를 지금 물어도 되는 조각 — 남아 있고 이름이 있고, 오또 그림을 받지도 주문하지도 않았다. 이름은 지금 이름 */
+private fun DiaryDay.offerable(id: Int, waiting: List<OttoOrder>): DiaryPiece? =
+    pieces.firstOrNull { it.id == id }
+        ?.takeIf { it.name != null && it.ottoPng == null && it.look != PieceLook.OTTO && waiting.none { w -> w.pieceId == id } }
+
 private suspend fun Director.offerAndOrder(scope: CoroutineScope, day: DiaryDay, waiting: MutableList<OttoOrder>, id: Int, name: String): String {
     val v = offerOttoDrawing(name, day, id)
     if (v == "yes") (day.pieces.firstOrNull { it.id == id } ?: day.pieces.firstOrNull { it.name == name })
@@ -1004,6 +1013,15 @@ private fun Director.serverNext(result: Server.TurnResult): Triple<String, Strin
     return Triple(slot, question, askedKeyOf(slot))
 }
 
+/**
+ * 판정이 고른 칸을 그림 실마리로 물을 수 있으면 그 틀로 — 칸은 그대로, 문구만(차별점 2). 실마리가 없으면 [q] 그대로
+ */
+private fun Director.withClue(day: DiaryDay, q: Triple<String, String, String>): Triple<String, String, String> =
+    s.clueQuestion(day, q.third)?.let { (_, text, _) ->
+        log("그림 실마리 → [${q.third}] 「$text」 (원래 「${q.second}」)")
+        Triple(q.first, text, q.third)
+    } ?: q
+
 private fun bookKeyOf(slot: String, askedKey: String): String = when (slot) {
     "extra" -> if (askedKey == "keep") "keep" else "extra"
     else -> slot
@@ -1019,7 +1037,7 @@ private fun bookKeyOf(slot: String, askedKey: String): String = when (slot) {
 private suspend fun Director.askEmptySlotsLive() {
     val day = s.diaryDay
     // 그리는 중에 서버가 골라 둔 다음 이야기가 있으면 그것부터 — 아이가 이어서 들은 맥락 그대로
-    var next = day.nextStory?.takeIf { s.slots[it.third].isNullOrBlank() } ?: firstEmptyQuestion()
+    var next = (day.nextStory?.takeIf { s.slots[it.third].isNullOrBlank() } ?: firstEmptyQuestion())?.let { withClue(day, it) }
     day.nextStory = null
     var asked = 0
     var wrapOffered = false
@@ -1112,7 +1130,7 @@ private suspend fun Director.askEmptySlotsLive() {
             log("판정 story_ready — 남은 물음은 판정이 고른 칸과 「내일」만")
         }
         sayReaction(result, r)
-        next = serverNext(result) ?: if (v.storyReady) tomorrowQuestion(gaveUp) else firstEmptyQuestion(gaveUp)
+        next = (serverNext(result) ?: if (v.storyReady) tomorrowQuestion(gaveUp) else firstEmptyQuestion(gaveUp))?.let { withClue(day, it) }
     }
     if (s.endReason == null && PICTURE_REQUIRED.all { !s.slots[it].isNullOrBlank() }) s.endReason = "story_ready"
     log("다 그린 뒤 ${asked}번 물었다 · /turn ${day.turnCalls}번 (#30 — 세기만)")
