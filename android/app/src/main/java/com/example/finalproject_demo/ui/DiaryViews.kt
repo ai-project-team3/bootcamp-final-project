@@ -166,6 +166,9 @@ private val DiaryMicGap = 12.dp
  * 오른쪽 버튼들을 뺐던 까닭(판을 넓게)을 지키려고 띠는 좁게, 🎤 도 다른 화면(96dp)보다 작게 (10-05 진웅)
  */
 private val BoardRail = 72.dp
+
+/** 앱 틀 오른쪽 위의 시연 서랍 자리(`MainActivity` · 48dp) — 그 위의 짧은 누름은 서랍이 먹는다 */
+private val DrawerCorner = 48.dp
 private val RailButtonSize = 52.dp
 private val RailMicSize = 64.dp
 
@@ -510,7 +513,8 @@ private fun BoardTools(d: Director, stage: DiaryBoard, modifier: Modifier) {
     val free = stage.pick == null
     val tools = free && day.drawingTalk
     Column(
-        modifier.width(BoardRail).fillMaxHeight().padding(top = 12.dp, bottom = 12.dp),
+        // 위는 앱 틀의 시연 서랍 자리(오른쪽 위 48dp · 길게 누르기)를 비킨다 — 거기 걸린 [다 그렸어]는 눌러도 안 됐다 (10-05 실기기)
+        modifier.width(BoardRail).fillMaxHeight().padding(top = DrawerCorner + 8.dp, bottom = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         RailButton("다 그렸어", enabled = free && (day.watching || s.micEnabled), tag = "rail-done", onClick = { d.send(Reply.Tapped("done", "다 그렸어")) }) {
