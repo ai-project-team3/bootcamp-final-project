@@ -59,6 +59,7 @@ val DemoState.coopReady: Boolean get() = coopPick != null || hasCoopQuestions
  */
 internal fun DemoState.coopBackdrop(): String {
     coopReadingBackdrop?.let { return it }   // 책장에서 다시 연 책 — 만들 때의 배경 그대로 (#83 · 읽기 화면 상태에만 있다)
+    coopTrack.generatedBg?.let { return it }  // 아이가 말한 곳으로 서버가 그린 배경 — 동화와 같게 (10-05 · CoopServerLine.kt)
     val pick = bookPick ?: return diaryPlaceBg(placeLabel)
     coopItem(pick.name)?.let { return it.bg }
     val spoken = diaryPlaceBg(placeLabel)
@@ -99,6 +100,14 @@ private fun DemoState.takeCoopLine(q: Question): CoopLine? {
     track.parentQuestionOf[book] = mine
     return CoopLine.Parent(mine)
 }
+
+/** 이 곳의 배경을 아직 안 그렸으면 그린다고 적고 true — 한 이야기에서 같은 곳은 한 번만 (10-05) */
+internal fun DemoState.coopClaimBackground(place: String): Boolean =
+    (coopTrack.bgAskedFor != place).also { if (it) coopTrack.bgAskedFor = place }
+
+/** 서버가 그린 배경 — 그사이 아이가 다른 곳을 말했으면 버린다 */
+internal fun DemoState.coopUseGeneratedBackground(path: String, forPlace: String): Boolean =
+    (coopTrack.bgAskedFor == forPlace).also { if (it) coopTrack.generatedBg = path }
 
 /** 부모 질문을 끼우는 꼬리 자리 — 하던 일 · 한 말 · 해 본 것 · 집에 와서. 답의 뜻이 정해지지 않은 자리들이다 */
 internal val COOP_PARENT_STEPS = setOf("detail", "said", "try", "after")
@@ -159,6 +168,9 @@ private class CoopTrack {
     val rejected = mutableMapOf<String, MutableList<String>>()
     /** 이 이야기를 시작할 때 고른 이야기 — 리포트를 열 때는 `coopPick` 이 이미 비어 있다(`clearParentQuestions`) */
     var pick: CoopPick? = null
+    /** 아이가 말한 곳으로 서버가 그린 배경(저장 경로)과, 그림을 요청한 곳 — 같은 곳을 두 번 그리지 않는다 (10-05) */
+    var generatedBg by mutableStateOf<String?>(null)
+    var bgAskedFor: String? = null
 }
 
 /**
