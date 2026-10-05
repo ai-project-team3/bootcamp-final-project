@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.demo.missions.slot1Prop
+import com.example.finalproject_demo.demo.missions.slot2Prop
 
 /**
  * 책 미션 — 아이와 나눈 대화에서 만든다 (v0.8).
@@ -165,14 +166,14 @@ fun DemoState.m1Before(): String {
 }
 
 /** 같이 만들기 · 미션 2 전 — 아직 건네지 않았다. 앞의 「그리고」 뒤에 이어도 읽히게 절로 (#98) */
-fun DemoState.m2Before(): String =
+fun DemoState.m2Before(): String = slot2Prop()?.before ?:
     if (hasCompanion) "${giveTargetName}에게 줄 선물이 있어요." else "오늘 이야기를 들어준 마스코트에게 줄 선물이 있어요."
 
 /**
  * 미션 2가 책에 남는 절 — 주어 없이. 앞의 "마침내 …" 문장에 이어 붙는다 (9/22).
  * 결(結) 한 쪽이 두 문장으로 갈라지지 않게 하려는 것이다.
  */
-fun DemoState.m2Clause(): String =
+fun DemoState.m2Clause(): String = slot2Prop()?.did ?:
     // 아무도 없었던 날엔 마스코트가 받는다. 그런데 마스코트는 앞쪽에 한 번도 안 나온 인물이라
     // 그냥 "마스코트에게 건네주었어요" 라고 하면 뜬금없다. 한 마디로 자리를 만들어 준다 (9/22)
     if (hasCompanion) "${giveTargetName}에게 ${mission2().give}."
@@ -183,6 +184,7 @@ fun DemoState.m1Done(): String =
     else "${mission1().done} $childName 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
 
 fun DemoState.m2Line(easy: Boolean): String {
+    slot2Prop()?.let { return it.ask }                   // A1 물대포 · A4 돌려 잠그기 (Slot2Prop.kt)
     val m = mission2()
     // 9/22 — 아무도 없었던 날에는 "그 친구" 를 지어내지 않는다. 마스코트가 받는다 (그림도 이미 마스코트다)
     val f = giveTargetName
@@ -192,4 +194,4 @@ fun DemoState.m2Line(easy: Boolean): String {
     return "${f}${ga(f)} ${reported(causeLine)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
 }
 
-fun DemoState.m2Done(): String = "${giveTargetName}${ga(giveTargetName)} ${mission2().done}"
+fun DemoState.m2Done(): String = slot2Prop()?.cheer ?: "${giveTargetName}${ga(giveTargetName)} ${mission2().done}"

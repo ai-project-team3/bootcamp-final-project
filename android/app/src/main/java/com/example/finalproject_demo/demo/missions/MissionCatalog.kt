@@ -15,10 +15,10 @@ enum class MissionId(
     val goal: String,
     val built: Boolean = false,
 ) {
-    A1(setOf(2), MissionInput.TOUCH, "eye-hand: aim and hold"),
+    A1(setOf(2), MissionInput.TOUCH, "eye-hand: aim and hold", built = true),
     A2(setOf(2), MissionInput.TOUCH, "shape matching"),
     A3(setOf(2), MissionInput.TOUCH, "spatial: put the picture back together", built = true),
-    A4(setOf(1, 2), MissionInput.TOUCH, "fine motor: turn in a circle"),
+    A4(setOf(1, 2), MissionInput.TOUCH, "fine motor: turn in a circle", built = true),
     A5(setOf(2), MissionInput.TOUCH, "balance and patience: stack"),
     A6(setOf(1), MissionInput.TOUCH, "fine motor: rub", built = true),
     A7(setOf(1), MissionInput.TOUCH, "waiting: press and hold"),

@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.demo.missions.slot1Prop
+import com.example.finalproject_demo.demo.missions.slot2Prop
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -680,7 +681,7 @@ suspend fun Director.coopWriteBook() {
 internal fun DemoState.coopMissionResult(kind: PageKind): String? = when (kind) {
     PageKind.RUB -> if (m1Result != null) slot1Prop()?.result ?: mission1().blobName.let { "${it}${ga(it)} 사라졌어요." } else null
     PageKind.DRAG -> if (m2Result != null) {
-        if (missions().slot2 == MissionId.A3) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
+        slot2Prop()?.result ?: if (missions().slot2 == MissionId.A3) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
         else "$childName${eun(childName)} ${m2Clause()}"     // 같이 간 사람이 없으면 「오늘 이야기를 들어준 마스코트에게 …」
     } else null
     else -> null
