@@ -193,6 +193,7 @@ suspend fun DemoState.exchangeTurn(
 ): Server.TurnResult? {
     if (utterance.isBlank()) return null
     val mask = nameMask()
+    com.example.finalproject_demo.net.Trace.line("turn", "request asked=$askedSlot · ${utterance.length} chars")
     val response = request(Server.Turn(
         mode = mode,
         slots = mask.maskSlots(if (mode == "story") storyServerInput().slots else slots),
