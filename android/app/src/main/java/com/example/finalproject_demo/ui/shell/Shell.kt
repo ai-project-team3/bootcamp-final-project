@@ -114,7 +114,37 @@ object Shell {
         prefs?.edit()?.putLong("news_at", if (on) at else 0L)?.apply()
     }
 
+    // ── 계정마다 동의 · 마이크 (10-05) ─────────────────────────────
+    //
+    // 법정대리인 동의와 마이크 사용 동의는 **그 보호자**가 하는 것이다. 같은 폰에서 다른 계정으로 가입 · 로그인하면
+    // 처음 설정을 이미 끝냈어도 동의 → 마이크를 다시 거친다. 탈퇴하면 이 기록이 통째로 지워져(resetToFirstRun) 처음부터 다시.
+
+    /** 이 폰에서 동의 · 마이크까지 마친 보호자 계정들 ([com.example.finalproject_demo.net.Guardian.key]) */
+    private fun readySet(): Set<String> = prefs?.getStringSet("ready_accounts", emptySet()) ?: emptySet()
+
+    fun isReady(g: com.example.finalproject_demo.net.Guardian?): Boolean = g != null && g.key in readySet()
+
+    fun markReady(g: com.example.finalproject_demo.net.Guardian?) {
+        g ?: return
+        prefs?.edit()?.putStringSet("ready_accounts", readySet() + g.key)?.apply()
+    }
+
+    /**
+     * 휴대폰 마이크 권한을 돌려준다 — 로그아웃 · 탈퇴 (10-05). 다시 들어오면 안드로이드 권한 창부터 다시 뜬다.
+     * **안드로이드 13+ 만** 앱이 스스로 물릴 수 있고(앱이 다음에 꺼질 때 적용), 12 이하는 방법이 없어 앱 안의 마이크 동의만 다시 받는다
+     * (탈퇴 마지막 화면에 「설정에서 끄기」를 보여 준다)
+     */
+    fun giveBackMic(ctx: Context) {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && android.os.Build.FINGERPRINT != "robolectric")
+            runCatching { ctx.revokeSelfPermissionOnKill(android.Manifest.permission.RECORD_AUDIO) }
+    }
+
+    /** 앱이 스스로 마이크 권한을 물릴 수 없는 폰(안드로이드 12 이하)인데 권한이 켜져 있나 */
+    fun micStuckOn(ctx: Context): Boolean = android.os.Build.VERSION.SDK_INT < 33 &&
+        androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
     fun finishOnboarding() {
+        markReady(com.example.finalproject_demo.net.Accounts.guardian)
         onboarded = true
         prefs?.edit()?.putBoolean("onboarded", true)?.apply()
         step = Step.APP

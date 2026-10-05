@@ -78,6 +78,8 @@ fun AccountTab(d: Director) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (g != null) PBtn("로그아웃", {
                 scope.launch { Accounts.logout(ctx) }      // 카카오 · 네이버 · Google 세션도 끊는다
+                // 다시 로그인하면 마이크를 다시 묻는다 — 앱 안 동의는 지우고, 안드로이드 13+ 는 휴대폰 권한도 돌려준다 (10-05)
+                ConsentStore.forgetMic(); Shell.giveBackMic(ctx)
                 d.send(Reply.Tapped("home", "처음으로"))
                 Shell.step = Step.LOGIN          // 로그아웃해도 폰 안의 책은 남는다 → 로그인 화면으로
             }, Modifier.width(160.dp), primary = false, height = 44.dp)
@@ -161,6 +163,9 @@ fun WithdrawSheet(d: Director) {
                 scope.launch {
                     // 서버 계정 즉시 삭제 → 동의 철회 → (고르면) 폰 데이터 삭제 → 처음 상태로
                     Accounts.withdraw(ctx)          // 소셜이면 그 회사와 앱의 연결도 끊는다(unlink)
+                    // 휴대폰의 마이크 권한도 돌려준다 — 다시 가입하면 권한 창부터 다시 뜬다 (10-05).
+                    // 안드로이드 13+ 만 앱이 스스로 권한을 물릴 수 있다(앱이 다음에 꺼질 때 적용). 12 이하는 앱 안의 마이크 동의만 다시 받는다
+                    Shell.giveBackMic(ctx)
                     ConsentStore.withdraw()
                     // 고르면 폰에 저장된 책 · 그림 · 녹음 · 아이 이름까지 파일째 지운다 (10-05 — 전엔 화면 목록만 비워 다시 켜면 돌아왔다)
                     val wiped = Shell.wipeLocal
@@ -187,6 +192,14 @@ fun WithdrawSheet(d: Director) {
                     "삭제하면 되돌릴 수 없어요. 계정 · 기록${if (Shell.wipeLocal) " · 이 폰의 책 ${books}권" else ""}이 지워져요.",
                     fontSize = 13.sp, color = InkBrown, lineHeight = 19.sp,
                 )
+            }
+            // 안드로이드 12 이하는 앱이 마이크 권한을 스스로 끌 수 없다 — 다시 가입할 때 권한 창이 뜨게 하려면 보호자가 직접 (10-05)
+            if (Shell.micStuckOn(ctx)) {
+                Spacer(Modifier.height(10.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("휴대폰 마이크 권한은 이 폰에서 직접 꺼야 해요", fontSize = 12.sp, color = InkSoft, modifier = Modifier.weight(1f))
+                    PBtn("설정에서 끄기", { openAppSettings(ctx) }, Modifier.width(150.dp), primary = false, height = 40.dp)
+                }
             }
         }
         Sheet.NONE, Sheet.PIN_CHANGE -> {}
