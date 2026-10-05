@@ -52,6 +52,29 @@ KIND_MEANING = {
     "TOGETHER": "마무리 — 함께 안전하게 끝난다",
 }
 
+# The same kinds mean other things in a day book — diary and co-op build their pages from DiaryBank.kt
+# `diaryTemplate`, where FAIL is the feeling page and TALK the why page. Read with the story meanings, a
+# co-op book wrote 「해 보았지만 잘되지 않은 일은 아직 듣지 못했어요」 on the feeling page and 「누가 무슨 말을
+# 했는지는 아직 듣지 못했어요」 on the why page though both slots were filled — three empty pages in eight
+# (10-05 device round). Each line names the slots the page is made of, so the model finds them.
+DAY_KIND_MEANING = {
+    "DEPART": "시작 — 어디에(place) 누구랑(companion) 갔는지",
+    "MEET": "만남 — 함께한 사람 · 거기서 만난 것(companion)",
+    "SHAKE": "그때 한 일과 일어난 일 — extra 의 그때 한 일 → problem",
+    "FAIL": "그때 마음 — reaction 을 아이가 말한 그대로",
+    "TALK": "왜 그랬는지(cause) · 누가 무슨 말을 했는지(extra 의 누가 한 말)",
+    "RUB": "그래서 해 본 것 — extra 의 해 본 것",
+    "DRAG": "어떻게 됐는지 — solution",
+    "TOGETHER": "맺음 — extra 의 그 뒤 · 맺음(keep)",
+}
+
+
+def meaning(mode: str, kind: str) -> str:
+    """What a page is for in this mode's book. A kind a day book never uses keeps its story meaning."""
+    if mode != "story" and kind in DAY_KIND_MEANING:
+        return DAY_KIND_MEANING[kind]
+    return KIND_MEANING[kind]
+
 # docs/미션_구상.md §3 · 맞춤미션_설계.md §4 (★ six added 10-05 for #101) — the situation the page must end on, so the child's hands can
 # solve it next. Never the result: what the page says after the mission is the app's
 # (today a banner, not the caption — 최민우 09-29, Scenes.kt).
@@ -95,7 +118,7 @@ def plan(req: StoryRequest) -> str:
             line = (f"{i} {pg.kind} : 이야기를 한 걸음 잇는 평범한 장면 · 미션 {pg.mission} {MISSION_SETUP[pg.mission]}."
                     " 문장에는 미션 · 조각 · 퍼즐 이야기를 넣지 않고 새 사건도 만들지 않는다")
         else:
-            line = f"{i} {pg.kind} : {KIND_MEANING[pg.kind]}"
+            line = f"{i} {pg.kind} : {meaning(req.mode, pg.kind)}"
             if pg.mission:
                 line += (f" · 미션 {pg.mission} {MISSION_SETUP[pg.mission]}. 이 상황으로 끝내고 풀지 않는다."
                          " 미션 이름 · 도구 이름 · '직전' 같은 설명 말은 쓰지 않고 이야기 속 장면으로만 보여 준다")
@@ -104,6 +127,9 @@ def plan(req: StoryRequest) -> str:
         lines.append(line)
     if req.mode != "story":
         lines.append(f"{TENSE[req.reason if req.mode == 'coop' else None]} 미션 쪽도 칸에 있는 일로만 쓰고, 없던 일을 지어내지 않는다.")
+        # an empty slot used to become an empty page — 「…은 아직 듣지 못했어요」 three pages running (10-05)
+        lines.append("쪽의 칸이 비었으면 앞뒤 쪽에 있는 일의 모습 · 소리 · 마음을 보여 주는 장면으로 쓰고, 새 일은 만들지 않는다. "
+                     "「아직 듣지 못했어요」 · 「그날 알게 될 거예요」 같은 빈자리 문장은 결말(solution)이 비었을 때 마지막 쪽에 한 번만 쓴다.")
     return "\n".join(lines)
 
 

@@ -167,3 +167,24 @@ def test_the_mission_prop_reaches_the_plan():
     assert "「맛있는 간식」" in story_route.plan(req)
     assert "「" not in story_route.plan(StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1")]))
 
+
+
+# 10-05 device round: a co-op book read its pages with the story meanings — FAIL (the feeling page) as
+# 「해 봤지만 잘 안 된다」 and TALK (the why page) as 「누가 말한다」 — and wrote three empty pages in eight
+def test_a_day_book_reads_its_pages_by_the_slots_they_are_made_of():
+    pages = [Page(kind="FAIL"), Page(kind="TALK"), Page(kind="RUB", mission="A6"), Page(kind="TOGETHER")]
+    coop = story_route.plan(StoryRequest(mode="coop", slots={}, reason="done", pages=pages))
+    assert "reaction" in coop and "cause" in coop and "keep" in coop
+    assert "해 봤지만 잘 안 된다" not in coop
+    story = story_route.plan(StoryRequest(slots={}, pages=pages))
+    assert "해 봤지만 잘 안 된다" in story and "reaction" not in story
+
+
+def test_a_day_book_keeps_the_empty_place_line_to_the_last_page():
+    req = StoryRequest(mode="coop", slots={}, reason="done", pages=[Page(kind="DEPART"), Page(kind="TOGETHER")])
+    assert "마지막 쪽에 한 번만" in story_route.plan(req)
+    assert "마지막 쪽에 한 번만" not in story_route.plan(StoryRequest(slots={}, pages=[Page(kind="DEPART")]))
+
+
+def test_every_day_meaning_is_a_kind_the_app_knows():
+    assert set(story_route.DAY_KIND_MEANING) <= set(story_route.KIND_MEANING)
