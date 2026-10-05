@@ -65,8 +65,15 @@ fun AccountTab(d: Director) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Line("로그인", if (g == null) "로그인 안 함 · 샘플 책 보기" else "${g.provider.label} · ${g.email}" + (if (g.dev) " (개발용)" else ""))
         Line("가입한 날", g?.let { SimpleDateFormat("yyyy년 M월 d일", Locale.KOREA).format(Date(it.since)) } ?: "—")
-        Line("개인정보처리방침", "보기") { open() }
-        Line("이용약관", "보기") { open() }
+        Line("이용약관", "보기") { Shell.doc = TermsDoc.TERMS }
+        Line("개인정보처리방침 (전체)", "웹에서 보기") { open() }
+        // 선택 동의 — 언제든 바꿀 수 있어야 한다. 소식 알림은 동의한 날을 보여 준다 (정보통신망법 제50조)
+        Line("소식 알림 받기", Shell.newsSince?.let { "${dateText(it)} 동의 · 끄기" } ?: "받지 않음 · 켜기") {
+            Shell.setNews(Shell.newsSince == null)
+        }
+        Line("오또가 아이 이름 불러 주기", if (ConsentStore.nameVoiceAgreed) "켜짐 · 끄기" else "꺼짐(「너」라고 불러요) · 켜기") {
+            if (ConsentStore.nameVoiceAgreed) ConsentStore.setNameVoice(false) else Shell.doc = TermsDoc.NAME_VOICE
+        }
         Line("부모 비밀번호", if (Shell.hasPin) "바꾸기" else "정하기") { Shell.sheet = Sheet.PIN_CHANGE }
         Line("처음 설정 다시 보기", "로그인 · 동의 · 맞춤 설정") { d.send(Reply.Tapped("home", "처음으로")); Shell.redoOnboarding() }
         Spacer(Modifier.height(8.dp))

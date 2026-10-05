@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -318,40 +320,183 @@ private fun Field(
     }
 }
 
-// ── ③ 동의 (2/3) — 왼쪽은 데이터가 쓰이는 길 그림 세 칸 ─────────────────────
+// ── ③ 동의 (2/5) — 전체 동의 · [필수]/[선택] · 항목마다 앱 안에서 전문 보기 (10-05 개편 · `Terms.kt`) ─────────────
 
 @Composable
 fun ConsentStep(onBack: () -> Unit, onDone: () -> Unit, onDecline: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
-    var terms by remember { mutableStateOf(false) }
-    var privacy by remember { mutableStateOf(false) }
-    var guardian by remember { mutableStateOf(false) }
-    var marketing by remember { mutableStateOf(false) }   // 선택은 미리 체크하지 않는다
-    val all = terms && privacy && guardian && marketing
-    fun open() = runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL))) }
-    ObFrame(
-        step = 1, title = "이렇게만 써요", sub = "녹음은 글로 바꾼 뒤 바로 지우고, 책은 이 폰에 저장해요.", onBack = onBack,
-        art = { DataPath() },
-        cta = "동의하고 계속", ctaEnabled = terms && privacy && guardian,
-        onCta = {
-            // 원래 동의 저장소를 그대로 쓴다 — 거기 동의가 있어야 아이가 말할 수 있다 (개인정보보호법 제22조의2)
-            ConsentStore.agree()
-            scope.launch { Accounts.api.recordConsent(ConsentRecord(terms, privacy, guardian, marketing, System.currentTimeMillis())) }
-            onDone()
-        },
-        // 거절할 길 — 동의하지 않으면 앱을 닫는다 (09-25 · 동의하지 않는 보호자가 나갈 방법이 있어야 한다)
-        cta2 = "동의하지 않음", onCta2 = onDecline,
-    ) {
-        CheckRow(all, "모두 동의해요", { val v = !all; terms = v; privacy = v; guardian = v; marketing = v }, big = true)
-        Box(Modifier.fillMaxWidth().height(1.5.dp).background(InkBrown.copy(alpha = 0.1f)))
-        Spacer(Modifier.height(6.dp))
-        CheckRow(terms, "[필수] 이용약관", { terms = !terms }, trailing = "보기", onTrailing = { open() })
-        CheckRow(privacy, "[필수] 보호자 개인정보 수집 · 이용", { privacy = !privacy }, trailing = "보기", onTrailing = { open() })
-        CheckRow(guardian, "[필수] 만 14세 미만 아동의 법정대리인 동의", { guardian = !guardian }, trailing = "보기", onTrailing = { open() })
-        CheckRow(marketing, "[선택] 새 기능 알림", { marketing = !marketing })
+    // 선택 항목도 **미리 체크하지 않는다** — 모두 꺼진 채로 시작
+    val agreed = remember { androidx.compose.runtime.mutableStateMapOf<TermsDoc, Boolean>() }
+    var reading by remember { mutableStateOf<TermsDoc?>(null) }
+    var asking by remember { mutableStateOf(false) }
+    fun on(d: TermsDoc) = agreed[d] == true
+    val all = TermsDoc.entries.all { on(it) }
+    val left = TermsDoc.entries.count { it.required && !on(it) }
+    Box(Modifier.fillMaxSize()) {
+        ObFrame(
+            step = 1, title = "이렇게만 써요", sub = "목소리는 글자로 바꾼 뒤 바로 지우고, 책은 이 폰에 저장해요.", onBack = onBack,
+            art = { DataPath() },
+            scroll = true,
+            cta = "동의하고 계속", ctaEnabled = left == 0,
+            onCta = {
+                val now = System.currentTimeMillis()
+                // 원래 동의 저장소를 그대로 쓴다 — 거기 동의가 있어야 아이가 말할 수 있다 (개인정보보호법 제22조의2)
+                ConsentStore.agree()
+                ConsentStore.setNameVoice(on(TermsDoc.NAME_VOICE))
+                Shell.saveConsent(TERMS_VERSION, news = on(TermsDoc.NEWS), at = now)
+                scope.launch {
+                    Accounts.api.recordConsent(ConsentRecord(
+                        terms = on(TermsDoc.TERMS), privacy = on(TermsDoc.GUARDIAN_INFO), guardian = on(TermsDoc.CHILD_INFO),
+                        marketing = on(TermsDoc.NEWS), at = now, overseas = on(TermsDoc.OVERSEAS), nameVoice = on(TermsDoc.NAME_VOICE),
+                        version = TERMS_VERSION,
+                    ))
+                }
+                // 광고성 정보 수신에 동의했으면 **동의한 날을 알린다** (정보통신망법 제50조)
+                if (on(TermsDoc.NEWS)) android.widget.Toast.makeText(ctx, "${dateText(now)} 소식 알림 받기에 동의했어요. 부모 영역 → 계정에서 끌 수 있어요", android.widget.Toast.LENGTH_LONG).show()
+                onDone()
+            },
+            // 거절할 길 — 동의 버튼과 같은 크기 · 같은 줄 (눈속임 설계 금지). 누르면 무엇이 되는지 먼저 알려 준다
+            cta2 = "동의하지 않음", onCta2 = { asking = true },
+        ) {
+            // 전체 동의 카드
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (all) FeltTeal.copy(alpha = 0.12f) else FeltWhite)
+                    .border(1.5.dp, if (all) FeltTeal else InkBrown.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+                    .clickable { val v = !all; TermsDoc.entries.forEach { agreed[it] = v } }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CheckBox(all, big = true)
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("약관에 모두 동의해요", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = InkBrown)
+                    Text("선택 항목도 포함해요. 선택은 동의하지 않아도 모든 기능을 쓸 수 있어요.", fontSize = 11.sp, color = InkSoft, lineHeight = 15.sp)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            TermsDoc.entries.forEach { d ->
+                TermsLine(d, on(d), onToggle = { agreed[d] = !on(d) }, onOpen = { reading = d })
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (left > 0) "필수 항목 ${left}개에 더 동의하면 계속할 수 있어요" else "필수 항목에 모두 동의했어요",
+                fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (left > 0) FeltCoral else FeltTeal,
+            )
+            Text("동의는 부모 영역에서 언제든 철회할 수 있어요 · 전체 처리방침은 부모 영역 → 계정", fontSize = 11.sp, color = InkSoft, modifier = Modifier.padding(top = 2.dp))
+        }
+        // 전문 보기 — 동의 화면 위에 펼친다. 「동의하고 닫기」를 누르면 그 항목이 체크된다(카카오 · 토스 방식)
+        reading?.let { d -> TermsSheet(d, agreed = on(d), onAgree = { agreed[d] = true; reading = null }, onClose = { reading = null }) }
+        if (asking) DeclineDialog(onStay = { asking = false }, onLeave = onDecline)
     }
 }
+
+/** 동의 한 줄 — [체크] [필수/선택] 이름 · 한 줄 풀이 · 전문 보기 › */
+@Composable
+private fun TermsLine(d: TermsDoc, checked: Boolean, onToggle: () -> Unit, onOpen: () -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 46.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).clickable { onToggle() }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.width(2.dp))
+            CheckBox(checked)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        d.tag, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (d.required) FeltCoral else FeltTeal,
+                        modifier = Modifier.border(1.dp, if (d.required) FeltCoral else FeltTeal, RoundedCornerShape(6.dp)).padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(d.short, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkBrown, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                Text(d.plain, fontSize = 11.sp, color = InkSoft, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+        }
+        Box(
+            Modifier.size(40.dp).clip(CircleShape).clickable { onOpen() }.semantics { contentDescription = "${d.short} 전문 보기" },
+            contentAlignment = Alignment.Center,
+        ) { Text("›", fontSize = 22.sp, color = InkSoft) }
+    }
+}
+
+@Composable
+private fun CheckBox(checked: Boolean, big: Boolean = false) {
+    Box(
+        Modifier.size(if (big) 26.dp else 22.dp).clip(CircleShape)
+            .background(if (checked) FeltTeal else FeltWhite)
+            .border(1.5.dp, if (checked) FeltTeal else InkBrown.copy(alpha = 0.25f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { Text("✓", fontSize = if (big) 15.sp else 13.sp, color = if (checked) FeltWhite else InkBrown.copy(alpha = 0.2f), fontWeight = FontWeight.Bold) }
+}
+
+/** 약관 전문 — 화면 전체를 덮고 위아래로 읽는다. 표는 머리 · 내용 두 칸 */
+@Composable
+fun TermsSheet(d: TermsDoc, agreed: Boolean, onAgree: (() -> Unit)?, onClose: () -> Unit) = ParentText {
+    androidx.activity.compose.BackHandler(onBack = onClose)
+    Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.35f)).noRippleClickable { }) {
+        Column(
+            Modifier.align(Alignment.Center).fillMaxWidth(0.82f).fillMaxHeight(0.92f)
+                .clip(RoundedCornerShape(22.dp)).background(Wool),
+        ) {
+            Row(Modifier.fillMaxWidth().padding(start = 22.dp, end = 8.dp, top = 10.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("[${d.tag}] ${d.short}", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = InkBrown, modifier = Modifier.weight(1f))
+                Box(Modifier.size(44.dp).clip(CircleShape).clickable { onClose() }.semantics { contentDescription = "닫기" }, contentAlignment = Alignment.Center) {
+                    Text("✕", fontSize = 18.sp, color = InkSoft)
+                }
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(InkBrown.copy(alpha = 0.1f)))
+            Column(Modifier.weight(1f).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 22.dp, vertical = 12.dp)) {
+                Text(d.plain, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FeltTeal)
+                Spacer(Modifier.height(8.dp))
+                d.parts.forEach { p ->
+                    Text(p.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = InkBrown, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                    if (p.body.isNotEmpty()) Text(p.body, fontSize = 13.sp, color = InkBrown, lineHeight = 20.sp)
+                    if (p.rows.isNotEmpty()) Column(
+                        Modifier.padding(top = 4.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp)).border(1.dp, InkBrown.copy(alpha = 0.12f), RoundedCornerShape(10.dp)),
+                    ) {
+                        p.rows.forEachIndexed { i, r ->
+                            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(InkBrown.copy(alpha = 0.08f)))
+                            Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
+                                Text(r.head, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = InkBrown,
+                                    modifier = Modifier.width(150.dp).fillMaxHeight().background(WoolCream).padding(horizontal = 10.dp, vertical = 8.dp))
+                                Text(r.body, fontSize = 12.sp, color = InkBrown, lineHeight = 18.sp, modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp))
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("약관 판 $TERMS_VERSION", fontSize = 11.sp, color = InkSoft)
+            }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
+                if (onAgree != null && !agreed) {
+                    PBtn("닫기", onClose, Modifier.width(120.dp), primary = false, height = 46.dp)
+                    PBtn("동의하고 닫기", onAgree, Modifier.width(180.dp), height = 46.dp)
+                } else PBtn("닫기", onClose, Modifier.width(140.dp), height = 46.dp)
+            }
+        }
+    }
+}
+
+/** 「동의하지 않음」 — 앱을 닫기 전에 무엇이 되는지 알려 준다. 돌아가기가 먼저(실수로 누른 보호자) */
+@Composable
+private fun DeclineDialog(onStay: () -> Unit, onLeave: () -> Unit) = ParentText {
+    androidx.activity.compose.BackHandler(onBack = onStay)
+    Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.35f)).noRippleClickable { }, contentAlignment = Alignment.Center) {
+        Column(Modifier.width(420.dp).clip(RoundedCornerShape(22.dp)).background(Wool).padding(24.dp)) {
+            Text("동의하지 않고 나갈까요?", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = InkBrown)
+            Spacer(Modifier.height(8.dp))
+            Text("필수 항목에 동의하지 않으면 오또를 쓸 수 없어 앱을 닫아요. 아무것도 저장하지 않고, 다음에 켜면 다시 물어요.", fontSize = 13.sp, color = InkSoft, lineHeight = 19.sp)
+            Spacer(Modifier.height(18.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
+                PBtn("앱 닫기", onLeave, Modifier.width(130.dp), primary = false, height = 46.dp)
+                PBtn("돌아가서 보기", onStay, Modifier.width(160.dp), height = 46.dp)
+            }
+        }
+    }
+}
+
+/** 「2026년 10월 5일」 */
+fun dateText(at: Long): String = java.text.SimpleDateFormat("yyyy년 M월 d일", java.util.Locale.KOREA).format(java.util.Date(at))
 
 @Composable
 private fun DataPath() {

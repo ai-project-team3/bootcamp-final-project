@@ -103,7 +103,7 @@ class ConsentGateTest {
         compose.onNodeWithText(CONSENT_TITLE).assertIsDisplayed()
 
         // 동의하면 동의 화면이 사라진다
-        compose.onNodeWithText("모두 동의해요").performClick()
+        compose.onNodeWithText(ALL).performClick()
         compose.onNodeWithText(AGREE).performClick()
         compose.waitUntil(5_000) {
             compose.onAllNodesWithText(CONSENT_TITLE).fetchSemanticsNodes().isEmpty()
@@ -129,6 +129,10 @@ class ConsentGateTest {
     fun declineClosesTheApp() {
         awaitConsent()
         compose.onNodeWithText("동의하지 않음").performClick()
+        // 10-05 — 바로 닫지 않고 무엇이 되는지 먼저 알린다. 「앱 닫기」를 눌러야 닫힌다
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("동의하지 않고 나갈까요?").fetchSemanticsNodes().isNotEmpty() }
+        assert(!compose.activity.isFinishing) { "묻기도 전에 앱이 닫혔다" }
+        compose.onNodeWithText("앱 닫기").performClick()
         compose.waitForIdle()
         assert(compose.activity.isFinishing) { "「동의하지 않음」을 눌렀는데 앱이 안 닫혔다" }
         assert(!ConsentStore.guardianAgreed) { "거절했는데 동의가 저장됐다" }
@@ -167,3 +171,4 @@ class ConsentGateTest {
 /** 동의 화면 문구 (09-29 앱 틀 · `ui/shell/Onboarding.kt` `ConsentStep`) — 문구를 바꾸면 여기도 */
 private const val CONSENT_TITLE = "이렇게만 써요"
 private const val AGREE = "동의하고 계속"
+private const val ALL = "약관에 모두 동의해요"

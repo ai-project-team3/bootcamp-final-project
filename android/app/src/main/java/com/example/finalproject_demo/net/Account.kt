@@ -139,9 +139,6 @@ class LocalAccountApi(private val ctx: Context) : AccountApi {
         return true
     }
 
-    /** 마케팅 수신에 동의한 날 — 계정 탭에 보인다(정보통신망법 제50조 수신 동의 확인) */
-    fun marketingSince(): Long? = if (prefs.getBoolean("c_marketing", false)) prefs.getLong("c_at", 0L).takeIf { it > 0 } else null
-
     fun saved(): Guardian? {
         val p = prefs.getString("provider", null) ?: return null
         val provider = runCatching { AuthProvider.valueOf(p) }.getOrNull() ?: return null
@@ -203,8 +200,6 @@ object Accounts {
         local = l; api = l
         guardian = l.saved()
     }
-
-    fun marketingSince(): Long? = local?.marketingSince()
 
     /** 로그아웃 — SDK 세션도 끊고, 우리 쪽 기억을 지운다. 폰 안의 책은 그대로 */
     suspend fun logout(ctx: Context) {

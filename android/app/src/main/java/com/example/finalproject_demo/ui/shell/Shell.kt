@@ -41,6 +41,9 @@ object Shell {
     /** 로그인 없이 샘플 책 보기 — 녹음 없이 책장만 */
     var sampleOnly by mutableStateOf(false)
 
+    /** 부모 영역에서 펼친 약관 전문 (10-05) — 화면 전체를 덮어야 해서 `OttoShell` 이 그린다 */
+    var doc by mutableStateOf<TermsDoc?>(null)
+
     /** 로그인 화면에서 고른 이메일 화면 — 로그인 · 회원가입 (10-05) */
     var emailMode by mutableStateOf(EmailMode.LOGIN)
 
@@ -53,6 +56,7 @@ object Shell {
         if (prefs != null) return
         prefs = ctx.applicationContext.getSharedPreferences("otto_shell", Context.MODE_PRIVATE)
         onboarded = prefs!!.getBoolean("onboarded", false)
+        newsSince = prefs!!.getLong("news_at", 0L).takeIf { it > 0 }
     }
 
     /**
@@ -88,6 +92,25 @@ object Shell {
         return md.digest("otto-pin:$pin".toByteArray()).joinToString("") { "%02x".format(it) }
     }
 
+    // ── 약관 동의 판 · 소식 알림 (10-05) ─────────────────────────────
+
+    /** 보호자가 동의한 약관 판 — [TERMS_VERSION] 과 다르면 다시 묻는다 (null = 이 판 이전 · 묻는다) */
+    val consentVersion: String? get() = prefs?.getString("consent_version", null)
+
+    /** 소식 알림(광고성 정보) 수신에 동의한 날 — 끄면 null */
+    var newsSince by mutableStateOf<Long?>(null)
+        private set
+
+    fun saveConsent(version: String, news: Boolean, at: Long) {
+        prefs?.edit()?.putString("consent_version", version)?.apply()
+        setNews(news, at)
+    }
+
+    fun setNews(on: Boolean, at: Long = System.currentTimeMillis()) {
+        newsSince = if (on) at else null
+        prefs?.edit()?.putLong("news_at", if (on) at else 0L)?.apply()
+    }
+
     fun finishOnboarding() {
         onboarded = true
         prefs?.edit()?.putBoolean("onboarded", true)?.apply()
@@ -108,6 +131,8 @@ object Shell {
     /** 탈퇴 끝 — 처음 설치한 상태로 (⓪ CLAP 부터) */
     fun resetToFirstRun() {
         onboarded = false
+        newsSince = null
+        doc = null
         sampleOnly = false
         prefs?.edit()?.clear()?.apply()
         sheet = Sheet.NONE

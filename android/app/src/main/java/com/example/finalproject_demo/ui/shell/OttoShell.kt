@@ -45,6 +45,16 @@ fun OttoShell(d: Director) {
         else if (d.s.stage == Stage.Adult) OttoRoom(d, sample = Shell.sampleOnly)
         if (Shell.sheet == Sheet.PIN_CHANGE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { PinChangeSheet() }
         else if (Shell.sheet != Sheet.NONE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { WithdrawSheet(d) }
+        // 부모 영역 → 계정에서 연 약관 전문. 이름 부르기는 여기서 「동의하고 닫기」를 눌러야 켜진다(제3자 제공)
+        Shell.doc?.let { doc ->
+            Shield(onBack = { Shell.doc = null }) {
+                TermsSheet(
+                    doc, agreed = doc != TermsDoc.NAME_VOICE,
+                    onAgree = if (doc == TermsDoc.NAME_VOICE) ({ ConsentStore.setNameVoice(true); Shell.doc = null }) else null,
+                    onClose = { Shell.doc = null },
+                )
+            }
+        }
         // 이야기 도중 🏠 — 「방으로 갈까?」 (KidTopBar 가 켠다. 화면 전체를 덮어야 해서 여기서 그린다)
         if (Shell.askHome) Shield(onBack = { Shell.askHome = false }) {
             Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {
@@ -78,7 +88,8 @@ fun OttoShell(d: Director) {
                     Shell.step = when {
                         !Shell.onboarded -> Step.LOGIN
                         Accounts.guardian == null -> Step.EXPIRED        // 예외 · 로그인이 풀렸을 때
-                        !ConsentStore.guardianAgreed -> Step.CONSENT
+                        // 동의가 없거나, 약관이 바뀌어 새 판에 아직 동의하지 않았으면 다시 묻는다 (처리방침 제11조)
+                        !ConsentStore.guardianAgreed || Shell.consentVersion != TERMS_VERSION -> Step.CONSENT
                         else -> Step.APP
                     }
                 }
