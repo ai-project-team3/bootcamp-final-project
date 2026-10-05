@@ -50,6 +50,8 @@ import com.example.finalproject_demo.demo.scene.PlacedPiece
 import com.example.finalproject_demo.demo.scene.SceneFrame
 import com.example.finalproject_demo.demo.scene.SceneKitDef
 import com.example.finalproject_demo.demo.scene.SceneMotions
+import com.example.finalproject_demo.demo.scene.VISITORS_BY_KIT
+import com.example.finalproject_demo.demo.scene.Visitor
 import com.example.finalproject_demo.demo.scene.bestScene
 import kotlin.math.max
 import kotlin.math.pow
@@ -134,6 +136,8 @@ private fun kitBitmaps(kit: SceneKitDef): Map<String, ImageBitmap> {
     val out = HashMap<String, ImageBitmap>()
     // a fixed list per kit, so the composable calls below keep their order
     for (res in kit.pieces.map { it.res }.distinct()) assetBitmap(res)?.let { out[res] = it }
+    // the pictures of who comes by (the bird) — not in the layout, so not among the pieces
+    for (res in VISITORS_BY_KIT[kit.key].orEmpty().flatMap { listOf(it.sit, it.fly) }) assetBitmap(res)?.let { out[res] = it }
     return out
 }
 
@@ -162,7 +166,7 @@ fun SceneBack(kit: SceneKitDef, seedBase: Long, actors: Int, bottomInset: Dp, to
         val skyTop = Color(kit.skyTop)
         val skyBottom = Color(kit.skyBottom)
         val grain = remember { ShaderBrush(ImageShader(FeltNoise.grain, TileMode.Repeated, TileMode.Repeated)) }
-        val motions = remember(scene, f) { SceneMotions(scene, f) }
+        val motions = remember(scene, f, actors) { SceneMotions(scene, f, VISITORS_BY_KIT[kit.key].orEmpty(), actors) }
         // the hills never move — their paths are made once, not every living frame
         val hills = remember(scene, f) {
             val seed = scene.seed.toFloat()
@@ -198,6 +202,8 @@ fun SceneBack(kit: SceneKitDef, seedBase: Long, actors: Int, bottomInset: Dp, to
                 drawPiece(it)
             }
             scene.pieces.filter { it.piece.role == PieceRole.FLOAT }.forEach { drawPiece(it) }
+            // who comes by — only while the scene is alive; behind the actors, like everything in this layer
+            if (t != null) motions.visitors(t).forEach { drawVisitor(imgs, it) }
         }
     }
 }
@@ -270,6 +276,20 @@ private fun DrawScope.shadow(p: PlacedPiece) {
         ),
         topLeft = Offset(p.x - w / 2, p.y - h / 2), size = Size(w, h),
     )
+}
+
+/** A visitor ([Visitor]): its picture with the bottom centre on (x, y), mirrored when it faces left */
+private fun DrawScope.drawVisitor(imgs: Map<String, ImageBitmap>, v: Visitor) {
+    val img = imgs[v.res] ?: return
+    val w = v.h * v.aspect
+    val feet = Offset(v.x, v.y)
+    rotate(v.tilt, Offset(v.x, v.y - v.h / 2)) {
+        scale(if (v.flip) -1f else 1f, v.scaleY, feet) {
+            drawImage(img, srcSize = IntSize(img.width, img.height),
+                dstOffset = IntOffset((v.x - w / 2).roundToInt(), (v.y - v.h).roundToInt()),
+                dstSize = IntSize(max(1, w.roundToInt()), max(1, v.h.roundToInt())), filterQuality = FilterQuality.Medium)
+        }
+    }
 }
 
 /** Rows of the bend mesh — enough that a leaning trunk reads as a curve, not as a fold */
