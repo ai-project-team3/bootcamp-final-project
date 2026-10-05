@@ -37,6 +37,8 @@ private fun CoopReason.pick(done: String, soon: String, dream: String) = when (t
  */
 internal fun coopFollowUpCandidates(
     slot: String, level: Level, reason: CoopReason, pick: CoopPick?, whyAsked: Int, template: String?, rungs: List<String>,
+    /** 이야기에 어긋난 일이 있었나 — 없으면 「왜」에 사고 원인 선택지(실수로 · 바빠서 …)를 붙이지 않는다 */
+    trouble: Boolean = true,
 ): List<String> {
     val item = pick?.let { coopItem(it.name) }
     val ladderChoice = rungs.lastOrNull { ". " in it && "," in it }
@@ -56,8 +58,9 @@ internal fun coopFollowUpCandidates(
                 else reason.pick("{thing:가} 뭐 때문에 그랬을까?", "{thing:가} 뭐 때문에 그럴까?", "{thing:가} 뭐 때문에 그랬을까?")
             when (level) {
                 Level.REASON -> listOf(ask)
-                // 고르며 · 이어 짓기 — 선택지를 붙인 「왜」. 고른 요소의 까닭 선택지가 없으면 그 자리 사다리의 선택지 질문
-                else -> listOfNotNull(item?.let { withChoices(it.causes, ask) }, ladderChoice)
+                // 고르며 · 이어 짓기 — 선택지를 붙인 「왜」. 고른 요소의 까닭 선택지가 없으면 그 자리 사다리의 선택지 질문.
+                // 즐거운 일(「내 생일이야」)에 「실수로, 바빠서, 정리를 안 해서」가 붙었다(10-05 실기기) — 사고가 없으면 열린 「왜」만
+                else -> if (!trouble) listOf(ask) else listOfNotNull(item?.let { withChoices(it.causes, ask) }, ladderChoice)
             }
         }
         "solution" -> {
@@ -90,7 +93,7 @@ private fun hypothetical(pick: CoopPick?): String =
  */
 internal fun coopFollowUp(
     slot: String, level: Level, reason: CoopReason, heard: Map<String, String>, pick: CoopPick?,
-    whyAsked: Int, template: String?, rungs: List<String>,
-): String? = coopFollowUpCandidates(slot, level, reason, pick, whyAsked, template, rungs).firstNotNullOfOrNull { c ->
+    whyAsked: Int, template: String?, rungs: List<String>, trouble: Boolean = true,
+): String? = coopFollowUpCandidates(slot, level, reason, pick, whyAsked, template, rungs, trouble).firstNotNullOfOrNull { c ->
     coopFill(c, heard)?.let { coopGuard(it, reason, CoopSource.HEARD).text }
 }

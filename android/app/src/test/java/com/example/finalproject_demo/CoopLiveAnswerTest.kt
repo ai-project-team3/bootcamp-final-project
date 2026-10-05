@@ -2,6 +2,7 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.demo.companionName
 import com.example.finalproject_demo.demo.feelingsSaid
 import com.example.finalproject_demo.demo.feelingPhrase
 import com.example.finalproject_demo.demo.autoTitleFor
@@ -496,7 +497,7 @@ class CoopLiveAnswerTest {
         d.coopFinishLog()
         assertNull(d.s.coopDrawLine("엄마"))
         assertEquals("오늘 함께한 사람들이야. 누구를 또 만나고 싶어?", d.s.coopFriendsLine())   // 할머니 · 아빠를 「친구들」이라 하지 않는다 (#98)
-        assertNull(d.s.coopTitle())
+        assertEquals("다녀왔어요도 고른 이야기 이름으로 — 아이 말을 끼운 「…에서 만난 …」이 아니다 (10-05)", "${d.s.childName}의 소방관 이야기", d.s.coopTitle())
     }
 
     /** 서버 판정의 마음 낱말은 「신나다」 · 「떨려」 · 「무섭다, 신나다」 꼴도 온다 — 「신나다던」이 되지 않게 (실기기 10-03) */
@@ -672,5 +673,18 @@ class CoopLiveAnswerTest {
             assertNull(d.s.storyCaptions)
             assertEquals(templateFirst, d.s.bookCaption(1))
         } finally { server.close() }
+    }
+
+    /** 10-05 실기기 — 「엄마랑 아빠랑이 뭐라고 했어?」 · 「오늘 만난 엄마랑 아빠랑을 그려 줄래?」 */
+    @Test
+    fun aCompanionAnswerBecomesANameBeforeItIsUsed() {
+        mapOf(
+            "엄마랑 아빠랑" to "엄마와 아빠",
+            "할머니하고" to "할머니",
+            "엄마랑… 아빠도" to "엄마와 아빠",
+            "동생이랑 형이랑 누나랑" to "동생, 형과 누나",
+            "친구" to "친구",
+            "아빠" to "아빠",
+        ).forEach { (said, name) -> assertEquals(said, name, companionName(said)) }
     }
 }

@@ -130,3 +130,18 @@ fun coopFill(template: String, heard: Map<String, String>): String? {
     }
     return if (missing) null else out
 }
+
+/**
+ * 같이 간 사람 칸 — 아이 말 「엄마랑 아빠랑」 · 「할머니하고」를 이름으로 다듬는다 → 「엄마와 아빠」 · 「할머니」.
+ * 그대로 두면 「엄마랑 아빠랑이 뭐라고 했어?」 · 「오늘 만난 엄마랑 아빠랑을 그려 줄래?」가 됐다(10-05 실기기).
+ * 서버 판정이 다듬어 주는 날도 있고 원문 그대로 주는 날도 있어 앱이 받는 쪽에서 한 번 더 다듬는다.
+ * 떼어 낼 것이 없으면(「친구」 · 「동생이랑 나」의 「나」만 남는 경우 등) 손대지 않는다
+ */
+fun companionName(raw: String): String {
+    val words = raw.trim().trimEnd('.', '!', '?', '~', '…').split(Regex("[\\s,]+")).filter { it.isNotBlank() && it != "그리고" }
+    // 「엄마랑…」처럼 낱말 끝에 붙은 말줄임표 · 느낌표를 먼저 뗀다
+    val names = words.map { it.trimEnd('.', '!', '?', '~', '…') }.map { w -> w.removeSuffix("이랑").removeSuffix("랑").removeSuffix("하고").removeSuffix("도") }.filter { it.isNotBlank() }
+    if (names.isEmpty() || names == words) return raw.trim()
+    if (names.size == 1) return names[0]
+    return names.dropLast(1).joinToString(", ") + "${wa(names[names.size - 2])} ${names.last()}"
+}
