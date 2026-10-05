@@ -5,6 +5,8 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.onChildren
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -246,26 +248,49 @@ class DiaryViewsTest {
     }
 
     /**
-     * 그림판 자리 (#98 · #46) — 판은 앱 틀의 🏠 · 🔒(오른쪽 끝 128dp) 오른쪽에서 시작하고, 🎤 는 판 밖 오른쪽 아래에 고정된다.
-     * 말풍선은 판 쪽에 있어 크레용 아래 ↶ ↷ 를 가리지 않는다
+     * 그림판 자리 (#98 · #46 · 10-05 진웅) — 판은 앱 틀의 🏠(오른쪽 끝 68dp) 오른쪽에서 시작한다(일기 화면엔 🔒 가 없다).
+     * 오른쪽 좁은 띠에 [다 그렸어] · [그려 줘] · 🎤(아래). 말풍선은 화면 왼쪽 끝이고 크레용 아래 ↶ ↷ 를 가리지 않는다
      */
     @Test
-    fun theBoardLeavesRoomForTheTopButtonsAndTheMic() {
+    fun theBoardLeavesRoomForTheTopButtonsAndTheTools() = checkBoardLayout()
+
+    /** 20:9 처럼 가로로 긴 화면 — 크레용 칸이 아래 끝까지 내려와도 말풍선이 ↶ ↷ 를 가리지 않는다 (10-05 · 에뮬레이터에서 겹쳤다) */
+    @Test
+    @Config(qualifiers = "w891dp-h411dp-land-420dpi")
+    fun onAWideScreenTheBubbleStillClearsTheArrows() = checkBoardLayout()
+
+    private fun checkBoardLayout() {
         val d = director()
         d.s.newDiaryDay()
         d.s.stage = DiaryBoard()
-        d.say("우와, 지금 그리는 건 뭐야?")
+        d.say("우와, 지금 그리는 건 뭐야? 천천히 생각해서 말해 줘도 돼!")     // 두 줄이 되는 긴 말 — 가장 높은 말풍선
         d.inputs(mic = true, next = false)
         show(d)
         val board = compose.onNodeWithTag("diary-board").getUnclippedBoundsInRoot()
         val mic = compose.onNodeWithTag("diary-mic").getUnclippedBoundsInRoot()
+        val done = compose.onNodeWithTag("rail-done").getUnclippedBoundsInRoot()
         val bubble = compose.onNodeWithTag("diary-bubble").getUnclippedBoundsInRoot()
         val undo = compose.onNodeWithTag("stroke-undo").getUnclippedBoundsInRoot()
-        assertTrue("🔒 가 판 위에 얹힌다 — 판 왼쪽 ${board.left}", board.left >= 128.dp)
-        assertTrue("🎤 가 판을 가린다 — 판 오른쪽 ${board.right} · 🎤 왼쪽 ${mic.left}", mic.left >= board.right)
         val root = compose.onRoot().getUnclippedBoundsInRoot()
+        assertTrue("🏠 가 판 위에 얹힌다 — 판 왼쪽 ${board.left}", board.left >= 68.dp)
+        assertTrue("도구 띠가 판을 가린다", mic.left >= board.right && done.left >= board.right)
+        assertTrue("도구 띠가 넓다 — ${root.right - board.right}", root.right - board.right <= 80.dp)
         assertTrue("🎤 가 오른쪽 아래가 아니다", root.right - mic.right < 24.dp && root.bottom - mic.bottom < 24.dp)
-        assertTrue("말풍선이 ↶ 를 가린다", bubble.left >= undo.right || bubble.top >= undo.bottom)
+        assertTrue("말풍선이 화면 왼쪽 끝이 아니다 — ${bubble.left}", bubble.left < 24.dp)
+        assertTrue("말풍선이 ↶ 를 가린다 — 말풍선 위 ${bubble.top} · ↶ 아래 ${undo.bottom}", bubble.top >= undo.bottom)
+    }
+
+    /** 오른쪽 띠 [다 그렸어] · [그려 줘] — 말로 「다 그렸어」 · 「그려줘」와 같은 신호. 지켜보는 중에만 [그려 줘]를 받는다 */
+    @Test
+    fun theRailButtonsSendDoneAndDrawMe() {
+        val d = director()
+        d.s.newDiaryDay().watching = true
+        d.s.drawing += Stroke(Color.Red, listOf(Offset(.1f, .3f), Offset(.2f, .6f)))
+        d.s.stage = DiaryBoard()
+        d.inputs(mic = true, next = false)
+        show(d)
+        assertEquals("drawme", (d.replyTo { compose.onNodeWithTag("rail-drawme").onChildren().onFirst().performClick() } as? Reply.Tapped)?.value)
+        assertEquals("done", (d.replyTo { compose.onNodeWithTag("rail-done").onChildren().onFirst().performClick() } as? Reply.Tapped)?.value)
     }
 
     /** 천천히 긋는 둘째 획 — 앞 획 뒤 1.6초가 지나도 손가락이 판에 있으면 묻지 않는다. 손을 떼고 조용하면 묻는다 */

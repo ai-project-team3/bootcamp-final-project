@@ -223,6 +223,7 @@ class Director(
         s.speaker = who
         s.line = text
         s.lineId++
+        com.example.finalproject_demo.net.Trace.line(if (who == "마스코트") "otto" else "said:$who", text)
         if (who == "마스코트" && surprise.containsMatchIn(text)) feel(Mood.SURPRISED)
         if (who == "마스코트") { dumpSpoken(text); speakLive(text) }
     }
@@ -398,6 +399,7 @@ class Director(
     fun partnerSays(text: String) = say(text, s.pn)
 
     fun log(t: String) {
+        com.example.finalproject_demo.net.Trace.line("log", t)
         s.log.add(0, t)
         if (s.log.size > 80) s.log.removeAt(s.log.size - 1)
     }
@@ -823,7 +825,9 @@ class Director(
         feel(Mood.CHEER)
         event("utterance", "speaker" to "child", "confidence" to "0.9", "mode" to "voice", "text" to text)
         log("[${s.childName}] $text  →  우리 서버 Whisper → 글자 (음성 사본 즉시 삭제)")
-        pause(900)
+        // live: the neutral 「응, 그랬구나」 already covers the moment and the server call waits on this —
+        // 10-05 trace: 3.5~5 s between the transcript and the /turn request, 0.9 s of it this pause
+        pause(if (com.example.finalproject_demo.net.Server.liveFor(s.mode)) 150 else 900)
     }
 
     suspend fun acceptTap(r: Reply.Tapped) {
