@@ -17,7 +17,8 @@ import java.util.WeakHashMap
  *   (`SavedStoryView`)이 **만들 때와 같은 책 화면**(그림 · 읽어 주기 · 미션 쪽)으로 연다.
  * - 같이 만들기 책의 쪽 구성 · 그림은 이야기 칸 · 만난 사람 · 화이트보드 그림이 정한다(`diaryTemplate`) —
  *   그래서 그 재료를 [CoopBookSnapshot] 으로 같이 저장하고, 다시 열 때 [restoreCoopBook] 이 그대로 되살린다
- * - 12권까지. 13권째는 **아무것도 지우지 않고** 꽂지 않는다 — 뺄 책을 고르는 화면은 책장 전체의 일이다(§9-0 조장)
+ * - 12권까지. 꽉 차면 방에서 같이 만들기를 고를 때 알리고, 빼기는 부모 모드에서 한다(#80 · `Shelves.kt`).
+ *   그래도 13권째가 오면 **아무것도 지우지 않고** 꽂지 않는다
  * - 폰 안에만 둔다(`shared_prefs/coop_books`). 서버에는 보내지 않는다
  */
 
@@ -67,6 +68,10 @@ interface CoopBookStore {
     fun load(): List<SavedCoopBook>
     /** 새 책을 맨 앞에. 12권이 차 있으면 실패한다 — 몰래 지우지 않는다 */
     fun save(book: SavedCoopBook)
+    /** 한 권 빼기 — 부모 모드에서만(#80). 그런 책이 없으면 false */
+    fun delete(id: String): Boolean { error("Co-op book deletion is not supported") }
+    /** 책들이 쓰는 그림 — 읽지 못한 책이 있으면 null(어느 그림을 남길지 모른다 · 그림 정리를 멈춘다) */
+    fun imageReferences(): Set<String>? = load().flatMap { listOfNotNull(it.book.bgName, it.book.visuals?.hero?.image) }.toSet()
 }
 
 /** 지금 같이 만든 이야기를 책 한 권으로 — 빈 쪽이 있으면 null(책이 덜 됐다) */
@@ -81,7 +86,8 @@ fun DemoState.completedCoopBook(): SavedCoopBook? {
         dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
         newcomerKind, soundLine, causeLine,
     )
-    val book = SavedStoryBook(UUID.randomUUID().toString(), title ?: autoTitleFor(), themeKey, bgName, pages, visuals)
+    val book = SavedStoryBook(UUID.randomUUID().toString(), title ?: autoTitleFor(), themeKey, bgName, pages, visuals,
+        madeAt = java.time.LocalDate.now().toString())
     val snapshot = CoopBookSnapshot(
         childName, slots.toMap(), placeLabel, companionKind, friendName,
         sceneDrawing.map { it.copy(pts = it.pts.toList()) }, sceneDrawingAspect,
@@ -142,6 +148,23 @@ class LocalCoopBookStore(context: Context) : CoopBookStore {
         require(all.size <= COOP_SHELF_CAPACITY) { "같이 만들기 책장이 꽉 찼다 — 뺄 책을 고른 뒤에 꽂는다" }
         check(prefs.edit().putString("books", coopBooksToJson(all)).commit()) { "같이 만들기 책을 저장하지 못했습니다" }
     }
+
+    override fun imageReferences(): Set<String>? {
+        val raw = prefs.getString("books", null) ?: return emptySet()
+        val current = coopBooksFromJson(raw)
+        if (runCatching { JSONArray(raw).length() }.getOrNull() != current.size) return null
+        return current.flatMap { listOfNotNull(it.book.bgName, it.book.visuals?.hero?.image) }.toSet()
+    }
+
+    override fun delete(id: String): Boolean {
+        val raw = prefs.getString("books", null) ?: return false
+        val current = coopBooksFromJson(raw)
+        // 읽지 못한 책이 있으면 다시 쓰지 않는다 — 다시 쓰면 그 책까지 지워진다
+        check(current.size == JSONArray(raw).length()) { "읽지 못한 같이 만들기 책이 있어 빼지 않는다" }
+        if (current.none { it.book.id == id }) return false
+        check(prefs.edit().putString("books", coopBooksToJson(current.filterNot { it.book.id == id })).commit()) { "같이 만들기 책을 빼지 못했습니다" }
+        return true
+    }
 }
 
 private fun JSONObject?.toStringMap(): Map<String, String> =
@@ -171,7 +194,7 @@ internal fun coopBooksToJson(books: List<SavedCoopBook>): String {
         val pages = JSONArray()
         b.pages.forEach { p -> pages.put(JSONObject().put("kind", p.kind.name).put("caption", p.caption)) }
         val snap = s?.let { snapshotToJson(it) } ?: JSONObject.NULL
-        array.put(JSONObject().put("id", b.id).put("title", b.title).put("themeKey", b.themeKey)
+        array.put(JSONObject().put("id", b.id).put("title", b.title).put("madeAt", b.madeAt).put("themeKey", b.themeKey)
             .put("bgName", b.bgName).put("pages", pages)
             .put("visuals", b.visuals?.toJson() ?: JSONObject.NULL).put("coop", snap))
     }
@@ -204,7 +227,8 @@ internal fun coopBooksFromJson(raw: String): List<SavedCoopBook> = runCatching {
             }
             if (pages.isEmpty() || pages.any { it.caption.isBlank() }) return@runCatching null
             val visuals = o.optJSONObject("visuals")?.let(::storyVisualsFromJson)
-            val book = SavedStoryBook(o.getString("id"), o.getString("title"), o.getString("themeKey"), o.getString("bgName"), pages, visuals)
+            val book = SavedStoryBook(o.getString("id"), o.getString("title"), o.getString("themeKey"), o.getString("bgName"), pages, visuals,
+                madeAt = o.optString("madeAt", ""))
             // 앞 빌드(10-02 c68b857 전)가 남긴 책은 다시 그리는 재료가 없다 — 글자 책으로 남긴다(지우지 않는다)
             val c = o.optJSONObject("coop") ?: return@runCatching SavedCoopBook(book, null)
             val sl = c.getJSONObject("slots")
@@ -252,6 +276,26 @@ object CoopShelf {
 
     /** 이 책장에 꽂힌 같이 만들기 책 수 */
     fun count(s: DemoState): Int = books[s]?.size ?: 0
+
+    /** 꽂힌 책 — 새 책이 앞. 저장소가 없으면 빈 목록 */
+    fun books(s: DemoState): List<SavedStoryBook> = books[s]?.map { it.book }.orEmpty()
+
+    /** 저장소가 붙어 있나 — 없으면 같이 만들기 책은 앱을 켜 둔 동안만 남는다 */
+    fun attached(s: DemoState): Boolean = stores[s] != null
+
+    /** 같이 만들기 책들이 쓰는 그림 — 붙기 전이거나 읽지 못하면 null(그림 정리를 멈춘다 · `Director.recoverStoryImages`) */
+    fun imageReferences(s: DemoState): Set<String>? = stores[s]?.let { runCatching { it.imageReferences() }.getOrNull() }
+
+    /** 한 권 빼기 — 저장소에서 먼저 지우고, 성공했을 때만 책장 · 다시 그리는 재료에서 내린다(#80) */
+    fun delete(s: DemoState, id: String): Boolean {
+        val store = stores[s] ?: return false
+        if (books[s]?.none { it.book.id == id } != false) return false
+        if (!runCatching { store.delete(id) }.getOrDefault(false)) return false
+        books[s]?.removeAll { it.book.id == id }
+        snapshots.remove(id)
+        s.shelf.removeAll { it.savedStoryId == COOP_SHELF_ID + id }
+        return true
+    }
 
     /** 지금 이야기를 꽂는다 — 저장에 성공했을 때만 책장에 「저장된 책」으로 올린다 */
     fun shelve(s: DemoState): CoopShelved {

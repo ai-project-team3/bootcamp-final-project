@@ -109,6 +109,9 @@ internal fun DemoState.coopClaimBackground(place: String): Boolean =
 internal fun DemoState.coopUseGeneratedBackground(path: String, forPlace: String): Boolean =
     (coopTrack.bgAskedFor == forPlace).also { if (it) coopTrack.generatedBg = path }
 
+/** 지금 같이 만드는 이야기에 서버가 그린 배경 — 그림 정리가 지우지 않게 (`Director.recoverStoryImages` · #80) */
+internal val DemoState.coopGeneratedBackground: String? get() = coopTrack.generatedBg
+
 /** 부모 질문을 끼우는 꼬리 자리 — 하던 일 · 한 말 · 해 본 것 · 집에 와서. 답의 뜻이 정해지지 않은 자리들이다 */
 internal val COOP_PARENT_STEPS = setOf("detail", "said", "try", "after")
 

@@ -212,7 +212,7 @@ private suspend fun Director.sceneAdult() {
     )
     // 갈래가 갈라지는 유일한 자리 (일기 §1 · 협업 §3). 뒤의 흐름은 질문 세트와 **묻는 사람**만 다르고 나머지는 같다
     var picked = StoryMode.STORY
-    when (awaitValue("start", "diary", "coop", "shelf", "parent", "notice:ok", "notice:shelf", "resume")) {
+    when (awaitValue("start", "diary", "coop", "shelf", "parent", "notice:ok", "notice:shelf", "resume", "shelf:tidy")) {
         "shelf", "notice:shelf" -> { go(Scene.SHELF); return }
         // 이야기 도중 나갔다가 「이어서 할까?」에 응 (09-29) — 별을 다시 쓰지 않고, 이야기 조각을 지우지 않고 멈춘 장면부터
         "resume" -> {
@@ -225,9 +225,28 @@ private suspend fun Director.sceneAdult() {
             return
         }
         "notice:ok" -> { go(Scene.ADULT); return }
+        // 부모 모드 → 책장 정리를 바로 연다 (#80 · 시연 서랍 · 테스트)
+        "shelf:tidy" -> {
+            if (pinGate("parent")) { s.shelfTidyMode = s.shelfTidyMode ?: StoryMode.STORY; go(Scene.PARENT) } else go(Scene.ADULT)
+            return
+        }
         "diary" -> picked = StoryMode.DIARY
         "coop" -> picked = StoryMode.COOP
         else -> {}
+    }
+    // 그 모드 책장이 꽉 찼으면 들어가지 않고 알린다 — 다 만든 책 앞에서 고르게 하지 않는다 (#80 · guidelines/3 §3-5).
+    // 별을 쓰기 전에 본다. 이어 가기(resume)는 새 책이 아니라 막지 않는다
+    if (shelfIsFull(picked)) {
+        s.shelfFull = picked
+        log("${SHELF_MODES.first { it.first == picked }.second} 책장이 ${SHELF_CAPACITY}권 — 시작하지 않고 알린다. 빼기는 부모 모드에서만 (#80)")
+        buttons(
+            DemoBtn("🔒 부모 모드로 (책장 정리)") { send(Reply.Tapped("shelf:tidy", "부모 모드로")) },
+            DemoBtn("✕ 닫기") { send(Reply.Tapped("shelf:close", "닫기")) },
+        )
+        val tidy = awaitValue("shelf:tidy", "shelf:close") == "shelf:tidy"
+        s.shelfFull = null
+        if (tidy && pinGate("parent")) { s.shelfTidyMode = picked; go(Scene.PARENT) } else go(Scene.ADULT)
+        return
     }
     // ⭐ 0이면 오늘은 여기까지 — 누를 때 한 번만 말해 준다 (결정 2)
     if (s.limitOn && s.dayStars <= 0) {
@@ -1738,11 +1757,13 @@ private suspend fun Director.sceneShelf() {
 
 private suspend fun Director.sceneParent() {
     inputs(false, false)
-    var tab = "rec"
+    // 책장이 꽉 차 [부모 모드로]로 왔으면 책장 정리부터 (#80)
+    var tab = if (s.shelfTidyMode != null) "shelf" else "rec"
     buttons(
         DemoBtn("📋 오늘의 기록") { send(Reply.Tapped("tab:rec", "기록")) },
         DemoBtn("🏅 업적 보기") { send(Reply.Tapped("tab:ach", "업적")) },
         DemoBtn("⚙️ 설정") { send(Reply.Tapped("tab:set", "설정")) },
+        DemoBtn("📚 책장 정리") { send(Reply.Tapped("tab:shelf", "책장 정리")) },
         DemoBtn("🏠 아이 모드로 (처음으로)") { send(Reply.Tapped("home", "처음으로")) },
     )
     while (true) {
@@ -1751,13 +1772,21 @@ private suspend fun Director.sceneParent() {
             "rec" -> log("오늘의 기록 — 사실만. 등급 · 나이 비교 · 수준 이름 · 또래 · 지연 같은 말은 쓰지 않음 (16 · 안치영 §9)")
             "ach" -> log("업적 — 아이가 한 일로만")
             "set" -> log("설정 — 하루 한도 · 시작 비밀번호 · 그림체 4종 · 데이터")
+            "shelf" -> log("책장 정리 — 모드마다 ${SHELF_CAPACITY}권 · 뺄 책은 어른이 고른다 · 몰래 지우지 않는다 (#80)")
         }
         mark("parent")
         val r = awaitReply() as? Reply.Tapped ?: continue
         val v = r.value
         when {
             v.startsWith("tab:") -> tab = v.removePrefix("tab:")
-            v == "home" -> { goHome(); return }
+            v == "home" -> { s.shelfTidyMode = null; goHome(); return }
+            v.startsWith("shelf:mode:") -> s.shelfTidyMode = StoryMode.entries.firstOrNull { it.name == v.removePrefix("shelf:mode:") }
+            v.startsWith("shelf:del:") -> parseShelfDelete(v)?.let { (mode, id) ->
+                // 부모 화면이 「정말 뺄까요?」를 거친 뒤에만 보낸다. 지우지 못했으면 책장은 그대로다
+                val title = shelfEntries(mode).firstOrNull { it.id == id }?.title
+                log(if (removeShelfBook(mode, id)) "책장 정리 — 『$title』 뺐다 · 그 책의 소리 · 안 쓰는 그림도 정리 (#80)"
+                    else "책장 정리 — 『$title』 빼지 못했다 · 책장은 그대로")
+            }
             v == "set:limit" -> {
                 s.limitOn = !s.limitOn
                 log("하루 한도 ${if (s.limitOn) "켬 — 하루 ${s.dailyLimit}권" else "끔 — 별을 쓰지 않음"}")
