@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.Trace
 import com.example.finalproject_demo.net.nameMask
 import kotlinx.coroutines.*
 
@@ -195,7 +196,7 @@ suspend fun DemoState.exchangeTurn(
 ): Server.TurnResult? {
     if (utterance.isBlank()) return null
     val mask = nameMask()
-    com.example.finalproject_demo.net.Trace.line("turn", "request asked=$askedSlot · ${utterance.length} chars")
+    Trace.line("turn", "request asked=$askedSlot · ${utterance.length} chars")
     val response = request(Server.Turn(
         mode = mode,
         slots = mask.maskSlots(if (mode == "story") storyServerInput().slots else slots),
@@ -234,6 +235,11 @@ suspend fun DemoState.exchangeStoryTurn(
     return exchangeTurn("story", askedSlot, question, utterance, request = request)?.also { response ->
         response.verdict?.let { applyStoryVerdict(it, by) }
         rememberStoryQuestion(response)
+        val verdict = response.verdict
+        Trace.line("story_verdict", "asked=$askedSlot by=$by ready=${verdict?.storyReady} " +
+            "next=${verdict?.nextSlot} applied=$storyNextSlot unclear=${verdict?.unclear} " +
+            "unneeded=${verdict?.noLongerNeeded} fills=${verdict?.fills?.map { it.first }} " +
+            "question=${response.line?.question}")
     }
 }
 

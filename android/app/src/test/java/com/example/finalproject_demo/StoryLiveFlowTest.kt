@@ -29,6 +29,72 @@ class StoryLiveFlowTest {
     @get:org.junit.Rule val sceneKitOff = SceneKitOff()
 
     @Test
+    fun actualStoryEntryKeepsTheServerExtraQuestionThroughBookCreation() = runBlocking {
+        val followUp = "쉬고 난 뒤에는 어떻게 돌아왔어?"
+        val server = StoryTestServer { path, body ->
+            when (path) {
+                "/turn" -> {
+                    val first = body.optString("asked_slot") == "place"
+                    JSONObject().put("judge", JSONObject()
+                        .put("reason", "ok")
+                        .put("slot_1", if (first) "place" else "extra")
+                        .put("value_1", body.getString("utterance"))
+                        .put("slot_2", if (first) "problem" else JSONObject.NULL)
+                        .put("value_2", if (first) "길을 잃었어" else JSONObject.NULL)
+                        .put("next_slot", if (first) "extra" else JSONObject.NULL)
+                        .put("story_ready", !first))
+                        .put("line", JSONObject().put("ack", "들려줘서 고마워!")
+                            .put("question", if (first) followUp else JSONObject.NULL))
+                }
+                "/story" -> JSONObject().put("scenes", JSONArray().apply {
+                    val pages = body.getJSONArray("pages")
+                    repeat(pages.length()) { i -> put(JSONObject().put("index", i + 1)
+                        .put("kind", pages.getJSONObject(i).getString("kind"))
+                        .put("caption", "숲에서 쉬고 엄마와 집에 돌아왔어요.")) }
+                })
+                else -> JSONObject().put("preset", true)
+            }
+        }
+        val previousBase = Server.base
+        val previousModes = Server.liveModes
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val d = Director(scope, LocalStoryBookStore(context), StoryImageStore(context))
+        d.s.speed = 0.01
+        Server.base = server.base
+        Server.liveModes = setOf(StoryMode.STORY)
+        try {
+            d.go(Scene.PLACE)
+            val feeder = launch {
+                while (isActive) {
+                    if ((d.s.stage as? Stage.CardsRow)?.cards?.any { it.value == "sound:skip" } == true) {
+                        d.send(Reply.Tapped("sound:skip", "소리 없이 계속"))
+                    } else if (d.s.micEnabled) {
+                        d.send(Reply.Spoke(if (d.s.storyNextSlot == "extra") "엄마와 집에 돌아왔어" else "숲에서 쉬었어"))
+                    }
+                    delay(40)
+                }
+            }
+            withTimeout(10_000) { while (d.s.scene != Scene.BOOK) delay(10) }
+            feeder.cancelAndJoin()
+            val turns = server.requests.filter { it.first == "/turn" }.map { it.second }
+            assertEquals(listOf("place", "extra"), turns.map { it.getString("asked_slot") })
+            assertEquals(followUp, turns[1].getString("question"))
+            assertEquals("엄마와 집에 돌아왔어", d.s.slots["extra"])
+            assertEquals("child", d.s.slotBy["extra"])
+            assertEquals("story_ready", d.s.endReason)
+            val bookRequest = server.requests.single { it.first == "/story" }.second
+            assertEquals("엄마와 집에 돌아왔어", bookRequest.getJSONObject("slots").getString("extra"))
+            assertTrue(d.s.bookCaption(1).contains("엄마와 집에 돌아왔어요"))
+        } finally {
+            scope.cancel()
+            Server.base = previousBase
+            Server.liveModes = previousModes
+            server.close()
+        }
+    }
+
+    @Test
     fun actualStoryEntryFollowsVerdictsAndStopsAsSoonAsTheServerIsReady() = runBlocking {
         val imageStarted = CountDownLatch(1)
         val nextTurnArrived = CountDownLatch(1)
