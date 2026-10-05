@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.ui.CoopReason
+
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
 import kotlinx.coroutines.CoroutineScope
@@ -373,7 +375,7 @@ private fun Director.nextD1Story(day: DiaryDay, asked: Set<String>): Triple<Stri
     fun open(key: String) = key !in asked && s.slots[key].isNullOrBlank()
     day.nextStory?.takeIf { open(it.third) }?.let { return it }
     if (asked.isEmpty() && open("place")) return Triple("place", D1_FIRST_STORY, "place")
-    if (!Server.liveFor(s.mode) && open("problem")) return Triple("problem", "거기서 무슨 일이 있었어?", "problem")
+    if (!Server.liveFor(s.mode) && open("problem")) return Triple("problem", atPlace(s, "무슨 일이 있었어?"), "problem")
     return null
 }
 
@@ -417,7 +419,7 @@ private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: Triple<S
     }
     val scripted = r.answer?.value?.takeIf(String::isNotBlank)          // 시연 대본 답이면 값이 붙어 온다
     setDiarySlot(slot, key, scripted?.let(::diarySlotOf) ?: said, scripted?.let(::diaryLineOf) ?: said, "child")
-    say(echoBack(said)); pause(600)
+    sayAck(said, slot)
     log("그리는 중 이야기 [$key] = 「$said」 (child) — 다 그린 뒤에는 묻지 않는다")
     return "ok"
 }
@@ -891,8 +893,7 @@ private suspend fun Director.askPictureSlot(pq: PictureQuestion) {
         setDiarySlot(step.slot, pq.key, value, line, "child")
         quote(r.text)
         s.mascotPicks = 0
-        say(echoBack(r.text))
-        pause(700)
+        sayAck(r.text, step.slot)
         return
     }
 }
@@ -940,7 +941,21 @@ private fun Director.fillFromVerdict(day: DiaryDay, v: Server.Verdict, r: Reply.
 private suspend fun Director.sayReaction(result: Server.TurnResult, r: Reply.Spoke) {
     val reaction = listOfNotNull(result.line?.ack?.takeIf(String::isNotBlank), result.line?.expand?.takeIf(String::isNotBlank)).joinToString(" ")
     if (reaction.isNotBlank()) { say(reaction); pause(600) }
-    else if (result.verdict?.fills?.isNotEmpty() == true) { say(echoBack(r.text)); pause(600) }
+    else if (result.verdict?.fills?.isNotEmpty() == true) sayAck(r.text, result.verdict!!.fills.first().first)
+}
+
+/**
+ * 오또의 받아 주기(서버 대사가 없을 때) — 아이 문장을 통째로 되받지 않고 **낱말 하나**를(「놀이터구나!」),
+ * 그 낱말이 주어면 「그랬구나!」. 「몰라」 · 「응」은 되받지 않고, 바로 앞과 같은 말은 하지 않는다 (협업 coopAck · 10-05 진웅)
+ */
+private suspend fun Director.sayAck(text: String, slot: String) {
+    val role = when (slot) { "place" -> CoopRole.PLACE; "companion", "newcomer" -> CoopRole.WHO; "problem" -> CoopRole.THING; else -> CoopRole.ANY }
+    // 곳은 「놀이터 갔어」처럼 「에」 없이 말하기 쉬워 일기 쪽에서 먼저 떼어 준다 → 「놀이터구나!」
+    val heard = if (slot == "place") diaryPlaceWord(text) ?: text else text
+    val ack = coopAck(heard, role, CoopReason.DONE, last = s.diaryDay.lastAck) ?: return
+    s.diaryDay.lastAck = ack
+    say(ack)
+    pause(600)
 }
 
 /**
@@ -949,8 +964,14 @@ private suspend fun Director.sayReaction(result: Server.TurnResult, r: Reply.Spo
  */
 private fun Director.serverNext(result: Server.TurnResult): Triple<String, String, String>? {
     val slot = result.verdict?.nextSlot?.takeIf { it in Server.SLOTS && s.slots[askedKeyOf(it)].isNullOrBlank() } ?: return null
-    val question = result.line?.question?.takeIf(String::isNotBlank) ?: return null
-    log("판정이 다음 칸을 골랐다 → [$slot] 「$question」")
+    val raw = result.line?.question?.takeIf(String::isNotBlank) ?: return null
+    // 말하기 전 갈무리 — 질문 하나 · 쉬운 말 · 시제(「내일」은 앞일, 나머지는 지난 일) · 길이. 걸리면 앱 질문으로 (협업 coopGuard · 10-05 진웅)
+    val g = coopGuard(raw, if (slot == "extra") CoopReason.SOON else CoopReason.DONE, CoopSource.LLM)
+    // 걸리면 판정이 고른 **그 칸**의 앱 질문으로 — 질문 순서는 판정이 정한다(차별점 2). 앱 질문이 없는 칸이면 다음 차례로
+    val question = g.text ?: PICTURE_QUESTIONS.firstOrNull { it.key == askedKeyOf(slot) }?.ask?.invoke(s)?.also {
+        log("판정 질문 「$raw」 — 갈무리에 걸려 같은 칸의 앱 질문 「$it」으로 (${g.issues.joinToString(" · ")})")
+    } ?: run { log("판정 질문 「$raw」 — 갈무리에 걸리고 앱 질문도 없어 다음 차례로 (${g.issues.joinToString(" · ")})"); return null }
+    log("판정이 다음 칸을 골랐다 → [$slot] 「$question」" + if (g.changed) " (갈무리: ${g.issues.joinToString(" · ")})" else "")
     return Triple(slot, question, askedKeyOf(slot))
 }
 
@@ -1022,7 +1043,7 @@ private suspend fun Director.askEmptySlotsLive() {
             judge(step?.variant, r, q.text)
             if (!dontKnow(r.text)) {
                 setDiarySlot(slot, key, r.text.trim(), r.text.trim(), "child")
-                say(echoBack(r.text)); pause(600)
+                sayAck(r.text, slot)
             }
             next = firstEmptyQuestion(gaveUp)
             continue
@@ -1047,7 +1068,14 @@ private suspend fun Director.askEmptySlotsLive() {
                 if (easy != null) { log("[$key] 채운 칸이 없다 → 한 번만 쉽게 바꿔 묻는다"); next = Triple(slot, easy, key); continue }
             }
             gaveUp += key
-            log("[$key] 또 못 채웠다 → 비워 둔다. 마스코트가 대신 채우지 않는다")
+            // 필수 칸(어디 · 무슨 일)에 아이가 **진짜로 답했는데** 판정이 두 번 못 받았으면 아이 말 그대로 — 버리면 아이가 한 말이 사라진다.
+            // 지어내는 것이 아니라 아이 출처다(규칙 5 · 협업 keepChildAnswer 와 같다 · 10-05 진웅). 「몰라」 · 「응」은 넣지 않는다
+            if (key in PICTURE_REQUIRED && !dontKnow(r.text) && !isNonAnswer(r.text.trim())) {
+                setDiarySlot(slot, key, r.text.trim(), r.text.trim(), "child")
+                quote(r.text)
+                sayAck(r.text, slot)
+                log("[$key] 판정은 두 번 못 받았지만 아이가 한 말 「${r.text.trim()}」을 그대로 넣는다 (child)")
+            } else log("[$key] 또 못 채웠다 → 비워 둔다. 마스코트가 대신 채우지 않는다")
         }
         v.noLongerNeeded?.let { log("판정 — 「$it」 칸은 더 묻지 않아도 된다") }
         if (v.storyReady && s.endReason == null) {
@@ -1110,13 +1138,34 @@ private suspend fun Director.offerWrapUp(): Boolean {
 
 internal class PictureQuestion(val key: String, val ask: (DemoState) -> String, val easy: String)
 
+/**
+ * 아이가 말한 곳의 낱말 — 「놀이터 갔어」 · 「할머니 집에 다녀왔어」 → 놀이터 · 할머니 집. 못 떼면 null.
+ * 협업의 [coopNameFrom] 을 쓰고, 일기 답에 흔한 「○○ 갔어」(「에」 없이)를 한 번 더 본다
+ */
+internal fun diaryPlaceWord(raw: String?): String? {
+    val t = raw?.trim()?.takeIf(String::isNotEmpty) ?: return null
+    coopNameFrom(t, CoopRole.PLACE)?.let { return it }
+    val m = Regex("^(.+?)\\s*(에서|에)?\\s+(갔|다녀왔|놀았|있었|왔)").find(t) ?: return null
+    return coopNameFrom(m.groupValues[1], CoopRole.PLACE)
+}
+
+/**
+ * 「거기서 …」 대신 아이가 말한 곳으로 — 「놀이터에서 무슨 일이 있었어?」 (협업 이어 받기와 같은 틀 · 10-05 진웅).
+ * 곳을 못 떼거나 질문 갈무리([coopGuard])에 걸리면 「거기서 …」 그대로
+ */
+internal fun atPlace(s: DemoState, rest: String): String =
+    diaryPlaceWord(s.slots["place"])
+        ?.let { coopFill("{place:에서} $rest", mapOf("place" to it)) }
+        ?.let { coopGuard(it, CoopReason.DONE, CoopSource.HEARD).text }
+        ?: "거기서 $rest"
+
 /** 필수 칸 — `DemoState.reqSlots`(일기 = place · problem, #29)와 같은 둘. 여기는 책 문장 키로 본다 */
 internal val PICTURE_REQUIRED = listOf("place", "problem")
 
 /** 다 그린 뒤 묻는 칸 — 이 차례로, 빈 것만 */
 internal val PICTURE_QUESTIONS = listOf(
     PictureQuestion("place", { "오늘 어디 갔었어?" }, "아침 먹고 어디 갔어?"),
-    PictureQuestion("problem", { if (it.slots["place"].isNullOrBlank()) "오늘 무슨 일이 있었어?" else "거기서 무슨 일이 있었어?" }, "거기서 뭐 했어?"),
+    PictureQuestion("problem", { if (it.slots["place"].isNullOrBlank()) "오늘 무슨 일이 있었어?" else atPlace(it, "무슨 일이 있었어?") }, "거기서 뭐 했어?"),
     PictureQuestion("solution", { "그래서 어떻게 됐어?" }, "그다음엔 뭐 했어?"),
     PictureQuestion("keep", { "내일 또 하고 싶은 거 있어?" }, "내일은 뭐 하고 싶어?"),
 )
