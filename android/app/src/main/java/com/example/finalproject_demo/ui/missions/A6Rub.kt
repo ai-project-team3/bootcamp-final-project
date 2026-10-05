@@ -145,11 +145,23 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
         // 일기·협업에는 탈것이 없다 (§2-2). 전에는 **가방**을 띄워 놓고 거기에 흙을 묻혔는데,
         // 아이가 가방 이야기를 한 적이 없어서 "놀이터에 남은 모래를 치웠어요" 자막 옆에
         // 뜬금없는 가방이 떠 있었다 (9/22). 이제 흔적은 **놀던 자리(바닥)** 에 흩어진다.
-        val blobs = if (s.isDiary)
-            listOf(0.30f to 0.66f, 0.46f to 0.73f, 0.63f to 0.65f).map { (bx, by) -> Offset(bx * wpx, by * hpx) }
-        else
-            listOf(0.22f to fy, 0.50f to fy + 0.08f, 0.78f to fy).map { (bx, by) -> Offset(vx * wpx + bx * vwPx, vy * hpx + by * vhPx) }
-        val scripted = !com.example.finalproject_demo.net.Server.liveFor(s.mode)   // 서버 모드 동화엔 기본 탈것 · 공룡이 없다(10-02)
+        val scripted = !com.example.finalproject_demo.net.Server.liveFor(s.mode)
+        val liveStory = s.mode == StoryMode.STORY && !scripted
+        // A live story has no scripted ride. Put its marks on a visible patch, not the hidden ride's roof.
+        val blobs = when {
+            liveStory -> listOf(0.30f to 0.60f, 0.46f to 0.66f, 0.63f to 0.59f)
+                .map { (bx, by) -> Offset(bx * wpx, by * hpx) }
+            s.isDiary -> listOf(0.30f to 0.66f, 0.46f to 0.73f, 0.63f to 0.65f)
+                .map { (bx, by) -> Offset(bx * wpx, by * hpx) }
+            else -> listOf(0.22f to fy, 0.50f to fy + 0.08f, 0.78f to fy)
+                .map { (bx, by) -> Offset(vx * wpx + bx * vwPx, vy * hpx + by * vhPx) }
+        }
+        if (liveStory) Box(
+            Modifier.offset { IntOffset((wpx * 0.25f).roundToInt(), (hpx * 0.49f).roundToInt()) }
+                .size((wpx * 0.46f / density).dp, (hpx * 0.28f / density).dp)
+                .felt(WoolCream.copy(alpha = 0.88f), RoundedCornerShape(18.dp), lift = 2.dp)
+                .semantics { contentDescription = "${m.blobName} 지우는 자리" },
+        )
         if (!s.isDiary && scripted) Layer(vx, vy, vw, va, Modifier.offset { IntOffset(0, lift.roundToInt()) }) { ArtView(s.rideArt, Modifier.fillMaxSize()) }
         Stand(0.14f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
         val rubFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
@@ -258,6 +270,7 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
                     Modifier
                         .offset { IntOffset((b.x - sz / 2).roundToInt(), (b.y - sz / 2).roundToInt()) }
                         .size((sz / density).dp)
+                        .semantics { contentDescription = "${m.blobName} 흔적 ${i + 1}" }
                 ) {
                     // 불은 **그림을 쓰지 않는다** (9/23 요청). 정지한 🔥 한 장이 타오르는 파티클 위에
                     // 겹쳐 있으면 그 장만 멈춰 보여 오히려 어색했다. 먹물 · 모래 · 진흙은 타는 것이
@@ -330,7 +343,10 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
             }
         }
         if (allOut) {
-            Box(Modifier.offset { IntOffset((vx * wpx).roundToInt(), (vy * hpx - 20).roundToInt()) }.size(120.dp, 54.dp)) { ArtView(Art.Img("prop_sparkle", Art.Emoji("✨")), Modifier.fillMaxSize()) }
+            Box(Modifier.offset {
+                if (liveStory) IntOffset((wpx * 0.46f - 60.dp.toPx()).roundToInt(), (hpx * 0.65f).roundToInt())
+                else IntOffset((vx * wpx).roundToInt(), (vy * hpx - 20).roundToInt())
+            }.size(120.dp, 54.dp)) { ArtView(Art.Img("prop_sparkle", Art.Emoji("✨")), Modifier.fillMaxSize()) }
         }
     }
 }
