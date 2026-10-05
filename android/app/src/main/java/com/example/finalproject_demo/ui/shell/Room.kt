@@ -55,6 +55,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -461,6 +462,22 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                 onNo = { asking = false; target = null; scope.launch { goingLeft = HOME_X < walkX.value; moving = true; walkX.animateTo(HOME_X, tween(700)); moving = false; paws.clear() } },
                 onYes = { done(); d.send(Reply.Tapped(t.value, t.label)) },
                 modifier = Modifier.align(Alignment.Center),
+            )
+        }
+
+        // 고른 모드의 책장이 꽉 찼다 — 흐름이 `shelfFull` 을 켠다. 들어가지 않고 알린다 (#80 · guidelines/3 §3-5).
+        // 아이 화면에는 결제 · 늘리기 안내가 없다. 빼기는 부모 모드에서만
+        if (!tutorial) s.shelfFull?.let { mode ->
+            val t = Thing.entries.firstOrNull { modeOf(it.value) == mode } ?: Thing.THEATER
+            Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.45f)).noRippleClickable { })
+            ConfirmDialog(
+                "📚", "책장이 꽉 찼어!", title = t.title, art = Thing.SHELF.art, accent = t.color,
+                detail = "엄마·아빠랑 책장을 정리해 볼까?",
+                note = "부모님이 책장 정리에서 한 권을 빼면 다시 만들 수 있어요",
+                no = "✕" to "닫기", yes = "🔒" to "부모 모드로",
+                onNo = { d.send(Reply.Tapped("shelf:close", "닫기")) },
+                onYes = { d.send(Reply.Tapped("shelf:tidy", "부모 모드로")) },
+                modifier = Modifier.align(Alignment.Center).testTag("shelf-full"),
             )
         }
 

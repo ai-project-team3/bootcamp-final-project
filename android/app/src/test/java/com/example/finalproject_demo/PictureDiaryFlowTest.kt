@@ -554,6 +554,21 @@ class PictureDiaryFlowTest {
     }
 
     /**
+     * 질문 목소리가 끝나기 전 🎤 로 한 답도 그 질문의 답이다 — 마이크가 열린 뒤 온 말은 버리지 않는다.
+     * 질문 목소리가 늦게 오면(10-05 실기기 /tts 11.6초) 화면에 뜬 질문을 보고 먼저 답했고, 그 답이 버려져 다시 말해야 했다
+     */
+    @Test
+    fun anAnswerGivenBeforeTheQuestionsVoiceEndsIsKept() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그림 없이 이야기할래"))
+        assertTrue(await { s.line == "오늘 어디 갔었어?" && s.micEnabled } != null)
+        s.speed = 1.0                                                  // 말이 끝나길 기다리는 1.2초 — 그 사이에 답한다
+        d.send(Reply.Spoke("놀이터 갔어"))                               // 한 번만 — 다시 보내지 않는다
+        assertTrue("질문 목소리가 끝나기 전 한 답이 버려졌다 — 말=${s.line}", await(4_000) { s.slots["place"] != null } != null)
+    }
+
+    /**
      * 오또가 묻자마자(마이크가 열리자마자) 한 답도 받는다 — 전에는 마이크를 연 뒤 오또 말이 끝나길 기다렸다가 앞 입력을 비워서,
      * 오또가 말하는 사이 한 답이 버려지고 10초 뒤 「말이 없었다」로 거뒀다 (10-05 실기기 · VoiceInbox)
      */

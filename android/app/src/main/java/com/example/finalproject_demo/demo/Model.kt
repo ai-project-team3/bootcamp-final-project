@@ -1341,6 +1341,12 @@ class DemoState {
     /** 시작 화면에 한 번 띄우는 안내 (하루 별 0 등) */
     var notice by mutableStateOf<String?>(null)
 
+    /** 고른 모드의 책장이 꽉 찼다 — 방이 「책장이 꽉 찼어!」 알림을 띄운다 (#80 · `Shelves.kt`) */
+    var shelfFull by mutableStateOf<StoryMode?>(null)
+
+    /** 부모 모드 「책장 정리」에서 보고 있는 모드 — 알림의 [부모 모드로]가 그 모드로 바로 연다 (#80) */
+    var shelfTidyMode by mutableStateOf<StoryMode?>(null)
+
     /** 실제 완성된 책만 들어간다. 동화책은 기기 저장소에서 시작할 때 복원한다. */
     val shelf = mutableStateListOf<ShelfBook>()
 

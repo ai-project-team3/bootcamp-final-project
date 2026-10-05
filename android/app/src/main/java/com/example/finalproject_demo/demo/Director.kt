@@ -105,11 +105,49 @@ class Director(
             s.commitStorySound()
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))
+            recoverStoryImages()
             true
         } catch (_: Exception) { false }
     }
 
     fun savedStory(id: String): SavedStoryBook? = savedStories.firstOrNull { it.id == id }
+
+    /** 꽂힌 동화 — 새 책이 앞 (#80 부모 책장 정리) */
+    fun storyBooks(): List<SavedStoryBook> = savedStories.toList()
+
+    /** 동화 권수. 저장 정보를 읽지 못하면 null — 0권(덮어써도 되는 빈 책장)으로 보지 않는다 (민우 #78) */
+    fun storyBookCount(): Int? = runCatching { storyBookStore?.count() ?: savedStories.size }.getOrNull()
+
+    /**
+     * 동화 한 권 빼기 — 부모 모드에서 PIN · 「정말 뺄까요?」를 거친 뒤에만 (#80 · 민우 #78).
+     * 저장소에서 먼저 지우고, 성공했을 때만 책장 · 그 책의 소리 · 아무 책도 안 쓰는 그림을 정리한다
+     */
+    fun deleteStoryBook(id: String): Boolean {
+        if (s.scene != Scene.PARENT || savedStories.none { it.id == id }) return false
+        return try {
+            if (storyBookStore != null && !storyBookStore.delete(id)) return false
+            savedStories.removeAll { it.id == id }
+            s.shelf.removeAll { it.savedStoryId == id }
+            runCatching { com.example.finalproject_demo.sound.ChildSound.deleteBook(id) }
+            recoverStoryImages()
+            true
+        } catch (_: Exception) { false }
+    }
+
+    /**
+     * 서버가 그려 준 그림(`story_images/`) 중 **아무 책도 · 지금 화면도 안 쓰는 것**만 지운다 (#61 · 민우 #78).
+     * 같이 만들기 책도 같은 그림 폴더를 쓴다. 저장 정보를 하나라도 읽지 못하면 아무것도 지우지 않는다.
+     * 앱을 켤 때는 세 책장을 다 붙인 **뒤에** 부른다(`MainActivity`) — 붙이기 전에 부르면 같이 만들기 책 그림이 지워진다
+     */
+    fun recoverStoryImages() {
+        val store = storyImageStore ?: return
+        val saved = storyBookStore?.let { runCatching { it.imageReferences() }.getOrNull() ?: return }
+            ?: savedStories.flatMap { listOfNotNull(it.bgName, it.visuals?.hero?.image) }.toSet()
+        val coop = CoopShelf.imageReferences(s) ?: return
+        val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground) +
+            s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName }
+        store.recover(saved + coop + active)
+    }
 
     fun keepStoryBackground(png: ByteArray): Boolean {
         val path = saveStoryImage(png) ?: return false
@@ -182,15 +220,16 @@ class Director(
         }
     }
 
-    private fun drain() {
+    /** [keepSpoken] — 들어온 말 하나는 남긴다. 이 질문에 마이크를 연 뒤 한 말이라 답이다(탭은 연달아 누른 것일 수 있어 버린다) */
+    private fun drain(keepSpoken: Boolean = false) {
         val keep = cutIn?.takeIf { System.currentTimeMillis() - cutInAt < CUT_IN_KEEP_MS }
         cutIn = null
-        var kept = false
+        var kept: Reply? = null
         while (true) {
             val r = input.tryReceive().getOrNull() ?: break      // 이전 장면의 입력 버리기
-            if (r === keep && !kept) kept = true
+            if (kept == null && (r === keep || keepSpoken && r is Reply.Spoke)) kept = r
         }
-        if (kept) input.trySend(keep!!)                          // 말을 끊고 누른 것만 이 화면의 답으로
+        kept?.let { input.trySend(it) }                          // 말을 끊고 누른 것 · 마이크를 연 뒤 한 말만 이 화면의 답으로
     }
 
     /**
@@ -660,8 +699,8 @@ class Director(
      * 아이 반응을 기다린다. 타이머가 켜져 있으면 초를 세고 시간이 다 되면 null,
      * 꺼져 있으면(기본) 마이크를 끄거나 카드를 탭하거나 ➡️를 누를 때까지 기다린다.
      */
-    private suspend fun waitReply(sec: Double): Reply? {
-        drain()
+    private suspend fun waitReply(sec: Double, keepSpoken: Boolean = false): Reply? {
+        drain(keepSpoken)
         if (!s.timerOn) return input.receive()
         var left = sec
         s.countdown = left
@@ -735,6 +774,9 @@ class Director(
     suspend fun ask(q: Question, silentFollowUp: Boolean = false): Reply {
         currentQ = q
         askSay(q, q.text)
+        // 앞 장면의 입력은 마이크를 열기 **전에** 버린다 — 연 뒤에 한 말은 이 질문의 답이라 목소리가 끝난 뒤에도 남긴다.
+        // 목소리가 끝난 뒤에 비우면 질문을 보고 먼저 한 답이 사라졌다(10-05 실기기 · /tts 11.6초)
+        drain()
         inputs(mic = true, next = true, draw = q.drawAnswer != null)
 
         val scripted = scriptButtons(q)
@@ -759,7 +801,7 @@ class Director(
         // 마스코트 말이 끝나면(TTS 종료) 아이 차례 — 서버 모드는 **진짜 목소리가 끝날 때까지** 기다린다 (09-29 S25+)
         if (Server.liveFor(s.mode)) { awaitVoice(); pause(300) } else pause(1200)
         val sec = q.waitSec ?: when (q.kind) { Kind.EASY -> 5.0; Kind.HARD -> 8.0; Kind.CHOICE -> 7.0 }
-        val first = waitReply(sec)
+        val first = waitReply(sec, keepSpoken = true)
         // 되돌리기 · 앞으로 가기는 답이 아니다 — 흐름(TurnHistory)이 받도록 그대로 돌려준다 (10-02)
         if (first != null && TurnHistory.isNav(first)) {
             currentQ = null
