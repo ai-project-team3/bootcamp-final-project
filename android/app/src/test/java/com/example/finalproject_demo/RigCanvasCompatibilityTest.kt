@@ -102,4 +102,20 @@ class RigCanvasCompatibilityTest {
         assertEquals(Color.RED, target.target.getPixel(16, 28))
         assertTrue(target.bitmapCalls > 0)
     }
+
+    @Test @Config(sdk = [26])
+    fun puppetTransparencyIsNotAppliedTwice() {
+        val rig = rig()
+        val target = HardwareTarget(Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888))
+        RigMeshRenderer(rig).draw(target, paint(rig).apply { alpha = 128 })
+        assertEquals(128, Color.alpha(target.target.getPixel(8, 8)))
+    }
+
+    @Test @Config(sdk = [26])
+    fun softwareCanvasStillUsesTheDirectMeshPath() {
+        val rig = rig()
+        val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        RigMeshRenderer(rig).draw(Canvas(bitmap), paint(rig))
+        assertEquals(Color.RED, bitmap.getPixel(8, 8))
+    }
 }
