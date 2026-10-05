@@ -194,10 +194,17 @@ object Accounts {
     /** 로그인한 보호자 — 화면이 이것을 본다 (null = 로그인 전 · 샘플 책 보기) */
     var guardian by mutableStateOf<Guardian?>(null)
 
+    private var boundTo: Context? = null
+
+    /**
+     * 앱이 새로 뜨면(같은 프로세스에 새 Application — 테스트가 그렇다) 그 앱의 저장소에 다시 붙는다.
+     * 전에는 처음 붙은 것을 계속 써서, 앞 테스트가 가입한 이메일이 남아 「이미 가입한 이메일」로 막혔다(#119 CI)
+     */
     fun attach(ctx: Context) {
-        if (::api.isInitialized) return
-        val l = LocalAccountApi(ctx.applicationContext)
-        local = l; api = l
+        val app = ctx.applicationContext
+        if (::api.isInitialized && boundTo === app) return
+        val l = LocalAccountApi(app)
+        local = l; api = l; boundTo = app
         guardian = l.saved()
     }
 

@@ -564,15 +564,14 @@ private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: 
     }
     val linesAtAsk = s.drawing.size                     // 오또가 묻는 말을 하는 사이에 그은 선도 본다
     say(q.text)
-    inputs(mic = true, next = true)
     val answers = q.spoken.map { a -> DemoBtn("🗣 \"${a.text}\"") { send(Reply.Spoke(a.text, a.value, a)) } }
-    buttons(*(answers + DemoBtn("🤐 대답 없음") { send(Reply.Silent) } + q.extra).toTypedArray())
-    if (Server.liveFor(s.mode)) { awaitVoice(); pause(300) } else pause(1200)
     val waitMs = ((q.waitSec ?: D1_WAIT_SEC) * 1000).toLong()
     // 조용함은 **실제로 흐른 시간**으로 센다 — 돈 횟수로 세면 OS 타이머 정밀도에 따라 달라졌다
     // (리눅스 CI 에서 1ms 잠이 정말 1ms 라 0.1초 만에 거뒀다 · #66). 빠르게 돌리는 시연 · 검사도 최소 [QUIET_FLOOR_MS] 는 기다린다
     val quietLimitMs = maxOf((waitMs * s.speed).toLong(), minOf(waitMs, QUIET_FLOOR_MS))
     val watch = launch {
+        // 조용함은 오또가 묻는 말을 다 한 뒤부터 센다. 기다림은 여기서 한다 — 답을 받는 쪽([awaitReplyShowing])은 미리 열어 둔다
+        if (Server.liveFor(s.mode)) { awaitVoice(); pause(300) } else pause(1200)
         var seen = linesAtAsk
         var quietMs = 0L
         var last = System.nanoTime()
@@ -595,7 +594,14 @@ private suspend fun Director.askWhileDrawing(q: Question, day: DiaryDay, about: 
             if (quietMs >= quietLimitMs) { send(Reply.Tapped(WENT_QUIET, "조용함")); return@launch }
         }
     }
-    val got = try { awaitReply() } finally { watch.cancel() }
+    // 앞 입력을 비우고 **나서** 마이크를 연다 — 전에는 마이크를 연 뒤 오또 말이 끝나길 기다렸다가 비워서,
+    // 오또가 말하는 사이 🎤 를 눌러 한 답(「아니」)이 버려지고 10초 뒤 「말이 없었다」로 거뒀다 (10-05 실기기 · VoiceInbox)
+    val got = try {
+        awaitReplyShowing {
+            inputs(mic = true, next = true)
+            buttons(*(answers + DemoBtn("🤐 대답 없음") { send(Reply.Silent) } + q.extra).toTypedArray())
+        }
+    } finally { watch.cancel() }
     // 그림판 조작([그려 줘] · [이름 고치기] · 이름표)은 이 질문의 답이 아니다 — 남겨 두고 질문을 거둔다.
     // 부르는 쪽은 다른 조각을 그리러 간 것처럼([MOVED_ON]) 조용히 넘어가고, 그리기 흐름이 그 조작을 바로 받는다 (10-05 진웅)
     val tool = got is Reply.Tapped && isBoardTool(got.value)
