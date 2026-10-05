@@ -79,6 +79,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true      // net/Trace: the conversation trace is on in debug builds only
     }
 
     // 화면을 **에뮬레이터 없이** PNG로 그려 검사한다 (9/21).

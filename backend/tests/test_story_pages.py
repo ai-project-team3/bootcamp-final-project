@@ -127,3 +127,11 @@ def test_diary_ignores_a_reason_and_stays_a_day_that_happened():
     u = story_route.user(StoryRequest(mode="diary", slots={"place": "놀이터"}, reason="soon",
                                       pages=[Page(kind="DEPART")]))
     assert "있었던 일" in u and "앞으로 할 일" not in u and "고른 이야기" not in u
+
+
+# 10-05: the mission page sets up the object the app's mission then uses
+def test_the_mission_prop_reaches_the_plan():
+    req = StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1", prop="맛있는 간식")])
+    assert "「맛있는 간식」" in story_route.plan(req)
+    assert "「" not in story_route.plan(StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1")]))
+

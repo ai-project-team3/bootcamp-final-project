@@ -166,11 +166,11 @@ def test_run_deletes_the_history_entry(monkeypatch):
 
 
 def test_the_diary_redraws_in_colored_pencil_at_0_85():
-    """#32 · 진웅 09-30: diary → colored pencil · 0.85; other modes keep cut paper · 0.9."""
+    """#32 · 진웅 09-30: diary → colored pencil · 0.85; other modes use the doll style (wool felt since 10-05) · 0.9."""
     d = comfy.redraw_workflow("house", 1, "AAAA", mode="diary")
     s = comfy.redraw_workflow("house", 1, "AAAA", mode="story")
     assert "colored pencil" in d["2"]["inputs"]["text"] and d["5"]["inputs"]["denoise"] == 0.85
-    assert "cut paper" in s["2"]["inputs"]["text"] and s["5"]["inputs"]["denoise"] == 0.9
+    assert "wool felt" in s["2"]["inputs"]["text"] and s["5"]["inputs"]["denoise"] == 0.9
 
 
 def test_the_mode_reaches_the_workflow(live):

@@ -165,7 +165,7 @@ object Server {
     // ── /story ─────────────────────────────────────────────────────
 
     /** One page of the book plan: a `PageKind` name and the mission on it (`docs/미션_구상.md` §3 id), if any. */
-    data class Page(val kind: String, val mission: String? = null)
+    data class Page(val kind: String, val mission: String? = null, val prop: String? = null)
 
     /** Title is optional for compatibility with deployed servers that return captions only. */
     data class StoryBook(val captions: List<String>, val title: String? = null)
@@ -200,7 +200,7 @@ object Server {
             .put("level", level ?: JSONObject.NULL)
             .put("reason", reason ?: JSONObject.NULL)
         if (pages != null) body.put("pages", JSONArray().apply {
-            pages.forEach { put(JSONObject().put("kind", it.kind).put("mission", it.mission ?: JSONObject.NULL)) }
+            pages.forEach { put(JSONObject().put("kind", it.kind).put("mission", it.mission ?: JSONObject.NULL).put("prop", it.prop ?: JSONObject.NULL)) }
         })
         val j = postJson("/story", body, readMs = 60_000) ?: return null
         return try {
@@ -285,7 +285,9 @@ object Server {
         }.toByteArray()
         val (code, bytes) = post("/stt", out, "multipart/form-data; boundary=$boundary", readMs = 30_000) ?: return null
         if (code != 200) { Log.w(TAG, "/stt $code ${bytes.decodeToString()}"); return null }
-        return try { JSONObject(bytes.decodeToString()).getString("text") } catch (e: Exception) { warn("/stt parse", e); null }
+        return try {
+            JSONObject(bytes.decodeToString()).getString("text").also { Trace.line("heard", it.ifBlank { "(empty — no speech or a dropped hallucination)" }) }
+        } catch (e: Exception) { warn("/stt parse", e); null }
     }
 
     // ── /tts ───────────────────────────────────────────────────────
@@ -332,6 +334,7 @@ object Server {
     private suspend fun post(path: String, body: ByteArray, type: String, readMs: Int = 15_000): Pair<Int, ByteArray>? =
         withContext(Dispatchers.IO) {
             val b = base ?: return@withContext null
+            val t0 = System.nanoTime()
             try {
                 val c = URL(b + path).openConnection() as HttpURLConnection
                 c.connectTimeout = 6_000   // 10-01: the public https address goes through Cloudflare; 4 s was tight on mobile data
@@ -342,8 +345,9 @@ object Server {
                 c.outputStream.use { it.write(body) }
                 val code = c.responseCode
                 val bytes = (if (code in 200..299) c.inputStream else c.errorStream)?.use { it.readBytes() } ?: ByteArray(0)
+                Trace.line("server", "$path $code ${(System.nanoTime() - t0) / 1_000_000} ms")
                 code to bytes
-            } catch (e: Exception) { warn(path, e); null }
+            } catch (e: Exception) { Trace.line("server", "$path failed ${(System.nanoTime() - t0) / 1_000_000} ms"); warn(path, e); null }
         }
 
     private fun warn(what: String, e: Exception) = Log.w(TAG, "$what failed: ${e.javaClass.simpleName} ${e.message}")

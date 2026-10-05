@@ -107,11 +107,29 @@ class DiaryDay {
     /** 오또가 그리기를 지켜보는 중 — 이때만 그림판이 붓 멈춤을 알린다(묻는 중 · 고르는 중에는 안 보낸다) */
     var watching by mutableStateOf(false)
 
+    /**
+     * 그리면서 이야기하는 단계(D1) 안이다 — 오또가 말하거나 묻는 중에도 참. 그림판의 [그려 줘] · [이름 고치기] · 이름표는
+     * 이때 늘 받는다([watching] 은 지켜볼 때만이라 말하는 중에 버튼이 꺼졌다 · 10-05 진웅). 다 그린 뒤 D3 질문의 답으로 섞이지 않게 끝나면 거짓
+     */
+    var drawingTalk by mutableStateOf(false)
+
     /** 오또가 지금 「뭐 그린 거야?」라고 묻는 조각 — 그림판이 그 조각에 고리를 띄운다 */
     var askingPiece by mutableStateOf<Int?>(null)
 
-    /** 방금 누른 이름표의 조각과 그때의 획 수 — 새 획을 긋기 전까지 「그려줘」는 이 조각이다 (10-02 실기기) */
-    var focus: Pair<Int, Int>? = null
+    /**
+     * 방금 누른 이름표의 조각과 그때의 획 수 — 새 획을 긋기 전까지 「그려줘」는 이 조각이다 (10-02 실기기).
+     * 그림판이 이 이름표를 다른 색으로 보여 준다(10-05 진웅) — 그래서 화면이 읽는 상태다
+     */
+    var focus by mutableStateOf<Pair<Int, Int>?>(null)
+
+    /**
+     * 오또가 묻는 사이 누른 그림판 조작([그려 줘] · [이름 고치기] · 이름표) — 질문의 답으로 섞지 않고 남겨 두었다가
+     * 질문을 거둔 뒤 그리기 흐름이 바로 받는다 (10-05 진웅 · [pendingPause] 와 같은 길)
+     */
+    @Volatile var pendingTap: Reply.Tapped? = null
+
+    /** 오또가 바로 앞에 한 받아 주기 — 같은 맞장구가 이어 나오지 않게 (`sayAck`) */
+    var lastAck: String? = null
 
     /**
      * 서버 대화 호출(`/turn`) 수 — **세기만 하고 막지 않는다.**

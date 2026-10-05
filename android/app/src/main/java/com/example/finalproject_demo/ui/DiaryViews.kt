@@ -82,6 +82,7 @@ import com.example.finalproject_demo.demo.COLOR_PAUSE_MS
 import com.example.finalproject_demo.demo.CRAYON_PAUSE
 import com.example.finalproject_demo.demo.DiaryTrace
 import com.example.finalproject_demo.demo.UndoneStroke
+import com.example.finalproject_demo.demo.sendBoardTool
 import com.example.finalproject_demo.demo.redoStroke
 import com.example.finalproject_demo.demo.undoStroke
 import com.example.finalproject_demo.demo.BoardBox
@@ -147,8 +148,11 @@ private val BandTop = 112.dp
 /** 앱 틀의 🏠 · 🔒 (`KidTopBar`)가 차지하는 폭 — 그 오른쪽부터 글을 둔다 */
 private val TopBarEnd = 160.dp
 
-/** 🏠 · 🔒 의 오른쪽 끝(12 + 56 + 4 + 56dp)에 틈을 더한 자리 — 그림판 · 일기 종이는 여기서 시작한다. 전에는 🔒 가 판 위에 얹혔다 (#98) */
-private val TopBarRight = 136.dp
+/**
+ * 🏠 의 오른쪽 끝(12 + 56dp)에 틈을 더한 자리 — 그림판 · 일기 종이는 여기서 시작한다. 전에는 🔒 가 판 위에 얹혔다 (#98).
+ * 일기 화면에는 🔒(부모 문)가 없다 — 판을 넓게 쓰려고 뺐다 (10-05 진웅 · `KidTopBar(lock = false)`)
+ */
+private val TopBarRight = 76.dp
 
 /**
  * 🎤 — 일기 화면 어디서나 **오른쪽 아래 같은 자리 · 같은 크기**(다른 일기 화면의 대사 칸 마이크와 같은 96dp · 끝 12dp).
@@ -157,8 +161,13 @@ private val TopBarRight = 136.dp
 private val DiaryMicSize = 96.dp
 private val DiaryMicGap = 12.dp
 
-/** 그림판이 비켜 두는 오른쪽 띠 — 🎤 가 판을 가리지 않게 */
-private val DiaryMicRail = DiaryMicSize + DiaryMicGap * 2
+/**
+ * 그림판 오른쪽 좁은 도구 띠 — 위에서부터 [다 그렸어] · [그려 줘](오또 얼굴) · [이름 고치기] · 🎤.
+ * 오른쪽 버튼들을 뺐던 까닭(판을 넓게)을 지키려고 띠는 좁게, 🎤 도 다른 화면(96dp)보다 작게 (10-05 진웅)
+ */
+private val BoardRail = 72.dp
+private val RailButtonSize = 52.dp
+private val RailMicSize = 64.dp
 
 /** 그림판 왼쪽 끝 — 크레용 두 줄 자리와 🏠 · 🔒 자리 중 넓은 쪽 */
 private fun boardStart(cq: Dp) = maxOf(cq * 12, TopBarRight)
@@ -176,10 +185,10 @@ fun DiaryStageView(d: Director, stage: DiaryStage) {
             DiaryGift -> DiaryGiftView(d, cq)
         }
         when (stage) {
-            // 말풍선은 그림판 왼쪽 아래 — 크레용 · ↶ ↷ 를 가리지 않게 판이 시작하는 자리부터 (#98)
+            // 말풍선은 화면 왼쪽 끝 — 🎤 를 품지 않아 낮아서 크레용 아래 ↶ ↷ 를 가리지 않는다 (10-05 진웅)
             is DiaryBoard -> {
-                DiaryBubble(d, cq, Modifier.align(Alignment.BottomStart).padding(start = boardStart(cq) - cq * 1.2f))
-                DiaryMic(d, Modifier.align(Alignment.BottomEnd))
+                DiaryBubble(d, cq, Modifier.align(Alignment.BottomStart))
+                BoardTools(d, stage, Modifier.align(Alignment.CenterEnd))
             }
             // 그림일기 한 장에는 대사 칸이 없다 — 오또가 묻는 동안(제목)만 작은 말풍선과 마이크
             is DiaryPaper -> if (d.s.micEnabled) {
@@ -335,7 +344,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
             }
         }
         BoxWithConstraints(
-            Modifier.padding(start = boardStart(cq), end = DiaryMicRail, top = cq * 1.5f, bottom = cq * 1.5f).fillMaxSize()
+            Modifier.padding(start = boardStart(cq), end = BoardRail, top = cq * 1.5f, bottom = cq * 1.5f).fillMaxSize()
                 .shadow(cq * 2, RoundedCornerShape(cq * 2.5f))
                 .background(Color.White, RoundedCornerShape(cq * 2.5f))
                 .clip(RoundedCornerShape(cq * 2.5f))
@@ -376,34 +385,40 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
             }
             otto.forEach { p -> p.ottoSpots().forEach { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
             PieceRings(day.pieces.toList(), day.askingPiece, cq)
+            // 방금 누른 이름표 — 새 획을 긋기 전까지 [그려 줘] · [이름 고치기]가 이 조각을 가리킨다. 청록으로 구별한다 (10-05 진웅)
+            val selected = day.focus?.takeIf { it.second == s.drawing.size }?.first
             day.pieces.filter { it.name != null }.forEach { p ->
                 val b = boxOf(p.strokes) ?: return@forEach
                 // ✨ — 오또 그림이 와 있다. 톡 하면 다시 고른다
                 val ready = p.ottoPng != null || p.look == PieceLook.OTTO
+                val picked = p.id == selected
                 Text(
                     if (ready) "✨ ${p.name}" else p.name!!,
                     fontSize = (cq.value * 1.7f).sp,
-                    color = if (ready) Color.White else InkBrown,
+                    color = if (ready || picked) Color.White else InkBrown,
                     modifier = Modifier
                         // 고리 바로 위 — 판 맨 위에 그린 조각이면 판 안으로 내려 잘리지 않게
                         .offset(x = (maxWidth.value * b.left).dp, y = ((maxHeight.value * b.top) - cq.value * 4.4f).coerceAtLeast(4f).dp)
-                        .background(if (ready) FeltCoral else FeltMustard, RoundedCornerShape(cq * 2))
-                        .then(
-                            when {
-                                // 톡 = ✨ 오또 그림 다시 고르기 · 그냥 이름표는 이름 부르기. 길게 = 이름 고치기(지켜볼 때만 · 10-02 진웅).
-                                // 묻는 중에는 답으로 섞이지 않게 지켜볼 때만 받는다 — ✨ 는 전처럼 언제든
-                                ready || day.watching -> Modifier.pointerInput(p.id, ready, day.watching) {
-                                    detectTapGestures(
-                                        onTap = {
-                                            if (ready) d.send(Reply.Tapped("look:${p.id}", "오또 그림 보기"))
-                                            else d.send(Reply.Tapped("name:${p.id}", "이름 부르기"))
-                                        },
-                                        onLongPress = { if (day.watching) d.send(Reply.Tapped("rename:${p.id}", "이름 고치기")) },
-                                    )
-                                }.testTag("tag-${p.id}")
-                                else -> Modifier
-                            }
-                        )
+                        .then(if (picked) Modifier.border(cq * 0.3f, Color.White, RoundedCornerShape(cq * 2)) else Modifier)
+                        .background(if (picked) FeltTeal else if (ready) FeltCoral else FeltMustard, RoundedCornerShape(cq * 2))
+                        // 톡 = 이 조각을 고른다(✨ 면 오또 그림 다시 고르기 · 아니면 이름 부르기). 길게 = 이름 고치기.
+                        // 오또가 말하거나 묻는 중에도 받는다 — 답으로 섞이지 않게 그리기 흐름이 질문을 거두고 받는다 (10-05 진웅)
+                        .pointerInput(p.id, ready, stage.pick, day.drawingTalk) {
+                            // 오또 그림을 고르는 중이면 그 두 장이 먼저다 · 다 그린 뒤(D3)에는 질문의 답으로 섞이지 않게 받지 않는다
+                            if (stage.pick != null || !day.drawingTalk) return@pointerInput
+                            detectTapGestures(
+                                onTap = {
+                                    day.focus = p.id to s.drawing.size
+                                    if (ready) d.sendBoardTool(Reply.Tapped("look:${p.id}", "오또 그림 보기"))
+                                    else d.sendBoardTool(Reply.Tapped("name:${p.id}", "이름 부르기"))
+                                },
+                                onLongPress = {
+                                    day.focus = p.id to s.drawing.size
+                                    d.sendBoardTool(Reply.Tapped("rename:${p.id}", "이름 고치기"))
+                                },
+                            )
+                        }
+                        .testTag("tag-${p.id}")
                         .padding(horizontal = cq * 1.2f, vertical = cq * 0.2f),
                 )
             }
@@ -480,6 +495,47 @@ private fun DiaryBubble(d: Director, cq: Dp, modifier: Modifier) {
             Spacer(Modifier.width(cq * 1.2f))
             Text(text.take(shown), fontSize = (cq.value * 2.2f).sp, color = InkBrown, lineHeight = (cq.value * 2.9f).sp, modifier = Modifier.widthIn(max = cq * 52))
         }
+    }
+}
+
+/**
+ * 그림판 오른쪽 띠 — [다 그렸어](말로 「다 그렸어」와 같다) · [그려 줘](「그려줘」와 같다 · 방금 그린 조각이나 방금 누른 이름표) · 🎤(아래 고정).
+ * [그려 줘] · [이름 고치기]는 오또가 말하거나 묻는 중에도 받는다 — 그리기 흐름이 질문을 거두고 그 조작으로 간다 (10-05 진웅).
+ * [다 그렸어]는 전처럼 지켜볼 때 · 마이크가 있을 때
+ */
+@Composable
+private fun BoardTools(d: Director, stage: DiaryBoard, modifier: Modifier) {
+    val s = d.s
+    val day = s.diaryDay
+    val free = stage.pick == null
+    val tools = free && day.drawingTalk
+    Column(
+        modifier.width(BoardRail).fillMaxHeight().padding(top = 12.dp, bottom = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        RailButton("다 그렸어", enabled = free && (day.watching || s.micEnabled), tag = "rail-done", onClick = { d.send(Reply.Tapped("done", "다 그렸어")) }) {
+            Text("✅", fontSize = 22.sp)
+        }
+        Spacer(Modifier.height(10.dp))
+        RailButton("그려 줘", enabled = tools && s.drawing.isNotEmpty(), tag = "rail-drawme", onClick = { d.sendBoardTool(Reply.Tapped("drawme", "그려 줘")) }) {
+            OttoFace(OttoState.IDLE, Modifier.size(RailButtonSize * 0.8f))
+        }
+        Spacer(Modifier.height(10.dp))
+        // 잘못 들은 이름 — 방금 누른 이름표나 방금 그린 조각의 이름을 다시 묻는다(이름표 길게 누르기와 같다 · 10-05 진웅)
+        RailButton("이름 고치기", enabled = tools && day.pieces.any { it.name != null }, tag = "rail-rename", onClick = { d.sendBoardTool(Reply.Tapped("rename", "이름 고치기")) }) {
+            Text("🏷️", fontSize = 22.sp)
+        }
+        Spacer(Modifier.weight(1f))
+        if (s.micEnabled) Box(Modifier.testTag("diary-mic")) { MicButton(d, size = RailMicSize) }
+    }
+}
+
+@Composable
+private fun RailButton(label: String, enabled: Boolean, tag: String, onClick: () -> Unit, icon: @Composable () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.alpha(if (enabled) 1f else 0.4f).testTag(tag)) {
+        FeltButton(WoolCream, onClick = onClick, enabled = enabled, modifier = Modifier.size(RailButtonSize), shape = CircleShape) { icon() }
+        Spacer(Modifier.height(3.dp))
+        Text(label, fontSize = 11.sp, color = InkBrown, maxLines = 1)
     }
 }
 
