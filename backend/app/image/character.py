@@ -16,7 +16,7 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFilter
 
 TEMPLATES = Path(__file__).parent / "templates"
 
@@ -61,6 +61,63 @@ def prepare_drawing(png: bytes) -> bytes:
     paper.alpha_composite(im, ((DRAWING - im.width) // 2, (DRAWING - im.height) // 2))
     out = io.BytesIO(); paper.convert("RGB").save(out, "PNG")
     return out.getvalue()
+
+
+# fill_closed — 10-05 진웅 (eval/redraw_1005 · docs/review/일기모드_1005_redraw): an outline on white
+# comes back from the diary redraw (colored pencil 0.85) as the same outline, the inside left paper.
+# Washing each closed shape with its outline colour gave the blue house its blue walls and the
+# pink-triangle mom her pink dress; real drawings that were already coloured in, or drawn in
+# black, came back unchanged. Same model, same time (4.2 s a picture).
+FILL_MIX = 0.45     # share of the outline colour in the wash; the rest is white paper
+FILL_DARK = 90      # an outline darker than this (black · dark brown) keeps its paper inside
+FILL_MIN = 0.001    # a hole smaller than this share of the picture is the gap inside a line
+
+
+def fill_closed(drawing: bytes) -> bytes:
+    """A prepared drawing (RGB on white) → every closed paper region washed with its outline colour.
+
+    Paper that can be reached from the frame stays paper. The colour is the commonest one on the
+    outline around that region (a blue wall with a brown door is blue, not a mix). Lines are never
+    painted over. Pure numpy + Pillow, in memory.
+    """
+    im = Image.open(io.BytesIO(drawing)).convert("RGB")
+    n = 256
+    small = np.asarray(im.resize((n, n), Image.BILINEAR)).astype(int)
+    paper = small.min(axis=2) > 225
+    # the outside in one C flood from the corner (prepare_drawing leaves paper all round), then
+    # only the few enclosed pixels go through the slow labelling
+    flood = Image.fromarray((paper * 255).astype(np.uint8)).copy()     # fromarray is read-only: floodfill would do nothing
+    if flood.getpixel((0, 0)) != 255:              # not a prepared drawing: nothing to tell inside from out
+        return drawing
+    ImageDraw.floodfill(flood, (0, 0), 128)
+    enclosed = np.asarray(flood) == 255
+    holes = [blob for _, size, blob in _components(enclosed) if size >= FILL_MIN * n * n]
+    if not holes:
+        return drawing
+    big = np.asarray(im).astype(float)
+    on_paper = big.min(axis=2) > 200
+    out = big.copy()
+    washed = False
+    for blob in holes:
+        grown = np.asarray(Image.fromarray((blob * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(7))) > 0
+        ring = small[grown & ~blob & ~paper]
+        if not len(ring):
+            continue
+        q = ring // 32
+        key = q[:, 0] * 64 + q[:, 1] * 8 + q[:, 2]
+        values, counts = np.unique(key, return_counts=True)
+        colour = ring[key == values[counts.argmax()]].mean(axis=0)
+        if colour.max() < FILL_DARK:
+            continue
+        wash = colour * FILL_MIX + 255 * (1 - FILL_MIX)
+        m = np.asarray(Image.fromarray((blob * 255).astype(np.uint8)).resize(im.size, Image.BILINEAR)) / 255.0
+        m = (m * on_paper)[..., None]
+        out = out * (1 - m) + wash * m
+        washed = True
+    if not washed:                                  # only black outlines: the drawing as it came
+        return drawing
+    buf = io.BytesIO(); Image.fromarray(out.clip(0, 255).astype(np.uint8)).save(buf, "PNG")
+    return buf.getvalue()
 
 
 def template(rig: str) -> bytes | None:

@@ -234,3 +234,44 @@ def test_redraws_enter_comfy_one_at_a_time(live, monkeypatch):
         await asyncio.gather(image_route.image(req), image_route.image(req))
     asyncio.run(two())
     assert most[0] == 1
+
+
+# 10-05 진웅: an outline on white came back as the same outline — the diary fills closed shapes first
+def _sent(live) -> Image.Image:
+    return Image.open(io.BytesIO(base64.b64decode(live["wf"]["10"]["inputs"]["png_base64"]))).convert("RGB")
+
+
+def _outlined(colour) -> bytes:
+    im = Image.new("RGB", (1024, 1024), (255, 255, 255))
+    ImageDraw.Draw(im).rectangle((300, 300, 700, 700), outline=colour, width=24)
+    return _png(im)
+
+
+def test_a_coloured_outline_is_washed_with_its_colour():
+    out = Image.open(io.BytesIO(character.fill_closed(_outlined((60, 120, 220)))))
+    r, g, b = out.getpixel((500, 500))
+    assert b > r + 40 and b < 250                              # pale blue inside, not paper
+    assert out.getpixel((100, 100)) == (255, 255, 255)         # the paper outside stays paper
+    assert out.getpixel((300, 500)) == (60, 120, 220)          # the line itself is untouched
+
+
+def test_a_black_outline_keeps_its_paper():
+    drawing = _outlined((30, 25, 20))
+    assert character.fill_closed(drawing) == drawing
+
+
+def test_an_open_drawing_is_not_filled():
+    im = Image.new("RGB", (1024, 1024), (255, 255, 255))
+    ImageDraw.Draw(im).line((200, 500, 800, 500), fill=(240, 140, 50), width=24)
+    assert character.fill_closed(_png(im)) == _png(im)
+
+
+def test_the_diary_redraw_sends_the_filled_drawing(live):
+    post(mode="diary")
+    r, g, b = _sent(live).getpixel((512, 600))                 # inside the red house
+    assert r > g + 40 and (r, g, b) != (255, 255, 255)
+
+
+def test_a_story_redraw_is_not_filled(live):
+    post(mode="story")
+    assert _sent(live).getpixel((512, 600)) == (255, 255, 255)
