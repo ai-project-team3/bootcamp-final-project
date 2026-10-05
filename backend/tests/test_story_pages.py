@@ -159,3 +159,11 @@ def test_a_stage_too_long_or_too_many_is_refused(client):
     assert client.post("/story", json={**base, "stage": ["가" * 13]}).status_code == 422
     assert client.post("/story", json={**base, "stage": ["가"] * 6}).status_code == 422
     assert client.post("/story", json={**base, "stage": ["소방차 차고"]}).status_code == 200
+
+
+# 10-05: the mission page sets up the object the app's mission then uses
+def test_the_mission_prop_reaches_the_plan():
+    req = StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1", prop="맛있는 간식")])
+    assert "「맛있는 간식」" in story_route.plan(req)
+    assert "「" not in story_route.plan(StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1")]))
+

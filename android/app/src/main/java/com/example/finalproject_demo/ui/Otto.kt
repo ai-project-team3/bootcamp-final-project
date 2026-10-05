@@ -12,6 +12,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -346,14 +349,48 @@ fun MascotBubble(d: Director, modifier: Modifier = Modifier) {
  */
 @Composable
 fun TurnNavButton(d: Director, undo: Boolean, modifier: Modifier = Modifier) {
-    FeltButton(
-        WoolCream,
-        onClick = {
-            if (undo) d.send(Reply.Tapped(com.example.finalproject_demo.demo.TurnHistory.UNDO, "되돌리기"))
-            else d.send(Reply.Tapped(com.example.finalproject_demo.demo.TurnHistory.REDO, "앞으로"))
-        },
-        modifier = modifier.size(64.dp), shape = CircleShape,
-    ) { Text(if (undo) "↩" else "↪", fontSize = 28.sp, color = InkBrown) }
+    // 10-05 device: the ↩ glyph on a felt circle looked cheap (fonts draw it emoji-like). Now an edge tab like
+    // the side tabs of reading apps — flat against the screen edge, round on the inside — with a drawn arrow
+    val r = 48.dp
+    val shape = if (undo) androidx.compose.foundation.shape.RoundedCornerShape(topEnd = r, bottomEnd = r)
+        else androidx.compose.foundation.shape.RoundedCornerShape(topStart = r, bottomStart = r)
+    val label = if (undo) "되돌리기" else "다시 앞으로"
+    Box(
+        modifier
+            .size(width = 56.dp, height = 92.dp)
+            .shadow(6.dp, shape)
+            .clip(shape)
+            .background(WoolCream.copy(alpha = 0.94f))
+            .border(1.5.dp, InkBrown.copy(alpha = 0.18f), shape)
+            .clickable(onClickLabel = label) {
+                if (undo) d.send(Reply.Tapped(com.example.finalproject_demo.demo.TurnHistory.UNDO, "되돌리기"))
+                else d.send(Reply.Tapped(com.example.finalproject_demo.demo.TurnHistory.REDO, "앞으로"))
+            }
+            .testTag(if (undo) "turn-undo" else "turn-redo"),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.foundation.Canvas(
+            Modifier.size(30.dp).graphicsLayer { scaleX = if (undo) 1f else -1f }
+        ) {
+            val w = size.width; val h = size.height
+            val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
+                width = 3.6.dp.toPx(),
+                cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                join = androidx.compose.ui.graphics.StrokeJoin.Round,
+            )
+            // a U-turn arrow pointing back (left); mirrored for redo
+            val body = androidx.compose.ui.graphics.Path().apply {
+                moveTo(w * 0.24f, h * 0.38f); lineTo(w * 0.60f, h * 0.38f)
+                cubicTo(w * 0.94f, h * 0.38f, w * 0.94f, h * 0.86f, w * 0.60f, h * 0.86f)
+                lineTo(w * 0.38f, h * 0.86f)
+            }
+            val head = androidx.compose.ui.graphics.Path().apply {
+                moveTo(w * 0.44f, h * 0.18f); lineTo(w * 0.22f, h * 0.38f); lineTo(w * 0.44f, h * 0.58f)
+            }
+            drawPath(body, InkBrown, style = stroke)
+            drawPath(head, InkBrown, style = stroke)
+        }
+    }
 }
 
 /** 나레이션 위 여유 — 오또 점프(18dp) · 파동 · 「!」가 투명도 버퍼 안에 들어오게 */

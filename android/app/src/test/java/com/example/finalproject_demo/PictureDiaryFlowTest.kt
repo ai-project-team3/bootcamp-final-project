@@ -2,6 +2,9 @@ package com.example.finalproject_demo
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import com.example.finalproject_demo.demo.renameTarget
+import com.example.finalproject_demo.demo.newDiaryDay
+import com.example.finalproject_demo.demo.catchUp
 import com.example.finalproject_demo.demo.DONE_CHECK_EVERY
 import com.example.finalproject_demo.demo.CRAYON_PAUSE
 import com.example.finalproject_demo.demo.DiaryAsk
@@ -398,6 +401,61 @@ class PictureDiaryFlowTest {
         d.send(Reply.Tapped("name:$dog", "이름 부르기"))
         assertTrue(await { s.line == "강아지!" } != null)
         d.tell("그려줘") { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" }
+    }
+
+    /** 그림판 오른쪽 [그려 줘] — 「그려줘」라고 말한 것과 같다. 방금 그린 조각을 오또가 그린다 (10-05 진웅) */
+    @Test
+    fun theDrawMeButtonOrdersOttosDrawingOfTheLastPiece() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("강아지")
+        assertTrue(await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        assertTrue(await { s.diaryDay.watching } != null)
+        d.send(Reply.Tapped("drawme", "그려 줘"))
+        assertTrue("[그려 줘]에 그리지 않았다 — 말=${s.line}", await { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" } != null)
+    }
+
+    /** 그림판 오른쪽 [이름 고치기] — 방금 그린 조각의 이름을 다시 묻고 고친다. 고친 이름도 아이 말이다 (10-05 진웅) */
+    @Test
+    fun theRenameButtonAsksAgainForTheLastNamedPiece() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("해야")                                               // 잘못 들었다
+        assertTrue(await { s.line == "나도 해를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        assertTrue(await { s.diaryDay.watching } != null)
+        d.send(Reply.Tapped("rename", "이름 고치기"))
+        assertTrue(await { s.line == "이건 뭐야? 다시 말해 줘!" } != null)
+        d.speak("집이야")
+        assertTrue(await { s.line == "아, 집이구나!" } != null)
+        assertEquals("집", s.diaryDay.pieces.single().name)
+        assertEquals("child", s.slotBy["whiteboard"])
+    }
+
+    /** [이름 고치기]가 가리키는 조각 — 방금 누른 이름표 → 방금 그린 이름 조각 → 마지막 이름 조각 */
+    @Test
+    fun theRenameButtonPicksTheTappedThenTheLastDrawnPiece() {
+        val s = Director(CoroutineScope(SupervisorJob())).s
+        s.newDiaryDay()
+        s.drawing += stroke(0.1f); s.drawing += stroke(0.8f)
+        val day = s.diaryDay
+        day.catchUp(s.drawing)
+        day.pieces[0] = day.pieces[0].copy(name = "집"); day.pieces[1] = day.pieces[1].copy(name = "해")
+        assertEquals("해", s.renameTarget(day)?.name)                   // 방금 그린 조각
+        day.focus = day.pieces[0].id to s.drawing.size
+        assertEquals("집", s.renameTarget(day)?.name)                   // 방금 누른 이름표
+        s.drawing += stroke(0.45f)
+        day.catchUp(s.drawing)                                         // 새 획 — 누른 이름표는 잊는다 · 새 조각엔 이름이 없다
+        assertEquals("해", s.renameTarget(day)?.name)
     }
 
     /** 「강아지 그려줘」 — 마지막에 그린 조각이 아니라 부른 조각을. 이미 그리는 중이면 다시 주문하지 않고 그렇다고 말한다 (프로토타입) */
