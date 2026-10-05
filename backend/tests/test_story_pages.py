@@ -41,6 +41,12 @@ def test_an_unknown_kind_or_mission_is_refused(client):
     assert client.post("/story", json={"slots": {}, "pages": [{"kind": "RUB", "mission": "Z9"}]}).status_code == 422
 
 
+# #101: the app may pick C3 (make the sound) once the server knows it — before 10-05 it was a 422
+def test_the_missions_added_for_coop_are_accepted(client):
+    for m in ("A7", "A8", "A9", "C3", "D4", "D5"):
+        assert client.post("/story", json={"slots": {}, "pages": [{"kind": "RUB", "mission": m}]}).status_code != 422, m
+
+
 def _book(n):
     return StoryResult(scenes=[Scene(index=i + 1, caption="가요.", keywords="x") for i in range(n)])
 
