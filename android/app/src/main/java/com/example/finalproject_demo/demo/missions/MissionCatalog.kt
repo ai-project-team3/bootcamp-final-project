@@ -33,7 +33,7 @@ enum class MissionId(
     D1(setOf(2), MissionInput.TOUCH, "persistence: tap fast to push away"),
     D2(setOf(1), MissionInput.SHAKE, "gross motor: shake"),
     D3(setOf(1), MissionInput.TOUCH, "rhythm: tap on the beat"),
-    D4(setOf(2), MissionInput.TILT, "gross motor: tilt to roll"),
+    D4(setOf(2), MissionInput.TILT, "gross motor: tilt to roll", built = true),
     D5(setOf(1), MissionInput.TILT, "gross motor: turn over"),
     E1(setOf(2), MissionInput.TOUCH, "relationship: hand it over", built = true),
     E2(setOf(2), MissionInput.TOUCH, "spatial: fix the broken piece"),
