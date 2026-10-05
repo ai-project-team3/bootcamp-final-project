@@ -42,9 +42,7 @@ data class Mission2(
  *     어느 하루에나 맞는 말이라, 아이가 하지 않은 일을 적지 않는다.
  */
 private fun diaryMission1(s: DemoState): Mission1 {
-    // ⚠️ `after`(집에 와서 한 일)는 보지 않는다 — "저녁을 먹었어요" 때문에 간식 미션이 나왔다 (9/21)
-    val said = listOf(s.problem, s.slots["detail"], s.solution, s.cause, s.slots["try"])
-        .joinToString(" ") { it.orEmpty() }
+    val said = s.diarySaidForMission1()
     val p = s.placeLabel.orEmpty()
 
     val sand = Mission1("prop_sand", "🟡", "모래", "prop_sparkle", "✨", "ic_hand", "✋", "손", "모래가 잔뜩 묻었어요", "모래를 탈탈 다 털어 냈어!")
@@ -54,13 +52,14 @@ private fun diaryMission1(s: DemoState): Mission1 {
     val crumb = Mission1("prop_strawberry", "🍓", "부스러기", "prop_sparkle", "✨", "ic_hand", "✋", "손", "간식 부스러기가 묻었어요", "부스러기를 탈탈 다 털어 냈어!")
     val dust = Mission1("prop_cloud", "🌫", "먼지", "prop_sparkle", "✨", "ic_hand", "✋", "손", "하루 먼지가 뽀얗게 앉았어요", "먼지를 탈탈 다 털어 냈어!")
 
-    return when {
+    return when (stainSaid(said)) {
         // ① 아이가 말한 일 — 장소보다 먼저다
-        "물감" in said || "색칠" in said || "그리" in said -> paint
-        "모래" in said || "미끄럼" in said || "그네" in said || "흙" in said -> sand
-        "나뭇잎" in said || "낙엽" in said || "나무" in said || "풀" in said -> leaf
-        "물" in said || "비" in said || "웅덩이" in said || "수영" in said -> water
-        "밥" in said || "간식" in said || "과자" in said || "먹었" in said -> crumb
+        "paint" -> paint
+        "sand" -> sand
+        "leaf" -> leaf
+        "water" -> water
+        "crumb" -> crumb
+        else -> when {
         // Blocks do not stain the bag; do not infer paint from the daycare setting.
         "블록" in said || "쌓" in said -> dust
         // ② 없으면 장소
@@ -69,8 +68,30 @@ private fun diaryMission1(s: DemoState): Mission1 {
         "공원" in p || "산책" in p -> leaf
         // ③ 아무것도 못 찾으면 묻은 것을 지어내지 않는다
         else -> dust
+        }
     }
 }
+
+// ⚠️ `after`(집에 와서 한 일)는 보지 않는다 — "저녁을 먹었어요" 때문에 간식 미션이 나왔다 (9/21)
+private fun DemoState.diarySaidForMission1(): String =
+    listOf(problem, slots["detail"], solution, cause, slots["try"]).joinToString(" ") { it.orEmpty() }
+
+/** 아이가 말한 일에서 찾은 묻은 것의 종류 — 못 찾으면 null (장소 · 먼지는 아이 말이 아니다) */
+private fun stainSaid(said: String): String? = when {
+    "물감" in said || "색칠" in said || "그리" in said -> "paint"
+    "모래" in said || "미끄럼" in said || "그네" in said || "흙" in said -> "sand"
+    "나뭇잎" in said || "낙엽" in said || "나무" in said || "풀" in said -> "leaf"
+    "물" in said || "비" in said || "웅덩이" in said || "수영" in said -> "water"
+    "밥" in said || "간식" in said || "과자" in said || "먹었" in said -> "crumb"
+    else -> null
+}
+
+/**
+ * 일기 · 협업 미션 1(문지르기)의 묻은 것이 **아이가 한 말에서** 나왔나 (10-05 실기기).
+ * 장소에서 짐작한 것(놀이터 → 모래)과 아무것도 못 찾아 넣은 먼지는 아이 말이 아니다 —
+ * 실제 하루 책에 「먼지가 녹은 솜사탕집 자리를 덮어…」 같은 없던 일이 들어갔다
+ */
+fun DemoState.mission1FromChildWords(): Boolean = isDiary && stainSaid(diarySaidForMission1()) != null
 
 /**
  * 미션 2에서 건넬 것 — **아이가 말한 것에서 나온다** (⭐7 · 구현대본 §6).
@@ -133,6 +154,17 @@ fun reported(line: String): String {
     }
 }
 
+/**
+ * 미션 문장에 끼울 장소 이름 — 장소 칸에 **문장**이 들어왔으면 null.
+ * 10-05 실기기: 판정이 장소를 못 찾아 아이 답 「목이 긴 기린이 보였어.」가 장소 칸에 들어갔고,
+ * 안내문이 「목이 긴 기린이 보였어.에는 먼지가 아직 잔뜩 남아 있어」가 됐다. 이름이 아니면 장소 없이 쓴다
+ */
+fun DemoState.placeWord(): String? = placeLabel?.trim()?.takeIf { p ->
+    p.isNotEmpty() && p.length <= 12 && p.last() !in ".!?~" && p.count { it == ' ' } <= 2 &&
+        // 말끝 「…어 · …요 · …야」는 문장이다(보였어 · 갔어요 · 거야). 「바다」 · 「북극 바다」 같은 이름은 지킨다
+        !listOf("어", "요", "야").any { p.endsWith(it) && p.length > 2 }
+}
+
 /** 미션 안내 · 완료 · 자막 문장 — 이름 · 탈것 · 대화에서 나온 말로 채운다 */
 fun DemoState.m1Line(): String {
     slot1Prop()?.let { return it.ask }                   // C1 불기 · C3 소리 흉내 — 소품은 아이 말에서 (SoundProp.kt)
@@ -142,7 +174,7 @@ fun DemoState.m1Line(): String {
     if (isDiary) {
         // 9/22 — 전에는 **가방**에 묻은 것을 털게 했다. 가방은 아이가 말한 적 없는 물건이라
         // "블록이 무너졌어" 라고 말한 날에도 뜬금없이 가방이 나왔다. 이제 **그 일이 일어난 자리**를 치운다
-        val where = placeLabel?.let { "${it}에는" } ?: "놀던 자리에는"
+        val where = placeWord()?.let { "${it}에는" } ?: "놀던 자리에는"
         return "$where ${m.blobName}${ga(m.blobName)} 아직 잔뜩 남아 있어. ${m.toolName}${ro(m.toolName)} 슥슥 치워 줄래?"
     }
     return "큰일이야! $newcomerKind${ga(newcomerKind)} 흔들어서 $v${eul(v)} 보니 ${m.blobName}${ga(m.blobName)} 잔뜩! ${m.toolName}${ro(m.toolName)} 슥슥 치워 줄래?"
@@ -156,7 +188,7 @@ fun DemoState.m1Line(): String {
  */
 fun DemoState.m1Caption(withSubject: Boolean = true): String {
     slot1Prop()?.let { b ->
-        val clause = "${placeLabel?.let { "${it}에서 " } ?: ""}${b.did} ${b.result}"
+        val clause = "${placeWord()?.let { "${it}에서 " } ?: ""}${b.did} ${b.result}"
         return if (withSubject) "$childName${eun(childName)} $clause" else clause
     }
     val m = mission1(); val v = rideName; val f = friendCallName
@@ -164,7 +196,7 @@ fun DemoState.m1Caption(withSubject: Boolean = true): String {
     if (isDiary) {
         // 자막은 **아이가 한 일**로 쓴다. 미션이 이야기 옆에 붙은 딴 이야기가 아니라
         // "그래서 나는 이렇게 했어" 자리에 들어가야 흐름이 끊기지 않는다 (9/22)
-        val where = placeLabel?.let { "${it}에 " } ?: ""
+        val where = placeWord()?.let { "${it}에 " } ?: ""
         // ⚠️ `$where남은` 으로 쓰면 안 된다 — 한글도 식별자 문자라서 Kotlin이 `where남은` 을
         //    변수 하나로 읽는다. 한글이 바로 뒤에 붙는 자리는 **반드시 중괄호**로 끊는다
         val clause = "${where}남은 ${m.blobName}${eul(m.blobName)} ${m.toolName}${ro(m.toolName)} 슥슥 치웠어요."
@@ -175,9 +207,9 @@ fun DemoState.m1Caption(withSubject: Boolean = true): String {
 
 /** 같이 만들기 · 미션 1 전 — 「소방서에 물방울이 잔뜩 남아 있어요.」 아직 아이가 치우지 않았다 (#98) */
 fun DemoState.m1Before(): String {
-    slot1Prop()?.let { b -> return "${placeLabel?.let { "${it}에 " } ?: ""}${b.before}" }
+    slot1Prop()?.let { b -> return "${placeWord()?.let { "${it}에 " } ?: ""}${b.before}" }
     val m = mission1()
-    val where = placeLabel?.let { "${it}에 " } ?: ""
+    val where = placeWord()?.let { "${it}에 " } ?: ""
     return "${where}${m.blobName}${ga(m.blobName)} 잔뜩 남아 있어요."
 }
 
