@@ -91,6 +91,8 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
     var pops by remember { mutableIntStateOf(0) }
     val finished = done || fill >= 1f
     val voice = rememberBlowLevel(!finished)
+    // 반복문 안에서는 늘 지금 세기를 읽는다 — 그냥 voice 를 쓰면 처음 값(0)에 묶여 아무리 불어도 약하다고 봤다(10-05 실기기)
+    val voiceNow by androidx.compose.runtime.rememberUpdatedState(voice)
     val micOn = remember {
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
@@ -105,8 +107,8 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
         var last = 0L
         while (fill < 1f) {
             withFrameNanos { }
-            if (voice > VOICE_ON) {
-                fill = minOf(1f, fill + voice * 0.012f)
+            if (voiceNow > VOICE_ON) {
+                fill = minOf(1f, fill + voiceNow * 0.012f)
                 val now = System.currentTimeMillis()
                 if (now - last > 450) { last = now; pops++; nudge() }
             }
