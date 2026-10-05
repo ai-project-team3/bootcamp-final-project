@@ -68,6 +68,18 @@ class Verdict:
 _HANGUL = re.compile(r"[가-힣]")
 
 
+def strip_tail(text: str) -> str:
+    """Cut a known outro whisper glued onto a real answer — 10-05 phone: 「멋있어서 친구가 됐어」 came back
+    with a 「구독과 좋아요 알림 설정」 tail, which the whole-transcript match let through. Only the listed
+    prefixes and long lines are cut as tails; a short 「감사합니다」 after real words is kept, a child says it."""
+    words = (text or "").split()
+    for i in range(1, len(words)):
+        rest = _norm(" ".join(words[i:]))
+        if any(rest.startswith(p) for p in PREFIX) or (rest in EXACT and len(rest) >= 6):
+            return " ".join(words[:i]).rstrip(" ,.")
+    return text
+
+
 def check_transcript(text: str) -> Verdict:
     """Keep or drop one transcribed segment."""
     t = _norm(text)

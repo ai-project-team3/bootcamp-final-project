@@ -41,17 +41,35 @@ suspend fun Director.askHeroName(attr: HeroAttr, image: String?): String? {
 
 /** 들은 이름 확인 — [맞아] · [아니야] · 글 칸에서 고쳐 [이 이름으로]. 고쳐 적은 것은 [DemoState.typedName] 으로 */
 private suspend fun Director.confirmHeroName(attr: HeroAttr, image: String?, heard: String): String {
-    inputs(mic = false, next = false)
+    // The mic stays on: 10-05 device, the child answered 「응」 out loud and nothing moved — only the buttons worked
+    inputs(mic = true, next = false)
     say("「$heard」 맞아?")
     var shown = false
     while (true) {
-        val r = awaitReplyShowing { if (!shown) { s.stage = Stage.NameEntry(attr, image, heard = heard); shown = true } }
-            as? Reply.Tapped ?: continue
-        when (r.value) {
-            NAME_OK, NAME_AGAIN -> return r.value
-            NAME_TYPED -> { s.typedName = r.label; return NAME_TYPED }
+        when (val r = awaitReplyShowing { if (!shown) { s.stage = Stage.NameEntry(attr, image, heard = heard); shown = true } }) {
+            is Reply.Tapped -> when (r.value) {
+                NAME_OK, NAME_AGAIN -> return r.value
+                NAME_TYPED -> { s.typedName = r.label; return NAME_TYPED }
+            }
+            is Reply.Spoke -> {
+                when (spokenYesNo(r.text)) {
+                    true -> return NAME_OK
+                    false -> return NAME_AGAIN
+                    // said a name again — take that one, as if it had been typed
+                    null -> heroNameFrom(r.text)?.let { s.typedName = it; return NAME_TYPED }
+                }
+            }
+            else -> {}
         }
     }
+}
+
+/** 「응 · 맞아 · 네」 → true, 「아니 · 다시」 → false, anything else → null (10-05) */
+internal fun spokenYesNo(text: String): Boolean? {
+    val t = text.trim().trimEnd('.', '!', '?', '~', ' ')
+    if (Regex("^(아니|아냐|아닌데|틀려|다시)").containsMatchIn(t)) return false
+    if (t == "어" || Regex("^(응|웅|네|넹|예|맞아|맞|그래|좋아|ㅇㅇ)").containsMatchIn(t) && t.length <= 6) return true
+    return null
 }
 
 const val NAME_OK = "name:ok"

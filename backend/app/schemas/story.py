@@ -19,6 +19,9 @@ MissionId = Literal["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "B1", 
 class Page(BaseModel):
     kind: PageKindName
     mission: Optional[MissionId] = None
+    # the object the mission uses — the page sets up that same thing (10-05: the page said a balloon, the
+    # mission handed a shiny stone). The app's word, short; checked like any text that reaches the model
+    prop: Optional[str] = Field(default=None, max_length=20)
 
 
 class Scene(BaseModel):
@@ -54,4 +57,7 @@ class StoryRequest(BaseModel):
 
 
 class StoryResult(BaseModel):
+    # the cover line (10-05 · #86: the app no longer asks the child for one). Optional — an unsafe
+    # or empty title is dropped and the app keeps its own, the book itself still goes
+    title: Optional[str] = None
     scenes: list[Scene]

@@ -100,13 +100,18 @@ fun DemoState.mission1(): Mission1 = if (isDiary) diaryMission1(this) else when 
     "아기 공룡" -> Mission1("prop_mud", "🟤", "진흙", "prop_splash", "💦", "prop_sponge", "🧽", "스펀지", "진흙 발자국이 잔뜩 찍혔어요", "진흙을 깨끗이 닦았어!")
     "원숭이" -> Mission1("prop_banana", "🍌", "바나나 껍질", "prop_sparkle", "✨", "ic_hand", "✋", "손", "바나나 껍질이 잔뜩 붙었어요", "바나나 껍질을 다 치웠어!")
     "화산" -> Mission1("prop_lava", "🔥", "용암", "prop_smoke", "💨", "prop_hose", "🚿", "물대포", "용암이 튀어 불이 붙었어요", "불이 다 꺼졌어!")
-    else -> Mission1("prop_fire", "🔥", "불", "prop_smoke", "💨", "prop_hose", "🚿", "물대포", "불이 붙었어요", "불이 다 꺼졌어!")
+    // a live story's newcomer is the child's own words (「고슴도치처럼 생긴 바늘괴물」), not one of the script's kinds —
+    // falling to fire put 「불이 사라졌어요」 into a book with no fire (10-05). Dust fits any story
+    else -> if (com.example.finalproject_demo.net.Server.liveFor(mode))
+        Mission1("prop_cloud", "🌫", "먼지", "prop_sparkle", "✨", "ic_hand", "✋", "손", "먼지가 뽀얗게 앉았어요", "먼지를 탈탈 다 털어 냈어!")
+    else Mission1("prop_fire", "🔥", "불", "prop_smoke", "💨", "prop_hose", "🚿", "물대포", "불이 붙었어요", "불이 다 꺼졌어!")
 }
 
 fun DemoState.mission2(): Mission2 = when (solutionItem) {
     "note" -> Mission2("prop_note", "🎵", "음표", "노래를 불러 주었어요", "신나게 노래하며 춤을 춰!")
     "gem" -> Mission2("prop_gem", "💎", "반짝이는 돌", "반짝이는 돌을 건네주었어요", "반짝이는 돌을 받고 활짝 웃어!")
     "strawberry" -> Mission2("prop_strawberry", "🍓", "딸기", "딸기를 나눠 주었어요", "딸기를 냠냠, 활짝 웃어!")
+    "snack" -> Mission2("prop_strawberry", "🍓", "맛있는 간식", "맛있는 간식을 나눠 주었어요", "간식을 냠냠, 활짝 웃어!")
     "invite" -> Mission2("ic_invite", "💌", "초대장", "초대장을 건네주었어요", "초대장을 받고 신이 났어!")
     "balloon" -> Mission2("ic_play", "🎈", "풍선", "풍선을 건네주었어요", "풍선을 받고 방긋 웃어!")
     // 일기 모드 — 아이가 말한 하루에서 나온 것들
@@ -117,7 +122,15 @@ fun DemoState.mission2(): Mission2 = when (solutionItem) {
 }
 
 /** "심심했어" → "심심했대" (남의 말을 전할 때) */
-fun reported(line: String): String = if (line.endsWith("어")) line.dropLast(1) + "대" else line + "대"
+fun reported(line: String): String {
+    val t = line.trim().trimEnd('.', '!', '?', '~')
+    return when {
+        t.endsWith("어") || t.endsWith("아") -> t.dropLast(1) + "대"          // 심심했어 → 심심했대
+        t.endsWith("서") || t.endsWith("고") -> t + "래"                       // 재밌어서 → 재밌어서래 (10-05: 「재밌어서대」)
+        t.endsWith("야") -> t.dropLast(1) + "래"                               // 친구야 → 친구래
+        else -> t + "래"
+    }
+}
 
 /** 미션 안내 · 완료 · 자막 문장 — 이름 · 탈것 · 대화에서 나온 말로 채운다 */
 fun DemoState.m1Line(): String {
@@ -180,7 +193,7 @@ fun DemoState.m2Clause(): String =
 
 fun DemoState.m1Done(): String =
     slot1Prop()?.cheer ?: if (isDiary) "${mission1().done} 자리가 다시 깨끗해졌어!"
-    else "${mission1().done} $childName 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
+    else "${mission1().done} $storyActor 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
 
 fun DemoState.m2Line(easy: Boolean): String {
     val m = mission2()

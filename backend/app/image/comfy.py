@@ -17,10 +17,14 @@ import httpx
 
 from ..config import settings
 
-BG_STYLE = (", cut paper collage landscape, layered torn construction paper, flat 2d shapes, "
-            "warm crayon-box colors, children's picture book, no characters, no people, no text")
+# Wool felt since 10-05, to match the app's own felt art (the lead: 「양모 펠트 초안 괜찮네」 10-03; device
+# round 10-05: 「아직 양모 펠트 컨셉이 아닌 것 같음」). Same model and steps; measured 10-03 (3 places, same time as
+# cut paper — eval/bench_felt_style.py). Cut paper was the 09-21 bench string.
+BG_STYLE = (", wide landscape, no characters, no people, no animals, soft wool felt and fabric craft 3D children's picture "
+            "book illustration, visible felt fibers and stitched edges, cute rounded shapes, warm pastel colors "
+            "(cream, mustard yellow, coral, teal, sky blue), gentle soft lighting, cozy, no text, no letters, high quality")
 NEG = ("text, letters, words, watermark, signature, photo, photorealistic, 3d render, "
-       "felt, fabric, plush, clay, blurry, ugly, scary, dark, horror, "
+       "blurry, ugly, scary, dark, horror, "
        "nudity, blood, weapon, gore")      # last line added for the product; not in the bench
 W, H = 1344, 768
 
@@ -76,8 +80,9 @@ async def background(scene: str) -> bytes:
 # are colourless grey; denoise 0.85 (human) gave the asked-for character and kept the arms out,
 # 0.8 (four legs) keeps the legs apart. Two samples each — measure more before trusting it.
 
-CHAR_STYLE = (", cut paper collage, layered torn construction paper, flat 2d shapes, warm crayon-box colors, "
-              "children's picture book character, isolated on plain pure white background, no shadow, no text")
+# Wool felt (10-05 · eval/bench_felt_character.py: 4 subjects × 2 seeds, cut-out 8/8 both styles, p50 4.2 s both)
+CHAR_STYLE = (", soft wool felt and fabric craft 3D children's picture book character, visible felt fibers and stitched "
+              "edges, cute rounded shapes, warm pastel colors, isolated on plain pure white background, no shadow, no text")
 # frame · card · backdrop: 09-29 live, the octopus came on a square paper card and was cut out card and all
 CHAR_NEG = ("text, letters, watermark, photo, photorealistic, blurry, ugly, scary, dark, horror, "
             "background scenery, frame, border, card, backdrop, circle behind, colored background, "
