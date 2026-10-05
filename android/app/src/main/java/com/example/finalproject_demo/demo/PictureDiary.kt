@@ -1182,7 +1182,7 @@ private suspend fun Director.giveDiaryBook() {
     val shelved = when {
         !DiaryShelf.attached(s) -> {
             log("책장에 꽂기 → 저장소가 없다 · 앱을 켜 둔 동안만 남는다")
-            ShelfBook(title, s.themeKey, s.bgName, pages = pages, fresh = true)
+            ShelfBook(title, s.themeKey, diaryPlaceBg(s.slots["place"]), pages = pages, fresh = true)
         }
         book != null && DiaryShelf.save(s, book) -> {
             log("책장에 꽂기 → 폰 안에 저장(diary_books · 그림 ${book.pieces.size}조각) · 서버에는 보내지 않음")

@@ -4,6 +4,8 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -100,6 +102,8 @@ class DiaryViewsTest {
 
     private fun show(d: Director) {
         compose.mainClock.autoAdvance = false
+        // 그림일기 머리의 날짜는 오늘 — 기준 그림이 날마다 달라지지 않게 날을 박는다
+        if (d.s.diaryDay.madeOn == null) d.s.diaryDay.madeOn = java.time.LocalDate.of(2026, 10, 2)
         compose.setContent {
             // 일기 화면은 대사 칸을 스스로 그린다(D1 작은 말풍선 · D5 없음) — 앱 틀의 칸은 얹지 않는다
             Box(Modifier.fillMaxSize().background(Bg)) { StageView(d) }
@@ -241,6 +245,29 @@ class DiaryViewsTest {
         snap("diary_board_undo")
     }
 
+    /**
+     * 그림판 자리 (#98 · #46) — 판은 앱 틀의 🏠 · 🔒(오른쪽 끝 128dp) 오른쪽에서 시작하고, 🎤 는 판 밖 오른쪽 아래에 고정된다.
+     * 말풍선은 판 쪽에 있어 크레용 아래 ↶ ↷ 를 가리지 않는다
+     */
+    @Test
+    fun theBoardLeavesRoomForTheTopButtonsAndTheMic() {
+        val d = director()
+        d.s.newDiaryDay()
+        d.s.stage = DiaryBoard()
+        d.say("우와, 지금 그리는 건 뭐야?")
+        d.inputs(mic = true, next = false)
+        show(d)
+        val board = compose.onNodeWithTag("diary-board").getUnclippedBoundsInRoot()
+        val mic = compose.onNodeWithTag("diary-mic").getUnclippedBoundsInRoot()
+        val bubble = compose.onNodeWithTag("diary-bubble").getUnclippedBoundsInRoot()
+        val undo = compose.onNodeWithTag("stroke-undo").getUnclippedBoundsInRoot()
+        assertTrue("🔒 가 판 위에 얹힌다 — 판 왼쪽 ${board.left}", board.left >= 128.dp)
+        assertTrue("🎤 가 판을 가린다 — 판 오른쪽 ${board.right} · 🎤 왼쪽 ${mic.left}", mic.left >= board.right)
+        val root = compose.onRoot().getUnclippedBoundsInRoot()
+        assertTrue("🎤 가 오른쪽 아래가 아니다", root.right - mic.right < 24.dp && root.bottom - mic.bottom < 24.dp)
+        assertTrue("말풍선이 ↶ 를 가린다", bubble.left >= undo.right || bubble.top >= undo.bottom)
+    }
+
     /** 천천히 긋는 둘째 획 — 앞 획 뒤 1.6초가 지나도 손가락이 판에 있으면 묻지 않는다. 손을 떼고 조용하면 묻는다 */
     @Test
     fun aSlowStrokeIsNotCutOffByThePause() {
@@ -311,6 +338,18 @@ class DiaryViewsTest {
 
         assertEquals("feel:EXCITED", (d.replyTo { compose.onNodeWithTag("feel-${DiaryFeel.EXCITED.name}").performClick() } as? Reply.Tapped)?.value)
         assertEquals("wx:RAIN", (d.replyTo { compose.onNodeWithTag("wx-${DiaryWeather.RAIN.name}").performClick() } as? Reply.Tapped)?.value)
+    }
+
+    /** 그림 없이 만든 일기 — 그림 칸에 아이가 말한 곳의 펠트 그림. 전에는 ✏️ 하나였다 (#98) */
+    @Test
+    fun aDiaryWithoutDrawingShowsThePlaceItWasAbout() {
+        val d = director()
+        d.s.newDiaryDay()
+        d.s.slots["place"] = "놀이터 갔어"; d.s.slotBy["place"] = "child"
+        d.s.slots["problem"] = "그네 탔어"; d.s.slotBy["problem"] = "child"
+        d.s.stage = DiaryPaper(0)
+        show(d)
+        compose.onNodeWithTag("d5-place").assertExists()
     }
 
     @Test
