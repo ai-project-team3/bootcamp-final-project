@@ -167,6 +167,9 @@ object Server {
     /** One page of the book plan: a `PageKind` name and the mission on it (`docs/미션_구상.md` §3 id), if any. */
     data class Page(val kind: String, val mission: String? = null)
 
+    /** Title is optional for compatibility with deployed servers that return captions only. */
+    data class StoryBook(val captions: List<String>, val title: String? = null)
+
     /**
      * Book text. Null = keep the app's own template book. Captions still carry `{주인공}` · `{친구n}` — unmask on the phone.
      *
@@ -180,7 +183,14 @@ object Server {
         pages: List<Page>? = null,
         /** coop only: the reason the parent picked — "done" · "soon" · "dream" (#52). null = a day that happened */
         reason: String? = null,
-    ): List<String>? {
+    ): List<String>? = storyBook(mode, slots, slotBy, keep, template, level, pages, reason)?.captions
+
+    /** The story mode consumes the same book response together with its optional title. */
+    suspend fun storyBook(
+        mode: String, slots: Map<String, String?>, slotBy: Map<String, String> = emptyMap(),
+        keep: String? = null, template: String? = null, level: String? = null,
+        pages: List<Page>? = null, reason: String? = null,
+    ): StoryBook? {
         val body = JSONObject()
             .put("mode", mode)
             .put("slots", slotsJson(slots))
@@ -197,7 +207,10 @@ object Server {
             val a = j.getJSONArray("scenes")
             val caps = List(a.length()) { a.getJSONObject(it).getString("caption") }
             // the server already refuses a wrong count; checking again costs nothing and keeps missions in place
-            if (pages != null && caps.size != pages.size) { Log.w(TAG, "/story ${caps.size} pages, want ${pages.size}"); null } else caps
+            if (pages != null && caps.size != pages.size) {
+                Log.w(TAG, "/story ${caps.size} pages, want ${pages.size}")
+                null
+            } else StoryBook(caps, (j.opt("title") as? String)?.trim()?.takeIf(String::isNotBlank))
         } catch (e: Exception) { warn("/story parse", e); null }
     }
 

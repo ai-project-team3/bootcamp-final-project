@@ -210,7 +210,10 @@ sealed interface Art {
     data object Mascot : Art
 
     /** 아이 그림 원본 그대로 (27). 안 그렸으면 프리셋 외계인. */
-    data class ChildDrawing(val strokes: List<Stroke>, val preset: Int, val aspect: Float = 1f) : Art
+    data class ChildDrawing(
+        val strokes: List<Stroke>, val preset: Int, val aspect: Float = 1f,
+        val presetAsset: String? = null,
+    ) : Art
 
     /** ComfyUI로 만든 그림(res/drawable/<name>). 없으면 fallback으로 그린다. */
     data class Img(val name: String, val fallback: Art, val rig: String? = null) : Art
@@ -456,7 +459,7 @@ val DINOS = listOf(
 )
 
 val SPACE_BUDDIES = listOf(
-    DinoKind("alienbud", "외계인 친구", "삐뽀", "삐비빅 삐뽀!", "bud_alien", "눈이 세 개", "눈이 세 개인"),
+    DinoKind("alienbud", "외계인 친구", "우주콩", "삐비빅 삐뽀!", "bud_alien", "눈이 세 개", "눈이 세 개인"),
     DinoKind("robot", "로봇", "또각이", "위잉 위잉!", "bud_robot", "몸이 네모", "몸이 네모난"),
     DinoKind("babystar", "아기 별", "반짝이", "반짝 반짝!", "bud_star", "혼자서 빛나요", "혼자 빛나는"),
 )
@@ -914,6 +917,8 @@ class DemoState {
     var storyNextSlot by mutableStateOf<String?>(null)
     var storyClarificationSlot by mutableStateOf<String?>(null)
     var storyServerQuestion by mutableStateOf<String?>(null)
+    /** Candidates belong to the current question and travel with its undo/redo snapshot. */
+    internal var storyAnswerOptions by mutableStateOf<StoryOptions?>(null)
     var storyStartedAtMs = 0L
     val storyUnneededSlots = mutableStateListOf<String>()
     val storyReady: Boolean get() = mode == StoryMode.STORY && endReason == "story_ready"
@@ -1173,7 +1178,8 @@ class DemoState {
     /** 장면 4에서 나온 새 친구의 그림 */
     val newcomerArt: Art get() = th.newcomers.firstOrNull { it.value == newcomerKind }?.art ?: Art.Emoji(newcomerEmoji)
     val dino: DinoKind get() = dinoKind(dinoKey)
-    val friendArt: Art get() = Art.ChildDrawing(drawing.toList(), drawnPreset, drawingAspect)
+    val friendArt: Art get() = Art.ChildDrawing(drawing.toList(), drawnPreset, drawingAspect,
+        presetAsset = if (mode == StoryMode.STORY && drawing.isEmpty()) storyPresetResource(newcomerKind) else null)
 
     // ── 일기 모드의 소품 · 호칭 ─────────────────────────────────
     // 뼈대(문지르기 · 끌어다 놓기 · 쪽 구성)는 그대로 두고 **소품 그림과 말만 바꾼다** (일기 설계 §7-1 ②).
@@ -1353,7 +1359,7 @@ class DemoState {
         canUndo = false; canRedo = false
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
-        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyUnneededSlots.clear(); storyStartedAtMs = 0L
+        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyAnswerOptions = null; storyUnneededSlots.clear(); storyStartedAtMs = 0L
         partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY

@@ -51,7 +51,9 @@ def user(req: JudgeRequest) -> str:
     slots = json.dumps(req.slots, ensure_ascii=False, separators=(",", ":"))
     return (
         f"mode:{req.mode}\n"
-        f"slots:{slots}\n"
+        # coop: why the parent picked the story — a 곧 해요 answer is a plan, not an event (#100 · 10-05)
+        + (f"reason:{getattr(req, 'reason', None) or 'done'}\n" if req.mode == "coop" else "")
+        + f"slots:{slots}\n"
         f"asked:{req.asked_slot or ''}\n"
         f"template:{req.template or ''}\n"
         f"question:{req.question}\n"

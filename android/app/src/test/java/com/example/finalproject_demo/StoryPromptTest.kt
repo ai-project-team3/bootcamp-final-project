@@ -13,6 +13,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StoryPromptTest {
+    @Test fun aServerTitleQuestionIsSkippedWithoutRepeatingItsWording() {
+        val s = DemoState().apply {
+            turn = 3
+            slots["place"] = "숲"
+            slots["problem"] = "길을 잃었어"
+            storyNextSlot = "title"
+        }
+        val prompt = s.nextStoryPrompt("책은 어떤 이름으로 지을까?")!!
+        assertEquals("reaction", prompt.slot)
+        assertEquals("그래서 어떻게 됐어?", prompt.text)
+    }
+
     @Test
     fun firstTwoProbesStayFixedButFilledSlotsAreSkipped() {
         val s = DemoState()
