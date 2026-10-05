@@ -71,6 +71,21 @@ class TurnHistoryTest {
         assertNull(s.storyBackground)
     }
 
+    /** 10-05 scene kit: undo/redo must redraw the same felt scene — the kit and its seed travel with the place */
+    @Test
+    fun theSceneKitAndItsSeedFollowThePlace() {
+        val s = DemoState()
+        val h = TurnHistory(s)
+        s.answer({ slots["place"] = "놀이터"; place = "놀이터"; sceneKit = "park"; sceneSeed = 77L }, h)
+        s.answer({ slots["place"] = "우주"; place = "우주"; sceneKit = null; sceneSeed = 5L }, h)
+        h.undo()
+        assertEquals("park", s.sceneKit); assertEquals(77L, s.sceneSeed)
+        h.redo()
+        assertNull(s.sceneKit); assertEquals(5L, s.sceneSeed)
+        h.undo(); h.undo()
+        assertNull(s.sceneKit)
+    }
+
     @Test
     fun nothingToUndoAtTheStart() {
         val s = DemoState()

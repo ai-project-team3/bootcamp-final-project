@@ -127,3 +127,43 @@ def test_diary_ignores_a_reason_and_stays_a_day_that_happened():
     u = story_route.user(StoryRequest(mode="diary", slots={"place": "놀이터"}, reason="soon",
                                       pages=[Page(kind="DEPART")]))
     assert "있었던 일" in u and "앞으로 할 일" not in u and "고른 이야기" not in u
+
+
+# 10-05: coop has its own prompt — the diary one said "오늘 있었던 일 · 과거형" and fought the soon/dream tense line
+def test_each_mode_reads_its_own_prompt():
+    story_route.system.cache_clear()
+    coop, diary, tale = (story_route.system(m) for m in ("coop", "diary", "story"))
+    assert coop != diary and coop != tale
+    assert "고른 이야기" in coop and "앞으로 할 일" in coop and "상상한 이야기" in coop
+    # the fenced block only: the input notes under it never reach the model
+    assert "## 입력" not in coop and "정본 초안" not in coop
+
+
+def test_the_coop_prompt_closes_a_soon_book_without_ending_the_day():
+    coop = story_route.system("coop")
+    assert "하루가 저물었어요" in coop and "그날이 정말 기다려져요" in coop
+
+
+# #113: the spots inside the picked item reach the model as scenery, coop only
+def test_the_coop_stage_reaches_the_model_as_scenery():
+    def ask(**kw):
+        return story_route.user(StoryRequest(mode="coop", slots={"place": "소방서"}, template="직업 · 소방관", **kw))
+    assert "무대: 소방차 차고 · 출동 준비실 · 훈련장" in ask(stage=["소방차 차고", "출동 준비실", "훈련장"])
+    assert "무대" not in ask()
+    assert "무대" not in story_route.user(StoryRequest(mode="story", slots={"place": "공룡나라"}, stage=["동굴"]))
+    assert "무대" in story_route.system("coop") and "새 사건을 만들지 않습니다" in story_route.system("coop")
+
+
+def test_a_stage_too_long_or_too_many_is_refused(client):
+    base = {"mode": "coop", "slots": {"place": "소방서"}}
+    assert client.post("/story", json={**base, "stage": ["가" * 13]}).status_code == 422
+    assert client.post("/story", json={**base, "stage": ["가"] * 6}).status_code == 422
+    assert client.post("/story", json={**base, "stage": ["소방차 차고"]}).status_code == 200
+
+
+# 10-05: the mission page sets up the object the app's mission then uses
+def test_the_mission_prop_reaches_the_plan():
+    req = StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1", prop="맛있는 간식")])
+    assert "「맛있는 간식」" in story_route.plan(req)
+    assert "「" not in story_route.plan(StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1")]))
+

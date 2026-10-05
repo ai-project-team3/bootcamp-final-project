@@ -198,13 +198,14 @@ class CoopLiveAnswerTest {
             d.toFirstQuestion()
             val asked = mutableListOf<String>()
             withTimeoutOrNull(30_000) {
-                while (d.s.slots["detail"] == null && d.s.scene == Scene.DIARY) {
+                // 「자세히」 걸음은 부모 질문 자리라 답이 `parent1` 에 간다 (10-05)
+                while (d.s.slots["detail"] == null && d.s.slots["parent1"] == null && d.s.scene == Scene.DIARY) {
                     if (d.s.micEnabled && asked.lastOrNull() != d.s.line) asked += d.s.line
                     d.send(Reply.Spoke("대답했어")); delay(60)
                 }
             }
             assertEquals("놀이터", d.s.place)
-            assertTrue("「자세히」 걸음까지 못 갔다: $asked", d.s.slots["detail"] != null)
+            assertTrue("「자세히」 걸음까지 못 갔다: $asked", d.s.slots["detail"] != null || d.s.slots["parent1"] != null)
             assertTrue("이미 찬 「무슨 일」을 또 물었다: $asked", asked.none { "무슨 일" in it })
             assertEquals("앞 답이 덮였다", "친구가 밀었어", d.s.problem)
             assertEquals("child", d.s.slotBy["problem"])
@@ -212,21 +213,24 @@ class CoopLiveAnswerTest {
     }
 
     /**
-     * #53 A — 서버를 켰으면 협업도 **서버 LLM 이 앞 답을 보고 만든 질문**을 묻는다. 단 꼬리질문 자리에서는 부모 질문이 먼저다.
-     * (고른 이야기가 없으면 일기형이라 서버 프롬프트의 과거형과 맞는다)
+     * #53 A — 서버를 켰으면 협업도 **서버 LLM 이 앞 답을 보고 만든 질문**을 묻는다. 부모 질문은 자유 꼬리 자리
+     * (하던 일 · 한 말 · 해 본 것 · 집에 와서)에서 나온다 — 10-05 전에는 둘째 걸음(누구랑)을 부모 질문이 차지해
+     * 그 답이 같이 간 사람이 됐다. (고른 이야기가 없으면 일기형이라 서버 프롬프트의 과거형과 맞는다)
      */
     @Test
-    fun withTheServerTheMascotAsksTheLlmQuestionButParentQuestionsComeFirst() = run { d ->
+    fun withTheServerTheMascotAsksTheLlmQuestionAndTheParentQuestionWaitsForAFreeTail() = run { d ->
         val server = llmServer(mapOf(
-            "place" to ("companion" to "놀이터에 누구랑 갔어?"),          // 둘째 걸음은 부모 질문 자리 → 이 질문은 버려진다
+            "place" to ("companion" to "놀이터에 누구랑 갔어?"),
             "companion" to ("problem" to "엄마랑 놀이터에서 뭐 하고 놀았어?"),
         ))
         try {
             Server.base = server.base
             Server.liveModes = setOf(StoryMode.COOP)
             d.toFirstQuestion()
-            assertEquals("부모 질문이 LLM 질문에 밀렸다", "오늘 제일 재밌었던 게 뭐였어?", d.answer("놀이터"))
+            assertEquals("둘째 걸음(누구랑)에서 LLM 질문을 안 물었다", "놀이터에 누구랑 갔어?", d.answer("놀이터"))
             assertEquals("셋째 걸음에서 LLM 질문을 안 물었다", "엄마랑 놀이터에서 뭐 하고 놀았어?", d.answer("엄마랑"))
+            assertEquals("넷째 걸음(하던 일)에서 부모 질문을 안 물었다", "오늘 제일 재밌었던 게 뭐였어?", d.answer("모래놀이 했어"))
+            assertEquals("같이 간 사람 칸에 부모 질문의 답이 들어갔다", "엄마", d.s.friend)
         } finally { server.close() }
     }
 

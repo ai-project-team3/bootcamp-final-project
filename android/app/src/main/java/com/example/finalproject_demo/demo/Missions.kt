@@ -1,5 +1,8 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.slot1Prop
+import com.example.finalproject_demo.demo.missions.slot2Prop
+
 /**
  * 책 미션 — 아이와 나눈 대화에서 만든다 (v0.8).
  *
@@ -98,13 +101,18 @@ fun DemoState.mission1(): Mission1 = if (isDiary) diaryMission1(this) else when 
     "아기 공룡" -> Mission1("prop_mud", "🟤", "진흙", "prop_splash", "💦", "prop_sponge", "🧽", "스펀지", "진흙 발자국이 잔뜩 찍혔어요", "진흙을 깨끗이 닦았어!")
     "원숭이" -> Mission1("prop_banana", "🍌", "바나나 껍질", "prop_sparkle", "✨", "ic_hand", "✋", "손", "바나나 껍질이 잔뜩 붙었어요", "바나나 껍질을 다 치웠어!")
     "화산" -> Mission1("prop_lava", "🔥", "용암", "prop_smoke", "💨", "prop_hose", "🚿", "물대포", "용암이 튀어 불이 붙었어요", "불이 다 꺼졌어!")
-    else -> Mission1("prop_fire", "🔥", "불", "prop_smoke", "💨", "prop_hose", "🚿", "물대포", "불이 붙었어요", "불이 다 꺼졌어!")
+    // a live story's newcomer is the child's own words (「고슴도치처럼 생긴 바늘괴물」), not one of the script's kinds —
+    // falling to fire put 「불이 사라졌어요」 into a book with no fire (10-05). Dust fits any story
+    else -> if (com.example.finalproject_demo.net.Server.liveFor(mode))
+        Mission1("prop_cloud", "🌫", "먼지", "prop_sparkle", "✨", "ic_hand", "✋", "손", "먼지가 뽀얗게 앉았어요", "먼지를 탈탈 다 털어 냈어!")
+    else Mission1("prop_fire", "🔥", "불", "prop_smoke", "💨", "prop_hose", "🚿", "물대포", "불이 붙었어요", "불이 다 꺼졌어!")
 }
 
 fun DemoState.mission2(): Mission2 = when (solutionItem) {
     "note" -> Mission2("prop_note", "🎵", "음표", "노래를 불러 주었어요", "신나게 노래하며 춤을 춰!")
     "gem" -> Mission2("prop_gem", "💎", "반짝이는 돌", "반짝이는 돌을 건네주었어요", "반짝이는 돌을 받고 활짝 웃어!")
     "strawberry" -> Mission2("prop_strawberry", "🍓", "딸기", "딸기를 나눠 주었어요", "딸기를 냠냠, 활짝 웃어!")
+    "snack" -> Mission2("prop_strawberry", "🍓", "맛있는 간식", "맛있는 간식을 나눠 주었어요", "간식을 냠냠, 활짝 웃어!")
     "invite" -> Mission2("ic_invite", "💌", "초대장", "초대장을 건네주었어요", "초대장을 받고 신이 났어!")
     "balloon" -> Mission2("ic_play", "🎈", "풍선", "풍선을 건네주었어요", "풍선을 받고 방긋 웃어!")
     // 일기 모드 — 아이가 말한 하루에서 나온 것들
@@ -115,11 +123,22 @@ fun DemoState.mission2(): Mission2 = when (solutionItem) {
 }
 
 /** "심심했어" → "심심했대" (남의 말을 전할 때) */
-fun reported(line: String): String = if (line.endsWith("어")) line.dropLast(1) + "대" else line + "대"
+fun reported(line: String): String {
+    val t = line.trim().trimEnd('.', '!', '?', '~')
+    return when {
+        t.endsWith("어") || t.endsWith("아") -> t.dropLast(1) + "대"          // 심심했어 → 심심했대
+        t.endsWith("서") || t.endsWith("고") -> t + "래"                       // 재밌어서 → 재밌어서래 (10-05: 「재밌어서대」)
+        t.endsWith("야") -> t.dropLast(1) + "래"                               // 친구야 → 친구래
+        else -> t + "래"
+    }
+}
 
 /** 미션 안내 · 완료 · 자막 문장 — 이름 · 탈것 · 대화에서 나온 말로 채운다 */
 fun DemoState.m1Line(): String {
+    slot1Prop()?.let { return it.ask }                   // C1 불기 · C3 소리 흉내 — 소품은 아이 말에서 (SoundProp.kt)
     val m = mission1(); val v = rideName
+    if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode))
+        return "이 자리에 ${m.blobName}${ga(m.blobName)} 남아 있어. ${m.toolName}${ro(m.toolName)} 슥슥 치워 줄래?"
     if (isDiary) {
         // 9/22 — 전에는 **가방**에 묻은 것을 털게 했다. 가방은 아이가 말한 적 없는 물건이라
         // "블록이 무너졌어" 라고 말한 날에도 뜬금없이 가방이 나왔다. 이제 **그 일이 일어난 자리**를 치운다
@@ -136,7 +155,12 @@ fun DemoState.m1Line(): String {
  * "지호는 다시 쌓아 봤어요. 지호는 모래를 치웠어요." 처럼 이름이 두 번 나오지 않게 하려는 것이다 (9/22).
  */
 fun DemoState.m1Caption(withSubject: Boolean = true): String {
+    slot1Prop()?.let { b ->
+        val clause = "${placeLabel?.let { "${it}에서 " } ?: ""}${b.did} ${b.result}"
+        return if (withSubject) "$childName${eun(childName)} $clause" else clause
+    }
     val m = mission1(); val v = rideName; val f = friendCallName
+    if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode)) return m1Before()
     if (isDiary) {
         // 자막은 **아이가 한 일**로 쓴다. 미션이 이야기 옆에 붙은 딴 이야기가 아니라
         // "그래서 나는 이렇게 했어" 자리에 들어가야 흐름이 끊기지 않는다 (9/22)
@@ -151,30 +175,33 @@ fun DemoState.m1Caption(withSubject: Boolean = true): String {
 
 /** 같이 만들기 · 미션 1 전 — 「소방서에 물방울이 잔뜩 남아 있어요.」 아직 아이가 치우지 않았다 (#98) */
 fun DemoState.m1Before(): String {
+    slot1Prop()?.let { b -> return "${placeLabel?.let { "${it}에 " } ?: ""}${b.before}" }
     val m = mission1()
     val where = placeLabel?.let { "${it}에 " } ?: ""
     return "${where}${m.blobName}${ga(m.blobName)} 잔뜩 남아 있어요."
 }
 
 /** 같이 만들기 · 미션 2 전 — 아직 건네지 않았다. 앞의 「그리고」 뒤에 이어도 읽히게 절로 (#98) */
-fun DemoState.m2Before(): String =
+fun DemoState.m2Before(): String = slot2Prop()?.before ?:
     if (hasCompanion) "${giveTargetName}에게 줄 선물이 있어요." else "오늘 이야기를 들어준 마스코트에게 줄 선물이 있어요."
 
 /**
  * 미션 2가 책에 남는 절 — 주어 없이. 앞의 "마침내 …" 문장에 이어 붙는다 (9/22).
  * 결(結) 한 쪽이 두 문장으로 갈라지지 않게 하려는 것이다.
  */
-fun DemoState.m2Clause(): String =
+fun DemoState.m2Clause(): String = slot2Prop()?.did ?:
     // 아무도 없었던 날엔 마스코트가 받는다. 그런데 마스코트는 앞쪽에 한 번도 안 나온 인물이라
     // 그냥 "마스코트에게 건네주었어요" 라고 하면 뜬금없다. 한 마디로 자리를 만들어 준다 (9/22)
     if (hasCompanion) "${giveTargetName}에게 ${mission2().give}."
     else "오늘 이야기를 들어준 마스코트에게 ${mission2().give}."
 
 fun DemoState.m1Done(): String =
-    if (isDiary) "${mission1().done} 자리가 다시 깨끗해졌어!"
-    else "${mission1().done} $childName 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
+    slot1Prop()?.cheer ?: if (isDiary) "${mission1().done} 자리가 다시 깨끗해졌어!"
+    else if (com.example.finalproject_demo.net.Server.liveFor(mode)) mission1().done
+    else "${mission1().done} $storyActor 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
 
 fun DemoState.m2Line(easy: Boolean): String {
+    slot2Prop()?.let { return it.ask }                   // A1 물대포 · A4 돌려 잠그기 (Slot2Prop.kt)
     val m = mission2()
     // 9/22 — 아무도 없었던 날에는 "그 친구" 를 지어내지 않는다. 마스코트가 받는다 (그림도 이미 마스코트다)
     val f = giveTargetName
@@ -184,4 +211,4 @@ fun DemoState.m2Line(easy: Boolean): String {
     return "${f}${ga(f)} ${reported(causeLine)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
 }
 
-fun DemoState.m2Done(): String = "${giveTargetName}${ga(giveTargetName)} ${mission2().done}"
+fun DemoState.m2Done(): String = slot2Prop()?.cheer ?: "${giveTargetName}${ga(giveTargetName)} ${mission2().done}"

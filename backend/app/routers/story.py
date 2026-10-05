@@ -1,7 +1,7 @@
 """POST /story — once or twice per session. Latency budget is generous.
 
 The prompt is read from eval/, not copied (one thing in one place):
-story → story_prompt.md, diary · coop → story_prompt_diary.md.
+story → story_prompt.md, diary → story_prompt_diary.md, coop → story_prompt_coop.md.
 """
 import json
 from functools import lru_cache
@@ -26,7 +26,12 @@ _SCENES = {"story": (6, 6), "diary": (1, 6), "coop": (3, 6)}
 @lru_cache(maxsize=4)
 def system(mode: str) -> str:
     # same cut as the judge and the measurement (eval/prompt_block.py): the fenced block, input dropped
-    return system_block(EVAL / ("story_prompt.md" if mode == "story" else "story_prompt_diary.md"))
+    return system_block(EVAL / PROMPT_FILES[mode])
+
+
+# coop left the diary prompt (10-05): a "곧 가요" or "좋아해요" book read "오늘 있었던 일 · 과거형" from the
+# system prompt and the opposite from the tense line — the coop prompt splits the book by the parent's reason
+PROMPT_FILES = {"story": "story_prompt.md", "diary": "story_prompt_diary.md", "coop": "story_prompt_coop.md"}
 
 
 def schema() -> dict:
@@ -94,6 +99,8 @@ def plan(req: StoryRequest) -> str:
             if pg.mission:
                 line += (f" · 미션 {pg.mission} {MISSION_SETUP[pg.mission]}. 이 상황으로 끝내고 풀지 않는다."
                          " 미션 이름 · 도구 이름 · '직전' 같은 설명 말은 쓰지 않고 이야기 속 장면으로만 보여 준다")
+                if pg.prop and not is_blocked(pg.prop):
+                    line += f" · 이 쪽에 나오는 물건은 「{pg.prop}」 — 다른 물건으로 바꾸지 않는다"
         lines.append(line)
     if req.mode != "story":
         lines.append(f"{TENSE[req.reason if req.mode == 'coop' else None]} 미션 쪽도 칸에 있는 일로만 쓰고, 없던 일을 지어내지 않는다.")
@@ -122,6 +129,9 @@ def user(req: StoryRequest) -> str:
     if req.mode == "coop":
         # without a page plan the tense still has to reach the model
         head += f"고른 이야기: {req.template or '(없음)'}\n" + ("" if req.pages else f"{TENSE[req.reason]}\n")
+        if req.stage:
+            # #113: scenery inside the picked item — the prompt keeps it to decoration and keywords
+            head += f"무대: {' · '.join(req.stage)}\n"
     return f"{head}채워진 칸: {slots}\n칸마다 by: {by}\n맺음: {keep}{tail}"
 
 

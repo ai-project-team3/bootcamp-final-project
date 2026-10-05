@@ -737,15 +737,18 @@ fun online(ctx: Context): Boolean = runCatching {
  * 🏠 는 바로 나가지 않고 「방으로 갈까?」를 묻는다 — 아이가 잘못 눌러 만들던 책을 잃지 않게
  */
 @Composable
-fun KidTopBar(d: Director, modifier: Modifier = Modifier) {
+fun KidTopBar(d: Director, modifier: Modifier = Modifier, lock: Boolean = true) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         // 「방으로 갈까?」 확인은 화면 전체를 덮어야 해서 앱 틀(OttoShell)이 그린다
         // 보이는 크기 48dp · 누르는 자리 56dp — 자리 사이 4dp 라 보이는 버튼 사이는 12dp (10-01 — 56dp 원이 바짝 붙어 답답했다)
         TopSlot({ Shell.askHome = true }, Modifier.size(TopSlot)) {
             FeltButton(WoolCream, onClick = { Shell.askHome = true }, modifier = Modifier.size(TopFace), shape = CircleShape) { Text("🏠", fontSize = 21.sp) }
         }
-        Spacer(Modifier.width(4.dp))
-        LockDoor { d.openParent() }
+        // 🔒 부모 문 — 그림일기 화면에는 없다(판을 넓게 · 10-05 진웅). 방 · 다른 모드는 그대로
+        if (lock) {
+            Spacer(Modifier.width(4.dp))
+            LockDoor { d.openParent() }
+        }
         // 같이 만들기 중에만 — 부모 「그만하기」 (#36). 누르면 확인 창을 한 번 더 거친다(아이가 잘못 누르지 않게).
         // 10-01 — 옆 🏠 · 🔒 와 같은 펠트 버튼(크림 펠트 · 바느질 · 같은 높이 · 누르면 꾹)에 ComfyUI 펠트 손바닥 그림.
         // 글씨는 어른용 고딕 그대로 — 어른이 누르는 버튼이다
