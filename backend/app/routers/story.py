@@ -110,11 +110,24 @@ MISSION_SETUP = {
 NO_SITUATION = {"A3", "B2", "D3"}
 
 
+def real_day(req: StoryRequest) -> bool:
+    """A book of a real day — a diary, or a co-op day that happened or is coming. Imagined co-op stories
+    (dream) and story mode may set a mission up from nothing, as a picture book does."""
+    return req.mode == "diary" or (req.mode == "coop" and req.reason in (None, "done", "soon"))
+
+
 def plan(req: StoryRequest) -> str:
     """The page list as the model reads it. Takes the place of the fixed scene order."""
     lines = [f"[쪽 목록] 정확히 {len(req.pages)}쪽. 이 차례와 개수를 그대로 따른다 — 위 장면 구성보다 우선한다."]
     for i, pg in enumerate(req.pages, 1):
-        if pg.mission in NO_SITUATION:
+        prop = pg.prop if pg.prop and not is_blocked(pg.prop) else None
+        if pg.mission and not prop and real_day(req):
+            # a day that happened (or will) has no situation the child did not tell — the app sends a prop only
+            # when the child's words named one. 10-05 device: 「무언가 묻거나 가려진 일은 아직 듣지 못했어요」
+            # and 「불 끄는 모습은 아직 가려진 채로」 on a zoo day and a fire-station day
+            line = (f"{i} {pg.kind} : {meaning(req.mode, pg.kind)}. 미션 상황(묻은 것 · 가려진 것 · 건넬 물건)을 만들지 않고"
+                    " 칸에 있는 일로만 쓴다")
+        elif pg.mission in NO_SITUATION:
             line = (f"{i} {pg.kind} : 이야기를 한 걸음 잇는 평범한 장면 · 미션 {pg.mission} {MISSION_SETUP[pg.mission]}."
                     " 문장에는 미션 · 조각 · 퍼즐 이야기를 넣지 않고 새 사건도 만들지 않는다")
         else:
@@ -122,8 +135,8 @@ def plan(req: StoryRequest) -> str:
             if pg.mission:
                 line += (f" · 미션 {pg.mission} {MISSION_SETUP[pg.mission]}. 이 상황으로 끝내고 풀지 않는다."
                          " 미션 이름 · 도구 이름 · '직전' 같은 설명 말은 쓰지 않고 이야기 속 장면으로만 보여 준다")
-                if pg.prop and not is_blocked(pg.prop):
-                    line += f" · 이 쪽에 나오는 물건은 「{pg.prop}」 — 다른 물건으로 바꾸지 않는다"
+                if prop:
+                    line += f" · 이 쪽에 나오는 물건은 「{prop}」 — 다른 물건으로 바꾸지 않는다"
         lines.append(line)
     if req.mode != "story":
         lines.append(f"{TENSE[req.reason if req.mode == 'coop' else None]} 미션 쪽도 칸에 있는 일로만 쓰고, 없던 일을 지어내지 않는다.")
