@@ -8,6 +8,11 @@ import com.example.finalproject_demo.demo.missionFor
 import com.example.finalproject_demo.demo.missions.MissionId
 import com.example.finalproject_demo.demo.missions.StoryFacts
 import com.example.finalproject_demo.demo.missions.pickMissions
+import com.example.finalproject_demo.demo.m2Done
+import com.example.finalproject_demo.demo.m2Before
+import com.example.finalproject_demo.demo.m2Line
+import com.example.finalproject_demo.demo.missions.slot2Prop
+import com.example.finalproject_demo.demo.missions.FixProp
 import com.example.finalproject_demo.demo.missions.SERVER_KNOWS_C3
 import com.example.finalproject_demo.demo.missions.soundPropIn
 import com.example.finalproject_demo.demo.missions.SoundProp
@@ -153,5 +158,47 @@ class MissionPickerTest {
         val s = DemoState().apply { mode = StoryMode.COOP; problem = "강아지가 멍멍 짖었어" }
         assertEquals("C3", s.coopPageMission(PageKind.RUB))
         assertEquals("강아지처럼 「멍멍!」 소리 내 볼래?", s.m1Line())
+    }
+
+    // ── 1-b A1 물대포 · A4 돌려 잠그기 (#101) — 자리 2 ─────────────────
+
+    private fun coop2(problem: String?, solution: String?, tried: String? = null) =
+        StoryFacts(StoryMode.COOP, null, problem, cause = null, solution = solution, realDay = true, tried = tried)
+
+    /** 설계 §6-2 표 그대로 — 해결 동사가 문제 칸의 사물보다 먼저 */
+    @Test
+    fun solutionVerbsPickTheSlot2Mission() {
+        val table = listOf(
+            coop2("생일 촛불이 너무 많았어", "물을 부어서 껐어") to (MissionId.C1 to MissionId.A1),
+            coop2("수도꼭지에서 물이 샜어", "꽉 잠갔어") to (MissionId.A6 to MissionId.A4),
+            coop2("불이 났어", "다 같이 도망갔어") to (MissionId.A6 to MissionId.A1),           // 해결에 동사가 없으면 문제 칸의 사물
+            coop2("물이 넘쳤어", null, tried = "수건으로 닦았어") to (MissionId.A6 to MissionId.A4),
+            coop2("블록이 무너졌어", "다시 쌓았어") to (MissionId.A6 to MissionId.E1),          // A5 쌓기는 아직
+            coop2(null, null) to (MissionId.A6 to MissionId.E1),
+            coop2("친구가 밀었어", "같이 미끄럼틀을 탔어") to (MissionId.A6 to MissionId.E1),   // 「미끄럼틀」의 「끄」는 불 끄기가 아니다
+        )
+        table.forEach { (f, want) ->
+            val got = pickMissions(f)
+            assertEquals("${f.slot1Words} / ${f.slot2Words}", want, got.slot1 to got.slot2)
+            assertTrue(got.slot1 != got.slot2)
+        }
+        // 동화는 아직 그대로 (설계 §7-3)
+        assertEquals(MissionId.E1, pickMissions(StoryFacts(StoryMode.STORY, null, "불이 났어", null, "물을 뿌려 껐어", false)).slot2)
+    }
+
+    @Test
+    fun aCoopBookThatTurnedTheTapCarriesA4AndItsLines() {
+        val s = DemoState().apply {
+            mode = StoryMode.COOP
+            problem = "수도꼭지에서 물이 샜어"
+            solution = "꽉 잠갔어"
+        }
+        assertEquals("A4", s.coopPageMission(PageKind.DRAG))
+        assertEquals(FixProp.FAUCET, s.slot2Prop())
+        assertEquals("수도꼭지를 빙글빙글 돌려서 잠가 볼래?", s.m2Line(false))
+        assertEquals("수도꼭지에서 물이 졸졸 새고 있어요.", s.m2Before())
+        s.m2Result = "solo"
+        assertEquals("물이 딱 멈췄어요.", s.coopMissionResult(PageKind.DRAG))
+        assertEquals("꽉! 물이 딱 멈췄어!", s.m2Done())
     }
 }

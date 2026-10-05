@@ -89,6 +89,8 @@ import com.example.finalproject_demo.ui.missions.PuzzleMission
 import com.example.finalproject_demo.ui.missions.RubMission
 import com.example.finalproject_demo.ui.missions.BlowMission
 import com.example.finalproject_demo.ui.missions.SoundMission
+import com.example.finalproject_demo.ui.missions.HoseMission
+import com.example.finalproject_demo.ui.missions.TurnMission
 import com.example.finalproject_demo.demo.missions.soundProp
 import com.example.finalproject_demo.demo.missions.blowProp
 import com.example.finalproject_demo.demo.mission2
@@ -466,8 +468,12 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
             // 「건네다 · 나누다」로 푸는 나머지 틀은 지금까지의 건네주기가 맞다.
             // 쪽 종류(DRAG)와 감독에게 보내는 신호는 그대로라 책 흐름은 안 바뀐다
             PageKind.DRAG ->
-                if (s.missions().slot2 == MissionId.A3) PuzzleMission(d, stage.m2Done)
-                else GiveMission(d, stage.m2Done, heroArt, tool)
+                when (s.missions().slot2) {
+                    MissionId.A3 -> PuzzleMission(d, stage.m2Done)
+                    MissionId.A1 -> HoseMission(d, stage.m2Done, heroArt)       // 「불을 껐어」 (#101)
+                    MissionId.A4 -> TurnMission(d, stage.m2Done, heroArt)       // 「꽉 잠갔어」 (#101)
+                    else -> GiveMission(d, stage.m2Done, heroArt, tool)
+                }
             PageKind.TOGETHER -> {
                 Scenery(glow = if (s.isDiary) s.diaryGlow else s.hotspots.map { it.key }.toSet())
                 Box(Modifier.align(Alignment.TopCenter).padding(top = 76.dp).size(110.dp, 50.dp).alpha(twinkle)) { ArtView(Art.Img("prop_sparkle", Art.Emoji("⭐✨⭐")), Modifier.fillMaxSize()) }

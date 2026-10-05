@@ -20,7 +20,12 @@ data class StoryFacts(
     val realDay: Boolean,
     /** 꼬리질문 「더 자세히(detail)」 — 자리 1 이 보는 칸 (design §6-1) */
     val detail: String? = null,
+    /** 꼬리질문 「제일 먼저 한 일(try)」 — 자리 2 가 보는 칸 (design §6-1) */
+    val tried: String? = null,
 ) {
+    /** 자리 2 (해결) 가 보는 아이 말 — solution · try */
+    val slot2Words: String get() = listOfNotNull(solution, tried).joinToString(" ")
+
     /** 자리 1 (사건 직후) 이 보는 아이 말 — problem · cause · detail */
     val slot1Words: String get() = listOfNotNull(problem, cause, detail).joinToString(" ")
 }
@@ -35,6 +40,7 @@ fun DemoState.storyFacts() = StoryFacts(
     // 「좋아해요」(or a pick with no reason, asked as imagination) is not — it may borrow a prop (1-b · §7-2)
     realDay = isDiary && !(isCoop && coopImagined()),
     detail = slots["detail"],
+    tried = slots["try"],
 )
 
 /** 협업에서 상상으로 물은 이야기인가 — 좋아해요, 또는 이야기를 골랐는데 이유가 없을 때 */
@@ -48,7 +54,10 @@ private fun DemoState.coopImagined(): Boolean =
  * The word-signal table (§6-1) comes in with the first new mission screen.
  */
 fun pickMissions(facts: StoryFacts): BookMissions {
-    val slot2 = if (facts.templateKey in PUZZLE_FRAMES) MissionId.A3 else MissionId.E1
+    // 1-b (co-op): slot 2 is picked first (design §6-2) — the child's own solution verb (껐어 · 잠갔어) before the
+    // things in the trouble (불 · 물이 샜어). No signal: the frame rule as before
+    val fix = if (facts.mode == StoryMode.COOP) fixPropIn(facts.slot2Words, facts.slot1Words) else null
+    val slot2 = fix?.mission ?: if (facts.templateKey in PUZZLE_FRAMES) MissionId.A3 else MissionId.E1
     // 1-b (co-op first · design §7-1): slot 1 blows (C1) when the child's own words have something to blow —
     // 촛불 · 생일 · 민들레 · 먼지 · 바람. The story mode follows once more co-op missions exist (§7-3)
     // C3 (sound) waits until the server knows its ID (SERVER_KNOWS_C3 · design §8)
