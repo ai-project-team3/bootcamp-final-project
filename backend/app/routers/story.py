@@ -143,6 +143,8 @@ def plan(req: StoryRequest) -> str:
         # an empty slot used to become an empty page — 「…은 아직 듣지 못했어요」 three pages running (10-05)
         lines.append("쪽의 칸이 비었으면 앞뒤 쪽에 있는 일의 모습 · 소리 · 마음을 보여 주는 장면으로 쓰고, 새 일은 만들지 않는다. "
                      "「아직 듣지 못했어요」 · 「그날 알게 될 거예요」 같은 빈자리 문장은 결말(solution)이 비었을 때 마지막 쪽에 한 번만 쓴다.")
+        # 10-05 device recheck: pages 7 and 8 both 「기린이 고맙다고 고개를 끄덕였어요.」 — the ending slot fed two pages
+        lines.append("같은 문장을 두 쪽에 쓰지 않는다. 마지막 쪽은 앞 쪽의 결말을 되풀이하지 말고, 그 뒤의 모습 · 마음으로 닫는다(새 일은 만들지 않는다).")
     return "\n".join(lines)
 
 

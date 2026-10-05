@@ -206,3 +206,9 @@ def test_an_imagined_or_story_book_still_sets_the_mission_up():
     for req in (StoryRequest(mode="coop", slots={}, reason="dream", pages=pages), StoryRequest(slots={}, pages=pages)):
         line = story_route.plan(req).splitlines()[1]
         assert "묻거나 덮여" in line and "만들지 않고" not in line
+
+
+# 10-05 device recheck: the ending slot fed two pages — 「기린이 고맙다고 고개를 끄덕였어요.」 on 7 and 8
+def test_a_day_book_asks_for_no_sentence_twice():
+    req = StoryRequest(mode="coop", slots={}, reason="done", pages=[Page(kind="DRAG", mission="E1"), Page(kind="TOGETHER")])
+    assert "같은 문장을 두 쪽에 쓰지 않는다" in story_route.plan(req)
