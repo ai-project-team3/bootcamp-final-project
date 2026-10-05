@@ -1426,7 +1426,7 @@ private fun DrawerState(d: Director) {
     }
     if (s.isDiary) {
         Text(
-            "mascot_pick 연속 ${s.mascotPicks}회 (2회면 끝) · 끝난 조건 ${s.endReason ?: "-"} · by:mascot 은 주고받기 · 수준 · 리포트 인용에서 빠짐",
+            "mascot_pick 연속 ${s.mascotPicks}회 · 끝난 조건 ${s.endReason ?: "-"} · by:mascot 은 주고받기 · 수준 · 리포트 인용에서 빠짐",
             fontSize = 12.sp, color = Color(0xFFD8B4A0),
         )
     }
