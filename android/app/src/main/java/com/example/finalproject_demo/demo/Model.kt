@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.ui.HeroAttr
+import com.example.finalproject_demo.net.Server
 
 /**
  * 장면 — title은 시연 서랍용 긴 이름, label은 화면 맨 위 가운데에 보이는 "무엇을 하는 화면인가".
@@ -982,7 +983,9 @@ class DemoState {
             if (isDiary) questionSteps.count { it.ask(this) }.coerceAtLeast(reqCount)
             // 템플릿은 3턴째에 정해진다. 그전에는 **가장 많은 경우(3)로 잡아 둔다** —
             // 0으로 두면 3턴째에 분모가 6 → 9로 늘면서 막대가 **뒤로 물러난다** (9/22)
-            else reqCount + (if (templateKey == null) 3 else extraAskSlots.size)
+            else reqCount + (if (templateKey == null) 3 else extraAskSlots.size) +
+                // Material slots are not the server's completion verdict. Reserve the last star for it.
+                if (Server.liveFor(mode)) 1 else 0
             )
             // 분모가 줄어도 막대가 뒤로 가지 않게 한다. 일기의 걸음 수는 앞의 답에 따라 바뀐다
             .coerceAtLeast(stepsDone)
@@ -1021,7 +1024,7 @@ class DemoState {
         get() = when {
             // 이야기가 끝났으면 막대도 끝까지 찬다. 기승전결이 일찍 차면 남은 질문을 안 묻고 끝나는데
             // (`story_ready`), 그때 9/10에서 멈춰 있으면 아이는 **덜 한 것처럼** 본다 (9/22)
-            endReason != null -> askTotal
+            endReason != null && (mode != StoryMode.STORY || !Server.liveFor(mode) || storyReady) -> askTotal
             isDiary -> maxOf(
                 stepsDone,
                 questionSteps.count { it.ask(this) && !slots[it.bookKey].isNullOrBlank() },

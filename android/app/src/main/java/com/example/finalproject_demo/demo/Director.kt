@@ -825,7 +825,9 @@ class Director(
         feel(Mood.CHEER)
         event("utterance", "speaker" to "child", "confidence" to "0.9", "mode" to "voice", "text" to text)
         log("[${s.childName}] $text  →  우리 서버 Whisper → 글자 (음성 사본 즉시 삭제)")
-        pause(900)
+        // live: the neutral 「응, 그랬구나」 already covers the moment and the server call waits on this —
+        // 10-05 trace: 3.5~5 s between the transcript and the /turn request, 0.9 s of it this pause
+        pause(if (com.example.finalproject_demo.net.Server.liveFor(s.mode)) 150 else 900)
     }
 
     suspend fun acceptTap(r: Reply.Tapped) {

@@ -22,7 +22,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
     llm_effort_judge: str = "none"
-    llm_effort_story: str = "high"
+    # medium since 10-05: 3 stories x 2 — high p50 36.9 s · medium 12.6 s · low 8.0 s, rejected 0 at all three,
+    # captions read alike (low repeated a line); eval/results.md 10-05 / eval/bench_story_title.py
+    llm_effort_story: str = "medium"
     # the mascot line waits on the judge, so it gets the judge's latency budget
     llm_effort_line: str = "none"
 
