@@ -140,4 +140,9 @@ object SceneKits {
      */
     @Suppress("UNUSED_PARAMETER")
     fun forPlace(place: String): SceneKitDef = PARK_KIT
+
+    /** The kit whose places the child named, or null — then the place is generated as before (rule 8).
+     *  10-05 device: 「미래 도시」 came out as a park; only the park kit exists yet, so only park words reach it */
+    fun matching(place: String): SceneKitDef? =
+        PARK_KIT.takeIf { listOf("공원", "놀이터", "운동장", "잔디", "산책").any { it in place } }
 }

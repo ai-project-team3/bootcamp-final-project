@@ -60,16 +60,24 @@ private val TAB_H = 92.dp
  * so a kit piece at depth d stands on the actors' feet line at the actors' scale. The kit's horizon is the
  * actors' depth-0 feet line (FEET_FAR) — the kit is fitted to the actors, not the other way round.
  */
+/** How far into the actors' depth range the kit's horizon sits — 0.35 puts it near 0.70 H on a phone (10-05) */
+private const val KIT_NEAREST_FAR = 0.35f
+
 @Composable
 private fun rememberKitScene(kit: SceneKitDef, seedBase: Long, actors: Int, wPx: Float, hPx: Float, bottomInset: Dp, topInset: Dp): Pair<KitScene, SceneFrame> {
     val density = LocalDensity.current
     return remember(kit, seedBase, actors, wPx, hPx, bottomInset, topInset) {
         with(density) {
+            // The kit starts at the actors' depth KIT_NEAREST_FAR, not 0: with the horizon at the depth-0 feet line
+            // (0.62 H) the ground took ~38 % of the screen — 「바닥 너무 비율이 커」 (10-05 device). Same perspective
+            // line, its far end cut, so pieces and actors still match in size where they stand.
+            val near = minOf(hPx * FEET_NEAR, hPx - bottomInset.toPx())
+            val far = hPx * FEET_FAR + (near - hPx * FEET_FAR) * KIT_NEAREST_FAR
             val f = SceneFrame(
                 w = wPx, h = hPx,
-                feetFar = hPx * FEET_FAR,
-                feetNear = minOf(hPx * FEET_NEAR, hPx - bottomInset.toPx()),
-                tallFar = hPx * TALL_FAR, tallNear = hPx * TALL_NEAR,
+                feetFar = far,
+                feetNear = near,
+                tallFar = hPx * (TALL_FAR + (TALL_NEAR - TALL_FAR) * KIT_NEAREST_FAR), tallNear = hPx * TALL_NEAR,
                 top = topInset.toPx(), bottom = hPx - bottomInset.toPx(),
                 tabW = TAB_W.toPx(), tabH = TAB_H.toPx(),
             )

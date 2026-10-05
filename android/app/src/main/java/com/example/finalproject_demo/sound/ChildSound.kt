@@ -99,12 +99,19 @@ object ChildSound {
         withContext(Dispatchers.Main) {
             suspendCancellableCoroutine { cont ->
                 val p = MediaPlayer()
-                fun done() { runCatching { p.release() }; if (cont.isActive) cont.resume(Unit) }
+                var louder: android.media.audiofx.LoudnessEnhancer? = null
+                fun done() { runCatching { louder?.release() }; runCatching { p.release() }; if (cont.isActive) cont.resume(Unit) }
                 try {
                     p.setDataSource(clip.file.path)
                     p.setOnCompletionListener { done() }
                     p.setOnErrorListener { _, _, _ -> done(); true }
-                    p.prepare(); p.start()
+                    p.prepare()
+                    // Louder on playback only — the file stays the child's original (guidelines/1 §1-5).
+                    // 10-05 device: 「음성 녹음의 소리가 좀 작다」. +9 dB; a phone without the effect plays as before
+                    louder = runCatching {
+                        android.media.audiofx.LoudnessEnhancer(p.audioSessionId).apply { setTargetGain(900); enabled = true }
+                    }.getOrNull()
+                    p.start()
                 } catch (e: Exception) { Log.w(TAG, "play failed: ${e.javaClass.simpleName}"); done() }
                 cont.invokeOnCancellation { runCatching { p.stop() }; runCatching { p.release() } }
             }

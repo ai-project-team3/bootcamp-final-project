@@ -150,6 +150,7 @@ fun reported(line: String): String {
         t.endsWith("어") || t.endsWith("아") -> t.dropLast(1) + "대"          // 심심했어 → 심심했대
         t.endsWith("서") || t.endsWith("고") -> t + "래"                       // 재밌어서 → 재밌어서래 (10-05: 「재밌어서대」)
         t.endsWith("야") -> t.dropLast(1) + "래"                               // 친구야 → 친구래
+        t.endsWith("었다") || t.endsWith("았다") || t.endsWith("했다") -> t.dropLast(1) + "대"   // 만들었다 → 만들었대 (10-05: 「만들었다래」)
         else -> t + "래"
     }
 }
