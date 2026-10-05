@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -818,46 +819,55 @@ private fun NameEntryView(d: Director, stage: Stage.NameEntry) {
     // 들은 이름이 있으면 글 칸에 미리 넣어 둔다 — 틀렸으면 고쳐 적으면 된다 (10-02 · 「삐죽이」가 「비주기」로)
     var typed by remember(stage) { mutableStateOf(stage.heard ?: "") }
     Centered {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(Modifier.fillMaxSize().padding(horizontal = 24.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             Box(Modifier.size(170.dp, 210.dp)) {
                 ArtView(stage.image?.let { Art.Img(it, Art.HeroArt(stage.attr)) } ?: Art.HeroArt(stage.attr), Modifier.fillMaxSize())
             }
-            Spacer(Modifier.height(12.dp))
-            if (stage.heard != null) {
-                Text("「${stage.heard}」 맞아?", fontSize = 26.sp, color = InkBrown, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped(com.example.finalproject_demo.demo.NAME_OK, "맞아")) },
-                        modifier = Modifier.height(Touch.KidMin), shape = RoundedCornerShape(24.dp)) {
-                        Text("맞아!", fontSize = 20.sp, color = FeltWhite, modifier = Modifier.padding(horizontal = 22.dp))
+            // Keep the controls beside the puppet: stacking them below its 210dp height
+            // leaves almost no room between the phone's top and bottom chrome.
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                if (stage.heard != null) {
+                    Text("「${stage.heard}」 맞아?", fontSize = 26.sp, color = InkBrown,
+                        fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped(com.example.finalproject_demo.demo.NAME_OK, "맞아")) },
+                            modifier = Modifier.weight(1f).heightIn(min = Touch.KidMin), shape = RoundedCornerShape(24.dp)) {
+                            Text("맞아!", fontSize = 20.sp, color = FeltWhite, textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp))
+                        }
+                        FeltButton(WoolCream, onClick = { d.send(Reply.Tapped(com.example.finalproject_demo.demo.NAME_AGAIN, "다시")) },
+                            modifier = Modifier.weight(2f).heightIn(min = Touch.KidMin), shape = RoundedCornerShape(24.dp)) {
+                            Text("아니야, 다시 말할래", fontSize = 18.sp, color = InkBrown, textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp))
+                        }
                     }
-                    FeltButton(WoolCream, onClick = { d.send(Reply.Tapped(com.example.finalproject_demo.demo.NAME_AGAIN, "다시")) },
-                        modifier = Modifier.height(Touch.KidMin), shape = RoundedCornerShape(24.dp)) {
-                        Text("아니야, 다시 말할래", fontSize = 18.sp, color = InkBrown, modifier = Modifier.padding(horizontal = 16.dp))
-                    }
+                    Spacer(Modifier.height(10.dp))
                 }
-                Spacer(Modifier.height(10.dp))
-            }
-            Row(
-                Modifier.felt(WoolCream, RoundedCornerShape(24.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                androidx.compose.foundation.text.BasicTextField(
-                    value = typed,
-                    onValueChange = { typed = it.take(10) },
-                    singleLine = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, color = InkBrown),
-                    modifier = Modifier.width(220.dp),
-                    decorationBox = { inner ->
-                        if (typed.isEmpty()) Text("이름을 글로 적어도 돼", fontSize = 20.sp, color = InkBrown.copy(alpha = 0.4f))
-                        inner()
-                    },
-                )
-                Spacer(Modifier.width(10.dp))
-                FeltButton(FeltCoral, onClick = {
-                    if (typed.isNotBlank()) d.send(Reply.Tapped(com.example.finalproject_demo.demo.NAME_TYPED, typed.trim()))
-                }, modifier = Modifier.height(52.dp), shape = RoundedCornerShape(22.dp)) {
-                    Text("이 이름으로", fontSize = 18.sp, color = FeltWhite, modifier = Modifier.padding(horizontal = 14.dp))
+                Row(
+                    Modifier.fillMaxWidth().felt(WoolCream, RoundedCornerShape(24.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = typed,
+                        onValueChange = { typed = it.take(10) },
+                        singleLine = true,
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, color = InkBrown),
+                        modifier = Modifier.weight(1f),
+                        decorationBox = { inner ->
+                            if (typed.isEmpty()) Text("이름을 글로 적어도 돼", fontSize = 20.sp, color = InkBrown.copy(alpha = 0.4f))
+                            inner()
+                        },
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    FeltButton(FeltCoral, onClick = {
+                        if (typed.isNotBlank()) d.send(Reply.Tapped(com.example.finalproject_demo.demo.NAME_TYPED, typed.trim()))
+                    }, modifier = Modifier.heightIn(min = Touch.KidMin), shape = RoundedCornerShape(22.dp)) {
+                        Text("이 이름으로", fontSize = 18.sp, color = FeltWhite,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp))
+                    }
                 }
             }
         }

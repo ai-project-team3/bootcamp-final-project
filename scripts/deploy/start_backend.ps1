@@ -20,6 +20,12 @@ if (-not (docker network ls --filter name=^otto$ --format '{{.Name}}')) {
     docker network create otto | Out-Null
 }
 
+# Keep the old container's usage lines before it is removed (#30 - 10-05): every deploy
+# deleted the only record of how many turns a session took. Only our own count lines -
+# llm/tts count lines - never a child's
+# words, and not the access log (it carries client IPs).
+& (Join-Path $PSScriptRoot "save_usage.ps1")
+
 # Only now swap: remove the old container and start the new one back to back, so the
 # downtime is the container restart plus model load, not the image build.
 & (Join-Path $PSScriptRoot "stop_backend.ps1")
