@@ -13,6 +13,7 @@
 | 둥근 나무 | round green tree | round green tree with a short brown trunk | 줄기 없이 덤불과 똑같이 나왔다 |
 | 모래놀이터 | sandbox with a bucket | low square wooden sandbox filled with sand and a small bucket, no roof | 지붕 달린 가판대가 나왔다 |
 | 돌 | round grey stone | plain smooth round grey stone, no spots | 색 점이 박혀 알처럼 보였다 — 다시 구워도 점은 남는다(아래) |
+| 가로등 | old street lamp | old street lamp standing on a long thin straight pole with a small round base … (세로 768×1344 판) | 등 머리만 크게 나와 공원 한가운데 거대한 등이 됐다 — 10-05 다시 구움(후보 4장 중 1번째) |
 
 ## 알아 둘 것
 
