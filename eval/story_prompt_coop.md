@@ -27,6 +27,8 @@
 - 요소(소방관 · 동물원 · 축구 …)가 이 책의 무대입니다. 첫 쪽이나 표지 쪽에 요소 이름이 나오게 씁니다.
 - place 칸이 있으면 그곳이 요소 안의 자리입니다(예: 동물원의 사자 우리). place 가 비었으면 요소를 무대로 씁니다.
 - 요소에서 떠오르는 모습 · 소리(사이렌, 동물 울음)는 꾸밈으로 얹어도 됩니다. 요소에서 떠오르는 사건은 얹지 않습니다.
+- "무대" 줄이 있으면 요소 안의 자리들입니다(예: 소방차 차고 · 출동 준비실 · 훈련장). 쪽의 배경 꾸밈과 keywords 에만 씁니다.
+  아이가 말한 place 를 무대 자리로 바꾸지 않고, 무대 자리에서 새 사건을 만들지 않습니다. 한 쪽에 한 자리면 충분합니다.
 
 이유에 따라 책의 결이 다릅니다 — [쪽 목록] 끝 줄이 이유를 알려 줍니다
 - 있었던 일(다녀왔어요 · 체험했어요): 일기처럼 실제로 있었던 일의 기록입니다. 부풀리지 않습니다.
@@ -62,6 +64,7 @@
 입력:
 모드: coop
 고른 이야기: 같이 만들기 · 직업 · 소방관 · 곧 체험해요(앞으로 할 일)
+무대: 소방차 차고 · 출동 준비실 · 훈련장
 채워진 칸: {"place":"소방서","companion":"엄마","problem":"소방차 타 보기","reaction":"두근두근","cause":"멋있어서","solution":"사진 찍기","extra":"사이렌 소리 흉내"}
 칸마다 by: {"place":"child","companion":"child","problem":"child","reaction":"child","cause":"child","solution":"child"}
 맺음: null
@@ -76,7 +79,7 @@
   "title": "소방서에 가는 날",
   "scenes": [
     {"index": 1, "caption": "{주인공}은 엄마랑 소방서에 갈 거예요.", "keywords": "fire station, mom, felt"},
-    {"index": 2, "caption": "빨간 소방차를 타 보면 마음이 두근두근할 거예요.", "keywords": "red fire truck, excited"},
+    {"index": 2, "caption": "소방차 차고에서 빨간 소방차를 타 보면 두근두근할 거예요.", "keywords": "fire truck garage, red fire truck, excited"},
     {"index": 3, "caption": "멋있어서 사이렌 소리도 흉내 내 보고 싶대요.", "keywords": "siren, fire truck"},
     {"index": 4, "caption": "사진도 찍을 거예요. 그날이 정말 기다려져요.", "keywords": "photo, fire station, together"}
   ]
@@ -90,6 +93,7 @@ JSON 외에는 아무것도 출력하지 마라.
 ```
 모드: coop
 고른 이야기: {template}  // 앱 coopTurnContext() — 「같이 만들기 · 종류 · 요소 · 이유(시제)」
+무대: {stage}           // #113 · 목록 요소일 때만 — 요소 안의 자리(COOP_ITEMS spots). 없으면 줄이 빠진다
 채워진 칸: {slots}      // 12칸. 이름은 {주인공} · {친구n} 으로 가려져 있다. extra 는 꼬리 답을 " / "로 이은 것
 칸마다 by: {slot_by}    // child · card · mascot
 맺음: {keep}            // 앱이 맺음 걸음에서 받은 바람 원문. 없으면 null

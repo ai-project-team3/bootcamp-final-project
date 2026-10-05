@@ -127,6 +127,9 @@ def user(req: StoryRequest) -> str:
     if req.mode == "coop":
         # without a page plan the tense still has to reach the model
         head += f"고른 이야기: {req.template or '(없음)'}\n" + ("" if req.pages else f"{TENSE[req.reason]}\n")
+        if req.stage:
+            # #113: scenery inside the picked item — the prompt keeps it to decoration and keywords
+            head += f"무대: {' · '.join(req.stage)}\n"
     return f"{head}채워진 칸: {slots}\n칸마다 by: {by}\n맺음: {keep}{tail}"
 
 
