@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onLast
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.pageCount
@@ -89,16 +91,25 @@ class ShellFlowTest {
         tap("2권"); tap("양모"); tap("받지 않아요")
         shot("06_setup_done")
         tap("설정 끝")
+        // ⑥ 기능 안내 (10-05) — 여섯 장을 넘긴다
+        waitText("오또로 이렇게 놀아요"); waitText("상상한 이야기가 그림책이 돼요"); shot("06b_guide_1_story")
+        listOf("2_diary", "3_coop", "4_shelf", "5_parent", "6_safe").forEach { tap("다음"); compose.mainClock.advanceTimeBy(400); shot("06b_guide_$it") }
+        tap("아이에게 건네기")
         waitText("준비 끝!"); shot("07_handoff")
         tap("아이 차례 시작")
-        waitText("여기를 눌러 봐!"); shot("08_tutorial_tap")
+        // ⑧ 방 둘러보기 — 오또가 가리키는 물건 넷을 차례로 누른다
+        waitText("여기는 창문이야"); shot("08_tour_1_window")
+        tap("그림일기")
+        waitText("소파에선"); shot("08_tour_2_sofa")
+        tap("같이 만들기")
+        waitText("책장엔"); shot("08_tour_3_shelf")
+        tap("내 책장")
+        waitText("무대에선"); shot("08_tour_4_theater")
         tap("동화 만들기")
         waitText("좋아하는 동물"); shot("09_tutorial_talk")
         compose.onNode(hasContentDescription("연습 말하기")).performClick()
         compose.waitUntil(5_000) { compose.onAllNodes(hasContentDescription("다음")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNode(hasContentDescription("다음")).performClick()
-        waitText("오또랑 이렇게 놀아요"); shot("10_features")
-        tap("오또의 방으로")
         compose.waitUntil(5_000) { Shell.step == Step.APP }
         waitText("그림일기"); shot("11_room")
     }
@@ -125,6 +136,63 @@ class ShellFlowTest {
         compose.waitUntil(8_000) { d.s.endReason == "parent_stop" }
         compose.waitUntil(8_000) { count("그만하기") == 0 }
         shot("22_coop_stopped")
+    }
+
+    /** 이메일 회원가입 (10-05) — 규칙이 다 맞아야 「가입하기」가 눌리고, 가입하면 동의로 넘어간다 */
+    @Test
+    fun emailSignUpReachesConsent() {
+        compose.activity.getSharedPreferences("otto_account", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        waitText("눌러서 시작", 10_000); tap("눌러서 시작")
+        tap("이메일로 회원가입")
+        waitText("영문 + 숫자 8자 이상")
+        compose.onNode(hasContentDescription("이메일")).performTextInput("parent@example.com")
+        compose.onNode(hasContentDescription("비밀번호")).performTextInput("otto")
+        shot("02b_signup_weak")
+        compose.onNode(hasText("가입하기") and hasClickAction()).assertIsNotEnabled()
+        compose.onNode(hasContentDescription("비밀번호")).performTextInput("2026")
+        compose.onNode(hasContentDescription("비밀번호 확인")).performTextInput("otto2026")
+        shot("02c_signup_ok")
+        tap("가입하기")
+        waitText("이용약관")
+        assertEquals(com.example.finalproject_demo.net.AuthProvider.EMAIL, com.example.finalproject_demo.net.Accounts.guardian?.provider)
+        shot("02d_after_signup")
+    }
+
+    /**
+     * 약관 동의 (10-05) — 필수 넷이 다 있어야 넘어가고, 선택은 미리 켜져 있지 않으며, 고른 그대로 저장된다.
+     * 전문을 열어 「동의하고 닫기」 하면 그 항목이 체크된다. 「동의하지 않음」은 바로 닫지 않고 먼저 묻는다.
+     */
+    @Test
+    fun consentNeedsEveryRequiredItemAndKeepsOptionalChoices() {
+        waitText("눌러서 시작", 10_000); tap("눌러서 시작")
+        tap("카카오로 시작하기")
+        waitText("이렇게만 써요"); shot("03a_consent_empty")
+        compose.onNode(hasText("동의하고 계속") and hasClickAction()).assertIsNotEnabled()
+        waitText("필수 항목 4개")
+        // 전문 보기 → 동의하고 닫기
+        compose.onNode(hasContentDescription("오또 이용약관 전문 보기")).performClick()
+        waitText("제5조 만든 책의 권리"); shot("03b_terms_sheet")
+        tap("동의하고 닫기")
+        waitText("필수 항목 3개")
+        compose.onNode(hasContentDescription("만 14세 미만 아동 개인정보 처리 (법정대리인 동의) 전문 보기")).performClick()
+        waitText("법정대리인 확인"); shot("03c_child_sheet")
+        compose.onNode(hasContentDescription("닫기")).performClick()   // 「동의하고 닫기」가 아니라 ✕
+        // 동의 목록은 위아래로 민다 — 아래 줄은 보이게 한 뒤 누른다
+        fun tick(t: String) = compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).onLast().performScrollTo().performClick()
+        listOf("보호자 개인정보 수집", "만 14세 미만 아동", "개인정보 국외 이전").forEach { tick(it) }
+        waitText("필수 항목에 모두 동의했어요")
+        tick("새 기능 · 소식 알림")          // 선택 하나만
+        shot("03d_consent_required_only")
+        // 거절은 먼저 묻는다 — 돌아가기를 누르면 그대로
+        tap("동의하지 않음"); waitText("동의하지 않고 나갈까요?"); shot("03e_decline_ask")
+        tap("돌아가서 보기")
+        compose.waitUntil(5_000) { count("동의하지 않고 나갈까요?") == 0 }
+        tap("동의하고 계속")
+        waitText("마이크")
+        assertTrue(ConsentStore.guardianAgreed)
+        assertTrue("이름 부르기는 고르지 않았는데 켜졌다", !ConsentStore.nameVoiceAgreed)
+        assertTrue("소식 알림 동의 날이 저장되지 않았다", Shell.newsSince != null)
+        assertEquals(com.example.finalproject_demo.ui.shell.TERMS_VERSION, Shell.consentVersion)
     }
 
     @Test

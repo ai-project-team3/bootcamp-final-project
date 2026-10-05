@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.geometry.Offset
 import com.example.finalproject_demo.ui.HeroAttr
+import com.example.finalproject_demo.net.Server
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -24,13 +25,15 @@ data class SavedStoryVisuals(
     val newcomerKind: String = "외계인",
     val soundLine: String = "뿌우우우웅!",
     val causeLine: String = "친구가 없어서 심심했어",
+    // Older books have no provenance; retain their existing rendering fallback.
+    val liveStory: Boolean? = null,
 )
 
 fun DemoState.captureStoryVisuals() = SavedStoryVisuals(
     templateKey!!, persona, Hero(childName, heroAttr ?: HeroAttr(), storyHeroImage, storyHeroRig),
     drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
     dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
-    newcomerKind, soundLine, causeLine,
+    newcomerKind, soundLine, causeLine, Server.liveFor(mode),
 )
 
 /** Build a separate reading state; reopening a book must not overwrite the current conversation. */
@@ -84,6 +87,7 @@ internal fun SavedStoryVisuals.toJson(): JSONObject {
         .put("friendName", friendName).put("solutionLine", solutionLine)
         .put("placeLabel", placeLabel ?: JSONObject.NULL)
         .put("newcomerKind", newcomerKind).put("soundLine", soundLine).put("causeLine", causeLine)
+        .put("liveStory", liveStory ?: JSONObject.NULL)
 }
 
 internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
@@ -110,6 +114,7 @@ internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
         obj.getString("solutionLine"), obj.nullableString("placeLabel"),
         obj.optString("newcomerKind", "외계인"), obj.optString("soundLine", "뿌우우우웅!"),
         obj.optString("causeLine", "친구가 없어서 심심했어"),
+        if (obj.isNull("liveStory")) null else obj.getBoolean("liveStory"),
     )
 }
 

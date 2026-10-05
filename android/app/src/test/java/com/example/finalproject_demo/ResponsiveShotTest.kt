@@ -80,16 +80,25 @@ abstract class ResponsiveShotTest(private val size: String) {
         tap("2권"); tap("양모"); tap("받지 않아요")
         shot("06_setup")
         tap("설정 끝")
+        // ⑥ 기능 안내 (10-05) — 여섯 장을 넘긴다
+        waitText("오또로 이렇게 놀아요"); waitText("상상한 이야기가 그림책이 돼요"); shot("06b_guide_1_story")
+        listOf("2_diary", "3_coop", "4_shelf", "5_parent", "6_safe").forEach { tap("다음"); compose.mainClock.advanceTimeBy(400); shot("06b_guide_$it") }
+        tap("아이에게 건네기")
         waitText("준비 끝!"); shot("07_handoff")
         tap("아이 차례 시작")
-        waitText("여기를 눌러 봐!"); shot("08_tutorial_tap")
+        // ⑧ 방 둘러보기 — 오또가 가리키는 물건 넷을 차례로 누른다
+        waitText("여기는 창문이야"); shot("08_tour_1_window")
+        tap("그림일기")
+        waitText("소파에선"); shot("08_tour_2_sofa")
+        tap("같이 만들기")
+        waitText("책장엔"); shot("08_tour_3_shelf")
+        tap("내 책장")
+        waitText("무대에선"); shot("08_tour_4_theater")
         tap("동화 만들기")
         waitText("좋아하는 동물"); shot("09_tutorial_talk")
         compose.onNode(hasContentDescription("연습 말하기")).performClick()
         compose.waitUntil(5_000) { compose.onAllNodes(hasContentDescription("다음")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNode(hasContentDescription("다음")).performClick()
-        waitText("오또랑 이렇게 놀아요"); shot("10_features")
-        tap("오또의 방으로")
         compose.waitUntil(5_000) { Shell.step == Step.APP }
 
         // ── 방 · 알림

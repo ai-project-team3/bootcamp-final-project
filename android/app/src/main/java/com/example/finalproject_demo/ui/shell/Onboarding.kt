@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -56,6 +58,9 @@ import com.example.finalproject_demo.net.Accounts
 import com.example.finalproject_demo.net.AuthProvider
 import com.example.finalproject_demo.net.AuthResult
 import com.example.finalproject_demo.net.ConsentRecord
+import com.example.finalproject_demo.net.EmailRules
+import com.example.finalproject_demo.net.SocialLogin
+import com.example.finalproject_demo.net.SocialResult
 import com.example.finalproject_demo.ui.AssetImage
 import com.example.finalproject_demo.ui.rememberQuietRest
 import com.example.finalproject_demo.ui.wakeOnTouch
@@ -142,16 +147,28 @@ private fun CurtainSide() {
     }
 }
 
-// ── ② 로그인 (1/3) ───────────────────────────────────────────
+// ── ② 로그인 (1/5) — 카카오 · 네이버 · Google SDK · 이메일 로그인 · 이메일 회원가입 (10-05) ─────────────
 
 @Composable
-fun LoginScreen(onDone: () -> Unit, onEmail: () -> Unit, onSample: () -> Unit = {}, expired: Boolean = false, allowSample: Boolean = false) {
+fun LoginScreen(onDone: () -> Unit, onEmail: (EmailMode) -> Unit, onSample: () -> Unit = {}, expired: Boolean = false, allowSample: Boolean = false) {
     val scope = rememberCoroutineScope()
+    val activity = LocalContext.current as? android.app.Activity
     var msg by remember { mutableStateOf<String?>(null) }
-    fun go(p: AuthProvider) = scope.launch {
-        when (val r = Accounts.api.login(p)) {
-            is AuthResult.Ok -> { Accounts.guardian = r.guardian; onDone() }
-            is AuthResult.Fail -> msg = r.why
+    /** 지금 연결 중인 방법 — 그동안 다른 버튼은 눌리지 않는다(두 번 눌러 창이 두 개 뜨지 않게) */
+    var busy by remember { mutableStateOf<AuthProvider?>(null) }
+    fun go(p: AuthProvider) {
+        if (busy != null) return
+        busy = p; msg = null
+        scope.launch {
+            when (val r = SocialLogin.signIn(activity, p)) {
+                is SocialResult.Ok -> when (val a = Accounts.api.loginSocial(r.who)) {
+                    is AuthResult.Ok -> { Accounts.guardian = a.guardian; onDone() }
+                    is AuthResult.Fail -> msg = a.why
+                }
+                is SocialResult.Cancelled -> {}
+                is SocialResult.Fail -> msg = r.why
+            }
+            busy = null
         }
     }
     ObFrame(
@@ -161,110 +178,324 @@ fun LoginScreen(onDone: () -> Unit, onEmail: () -> Unit, onSample: () -> Unit = 
         onBack = null,
         art = { Otto(if (expired) Pose.CALL else Pose.WAVE, Modifier.size(190.dp)) },
     ) {
-        Text("보호자 계정으로 시작해요", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = InkBrown)
-        Spacer(Modifier.height(12.dp))
+        Text(if (expired) "쓰던 방법으로 다시 로그인해요" else "보호자 계정으로 시작해요", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = InkBrown)
+        Spacer(Modifier.height(10.dp))
         // 세 버튼 같은 크기 — 「다른 버튼보다 덜 눈에 띄게 만들면 안 됨」(각 사 규격)
-        SocialButton(AuthProvider.KAKAO, { go(AuthProvider.KAKAO) })
-        Spacer(Modifier.height(8.dp))
-        SocialButton(AuthProvider.NAVER, { go(AuthProvider.NAVER) })
-        Spacer(Modifier.height(8.dp))
-        SocialButton(AuthProvider.GOOGLE, { go(AuthProvider.GOOGLE) })
-        Spacer(Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("이메일로 계속하기", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkSoft, modifier = Modifier.clickable { onEmail() }.padding(vertical = 8.dp))
+        listOf(AuthProvider.KAKAO, AuthProvider.NAVER, AuthProvider.GOOGLE).forEach { p ->
+            SocialButton(p, { go(p) }, busy = busy == p, enabled = busy == null)
+            Spacer(Modifier.height(8.dp))
+        }
+        Spacer(Modifier.height(2.dp))
+        // 이메일 — 로그인 · 회원가입을 나란히 (소셜 계정이 없는 보호자)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text("✉  이메일로 로그인", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkBrown,
+                modifier = Modifier.clickable(enabled = busy == null) { onEmail(EmailMode.LOGIN) }.padding(vertical = 10.dp, horizontal = 4.dp))
+            Text("|", fontSize = 12.sp, color = InkSoft.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 8.dp))
+            Text("이메일로 회원가입", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FeltTeal,
+                modifier = Modifier.clickable(enabled = busy == null) { onEmail(EmailMode.SIGNUP) }.padding(vertical = 10.dp, horizontal = 4.dp))
             Spacer(Modifier.weight(1f))
             // 09-29 사용자 요청 — 처음 설정을 끝내야 방에 들어간다. 로그인 없이 둘러보는 길은 기본으로 닫아 둔다
-            if (!expired && allowSample) Column(horizontalAlignment = Alignment.End) {
-                Text("로그인 없이 샘플 책 보기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FeltTeal, modifier = Modifier.clickable { onSample() })
-                Text("샘플 책은 녹음 없이 읽기만 해요", fontSize = 11.sp, color = InkSoft)
-            }
+            if (!expired && allowSample) Text("로그인 없이 샘플 책 보기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FeltTeal, modifier = Modifier.clickable { onSample() })
         }
-        msg?.let { Text(it, fontSize = 12.sp, color = FeltCoral) }
+        msg?.let { Text(it, fontSize = 12.sp, color = FeltCoral, lineHeight = 17.sp) }
+        Spacer(Modifier.weight(1f))
+        Text("계속하면 다음 단계에서 이용약관 · 개인정보 처리에 동의를 받아요", fontSize = 11.sp, color = InkSoft)
     }
 }
 
-// ── ② 이메일로 계속 (1/3) ────────────────────────────────────
+// ── ② 이메일 — 로그인 · 회원가입 · 비밀번호 다시 정하기 (10-05) ────────────────────────
+
+/** 이메일 화면이 하는 일 */
+enum class EmailMode { LOGIN, SIGNUP, RESET }
 
 @Composable
-fun EmailScreen(onBack: () -> Unit, onDone: () -> Unit) {
+fun EmailScreen(start: EmailMode = EmailMode.LOGIN, onBack: () -> Unit, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
+    var mode by remember { mutableStateOf(start) }
     var email by remember { mutableStateOf("") }
     var pw by remember { mutableStateOf("") }
+    var pw2 by remember { mutableStateOf("") }
+    var show by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
+    fun switch(m: EmailMode) { mode = m; pw = ""; pw2 = ""; msg = null }
+    val emailOk = EmailRules.emailOk(email)
+    val ready = when (mode) {
+        EmailMode.LOGIN -> emailOk && pw.isNotEmpty()
+        EmailMode.SIGNUP, EmailMode.RESET -> emailOk && EmailRules.passwordOk(pw) && pw == pw2
+    }
     ObFrame(
-        step = 0, title = "이메일로 계속하기", sub = "인증 메일을 보내 드려요. 비밀번호를 잊으면 메일로 다시 만들어요.",
-        onBack = onBack, art = { Otto(Pose.WAVE, Modifier.size(190.dp)) },
-        cta = "다음", ctaEnabled = email.contains('@') && pw.length >= 8,
+        step = 0,
+        title = when (mode) { EmailMode.LOGIN -> "이메일로 로그인"; EmailMode.SIGNUP -> "이메일로 회원가입"; EmailMode.RESET -> "비밀번호 다시 정하기" },
+        sub = when (mode) {
+            EmailMode.LOGIN -> "이 폰에서 가입한 이메일과 비밀번호를 넣어 주세요."
+            EmailMode.SIGNUP -> "보호자 이메일 하나면 돼요. 비밀번호는 이 폰에 암호화해서만 저장해요."
+            EmailMode.RESET -> "가입한 이메일을 넣고 새 비밀번호를 정해요."
+        },
+        onBack = { if (mode == EmailMode.RESET) switch(EmailMode.LOGIN) else onBack() },
+        art = { Otto(if (mode == EmailMode.SIGNUP) Pose.WAVE else Pose.THINK, Modifier.size(170.dp)) },
+        scroll = true,
+        cta = when { busy -> "확인 중…"; mode == EmailMode.LOGIN -> "로그인"; mode == EmailMode.SIGNUP -> "가입하기"; else -> "새 비밀번호로 로그인" },
+        ctaEnabled = ready && !busy,
         onCta = {
+            busy = true; msg = null
             scope.launch {
-                when (val r = Accounts.api.login(AuthProvider.EMAIL, email.trim(), pw)) {
+                val r = when (mode) {
+                    EmailMode.LOGIN -> Accounts.api.login(email.trim(), pw)
+                    EmailMode.SIGNUP -> Accounts.api.signUp(email.trim(), pw)
+                    EmailMode.RESET -> Accounts.api.resetPassword(email.trim(), pw)
+                }
+                busy = false
+                when (r) {
                     is AuthResult.Ok -> { Accounts.guardian = r.guardian; onDone() }
                     is AuthResult.Fail -> msg = r.why
                 }
             }
         },
     ) {
-        Field("이메일", email, "parent@example.com", KeyboardType.Email, false) { email = it }
-        Spacer(Modifier.height(14.dp))
-        Field("비밀번호", pw, "8자 이상 · 영문 + 숫자", KeyboardType.Password, true) { pw = it }
-        msg?.let { Spacer(Modifier.height(8.dp)); Text(it, fontSize = 12.sp, color = FeltCoral) }
+        // 로그인 ↔ 회원가입 탭 (다시 정하기는 탭 없이)
+        if (mode != EmailMode.RESET) Row(
+            Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(17.dp)).background(InkBrown.copy(alpha = 0.06f)).padding(3.dp),
+        ) {
+            listOf(EmailMode.LOGIN to "로그인", EmailMode.SIGNUP to "회원가입").forEach { (m, t) ->
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(if (mode == m) FeltWhite else Color.Transparent)
+                        .clickable { if (mode != m) switch(m) },
+                    contentAlignment = Alignment.Center,
+                ) { Text(t, fontSize = 14.sp, fontWeight = if (mode == m) FontWeight.Bold else FontWeight.Normal, color = if (mode == m) InkBrown else InkSoft) }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Field("이메일", email, "parent@example.com", KeyboardType.Email, false) { email = it.trim(); msg = null }
+        if (email.isNotEmpty() && !emailOk) Text("이메일 형식이 아니에요", fontSize = 11.sp, color = FeltCoral, modifier = Modifier.padding(top = 3.dp))
+        Spacer(Modifier.height(4.dp))
+        Field(if (mode == EmailMode.RESET) "새 비밀번호" else "비밀번호", pw, if (mode == EmailMode.LOGIN) "비밀번호" else "영문 + 숫자 8자 이상",
+            KeyboardType.Password, !show, trailing = if (show) "숨기기" else "보기", onTrailing = { show = !show }) { pw = it; msg = null }
+        if (mode != EmailMode.LOGIN) {
+            // 규칙을 입력하는 동안 바로 보여 준다 — 다 맞으면 청록 ✓
+            Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Rule("8자 이상", EmailRules.longEnough(pw))
+                Rule("영문 + 숫자", EmailRules.hasLetterAndDigit(pw))
+                Rule("빈칸 없음", pw.isNotEmpty() && pw.none { it.isWhitespace() })
+            }
+            Spacer(Modifier.height(2.dp))
+            Field("비밀번호 확인", pw2, "한 번 더", KeyboardType.Password, !show) { pw2 = it; msg = null }
+            if (pw2.isNotEmpty() && pw != pw2) Text("비밀번호가 서로 달라요", fontSize = 11.sp, color = FeltCoral, modifier = Modifier.padding(top = 3.dp))
+        } else Text(
+            "비밀번호를 잊었어요", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = InkSoft,
+            modifier = Modifier.align(Alignment.End).clickable { switch(EmailMode.RESET) }.padding(vertical = 8.dp),
+        )
+        msg?.let { Spacer(Modifier.height(6.dp)); Text(it, fontSize = 12.sp, color = FeltCoral, lineHeight = 17.sp) }
     }
 }
 
 @Composable
-private fun Field(label: String, value: String, hint: String, type: KeyboardType, secret: Boolean, onChange: (String) -> Unit) {
-    Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkSoft)
-    Spacer(Modifier.height(6.dp))
-    Box(
-        Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp)).background(FeltWhite)
-            .border(1.5.dp, InkBrown.copy(alpha = 0.15f), RoundedCornerShape(12.dp)).padding(horizontal = 16.dp),
-        contentAlignment = Alignment.CenterStart,
+private fun Rule(t: String, ok: Boolean) {
+    Text((if (ok) "✓ " else "· ") + t, fontSize = 11.sp, fontWeight = if (ok) FontWeight.Bold else FontWeight.Normal, color = if (ok) FeltTeal else InkSoft)
+}
+
+@Composable
+private fun Field(
+    label: String, value: String, hint: String, type: KeyboardType, secret: Boolean,
+    trailing: String? = null, onTrailing: () -> Unit = {}, onChange: (String) -> Unit,
+) {
+    Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = InkSoft)
+    Spacer(Modifier.height(2.dp))
+    Row(
+        Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(12.dp)).background(FeltWhite)
+            .border(1.5.dp, InkBrown.copy(alpha = 0.15f), RoundedCornerShape(12.dp)).padding(start = 14.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (value.isEmpty()) Text(hint, fontSize = 15.sp, color = InkSoft)
-        BasicTextField(
-            value, onChange, singleLine = true,
-            textStyle = TextStyle(fontSize = 15.sp, color = InkBrown, fontFamily = ParentFont),
-            keyboardOptions = KeyboardOptions(keyboardType = type),
-            visualTransformation = if (secret) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (value.isEmpty()) Text(hint, fontSize = 14.sp, color = InkSoft)
+            BasicTextField(
+                value, onChange, singleLine = true,
+                textStyle = TextStyle(fontSize = 14.sp, color = InkBrown, fontFamily = ParentFont),
+                keyboardOptions = KeyboardOptions(keyboardType = type),
+                visualTransformation = if (secret) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = label },
+            )
+        }
+        if (trailing != null) Text(trailing, fontSize = 12.sp, color = InkSoft, modifier = Modifier.clickable { onTrailing() }.padding(8.dp))
     }
 }
 
-// ── ③ 동의 (2/3) — 왼쪽은 데이터가 쓰이는 길 그림 세 칸 ─────────────────────
+// ── ③ 동의 (2/5) — 전체 동의 · [필수]/[선택] · 항목마다 앱 안에서 전문 보기 (10-05 개편 · `Terms.kt`) ─────────────
 
 @Composable
 fun ConsentStep(onBack: () -> Unit, onDone: () -> Unit, onDecline: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
-    var terms by remember { mutableStateOf(false) }
-    var privacy by remember { mutableStateOf(false) }
-    var guardian by remember { mutableStateOf(false) }
-    var marketing by remember { mutableStateOf(false) }   // 선택은 미리 체크하지 않는다
-    val all = terms && privacy && guardian && marketing
-    fun open() = runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL))) }
-    ObFrame(
-        step = 1, title = "이렇게만 써요", sub = "녹음은 글로 바꾼 뒤 바로 지우고, 책은 이 폰에 저장해요.", onBack = onBack,
-        art = { DataPath() },
-        cta = "동의하고 계속", ctaEnabled = terms && privacy && guardian,
-        onCta = {
-            // 원래 동의 저장소를 그대로 쓴다 — 거기 동의가 있어야 아이가 말할 수 있다 (개인정보보호법 제22조의2)
-            ConsentStore.agree()
-            scope.launch { Accounts.api.recordConsent(ConsentRecord(terms, privacy, guardian, marketing, System.currentTimeMillis())) }
-            onDone()
-        },
-        // 거절할 길 — 동의하지 않으면 앱을 닫는다 (09-25 · 동의하지 않는 보호자가 나갈 방법이 있어야 한다)
-        cta2 = "동의하지 않음", onCta2 = onDecline,
-    ) {
-        CheckRow(all, "모두 동의해요", { val v = !all; terms = v; privacy = v; guardian = v; marketing = v }, big = true)
-        Box(Modifier.fillMaxWidth().height(1.5.dp).background(InkBrown.copy(alpha = 0.1f)))
-        Spacer(Modifier.height(6.dp))
-        CheckRow(terms, "[필수] 이용약관", { terms = !terms }, trailing = "보기", onTrailing = { open() })
-        CheckRow(privacy, "[필수] 보호자 개인정보 수집 · 이용", { privacy = !privacy }, trailing = "보기", onTrailing = { open() })
-        CheckRow(guardian, "[필수] 만 14세 미만 아동의 법정대리인 동의", { guardian = !guardian }, trailing = "보기", onTrailing = { open() })
-        CheckRow(marketing, "[선택] 새 기능 알림", { marketing = !marketing })
+    // 선택 항목도 **미리 체크하지 않는다** — 모두 꺼진 채로 시작
+    val agreed = remember { androidx.compose.runtime.mutableStateMapOf<TermsDoc, Boolean>() }
+    var reading by remember { mutableStateOf<TermsDoc?>(null) }
+    var asking by remember { mutableStateOf(false) }
+    fun on(d: TermsDoc) = agreed[d] == true
+    val all = TermsDoc.entries.all { on(it) }
+    val left = TermsDoc.entries.count { it.required && !on(it) }
+    Box(Modifier.fillMaxSize()) {
+        ObFrame(
+            step = 1, title = "이렇게만 써요", sub = "목소리는 글자로 바꾼 뒤 바로 지우고, 책은 이 폰에 저장해요.", onBack = onBack,
+            art = { DataPath() },
+            scroll = true,
+            cta = "동의하고 계속", ctaEnabled = left == 0,
+            onCta = {
+                val now = System.currentTimeMillis()
+                // 원래 동의 저장소를 그대로 쓴다 — 거기 동의가 있어야 아이가 말할 수 있다 (개인정보보호법 제22조의2)
+                ConsentStore.agree()
+                Shell.saveConsent(TERMS_VERSION, news = on(TermsDoc.NEWS), at = now)
+                scope.launch {
+                    Accounts.api.recordConsent(ConsentRecord(
+                        terms = on(TermsDoc.TERMS), privacy = on(TermsDoc.GUARDIAN_INFO), guardian = on(TermsDoc.CHILD_INFO),
+                        marketing = on(TermsDoc.NEWS), at = now, overseas = on(TermsDoc.OVERSEAS),
+                        version = TERMS_VERSION,
+                    ))
+                }
+                // 광고성 정보 수신에 동의했으면 **동의한 날을 알린다** (정보통신망법 제50조)
+                if (on(TermsDoc.NEWS)) android.widget.Toast.makeText(ctx, "${dateText(now)} 소식 알림 받기에 동의했어요. 부모 영역 → 계정에서 끌 수 있어요", android.widget.Toast.LENGTH_LONG).show()
+                onDone()
+            },
+            // 거절할 길 — 동의 버튼과 같은 크기 · 같은 줄 (눈속임 설계 금지). 누르면 무엇이 되는지 먼저 알려 준다
+            cta2 = "동의하지 않음", onCta2 = { asking = true },
+        ) {
+            // 전체 동의 카드
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (all) FeltTeal.copy(alpha = 0.12f) else FeltWhite)
+                    .border(1.5.dp, if (all) FeltTeal else InkBrown.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+                    .clickable { val v = !all; TermsDoc.entries.forEach { agreed[it] = v } }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CheckBox(all, big = true)
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("약관에 모두 동의해요", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = InkBrown)
+                    Text("선택 항목도 포함해요. 선택은 동의하지 않아도 모든 기능을 쓸 수 있어요.", fontSize = 11.sp, color = InkSoft, lineHeight = 15.sp)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            TermsDoc.entries.forEach { d ->
+                TermsLine(d, on(d), onToggle = { agreed[d] = !on(d) }, onOpen = { reading = d })
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (left > 0) "필수 항목 ${left}개에 더 동의하면 계속할 수 있어요" else "필수 항목에 모두 동의했어요",
+                fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (left > 0) FeltCoral else FeltTeal,
+            )
+            Text("동의는 부모 영역에서 언제든 철회할 수 있어요 · 전체 처리방침은 부모 영역 → 계정", fontSize = 11.sp, color = InkSoft, modifier = Modifier.padding(top = 2.dp))
+        }
+        // 전문 보기 — 동의 화면 위에 펼친다. 「동의하고 닫기」를 누르면 그 항목이 체크된다(카카오 · 토스 방식)
+        reading?.let { d -> TermsSheet(d, agreed = on(d), onAgree = { agreed[d] = true; reading = null }, onClose = { reading = null }) }
+        if (asking) DeclineDialog(onStay = { asking = false }, onLeave = onDecline)
     }
 }
+
+/** 동의 한 줄 — [체크] [필수/선택] 이름 · 한 줄 풀이 · 전문 보기 › */
+@Composable
+private fun TermsLine(d: TermsDoc, checked: Boolean, onToggle: () -> Unit, onOpen: () -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 46.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).clickable { onToggle() }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.width(2.dp))
+            CheckBox(checked)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        d.tag, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (d.required) FeltCoral else FeltTeal,
+                        modifier = Modifier.border(1.dp, if (d.required) FeltCoral else FeltTeal, RoundedCornerShape(6.dp)).padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(d.short, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkBrown, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                Text(d.plain, fontSize = 11.sp, color = InkSoft, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+        }
+        Box(
+            Modifier.size(40.dp).clip(CircleShape).clickable { onOpen() }.semantics { contentDescription = "${d.short} 전문 보기" },
+            contentAlignment = Alignment.Center,
+        ) { Text("›", fontSize = 22.sp, color = InkSoft) }
+    }
+}
+
+@Composable
+private fun CheckBox(checked: Boolean, big: Boolean = false) {
+    Box(
+        Modifier.size(if (big) 26.dp else 22.dp).clip(CircleShape)
+            .background(if (checked) FeltTeal else FeltWhite)
+            .border(1.5.dp, if (checked) FeltTeal else InkBrown.copy(alpha = 0.25f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) { Text("✓", fontSize = if (big) 15.sp else 13.sp, color = if (checked) FeltWhite else InkBrown.copy(alpha = 0.2f), fontWeight = FontWeight.Bold) }
+}
+
+/** 약관 전문 — 화면 전체를 덮고 위아래로 읽는다. 표는 머리 · 내용 두 칸 */
+@Composable
+fun TermsSheet(d: TermsDoc, agreed: Boolean, onAgree: (() -> Unit)?, onClose: () -> Unit) = ParentText {
+    androidx.activity.compose.BackHandler(onBack = onClose)
+    Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.35f)).noRippleClickable { }) {
+        Column(
+            Modifier.align(Alignment.Center).fillMaxWidth(0.82f).fillMaxHeight(0.92f)
+                .clip(RoundedCornerShape(22.dp)).background(Wool),
+        ) {
+            Row(Modifier.fillMaxWidth().padding(start = 22.dp, end = 8.dp, top = 10.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("[${d.tag}] ${d.short}", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = InkBrown, modifier = Modifier.weight(1f))
+                Box(Modifier.size(44.dp).clip(CircleShape).clickable { onClose() }.semantics { contentDescription = "닫기" }, contentAlignment = Alignment.Center) {
+                    Text("✕", fontSize = 18.sp, color = InkSoft)
+                }
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(InkBrown.copy(alpha = 0.1f)))
+            Column(Modifier.weight(1f).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 22.dp, vertical = 12.dp)) {
+                Text(d.plain, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = FeltTeal)
+                Spacer(Modifier.height(8.dp))
+                d.parts.forEach { p ->
+                    Text(p.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = InkBrown, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                    if (p.body.isNotEmpty()) Text(p.body, fontSize = 13.sp, color = InkBrown, lineHeight = 20.sp)
+                    if (p.rows.isNotEmpty()) Column(
+                        Modifier.padding(top = 4.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp)).border(1.dp, InkBrown.copy(alpha = 0.12f), RoundedCornerShape(10.dp)),
+                    ) {
+                        p.rows.forEachIndexed { i, r ->
+                            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(InkBrown.copy(alpha = 0.08f)))
+                            Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
+                                Text(r.head, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = InkBrown,
+                                    modifier = Modifier.width(150.dp).fillMaxHeight().background(WoolCream).padding(horizontal = 10.dp, vertical = 8.dp))
+                                Text(r.body, fontSize = 12.sp, color = InkBrown, lineHeight = 18.sp, modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp))
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("약관 판 $TERMS_VERSION", fontSize = 11.sp, color = InkSoft)
+            }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
+                if (onAgree != null && !agreed) {
+                    PBtn("닫기", onClose, Modifier.width(120.dp), primary = false, height = 46.dp)
+                    PBtn("동의하고 닫기", onAgree, Modifier.width(180.dp), height = 46.dp)
+                } else PBtn("닫기", onClose, Modifier.width(140.dp), height = 46.dp)
+            }
+        }
+    }
+}
+
+/** 「동의하지 않음」 — 앱을 닫기 전에 무엇이 되는지 알려 준다. 돌아가기가 먼저(실수로 누른 보호자) */
+@Composable
+private fun DeclineDialog(onStay: () -> Unit, onLeave: () -> Unit) = ParentText {
+    androidx.activity.compose.BackHandler(onBack = onStay)
+    Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.35f)).noRippleClickable { }, contentAlignment = Alignment.Center) {
+        Column(Modifier.width(420.dp).clip(RoundedCornerShape(22.dp)).background(Wool).padding(24.dp)) {
+            Text("동의하지 않고 나갈까요?", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = InkBrown)
+            Spacer(Modifier.height(8.dp))
+            Text("필수 항목에 동의하지 않으면 오또를 쓸 수 없어 앱을 닫아요. 아무것도 저장하지 않고, 다음에 켜면 다시 물어요.", fontSize = 13.sp, color = InkSoft, lineHeight = 19.sp)
+            Spacer(Modifier.height(18.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
+                PBtn("앱 닫기", onLeave, Modifier.width(130.dp), primary = false, height = 46.dp)
+                PBtn("돌아가서 보기", onStay, Modifier.width(160.dp), height = 46.dp)
+            }
+        }
+    }
+}
+
+/** 「2026년 10월 5일」 */
+fun dateText(at: Long): String = java.text.SimpleDateFormat("yyyy년 M월 d일", java.util.Locale.KOREA).format(java.util.Date(at))
 
 @Composable
 private fun DataPath() {
@@ -444,7 +675,7 @@ fun HandoffStep(onDone: () -> Unit) {
         Spacer(Modifier.height(20.dp))
         Text("준비 끝!", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = InkBrown)
         Spacer(Modifier.height(12.dp))
-        Text("이제 아이에게 건네주세요. 오또가 목소리로 이어서 안내해요.", fontSize = 15.sp, color = InkSoft, lineHeight = 22.sp)
+        Text("이제 아이에게 건네주세요. 오또가 방을 한 바퀴 돌며 물건 넷을 소개하고, 말하기 연습을 한 번 해요.", fontSize = 15.sp, color = InkSoft, lineHeight = 22.sp)
         Spacer(Modifier.height(18.dp))
         Text("부모 설정은 언제든 왼쪽 위 자물쇠를 누르고 방금 정한 비밀번호를 넣으면 열려요.", fontSize = 12.sp, color = InkSoft, lineHeight = 18.sp)
     }
@@ -455,6 +686,8 @@ fun HandoffStep(onDone: () -> Unit) {
 @Composable
 fun TutorialTalk(onDone: () -> Unit) {
     var said by remember { mutableStateOf(false) }
+    val line = if (said) "잘했어! 이렇게 말하면 오또가 이야기를 이어 가" else "좋아하는 동물을 말해 줄래?"
+    OttoSays(line)
     Box(Modifier.fillMaxSize()) {
         AssetImage("bg_park", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop) { Box(Modifier.fillMaxSize().background(Wool)) }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, InkBrown.copy(alpha = 0.25f)))))
@@ -464,7 +697,7 @@ fun TutorialTalk(onDone: () -> Unit) {
         // 연습 버튼도 실제처럼 나레이션 칸 **안** 오른쪽에 (09-29)
         Narration(
             mode = NarrationMode.STORY, state = if (said) com.example.finalproject_demo.ui.OttoState.TALK else com.example.finalproject_demo.ui.OttoState.LISTEN,
-            line = if (said) "잘했어! 이렇게 말하면 돼" else "좋아하는 동물을 말해 줄래?",
+            line = line,
             modifier = Modifier.align(Alignment.BottomCenter),
             expr = if (said) com.example.finalproject_demo.ui.Expr.HAPPY else com.example.finalproject_demo.ui.Expr.CURIOUS,
             trailing = {
@@ -477,35 +710,4 @@ fun TutorialTalk(onDone: () -> Unit) {
             },
         )
     }
-}
-
-// ── ⑦ 기능 소개 — 해 본 것을 세 가지로 ────────────────────────────
-
-@Composable
-fun FeaturesStep(onDone: () -> Unit) = Box(Modifier.fillMaxSize().felt(Wool, RoundedCornerShape(0.dp), lift = 0.dp, stitch = false)) {
-    AssetImage("logo_otto_v2", Modifier.padding(start = 18.dp, top = 10.dp).width(120.dp))
-    Text("오또랑 이렇게 놀아요", fontSize = 30.sp, color = InkBrown, modifier = Modifier.align(Alignment.TopCenter).padding(top = 22.dp))
-    Row(Modifier.align(Alignment.Center).padding(top = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-        listOf(Triple("🎙", "말하면" to "오또에게 말로 이야기해요", FeltTeal), Triple("📖", "그림책이 돼요" to "말한 대로 그림이 그려져요", FeltCoral),
-            Triple("📚", "책장에 모여요" to "만든 책은 언제든 다시 봐요", FeltMustard)).forEachIndexed { i, (ic, tt, c) ->
-            val art = listOf("feat_talk", "feat_book", "feat_shelf")[i]
-            // 번호 원은 카드 **밖**에 — 카드(felt)는 자기 안을 잘라 모서리에 걸친 원이 잘렸다
-            Box(Modifier.width(200.dp).height(196.dp)) {
-                Column(Modifier.fillMaxSize().felt(FeltWhite, RoundedCornerShape(28.dp)).padding(top = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    AssetImage(art, Modifier.size(96.dp)) {
-                        Box(Modifier.size(92.dp).felt(c, CircleShape), contentAlignment = Alignment.Center) { Text(ic, fontSize = 42.sp) }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text(tt.first, fontSize = 22.sp, color = InkBrown)
-                    ParentText { Text(tt.second, fontSize = 12.sp, color = InkSoft) }
-                }
-                Box(Modifier.offset((-8).dp, (-10).dp).size(36.dp).felt(c, CircleShape, lift = 2.dp, stitch = false), contentAlignment = Alignment.Center) {
-                    Text("${i + 1}", fontSize = 18.sp, color = FeltWhite)
-                }
-            }
-            if (i < 2) Text("›", fontSize = 30.sp, color = InkSoft, modifier = Modifier.padding(horizontal = 10.dp))
-        }
-    }
-    ParentText { Text("방금 해 본 것 — 오또가 목소리로 한 번 더 정리해 줘요", fontSize = 13.sp, color = InkSoft, modifier = Modifier.align(Alignment.BottomStart).padding(start = 40.dp, bottom = 30.dp)) }
-    ParentText { PBtn("오또의 방으로", onDone, Modifier.align(Alignment.BottomEnd).padding(end = 28.dp, bottom = 18.dp).width(180.dp), height = 52.dp) }
 }
