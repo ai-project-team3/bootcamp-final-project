@@ -67,9 +67,14 @@ def test_the_system_prompt_is_the_measured_one():
     # One place, one cut: the server and eval/run_judge.py both go through prompt_block.system_block
     import importlib.util
     spec = importlib.util.spec_from_file_location("rj", judge_prompt.EVAL / "run_judge.py")
-    assert "judge_system(path)" in (judge_prompt.EVAL / "run_judge.py").read_text(encoding="utf-8")
+    assert "judge_system(path, mode)" in (judge_prompt.EVAL / "run_judge.py").read_text(encoding="utf-8")
     measured = judge_prompt.judge_system(judge_prompt.EVAL / "judge_prompt.md")
     assert judge_prompt.system().startswith(measured)
+    # #121: a story request gets the story piece only — what run_judge.py measures on the story cases
+    story = judge_prompt.judge_system(judge_prompt.EVAL / "judge_prompt.md", "story")
+    assert judge_prompt.system("story").startswith(story)
+    assert "story (동화)" in story and "diary (일기)" not in story and "coop (협업)" not in story
+    assert "{모드 조각}" not in judge_prompt.system("coop") and "coop (협업)" in judge_prompt.system("coop")
 
 
 def test_effort_none_is_sent_not_dropped(monkeypatch):
