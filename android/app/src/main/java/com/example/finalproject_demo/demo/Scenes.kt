@@ -1465,7 +1465,8 @@ private suspend fun Director.sceneBook() {
             i == dragPage -> if (s.m2Result == null) s.m2Line(s.m1Result == "helped") else s.m2Done()
             // 일기 모드에는 공룡 소리 칸이 없다 — 묻지 않는 칸이다 (§2-2)
             i == last && s.isDiary -> "오른쪽 책 버튼을 눌러 봐! 오늘 이야기가 여기서 끝나."
-            i == last && s.storySoundClip != null -> "${d}${eul(d)} 눌러 봐! 내가 만든 소리가 나와."
+            // the live book hides the scripted dino, so the sound sits on the newcomer the child drew (10-05: 「트리케라톱스를 눌러 봐」)
+            i == last && s.storySoundClip != null -> (if (Server.liveFor(s.mode)) s.friendCallName else d).let { "${it}${eul(it)} 눌러 봐! 내가 만든 소리가 나와." }
             i == last && Server.liveFor(s.mode) -> "오른쪽 책 버튼을 눌러 봐! 우리 이야기가 여기서 끝나."
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""

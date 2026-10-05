@@ -165,7 +165,7 @@ object Server {
     // ── /story ─────────────────────────────────────────────────────
 
     /** One page of the book plan: a `PageKind` name and the mission on it (`docs/미션_구상.md` §3 id), if any. */
-    data class Page(val kind: String, val mission: String? = null)
+    data class Page(val kind: String, val mission: String? = null, val prop: String? = null)
 
     /** Title is optional for compatibility with deployed servers that return captions only. */
     data class StoryBook(val captions: List<String>, val title: String? = null)
@@ -200,7 +200,7 @@ object Server {
             .put("level", level ?: JSONObject.NULL)
             .put("reason", reason ?: JSONObject.NULL)
         if (pages != null) body.put("pages", JSONArray().apply {
-            pages.forEach { put(JSONObject().put("kind", it.kind).put("mission", it.mission ?: JSONObject.NULL)) }
+            pages.forEach { put(JSONObject().put("kind", it.kind).put("mission", it.mission ?: JSONObject.NULL).put("prop", it.prop ?: JSONObject.NULL)) }
         })
         val j = postJson("/story", body, readMs = 60_000) ?: return null
         return try {
