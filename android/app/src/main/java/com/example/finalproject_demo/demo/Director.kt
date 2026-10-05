@@ -223,6 +223,7 @@ class Director(
         s.speaker = who
         s.line = text
         s.lineId++
+        com.example.finalproject_demo.net.Trace.line(if (who == "마스코트") "otto" else "said:$who", text)
         if (who == "마스코트" && surprise.containsMatchIn(text)) feel(Mood.SURPRISED)
         if (who == "마스코트") { dumpSpoken(text); speakLive(text) }
     }
@@ -398,6 +399,7 @@ class Director(
     fun partnerSays(text: String) = say(text, s.pn)
 
     fun log(t: String) {
+        com.example.finalproject_demo.net.Trace.line("log", t)
         s.log.add(0, t)
         if (s.log.size > 80) s.log.removeAt(s.log.size - 1)
     }
