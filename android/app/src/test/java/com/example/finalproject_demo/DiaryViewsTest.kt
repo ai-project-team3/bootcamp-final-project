@@ -42,7 +42,6 @@ import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.newDiaryDay
 import com.example.finalproject_demo.ui.Bg
 import com.example.finalproject_demo.ui.StageView
-import com.example.finalproject_demo.ui.diaryAskPose
 import com.example.finalproject_demo.ui.shell.Pose
 import com.github.takahirom.roborazzi.captureRoboImage
 import kotlinx.coroutines.CoroutineScope
@@ -288,9 +287,9 @@ class DiaryViewsTest {
         assertEquals(2, d.s.drawing.size)
     }
 
-    /** D3 — 다 그린 뒤: 엎드린 오또 옆에 아이 그림을 꽂아 두고 아래 대사 칸으로 묻는다 (docs/review/일기모드_0930 A) */
+    /** D3 — 다 그린 뒤: 아이 그림을 꽂아 두고 아래 대사 칸으로 묻는다. 오또는 대사 칸 얼굴 하나만 (10-05 진웅) */
     @Test
-    fun afterDrawingOttoLiesBesideThePinnedDrawing() {
+    fun afterDrawingTheDrawingIsPinnedAndOttoAsksFromTheSpeechLine() {
         val d = director()
         drawDay(d)
         d.s.diaryDay.pieces[2] = d.s.diaryDay.pieces[2].copy(look = PieceLook.OTTO)
@@ -298,27 +297,22 @@ class DiaryViewsTest {
         d.s.stage = DiaryAsk
         d.say("오늘 어디 갔었어?")
         show(d)
-        compose.onNodeWithTag("d3-otto").assertExists()
+        compose.onNodeWithTag("d3-otto").assertDoesNotExist()
         compose.onNodeWithTag("d3-card").assertExists()
         snap("diary_ask")
     }
 
+    /** 그림 없는 날 — 빈 카드가 아니라 아이가 말한 곳의 펠트 그림 */
     @Test
-    fun aDayWithoutDrawingHasNoEmptyCard() {
+    fun aDayWithoutDrawingPinsThePlace() {
         val d = director()
         d.s.newDiaryDay()
         d.s.stage = DiaryAsk
         d.say("오늘 어디 갔었어?")
         show(d)
-        compose.onNodeWithTag("d3-otto").assertExists()
-        compose.onNodeWithTag("d3-card").assertDoesNotExist()
+        compose.onNodeWithTag("d3-otto").assertDoesNotExist()
+        compose.onNodeWithTag("d3-place").assertExists()
         snap("diary_ask_no_drawing")
-    }
-
-    @Test
-    fun ottoLooksUpWhileAskingAndWritesWhileListening() {
-        assertEquals(Pose.LIE_LOOK, diaryAskPose(listening = false))
-        assertEquals(Pose.LIE_WRITE, diaryAskPose(listening = true))
     }
 
     @Test
