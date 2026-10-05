@@ -93,6 +93,8 @@ import com.example.finalproject_demo.ui.missions.SoundMission
 import com.example.finalproject_demo.ui.missions.HoseMission
 import com.example.finalproject_demo.ui.missions.TurnMission
 import com.example.finalproject_demo.ui.missions.RollMission
+import com.example.finalproject_demo.ui.missions.FixMission
+import com.example.finalproject_demo.ui.missions.StackMission
 import com.example.finalproject_demo.demo.missions.soundProp
 import com.example.finalproject_demo.demo.missions.blowProp
 import com.example.finalproject_demo.demo.mission2
@@ -482,6 +484,8 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                     MissionId.A1 -> HoseMission(d, stage.m2Done, heroArt)       // 「불을 껐어」 (#101)
                     MissionId.A4 -> TurnMission(d, stage.m2Done, heroArt)       // 「꽉 잠갔어」 (#101)
                     MissionId.D4 -> RollMission(d, stage.m2Done, heroArt)       // 「공을 굴렸어 · 골인」 (#101)
+                    MissionId.E2 -> FixMission(d, stage.m2Done, heroArt)        // 「부서졌어 · 고쳤어」 (#101)
+                    MissionId.A5 -> StackMission(d, stage.m2Done, heroArt)      // 「무너졌어 · 다시 쌓았어」 (#101)
                     else -> GiveMission(d, stage.m2Done, heroArt, tool)
                 }
             PageKind.TOGETHER -> {

@@ -74,6 +74,8 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
     val allOut = done || life.all { it >= BLOW_FULL }
     val puffs = rememberParticleField()
     val blow = rememberBlowLevel(!allOut)
+    // 반복문 안에서는 늘 지금 세기를 읽는다 — 그냥 blow 를 쓰면 처음 값(0)에 묶여 아무리 불어도 약하다고 봤다(10-05 실기기)
+    val blowNow by androidx.compose.runtime.rememberUpdatedState(blow)
     val micOn = remember {
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
@@ -104,14 +106,14 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
             if (done || motionFrozen) return@LaunchedEffect
             while (life.any { it < BLOW_FULL }) {        // 다 끝나면 멈춘다 (#105 리뷰)
                 withFrameNanos { }
-                val strong = blow > BLOW_ON
+                val strong = blowNow > BLOW_ON
                 spots.forEachIndexed { i, b ->
                     val left = (1f - life[i] / BLOW_FULL).coerceIn(0f, 1f)
                     if (left <= 0f) return@forEachIndexed
                     if (strong) {
-                        push(i, blow * 0.09f)
+                        push(i, blowNow * 0.09f)
                         // 바람을 타고 오른쪽 위로 흩어진다
-                        if (!prop.flame) puffs.water(b.x, b.y, blow * wpx * 0.02f, -blow * wpx * 0.006f, wpx * 0.03f)
+                        if (!prop.flame) puffs.water(b.x, b.y, blowNow * wpx * 0.02f, -blowNow * wpx * 0.006f, wpx * 0.03f)
                     }
                 }
             }

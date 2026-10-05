@@ -32,9 +32,10 @@ import kotlin.math.abs
  * 마이크로 들어오는 소리의 세기 (0~1). 듣지 않거나 못 들으면 0.
  *
  * @param active 지금 이 화면이 불기를 받는가
+ * @param beats 주면 소리 덩어리(음절)가 하나 시작될 때마다 1 씩 올린다 — C3 소리 흉내가 「삐-뽀-삐-뽀」를 센다([VoiceOnsets])
  */
 @Composable
-fun rememberBlowLevel(active: Boolean): Float {
+fun rememberBlowLevel(active: Boolean, beats: androidx.compose.runtime.MutableIntState? = null): Float {
     val ctx = LocalContext.current
     var level by remember { mutableFloatStateOf(0f) }
     var granted by remember {
@@ -72,6 +73,7 @@ fun rememberBlowLevel(active: Boolean): Float {
                 )
                 if (rec.state != AudioRecord.STATE_INITIALIZED) return@thread
                 val buf = ShortArray(frame)
+                val onsets = VoiceOnsets()
                 rec.startRecording()
                 while (running) {
                     val n = rec.read(buf, 0, frame)
@@ -82,6 +84,8 @@ fun rememberBlowLevel(active: Boolean): Float {
                     val loud = (sum.toFloat() / n / 6000f).coerceIn(0f, 1f)
                     // 갑자기 튀지 않게 이어 준다 — 숫자가 덜덜 떨리면 불꽃도 덜덜 떨린다
                     level = level * 0.6f + loud * 0.4f
+                    // 음절 세기는 다듬지 않은 크기로 — 다듬으면 음절 사이 끊김이 메워진다
+                    if (beats != null && onsets.feed(loud)) beats.intValue += 1
                 }
             } catch (_: Throwable) {
                 // 마이크를 못 열면 조용히 포기한다 — 손으로 하면 된다
@@ -98,4 +102,29 @@ fun rememberBlowLevel(active: Boolean): Float {
     }
 
     return if (active) level else 0f
+}
+
+/**
+ * 소리 덩어리(음절) 세기 — 「삐-뽀-삐-뽀」는 넷, 길게 이어지는 「아아아아」는 하나 (C3 소리 흉내 · 10-05 사용자 결정).
+ *
+ * 무슨 말인지는 보지 않는다(받아쓰기 아님) — **끊겼다가 다시 커지는 횟수**만 센다. 그래서 발음이 서툰 3~4세도
+ * 리듬만 맞으면 된다. 한 덩어리로 치려면:
+ * - 크기가 [on] 위로 **[hold] 칸(한 칸 64ms) 이상 이어져야** 한다 — 키보드 · 물건 소리처럼 짧게 튀는 소리는 세지 않는다
+ * - 그 전에 [off] 밑으로 한 번은 내려갔어야 한다 — 이어지는 소리는 처음 한 번만
+ * 띄엄띄엄 들어오는 방 안 소리는 C3 화면이 덩어리 사이 간격으로 한 번 더 거른다(`beatStreak`)
+ *
+ * 값은 실기기(SM-G977N)에서 잰 것: 방 소음 0.02~0.1, 말소리 꼭대기 0.12~0.6
+ */
+class VoiceOnsets(private val on: Float = 0.12f, private val off: Float = 0.06f, private val hold: Int = 2) {
+    private var quiet = true
+    private var run = 0
+
+    /** 이번 칸의 크기를 넣는다 — 새 덩어리가 시작됐으면 true */
+    fun feed(loud: Float): Boolean {
+        if (loud < off) { quiet = true; run = 0; return false }
+        if (loud < on) { run = 0; return false }
+        run++
+        if (quiet && run >= hold) { quiet = false; return true }
+        return false
+    }
 }

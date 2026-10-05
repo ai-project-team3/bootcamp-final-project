@@ -133,6 +133,7 @@ suspend fun Director.sceneDiary() {
             log("[${step.part} · ${step.bookKey}] 건너뜀 — 앞의 답에서 이미 찼다 (${s.slotBy[step.bookKey] ?: "?"}) · 같은 걸 두 번 묻지 않는다")
             s.coopCoverPart(step.variant.id)
         } else askDiaryStep(step)
+        drawCoopBackground()                    // 장소 칸이 찼으면 그곳으로 배경을 그린다 — 기다리지 않는다 (10-05 · CoopServerLine.kt)
         // 진행 막대는 **지나온 걸음 수**로 찬다 (9/22). 칸이 찼는지로 세면, 아이가 답하지 않은
         // 선택 질문이 하나라도 있으면 마지막 질문까지 가도 막대가 끝까지 가지 않는다
         s.stepsDone++

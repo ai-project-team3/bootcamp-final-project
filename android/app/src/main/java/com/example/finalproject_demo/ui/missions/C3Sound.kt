@@ -30,10 +30,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -60,14 +60,22 @@ import com.example.finalproject_demo.ui.Sfx
 import com.example.finalproject_demo.ui.Sound
 import com.example.finalproject_demo.ui.Stand
 import com.example.finalproject_demo.ui.felt
-import com.example.finalproject_demo.ui.motionFrozen
 import com.example.finalproject_demo.ui.rememberBlowLevel
 import com.example.finalproject_demo.ui.touchOutline
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-/** 목소리 세기가 이만큼 넘으면 「소리 낸다」로 친다 — 불기(0.22)보다 낮다. 말소리는 바람보다 약하다(실기기로 다시 정한다 · 설계 §10) */
-internal const val VOICE_ON = 0.18f
+/** 목소리 세기가 이만큼 넘으면 「소리 낸다」 표시 — 실기기(10-05)에서 평소 말소리 꼭대기가 0.12~0.15 였다(0.18 은 외쳐야 넘었다) */
+internal const val VOICE_ON = 0.12f
+
+/** 소리 덩어리(음절)를 이만큼 내면 다 찬다 — 「삐-뽀-삐-뽀」 한 번 · 「멍-멍」 두 번 · 「슛」 네 번 */
+internal const val SOUND_BEATS = 4
+
+/** 소리 덩어리 사이가 이보다 벌어지면 처음부터 센다 — 「삐뽀삐뽀」 한 번은 1초 안팎(10-05 실기기) */
+internal const val BEAT_GAP_MS = 1200L
+
+/** 새 소리 덩어리가 [now] 에 왔을 때 이어진 덩어리 수 — 앞 덩어리와 [BEAT_GAP_MS] 넘게 벌어지면 1 부터 */
+internal fun beatStreak(streak: Int, lastAt: Long, now: Long): Int = if (now - lastAt > BEAT_GAP_MS) 1 else streak + 1
 
 /** 한 번 누를 때 차는 양 — 세 번이면 다 찬다(탭 길) */
 internal const val SOUND_TAP = 0.34f
@@ -76,7 +84,8 @@ internal const val SOUND_TAP = 0.34f
  * C3 소리 흉내 — 미션 자리 1 (`docs/맞춤미션_설계.md` §4 ★C3 · #101 둘째 순서).
  *
  * 아이가 이야기에서 말한 소리(삐뽀삐뽀 · 부릉부릉 · 어흥 · 슛 …)를 **크게 따라 하면** 그것이 움직인다. 발달 목표는 발성 · 의성어.
- * - 마이크는 **크기만** 본다(무슨 말인지 안 본다 · `Blow.kt`) — 다른 말이어도 크게 하면 찬다(실패 없음)
+ * - 마이크로 **끊어 말한 소리 덩어리(음절) 수**를 센다(`VoiceOnsets` · 무슨 말인지는 안 본다) — 「삐-뽀-삐-뽀」 한 번이면 차고,
+ *   길게 이어지는 「아아아아」는 한 칸뿐이다(10-05 실기기 · 사용자 결정). 발음이 서툴러도 리듬이 맞으면 된다
  * - **탭 길(원칙 6)** — 소품을 세 번 톡톡 누르면 소리 말이 뜨며 똑같이 찬다. 마이크가 없어도 끝난다
  * - 8초 진전이 없으면 손이 소품을 눌러 보인다 · 듣는 중 표시는 화면 아래(#98 겹침)
  * - 소품 그림 `prop_firetruck` · `prop_car` · `prop_lion` · `prop_puppy`(10-04 · `gen_room.py` 파이프라인) · 기차는 있던 `train`
@@ -90,7 +99,9 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
     var fill by remember { mutableFloatStateOf(if (done) 1f else 0f) }
     var pops by remember { mutableIntStateOf(0) }
     val finished = done || fill >= 1f
-    val voice = rememberBlowLevel(!finished)
+    // 크기만 보면 「아아아아」도 찼다(10-05 실기기) — 끊어 말한 소리 덩어리 수로 채운다(사용자 결정)
+    val beats = remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val voice = rememberBlowLevel(!finished, beats)
     val micOn = remember {
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
@@ -99,18 +110,19 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
     val bounce = remember { Animatable(1f) }
     fun nudge() { scope.launch { bounce.snapTo(1.12f); bounce.animateTo(1f, spring(dampingRatio = 0.35f)) } }
 
-    // 크게 소리 내는 동안 찬다 — 1.5초쯤 힘차게 내면 다 찬다
-    LaunchedEffect(done) {
-        if (done || motionFrozen) return@LaunchedEffect
-        var last = 0L
-        while (fill < 1f) {
-            withFrameNanos { }
-            if (voice > VOICE_ON) {
-                fill = minOf(1f, fill + voice * 0.012f)
-                val now = System.currentTimeMillis()
-                if (now - last > 450) { last = now; pops++; nudge() }
-            }
-        }
+    // 소리 덩어리가 **이어서** 나와야 찬다 — 덩어리 사이가 [BEAT_GAP_MS] 넘게 벌어지면 처음부터.
+    // 「삐-뽀-삐-뽀」는 1초 안에 넷이 몰리고, 방 안 말소리 · 소음은 띄엄띄엄 들어온다 — 10초 동안 띄엄띄엄 넷이
+    // 잡혀 말하기도 전에 끝났다(10-05 실기기). 누르기(탭 길)로 찬 만큼은 그대로 둔다
+    var streak by remember { mutableIntStateOf(0) }
+    var lastBeat by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(beats.intValue) {
+        if (beats.intValue == 0 || done || fill >= 1f) return@LaunchedEffect
+        val now = System.currentTimeMillis()
+        val before = streak
+        streak = beatStreak(streak, lastBeat, now)
+        lastBeat = now
+        fill = minOf(1f, maxOf(fill - before.toFloat() / SOUND_BEATS, 0f) + streak.toFloat() / SOUND_BEATS)
+        pops++; nudge()
     }
     // 끝 반짝임은 MissionDoneSignal 하나만 — 두 번 울렸다 (#105 리뷰)
     // 다 차면 소품이 제 할 일을 한다 — 옆모습인 소방차는 오른쪽으로 달려 나가고, 정면 그림(자동차 · 기차)과
@@ -150,7 +162,8 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
             "「${prop.sound}!」",
             fontSize = 34.sp, color = Coral, fontWeight = FontWeight.Bold,
             modifier = Modifier
-                .offset { IntOffset((cx - size * 0.55f).roundToInt(), (cy - size * 0.95f).roundToInt()) }
+                // 소품 오른쪽 옆 — 위에 두면 책 위쪽의 도구 줄 · 안내와 겹쳐 잘렸다(10-05 실기기)
+                .offset { IntOffset((cx + size * 0.6f).roundToInt(), (cy - size * 0.35f).roundToInt()) }
                 .scale(beat)
                 .felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
                 .padding(horizontal = 18.dp, vertical = 6.dp),

@@ -80,7 +80,8 @@ internal fun TurnMission(d: Director, done: Boolean, heroArt: Art) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
         val faucet = 0.17f * wpx
-        val tap = Offset(0.58f * wpx, 0.44f * hpx)                 // 수도꼭지 그림 가운데
+        // 책 화면 위쪽 1/4 은 도구 줄 · 안내 자리 — 손잡이가 그 밑에 숨지 않게 수도꼭지를 아래쪽에 둔다(10-05 실기기)
+        val tap = Offset(0.58f * wpx, 0.60f * hpx)                 // 수도꼭지 그림 가운데
         // 그림(prop_faucet — 레버를 잘라 낸 수도꼭지)의 노란 받침 위에 손잡이, 오른쪽 아래 끝에서 물이 나온다
         val knob = Offset(tap.x - faucet * 0.26f, tap.y - faucet * 0.62f)
         val knobR = faucet * 0.30f
@@ -163,7 +164,8 @@ internal fun TurnMission(d: Director, done: Boolean, heroArt: Art) {
                 Modifier.offset { IntOffset((hx - wpx * 0.02f).roundToInt(), (hy - wpx * 0.02f).roundToInt()) }.size((wpx * 0.044f / density).dp).alpha(0.8f),
             ) { ArtView(Art.Img("ic_hand", Art.Emoji("👆")), Modifier.fillMaxSize()) }
         }
-        if (closed) Box(Modifier.offset { IntOffset((knob.x - wpx * 0.03f).roundToInt(), (knob.y - knobR * 2.6f).roundToInt()) }.size((wpx * 0.06f / density).dp)) {
+        // 반짝이는 손잡이 오른쪽 옆 — 위에 두면 안내 띠 밑에 숨었다(10-05 실기기)
+        if (closed) Box(Modifier.offset { IntOffset((knob.x + knobR * 1.4f).roundToInt(), (knob.y - knobR).roundToInt()) }.size((wpx * 0.06f / density).dp)) {
             ArtView(Art.Img("prop_sparkle", Art.Emoji("✨")), Modifier.fillMaxSize())
         }
     }
