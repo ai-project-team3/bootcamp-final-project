@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """배경 조각 굽기 (#97 · docs/배경_조각_목록.md §3) — gen_coop.py 와 같은 파이프라인(krea2 turbo → BiRefNet).
 
-    python tools/gen_kit.py OUT_DIR [묶음 ...] [--seeds N]
+    python tools/gen_kit.py OUT_DIR [묶음 ...] [--seeds N] [--only 조각,조각]
 
 묶음: common · park (1순위). 결과는 OUT_DIR/kit_{묶음}_{조각}_{후보}.png — 눈으로 고른 뒤 넘긴다.
 """
@@ -30,7 +30,9 @@ KITS = {
         "seesaw": "seesaw",
         "sandbox": "low square wooden sandbox filled with sand and a small bucket, no roof",   # 지붕 달린 가판대가 나왔다
         "bench": "park bench",
-        "street_lamp": "old street lamp",
+        # 「old street lamp」는 등 머리만 크게 나와 공원 한가운데 거대한 등이 됐다(#109 · 10-05 조장) — 기둥 · 받침까지, 세로 판에
+        "street_lamp": "old street lamp standing on a long thin straight pole with a small round base on the ground, "
+                       "the whole lamp from base to small lamp head, the pole is much taller than the lamp head",
         "ball": "red and white ball",
         "balloons": "bunch of balloons",
         "kite": "diamond kite",
@@ -38,22 +40,30 @@ KITS = {
     },
 }
 
+# 세로로 긴 조각은 세로 판에 굽는다 — 정사각 판에서는 위아래가 잘렸다
+SIZES = {"street_lamp": (768, 1344)}
+
 if __name__ == "__main__":
     out = sys.argv[1]
     args = sys.argv[2:]
     seeds = 3
     if "--seeds" in args:
         i = args.index("--seeds"); seeds = int(args[i + 1]); args = args[:i] + args[i + 2:]
+    only = None
+    if "--only" in args:
+        i = args.index("--only"); only = set(args[i + 1].split(",")); args = args[:i] + args[i + 2:]
     get("/system_stats")
     os.makedirs(out, exist_ok=True)
     for kit in (args or list(KITS)):
         for key, phrase in KITS[kit].items():
+            if only and key not in only:
+                continue
             name = f"kit_{kit}_{key}"
             for k in range(seeds):
                 path = os.path.join(out, f"{name}_{k}.png")
                 if os.path.exists(path):
                     continue
-                img = run(txt2img(f"a cute felt {phrase}, " + CUT, 1024, 1024, name, random.randint(1, 2**31)), f"{name}#{k}")
+                img = run(txt2img(f"a cute felt {phrase}, " + CUT, *SIZES.get(key, (1024, 1024)), name, random.randint(1, 2**31)), f"{name}#{k}")
                 if not img:
                     continue
                 cut = run(bgremove(upload(img), name), name + " cut")
