@@ -149,7 +149,7 @@ fun WithdrawSheet(d: Director) {
             Text("탈퇴하면 이렇게 돼요", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = InkBrown)
             Spacer(Modifier.height(12.dp))
             Item("👤", "보호자 계정과 기록이 바로 삭제돼요")
-            Item("📚", "이 폰에 있는 책 ${books}권 · 그림 · 녹음")
+            Item("📚", if (Shell.wipeLocal) "이 폰의 책 ${books}권 · 그림 · 녹음 · 아이 이름도 지워요" else "이 폰의 책 ${books}권 · 그림 · 녹음은 남아요")
             CheckRow(Shell.wipeLocal, "폰 안의 책 · 그림 · 녹음도 함께 지우기", { Shell.wipeLocal = !Shell.wipeLocal })
             CheckRow(checked, "안내를 모두 확인했어요", { checked = !checked })
         }
@@ -164,9 +164,13 @@ fun WithdrawSheet(d: Director) {
                     // 서버 계정 즉시 삭제 → 동의 철회 → (고르면) 폰 데이터 삭제 → 처음 상태로
                     Accounts.withdraw(ctx)          // 소셜이면 그 회사와 앱의 연결도 끊는다(unlink)
                     ConsentStore.withdraw()
-                    if (Shell.wipeLocal) d.s.shelf.clear()   // TODO: 책 · 그림 · 녹음을 파일로 저장하게 되면 그 파일도 지운다
+                    // 고르면 폰에 저장된 책 · 그림 · 녹음 · 아이 이름까지 파일째 지운다 (10-05 — 전엔 화면 목록만 비워 다시 켜면 돌아왔다)
+                    val wiped = Shell.wipeLocal
+                    if (wiped) { LocalWipe.wipe(ctx); d.s.shelf.clear() }
                     d.send(Reply.Tapped("home", "처음으로"))
                     Shell.resetToFirstRun()
+                    // 흐름 · 책장이 메모리에 쥐고 있던 책까지 놓도록 화면을 새로 띄운다(지운 저장소에서 다시 읽는다)
+                    if (wiped && !com.example.finalproject_demo.ui.motionFrozen) (ctx as? android.app.Activity)?.recreate()
                 }
             },
             cta2 = "취소", onCta2 = { Shell.sheet = Sheet.NONE },
