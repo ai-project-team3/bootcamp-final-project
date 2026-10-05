@@ -41,6 +41,17 @@ def test_an_unknown_kind_or_mission_is_refused(client):
     assert client.post("/story", json={"slots": {}, "pages": [{"kind": "RUB", "mission": "Z9"}]}).status_code == 422
 
 
+# #86: the cover title rides along; a bad one is dropped, the book still goes
+def test_a_bad_title_is_dropped_and_the_book_kept():
+    from app.schemas.story import Scene, StoryResult
+    req = StoryRequest(slots={})
+    book = lambda t: StoryResult(title=t, scenes=[Scene(index=1, caption="{주인공}이 갔어요.", keywords="x")])  # noqa: E731
+    assert story_route.stamp(book(" 공룡 나라의 불 끄기 "), req).title == "공룡 나라의 불 끄기"
+    assert story_route.stamp(book("{이름}의 모험"), req).title is None
+    assert story_route.stamp(book(""), req).title is None
+    assert story_route.check(book("{이름}의 모험"), "story", [Page(kind="DEPART")]) is None   # title never rejects a book
+
+
 # #101: the app may pick C3 (make the sound) once the server knows it — before 10-05 it was a 422
 def test_the_missions_added_for_coop_are_accepted(client):
     for m in ("A7", "A8", "A9", "C3", "D4", "D5"):

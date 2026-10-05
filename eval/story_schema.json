@@ -3,8 +3,9 @@
   "description": "동화책 장면 목록. 구현 계약은 backend/app/schemas/story.py(StoryResult/Scene), 프롬프트 전문은 guidelines/7_프롬프트.md §5, API 예시는 guidelines/3_API_명세.md §3-3.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["scenes"],
+  "required": ["title", "scenes"],
   "properties": {
+    "title": { "type": ["string", "null"] },
     "scenes": {
       "type": "array",
       "items": {
