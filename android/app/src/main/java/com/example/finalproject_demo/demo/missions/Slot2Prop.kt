@@ -39,6 +39,9 @@ enum class FixProp(
     /** A4 돌려 잠그기 — 수도꼭지 손잡이를 빙글빙글 돌리면 물이 멈춘다 */
     FAUCET(MissionId.A4, "prop_faucet", "🚰", "수도꼭지에서 물이 졸졸 새고 있어요.", "수도꼭지를 빙글빙글 돌려 꽉 잠갔어요.", "물이 딱 멈췄어요.",
         "수도꼭지를 빙글빙글 돌려서 잠가 볼래?", "꽉! 물이 딱 멈췄어!"),
+    /** D4 기울여 굴리기 — 폰을 살살 기울여 공을 골대로. 센서가 없으면 끌어서 */
+    BALL(MissionId.D4, "coop_el_soccer", "⚽", "공이 골대에서 멀리 떨어져 있어요.", "공을 데굴데굴 굴려 골대에 넣었어요.", "공이 골대에 쏙 들어갔어요.",
+        "폰을 살살 기울여서 공을 골대로 굴려 볼래? 손으로 끌어도 돼!", "데굴데굴 쏙! 골인!"),
 }
 
 /**
@@ -49,8 +52,10 @@ fun fixPropIn(solution: String, problem: String): FixProp? = when {
     // 「끄」 하나만 보면 「미끄럼틀」이 걸린다 — 「불을 끄 · 꺼 줬」처럼 불과 함께 쓴 말이나 「껐」만
     listOf("껐", "불을 끄", "불 끄", "불을 꺼", "물을 뿌", "물 뿌", "물대포", "소방").any { it in solution } -> FixProp.FIRE
     listOf("잠갔", "잠궜", "잠가", "잠그", "잠궈", "수도꼭지", "꼭지").any { it in solution } -> FixProp.FAUCET
+    listOf("굴렸", "굴려", "데굴", "골인", "공을 넣", "공 넣", "골을 넣").any { it in solution } -> FixProp.BALL
     listOf("불이 났", "불났", "불이 붙", "연기", "불이 나").any { it in problem } -> FixProp.FIRE
     listOf("샜", "새서", "새고", "물이 새", "넘쳤", "물이 넘", "수도꼭지").any { it in problem } -> FixProp.FAUCET
+    listOf("공이 굴러", "공이 데굴", "공을 놓쳤", "공이 멀리").any { it in problem } -> FixProp.BALL
     else -> null
 }
 
