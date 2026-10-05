@@ -1444,6 +1444,7 @@ private suspend fun Director.sceneMaking() {
 private suspend fun Director.sceneBook() {
     inputs(false, false)
     val d = s.dino.name
+    val soundHolder = s.storySoundHolder()
     val m1 = s.mission1()
     val m2 = s.mission2()
     val last = s.pageCount
@@ -1464,7 +1465,7 @@ private suspend fun Director.sceneBook() {
             i == dragPage -> if (s.m2Result == null) s.m2Line(s.m1Result == "helped") else s.m2Done()
             // 일기 모드에는 공룡 소리 칸이 없다 — 묻지 않는 칸이다 (§2-2)
             i == last && s.isDiary -> "오른쪽 책 버튼을 눌러 봐! 오늘 이야기가 여기서 끝나."
-            i == last && s.storySoundClip != null -> "${d}${eul(d)} 눌러 봐! 내가 만든 소리가 나와."
+            i == last && s.storySoundClip != null && soundHolder != null -> "${soundHolder.name}${eul(soundHolder.name)} 눌러 봐! 내가 만든 소리가 나와."
             i == last && Server.liveFor(s.mode) -> "오른쪽 책 버튼을 눌러 봐! 우리 이야기가 여기서 끝나."
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
@@ -1478,7 +1479,7 @@ private suspend fun Director.sceneBook() {
             )
             i == dragPage && s.m2Result == null -> log("${i}쪽 미션 2 (${if (s.m1Result == "helped") "쉬움 · 탭" else "보통 · 끌어다 놓기"}) — ${if (s.isDiary) "4턴째에 말한" else "장면 10에서 말한"} ${m2.itemName}${eul(m2.itemName)} ${s.friendCallName}에게")
             i == last && s.isDiary -> log("${i}쪽(마지막): 일기 모드도 미션 난이도 신호가 그대로 나온다 (§7-1 ②) · 공룡 소리 칸은 묻지 않았다 (§2-2)")
-            i == last -> log("${i}쪽(마지막): ${if (s.partnerHelpLine != null) "${s.pn} 참여 한 줄 들어감" else "${s.pn}${ga(s.pn)} 답하지 않아 그 줄 없음"} · ${d}${eul(d)} 누르면 녹음한 소리")
+            i == last -> log("${i}쪽(마지막): ${if (s.partnerHelpLine != null) "${s.pn} 참여 한 줄 들어감" else "${s.pn}${ga(s.pn)} 답하지 않아 그 줄 없음"} · 소리 대상 ${soundHolder?.name ?: "없음"}")
             else -> log("${i}쪽 [${s.pageKind(i)}] — 템플릿 ${s.template?.code} 칸으로 만든 자막")
         }
     }
@@ -1533,7 +1534,7 @@ private suspend fun Director.sceneBook() {
                 log("미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (연출은 공통)")
                 mark("book")
             }
-            vv == "dino" -> {
+            vv == "dino" || vv == "sound" -> {
                 if (s.mode == StoryMode.STORY) playStorySound()
                 log("친구 소리 재생 · 녹음이 없으면 조용히 유지")
             }

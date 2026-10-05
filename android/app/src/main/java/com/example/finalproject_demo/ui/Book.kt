@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import com.example.finalproject_demo.demo.coopMetLabel
 import com.example.finalproject_demo.demo.heroImageName
 import com.example.finalproject_demo.demo.storyHeroArt
+import com.example.finalproject_demo.demo.storySoundHolder
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -293,6 +294,10 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
 
     val kind = if (page == 0) PageKind.COVER else savedBook?.pages?.getOrNull(page - 1)?.kind ?: s.pageKind(page)
     val last = savedBook?.pages?.size ?: s.pageCount
+    val soundHolder = s.storySoundHolder()
+    val replayTarget = soundHolder?.target?.takeIf { s.storySoundClip != null }
+
+    fun replaySound() = onReply(Reply.Tapped("sound", soundHolder?.name.orEmpty()))
 
     /**
      * **쪽에 적힌 대로 움직인다** (9/21).
@@ -464,9 +469,11 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
             PageKind.TOGETHER -> {
                 Scenery(glow = if (s.isDiary) s.diaryGlow else s.hotspots.map { it.key }.toSet())
                 Box(Modifier.align(Alignment.TopCenter).padding(top = 76.dp).size(110.dp, 50.dp).alpha(twinkle)) { ArtView(Art.Img("prop_sparkle", Art.Emoji("⭐✨⭐")), Modifier.fillMaxSize()) }
-                Char("hero", heroArt, 0.17f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(heroPose), stand = 1f, act = heroAct)
-                if (friendShown != null) Char("friend", friendShown, 0.42f, 0.26f, 0.17f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }, stand = 0.85f)
-                if (showDino) Char("dino", dinoArt, 0.72f, 0.20f, 0.28f, 1.35f, Modifier.offset { IntOffset(0, bob.roundToInt()) }, onHand = { d.send(Reply.Tapped("dino", s.dino.label)) }, stand = 0.92f, act = dinoAct)
+                Char("hero", heroArt, 0.17f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(heroPose),
+                    onHand = if (replayTarget == "hero") ({ replaySound() }) else null, stand = 1f, act = heroAct)
+                if (friendShown != null) Char("friend", friendShown, 0.42f, 0.26f, 0.17f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) },
+                    onHand = if (replayTarget == "friend") ({ replaySound() }) else null, stand = 0.85f)
+                if (showDino) Char("dino", dinoArt, 0.72f, 0.20f, 0.28f, 1.35f, Modifier.offset { IntOffset(0, bob.roundToInt()) }, onHand = { onReply(Reply.Tapped("dino", s.dino.label)) }, stand = 0.92f, act = dinoAct)
                 if (s.partnerHelpLine != null) {
                     Layer(0.80f, 0.34f, 0.10f) { ArtView(Art.Img(s.partner.img, Art.Emoji(s.partner.emoji)), Modifier.fillMaxSize()) }
                 }

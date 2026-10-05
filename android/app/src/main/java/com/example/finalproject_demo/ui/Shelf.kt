@@ -216,6 +216,7 @@ fun SavedStoryView(d: Director, stage: Stage.SavedStory) {
                     "speak" -> reader.say(if (page == 0) book.title else book.pages[page - 1].caption)
                     "next" -> d.send(if (page == book.pages.size) Reply.Tapped("close", "책장") else reply)
                     "prev" -> d.send(reply)
+                    "dino" -> reader.send(reply)
                 }
             })
             Box(Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 12.dp)) {
