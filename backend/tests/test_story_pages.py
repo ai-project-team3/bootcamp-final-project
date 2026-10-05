@@ -142,3 +142,11 @@ def test_each_mode_reads_its_own_prompt():
 def test_the_coop_prompt_closes_a_soon_book_without_ending_the_day():
     coop = story_route.system("coop")
     assert "하루가 저물었어요" in coop and "그날이 정말 기다려져요" in coop
+
+
+# 10-05: the mission page sets up the object the app's mission then uses
+def test_the_mission_prop_reaches_the_plan():
+    req = StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1", prop="맛있는 간식")])
+    assert "「맛있는 간식」" in story_route.plan(req)
+    assert "「" not in story_route.plan(StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1")]))
+
