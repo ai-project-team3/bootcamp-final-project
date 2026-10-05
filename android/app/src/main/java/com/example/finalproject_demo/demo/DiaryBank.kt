@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.slot2Prop
+
 /*
  * 일기 모드 · 부모 협업 모드의 질문 세트와 책 한 장.
  * 근거: `일기모드_설계.md`(2026-09-18 · 9/21 고침) · `부모협업모드_설계.md`(9/21) §5
@@ -558,6 +560,11 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
                 //  ② 마스코트가 메운 결말에는 잇는 말을 붙이지 않는다 (main · 최민우).
                 //     아이가 지어낸 결말이 아닌데 잇는 말을 붙이면 책이 아이 말인 척한다
                 val sol = st.slots["solution"]?.takeIf { it.isNotBlank() }
+                // 자리 2 가 해결 동작 미션(A1 · A4 · D4 · E2 · A5)이면 그 미션이 곧 해결이다 — 아이의 해결 문장을 앞에 붙이면
+                // 「물을 뿌려서 껐어. 그리고 불이 활활 타오르고 있어요.」처럼 앞뒤가 어긋났다(10-05 실기기). 미션 전 · 뒤 문장만
+                st.slot2Prop()?.let { p ->
+                    return@PageSpec if (st.m2Result == null) p.before else "${st.childName}${eun(st.childName)} ${p.did} ${p.result}"
+                }
                 // 같이 만들기 — 미션 전에는 아직 건네지 않았다 (#98)
                 val give = if (st.isCoop && st.m2Result == null) st.m2Before() else st.m2Clause()
                 if (sol == null) "${st.childName}${eun(st.childName)} $give"

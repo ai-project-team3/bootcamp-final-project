@@ -8,6 +8,9 @@ import com.example.finalproject_demo.demo.missionFor
 import com.example.finalproject_demo.demo.missions.MissionId
 import com.example.finalproject_demo.demo.missions.StoryFacts
 import com.example.finalproject_demo.demo.missions.pickMissions
+import com.example.finalproject_demo.demo.bookCaption
+import com.example.finalproject_demo.demo.pageKind
+import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.demo.m2Done
 import com.example.finalproject_demo.demo.m2Before
 import com.example.finalproject_demo.demo.m2Line
@@ -225,5 +228,20 @@ class MissionPickerTest {
             coop2("친구가 블록을 쳤어", "다시 쌓았어") to MissionId.A5,
             coop2("장난감이 부서졌어", "다시 쌓았어") to MissionId.A5,                 // 해결 동사가 먼저
         ).forEach { (f, want) -> assertEquals("${f.slot1Words} / ${f.slot2Words}", want, pickMissions(f).slot2) }
+    }
+
+    /** 10-05 실기기 — 자리 2 해결 미션 쪽 문장이 「물을 뿌려서 껐어. 그리고 불이 활활 타오르고 있어요.」로 앞뒤가 어긋났다 */
+    @Test
+    fun theSlot2PageSaysOnlyBeforeThenWhatTheChildDid() {
+        val s = DemoState().apply {
+            mode = StoryMode.COOP
+            problem = "부엌에서 불이 났어"; slots["problem"] = problem!!
+            solution = "물을 뿌려서 껐어"; slots["solution"] = solution!!
+            slotBy["solution"] = "child"
+        }
+        val drag = (1..s.pageCount).first { s.pageKind(it) == PageKind.DRAG }
+        assertEquals("불이 활활 타오르고 있어요.", s.bookCaption(drag))
+        s.m2Result = "solo"
+        assertEquals("${s.childName}${if (com.example.finalproject_demo.demo.bat(s.childName)) "은" else "는"} 물대포로 치익~ 불을 다 껐어요. 불이 다 꺼졌어요.", s.bookCaption(drag))
     }
 }

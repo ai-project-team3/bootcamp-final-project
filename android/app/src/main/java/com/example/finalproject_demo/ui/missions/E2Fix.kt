@@ -66,12 +66,13 @@ internal fun FixMission(d: Director, done: Boolean, heroArt: Art) {
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
-        val center = Offset(0.62f * wpx, 0.45f * hpx)
-        val radius = 0.11f * wpx
+        // 책 화면의 위 1/4(도구 줄 · 안내)과 아래 문장 띠 사이에 다 들어가게 — 크면 위아래가 가렸다(10-05 실기기)
+        val center = Offset(0.62f * wpx, 0.52f * hpx)
+        val radius = 0.085f * wpx
         // 부채꼴 셋(각 120°) — 0번은 원판에 붙어 있고, 1 · 2번이 떨어져 있다
         val sweep = 120f
         val homes = listOf(center, center)                         // 붙으면 원판 가운데 기준으로 그린다
-        val starts = listOf(Offset(0.36f * wpx, 0.66f * hpx), Offset(0.86f * wpx, 0.70f * hpx))
+        val starts = listOf(Offset(0.36f * wpx, 0.58f * hpx), Offset(0.84f * wpx, 0.56f * hpx))
         Stand(0.14f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
 
         fun pos(i: Int) = if (snapped[i]) homes[i] else at[i] ?: starts[i]

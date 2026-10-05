@@ -66,8 +66,9 @@ internal fun StackMission(d: Director, done: Boolean, heroArt: Art) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
         val b = 0.075f * wpx                                       // 블록 한 변
-        val base = Offset(0.64f * wpx, 0.72f * hpx)                 // 탑 맨 아래 칸의 가운데
-        val starts = listOf(Offset(0.34f * wpx, 0.74f * hpx), Offset(0.44f * wpx, 0.78f * hpx), Offset(0.84f * wpx, 0.76f * hpx))
+        // 아래 문장 띠에 가리지 않게 바닥을 조금 위로(10-05 실기기)
+        val base = Offset(0.64f * wpx, 0.64f * hpx)                 // 탑 맨 아래 칸의 가운데
+        val starts = listOf(Offset(0.34f * wpx, 0.64f * hpx), Offset(0.44f * wpx, 0.68f * hpx), Offset(0.84f * wpx, 0.66f * hpx))
         Stand(0.14f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
 
         fun slot(n: Int) = Offset(base.x, base.y - n * b * 0.88f)      // 위 블록 돌기가 아래 블록에 살짝 묻힌다
@@ -137,7 +138,8 @@ internal fun StackMission(d: Director, done: Boolean, heroArt: Art) {
                 ArtView(Art.Img("ic_hand", Art.Emoji("👆")), Modifier.fillMaxSize())
             }
         }
-        if (stacked) Box(Modifier.offset { IntOffset((base.x - wpx * 0.03f).roundToInt(), (slot(3).y - b).roundToInt()) }.size((wpx * 0.06f / density).dp)) {
+        // 반짝이는 탑 꼭대기 오른쪽 옆 — 위에 두면 책 도구 줄에 걸쳤다(10-05 실기기)
+        if (stacked) Box(Modifier.offset { IntOffset((base.x + b * 0.7f).roundToInt(), (slot(2).y - b).roundToInt()) }.size((wpx * 0.06f / density).dp)) {
             ArtView(Art.Img("prop_sparkle", Art.Emoji("✨")), Modifier.fillMaxSize())
         }
     }

@@ -150,7 +150,8 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
             "「${prop.sound}!」",
             fontSize = 34.sp, color = Coral, fontWeight = FontWeight.Bold,
             modifier = Modifier
-                .offset { IntOffset((cx - size * 0.55f).roundToInt(), (cy - size * 0.95f).roundToInt()) }
+                // 소품 오른쪽 옆 — 위에 두면 책 위쪽의 도구 줄 · 안내와 겹쳐 잘렸다(10-05 실기기)
+                .offset { IntOffset((cx + size * 0.6f).roundToInt(), (cy - size * 0.35f).roundToInt()) }
                 .scale(beat)
                 .felt(FeltWhite, RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
                 .padding(horizontal = 18.dp, vertical = 6.dp),

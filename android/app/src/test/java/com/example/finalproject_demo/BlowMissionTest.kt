@@ -166,7 +166,7 @@ class BlowMissionTest {
         snap("build/touch/turn_before.png")
         val got = awaitMission(d)
         compose.onRoot().performTouchInput {
-            val c = Offset(width * (0.58f - 0.17f * 0.26f), height * 0.44f - width * 0.17f * 0.62f)
+            val c = Offset(width * (0.58f - 0.17f * 0.26f), height * 0.60f - width * 0.17f * 0.62f)
             val r = width * 0.17f * 0.30f
             fun at(t: Double) = Offset(c.x + (r * kotlin.math.cos(t)).toFloat(), c.y + (r * kotlin.math.sin(t)).toFloat())
             down(at(0.0))
@@ -190,7 +190,7 @@ class BlowMissionTest {
         compose.mainClock.advanceTimeBy(600)
         val got = awaitMission(d)
         repeat(5) {
-            compose.onRoot().performTouchInput { click(Offset(width * (0.58f - 0.17f * 0.26f), height * 0.44f - width * 0.17f * 0.62f)) }
+            compose.onRoot().performTouchInput { click(Offset(width * (0.58f - 0.17f * 0.26f), height * 0.60f - width * 0.17f * 0.62f)) }
             compose.mainClock.advanceTimeBy(300)
         }
         compose.mainClock.advanceTimeBy(1000)
@@ -241,8 +241,8 @@ class BlowMissionTest {
     @Test
     fun draggingThePiecesBackFixesIt() {
         val reply = runMission("fix", { com.example.finalproject_demo.ui.missions.FixMission(it, false, hero) }) {
-            val home = Offset(width * 0.62f, height * 0.45f)
-            listOf(Offset(width * 0.36f, height * 0.66f), Offset(width * 0.86f, height * 0.70f)).forEach { from ->
+            val home = Offset(width * 0.62f, height * 0.52f)
+            listOf(Offset(width * 0.36f, height * 0.58f), Offset(width * 0.84f, height * 0.56f)).forEach { from ->
                 down(from)
                 for (k in 1..20) moveTo(from + (home - from) * (k / 20f), delayMillis = 16)
                 up()
@@ -255,7 +255,7 @@ class BlowMissionTest {
     @Test
     fun tappingThePiecesAlsoFixesIt() {
         val reply = runMission("fix_tap", { com.example.finalproject_demo.ui.missions.FixMission(it, false, hero) }) {
-            click(Offset(width * 0.36f, height * 0.66f)); click(Offset(width * 0.86f, height * 0.70f))
+            click(Offset(width * 0.36f, height * 0.58f)); click(Offset(width * 0.84f, height * 0.56f))
         }
         assertTrue("조각을 눌렀는데 안 끝났다: $reply", reply is Reply.Tapped && reply.value == "mission")
     }
@@ -265,8 +265,8 @@ class BlowMissionTest {
     fun draggingTheBlocksUpStacksThem() {
         val reply = runMission("stack", { com.example.finalproject_demo.ui.missions.StackMission(it, false, hero) }) {
             val b = width * 0.075f
-            listOf(Offset(width * 0.34f, height * 0.74f), Offset(width * 0.44f, height * 0.78f), Offset(width * 0.84f, height * 0.76f)).forEachIndexed { n, from ->
-                val top = Offset(width * 0.64f, height * 0.72f - n * b * 0.88f)
+            listOf(Offset(width * 0.34f, height * 0.64f), Offset(width * 0.44f, height * 0.68f), Offset(width * 0.84f, height * 0.66f)).forEachIndexed { n, from ->
+                val top = Offset(width * 0.64f, height * 0.64f - n * b * 0.88f)
                 down(from)
                 for (k in 1..20) moveTo(from + (top - from) * (k / 20f), delayMillis = 16)
                 up()
@@ -279,7 +279,7 @@ class BlowMissionTest {
     @Test
     fun tappingTheBlocksAlsoStacksThem() {
         val reply = runMission("stack_tap", { com.example.finalproject_demo.ui.missions.StackMission(it, false, hero) }) {
-            listOf(0.34f to 0.74f, 0.44f to 0.78f, 0.84f to 0.76f).forEach { (x, y) -> click(Offset(width * x, height * y)) }
+            listOf(0.34f to 0.64f, 0.44f to 0.68f, 0.84f to 0.66f).forEach { (x, y) -> click(Offset(width * x, height * y)) }
         }
         assertTrue("블록을 눌렀는데 안 끝났다: $reply", reply is Reply.Tapped && reply.value == "mission")
     }
