@@ -124,6 +124,8 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
     // 손으로 문지르는 길은 **그대로 남는다.** 불기는 덤이지 대신이 아니다 (실패 없는 설계).
     val blowable = m.blobName.contains("먼지") || m.blobName.contains("모래") || m.blobName.contains("가루")
     val blow = rememberBlowLevel(blowable && !allOut)
+    // 반복문 안에서는 늘 지금 세기를 읽는다 — 그냥 blow 를 쓰면 처음 값(0)에 묶여 아무리 불어도 약하다고 봤다(10-05 실기기)
+    val blowNow by androidx.compose.runtime.rememberUpdatedState(blow)
     var showHint by remember { mutableStateOf(false) }
     LaunchedEffect(progress, allOut) {
         showHint = false
@@ -184,13 +186,13 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
             while (true) {
                 withFrameNanos { }
                 // 후~ 부는 세기만큼 흔적이 날아간다. 세게 불수록 빨리 사라진다
-                if (blowable && blow > 0.22f) {
+                if (blowable && blowNow > 0.22f) {
                     blobs.forEachIndexed { i, b ->
                         if (rub[i] < 3f) {
                             val before = rub[i]
-                            rub[i] = minOf(3f, rub[i] + blow * 0.09f)
+                            rub[i] = minOf(3f, rub[i] + blowNow * 0.09f)
                             // 날아가는 것이 보이게 — 바람을 타고 옆으로 흩어진다
-                            puffs.water(b.x, b.y, blow * wpx * 0.02f, -blow * wpx * 0.004f, wpx * 0.03f)
+                            puffs.water(b.x, b.y, blowNow * wpx * 0.02f, -blowNow * wpx * 0.004f, wpx * 0.03f)
                             if (before < 3f && rub[i] >= 3f) Sfx.play(Sound.SPARKLE, 0L, view = view)
                         }
                     }

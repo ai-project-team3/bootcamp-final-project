@@ -8,6 +8,9 @@ import com.example.finalproject_demo.demo.missionFor
 import com.example.finalproject_demo.demo.missions.MissionId
 import com.example.finalproject_demo.demo.missions.StoryFacts
 import com.example.finalproject_demo.demo.missions.pickMissions
+import com.example.finalproject_demo.demo.bookCaption
+import com.example.finalproject_demo.demo.pageKind
+import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.demo.m2Done
 import com.example.finalproject_demo.demo.m2Before
 import com.example.finalproject_demo.demo.m2Line
@@ -173,7 +176,7 @@ class MissionPickerTest {
             coop2("수도꼭지에서 물이 샜어", "꽉 잠갔어") to (MissionId.A6 to MissionId.A4),
             coop2("불이 났어", "다 같이 도망갔어") to (MissionId.A6 to MissionId.A1),           // 해결에 동사가 없으면 문제 칸의 사물
             coop2("물이 넘쳤어", null, tried = "수건으로 닦았어") to (MissionId.A6 to MissionId.A4),
-            coop2("블록이 무너졌어", "다시 쌓았어") to (MissionId.A6 to MissionId.E1),          // A5 쌓기는 아직
+            coop2("블록이 무너졌어", "다시 쌓았어") to (MissionId.A6 to MissionId.A5),
             coop2(null, null) to (MissionId.A6 to MissionId.E1),
             coop2("친구가 밀었어", "같이 미끄럼틀을 탔어") to (MissionId.A6 to MissionId.E1),   // 「미끄럼틀」의 「끄」는 불 끄기가 아니다
         )
@@ -212,5 +215,33 @@ class MissionPickerTest {
             coop2("공이 굴러가서 없어졌어", "다 같이 찾았어") to MissionId.D4,      // 해결에 동사가 없으면 문제 칸
             coop2("공이 굴러갔어", "물을 뿌려서 껐어") to MissionId.A1,               // 해결 동사가 먼저
         ).forEach { (f, want) -> assertEquals("${f.slot1Words} / ${f.slot2Words}", want, pickMissions(f).slot2) }
+    }
+
+    // ── 1-b E2 고쳐 주기 · A5 쌓기 (#101) ─────────────────────────────
+
+    @Test
+    fun fixingAndStackingWordsPickE2AndA5() {
+        mapOf(
+            coop2("장난감이 부서졌어", "아빠가 고쳐 줬어") to MissionId.E2,
+            coop2("로봇이 망가졌어", "같이 찾아봤어") to MissionId.E2,                 // 해결에 동사가 없으면 문제 칸
+            coop2("탑이 와르르 무너졌어", null) to MissionId.A5,
+            coop2("친구가 블록을 쳤어", "다시 쌓았어") to MissionId.A5,
+            coop2("장난감이 부서졌어", "다시 쌓았어") to MissionId.A5,                 // 해결 동사가 먼저
+        ).forEach { (f, want) -> assertEquals("${f.slot1Words} / ${f.slot2Words}", want, pickMissions(f).slot2) }
+    }
+
+    /** 10-05 실기기 — 자리 2 해결 미션 쪽 문장이 「물을 뿌려서 껐어. 그리고 불이 활활 타오르고 있어요.」로 앞뒤가 어긋났다 */
+    @Test
+    fun theSlot2PageSaysOnlyBeforeThenWhatTheChildDid() {
+        val s = DemoState().apply {
+            mode = StoryMode.COOP
+            problem = "부엌에서 불이 났어"; slots["problem"] = problem!!
+            solution = "물을 뿌려서 껐어"; slots["solution"] = solution!!
+            slotBy["solution"] = "child"
+        }
+        val drag = (1..s.pageCount).first { s.pageKind(it) == PageKind.DRAG }
+        assertEquals("불이 활활 타오르고 있어요.", s.bookCaption(drag))
+        s.m2Result = "solo"
+        assertEquals("${s.childName}${if (com.example.finalproject_demo.demo.bat(s.childName)) "은" else "는"} 물대포로 치익~ 불을 다 껐어요. 불이 다 꺼졌어요.", s.bookCaption(drag))
     }
 }

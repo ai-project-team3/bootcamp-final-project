@@ -42,6 +42,15 @@ enum class FixProp(
     /** D4 기울여 굴리기 — 폰을 살살 기울여 공을 골대로. 센서가 없으면 끌어서 */
     BALL(MissionId.D4, "coop_el_soccer", "⚽", "공이 골대에서 멀리 떨어져 있어요.", "공을 데굴데굴 굴려 골대에 넣었어요.", "공이 골대에 쏙 들어갔어요.",
         "폰을 살살 기울여서 공을 골대로 굴려 볼래? 손으로 끌어도 돼!", "데굴데굴 쏙! 골인!"),
+    /**
+     * E2 고쳐 주기 — 떨어져 나간 조각을 끌어다 제자리에 맞춘다. 무엇이 부서졌는지는 아이 말에 맡기고
+     * 화면 · 문장은 「조각」으로만 말한다 — 실제 일에 아이가 말하지 않은 물건을 지어내지 않는다(§3-8)
+     */
+    PIECES(MissionId.E2, "", "🧩", "조각이 떨어져 나가 있어요.", "떨어진 조각을 제자리에 꼭 맞췄어요.", "부서진 곳이 감쪽같이 고쳐졌어요.",
+        "떨어진 조각을 끌어서 제자리에 맞춰 줄래?", "딱! 감쪽같이 고쳐졌어!"),
+    /** A5 쌓기 — 흩어진 블록을 위로 끌어 올려 탑을 쌓는다 */
+    BLOCKS(MissionId.A5, "", "🧱", "블록이 바닥에 흩어져 있어요.", "블록을 하나씩 다시 쌓았어요.", "블록 탑이 높이 섰어요.",
+        "블록을 하나씩 끌어 올려서 탑을 쌓아 볼래?", "우와, 높은 탑이 됐어!"),
 }
 
 /**
@@ -53,9 +62,13 @@ fun fixPropIn(solution: String, problem: String): FixProp? = when {
     listOf("껐", "불을 끄", "불 끄", "불을 꺼", "물을 뿌", "물 뿌", "물대포", "소방").any { it in solution } -> FixProp.FIRE
     listOf("잠갔", "잠궜", "잠가", "잠그", "잠궈", "수도꼭지", "꼭지").any { it in solution } -> FixProp.FAUCET
     listOf("굴렸", "굴려", "데굴", "골인", "공을 넣", "공 넣", "골을 넣").any { it in solution } -> FixProp.BALL
+    listOf("고쳤", "고쳐", "붙였", "테이프", "맞췄").any { it in solution } -> FixProp.PIECES
+    listOf("쌓았", "쌓아", "다시 쌓", "탑을").any { it in solution } -> FixProp.BLOCKS
     listOf("불이 났", "불났", "불이 붙", "연기", "불이 나").any { it in problem } -> FixProp.FIRE
     listOf("샜", "새서", "새고", "물이 새", "넘쳤", "물이 넘", "수도꼭지").any { it in problem } -> FixProp.FAUCET
     listOf("공이 굴러", "공이 데굴", "공을 놓쳤", "공이 멀리").any { it in problem } -> FixProp.BALL
+    listOf("무너", "와르르").any { it in problem } -> FixProp.BLOCKS
+    listOf("부서", "망가", "깨졌", "고장", "찢어").any { it in problem } -> FixProp.PIECES
     else -> null
 }
 
