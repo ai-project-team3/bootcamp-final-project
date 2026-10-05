@@ -1092,6 +1092,9 @@ class DemoState {
             isCoop -> coopBackdrop()                     // 같이 만들기 — 고른 요소의 배경 (CoopScenes.kt · 10-02)
             isDiary -> diaryPlaceBg(placeLabel)
             mode == StoryMode.STORY && storyBackground != null -> storyBackground!!
+            // the stage draws the park kit from pieces, but the book and the making screen still want one
+            // picture — the bundled felt playground, not the unknown-place snow (10-05)
+            mode == StoryMode.STORY && sceneKit == "park" -> "bg_playground"
             generatedBg -> "bg_snow"
             else -> "bg_$themeKey"
         }
