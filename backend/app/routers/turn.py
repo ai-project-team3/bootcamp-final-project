@@ -30,9 +30,10 @@ EVAL = REPO / "eval"
 _LIMITS = {"ack": 8, "expand": 10, "question": 12}
 
 
-@lru_cache(maxsize=1)
-def system() -> str:
-    return system_block(EVAL / "line_prompt.md")
+@lru_cache(maxsize=None)
+def system(mode: str | None = None) -> str:
+    """The line prompt for [mode] — only that mode's piece (#121). No mode = every piece."""
+    return system_block(EVAL / "line_prompt.md", mode)
 
 
 def schema() -> dict:
@@ -112,7 +113,7 @@ async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30
         log.warning("line skipped: %.1fs left of the /turn deadline", budget_s)
         return None          # the phone asks its own next question; the verdict still counts
     try:
-        raw = await complete(system(), user(req, v), schema(), name="mascot_line",
+        raw = await complete(system(req.mode), user(req, v), schema(), name="mascot_line",
                              effort=settings.llm_effort_line, timeout_s=budget_s)
     except LLMError as e:
         log.warning("line failed: %s", e)

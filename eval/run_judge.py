@@ -33,9 +33,10 @@ def load_jsonl(path: Path):
                     raise ValueError(f"invalid JSONL at {path}:{line_no}: {e}") from e
 
 
-def load_system_prompt(path: Path, schema: dict) -> str:
+def load_system_prompt(path: Path, schema: dict, mode: str | None = "story") -> str:
     # Only the prompt block, the same function the server uses (prompt_block.py · 09-28).
-    base = judge_system(path)
+    # These are story cases, and the server sends a story request only the story piece (#121).
+    base = judge_system(path, mode)
     schema_text = json.dumps(schema, ensure_ascii=False, separators=(",", ":"))
     return f"{base}\n\n[공통 JSON 스키마]\n{schema_text}\n"
 
