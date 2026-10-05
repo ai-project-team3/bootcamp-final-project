@@ -79,7 +79,16 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             }
             // 10-05 device: the judge asks what the newcomer looks like (judge prompt example 「종류만 말했으니
             // 생김새를 더 묻는다」) and then the app asked to draw it as well. The drawing is that answer.
-            if (prompt.slot == "newcomer" && !s.slots["newcomer"].isNullOrBlank()) {
+            // 10-05 second round: also when the slot is still empty — 「바늘괴물은 어떻게 생겼어?」 asked it for the
+            // first time (the monster was only in the problem), then the drawing came on top of the spoken answer
+            val looks = prompt.slot == "newcomer" && Regex("생겼|모습|생김새").containsMatchIn(prompt.text)
+            if (looks && s.slots["newcomer"].isNullOrBlank()) {
+                // the one asked about, from the question itself: 「바늘괴물은 어떻게 생겼어?」 → 바늘괴물 (the child named it earlier)
+                Regex("^(.+?)(은|는|이|가) (어떻게|어떤)").find(prompt.text)?.groupValues?.get(1)?.trim()?.let {
+                    s.slots["newcomer"] = it; s.slotBy["newcomer"] = "child"; s.syncStoryPresentation()
+                }
+            }
+            if (prompt.slot == "newcomer" && !s.slots["newcomer"].isNullOrBlank() && (looks || s.storyClarificationSlot == "newcomer")) {
                 if (!friendDrawingPrepared) { prepareStoryFriendDrawing(); friendDrawingPrepared = true }
                 s.storyClarificationSlot = null; s.storyNextSlot = null; s.storyServerQuestion = null
                 log("새 친구 생김새 질문 → 그리기로 대신함")
@@ -225,6 +234,8 @@ private fun storyCauseKind(text: String): String = when {
 
 private fun storySolutionProp(text: String): Pair<String, String>? = when {
     "딸기" in text -> "share" to "strawberry"
+    // 10-05: 「맛있는 간식을 주는 거야」 fell to the default shiny stone
+    listOf("간식", "과자", "사탕", "빵", "먹을 거", "먹을것", "밥").any { it in text } -> "share" to "snack"
     "초대" in text -> "invite" to "invite"
     "풍선" in text -> "play" to "balloon"
     "반창고" in text -> "help" to "bandaid"

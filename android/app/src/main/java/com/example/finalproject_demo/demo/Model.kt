@@ -1290,6 +1290,11 @@ class DemoState {
     /** 되돌리기 · 앞으로 가기를 보일 차례인가 — `TurnHistory` 가 정한다 (10-02) */
     /** 이 이야기 주인공의 이름 — 아이가 인형에 지어 준 것. 없으면 `{주인공}` 은 아이 호칭으로 읽는다 */
     var storyHeroCall by mutableStateOf<String?>(null)
+
+    /** Who acts in the book's own lines. In a story it is the doll (삐에로), not the child's call (「친구」) —
+     *  10-05 device: 「친구는 또치에게 반짝이는 돌을 건네주었어요」 in a book whose hero was 삐에로 */
+    val storyActor: String get() =
+        if (mode == StoryMode.STORY) storyHeroCall?.takeIf(String::isNotBlank) ?: childName else childName
     /** 이름 확인 중 글 칸에서 고쳐 적은 이름 (`demo/HeroName.kt`) */
     var typedName: String? = null
     var canUndo by mutableStateOf(false)

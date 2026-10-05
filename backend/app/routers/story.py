@@ -94,6 +94,8 @@ def plan(req: StoryRequest) -> str:
             if pg.mission:
                 line += (f" · 미션 {pg.mission} {MISSION_SETUP[pg.mission]}. 이 상황으로 끝내고 풀지 않는다."
                          " 미션 이름 · 도구 이름 · '직전' 같은 설명 말은 쓰지 않고 이야기 속 장면으로만 보여 준다")
+                if pg.prop and not is_blocked(pg.prop):
+                    line += f" · 이 쪽에 나오는 물건은 「{pg.prop}」 — 다른 물건으로 바꾸지 않는다"
         lines.append(line)
     if req.mode != "story":
         lines.append(f"{TENSE[req.reason if req.mode == 'coop' else None]} 미션 쪽도 칸에 있는 일로만 쓰고, 없던 일을 지어내지 않는다.")

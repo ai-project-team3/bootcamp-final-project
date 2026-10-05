@@ -75,8 +75,7 @@ suspend fun Director.askStory(
         }
         s.storyServerQuestion = response.line?.question
         val line = response.line
-        val reaction = listOfNotNull(line?.ack?.takeIf(String::isNotBlank), line?.expand?.takeIf(String::isNotBlank))
-            .joinToString(" ")
+        val reaction = storyReaction(line?.ack, line?.expand)
         if (reaction.isNotBlank()) {
             say(reaction)
             pause(600)
@@ -233,4 +232,19 @@ suspend fun DemoState.exchangeStoryTurn(
         response.verdict?.let { applyStoryVerdict(it, by) }
         rememberStoryQuestion(response)
     }
+}
+
+/**
+ * The spoken reaction: ack, plus expand only when expand brings something new (10-05 device round).
+ * The line model often says the same thing twice — 「또치를 아저씨가 동물원으로 데리고 돌아갔구나. 또치와 아저씨가
+ * 동물원으로 돌아갔어.」. Words are compared by their first two letters, so 갔구나 / 갔어 count as the same.
+ */
+internal fun storyReaction(ack: String?, expand: String?): String {
+    val a = ack?.trim().orEmpty()
+    val e = expand?.trim().orEmpty()
+    if (e.isEmpty()) return a
+    if (a.isEmpty()) return e
+    fun stems(t: String) = Regex("[가-힣A-Za-z0-9]{2,}").findAll(t).map { it.value.take(2) }.toSet()
+    val new = stems(e) - stems(a)
+    return if (new.size * 2 < stems(e).size.coerceAtLeast(1)) a else "$a $e"
 }
