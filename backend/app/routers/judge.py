@@ -8,11 +8,14 @@ from fastapi import APIRouter, HTTPException
 
 from ..config import settings
 from ..filters.blocklist import is_blocked
-from ..llm import judge_prompt
+import logging
+
+from ..llm import jev, judge_prompt
 from ..llm.client import LLMError, complete
 from ..schemas.judge import JudgeRequest, JudgeResult, SLOT_NAMES
 
 router = APIRouter()
+log = logging.getLogger("otto.judge")
 
 # Order the mock walks when it picks the next slot. Only for MOCK=1 — the real
 # order is the model's call (rule 2: required slots are not fixed).
@@ -56,6 +59,13 @@ async def run(req: JudgeRequest) -> JudgeResult:
         return blocked()
     if settings.mock:
         return enforce(mock(req), req)
+    if req.mode in {m.strip() for m in settings.judge_jev_modes.split(",") if m.strip()}:
+        try:
+            raw = await jev.judge(judge_prompt.system(), judge_prompt.user(req), req.utterance)
+            log.info("judge jev %.2fs", raw.pop("_seconds", 0.0))
+            return enforce(JudgeResult.model_validate(raw), req)
+        except jev.JevError as e:
+            log.warning("judge jev failed, luna instead: %s", e)
     raw = await complete(judge_prompt.system(), judge_prompt.user(req), judge_prompt.schema(),
                          effort=settings.llm_effort_judge, timeout_s=settings.judge_deadline_s)
     return enforce(JudgeResult.model_validate(raw), req)

@@ -293,8 +293,60 @@ class ShellFlowTest {
         assertTrue("이야기 그림이 남았다", !pic.exists())
         assertTrue("아이 녹음이 남았다", !roar.exists())
         assertTrue("동의가 남았다", !ConsentStore.guardianAgreed)
+        assertTrue("마이크 동의가 남았다 — 다시 가입하면 마이크를 다시 물어야 한다", !ConsentStore.micNoticeShown)
         assertEquals("계정이 남았다", null, com.example.finalproject_demo.net.Accounts.guardian)
         assertTrue(!Shell.onboarded)
+    }
+
+    /**
+     * 계정마다 동의 · 마이크 (10-05) — 처음 설정을 끝낸 폰이라도 **새 보호자 계정**으로 가입하면 동의 → 마이크를 다시 거친다.
+     * 앞 보호자의 동의를 물려받지 않는다. 전에 마친 계정으로 다시 로그인하면 묻지 않고 방으로.
+     */
+    @Test
+    fun aNewAccountOnThisPhoneGivesItsOwnConsentAndMic() {
+        compose.activity.getSharedPreferences("otto_account", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        onboard()                                            // 카카오(개발용)로 처음 설정까지
+        val first = com.example.finalproject_demo.net.Accounts.guardian
+        assertTrue("처음 설정을 마친 계정이 기억되지 않았다", Shell.isReady(first))
+        // 로그아웃 → 다른 보호자가 이메일로 가입
+        tap("🔒"); compose.waitUntil(5_000) { director.s.stage is Stage.Pin }
+        "1234".forEach { tap(it.toString()) }; compose.mainClock.advanceTimeBy(600)
+        compose.waitUntil(5_000) { director.s.scene == com.example.finalproject_demo.demo.Scene.PARENT }
+        tap("계정"); compose.mainClock.advanceTimeBy(400)
+        compose.onAllNodes(hasText("로그아웃") and hasClickAction()).onLast().performScrollTo().performClick()
+        waitText("카카오로 시작하기")
+        tap("이메일로 회원가입"); waitText("영문 + 숫자 8자 이상")
+        compose.onNode(hasContentDescription("이메일")).performTextInput("second@example.com")
+        compose.onNode(hasContentDescription("비밀번호")).performTextInput("otto2026")
+        compose.onNode(hasContentDescription("비밀번호 확인")).performTextInput("otto2026")
+        tap("가입하기")
+        // 새 계정 — 동의부터 다시 (앞 보호자의 동의는 물려받지 않는다)
+        waitText("이렇게만 써요"); shot("25_new_account_consent")
+        assertTrue("앞 보호자의 동의가 그대로 남았다", !ConsentStore.guardianAgreed)
+        tap("약관에 모두 동의해요"); tap("동의하고 계속")
+        waitText("마이크"); shot("26_new_account_mic")
+        assertTrue("마이크를 건너뛰었다", Shell.step == Step.MIC)
+        tap("마이크 켜기")
+        compose.waitUntil(5_000) { Shell.step == Step.APP }
+        assertTrue(Shell.isReady(com.example.finalproject_demo.net.Accounts.guardian))
+        assertTrue(ConsentStore.micNoticeShown)
+        assertTrue(Shell.isReady(first))
+        // 같은 계정이라도 로그아웃했다 다시 들어오면 **마이크는 다시** 묻는다(동의는 그대로)
+        tap("🔒"); compose.waitUntil(5_000) { director.s.stage is Stage.Pin }
+        "1234".forEach { tap(it.toString()) }; compose.mainClock.advanceTimeBy(600)
+        compose.waitUntil(5_000) { director.s.scene == com.example.finalproject_demo.demo.Scene.PARENT }
+        tap("계정"); compose.mainClock.advanceTimeBy(400)
+        compose.onAllNodes(hasText("로그아웃") and hasClickAction()).onLast().performScrollTo().performClick()
+        waitText("카카오로 시작하기")
+        assertTrue("로그아웃했는데 마이크 동의가 남았다", !ConsentStore.micNoticeShown)
+        tap("이메일로 로그인"); waitText("이메일로 로그인")
+        compose.onNode(hasContentDescription("이메일")).performTextInput("second@example.com")
+        compose.onNode(hasContentDescription("비밀번호")).performTextInput("otto2026")
+        compose.onAllNodes(hasText("로그인") and hasClickAction()).onLast().performClick()
+        compose.waitUntil(8_000) { Shell.step == Step.MIC }
+        assertEquals("같은 계정인데 동의를 또 물었다", 0, count("이렇게만 써요"))
+        tap("마이크 켜기")
+        compose.waitUntil(5_000) { Shell.step == Step.APP }
     }
 
     /**

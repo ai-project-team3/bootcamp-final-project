@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
     llm_effort_judge: str = "none"
+    # Modes whose judge runs on TypeSafe Jev (comma list, e.g. "story"; empty = luna everywhere). Jev answers
+    # the nine choice/yes-no fields in p50 0.25 s vs luna 2.27 s (10-05 eval/bench_jev_turn.py); it writes no
+    # text, so one answer filling two slots keeps only the first and value_1 is the child's words uncut —
+    # that broke 2 co-op cases, none in story. Per mode because the team server is shared. Internal tests
+    # only: text goes to a vendor not in the privacy policy yet (docs/배경_조각_목록.md §6-4).
+    # Any Jev failure falls back to luna.
+    judge_jev_modes: str = ""
+    typesafe_api_key: str = ""
+    jev_model: str = "jev-latest"
     # medium since 10-05: 3 stories x 2 — high p50 36.9 s · medium 12.6 s · low 8.0 s, rejected 0 at all three,
     # captions read alike (low repeated a line); eval/results.md 10-05 / eval/bench_story_title.py
     llm_effort_story: str = "medium"

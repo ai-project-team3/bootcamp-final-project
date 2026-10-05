@@ -119,6 +119,7 @@ fun DemoApp() {
     val d = remember { Director(scope, LocalStoryBookStore(context), StoryImageStore(context)).also {
         com.example.finalproject_demo.demo.DiaryShelf.attach(context, it.s)   // 그림일기 책장 저장(#37)
         com.example.finalproject_demo.demo.CoopShelf.attach(context, it.s)    // 같이 만들기 책장 저장(#83)
+        it.recoverStoryImages()   // 세 책장을 다 붙인 뒤 — 아무 책도 안 쓰는 서버 그림을 지운다(#61 · #80)
         com.example.finalproject_demo.demo.CoopPlan.attach(context, it.s)     // 부모가 저장한 같이 만들기 이야기 · 질문(#98)
     } }
     (context as? MainActivity)?.director = d

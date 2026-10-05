@@ -3,6 +3,7 @@ package com.example.finalproject_demo.demo
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.LocalDate
 import java.util.UUID
 
 const val STORY_SHELF_CAPACITY = 12
@@ -17,6 +18,8 @@ data class SavedStoryBook(
     val pages: List<SavedStoryPage>,
     val visuals: SavedStoryVisuals? = null,
     val soundClipId: String? = null,
+    /** 만든 날(ISO) — 부모 책장 정리 목록에 보인다. 10-05 전에 꽂은 책은 "" (#80) */
+    val madeAt: String = "",
 )
 
 /** 완성된 동화만 저장한다. 진행 중인 이야기와 다른 모드의 책은 이 저장소의 범위 밖이다. */
@@ -25,6 +28,10 @@ interface StoryBookStore {
     fun save(book: SavedStoryBook)
     /** Replace in one transaction. Stores without this capability leave both books untouched. */
     fun replace(book: SavedStoryBook, oldId: String) { error("Story replacement is not supported") }
+    /** Readable books on the shelf; a store that cannot read its metadata throws (callers treat that as unknown). */
+    fun count(): Int = load().size
+    /** Persist removal first — the director then drops the shelf entry and the book's sound (#80, parent mode only). */
+    fun delete(id: String): Boolean { error("Story deletion is not supported") }
     /** Null means metadata cannot safely identify the files to retain. */
     fun imageReferences(): Set<String>? = load().flatMap { listOfNotNull(it.bgName, it.visuals?.hero?.image) }.toSet()
 }
@@ -34,7 +41,7 @@ fun DemoState.completedStoryBook(): SavedStoryBook? {
     val pages = (1..pageCount).map { SavedStoryPage(pageKind(it), bookCaption(it)) }
     if (pages.any { it.caption.isBlank() }) return null
     return SavedStoryBook(storySoundBookId ?: UUID.randomUUID().toString(), title ?: autoTitleFor(),
-        themeKey, bgName, pages, captureStoryVisuals(), storySoundClip?.id)
+        themeKey, bgName, pages, captureStoryVisuals(), storySoundClip?.id, LocalDate.now().toString())
 }
 
 /** 앱 내부 저장소에만 보관한다. 저장 시 전체 배열을 한 번에 교체해 중간 상태를 남기지 않는다. */
@@ -80,6 +87,7 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
                         obj.getString("bgName"), pages,
                         obj.optJSONObject("visuals")?.let { runCatching { storyVisualsFromJson(it) }.getOrNull() },
                         if (obj.isNull("soundClipId")) null else obj.optString("soundClipId").takeIf(String::isNotBlank),
+                        obj.optString("madeAt", ""),
                     )
                 } catch (_: Exception) { null }
             }
@@ -88,8 +96,17 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
 
     override fun save(book: SavedStoryBook) {
         val all = listOf(book) + writableBooks().filterNot { it.id == book.id }
-        require(all.size <= STORY_SHELF_CAPACITY) { "Choose a story to replace before adding a thirteenth book" }
+        require(all.size <= STORY_SHELF_CAPACITY) { "The story shelf is full — tidy it in parent mode before starting (#80)" }
         write(all)
+    }
+
+    override fun count(): Int = writableBooks().size
+
+    override fun delete(id: String): Boolean {
+        val current = writableBooks()
+        if (current.none { it.id == id }) return false
+        write(current.filterNot { it.id == id })
+        return true
     }
 
     override fun replace(book: SavedStoryBook, oldId: String) {
@@ -124,7 +141,7 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
                 pages.put(JSONObject().put("kind", page.kind.name).put("caption", page.caption))
             }
             array.put(JSONObject()
-                .put("id", entry.id).put("title", entry.title)
+                .put("id", entry.id).put("title", entry.title).put("madeAt", entry.madeAt)
                 .put("themeKey", entry.themeKey).put("bgName", entry.bgName)
                 .put("pages", pages).put("visuals", entry.visuals?.toJson() ?: JSONObject.NULL)
                 .put("soundClipId", entry.soundClipId ?: JSONObject.NULL))
