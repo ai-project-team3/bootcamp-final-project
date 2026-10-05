@@ -295,7 +295,7 @@ private fun Rule(t: String, ok: Boolean) {
 }
 
 @Composable
-private fun Field(
+internal fun Field(
     label: String, value: String, hint: String, type: KeyboardType, secret: Boolean,
     trailing: String? = null, onTrailing: () -> Unit = {}, onChange: (String) -> Unit,
 ) {

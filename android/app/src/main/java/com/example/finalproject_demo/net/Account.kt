@@ -65,6 +65,8 @@ interface AccountApi {
     suspend fun signUp(email: String, password: String): AuthResult
     /** 소셜 SDK 로 알아낸 보호자를 우리 계정으로 */
     suspend fun loginSocial(who: SocialIdentity): AuthResult
+    /** 지금 로그인한 이메일 계정의 비밀번호가 맞나 — 탈퇴 전 본인 확인 (10-05). 로그인 상태는 바꾸지 않는다 */
+    suspend fun verifyPassword(email: String, password: String): Boolean
     /** 비밀번호 다시 정하기 — 서버가 생기면 메일 링크로 바뀐다 */
     suspend fun resetPassword(email: String, newPassword: String): AuthResult
     suspend fun logout()
@@ -103,6 +105,9 @@ class LocalAccountApi(private val ctx: Context) : AccountApi {
         val since = prefs.getLong(idKey, 0L).takeIf { it > 0 } ?: System.currentTimeMillis().also { prefs.edit().putLong(idKey, it).apply() }
         return remember(Guardian(who.provider, who.email.ifBlank { "${who.provider.label} 계정" }, since, who.name, who.dev))
     }
+
+    override suspend fun verifyPassword(email: String, password: String): Boolean =
+        prefs.getString(key(email), null)?.let { Password.matches(password, it) } ?: false
 
     override suspend fun resetPassword(email: String, newPassword: String): AuthResult {
         if (!prefs.contains(key(email))) return AuthResult.Fail("이 폰에서 가입한 이메일이 아니에요")
@@ -178,6 +183,7 @@ class ServerAccountApi : AccountApi {
     override suspend fun login(email: String, password: String): AuthResult = AuthResult.Fail("TODO: POST /auth/email/login")
     override suspend fun signUp(email: String, password: String): AuthResult = AuthResult.Fail("TODO: POST /auth/email/signup — 인증 메일")
     override suspend fun loginSocial(who: SocialIdentity): AuthResult = AuthResult.Fail("TODO: POST /auth/${who.provider.name.lowercase()} {token}")
+    override suspend fun verifyPassword(email: String, password: String): Boolean = false /* TODO: POST /auth/email/verify */
     override suspend fun resetPassword(email: String, newPassword: String): AuthResult = AuthResult.Fail("TODO: POST /auth/email/reset — 메일 링크")
     override suspend fun logout() { /* TODO: POST /auth/logout */ }
     override suspend fun sessionAlive(): Boolean = false /* TODO: GET /auth/me */

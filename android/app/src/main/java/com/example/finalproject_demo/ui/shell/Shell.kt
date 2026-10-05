@@ -22,7 +22,7 @@ import androidx.compose.runtime.setValue
 enum class Step { CLAP, TITLE, LOGIN, EMAIL, CONSENT, MIC, PIN, SETUP, HANDOFF, TUTORIAL_TAP, TUTORIAL_TALK, FEATURES, EXPIRED, APP }
 
 /** 부모 영역에서 여는 큰 창 */
-enum class Sheet { NONE, WITHDRAW_INFO, WITHDRAW_CONFIRM, PIN_CHANGE }
+enum class Sheet { NONE, WITHDRAW_INFO, WITHDRAW_VERIFY, WITHDRAW_CONFIRM, PIN_CHANGE }
 
 object Shell {
     var step by mutableStateOf(Step.CLAP)

@@ -279,6 +279,13 @@ class ShellFlowTest {
         tap("폰 안의 책 · 그림 · 녹음도 함께 지우기")
         waitText("아이 이름도 지워요"); shot("23_withdraw_info")
         tap("안내를 모두 확인했어요"); tap("다음 — 본인 확인")
+        // ② 본인 확인 (10-05) — 카카오로 들어왔으니 부모 비밀번호. 틀리면 넘어가지 않는다
+        waitText("본인 확인"); shot("23b_withdraw_verify_pin")
+        "9999".forEach { tap(it.toString()) }
+        compose.mainClock.advanceTimeBy(800); compose.waitForIdle()
+        assertEquals("틀린 비밀번호로 넘어갔다", 0, count("정말 삭제할까요?"))
+        "1234".forEach { tap(it.toString()) }
+        compose.mainClock.advanceTimeBy(600)
         waitText("정말 삭제할까요?"); shot("24_withdraw_confirm")
         tap("삭제하기")
         compose.waitUntil(8_000) { Shell.step == Step.CLAP || Shell.step == Step.TITLE }
@@ -288,6 +295,33 @@ class ShellFlowTest {
         assertTrue("동의가 남았다", !ConsentStore.guardianAgreed)
         assertEquals("계정이 남았다", null, com.example.finalproject_demo.net.Accounts.guardian)
         assertTrue(!Shell.onboarded)
+    }
+
+    /**
+     * 탈퇴 본인 확인 — 이메일 계정은 **그 계정 비밀번호**를 다시 묻는다 (10-05). 틀리면 막히고, 맞으면 마지막 확인으로.
+     * 비밀번호를 잊었으면 부모 비밀번호로 대신 확인할 수 있다 — 어떤 경우에도 탈퇴가 막히지 않게.
+     */
+    @Test
+    fun emailAccountConfirmsWithItsPasswordBeforeWithdrawing() {
+        compose.activity.getSharedPreferences("otto_account", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        onboard()
+        val api = com.example.finalproject_demo.net.Accounts.api
+        kotlinx.coroutines.runBlocking {
+            val r = api.signUp("parent@example.com", "otto2026") as com.example.finalproject_demo.net.AuthResult.Ok
+            com.example.finalproject_demo.net.Accounts.guardian = r.guardian
+        }
+        Shell.wipeLocal = false; Shell.sheet = com.example.finalproject_demo.ui.shell.Sheet.WITHDRAW_VERIFY
+        waitText("이메일 계정 비밀번호"); waitText("parent@example.com 계정")
+        compose.onNode(hasContentDescription("비밀번호")).performTextInput("wrong999")
+        tap("확인")
+        waitText("비밀번호가 맞지 않아요"); shot("23c_withdraw_verify_email_wrong")
+        assertEquals(0, count("정말 삭제할까요?"))
+        // 잊었으면 부모 비밀번호로 — 이 길이 늘 열려 있다
+        assertTrue(count("부모 비밀번호로 확인") > 0)
+        compose.onNode(hasContentDescription("비밀번호")).performTextInput("otto2026")
+        tap("확인")
+        waitText("정말 삭제할까요?")
+        Shell.sheet = com.example.finalproject_demo.ui.shell.Sheet.NONE
     }
 
     @Test
