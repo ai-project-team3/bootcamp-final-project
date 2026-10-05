@@ -104,10 +104,11 @@ class RigCanvasCompatibilityTest {
     }
 
     @Test @Config(sdk = [26])
-    fun puppetTransparencyIsNotAppliedTwice() {
+    fun textureTransparencyIsPreserved() {
         val rig = rig()
+        rig.bitmap.eraseColor(Color.argb(128, 255, 0, 0))
         val target = HardwareTarget(Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888))
-        RigMeshRenderer(rig).draw(target, paint(rig).apply { alpha = 128 })
+        RigMeshRenderer(rig).draw(target, paint(rig))
         assertEquals(128, Color.alpha(target.target.getPixel(8, 8)))
     }
 
@@ -117,5 +118,17 @@ class RigCanvasCompatibilityTest {
         val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
         RigMeshRenderer(rig).draw(Canvas(bitmap), paint(rig))
         assertEquals(Color.RED, bitmap.getPixel(8, 8))
+    }
+
+    @Test @Config(sdk = [26])
+    fun legacyFrameMatchesTheExistingSoftwarePaintSemantics() {
+        val rig = rig()
+        val expected = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        val target = HardwareTarget(Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888))
+        val renderer = RigMeshRenderer(rig)
+        val paint = paint(rig).apply { alpha = 128 }
+        renderer.draw(Canvas(expected), paint)
+        renderer.draw(target, paint)
+        assertEquals(expected.getPixel(8, 8), target.target.getPixel(8, 8))
     }
 }
