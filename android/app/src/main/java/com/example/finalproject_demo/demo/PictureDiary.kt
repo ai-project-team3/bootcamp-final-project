@@ -143,6 +143,12 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
                 if (drawMe(this, day, waiting, null)) offers++
                 continue
             }
+            // 그림판 오른쪽 [이름 고치기] — 이름표를 길게 누른 것과 같다. 어느 조각인지는 [renameTarget] (10-05 진웅)
+            r is Reply.Tapped && r.value == "rename" -> {
+                val piece = s.renameTarget(day)
+                if (piece != null) askRename(day, piece) else { say("이름표가 붙은 그림이 아직 없어!"); pause(600) }
+                continue
+            }
             // 이름표를 길게 — 이름을 다시 묻고 고친다 (10-02 진웅 — 잘못 들은 이름을 고칠 수 있어야 한다)
             r is Reply.Tapped && r.value.startsWith("rename:") -> {
                 day.pieces.firstOrNull { it.id == r.value.removePrefix("rename:").toIntOrNull() && it.name != null }
@@ -480,6 +486,17 @@ private suspend fun Director.drawMe(scope: CoroutineScope, day: DiaryDay, waitin
         }
     }
     return false
+}
+
+/**
+ * [이름 고치기]가 가리키는 조각 — 방금 누른 이름표(그 뒤로 새 획이 없을 때), 아니면 방금 그리던 조각, 아니면 마지막으로 이름 붙은 조각.
+ * 이름 없는 조각은 고칠 이름이 없다 — 붓이 멈추면 오또가 먼저 묻는다
+ */
+internal fun DemoState.renameTarget(day: DiaryDay): DiaryPiece? {
+    day.catchUp(drawing)
+    val named = day.pieces.filter { it.name != null }
+    val tapped = day.focus?.takeIf { it.second == drawing.size }?.let { (id, _) -> named.firstOrNull { it.id == id } }
+    return tapped ?: named.lastOrNull { drawing.lastOrNull() in it.strokes } ?: named.lastOrNull()
 }
 
 /** 이름표를 길게 눌렀다 — 「이건 뭐야? 다시 말해 줘!」. 이름이 나오면 고치고, 아니면 그대로 둔다 */

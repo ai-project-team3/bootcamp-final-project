@@ -161,7 +161,7 @@ private val DiaryMicSize = 96.dp
 private val DiaryMicGap = 12.dp
 
 /**
- * 그림판 오른쪽 좁은 도구 띠 — 위에서부터 [다 그렸어] · [그려 줘](오또 얼굴) · 🎤.
+ * 그림판 오른쪽 좁은 도구 띠 — 위에서부터 [다 그렸어] · [그려 줘](오또 얼굴) · [이름 고치기] · 🎤.
  * 오른쪽 버튼들을 뺐던 까닭(판을 넓게)을 지키려고 띠는 좁게, 🎤 도 다른 화면(96dp)보다 작게 (10-05 진웅)
  */
 private val BoardRail = 72.dp
@@ -510,6 +510,11 @@ private fun BoardTools(d: Director, stage: DiaryBoard, modifier: Modifier) {
         Spacer(Modifier.height(10.dp))
         RailButton("그려 줘", enabled = free && day.watching && s.drawing.isNotEmpty(), tag = "rail-drawme", onClick = { d.send(Reply.Tapped("drawme", "그려 줘")) }) {
             OttoFace(OttoState.IDLE, Modifier.size(RailButtonSize * 0.8f))
+        }
+        Spacer(Modifier.height(10.dp))
+        // 잘못 들은 이름 — 방금 누른 이름표나 방금 그린 조각의 이름을 다시 묻는다(이름표 길게 누르기와 같다 · 10-05 진웅)
+        RailButton("이름 고치기", enabled = free && day.watching && day.pieces.any { it.name != null }, tag = "rail-rename", onClick = { d.send(Reply.Tapped("rename", "이름 고치기")) }) {
+            Text("🏷️", fontSize = 22.sp)
         }
         Spacer(Modifier.weight(1f))
         if (s.micEnabled) Box(Modifier.testTag("diary-mic")) { MicButton(d, size = RailMicSize) }
