@@ -62,6 +62,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -152,7 +154,9 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
         Stand(0.14f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
         val rubFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
         if (rubFriend != null) Stand(0.66f, 0.11f, 0.85f) { ArtView(rubFriend, Modifier.fillMaxSize()) }
-        if (!s.isDiary && scripted) Stand(0.86f, 0.19f, 0.92f) { ArtView(dinoArt, Modifier.fillMaxSize()) }
+        if (!s.isDiary && scripted) Stand(0.86f, 0.19f, 0.92f, endInset = 88.dp) {
+            ArtView(dinoArt, Modifier.fillMaxSize().semantics { contentDescription = "동행 인형 ${s.dino.name}" })
+        }
 
         // 불을 계속 피운다. 문지를수록 기운이 줄어 **입자 수가** 사그라든다.
         //

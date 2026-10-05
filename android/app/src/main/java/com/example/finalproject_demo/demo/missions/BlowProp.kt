@@ -40,17 +40,23 @@ enum class BlowProp(
 
     /** 「촛불을 후~ 불었어요.」 */
     override val did: String get() = "$word${eul(word)} 후~ 불었어요."
+    /** 「촛불 끈 입김」 · 「먼지 날린 입김」 */
+    override val badge: String get() = if (flame) "$word 끈 입김" else "$word 날린 입김"
+    override val motion: String get() = "blow"
 }
 
 /**
- * 아이 말에서 C1 소품을 찾는다 — 없으면 null(C1 을 고르지 않는다).
- * 순서는 구체적인 것부터: 촛불 · 생일 > 민들레 > 먼지 > 바람 · 불었다
+ * 아이 말에서 C1 소품을 찾는다 — 없으면 null(C1 을 고르지 않는다). 순서는 구체적인 것부터: 촛불 > 민들레 > 먼지 > 바람.
+ *
+ * **그 소품을 가리키는 낱말만** 본다(#105 리뷰) — 부분 일치로 「식초를 쏟았어」의 「초를」, 「케이크 먹었어」 · 「생일이었어」,
+ * 「풍선을 불었어」의 「불었」이 촛불 · 바람이 되어, 실제 일에 아이가 말하지 않은 촛불이 책에 들어갔다(설계 §3-8).
+ * 「불다」는 바람 · 후~ 와 묶일 때만 — 풍선 · 비눗방울 · 나팔을 분 것은 날려 보낼 것이 아니다
  */
 fun blowPropIn(said: String, realDay: Boolean): BlowProp? = when {
-    listOf("촛불", "초를", "초가", "생일", "케이크").any { it in said } -> BlowProp.CANDLE
+    listOf("촛불", "양초").any { it in said } -> BlowProp.CANDLE
     "민들레" in said -> BlowProp.DANDELION
     "먼지" in said -> BlowProp.DUST
-    listOf("바람", "불었", "후~", "후우").any { it in said } -> if (realDay) BlowProp.DUST else BlowProp.LEAF
+    listOf("바람", "후~", "후우", "후 불").any { it in said } -> if (realDay) BlowProp.DUST else BlowProp.LEAF
     else -> null
 }
 

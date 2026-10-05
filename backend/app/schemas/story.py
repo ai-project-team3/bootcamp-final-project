@@ -12,8 +12,8 @@ PageKindName = Literal["COVER", "DEPART", "SHAKE", "MEET", "TALK", "JOURNEY",
                        "FAIL", "RUB", "DRAG", "TOGETHER"]
 # docs/미션_구상.md §3. The app picks the mission (§4 table); the server only
 # writes the page up to it. The result line ("불이 다 꺼졌어요") stays the app's.
-MissionId = Literal["A1", "A2", "A3", "A4", "A5", "A6", "B1", "B2", "B3",
-                    "C1", "C2", "D1", "D2", "D3", "E1", "E2"]
+MissionId = Literal["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "B1", "B2", "B3",
+                    "C1", "C2", "C3", "D1", "D2", "D3", "D4", "D5", "E1", "E2"]
 
 
 class Page(BaseModel):

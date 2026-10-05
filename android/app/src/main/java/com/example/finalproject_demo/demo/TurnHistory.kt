@@ -26,6 +26,7 @@ class TurnState internal constructor(
     private val newcomer: String?, private val newcomerKind: String, private val friendName: String,
     private val solution: String?, private val solutionLine: String, private val solutionKey: String, private val solutionItem: String,
     private val sound: String?, private val soundLine: String, private val storyBackground: String?,
+    private val answerOptions: StoryOptions?,
 ) {
     internal fun restoreInto(s: DemoState) {
         // 배경은 그림이 늦게 온다 — 차례를 찍은 뒤에 도착한 생성 배경을, 같은 장소로 되돌릴 때 지우지 않는다.
@@ -35,6 +36,7 @@ class TurnState internal constructor(
         s.slotBy.clear(); s.slotBy.putAll(slotBy)
         s.storyUnneededSlots.clear(); s.storyUnneededSlots.addAll(unneeded)
         s.storyNextSlot = nextSlot; s.storyServerQuestion = serverQuestion; s.storyClarificationSlot = clarification
+        s.storyAnswerOptions = answerOptions
         s.endReason = endReason; s.turn = turn; s.noAnswerStreak = noAnswerStreak; s.level = level
         while (s.notes.size > notes) s.notes.removeAt(s.notes.size - 1)
         while (s.feelings.size > feelings) s.feelings.removeAt(s.feelings.size - 1)
@@ -58,6 +60,7 @@ fun DemoState.captureTurn(): TurnState = TurnState(
     themeKey, placeLabel, generatedBg, place, problem, cause, reaction, causeLine, causeKind,
     newcomer, newcomerKind, friendName, solution, solutionLine, solutionKey, solutionItem,
     sound, soundLine, storyBackground,
+    storyAnswerOptions,
 )
 
 /** 한 이야기의 차례 기록 — 되돌리기 줄과 앞으로 가기 줄 */

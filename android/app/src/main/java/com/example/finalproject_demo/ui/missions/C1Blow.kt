@@ -94,14 +94,15 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
             val b = spots[i]
             if (before < BLOW_FULL && life[i] >= BLOW_FULL) {
                 if (prop.flame) puffs.smoke(b.x, b.y - size * 0.6f, wpx * 0.05f) else puffs.steam(b.x, b.y, wpx * 0.06f, 8)
-                Sfx.play(Sound.SPARKLE, 0L, view = view)
+                // 마지막 하나는 MissionDoneSignal 이 반짝인다 — 두 번 울리지 않게 (#105 리뷰)
+                if (life.any { it < BLOW_FULL }) Sfx.play(Sound.SPARKLE, 0L, view = view)
             }
         }
 
         // 후~ — 세기만큼 셋이 함께 날아간다. 촛불은 불꽃이 흔들리다 꺼진다
         LaunchedEffect(done, wpx, hpx) {
             if (done || motionFrozen) return@LaunchedEffect
-            while (true) {
+            while (life.any { it < BLOW_FULL }) {        // 다 끝나면 멈춘다 (#105 리뷰)
                 withFrameNanos { }
                 val strong = blow > BLOW_ON
                 spots.forEachIndexed { i, b ->

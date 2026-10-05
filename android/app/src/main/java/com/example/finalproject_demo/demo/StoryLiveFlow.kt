@@ -11,6 +11,8 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     var backgroundPending = false
     var waitingConversation: Stage.Show? = null
     var friendDrawingPrepared = false
+    var deferredSlot: String? = null
+    var finalPlaceChecked = false
 
     // 친구는 아이가 그렸을 때만 선다 — 안 그렸으면 friendArt 가 대본의 기본 낙서라
     // 배경이 생기면 오른쪽에 「이상한 애」가 늘 떠 있었다 (10-02 조장 실기기)
@@ -66,8 +68,10 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     run {
         while (true) {
             val end = s.storyEndCondition()
-            if (end != null) { s.endReason = end; break }
-            val prompt = s.nextStoryPrompt(s.storyServerQuestion) ?: break
+            val checkPlace = end != null && s.slots["place"].isNullOrBlank() && !finalPlaceChecked
+            if (end != null && !checkPlace) { s.endReason = end; break }
+            val prompt = if (checkPlace) StoryPrompt("place", "이 이야기는 어디에서 있었어?")
+                else s.nextStoryPrompt(s.storyServerQuestion, deferredSlot) ?: break
             if (prompt.slot == "sound" && !s.storySoundAttempted) {
                 recordStorySound()
                 notifyStorySoundChoice(prompt)
@@ -78,7 +82,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             val base = variant.toQuestion(s)
             val question = base.copy(text = if (prompt.templateOnly) base.text else prompt.text)
             history.before()
-            val reply = askStory(question, prompt.slot)
+            val reply = askStory(question, prompt.slot, singleAttempt = checkPlace)
             if (TurnHistory.isNav(reply)) {
                 val undo = (reply as Reply.Tapped).value == TurnHistory.UNDO
                 if (if (undo) history.undo() else history.redo()) {
@@ -89,8 +93,13 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 }
                 continue
             }
+            if (checkPlace) finalPlaceChecked = true
             // Silence leaves this slot open; it is neither speech nor a mascot choice.
-            if (reply !is Reply.Spoke && reply !is Reply.Tapped) continue
+            if (reply !is Reply.Spoke && reply !is Reply.Tapped) {
+                deferredSlot = prompt.slot
+                continue
+            }
+            deferredSlot = null
             val by = when {
                 reply is Reply.Spoke -> "child"
                 reply is Reply.Tapped && !reply.byMascot -> "card"
@@ -137,6 +146,22 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     imageJob?.join()
     log("동화 대화 종료: ${s.endReason} · ${s.turn}턴 · 실제 판정으로 채운 칸 ${s.slots.keys}")
     go(Scene.MAKING)
+}
+
+/** An unanswered place stays empty; the accepted first scene can still describe a background. */
+internal suspend fun Director.completeStoryBackgroundFromBook() {
+    if (s.mode != StoryMode.STORY || !Server.liveFor(s.mode) ||
+        !s.slots["place"].isNullOrBlank() || s.storyBackground != null) return
+    val scene = s.storyCaptions?.firstOrNull()?.takeIf(String::isNotBlank) ?: return
+    s.stage = Stage.Show(s.storyHeroArt, "이야기 그림을 마무리하는 중…")
+    inputs(false, false)
+    buttons()
+    val png = withTimeoutOrNull(15_000) { Server.image(s.nameMask().mask(scene), "story") }
+    val saved = png?.let { withContext(Dispatchers.IO) { saveStoryImage(it) } }
+    currentCoroutineContext().ensureActive()
+    s.storyBackground = saved
+    log(if (saved == null) "첫 장면 배경 생성 실패 또는 15초 경과 → 프리셋 유지"
+        else "장소 미확정 → 첫 장면에서 배경 생성 · 아이의 장소 칸은 비워 둠")
 }
 
 private fun Director.liveVariant(prompt: StoryPrompt): QVariant {

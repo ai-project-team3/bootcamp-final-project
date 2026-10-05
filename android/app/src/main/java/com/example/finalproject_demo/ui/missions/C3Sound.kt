@@ -112,7 +112,7 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
             }
         }
     }
-    LaunchedEffect(finished) { if (finished && !done) Sfx.play(Sound.SPARKLE, 0L, view = view) }
+    // 끝 반짝임은 MissionDoneSignal 하나만 — 두 번 울렸다 (#105 리뷰)
     // 다 차면 소품이 제 할 일을 한다 — 옆모습인 소방차는 오른쪽으로 달려 나가고, 정면 그림(자동차 · 기차)과
     // 동물 · 공은 제자리에서 통통 뛴다(정면 그림이 옆으로 미끄러지면 어색하다)
     val go by animateFloatAsState(if (finished) 1f else 0f, tween(1200, easing = FastOutSlowInEasing), label = "go")

@@ -714,7 +714,7 @@ class Director(
      * 질문을 하고 답을 받는다. 무응답이면 ⭐5 흐름을 끝까지 밟고 결과를 돌려준다.
      * 말로 답한 것만 Reply.Spoke — 탭 · 마스코트가 골라준 것은 수준 신호가 아니다.
      */
-    suspend fun ask(q: Question): Reply {
+    suspend fun ask(q: Question, silentFollowUp: Boolean = false): Reply {
         currentQ = q
         askSay(q, q.text)
         inputs(mic = true, next = true, draw = q.drawAnswer != null)
@@ -760,7 +760,7 @@ class Director(
                 first
             }
             first is Reply.PartnerOnly -> partnerBranch(q)
-            else -> noAnswer(q)
+            else -> noAnswer(q, silentFollowUp)
         }
         currentQ = null
         inputs(mic = false, next = false)
@@ -865,7 +865,7 @@ class Director(
     }
 
     /** 기다림 → 쉬운 질문 → (힌트 질문 → 마스코트) 또는 (그림 카드 → 교체 3 → 마스코트) (⭐5 · ⭐22 · v0.8) */
-    private suspend fun noAnswer(q: Question): Reply {
+    private suspend fun noAnswer(q: Question, silentFollowUp: Boolean): Reply {
         s.modeSilent++
         feel(Mood.WAITING)
         mark("noanswer")
@@ -901,6 +901,7 @@ class Director(
         if (q.noCards || q.choices.isEmpty()) {
             val fb = q.fallback
             if (fb == null) {
+                if (silentFollowUp) return Reply.Silent
                 say("괜찮아, 다음에 같이 생각해 보자!")
                 log("선택지가 없는 질문 → 넘어간다 (벌점 · 아쉬움 표현 없음)")
                 pause(1200)

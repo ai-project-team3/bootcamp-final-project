@@ -126,7 +126,8 @@ object DiaryShelf {
         books[s]?.firstOrNull { DIARY_SHELF_ID + it.id == shelfId }
 }
 
-fun SavedDiaryBook.onShelf(fresh: Boolean = false) = ShelfBook(title, "diary", "", pages, fresh, DIARY_SHELF_ID + id)
+/** 표지 — 그림이 있으면 아이 그림(`diaryCovers`), 없으면 아이가 말한 곳의 펠트 그림. 전에는 빈 노란 표지였다 (#98) */
+fun SavedDiaryBook.onShelf(fresh: Boolean = false) = ShelfBook(title, "diary", diaryPlaceBg(input.lines["place"]), pages, fresh, DIARY_SHELF_ID + id)
 
 // ── JSON ──────────────────────────────────────────────────────────
 

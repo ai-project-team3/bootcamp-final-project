@@ -156,6 +156,7 @@ internal fun Stand(
     depth: Float = 1f,
     floor: Boolean = true,
     modifier: Modifier = Modifier,
+    endInset: Dp = 0.dp,
     content: @Composable () -> Unit,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -163,9 +164,12 @@ internal fun Stand(
         val bulk = kotlin.math.sqrt((wf / BOOK_WF_HERO).coerceIn(0.5f, 4f))
         val tall = (maxHeight * (BOOK_TALL_FAR + (BOOK_TALL_NEAR - BOOK_TALL_FAR) * d) * bulk)
             .coerceAtMost(maxHeight * 0.72f)
+            .let { if (endInset > 0.dp) it.coerceAtMost((maxWidth - endInset).coerceAtLeast(0.dp)) else it }
         val wide = tall
         val feet = maxHeight * (BOOK_FEET_FAR + (BOOK_FEET_NEAR - BOOK_FEET_FAR) * d)
-        val left = maxWidth * xf - wide / 2
+        val left = (maxWidth * xf - wide / 2).let {
+            if (endInset > 0.dp) it.coerceAtMost(maxWidth - endInset - wide) else it
+        }
         val top = feet - tall * 0.93f
 
         if (floor) {
@@ -584,7 +588,7 @@ private fun Cover(d: Director, heroArt: Art) {
         // 전에는 "· 함께 {어른}" 이 늘 붙었다. 어른이 지은 자리가 하나도 없는 날에도 붙어서
         // 아이가 혼자 지은 책에 어른 이름이 올라갔다. 이 책의 지은이는 아이다.
         Text("글 · 그림 ${s.childName}", fontSize = 13.sp, color = Color.White)
-        s.template?.let { t -> Text("${t.name} · ${t.pages.size}쪽", fontSize = 11.sp, color = Color.White.copy(alpha = 0.75f)) }
+        s.template?.let { t -> Text("${t.pages.size}쪽", fontSize = 11.sp, color = Color.White.copy(alpha = 0.75f)) }
     }
 }
 
