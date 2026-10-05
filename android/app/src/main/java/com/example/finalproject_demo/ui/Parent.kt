@@ -61,6 +61,7 @@ import com.example.finalproject_demo.demo.coopReportCopy
 import com.example.finalproject_demo.demo.feelingsSaid
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.DemoState
+import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.coopReady
 import com.example.finalproject_demo.demo.coopParentAdvice
@@ -1234,7 +1235,8 @@ private fun PinViewBody(d: Director, stage: Stage.Pin) {
  * 전에는 `drawing` 만 봐서 그림을 그린 그림일기 아이에게도 「오늘은 프리셋을 골랐어요」가 나왔다 (#65 2번).
  */
 internal fun reportMade(s: DemoState): List<String> = buildList {
-    if (s.isDiary && (s.sceneDrawing.isNotEmpty() || s.diaryDay.pieces.isNotEmpty())) add("오늘 있었던 일을 직접 그렸어요")
+    // isDiary 는 협업에서도 참이다(일기 질문을 같이 쓴다) — 그림일기 뒤 협업 리포트에 남은 diaryDay 로 「직접 그렸어요」가 거짓으로 떴다(#129 리뷰)
+    if (s.mode == StoryMode.DIARY && (s.sceneDrawing.isNotEmpty() || s.diaryDay.pieces.isNotEmpty())) add("오늘 있었던 일을 직접 그렸어요")
     // 일기 모드의 그리기 걸음(오늘 만난 사람 그리기)을 남겨 둔 이유 — 없으면 이 축이 빈칸으로 나온다 (일기 설계 §8 · 9/21)
     if (s.drawing.isNotEmpty()) add("${s.friendCallName}${eul(s.friendCallName)} 직접 그렸어요")
     if (s.sound?.contains("원본") == true) add("${s.dino.name} 소리를 냈어요")

@@ -2,6 +2,7 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.ui.reportMade
 import org.junit.Assert.assertEquals
@@ -34,5 +35,13 @@ class ReportMadeTest {
     fun withNothingDrawnTheAxisStaysEmpty() {
         assertEquals(emptyList<String>(), reportMade(DemoState().apply { mode = StoryMode.DIARY }))
         assertEquals(emptyList<String>(), reportMade(DemoState().apply { mode = StoryMode.STORY }))
+    }
+
+    /** #129 리뷰 — 그림일기 뒤 협업: diaryDay 는 그림일기 시작 때만 새로 만들어져 그 조각이 남는다. 협업 리포트는 그것을 세지 않는다 */
+    @Test
+    fun aCoopReportDoesNotCountPiecesLeftFromAnEarlierDiary() {
+        val s = DemoState().apply { mode = StoryMode.COOP }
+        s.diaryDay.pieces += com.example.finalproject_demo.demo.DiaryPiece(0, listOf(stroke()))
+        assertEquals(emptyList<String>(), reportMade(s))
     }
 }
