@@ -240,12 +240,15 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             }
             continue
         }
-        val h = held.removeFirstOrNull()
+        // 미뤄 둔 사이 바뀐 것을 본다 — 이름을 고쳤거나 [그려 줘]로 이미 주문 · 받은 조각이면 옛 이름으로 다시 묻지 않는다
+        // (10-05 실기기: 「나도 너 안먹어를 그려볼까?」가 나무로 고치고 오또 그림을 받은 뒤 다시 나왔다)
+        held.removeAll { (id, name) -> (day.offerable(id, waiting) == null).also { gone -> if (gone) log("미뤄 둔 「나도 $name 그려볼까?」 — 그사이 이미 그렸거나 주문했다 → 묻지 않는다") } }
+        val h = held.removeFirstOrNull()?.let { (id, _) -> day.offerable(id, waiting) }
         if (h != null && offers < OTTO_OFFERS) {
-            when (offerAndOrder(this, day, waiting, h.first, h.second)) {
+            when (offerAndOrder(this, day, waiting, h.id, h.name!!)) {
                 "yes" -> offers++
                 "done" -> break
-                MOVED_ON -> held.add(0, h)
+                MOVED_ON -> held.add(0, h.id to h.name!!)
             }
             continue
         }
@@ -722,6 +725,11 @@ internal fun DiaryDay.renameInAnswer(text: String, piece: DiaryPiece): String? {
  * 「나도 ○○ 그려볼까?」를 묻고, 응이면 그 조각을 주문해 [waiting] 에 넣는다. yes · no · done.
  * 「더 그렸어」로 합쳤으면 물은 조각([id])은 없어지고 이름 조각만 남는다 — 그 조각을 그린다
  */
+/** 「나도 ○○ 그려볼까?」를 지금 물어도 되는 조각 — 남아 있고 이름이 있고, 오또 그림을 받지도 주문하지도 않았다. 이름은 지금 이름 */
+private fun DiaryDay.offerable(id: Int, waiting: List<OttoOrder>): DiaryPiece? =
+    pieces.firstOrNull { it.id == id }
+        ?.takeIf { it.name != null && it.ottoPng == null && it.look != PieceLook.OTTO && waiting.none { w -> w.pieceId == id } }
+
 private suspend fun Director.offerAndOrder(scope: CoroutineScope, day: DiaryDay, waiting: MutableList<OttoOrder>, id: Int, name: String): String {
     val v = offerOttoDrawing(name, day, id)
     if (v == "yes") (day.pieces.firstOrNull { it.id == id } ?: day.pieces.firstOrNull { it.name == name })

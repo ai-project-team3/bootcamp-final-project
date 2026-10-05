@@ -39,6 +39,7 @@ import com.example.finalproject_demo.demo.you
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
@@ -432,6 +433,38 @@ class PictureDiaryFlowTest {
         d.sendBoardTool(Reply.Tapped("drawme", "그려 줘"))
         assertTrue("말=${s.line}", await { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" } != null)
         assertNull(s.diaryDay.pendingTap)
+    }
+
+    /**
+     * 「나도 해를 그려볼까?」 사이 [이름 고치기]로 집으로 고치고 [그려 줘]로 주문했다 — 미뤄 둔 제안이
+     * 옛 이름으로 다시 나오면 안 된다(10-05 실기기: 「나도 너 안먹어를 그려볼까?」가 오또 그림을 받은 뒤 다시 나왔다)
+     */
+    @Test
+    fun aHeldOfferIsDroppedOnceThePieceIsRenamedAndOrdered() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("해야")                                               // 잘못 들었다
+        assertTrue(await { s.line == "나도 해를 그려볼까?" } != null)
+        delay(300)                                                     // 제안이 답을 기다리기 시작한 뒤에 누른다(폰: → rename)
+        d.sendBoardTool(Reply.Tapped("rename", "이름 고치기"))
+        assertTrue("말=${s.line}", await { s.line == "이건 뭐야? 다시 말해 줘!" } != null)
+        d.speak("집이야")
+        assertTrue(await { s.line == "아, 집이구나!" } != null)
+        d.sendBoardTool(Reply.Tapped("drawme", "그려 줘"))
+        assertTrue("말=${s.line}", await { s.line == "나도 집을 그려볼게! 더 그리고 있어!" } != null)
+        val said = mutableListOf<String>()
+        val ear = launch { while (true) { if (said.lastOrNull() != s.line) said += s.line; delay(3) } }
+        // 오또 그림이 오면 고르고(폰에서는 고른 뒤 다음 멈춤에 옛 제안이 나왔다), 아니면 붓을 멈춘다
+        repeat(6) {
+            await(1_000) { (s.buttons.firstOrNull { "오또 그림으로" in it.label } ?: s.buttons.firstOrNull { "붓이 멈춤" in it.label })?.onClick(); false }
+        }
+        ear.cancel()
+        assertFalse("미뤄 둔 옛 제안이 나왔다 — $said", said.any { "해를 그려볼까" in it })
+        assertFalse("주문한 조각을 또 그려 줄까 물었다 — $said", said.any { "집을 그려볼까" in it })
     }
 
     /** 그림판 오른쪽 [그려 줘] — 「그려줘」라고 말한 것과 같다. 방금 그린 조각을 오또가 그린다 (10-05 진웅) */
