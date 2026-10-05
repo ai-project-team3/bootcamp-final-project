@@ -24,3 +24,12 @@
 # 오류 보고에서 어느 줄인지 알 수 있어야 한다. 파일 이름은 가린다
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# ── 보호자 로그인 SDK (10-05 · net/SocialLogin.kt) ──────────────────────
+# Kakao: models are read by Gson through reflection, API interfaces by Retrofit (Kakao's own guide).
+-keep class com.kakao.sdk.**.model.* { <fields>; }
+-keep class * extends com.google.gson.TypeAdapter
+-keep interface com.kakao.sdk.**.*Api
+# Credential Manager finds the Play Services provider by reflection.
+-if class androidx.credentials.CredentialManager
+-keep class androidx.credentials.playservices.** { *; }

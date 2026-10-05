@@ -63,7 +63,7 @@ fun AccountTab(d: Director) {
     val g = Accounts.guardian
     fun open() = runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL))) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Line("로그인", if (g == null) "로그인 안 함 · 샘플 책 보기" else "${g.provider.label} · ${g.email}")
+        Line("로그인", if (g == null) "로그인 안 함 · 샘플 책 보기" else "${g.provider.label} · ${g.email}" + (if (g.dev) " (개발용)" else ""))
         Line("가입한 날", g?.let { SimpleDateFormat("yyyy년 M월 d일", Locale.KOREA).format(Date(it.since)) } ?: "—")
         Line("개인정보처리방침", "보기") { open() }
         Line("이용약관", "보기") { open() }
@@ -72,7 +72,7 @@ fun AccountTab(d: Director) {
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (g != null) PBtn("로그아웃", {
-                scope.launch { Accounts.api.logout(); Accounts.guardian = null }
+                scope.launch { Accounts.logout(ctx) }      // 카카오 · 네이버 · Google 세션도 끊는다
                 d.send(Reply.Tapped("home", "처음으로"))
                 Shell.step = Step.LOGIN          // 로그아웃해도 폰 안의 책은 남는다 → 로그인 화면으로
             }, Modifier.width(160.dp), primary = false, height = 44.dp)
@@ -125,6 +125,7 @@ fun PinChangeSheet() {
 @Composable
 fun WithdrawSheet(d: Director) {
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
     var checked by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     val books = d.s.shelf.size
@@ -153,8 +154,7 @@ fun WithdrawSheet(d: Director) {
                 busy = true
                 scope.launch {
                     // 서버 계정 즉시 삭제 → 동의 철회 → (고르면) 폰 데이터 삭제 → 처음 상태로
-                    Accounts.api.deleteAccount()
-                    Accounts.guardian = null
+                    Accounts.withdraw(ctx)          // 소셜이면 그 회사와 앱의 연결도 끊는다(unlink)
                     ConsentStore.withdraw()
                     if (Shell.wipeLocal) d.s.shelf.clear()   // TODO: 책 · 그림 · 녹음을 파일로 저장하게 되면 그 파일도 지운다
                     d.send(Reply.Tapped("home", "처음으로"))

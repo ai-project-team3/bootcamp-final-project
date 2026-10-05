@@ -56,6 +56,9 @@ import com.example.finalproject_demo.net.Accounts
 import com.example.finalproject_demo.net.AuthProvider
 import com.example.finalproject_demo.net.AuthResult
 import com.example.finalproject_demo.net.ConsentRecord
+import com.example.finalproject_demo.net.EmailRules
+import com.example.finalproject_demo.net.SocialLogin
+import com.example.finalproject_demo.net.SocialResult
 import com.example.finalproject_demo.ui.AssetImage
 import com.example.finalproject_demo.ui.rememberQuietRest
 import com.example.finalproject_demo.ui.wakeOnTouch
@@ -142,16 +145,28 @@ private fun CurtainSide() {
     }
 }
 
-// ── ② 로그인 (1/3) ───────────────────────────────────────────
+// ── ② 로그인 (1/5) — 카카오 · 네이버 · Google SDK · 이메일 로그인 · 이메일 회원가입 (10-05) ─────────────
 
 @Composable
-fun LoginScreen(onDone: () -> Unit, onEmail: () -> Unit, onSample: () -> Unit = {}, expired: Boolean = false, allowSample: Boolean = false) {
+fun LoginScreen(onDone: () -> Unit, onEmail: (EmailMode) -> Unit, onSample: () -> Unit = {}, expired: Boolean = false, allowSample: Boolean = false) {
     val scope = rememberCoroutineScope()
+    val activity = LocalContext.current as? android.app.Activity
     var msg by remember { mutableStateOf<String?>(null) }
-    fun go(p: AuthProvider) = scope.launch {
-        when (val r = Accounts.api.login(p)) {
-            is AuthResult.Ok -> { Accounts.guardian = r.guardian; onDone() }
-            is AuthResult.Fail -> msg = r.why
+    /** 지금 연결 중인 방법 — 그동안 다른 버튼은 눌리지 않는다(두 번 눌러 창이 두 개 뜨지 않게) */
+    var busy by remember { mutableStateOf<AuthProvider?>(null) }
+    fun go(p: AuthProvider) {
+        if (busy != null) return
+        busy = p; msg = null
+        scope.launch {
+            when (val r = SocialLogin.signIn(activity, p)) {
+                is SocialResult.Ok -> when (val a = Accounts.api.loginSocial(r.who)) {
+                    is AuthResult.Ok -> { Accounts.guardian = a.guardian; onDone() }
+                    is AuthResult.Fail -> msg = a.why
+                }
+                is SocialResult.Cancelled -> {}
+                is SocialResult.Fail -> msg = r.why
+            }
+            busy = null
         }
     }
     ObFrame(
@@ -161,73 +176,145 @@ fun LoginScreen(onDone: () -> Unit, onEmail: () -> Unit, onSample: () -> Unit = 
         onBack = null,
         art = { Otto(if (expired) Pose.CALL else Pose.WAVE, Modifier.size(190.dp)) },
     ) {
-        Text("보호자 계정으로 시작해요", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = InkBrown)
-        Spacer(Modifier.height(12.dp))
+        Text(if (expired) "쓰던 방법으로 다시 로그인해요" else "보호자 계정으로 시작해요", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = InkBrown)
+        Spacer(Modifier.height(10.dp))
         // 세 버튼 같은 크기 — 「다른 버튼보다 덜 눈에 띄게 만들면 안 됨」(각 사 규격)
-        SocialButton(AuthProvider.KAKAO, { go(AuthProvider.KAKAO) })
-        Spacer(Modifier.height(8.dp))
-        SocialButton(AuthProvider.NAVER, { go(AuthProvider.NAVER) })
-        Spacer(Modifier.height(8.dp))
-        SocialButton(AuthProvider.GOOGLE, { go(AuthProvider.GOOGLE) })
-        Spacer(Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("이메일로 계속하기", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkSoft, modifier = Modifier.clickable { onEmail() }.padding(vertical = 8.dp))
+        listOf(AuthProvider.KAKAO, AuthProvider.NAVER, AuthProvider.GOOGLE).forEach { p ->
+            SocialButton(p, { go(p) }, busy = busy == p, enabled = busy == null)
+            Spacer(Modifier.height(8.dp))
+        }
+        Spacer(Modifier.height(2.dp))
+        // 이메일 — 로그인 · 회원가입을 나란히 (소셜 계정이 없는 보호자)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text("✉  이메일로 로그인", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkBrown,
+                modifier = Modifier.clickable(enabled = busy == null) { onEmail(EmailMode.LOGIN) }.padding(vertical = 10.dp, horizontal = 4.dp))
+            Text("|", fontSize = 12.sp, color = InkSoft.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 8.dp))
+            Text("이메일로 회원가입", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FeltTeal,
+                modifier = Modifier.clickable(enabled = busy == null) { onEmail(EmailMode.SIGNUP) }.padding(vertical = 10.dp, horizontal = 4.dp))
             Spacer(Modifier.weight(1f))
             // 09-29 사용자 요청 — 처음 설정을 끝내야 방에 들어간다. 로그인 없이 둘러보는 길은 기본으로 닫아 둔다
-            if (!expired && allowSample) Column(horizontalAlignment = Alignment.End) {
-                Text("로그인 없이 샘플 책 보기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FeltTeal, modifier = Modifier.clickable { onSample() })
-                Text("샘플 책은 녹음 없이 읽기만 해요", fontSize = 11.sp, color = InkSoft)
-            }
+            if (!expired && allowSample) Text("로그인 없이 샘플 책 보기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = FeltTeal, modifier = Modifier.clickable { onSample() })
         }
-        msg?.let { Text(it, fontSize = 12.sp, color = FeltCoral) }
+        msg?.let { Text(it, fontSize = 12.sp, color = FeltCoral, lineHeight = 17.sp) }
+        Spacer(Modifier.weight(1f))
+        Text("계속하면 다음 단계에서 이용약관 · 개인정보 처리에 동의를 받아요", fontSize = 11.sp, color = InkSoft)
     }
 }
 
-// ── ② 이메일로 계속 (1/3) ────────────────────────────────────
+// ── ② 이메일 — 로그인 · 회원가입 · 비밀번호 다시 정하기 (10-05) ────────────────────────
+
+/** 이메일 화면이 하는 일 */
+enum class EmailMode { LOGIN, SIGNUP, RESET }
 
 @Composable
-fun EmailScreen(onBack: () -> Unit, onDone: () -> Unit) {
+fun EmailScreen(start: EmailMode = EmailMode.LOGIN, onBack: () -> Unit, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
+    var mode by remember { mutableStateOf(start) }
     var email by remember { mutableStateOf("") }
     var pw by remember { mutableStateOf("") }
+    var pw2 by remember { mutableStateOf("") }
+    var show by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
+    fun switch(m: EmailMode) { mode = m; pw = ""; pw2 = ""; msg = null }
+    val emailOk = EmailRules.emailOk(email)
+    val ready = when (mode) {
+        EmailMode.LOGIN -> emailOk && pw.isNotEmpty()
+        EmailMode.SIGNUP, EmailMode.RESET -> emailOk && EmailRules.passwordOk(pw) && pw == pw2
+    }
     ObFrame(
-        step = 0, title = "이메일로 계속하기", sub = "인증 메일을 보내 드려요. 비밀번호를 잊으면 메일로 다시 만들어요.",
-        onBack = onBack, art = { Otto(Pose.WAVE, Modifier.size(190.dp)) },
-        cta = "다음", ctaEnabled = email.contains('@') && pw.length >= 8,
+        step = 0,
+        title = when (mode) { EmailMode.LOGIN -> "이메일로 로그인"; EmailMode.SIGNUP -> "이메일로 회원가입"; EmailMode.RESET -> "비밀번호 다시 정하기" },
+        sub = when (mode) {
+            EmailMode.LOGIN -> "이 폰에서 가입한 이메일과 비밀번호를 넣어 주세요."
+            EmailMode.SIGNUP -> "보호자 이메일 하나면 돼요. 비밀번호는 이 폰에 암호화해서만 저장해요."
+            EmailMode.RESET -> "가입한 이메일을 넣고 새 비밀번호를 정해요."
+        },
+        onBack = { if (mode == EmailMode.RESET) switch(EmailMode.LOGIN) else onBack() },
+        art = { Otto(if (mode == EmailMode.SIGNUP) Pose.WAVE else Pose.THINK, Modifier.size(170.dp)) },
+        scroll = true,
+        cta = when { busy -> "확인 중…"; mode == EmailMode.LOGIN -> "로그인"; mode == EmailMode.SIGNUP -> "가입하기"; else -> "새 비밀번호로 로그인" },
+        ctaEnabled = ready && !busy,
         onCta = {
+            busy = true; msg = null
             scope.launch {
-                when (val r = Accounts.api.login(AuthProvider.EMAIL, email.trim(), pw)) {
+                val r = when (mode) {
+                    EmailMode.LOGIN -> Accounts.api.login(email.trim(), pw)
+                    EmailMode.SIGNUP -> Accounts.api.signUp(email.trim(), pw)
+                    EmailMode.RESET -> Accounts.api.resetPassword(email.trim(), pw)
+                }
+                busy = false
+                when (r) {
                     is AuthResult.Ok -> { Accounts.guardian = r.guardian; onDone() }
                     is AuthResult.Fail -> msg = r.why
                 }
             }
         },
     ) {
-        Field("이메일", email, "parent@example.com", KeyboardType.Email, false) { email = it }
-        Spacer(Modifier.height(14.dp))
-        Field("비밀번호", pw, "8자 이상 · 영문 + 숫자", KeyboardType.Password, true) { pw = it }
-        msg?.let { Spacer(Modifier.height(8.dp)); Text(it, fontSize = 12.sp, color = FeltCoral) }
+        // 로그인 ↔ 회원가입 탭 (다시 정하기는 탭 없이)
+        if (mode != EmailMode.RESET) Row(
+            Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(17.dp)).background(InkBrown.copy(alpha = 0.06f)).padding(3.dp),
+        ) {
+            listOf(EmailMode.LOGIN to "로그인", EmailMode.SIGNUP to "회원가입").forEach { (m, t) ->
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(if (mode == m) FeltWhite else Color.Transparent)
+                        .clickable { if (mode != m) switch(m) },
+                    contentAlignment = Alignment.Center,
+                ) { Text(t, fontSize = 14.sp, fontWeight = if (mode == m) FontWeight.Bold else FontWeight.Normal, color = if (mode == m) InkBrown else InkSoft) }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Field("이메일", email, "parent@example.com", KeyboardType.Email, false) { email = it.trim(); msg = null }
+        if (email.isNotEmpty() && !emailOk) Text("이메일 형식이 아니에요", fontSize = 11.sp, color = FeltCoral, modifier = Modifier.padding(top = 3.dp))
+        Spacer(Modifier.height(4.dp))
+        Field(if (mode == EmailMode.RESET) "새 비밀번호" else "비밀번호", pw, if (mode == EmailMode.LOGIN) "비밀번호" else "영문 + 숫자 8자 이상",
+            KeyboardType.Password, !show, trailing = if (show) "숨기기" else "보기", onTrailing = { show = !show }) { pw = it; msg = null }
+        if (mode != EmailMode.LOGIN) {
+            // 규칙을 입력하는 동안 바로 보여 준다 — 다 맞으면 청록 ✓
+            Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Rule("8자 이상", EmailRules.longEnough(pw))
+                Rule("영문 + 숫자", EmailRules.hasLetterAndDigit(pw))
+                Rule("빈칸 없음", pw.isNotEmpty() && pw.none { it.isWhitespace() })
+            }
+            Spacer(Modifier.height(2.dp))
+            Field("비밀번호 확인", pw2, "한 번 더", KeyboardType.Password, !show) { pw2 = it; msg = null }
+            if (pw2.isNotEmpty() && pw != pw2) Text("비밀번호가 서로 달라요", fontSize = 11.sp, color = FeltCoral, modifier = Modifier.padding(top = 3.dp))
+        } else Text(
+            "비밀번호를 잊었어요", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = InkSoft,
+            modifier = Modifier.align(Alignment.End).clickable { switch(EmailMode.RESET) }.padding(vertical = 8.dp),
+        )
+        msg?.let { Spacer(Modifier.height(6.dp)); Text(it, fontSize = 12.sp, color = FeltCoral, lineHeight = 17.sp) }
     }
 }
 
 @Composable
-private fun Field(label: String, value: String, hint: String, type: KeyboardType, secret: Boolean, onChange: (String) -> Unit) {
-    Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkSoft)
-    Spacer(Modifier.height(6.dp))
-    Box(
-        Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp)).background(FeltWhite)
-            .border(1.5.dp, InkBrown.copy(alpha = 0.15f), RoundedCornerShape(12.dp)).padding(horizontal = 16.dp),
-        contentAlignment = Alignment.CenterStart,
+private fun Rule(t: String, ok: Boolean) {
+    Text((if (ok) "✓ " else "· ") + t, fontSize = 11.sp, fontWeight = if (ok) FontWeight.Bold else FontWeight.Normal, color = if (ok) FeltTeal else InkSoft)
+}
+
+@Composable
+private fun Field(
+    label: String, value: String, hint: String, type: KeyboardType, secret: Boolean,
+    trailing: String? = null, onTrailing: () -> Unit = {}, onChange: (String) -> Unit,
+) {
+    Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = InkSoft)
+    Spacer(Modifier.height(2.dp))
+    Row(
+        Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(12.dp)).background(FeltWhite)
+            .border(1.5.dp, InkBrown.copy(alpha = 0.15f), RoundedCornerShape(12.dp)).padding(start = 14.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (value.isEmpty()) Text(hint, fontSize = 15.sp, color = InkSoft)
-        BasicTextField(
-            value, onChange, singleLine = true,
-            textStyle = TextStyle(fontSize = 15.sp, color = InkBrown, fontFamily = ParentFont),
-            keyboardOptions = KeyboardOptions(keyboardType = type),
-            visualTransformation = if (secret) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (value.isEmpty()) Text(hint, fontSize = 14.sp, color = InkSoft)
+            BasicTextField(
+                value, onChange, singleLine = true,
+                textStyle = TextStyle(fontSize = 14.sp, color = InkBrown, fontFamily = ParentFont),
+                keyboardOptions = KeyboardOptions(keyboardType = type),
+                visualTransformation = if (secret) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = label },
+            )
+        }
+        if (trailing != null) Text(trailing, fontSize = 12.sp, color = InkSoft, modifier = Modifier.clickable { onTrailing() }.padding(8.dp))
     }
 }
 

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.onLast
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.pageCount
@@ -125,6 +126,26 @@ class ShellFlowTest {
         compose.waitUntil(8_000) { d.s.endReason == "parent_stop" }
         compose.waitUntil(8_000) { count("그만하기") == 0 }
         shot("22_coop_stopped")
+    }
+
+    /** 이메일 회원가입 (10-05) — 규칙이 다 맞아야 「가입하기」가 눌리고, 가입하면 동의로 넘어간다 */
+    @Test
+    fun emailSignUpReachesConsent() {
+        compose.activity.getSharedPreferences("otto_account", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        waitText("눌러서 시작", 10_000); tap("눌러서 시작")
+        tap("이메일로 회원가입")
+        waitText("영문 + 숫자 8자 이상")
+        compose.onNode(hasContentDescription("이메일")).performTextInput("parent@example.com")
+        compose.onNode(hasContentDescription("비밀번호")).performTextInput("otto")
+        shot("02b_signup_weak")
+        compose.onNode(hasText("가입하기") and hasClickAction()).assertIsNotEnabled()
+        compose.onNode(hasContentDescription("비밀번호")).performTextInput("2026")
+        compose.onNode(hasContentDescription("비밀번호 확인")).performTextInput("otto2026")
+        shot("02c_signup_ok")
+        tap("가입하기")
+        waitText("이용약관")
+        assertEquals(com.example.finalproject_demo.net.AuthProvider.EMAIL, com.example.finalproject_demo.net.Accounts.guardian?.provider)
+        shot("02d_after_signup")
     }
 
     @Test

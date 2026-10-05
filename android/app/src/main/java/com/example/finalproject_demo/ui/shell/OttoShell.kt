@@ -34,7 +34,7 @@ import com.example.finalproject_demo.ui.Wool
 @Composable
 fun OttoShell(d: Director) {
     val ctx = LocalContext.current
-    remember { Shell.attach(ctx); Accounts.attach(ctx); Shell.applySetup(d.s); true }
+    remember { Shell.attach(ctx); Accounts.attach(ctx); com.example.finalproject_demo.net.SocialLogin.init(ctx); Shell.applySetup(d.s); true }
     val activity = ctx as? android.app.Activity
 
     fun afterLogin() { Shell.step = if (Shell.onboarded) Step.APP else Step.CONSENT }
@@ -82,9 +82,9 @@ fun OttoShell(d: Director) {
                         else -> Step.APP
                     }
                 }
-                Step.LOGIN -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.step = Step.EMAIL })
-                Step.EXPIRED -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.step = Step.EMAIL }, expired = true)
-                Step.EMAIL -> EmailScreen(onBack = { Shell.step = if (Shell.onboarded) Step.EXPIRED else Step.LOGIN }, onDone = { afterLogin() })
+                Step.LOGIN -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL })
+                Step.EXPIRED -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL }, expired = true)
+                Step.EMAIL -> EmailScreen(Shell.emailMode, onBack = { Shell.step = if (Shell.onboarded) Step.EXPIRED else Step.LOGIN }, onDone = { afterLogin() })
                 Step.CONSENT -> ConsentStep(
                     onBack = { Shell.step = Step.LOGIN },
                     onDone = { Shell.step = if (Shell.onboarded) Step.APP else Step.MIC },

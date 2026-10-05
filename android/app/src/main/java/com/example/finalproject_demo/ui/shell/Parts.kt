@@ -34,7 +34,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.example.finalproject_demo.net.AuthProvider
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -119,31 +128,70 @@ fun CheckRow(checked: Boolean, text: String, onToggle: () -> Unit, big: Boolean 
 }
 
 /**
- * 소셜 로그인 버튼 — 각 사 규격(디자인 시스템 「로그인 버튼 규격」). **자리만** 잡은 것이다:
- * 카카오 말풍선 심볼 · 네이버 N · Google G 는 앱에 넣을 때 각 사가 배포한 공식 이미지로 바꾼다.
+ * 소셜 로그인 버튼 — 각 사 규격(디자인 시스템 「로그인 버튼 규격」 · 10-05 실제 SDK 연결).
+ *  - 카카오: 노랑 #FEE500 · 검은 말풍선 심볼 · 글자 85% 검정
+ *  - 네이버: 초록 #03C75A · 흰 N
+ *  - Google: 흰 바탕 · 회색 테두리 #747775 · 네 색 G
+ * 심볼은 각 사 배포 이미지의 모양을 코드로 그린 것이다(이미지 파일 없이 어느 화면 밀도에서도 또렷하게).
+ * [busy] 면 「연결 중…」, [enabled] 가 아니면 흐리게 — 하나를 누른 동안 다른 창이 또 뜨지 않게.
  */
 @Composable
-fun SocialButton(provider: com.example.finalproject_demo.net.AuthProvider, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val (bg, fg, mark, label) = when (provider) {
-        com.example.finalproject_demo.net.AuthProvider.KAKAO -> listOf(Color(0xFFFEE500), Color(0xD9000000), "💬", "카카오로 시작하기")
-        com.example.finalproject_demo.net.AuthProvider.NAVER -> listOf(Color(0xFF03C75A), Color.White, "N", "네이버로 시작하기")
-        com.example.finalproject_demo.net.AuthProvider.GOOGLE -> listOf(Color.White, Color(0xFF1F1F1F), "G", "Google로 시작하기")
-        com.example.finalproject_demo.net.AuthProvider.EMAIL -> listOf(WoolCream, InkBrown, "✉", "이메일로 계속하기")
+fun SocialButton(provider: AuthProvider, onClick: () -> Unit, modifier: Modifier = Modifier, busy: Boolean = false, enabled: Boolean = true) {
+    val (bg, fg, label) = when (provider) {
+        AuthProvider.KAKAO -> Triple(Color(0xFFFEE500), Color(0xD9000000), "카카오로 시작하기")
+        AuthProvider.NAVER -> Triple(Color(0xFF03C75A), Color.White, "네이버로 시작하기")
+        AuthProvider.GOOGLE -> Triple(Color.White, Color(0xFF1F1F1F), "Google로 시작하기")
+        AuthProvider.EMAIL -> Triple(WoolCream, InkBrown, "이메일로 계속하기")
     }
     Row(
         modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(46.dp)
+            .alpha(if (enabled || busy) 1f else 0.55f)
             .clip(RoundedCornerShape(12.dp))
-            .background(bg as Color)
-            .then(if (provider == com.example.finalproject_demo.net.AuthProvider.GOOGLE) Modifier.border(1.dp, Color(0xFF747775), RoundedCornerShape(12.dp)) else Modifier)
-            .clickable { onClick() }
+            .background(bg)
+            .then(if (provider == AuthProvider.GOOGLE) Modifier.border(1.dp, Color(0xFF747775), RoundedCornerShape(12.dp)) else Modifier)
+            .clickable(enabled = enabled) { onClick() }
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(mark as String, fontSize = 18.sp, fontWeight = FontWeight.Black, color = fg as Color, modifier = Modifier.width(28.dp))
-        Text(label as String, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = fg, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-        Spacer(Modifier.width(28.dp))
+        Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) { BrandMark(provider) }
+        Text(if (busy) "${provider.label} 연결 중…" else label, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = fg, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+        Spacer(Modifier.width(22.dp))
+    }
+}
+
+/** 각 사 심볼 — 카카오 말풍선 · 네이버 N · Google G */
+@Composable
+private fun BrandMark(p: AuthProvider) = Canvas(Modifier.size(20.dp)) {
+    val w = size.width; val h = size.height
+    when (p) {
+        AuthProvider.KAKAO -> {
+            val ink = Color.Black
+            drawOval(ink, Offset(0f, h * 0.06f), Size(w, h * 0.72f))
+            val tail = Path().apply { moveTo(w * 0.24f, h * 0.62f); lineTo(w * 0.18f, h * 0.95f); lineTo(w * 0.46f, h * 0.72f); close() }
+            drawPath(tail, ink)
+        }
+        AuthProvider.NAVER -> {
+            val n = Path().apply {
+                moveTo(w * 0.12f, h * 0.12f); lineTo(w * 0.38f, h * 0.12f); lineTo(w * 0.62f, h * 0.52f); lineTo(w * 0.62f, h * 0.12f)
+                lineTo(w * 0.88f, h * 0.12f); lineTo(w * 0.88f, h * 0.88f); lineTo(w * 0.62f, h * 0.88f); lineTo(w * 0.38f, h * 0.48f)
+                lineTo(w * 0.38f, h * 0.88f); lineTo(w * 0.12f, h * 0.88f); close()
+            }
+            drawPath(n, Color.White)
+        }
+        AuthProvider.GOOGLE -> {
+            val sw = w * 0.2f
+            val inset = sw / 2
+            val box = Size(w - sw, h - sw)
+            val tl = Offset(inset, inset)
+            drawArc(Color(0xFFEA4335), 200f, 110f, false, tl, box, style = Stroke(sw))    // 빨강 (위)
+            drawArc(Color(0xFFFBBC05), 140f, 60f, false, tl, box, style = Stroke(sw))     // 노랑 (왼쪽 아래)
+            drawArc(Color(0xFF34A853), 45f, 95f, false, tl, box, style = Stroke(sw))      // 초록 (아래)
+            drawArc(Color(0xFF4285F4), -10f, 55f, false, tl, box, style = Stroke(sw))     // 파랑 (오른쪽)
+            drawRect(Color(0xFF4285F4), Offset(w * 0.5f, h * 0.5f - sw / 2), Size(w * 0.5f - inset / 2, sw))
+        }
+        AuthProvider.EMAIL -> drawRect(InkBrown, Offset(0f, h * 0.2f), Size(w, h * 0.6f), style = Stroke(w * 0.1f))
     }
 }
 
@@ -176,6 +224,8 @@ fun ObFrame(
     onCta: () -> Unit = {},
     cta2: String? = null,
     onCta2: () -> Unit = {},
+    /** 오른쪽 조작부가 길면(약관 · 회원가입) 위아래로 밀어 본다 — 이때 안에서 `weight` 는 쓰지 않는다 */
+    scroll: Boolean = false,
     right: @Composable ColumnScope.() -> Unit,
 ) = ParentText { Box(Modifier.fillMaxSize()) {
     Row(Modifier.fillMaxSize().background(Wool)) {
@@ -186,7 +236,12 @@ fun ObFrame(
             Text(sub, fontSize = 13.sp, color = InkSoft, lineHeight = 19.sp)
         }
         Box(Modifier.weight(460f).fillMaxHeight()) {
-            Column(Modifier.fillMaxSize().padding(start = 32.dp, end = 32.dp, top = 58.dp, bottom = 90.dp), content = right)
+            Column(
+                Modifier.fillMaxSize().padding(top = 58.dp, bottom = 86.dp)
+                    .then(if (scroll) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                    .padding(horizontal = 32.dp),
+                content = right,
+            )
             if (step != null) StepDots(step, Modifier.align(Alignment.TopEnd).padding(top = 20.dp, end = 28.dp))
             Row(Modifier.align(Alignment.BottomEnd).padding(end = 32.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (cta2 != null) PBtn(cta2, onCta2, Modifier.width(150.dp), primary = false, height = 56.dp)

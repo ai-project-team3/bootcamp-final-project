@@ -15,6 +15,11 @@ vadSilero = "2.0.10"
 # 화면을 에뮬레이터 없이 PNG로 그려 검사한다 (9/21 — 이 기기에서 에뮬레이터가 기계를 얼린다 · 트러블슈팅 6-12)
 roborazzi = "1.32.2"
 robolectric = "4.14.1"
+# 보호자 로그인 (10-05) — 카카오 · 네이버 · Google. 키는 local.properties (net/SocialLogin.kt)
+kakaoSdk = "2.25.0"
+naverOauth = "5.12.0"
+credentials = "1.5.0"
+googleId = "1.1.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -38,6 +43,11 @@ robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "
 roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
 roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose", version.ref = "roborazzi" }
 roborazzi-junit = { group = "io.github.takahirom.roborazzi", name = "roborazzi-junit-rule", version.ref = "roborazzi" }
+kakao-user = { group = "com.kakao.sdk", name = "v2-user", version.ref = "kakaoSdk" }
+naver-oauth = { group = "com.navercorp.nid", name = "oauth", version.ref = "naverOauth" }
+androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
+androidx-credentials-play = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
+googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleId" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

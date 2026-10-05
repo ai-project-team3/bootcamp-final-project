@@ -41,6 +41,9 @@ object Shell {
     /** 로그인 없이 샘플 책 보기 — 녹음 없이 책장만 */
     var sampleOnly by mutableStateOf(false)
 
+    /** 로그인 화면에서 고른 이메일 화면 — 로그인 · 회원가입 (10-05) */
+    var emailMode by mutableStateOf(EmailMode.LOGIN)
+
     /** 탈퇴 ① 에서 「폰 안의 책 · 그림 · 녹음도 함께 지우기」 */
     var wipeLocal by mutableStateOf(false)
 
