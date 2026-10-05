@@ -568,6 +568,22 @@ class PictureDiaryFlowTest {
         assertTrue("질문 목소리가 끝나기 전 한 답이 버려졌다 — 말=${s.line}", await(4_000) { s.slots["place"] != null } != null)
     }
 
+    /**
+     * 오또가 묻자마자(마이크가 열리자마자) 한 답도 받는다 — 전에는 마이크를 연 뒤 오또 말이 끝나길 기다렸다가 앞 입력을 비워서,
+     * 오또가 말하는 사이 한 답이 버려지고 10초 뒤 「말이 없었다」로 거뒀다 (10-05 실기기 · VoiceInbox)
+     */
+    @Test
+    fun anAnswerGivenTheMomentTheMicOpensIsKept() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" && s.micEnabled } != null)
+        d.send(Reply.Spoke("미끄럼틀"))                                   // 열리자마자 — 다시 보내지 않는다
+        assertTrue("마이크가 열리자마자 한 답이 버려졌다 — 말=${s.line}", await { s.diaryDay.pieces.any { it.name == "미끄럼틀" } } != null)
+    }
+
     /** 「강아지 그려줘」 — 마지막에 그린 조각이 아니라 부른 조각을. 이미 그리는 중이면 다시 주문하지 않고 그렇다고 말한다 (프로토타입) */
     @Test
     fun drawMeAimsAtThePieceTheChildNames() = run { d ->
