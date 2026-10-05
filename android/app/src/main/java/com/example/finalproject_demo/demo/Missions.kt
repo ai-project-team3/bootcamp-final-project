@@ -137,6 +137,8 @@ fun reported(line: String): String {
 fun DemoState.m1Line(): String {
     slot1Prop()?.let { return it.ask }                   // C1 불기 · C3 소리 흉내 — 소품은 아이 말에서 (SoundProp.kt)
     val m = mission1(); val v = rideName
+    if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode))
+        return "이 자리에 ${m.blobName}${ga(m.blobName)} 남아 있어. ${m.toolName}${ro(m.toolName)} 슥슥 치워 줄래?"
     if (isDiary) {
         // 9/22 — 전에는 **가방**에 묻은 것을 털게 했다. 가방은 아이가 말한 적 없는 물건이라
         // "블록이 무너졌어" 라고 말한 날에도 뜬금없이 가방이 나왔다. 이제 **그 일이 일어난 자리**를 치운다
@@ -158,6 +160,7 @@ fun DemoState.m1Caption(withSubject: Boolean = true): String {
         return if (withSubject) "$childName${eun(childName)} $clause" else clause
     }
     val m = mission1(); val v = rideName; val f = friendCallName
+    if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode)) return m1Before()
     if (isDiary) {
         // 자막은 **아이가 한 일**로 쓴다. 미션이 이야기 옆에 붙은 딴 이야기가 아니라
         // "그래서 나는 이렇게 했어" 자리에 들어가야 흐름이 끊기지 않는다 (9/22)
@@ -194,6 +197,7 @@ fun DemoState.m2Clause(): String = slot2Prop()?.did ?:
 
 fun DemoState.m1Done(): String =
     slot1Prop()?.cheer ?: if (isDiary) "${mission1().done} 자리가 다시 깨끗해졌어!"
+    else if (com.example.finalproject_demo.net.Server.liveFor(mode)) mission1().done
     else "${mission1().done} $storyActor 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
 
 fun DemoState.m2Line(easy: Boolean): String {

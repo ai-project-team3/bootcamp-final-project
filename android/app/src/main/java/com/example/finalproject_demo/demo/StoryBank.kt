@@ -1033,4 +1033,7 @@ fun DemoState.bookCaption(i: Int): String =
         val result = storyMissionResult(i)
         if (result == null) caption else "$caption $result"
     }
+    // The scripted RUB page names its ride, which is not drawn in a live story. Keep its fallback playable.
+    else if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode) && pageKind(i) == PageKind.RUB)
+        if (m1Result == null) m1Before() else m1Done()
     else template?.pages?.getOrNull(i - 1)?.text?.invoke(this) ?: ""
