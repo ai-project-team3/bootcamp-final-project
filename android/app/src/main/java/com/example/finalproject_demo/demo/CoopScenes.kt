@@ -767,6 +767,15 @@ internal fun DemoState.coopMissionProp(kind: PageKind): String? = when (kind) {
     PageKind.DRAG -> slot2Prop()?.let { FIX_THING[it] }
         ?: if (missionFor(kind) == MissionId.E1 && solutionItem != "star") mission2().itemName else null
     else -> null
+}?.takeIf { coopServerTense() == CoopReason.DREAM || it.substringAfterLast(' ') in coopChildSaid() }
+// 실제 하루는 그 물건 **이름**을 아이가 말했을 때만 — 말에서 짐작한 물건(「먹었어」 → 딸기 · 「미끄럼틀」 → 모래)은
+// 아이가 말하지 않은 물건이라 책에 세우지 않는다(10-05 조장 리뷰 #134). 상상 이야기는 빌려 와도 된다
+
+/** 아이(또는 아이가 고른 카드)가 채운 칸의 말을 한데 — 마스코트가 채운 칸은 빼고 */
+private fun DemoState.coopChildSaid(): String {
+    val mine = setOf("child", "card")
+    val fields = mapOf("place" to place, "problem" to problem, "cause" to cause, "solution" to solution, "reaction" to reaction, "companion" to friend)
+    return (slots.filterKeys { slotBy[it] in mine }.values + fields.filterKeys { slotBy[it] in mine }.values.filterNotNull()).joinToString(" ")
 }
 
 private val SOUND_THING = mapOf(SoundProp.SIREN to "소방차", SoundProp.CAR to "자동차", SoundProp.TRAIN to "기차",

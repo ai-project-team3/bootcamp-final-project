@@ -64,6 +64,17 @@ class CoopMissionFitTest {
         assertEquals("모래가 사라졌어요.", s.coopMissionResult(PageKind.RUB))
     }
 
+    /** #134 리뷰 — 「먹었어」에서 딸기를 짐작하지만 아이는 딸기를 말하지 않았다. 실제 하루는 이름을 말한 물건만 */
+    @Test
+    fun aRealDaySendsOnlyAnObjectTheChildNamed() {
+        val s = zooDay("done").apply { solution = "기린이랑 같이 간식을 먹었어"; solutionItem = "strawberry" }
+        assertNull("아이가 말하지 않은 딸기를 보냈다", s.coopMissionProp(PageKind.DRAG))
+        s.solution = "기린이랑 딸기를 나눠 먹었어"
+        assertEquals("딸기", s.coopMissionProp(PageKind.DRAG))
+        // 상상 이야기는 빌려 와도 된다
+        assertEquals("딸기", zooDay("dream").apply { solution = "간식을 먹었어"; solutionItem = "strawberry" }.coopMissionProp(PageKind.DRAG))
+    }
+
     @Test
     fun anImaginedStoryStillPutsTheMissionInTheBook() {
         val s = zooDay("dream")
