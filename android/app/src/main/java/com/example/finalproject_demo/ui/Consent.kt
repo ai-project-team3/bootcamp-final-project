@@ -154,12 +154,19 @@ object ConsentStore {
     fun withdraw() {
         guardianAgreed = false
         nameVoiceAgreed = false      // 본 동의를 물리면 선택 동의도 같이 물린다
-        prefs?.edit()?.putBoolean(KEY_AGREED, false)?.putBoolean(KEY_NAME_VOICE, false)?.apply()
+        micNoticeShown = false       // 마이크도 다시 묻는다 — 탈퇴 · 다른 보호자 계정 (10-05 치영 · ui/shell/Shell.kt)
+        prefs?.edit()?.putBoolean(KEY_AGREED, false)?.putBoolean(KEY_NAME_VOICE, false)?.putBoolean(KEY_MIC, false)?.apply()
     }
 
     fun markMicNoticeShown() {
         micNoticeShown = true
         prefs?.edit()?.putBoolean(KEY_MIC, true)?.apply()
+    }
+
+    /** 마이크 동의만 되돌린다 — 로그아웃하면 다시 로그인할 때 마이크를 다시 묻는다 (10-05 치영 · ui/shell/AccountScreens.kt) */
+    fun forgetMic() {
+        micNoticeShown = false
+        prefs?.edit()?.putBoolean(KEY_MIC, false)?.apply()
     }
 
     fun report(reason: String, note: String) {
