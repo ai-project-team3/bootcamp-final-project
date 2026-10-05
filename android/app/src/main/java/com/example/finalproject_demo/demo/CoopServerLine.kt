@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.ui.coopItem
 
 /**
  * 협업에서 오또가 아이 답에 하는 말 — 서버의 받아주기(ack) + 되돌려주기(expand). 동화 모드와 같게 쓴다 (10-05).
@@ -23,3 +24,10 @@ private const val REACTION_MAX = 40
 
 private fun usableReaction(text: String): Boolean =
     text.isNotBlank() && text.length <= REACTION_MAX && '?' !in text && '{' !in text && !hasRoughWord(text)
+
+/**
+ * `/story` 에 보내는 무대 — 고른 요소 안의 자리(`COOP_ITEMS` 의 spots, 「소방차 차고 · 출동 준비실 · 훈련장」) (#113).
+ * 서버 프롬프트는 이것을 쪽 꾸밈과 keywords 에만 쓰고 사건을 만들지 않는다. 직접 쓴 요소 · 고른 이야기가 없으면 null.
+ * 요소의 선택지 후보(troubles · causes · fixes)는 보내지 않는다 — 아이가 말한 것이 아니다.
+ */
+internal fun DemoState.coopStage(): List<String>? = bookPick?.let { coopItem(it.name) }?.spots?.takeIf(List<String>::isNotEmpty)

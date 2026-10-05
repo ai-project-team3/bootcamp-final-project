@@ -183,13 +183,15 @@ object Server {
         pages: List<Page>? = null,
         /** coop only: the reason the parent picked — "done" · "soon" · "dream" (#52). null = a day that happened */
         reason: String? = null,
-    ): List<String>? = storyBook(mode, slots, slotBy, keep, template, level, pages, reason)?.captions
+        /** coop only: the spots inside the picked item, scenery for the pages (#113). null = not sent */
+        stage: List<String>? = null,
+    ): List<String>? = storyBook(mode, slots, slotBy, keep, template, level, pages, reason, stage)?.captions
 
     /** The story mode consumes the same book response together with its optional title. */
     suspend fun storyBook(
         mode: String, slots: Map<String, String?>, slotBy: Map<String, String> = emptyMap(),
         keep: String? = null, template: String? = null, level: String? = null,
-        pages: List<Page>? = null, reason: String? = null,
+        pages: List<Page>? = null, reason: String? = null, stage: List<String>? = null,
     ): StoryBook? {
         val body = JSONObject()
             .put("mode", mode)
@@ -199,6 +201,9 @@ object Server {
             .put("template", template ?: JSONObject.NULL)
             .put("level", level ?: JSONObject.NULL)
             .put("reason", reason ?: JSONObject.NULL)
+        // the server refuses more than 5 or a spot over 12 chars (422) — trim here so a long list never costs the book
+        stage?.map(String::trim)?.filter { it.isNotEmpty() && it.length <= 12 }?.take(5)?.takeIf(List<String>::isNotEmpty)
+            ?.let { body.put("stage", JSONArray(it)) }
         if (pages != null) body.put("pages", JSONArray().apply {
             pages.forEach { put(JSONObject().put("kind", it.kind).put("mission", it.mission ?: JSONObject.NULL).put("prop", it.prop ?: JSONObject.NULL)) }
         })
