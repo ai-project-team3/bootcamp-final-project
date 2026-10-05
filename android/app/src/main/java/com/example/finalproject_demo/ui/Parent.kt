@@ -61,6 +61,7 @@ import com.example.finalproject_demo.demo.coopReportCopy
 import com.example.finalproject_demo.demo.feelingsSaid
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.DemoState
+import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.coopReady
 import com.example.finalproject_demo.demo.coopParentAdvice
 import com.example.finalproject_demo.demo.Reply
@@ -299,11 +300,7 @@ private fun RecordTab(d: Director) {
 
     val s1 = s.signals.filter { it.startsWith("S1") }.map { it.substringAfter("\"").substringBefore("\"") }
     val s2 = s.signals.filter { it.startsWith("S2") }.map { it.substringAfter("\"").substringBefore("\"") }
-    val made = buildList {
-        // 일기 모드의 그리기 걸음(오늘 만난 사람 그리기)을 남겨 둔 이유 — 없으면 이 축이 빈칸으로 나온다 (일기 설계 §8 · 9/21)
-        if (s.drawing.isNotEmpty()) add("${s.friendCallName}${eul(s.friendCallName)} 직접 그렸어요")
-        if (s.sound?.contains("원본") == true) add("${s.dino.name} 소리를 냈어요")
-    }
+    val made = reportMade(s)
     val reasonQuote = s1.firstOrNull()
     val fillQuote = s2.firstOrNull { it != reasonQuote } ?: s2.firstOrNull()
     val talkQuote = s.quotes.firstOrNull { it != reasonQuote && it != fillQuote } ?: s.quotes.firstOrNull()
@@ -1228,4 +1225,17 @@ private fun PinViewBody(d: Director, stage: Stage.Pin) {
             else -> com.example.finalproject_demo.ui.shell.PinCreate(onSet = { com.example.finalproject_demo.ui.shell.Shell.setPin(it); pass() })
         }
     }
+}
+
+/**
+ * 부모 리포트 「만들기」 축 — 아이가 오늘 직접 만든 것.
+ *
+ * 그림일기는 화이트보드 그림을 `sceneDrawing` · 오늘 판(`diaryDay.pieces`)으로 옮기고 `drawing` 을 비운다(`keepSceneDrawing`).
+ * 전에는 `drawing` 만 봐서 그림을 그린 그림일기 아이에게도 「오늘은 프리셋을 골랐어요」가 나왔다 (#65 2번).
+ */
+internal fun reportMade(s: DemoState): List<String> = buildList {
+    if (s.isDiary && (s.sceneDrawing.isNotEmpty() || s.diaryDay.pieces.isNotEmpty())) add("오늘 있었던 일을 직접 그렸어요")
+    // 일기 모드의 그리기 걸음(오늘 만난 사람 그리기)을 남겨 둔 이유 — 없으면 이 축이 빈칸으로 나온다 (일기 설계 §8 · 9/21)
+    if (s.drawing.isNotEmpty()) add("${s.friendCallName}${eul(s.friendCallName)} 직접 그렸어요")
+    if (s.sound?.contains("원본") == true) add("${s.dino.name} 소리를 냈어요")
 }
