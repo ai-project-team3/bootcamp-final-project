@@ -578,11 +578,12 @@ private fun DrawScope.drawBoardStroke(s: DrawStroke, crop: BoardBox) {
 
 // ── D3 다 그린 뒤 묻기 ──────────────────────────────────────────
 
+/** 엎드린 오또 — 물을 때는 고개 들고 아이를 보고, 아이가 말하는 동안은 공책에 받아 적는다 */
+internal fun diaryAskPose(listening: Boolean): Pose = if (listening) Pose.LIE_WRITE else Pose.LIE_LOOK
 
 /**
- * 다 그린 뒤 빈 칸 묻기 — 위 가운데 별 둘(필수 두 칸), 가운데 아이 그림을 꽂은 카드. 묻는 말은 아래 대사 칸(오또 얼굴)이 맡는다.
- * 오또는 대사 칸 얼굴 하나만 — 엎드린 오또까지 두면 한 화면에 둘이었다 (10-05 진웅 · D0 와 같이).
- * 그림 없는 날의 카드는 아이가 말한 곳의 펠트 그림(아직 모르면 어디라고 말하지 않는 저녁 들판) — 그림일기 한 장과 같다.
+ * 다 그린 뒤 빈 칸 묻기 — 위 가운데 별 둘(필수 두 칸), 왼쪽 엎드린 오또, 오른쪽 아이 그림을 꽂은 카드(둘이 같은 높이).
+ * 묻는 말은 아래 대사 칸이 맡는다. 그림 없는 날에는 빈 카드를 세우지 않는다.
  */
 @Composable
 private fun DiaryAskView(d: Director, cq: Dp) {
@@ -593,8 +594,13 @@ private fun DiaryAskView(d: Director, cq: Dp) {
     Box(Modifier.fillMaxSize()) {
         TwoStars(PICTURE_REQUIRED.count { !s.slots[it].isNullOrBlank() }, cq, Modifier.align(Alignment.TopCenter).padding(top = cq * 2))
         Row(
-            Modifier.fillMaxWidth().padding(start = TopBarRight, end = TopBarRight, top = cq * 8.5f).height(cq * 24),
+            Modifier.fillMaxWidth().padding(start = cq * 2, end = cq * 3, top = cq * 8.5f).height(cq * 24),
+            // 그림 없는 날은 오또 혼자 — 구석이 아니라 가운데에서 묻는다
+            horizontalArrangement = if (pieces.isEmpty()) Arrangement.Center else Arrangement.Start,
         ) {
+            Otto(diaryAskPose(s.micOn), Modifier.fillMaxHeight().testTag("d3-otto"))
+            if (pieces.isEmpty()) return@Row
+            Spacer(Modifier.width(cq * 1.5f))
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 BoxWithConstraints(
                     Modifier.fillMaxSize().padding(top = cq)
@@ -604,13 +610,9 @@ private fun DiaryAskView(d: Director, cq: Dp) {
                         .padding(cq * 1.4f)
                         .testTag("d3-card")
                 ) {
-                    if (pieces.isEmpty()) {
-                        AssetImage(diaryPlaceBg(s.slots["place"]), Modifier.fillMaxSize().testTag("d3-place"), contentScale = ContentScale.Crop)
-                    } else {
-                        // 그린 부분만 카드 비율로 잘라 꽉 채운다 — 화이트보드의 빈 곳은 버린다
-                        val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)
-                        pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
-                    }
+                    // 그린 부분만 카드 비율로 잘라 꽉 채운다 — 화이트보드의 빈 곳은 버린다
+                    val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)
+                    pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
                 }
                 Box(Modifier.align(Alignment.TopCenter).size(cq * 2.4f).shadow(2.dp, CircleShape).background(FeltCoral, CircleShape))
             }
