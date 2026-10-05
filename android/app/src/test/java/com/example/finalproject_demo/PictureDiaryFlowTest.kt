@@ -31,6 +31,9 @@ import com.example.finalproject_demo.demo.echoBack
 import com.example.finalproject_demo.demo.hasDiaryCover
 import com.example.finalproject_demo.demo.coverKey
 import com.example.finalproject_demo.demo.pieceNameFrom
+import com.example.finalproject_demo.demo.namesIn
+import com.example.finalproject_demo.demo.splitAcross
+import com.example.finalproject_demo.demo.DiaryPiece
 import com.example.finalproject_demo.demo.praiseFor
 import com.example.finalproject_demo.demo.sendBoardTool
 import com.example.finalproject_demo.demo.soundsLikeAName
@@ -900,6 +903,33 @@ class PictureDiaryFlowTest {
             // 「새로 그린 거야」가 「새로 그린 거요」로 들렸다 — 「요」가 이름이 됐다 (10-02 실기기)
             "새로 그린 거요", "새로 그린 거예요", "새로 그린 거야", "요", "야",
         ).forEach { assertEquals("「$it」은 이름이 아니다", null, pieceNameFrom(Reply.Spoke(it))) }
+    }
+
+    /** 「해랑 구름」 — 이어 말한 이름을 낱낱이. 「고양이랑」의 「이」는 낱말이라 남긴다 */
+    @Test
+    fun namesSaidTogetherComeApart() {
+        mapOf(
+            "해랑 구름" to listOf("해", "구름"), "미끄럼틀이랑 해" to listOf("미끄럼틀", "해"),
+            "고양이랑 강아지" to listOf("고양이", "강아지"), "엄마하고 아빠" to listOf("엄마", "아빠"),
+            "집이랑 나무 그리고 해" to listOf("집", "나무", "해"), "우리 집이랑 나무" to listOf("우리 집", "나무"),
+            "호랑이" to listOf("호랑이"), "해랑" to listOf("해랑"), "엄마랑 나" to listOf("엄마", "나"),
+        ).forEach { (name, parts) -> assertEquals("「$name」", parts, namesIn(name)) }
+    }
+
+    /**
+     * 「해랑 구름」을 한 번에 말해도 앞에 이름 없는 조각이 있으면 그린 차례대로 나눠 붙인다 — 지금 조각이 마지막 이름.
+     * 이름 없는 조각이 모자라면 한 조각에 둘을 그린 것이다 — 「엄마랑 나」처럼 통째로 (10-05 실기기 「해랑 구름」 · 「미끄럼틀이랑 해」)
+     */
+    @Test
+    fun twoNamesAtOnceGoToTheUnnamedPiecesInDrawingOrder() {
+        fun p(id: Int, name: String? = null) = DiaryPiece(id, listOf(stroke(id * 0.1f)), name)
+        val sun = p(1); val cloud = p(2)
+        assertEquals(listOf(1 to "해", 2 to "구름"), splitAcross("해랑 구름", cloud, listOf(sun, cloud)))
+        assertEquals(listOf(2 to "해", 3 to "구름"), splitAcross("해랑 구름", p(3), listOf(p(1, "미끄럼틀"), p(2), p(3))))
+        assertEquals("한 조각뿐 — 둘을 한 조각에 그렸다", null, splitAcross("엄마랑 나", cloud, listOf(cloud)))
+        assertEquals("앞 조각은 이미 이름이 있다", null, splitAcross("해랑 구름", cloud, listOf(p(1, "미끄럼틀"), cloud)))
+        assertEquals("이름 셋에 이름 없는 조각 둘", null, splitAcross("집이랑 나무 그리고 해", cloud, listOf(sun, cloud)))
+        assertEquals("뒤에 그린 조각은 앞 이름을 받지 않는다", null, splitAcross("해랑 구름", sun, listOf(sun, cloud)))
     }
 
     /** D3 — 필수 두 칸 다음에 이름 없는 조각 하나를 「이건 뭐 그린 거야?」로 묻는다. 카드에는 그 조각만 (프로토타입 nextD3) */
