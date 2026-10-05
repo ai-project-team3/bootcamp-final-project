@@ -138,7 +138,7 @@ suspend fun Director.recordStorySound() {
                         s.storySoundSaved = false
                         s.storySoundAttempted = true
                         // A description of the activity is safe to send; audio bytes and paths are not slots.
-                        s.slots["sound"] = "친구의 소리를 직접 만들었어요"
+                        s.slots["sound"] = RECORDED_SOUND_NOTE
                         s.slotBy["sound"] = "child"
                         s.sound = s.slots["sound"]
                         s.soundLine = "내가 만든 소리"

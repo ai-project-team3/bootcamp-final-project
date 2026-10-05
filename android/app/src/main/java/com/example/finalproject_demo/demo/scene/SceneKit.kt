@@ -96,8 +96,7 @@ private val SWING = KitPiece("swing", "kit_park_swing", PieceRole.LANDMARK, 1.5f
 private val SEESAW = KitPiece("seesaw", "kit_park_seesaw", PieceRole.LANDMARK, 0.8f, 1.510f, words = listOf("시소"))
 private val SANDBOX = KitPiece("sandbox", "kit_park_sandbox", PieceRole.FLAT, 0.2f, 1.467f, words = listOf("모래", "모래놀이"))
 private val BENCH = KitPiece("bench", "kit_park_bench", PieceRole.COVER, 0.5f, 1.188f, copies = 1, words = listOf("의자", "벤치"))
-@Suppress("unused")
-private val LAMP = KitPiece("street_lamp", "kit_park_street_lamp", PieceRole.LANDMARK, 1.8f, 0.602f, words = listOf("가로등", "불"))
+private val LAMP = KitPiece("street_lamp", "kit_park_street_lamp", PieceRole.LANDMARK, 1.8f, 0.201f, words = listOf("가로등", "불"))
 private val BALL = KitPiece("ball", "kit_park_ball", PieceRole.COVER, 0.15f, 0.988f, copies = 1, words = listOf("공"))
 private val BALLOONS = KitPiece("balloons", "kit_park_balloons", PieceRole.SKY_FILL, 0.4f, 0.668f, PieceBase.CENTER,
     tilt = 10f, copies = 1, words = listOf("풍선"))
@@ -114,9 +113,8 @@ val PARK_KIT = SceneKitDef(
     pieces = listOf(
         SUN, CLOUD, BALLOONS, KITE, BUTTERFLY,
         TREE_FAR, TREE_ROW,
-        // LAMP is left out for now: PR #109 baked only the lantern head without a pole, so at the doc's size 1.8
-        // it read as a giant lantern in the middle of the park (10-05 screenshot). Back in once re-baked.
-        TREE, SLIDE, SWING, SEESAW,
+        // LAMP re-baked with its pole and base (10-05) — the #109 piece was only the lantern head and read as a giant lantern
+        TREE, SLIDE, SWING, SEESAW, LAMP,
         BUSH, TULIP, DAISY, STONE, GRASS, BENCH, BALL,
         SANDBOX,
         TULIP_FRONT, GRASS_FRONT,
@@ -142,4 +140,9 @@ object SceneKits {
      */
     @Suppress("UNUSED_PARAMETER")
     fun forPlace(place: String): SceneKitDef = PARK_KIT
+
+    /** The kit whose places the child named, or null — then the place is generated as before (rule 8).
+     *  10-05 device: 「미래 도시」 came out as a park; only the park kit exists yet, so only park words reach it */
+    fun matching(place: String): SceneKitDef? =
+        PARK_KIT.takeIf { listOf("공원", "놀이터", "운동장", "잔디", "산책").any { it in place } }
 }
