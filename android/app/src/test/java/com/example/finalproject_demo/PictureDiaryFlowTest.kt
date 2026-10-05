@@ -32,6 +32,7 @@ import com.example.finalproject_demo.demo.hasDiaryCover
 import com.example.finalproject_demo.demo.coverKey
 import com.example.finalproject_demo.demo.pieceNameFrom
 import com.example.finalproject_demo.demo.praiseFor
+import com.example.finalproject_demo.demo.sendBoardTool
 import com.example.finalproject_demo.demo.soundsLikeAName
 import com.example.finalproject_demo.demo.yesNoOf
 import com.example.finalproject_demo.demo.you
@@ -403,6 +404,34 @@ class PictureDiaryFlowTest {
         d.send(Reply.Tapped("name:$dog", "이름 부르기"))
         assertTrue(await { s.line == "강아지!" } != null)
         d.tell("그려줘") { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" }
+    }
+
+    /**
+     * 오또가 「뭐 그린 거야?」라고 묻는 사이 이름표를 누르고 [그려 줘] — 질문의 답으로 섞이지 않는다.
+     * 질문을 거두고 누른 조각을 부른 뒤 그 조각을 그린다. 묻던 조각은 이름 없이 남는다 (10-05 진웅)
+     */
+    @Test
+    fun boardToolsWhileOttoAsksAreNotTakenAsTheAnswer() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("강아지")
+        assertTrue(await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        s.drawing += stroke(0.7f)
+        assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        assertTrue(s.diaryDay.drawingTalk && !s.diaryDay.watching)            // 묻는 중 — 전에는 그림판 조작이 꺼졌다
+        val dog = s.diaryDay.pieces.first { it.name == "강아지" }.id
+        s.diaryDay.focus = dog to s.drawing.size                            // 화면이 이름표를 누를 때 하는 일
+        d.sendBoardTool(Reply.Tapped("name:$dog", "이름 부르기"))
+        assertTrue("말=${s.line}", await { s.line == "강아지!" } != null)
+        assertNull("이름표 누름이 묻던 조각의 답이 됐다", s.diaryDay.pieces.last().name)
+        d.sendBoardTool(Reply.Tapped("drawme", "그려 줘"))
+        assertTrue("말=${s.line}", await { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" } != null)
+        assertNull(s.diaryDay.pendingTap)
     }
 
     /** 그림판 오른쪽 [그려 줘] — 「그려줘」라고 말한 것과 같다. 방금 그린 조각을 오또가 그린다 (10-05 진웅) */
