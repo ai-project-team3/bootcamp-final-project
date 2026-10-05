@@ -114,7 +114,23 @@ object Shell {
         prefs?.edit()?.putLong("news_at", if (on) at else 0L)?.apply()
     }
 
+    // ── 계정마다 동의 · 마이크 (10-05) ─────────────────────────────
+    //
+    // 법정대리인 동의와 마이크 사용 동의는 **그 보호자**가 하는 것이다. 같은 폰에서 다른 계정으로 가입 · 로그인하면
+    // 처음 설정을 이미 끝냈어도 동의 → 마이크를 다시 거친다. 탈퇴하면 이 기록이 통째로 지워져(resetToFirstRun) 처음부터 다시.
+
+    /** 이 폰에서 동의 · 마이크까지 마친 보호자 계정들 ([com.example.finalproject_demo.net.Guardian.key]) */
+    private fun readySet(): Set<String> = prefs?.getStringSet("ready_accounts", emptySet()) ?: emptySet()
+
+    fun isReady(g: com.example.finalproject_demo.net.Guardian?): Boolean = g != null && g.key in readySet()
+
+    fun markReady(g: com.example.finalproject_demo.net.Guardian?) {
+        g ?: return
+        prefs?.edit()?.putStringSet("ready_accounts", readySet() + g.key)?.apply()
+    }
+
     fun finishOnboarding() {
+        markReady(com.example.finalproject_demo.net.Accounts.guardian)
         onboarded = true
         prefs?.edit()?.putBoolean("onboarded", true)?.apply()
         step = Step.APP

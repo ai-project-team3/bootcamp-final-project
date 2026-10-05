@@ -161,6 +161,9 @@ fun WithdrawSheet(d: Director) {
                 scope.launch {
                     // 서버 계정 즉시 삭제 → 동의 철회 → (고르면) 폰 데이터 삭제 → 처음 상태로
                     Accounts.withdraw(ctx)          // 소셜이면 그 회사와 앱의 연결도 끊는다(unlink)
+                    // 휴대폰의 마이크 권한도 돌려준다 — 다시 가입하면 권한 창부터 다시 뜬다 (10-05).
+                    // 안드로이드 13+ 만 앱이 스스로 권한을 물릴 수 있다(앱이 다음에 꺼질 때 적용). 12 이하는 앱 안의 마이크 동의만 다시 받는다
+                    if (android.os.Build.VERSION.SDK_INT >= 33 && android.os.Build.FINGERPRINT != "robolectric") runCatching { ctx.revokeSelfPermissionOnKill(android.Manifest.permission.RECORD_AUDIO) }
                     ConsentStore.withdraw()
                     // 고르면 폰에 저장된 책 · 그림 · 녹음 · 아이 이름까지 파일째 지운다 (10-05 — 전엔 화면 목록만 비워 다시 켜면 돌아왔다)
                     val wiped = Shell.wipeLocal

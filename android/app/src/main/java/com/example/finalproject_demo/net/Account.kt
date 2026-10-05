@@ -33,7 +33,10 @@ enum class AuthProvider(val label: String) { KAKAO("카카오"), NAVER("네이�
  * 로그인한 보호자 — 서버에 두는 것은 이것뿐이다.
  * @param name 소셜 계정의 별명(없으면 빈칸) · @param dev 키가 없어 개발용 가짜로 들어왔다(계정 탭에 보인다)
  */
-data class Guardian(val provider: AuthProvider, val email: String, val since: Long, val name: String = "", val dev: Boolean = false)
+data class Guardian(val provider: AuthProvider, val email: String, val since: Long, val name: String = "", val dev: Boolean = false, val uid: String = "") {
+    /** 이 폰에서 이 보호자를 가리키는 열쇠 — 카카오처럼 이메일이 없는 계정도 고유 번호로 구분한다 (10-05 · 계정마다 동의 · 마이크) */
+    val key: String get() = provider.name + ":" + uid.ifBlank { email.lowercase() }
+}
 
 sealed interface AuthResult {
     data class Ok(val guardian: Guardian) : AuthResult
@@ -87,7 +90,7 @@ class LocalAccountApi(private val ctx: Context) : AccountApi {
         if (!EmailRules.emailOk(email)) return AuthResult.Fail("이메일 주소를 확인해 주세요")
         val saved = prefs.getString(key(email), null) ?: return AuthResult.Fail("이 폰에서 가입한 이메일이 아니에요. 처음이면 「회원가입」을 눌러 주세요")
         if (!Password.matches(password, saved)) return AuthResult.Fail("비밀번호가 맞지 않아요")
-        return remember(Guardian(AuthProvider.EMAIL, email.trim(), prefs.getLong(key(email) + "_since", System.currentTimeMillis())))
+        return remember(Guardian(AuthProvider.EMAIL, email.trim(), prefs.getLong(key(email) + "_since", System.currentTimeMillis()), uid = email.trim().lowercase()))
     }
 
     override suspend fun signUp(email: String, password: String): AuthResult {
@@ -96,14 +99,14 @@ class LocalAccountApi(private val ctx: Context) : AccountApi {
         if (prefs.contains(key(email))) return AuthResult.Fail("이미 가입한 이메일이에요. 로그인해 주세요")
         val now = System.currentTimeMillis()
         prefs.edit().putString(key(email), Password.hash(password)).putLong(key(email) + "_since", now).apply()
-        return remember(Guardian(AuthProvider.EMAIL, email.trim(), now))
+        return remember(Guardian(AuthProvider.EMAIL, email.trim(), now, uid = email.trim().lowercase()))
     }
 
     override suspend fun loginSocial(who: SocialIdentity): AuthResult {
         // 같은 소셜 계정으로 다시 들어오면 가입한 날을 그대로 둔다
         val idKey = "social_${who.provider.name}_${who.id}"
         val since = prefs.getLong(idKey, 0L).takeIf { it > 0 } ?: System.currentTimeMillis().also { prefs.edit().putLong(idKey, it).apply() }
-        return remember(Guardian(who.provider, who.email.ifBlank { "${who.provider.label} 계정" }, since, who.name, who.dev))
+        return remember(Guardian(who.provider, who.email.ifBlank { "${who.provider.label} 계정" }, since, who.name, who.dev, who.id))
     }
 
     override suspend fun verifyPassword(email: String, password: String): Boolean =
@@ -118,11 +121,11 @@ class LocalAccountApi(private val ctx: Context) : AccountApi {
 
     private fun remember(g: Guardian): AuthResult {
         prefs.edit().putString("provider", g.provider.name).putString("email", g.email).putLong("since", g.since)
-            .putString("name", g.name).putBoolean("dev", g.dev).apply()
+            .putString("name", g.name).putBoolean("dev", g.dev).putString("uid", g.uid).apply()
         return AuthResult.Ok(g)
     }
 
-    override suspend fun logout() { prefs.edit().remove("provider").remove("email").remove("since").remove("name").remove("dev").apply() }
+    override suspend fun logout() { prefs.edit().remove("provider").remove("email").remove("since").remove("name").remove("dev").remove("uid").apply() }
 
     override suspend fun sessionAlive() = prefs.contains("provider")
 
@@ -140,14 +143,15 @@ class LocalAccountApi(private val ctx: Context) : AccountApi {
         if (g?.provider == AuthProvider.EMAIL) e.remove(key(g.email)).remove(key(g.email) + "_since")
         if (g != null) prefs.all.keys.filter { it.startsWith("social_${g.provider.name}_") }.forEach { e.remove(it) }
         prefs.all.keys.filter { it.startsWith("c_") }.forEach { e.remove(it) }
-        e.remove("provider").remove("email").remove("since").remove("name").remove("dev").apply()
+        e.remove("provider").remove("email").remove("since").remove("name").remove("dev").remove("uid").apply()
         return true
     }
 
     fun saved(): Guardian? {
         val p = prefs.getString("provider", null) ?: return null
         val provider = runCatching { AuthProvider.valueOf(p) }.getOrNull() ?: return null
-        return Guardian(provider, prefs.getString("email", "") ?: "", prefs.getLong("since", 0), prefs.getString("name", "") ?: "", prefs.getBoolean("dev", false))
+        return Guardian(provider, prefs.getString("email", "") ?: "", prefs.getLong("since", 0), prefs.getString("name", "") ?: "", prefs.getBoolean("dev", false),
+            prefs.getString("uid", "") ?: "")
     }
 }
 
