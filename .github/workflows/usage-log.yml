@@ -1,0 +1,25 @@
+# Hand the server's usage lines to whoever measures #30 (turns per session · cost), without
+# going to PC1. Run it from the Actions tab or `gh workflow run usage-log.yml`; the result is
+# an artifact. Only count lines (`llm <call> · in · out tokens`, `tts · chars`) — no words.
+name: Server usage log (PC1)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  usage:
+    runs-on: [self-hosted, pc1]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Save the running container's lines
+        run: .\scripts\deploy\save_usage.ps1
+      - name: Copy for upload
+        run: |
+          New-Item -ItemType Directory -Force -Path usage | Out-Null
+          if (Test-Path C:\otto\logs\usage.log) { Copy-Item C:\otto\logs\usage.log usage\usage.log }
+          else { Set-Content usage\usage.log "" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: usage-log
+          path: usage/usage.log
+          retention-days: 7
