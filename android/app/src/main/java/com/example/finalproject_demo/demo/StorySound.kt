@@ -81,7 +81,9 @@ suspend fun Director.recordStorySound() {
     try {
         while (true) {
             if (!recordRequested) {
-                say("친구의 소리를 직접 만들어 볼까?")
+                // 「친구」 only was unclear: 10-05 device, the child had a cat along and could not tell whose sound it was
+                val who = s.slots["name"]?.takeIf(String::isNotBlank) ?: s.slots["newcomer"]?.takeIf(String::isNotBlank)
+                say(if (who != null) "${who}의 소리를 직접 만들어 볼까?" else "친구의 소리를 직접 만들어 볼까?")
                 awaitVoice()
                 choices(Card("🎤 소리 내기", Art.Emoji("🎤"), "sound:record"),
                     Card("소리 없이 계속", Art.Emoji("➡️"), "sound:skip"))

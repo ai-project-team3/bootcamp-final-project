@@ -506,7 +506,8 @@ private suspend fun Director.sceneMakeHero() {
     suspend fun voiceStep(from: Int) {
         for (i in from until questions.size) {
             val q = questions[i]
-            s.stage = Stage.HeroShow(if (i == 0) null else attr, if (i == 0) "주인공 만드는 중 — 마이크로 말해 줘" else "이렇게 되고 있어 — 마이크로 말해 줘")
+            // No half-made preview: it was the grey mannequin, far from the finished doll (10-05 device · 3-1)
+            s.stage = Stage.HeroShow(null, "주인공 만드는 중 — 마이크로 말해 줘")
             val r = ask(Question(text = q.text, kind = Kind.EASY, spoken = q.spoken, easierText = q.easier, easierAsk = "골라 볼래?", choices = q.cards))
             when (r) {
                 is Reply.Spoke -> applySpoken(q.key, r)

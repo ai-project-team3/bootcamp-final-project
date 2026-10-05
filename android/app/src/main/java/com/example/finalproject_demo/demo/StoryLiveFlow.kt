@@ -77,10 +77,20 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 notifyStorySoundChoice(prompt)
                 continue
             }
+            // 10-05 device: the judge asks what the newcomer looks like (judge prompt example 「종류만 말했으니
+            // 생김새를 더 묻는다」) and then the app asked to draw it as well. The drawing is that answer.
+            if (prompt.slot == "newcomer" && !s.slots["newcomer"].isNullOrBlank()) {
+                if (!friendDrawingPrepared) { prepareStoryFriendDrawing(); friendDrawingPrepared = true }
+                s.storyClarificationSlot = null; s.storyNextSlot = null; s.storyServerQuestion = null
+                log("새 친구 생김새 질문 → 그리기로 대신함")
+                continue
+            }
             showConversation()
             val variant = liveVariant(prompt)
             val base = variant.toQuestion(s)
-            val question = base.copy(text = if (prompt.templateOnly) base.text else prompt.text)
+            // Never the script bank's wording in a live story: for a place outside the three themes the theme
+            // falls back to dino, so 「기차가 어디로 먼저 갈까?」 asked about a train nobody mentioned (10-05)
+            val question = base.copy(text = prompt.text)
             history.before()
             val reply = askStory(question, prompt.slot, singleAttempt = checkPlace)
             if (TurnHistory.isNav(reply)) {
