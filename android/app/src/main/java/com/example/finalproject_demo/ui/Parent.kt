@@ -169,6 +169,8 @@ private fun ParentViewBody(d: Director, tab: String) {
                     Text("${s.childName}네 기록 · 어른만", fontSize = 11.sp, color = PSub)
                 }
             }
+            // 탭이 여섯이라 낮은 가로 폰(411dp)에서는 아래 「아이 화면으로」가 잘렸다 — 탭만 스크롤하고 그 버튼은 늘 보이게 (#80)
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             PTABS.forEach { t ->
                 val on = t.key == cur.key
                 Row(
@@ -188,7 +190,8 @@ private fun ParentViewBody(d: Director, tab: String) {
                     Text(t.title, fontSize = 15.sp, color = if (on) Ink else PSub, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium)
                 }
             }
-            Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(8.dp))
             Row(
                 Modifier
                     .fillMaxWidth()

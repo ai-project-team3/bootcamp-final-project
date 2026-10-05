@@ -573,13 +573,16 @@ class CoopFlowTest {
         assertTrue("미션 2 뒤: ${s.bookCaption(drag)}", "건네" in s.bookCaption(drag))
     }
 
-    /** 12권이 차 있으면 **아무것도 지우지 않고** 이번 책은 꽂지 않는다 — 뺄 책 고르기는 책장 전체의 일이다 (guidelines/3 §3-5) */
+    /**
+     * 꽂을 때 12권이 차 있으면 **아무것도 지우지 않고** 이번 책은 꽂지 않는다 (guidelines/3 §3-5).
+     * 꽉 찬 책장은 시작할 때 막히므로(#80 · ShelfFullTest) 여기서는 시작한 **뒤에** 꽉 찬 책장을 붙여 마지막 안전장치만 본다
+     */
     @Test
     fun aFullCoopShelfDeletesNothing() = run { d ->
         val s = d.s
         val store = MemoryCoopStore((1..COOP_SHELF_CAPACITY).map { coopBook("old$it") })
-        CoopShelf.attach(s, store)
         d.startCoopWith(pick = CoopPick("place", "동물원", "done"))
+        CoopShelf.attach(s, store)
         d.walkToShelfButton()
         s.buttons.first { "책장에 꽂기" in it.label }.onClick()
         assertTrue(await(5_000) { s.scene == Scene.SHELF } != null)
