@@ -238,14 +238,24 @@ class CoopFlowTest {
         assertTrue("지금 방식 ${counts[0]}턴 · 바뀐 방식 ${counts[1]}턴", counts[0] > 0 && counts[1] <= counts[0])
     }
 
-    /** 책까지 🎲(시연 답)로 밀며 오또가 물은 말을 모은다 */
-    private suspend fun Director.walkToBook(): List<String> {
+    /**
+     * 책까지 🎲(시연 답)로 밀며 오또가 물은 말을 모은다.
+     * [answers] 에 있는 질문은 🎲 대신 그 답(`칸|책 문장` — 대본 답과 같은 꼴)을 한다 — 🎲 는 걸음의 더미 답에서 **무작위**로 골라 「그냥 할 거야」처럼
+     * 칸을 못 채우는 답이 나올 때가 있다(그러면 앱은 설계대로 앱 질문으로 다시 묻는다). 답이 꼭 들어가야 하는 검사는 이것으로 정한다
+     */
+    private suspend fun Director.walkToBook(answers: Map<String, String> = emptyMap()): List<String> {
         val askedTexts = mutableListOf<String>()
         var guard = 0
         while (s.scene == Scene.DIARY && guard++ < 40) {
             if (await(2_000) { s.buttons.any { "🎲" in it.label } } == null) break
-            askedTexts += asked()
-            if (!push("🎲")) break
+            val q = asked()
+            askedTexts += q
+            val mine = answers[q]
+            if (mine != null) {
+                val before = s.lineId
+                send(com.example.finalproject_demo.demo.Reply.Spoke(mine.substringBefore('|'), mine))
+                if (await(3_000) { s.lineId != before } == null) break
+            } else if (!push("🎲")) break
             delay(40)
         }
         if (await(3_000) { s.buttons.any { "안 그릴래" in it.label } } != null) tap("안 그릴래")
@@ -428,7 +438,8 @@ class CoopFlowTest {
     fun aParentQuestionsAnswerGoesToItsOwnSlotNotTheCompanion() = run { d ->
         val s = d.s
         d.startCoopWith("좋아하는 색은?", pick = firefighter)
-        val askedTexts = d.walkToBook()
+        // 부모 질문에는 꼭 답한다 — 🎲 가 「그냥 할 거야」를 고르면 칸이 비어 열 번에 한 번꼴로 실패했다(10-05 조장 · CI)
+        val askedTexts = d.walkToBook(mapOf("좋아하는 색은?" to "빨강|빨간색이 좋아요"))
         val at = askedTexts.indexOf("좋아하는 색은?")
         assertTrue("부모 질문을 안 물었다: $askedTexts", at >= 0)
         assertTrue("부모 질문이 「누구랑」보다 먼저 나왔다(같이 간 사람 자리): $askedTexts", askedTexts.take(at).any { "누구" in it })
