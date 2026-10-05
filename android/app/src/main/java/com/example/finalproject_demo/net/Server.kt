@@ -285,7 +285,9 @@ object Server {
         }.toByteArray()
         val (code, bytes) = post("/stt", out, "multipart/form-data; boundary=$boundary", readMs = 30_000) ?: return null
         if (code != 200) { Log.w(TAG, "/stt $code ${bytes.decodeToString()}"); return null }
-        return try { JSONObject(bytes.decodeToString()).getString("text") } catch (e: Exception) { warn("/stt parse", e); null }
+        return try {
+            JSONObject(bytes.decodeToString()).getString("text").also { Trace.line("heard", it.ifBlank { "(empty — no speech or a dropped hallucination)" }) }
+        } catch (e: Exception) { warn("/stt parse", e); null }
     }
 
     // ── /tts ───────────────────────────────────────────────────────
@@ -332,6 +334,7 @@ object Server {
     private suspend fun post(path: String, body: ByteArray, type: String, readMs: Int = 15_000): Pair<Int, ByteArray>? =
         withContext(Dispatchers.IO) {
             val b = base ?: return@withContext null
+            val t0 = System.nanoTime()
             try {
                 val c = URL(b + path).openConnection() as HttpURLConnection
                 c.connectTimeout = 6_000   // 10-01: the public https address goes through Cloudflare; 4 s was tight on mobile data
@@ -342,8 +345,9 @@ object Server {
                 c.outputStream.use { it.write(body) }
                 val code = c.responseCode
                 val bytes = (if (code in 200..299) c.inputStream else c.errorStream)?.use { it.readBytes() } ?: ByteArray(0)
+                Trace.line("server", "$path $code ${(System.nanoTime() - t0) / 1_000_000} ms")
                 code to bytes
-            } catch (e: Exception) { warn(path, e); null }
+            } catch (e: Exception) { Trace.line("server", "$path failed ${(System.nanoTime() - t0) / 1_000_000} ms"); warn(path, e); null }
         }
 
     private fun warn(what: String, e: Exception) = Log.w(TAG, "$what failed: ${e.javaClass.simpleName} ${e.message}")
