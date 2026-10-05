@@ -400,6 +400,23 @@ class PictureDiaryFlowTest {
         d.tell("그려줘") { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" }
     }
 
+    /** 그림판 오른쪽 [그려 줘] — 「그려줘」라고 말한 것과 같다. 방금 그린 조각을 오또가 그린다 (10-05 진웅) */
+    @Test
+    fun theDrawMeButtonOrdersOttosDrawingOfTheLastPiece() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("강아지")
+        assertTrue(await { s.line == "나도 강아지를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        assertTrue(await { s.diaryDay.watching } != null)
+        d.send(Reply.Tapped("drawme", "그려 줘"))
+        assertTrue("[그려 줘]에 그리지 않았다 — 말=${s.line}", await { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" } != null)
+    }
+
     /** 「강아지 그려줘」 — 마지막에 그린 조각이 아니라 부른 조각을. 이미 그리는 중이면 다시 주문하지 않고 그렇다고 말한다 (프로토타입) */
     @Test
     fun drawMeAimsAtThePieceTheChildNames() = run { d ->

@@ -138,6 +138,11 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
                     ?.let { showOttoDrawing(day, it) }
                 continue
             }
+            // 그림판 오른쪽 [그려 줘] — 「그려줘」라고 말한 것과 같다 (10-05 진웅)
+            r is Reply.Tapped && r.value == "drawme" -> {
+                if (drawMe(this, day, waiting, null)) offers++
+                continue
+            }
             // 이름표를 길게 — 이름을 다시 묻고 고친다 (10-02 진웅 — 잘못 들은 이름을 고칠 수 있어야 한다)
             r is Reply.Tapped && r.value.startsWith("rename:") -> {
                 day.pieces.firstOrNull { it.id == r.value.removePrefix("rename:").toIntOrNull() && it.name != null }
@@ -155,25 +160,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             r is Reply.Spoke -> {
                 when (heardWhileDrawing(day, r, askedPieces)) {
                     Heard.DONE -> break
-                    Heard.DRAW_ME -> {
-                        day.catchUp(s.drawing)
-                        // 「강아지 그려줘」면 강아지를 — 이름을 안 불렀으면 방금 누른 이름표(그 뒤로 새 획이 없을 때), 아니면 방금 그리던 조각 (10-02 실기기)
-                        val tapped = day.focus?.takeIf { it.second == s.drawing.size }?.let { (id, _) -> day.pieces.firstOrNull { it.id == id } }
-                        val target = day.namedIn(r.text, except = -1) ?: tapped
-                            ?: day.pieces.lastOrNull { s.drawing.lastOrNull() in it.strokes } ?: day.pieces.lastOrNull()
-                        val what = target?.name?.let { "${you(it)}${eul(you(it))} " }.orEmpty()
-                        when {
-                            target == null -> say("그림을 먼저 그려 줘! 그다음에 나도 그려 볼게.")
-                            waiting.any { it.pieceId == target.id } -> say("나도 지금 ${what}그리고 있어! 조금만 기다려 줘.")
-                            target.ottoPng != null -> say("벌써 ${what}그렸어! 반짝이는 이름표를 눌러 봐.")
-                            else -> {
-                                say("나도 ${what}그려볼게! 더 그리고 있어!")
-                                offers++
-                                waiting += orderOttoDrawing(this, target, target.name ?: "아이가 그린 그림")
-                                pause(600)
-                            }
-                        }
-                    }
+                    Heard.DRAW_ME -> if (drawMe(this, day, waiting, r.text)) offers++
                     Heard.NAMED -> {
                         // 묻지 않았는데 이름을 말했다 — 물어서 들은 이름처럼 「나도 그려볼까?」를 바로 (전에는 빠졌다 · 10-01 실기기)
                         val named = day.pieces.firstOrNull { s.drawing.lastOrNull() in it.strokes }?.takeIf { it.name != null }
@@ -469,6 +456,30 @@ private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): Pie
         return PieceAnswer(null)
     }
     return PieceAnswer(name)
+}
+
+/**
+ * 「그려줘」 — 말로(「강아지 그려줘」) 또는 그림판의 [그려 줘] 버튼으로. 오또가 그 조각을 뒤에서 그린다. 주문했으면 참.
+ * 부른 이름이 있으면 그 조각, 없으면 방금 누른 이름표(그 뒤로 새 획이 없을 때), 아니면 방금 그리던 조각 (10-02 실기기)
+ */
+private suspend fun Director.drawMe(scope: CoroutineScope, day: DiaryDay, waiting: MutableList<OttoOrder>, said: String?): Boolean {
+    day.catchUp(s.drawing)
+    val tapped = day.focus?.takeIf { it.second == s.drawing.size }?.let { (id, _) -> day.pieces.firstOrNull { it.id == id } }
+    val target = said?.let { day.namedIn(it, except = -1) } ?: tapped
+        ?: day.pieces.lastOrNull { s.drawing.lastOrNull() in it.strokes } ?: day.pieces.lastOrNull()
+    val what = target?.name?.let { "${you(it)}${eul(you(it))} " }.orEmpty()
+    when {
+        target == null -> say("그림을 먼저 그려 줘! 그다음에 나도 그려 볼게.")
+        waiting.any { it.pieceId == target.id } -> say("나도 지금 ${what}그리고 있어! 조금만 기다려 줘.")
+        target.ottoPng != null -> say("벌써 ${what}그렸어! 반짝이는 이름표를 눌러 봐.")
+        else -> {
+            say("나도 ${what}그려볼게! 더 그리고 있어!")
+            waiting += orderOttoDrawing(scope, target, target.name ?: "아이가 그린 그림")
+            pause(600)
+            return true
+        }
+    }
+    return false
 }
 
 /** 이름표를 길게 눌렀다 — 「이건 뭐야? 다시 말해 줘!」. 이름이 나오면 고치고, 아니면 그대로 둔다 */

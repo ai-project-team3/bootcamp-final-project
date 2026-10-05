@@ -160,8 +160,13 @@ private val TopBarRight = 76.dp
 private val DiaryMicSize = 96.dp
 private val DiaryMicGap = 12.dp
 
-/** 그림판이 비켜 두는 오른쪽 띠 — 🎤 가 판을 가리지 않게 */
-private val DiaryMicRail = DiaryMicSize + DiaryMicGap * 2
+/**
+ * 그림판 오른쪽 좁은 도구 띠 — 위에서부터 [다 그렸어] · [그려 줘](오또 얼굴) · 🎤.
+ * 오른쪽 버튼들을 뺐던 까닭(판을 넓게)을 지키려고 띠는 좁게, 🎤 도 다른 화면(96dp)보다 작게 (10-05 진웅)
+ */
+private val BoardRail = 72.dp
+private val RailButtonSize = 52.dp
+private val RailMicSize = 64.dp
 
 /** 그림판 왼쪽 끝 — 크레용 두 줄 자리와 🏠 · 🔒 자리 중 넓은 쪽 */
 private fun boardStart(cq: Dp) = maxOf(cq * 12, TopBarRight)
@@ -179,10 +184,10 @@ fun DiaryStageView(d: Director, stage: DiaryStage) {
             DiaryGift -> DiaryGiftView(d, cq)
         }
         when (stage) {
-            // 말풍선은 그림판 왼쪽 아래 — 크레용 · ↶ ↷ 를 가리지 않게 판이 시작하는 자리부터 (#98)
+            // 말풍선은 화면 왼쪽 끝 — 🎤 를 품지 않아 낮아서 크레용 아래 ↶ ↷ 를 가리지 않는다 (10-05 진웅)
             is DiaryBoard -> {
-                DiaryBubble(d, cq, Modifier.align(Alignment.BottomStart).padding(start = boardStart(cq) - cq * 1.2f))
-                DiaryMic(d, Modifier.align(Alignment.BottomEnd))
+                DiaryBubble(d, cq, Modifier.align(Alignment.BottomStart))
+                BoardTools(d, stage, Modifier.align(Alignment.CenterEnd))
             }
             // 그림일기 한 장에는 대사 칸이 없다 — 오또가 묻는 동안(제목)만 작은 말풍선과 마이크
             is DiaryPaper -> if (d.s.micEnabled) {
@@ -338,7 +343,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
             }
         }
         BoxWithConstraints(
-            Modifier.padding(start = boardStart(cq), end = DiaryMicRail, top = cq * 1.5f, bottom = cq * 1.5f).fillMaxSize()
+            Modifier.padding(start = boardStart(cq), end = BoardRail, top = cq * 1.5f, bottom = cq * 1.5f).fillMaxSize()
                 .shadow(cq * 2, RoundedCornerShape(cq * 2.5f))
                 .background(Color.White, RoundedCornerShape(cq * 2.5f))
                 .clip(RoundedCornerShape(cq * 2.5f))
@@ -483,6 +488,40 @@ private fun DiaryBubble(d: Director, cq: Dp, modifier: Modifier) {
             Spacer(Modifier.width(cq * 1.2f))
             Text(text.take(shown), fontSize = (cq.value * 2.2f).sp, color = InkBrown, lineHeight = (cq.value * 2.9f).sp, modifier = Modifier.widthIn(max = cq * 52))
         }
+    }
+}
+
+/**
+ * 그림판 오른쪽 띠 — [다 그렸어](말로 「다 그렸어」와 같다) · [그려 줘](「그려줘」와 같다 · 방금 그린 조각이나 방금 누른 이름표) · 🎤(아래 고정).
+ * 오또가 말하는 중에는 눌러도 받을 곳이 없어 흐리게 둔다 — [다 그렸어]는 묻는 중에도 받는다
+ */
+@Composable
+private fun BoardTools(d: Director, stage: DiaryBoard, modifier: Modifier) {
+    val s = d.s
+    val day = s.diaryDay
+    val free = stage.pick == null
+    Column(
+        modifier.width(BoardRail).fillMaxHeight().padding(top = 12.dp, bottom = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        RailButton("다 그렸어", enabled = free && (day.watching || s.micEnabled), tag = "rail-done", onClick = { d.send(Reply.Tapped("done", "다 그렸어")) }) {
+            Text("✅", fontSize = 22.sp)
+        }
+        Spacer(Modifier.height(10.dp))
+        RailButton("그려 줘", enabled = free && day.watching && s.drawing.isNotEmpty(), tag = "rail-drawme", onClick = { d.send(Reply.Tapped("drawme", "그려 줘")) }) {
+            OttoFace(OttoState.IDLE, Modifier.size(RailButtonSize * 0.8f))
+        }
+        Spacer(Modifier.weight(1f))
+        if (s.micEnabled) Box(Modifier.testTag("diary-mic")) { MicButton(d, size = RailMicSize) }
+    }
+}
+
+@Composable
+private fun RailButton(label: String, enabled: Boolean, tag: String, onClick: () -> Unit, icon: @Composable () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.alpha(if (enabled) 1f else 0.4f).testTag(tag)) {
+        FeltButton(WoolCream, onClick = onClick, enabled = enabled, modifier = Modifier.size(RailButtonSize), shape = CircleShape) { icon() }
+        Spacer(Modifier.height(3.dp))
+        Text(label, fontSize = 11.sp, color = InkBrown, maxLines = 1)
     }
 }
 
