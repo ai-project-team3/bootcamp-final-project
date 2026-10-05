@@ -71,9 +71,6 @@ fun AccountTab(d: Director) {
         Line("소식 알림 받기", Shell.newsSince?.let { "${dateText(it)} 동의 · 끄기" } ?: "받지 않음 · 켜기") {
             Shell.setNews(Shell.newsSince == null)
         }
-        Line("오또가 아이 이름 불러 주기", if (ConsentStore.nameVoiceAgreed) "켜짐 · 끄기" else "꺼짐(「너」라고 불러요) · 켜기") {
-            if (ConsentStore.nameVoiceAgreed) ConsentStore.setNameVoice(false) else Shell.doc = TermsDoc.NAME_VOICE
-        }
         Line("부모 비밀번호", if (Shell.hasPin) "바꾸기" else "정하기") { Shell.sheet = Sheet.PIN_CHANGE }
         Line("기능 안내 다시 보기", "동화 · 그림일기 · 같이 만들기 · 책장 · 부모 영역") { Shell.guide = true }
         Line("처음 설정 다시 보기", "로그인 · 동의 · 맞춤 설정") { d.send(Reply.Tapped("home", "처음으로")); Shell.redoOnboarding() }

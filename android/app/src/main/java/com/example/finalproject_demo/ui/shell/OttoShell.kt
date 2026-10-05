@@ -49,12 +49,12 @@ fun OttoShell(d: Director) {
         if (Shell.guide) Shield(onBack = { Shell.guide = false }) {
             FeatureGuide(finish = "닫기", onClose = { Shell.guide = false }) { Shell.guide = false }
         }
-        // 부모 영역 → 계정에서 연 약관 전문. 이름 부르기는 여기서 「동의하고 닫기」를 눌러야 켜진다(제3자 제공)
+        // 부모 영역 → 계정에서 연 약관 전문 — 읽기만 한다
         Shell.doc?.let { doc ->
             Shield(onBack = { Shell.doc = null }) {
                 TermsSheet(
-                    doc, agreed = doc != TermsDoc.NAME_VOICE,
-                    onAgree = if (doc == TermsDoc.NAME_VOICE) ({ ConsentStore.setNameVoice(true); Shell.doc = null }) else null,
+                    doc, agreed = true,
+                    onAgree = null,
                     onClose = { Shell.doc = null },
                 )
             }
