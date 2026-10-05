@@ -45,6 +45,10 @@ fun OttoShell(d: Director) {
         else if (d.s.stage == Stage.Adult) OttoRoom(d, sample = Shell.sampleOnly)
         if (Shell.sheet == Sheet.PIN_CHANGE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { PinChangeSheet() }
         else if (Shell.sheet != Sheet.NONE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { WithdrawSheet(d) }
+        // 부모 영역 → 계정 → 기능 안내 다시 보기
+        if (Shell.guide) Shield(onBack = { Shell.guide = false }) {
+            FeatureGuide(finish = "닫기", onClose = { Shell.guide = false }) { Shell.guide = false }
+        }
         // 부모 영역 → 계정에서 연 약관 전문. 이름 부르기는 여기서 「동의하고 닫기」를 눌러야 켜진다(제3자 제공)
         Shell.doc?.let { doc ->
             Shield(onBack = { Shell.doc = null }) {
@@ -103,11 +107,12 @@ fun OttoShell(d: Director) {
                 )
                 Step.MIC -> MicStep(onBack = { Shell.step = Step.CONSENT }, onDone = { Shell.step = Step.PIN })
                 Step.PIN -> PinStep(onBack = { Shell.step = Step.MIC }, onDone = { Shell.step = Step.SETUP })
-                Step.SETUP -> SetupStep(onBack = { Shell.step = Step.PIN }, onDone = { Shell.applySetup(d.s); Shell.step = Step.HANDOFF })
+                Step.SETUP -> SetupStep(onBack = { Shell.step = Step.PIN }, onDone = { Shell.applySetup(d.s); Shell.step = Step.FEATURES })
+                // 10-05 — 보호자가 기능을 먼저 다 보고(⑥), 아이에게 건넨 뒤(⑦) 아이가 방을 둘러보고(⑧) 말해 본다(⑨)
+                Step.FEATURES -> FeatureGuide { Shell.step = Step.HANDOFF }
                 Step.HANDOFF -> HandoffStep { Shell.step = Step.TUTORIAL_TAP }
                 Step.TUTORIAL_TAP -> OttoRoom(d, tutorial = true) { Shell.step = Step.TUTORIAL_TALK }
-                Step.TUTORIAL_TALK -> TutorialTalk { Shell.step = Step.FEATURES }
-                Step.FEATURES -> FeaturesStep { Shell.finishOnboarding() }
+                Step.TUTORIAL_TALK -> TutorialTalk { Shell.finishOnboarding() }
                 Step.APP -> {}
             }
             }

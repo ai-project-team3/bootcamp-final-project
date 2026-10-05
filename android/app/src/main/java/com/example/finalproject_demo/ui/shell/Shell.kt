@@ -11,7 +11,7 @@ import androidx.compose.runtime.setValue
  * 대화 흐름(`demo/Director` · `Model`)은 **건드리지 않는다**(조장 요청 09-29). 이 틀은 흐름 **바깥**을 맡는다:
  *
  *   켤 때마다   ⓪ CLAP → ① 타이틀 ─┬─ 처음이면  ② 로그인(1/3) → ③ 동의(2/3) → ④ 마이크(3/3) → ⑤ 아이에게 건네기
- *                                  │            → ⑥ 튜토리얼 ① 눌러 보기 → ② 말해 보기 → ⑦ 기능 소개 ─┐
+ *                                  │            → ⑥ 기능 안내(보호자) → ⑦ 건네기 → ⑧ 방 둘러보기(아이) → ⑨ 말해 보기 ─┐
  *                                  ├─ 로그인이 풀렸으면  예외 · 로그인이 풀렸을 때 → ② 로그인 ────────┤
  *                                  └─ 아니면 ──────────────────────────────────────────────────→ ⑨ 오또의 방
  *   ⑨ 오또의 방은 흐름의 첫 화면(`Stage.Adult`) 위에 그린다. 방의 물건은 지금 첫 화면 버튼과 **같은 신호**
@@ -40,6 +40,9 @@ object Shell {
 
     /** 로그인 없이 샘플 책 보기 — 녹음 없이 책장만 */
     var sampleOnly by mutableStateOf(false)
+
+    /** 부모 영역에서 연 기능 안내 다시 보기 (10-05) */
+    var guide by mutableStateOf(false)
 
     /** 부모 영역에서 펼친 약관 전문 (10-05) — 화면 전체를 덮어야 해서 `OttoShell` 이 그린다 */
     var doc by mutableStateOf<TermsDoc?>(null)
@@ -133,6 +136,7 @@ object Shell {
         onboarded = false
         newsSince = null
         doc = null
+        guide = false
         sampleOnly = false
         prefs?.edit()?.clear()?.apply()
         sheet = Sheet.NONE

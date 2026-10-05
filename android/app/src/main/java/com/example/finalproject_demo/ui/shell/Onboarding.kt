@@ -676,7 +676,7 @@ fun HandoffStep(onDone: () -> Unit) {
         Spacer(Modifier.height(20.dp))
         Text("준비 끝!", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = InkBrown)
         Spacer(Modifier.height(12.dp))
-        Text("이제 아이에게 건네주세요. 오또가 목소리로 이어서 안내해요.", fontSize = 15.sp, color = InkSoft, lineHeight = 22.sp)
+        Text("이제 아이에게 건네주세요. 오또가 방을 한 바퀴 돌며 물건 넷을 소개하고, 말하기 연습을 한 번 해요.", fontSize = 15.sp, color = InkSoft, lineHeight = 22.sp)
         Spacer(Modifier.height(18.dp))
         Text("부모 설정은 언제든 왼쪽 위 자물쇠를 누르고 방금 정한 비밀번호를 넣으면 열려요.", fontSize = 12.sp, color = InkSoft, lineHeight = 18.sp)
     }
@@ -687,6 +687,8 @@ fun HandoffStep(onDone: () -> Unit) {
 @Composable
 fun TutorialTalk(onDone: () -> Unit) {
     var said by remember { mutableStateOf(false) }
+    val line = if (said) "잘했어! 이렇게 말하면 오또가 이야기를 이어 가" else "좋아하는 동물을 말해 줄래?"
+    OttoSays(line)
     Box(Modifier.fillMaxSize()) {
         AssetImage("bg_park", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop) { Box(Modifier.fillMaxSize().background(Wool)) }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, InkBrown.copy(alpha = 0.25f)))))
@@ -696,7 +698,7 @@ fun TutorialTalk(onDone: () -> Unit) {
         // 연습 버튼도 실제처럼 나레이션 칸 **안** 오른쪽에 (09-29)
         Narration(
             mode = NarrationMode.STORY, state = if (said) com.example.finalproject_demo.ui.OttoState.TALK else com.example.finalproject_demo.ui.OttoState.LISTEN,
-            line = if (said) "잘했어! 이렇게 말하면 돼" else "좋아하는 동물을 말해 줄래?",
+            line = line,
             modifier = Modifier.align(Alignment.BottomCenter),
             expr = if (said) com.example.finalproject_demo.ui.Expr.HAPPY else com.example.finalproject_demo.ui.Expr.CURIOUS,
             trailing = {
@@ -709,35 +711,4 @@ fun TutorialTalk(onDone: () -> Unit) {
             },
         )
     }
-}
-
-// ── ⑦ 기능 소개 — 해 본 것을 세 가지로 ────────────────────────────
-
-@Composable
-fun FeaturesStep(onDone: () -> Unit) = Box(Modifier.fillMaxSize().felt(Wool, RoundedCornerShape(0.dp), lift = 0.dp, stitch = false)) {
-    AssetImage("logo_otto_v2", Modifier.padding(start = 18.dp, top = 10.dp).width(120.dp))
-    Text("오또랑 이렇게 놀아요", fontSize = 30.sp, color = InkBrown, modifier = Modifier.align(Alignment.TopCenter).padding(top = 22.dp))
-    Row(Modifier.align(Alignment.Center).padding(top = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-        listOf(Triple("🎙", "말하면" to "오또에게 말로 이야기해요", FeltTeal), Triple("📖", "그림책이 돼요" to "말한 대로 그림이 그려져요", FeltCoral),
-            Triple("📚", "책장에 모여요" to "만든 책은 언제든 다시 봐요", FeltMustard)).forEachIndexed { i, (ic, tt, c) ->
-            val art = listOf("feat_talk", "feat_book", "feat_shelf")[i]
-            // 번호 원은 카드 **밖**에 — 카드(felt)는 자기 안을 잘라 모서리에 걸친 원이 잘렸다
-            Box(Modifier.width(200.dp).height(196.dp)) {
-                Column(Modifier.fillMaxSize().felt(FeltWhite, RoundedCornerShape(28.dp)).padding(top = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    AssetImage(art, Modifier.size(96.dp)) {
-                        Box(Modifier.size(92.dp).felt(c, CircleShape), contentAlignment = Alignment.Center) { Text(ic, fontSize = 42.sp) }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text(tt.first, fontSize = 22.sp, color = InkBrown)
-                    ParentText { Text(tt.second, fontSize = 12.sp, color = InkSoft) }
-                }
-                Box(Modifier.offset((-8).dp, (-10).dp).size(36.dp).felt(c, CircleShape, lift = 2.dp, stitch = false), contentAlignment = Alignment.Center) {
-                    Text("${i + 1}", fontSize = 18.sp, color = FeltWhite)
-                }
-            }
-            if (i < 2) Text("›", fontSize = 30.sp, color = InkSoft, modifier = Modifier.padding(horizontal = 10.dp))
-        }
-    }
-    ParentText { Text("방금 해 본 것 — 오또가 목소리로 한 번 더 정리해 줘요", fontSize = 13.sp, color = InkSoft, modifier = Modifier.align(Alignment.BottomStart).padding(start = 40.dp, bottom = 30.dp)) }
-    ParentText { PBtn("오또의 방으로", onDone, Modifier.align(Alignment.BottomEnd).padding(end = 28.dp, bottom = 18.dp).width(180.dp), height = 52.dp) }
 }
