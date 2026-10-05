@@ -36,6 +36,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -238,14 +239,27 @@ class CoopFlowTest {
         assertTrue("지금 방식 ${counts[0]}턴 · 바뀐 방식 ${counts[1]}턴", counts[0] > 0 && counts[1] <= counts[0])
     }
 
-    /** 책까지 🎲(시연 답)로 밀며 오또가 물은 말을 모은다 */
-    private suspend fun Director.walkToBook(): List<String> {
+    private val REAL_ANSWER = "<진짜 답>"
+    private val DONT_KNOW = listOf("몰라", "그냥", "모르")
+
+    /**
+     * 책까지 🎲(시연 답)로 밀며 오또가 물은 말을 모은다.
+     * [answers] 에 적은 질문에는 🎲 대신 그 답 버튼을 누른다 — 🎲 은 후보 중 **무작위**라 「몰라.」가 뽑힐 수 있다 (#137)
+     */
+    private suspend fun Director.walkToBook(answers: Map<String, String> = emptyMap()): List<String> {
         val askedTexts = mutableListOf<String>()
         var guard = 0
         while (s.scene == Scene.DIARY && guard++ < 40) {
             if (await(2_000) { s.buttons.any { "🎲" in it.label } } == null) break
-            askedTexts += asked()
-            if (!push("🎲")) break
+            val q = asked()
+            askedTexts += q
+            val part = when (val a = answers[q]) {
+                null -> "🎲"
+                // 「몰라」 · 「그냥」이 아닌 첫 더미 답 — 걸음마다 후보가 달라서 버튼 글자로 고른다
+                REAL_ANSWER -> s.buttons.firstOrNull { b -> b.label.startsWith("🗣") && DONT_KNOW.none { it in b.label } }?.label ?: "🎲"
+                else -> a
+            }
+            if (!push(part)) break
             delay(40)
         }
         if (await(3_000) { s.buttons.any { "안 그릴래" in it.label } } != null) tap("안 그릴래")
@@ -428,7 +442,8 @@ class CoopFlowTest {
     fun aParentQuestionsAnswerGoesToItsOwnSlotNotTheCompanion() = run { d ->
         val s = d.s
         d.startCoopWith("좋아하는 색은?", pick = firefighter)
-        val askedTexts = d.walkToBook()
+        // 부모 질문에는 진짜 답을 한다 — 🎲 이 「몰라.」를 뽑으면 답이 없는 게 맞아서 가끔 깨졌다 (#137 · 아래 검사)
+        val askedTexts = d.walkToBook(mapOf("좋아하는 색은?" to REAL_ANSWER))
         val at = askedTexts.indexOf("좋아하는 색은?")
         assertTrue("부모 질문을 안 물었다: $askedTexts", at >= 0)
         assertTrue("부모 질문이 「누구랑」보다 먼저 나왔다(같이 간 사람 자리): $askedTexts", askedTexts.take(at).any { "누구" in it })
@@ -436,6 +451,20 @@ class CoopFlowTest {
         assertNotNull("부모 질문의 답이 제 칸에 없다", answer)
         assertNotEquals("부모 질문의 답이 같이 간 사람이 됐다", answer, s.friend)
         assertEquals(listOf("좋아하는 색은?" to answer), s.coopParentAnswers)
+    }
+
+    /**
+     * #137 — 부모 질문에 「몰라」라고 하면 사다리의 쉬운 앱 질문으로 다시 묻고, 그 답은 걸음 원래 칸에 간다(`coopParentAnswerKey` 는 한 번만 준다).
+     * 부모 질문 칸(`parent1`)은 비고, 리포트에 지어낸 답이 서지 않는다. 위 검사가 🎲 으로 이 길을 가끔 밟아 CI 가 빨개졌다
+     */
+    @Test
+    fun aParentQuestionAnsweredWithDontKnowLeavesItsSlotEmpty() = run { d ->
+        val s = d.s
+        d.startCoopWith("좋아하는 색은?", pick = firefighter)
+        val askedTexts = d.walkToBook(mapOf("좋아하는 색은?" to "\"몰라.\""))
+        assertTrue("부모 질문을 안 물었다: $askedTexts", "좋아하는 색은?" in askedTexts)
+        assertNull("「몰라」인데 부모 질문 칸이 찼다: ${s.slots["parent1"]}", s.slots["parent1"])
+        assertTrue("「몰라」인데 리포트에 답이 섰다: ${s.coopParentAnswers}", s.coopParentAnswers.isEmpty())
     }
 
     /** 부모 화면이 받는 만큼(COOP_MAX)은 꼬리질문 자리가 모자라지 않아 다 묻는다 */
