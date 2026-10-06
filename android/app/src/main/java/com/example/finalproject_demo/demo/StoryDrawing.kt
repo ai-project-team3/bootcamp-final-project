@@ -1,10 +1,12 @@
 package com.example.finalproject_demo.demo
 
 /** Story presets reuse felt artwork; the saved kind/index reproduce the same selection. */
-internal fun storyPresetResource(kind: String): String = THEMES.asSequence()
+internal fun storyPresetMatch(kind: String): Art? = THEMES.asSequence()
     .flatMap { it.newcomers.asSequence() }
     .firstOrNull { it.value == kind || it.label == kind }
-    ?.art.let { (it as? Art.Img)?.name } ?: "nc_alien"
+    ?.art
+
+internal fun storyPresetResource(kind: String): String = (storyPresetMatch(kind) as? Art.Img)?.name ?: "nc_alien"
 
 internal fun storyPresetArt(kind: String, preset: Int): Art =
     Art.ChildDrawing(emptyList(), preset, presetAsset = storyPresetResource(kind))
@@ -23,6 +25,15 @@ suspend fun Director.prepareStoryFriendDrawing() {
     val answer = awaitValue("done", "preset")
     if (answer == "preset" || s.drawing.isEmpty()) {
         s.drawing.clear()
+        // 오또가 만든 인형이 벌써 왔으면 그 모습으로 — 아이가 말한 친구다. 프리셋 카드는 이름이 맞지 않으면 다 외계인이었다
+        if (s.storyFriendDoll != null) {
+            event("make", "kind" to "doll", "source" to "server")
+            s.stage = Stage.Show(s.friendArt, s.slots["name"]?.takeIf(String::isNotBlank) ?: newcomer)
+            say("그럼 오또가 만든 ${newcomer}${if (bat(newcomer)) "이야" else "야"}. 이 모습 그대로 책에 넣을게.")
+            pause(900)
+            mark("draw")
+            return
+        }
         s.stage = Stage.CardsRow((0..2).map { Card(listOf("뿌뿌", "반짝", "동글")[it], storyPresetArt(newcomer, it), "$it") })
         say("그럼 이 중에 어떤 모습이 좋을까?")
         buttons(DemoBtn("첫 번째 그림") { send(Reply.Tapped("0", "뿌뿌")) })

@@ -1191,8 +1191,20 @@ class DemoState {
     /** 장면 4에서 나온 새 친구의 그림 */
     val newcomerArt: Art get() = th.newcomers.firstOrNull { it.value == newcomerKind }?.art ?: Art.Emoji(newcomerEmoji)
     val dino: DinoKind get() = dinoKind(dinoKey)
-    val friendArt: Art get() = Art.ChildDrawing(drawing.toList(), drawnPreset, drawingAspect,
-        presetAsset = if (mode == StoryMode.STORY && drawing.isEmpty()) storyPresetResource(newcomerKind) else null)
+    val friendArt: Art get() {
+        val drawn = Art.ChildDrawing(drawing.toList(), drawnPreset, drawingAspect,
+            presetAsset = if (mode == StoryMode.STORY && drawing.isEmpty()) storyPresetResource(newcomerKind) else null)
+        return storyFriendDoll?.let { Art.Img(it.image, drawn, it.rig) } ?: drawn
+    }
+
+    /** 등장인물 칸에 맞는 그림이 없어 서버가 만든 펠트 인형 (10-06 · `FriendArt.kt`) — 책에 함께 저장된다 */
+    var generatedFriend by mutableStateOf<GeneratedFriend?>(null)
+    /** 지금 만들고 있는 낱말 — 같은 말로 두 번 부르지 않는다 (저장하지 않는다) */
+    var friendRequested: String? = null
+
+    /** 동화의 새 친구 인형 — 아이가 그리지 않았고, 지금 새 친구 칸 그대로일 때만 */
+    val storyFriendDoll: GeneratedFriend?
+        get() = generatedFriend?.takeIf { mode == StoryMode.STORY && drawing.isEmpty() && it.words == newcomerKind.trim() }
 
     // ── 일기 모드의 소품 · 호칭 ─────────────────────────────────
     // 뼈대(문지르기 · 끌어다 놓기 · 쪽 구성)는 그대로 두고 **소품 그림과 말만 바꾼다** (일기 설계 §7-1 ②).
@@ -1212,14 +1224,11 @@ class DemoState {
 
     /** 아이가 말한 사람의 그림 — 프리셋에서 고른다. 없으면 아무도 그리지 않는다 */
     val companionArt: Art?
-        get() = when {
-            "선생님" in companionKind -> Art.Img("dp_teacher", Art.Emoji("🧑‍🏫"))
-            "할머니" in companionKind -> Art.Img("ic_p_grandma", Art.Emoji("👵"))
-            "할아버지" in companionKind -> Art.Img("ic_p_grandpa", Art.Emoji("👴"))
-            "엄마" in companionKind -> Art.Img("ic_p_mom", Art.Emoji("👩"))
-            "아빠" in companionKind -> Art.Img("ic_p_dad", Art.Emoji("👨"))
-            "언니" in companionKind || "누나" in companionKind || "동생" in companionKind -> Art.Img("dp_friend_g", Art.Emoji("👧"))
+        get() = companionPreset(companionKind) ?: when {
             companionKind.isBlank() || "혼자" in companionKind -> null
+            // 같이 만들기에서 프리셋이 없는 사람 · 동물은 서버가 만든 인형으로 (10-06 · `FriendArt.kt`)
+            isCoop && generatedFriend?.words == companionKind.trim() ->
+                generatedFriend?.let { Art.Img(it.image, Art.Img("dp_friend_b", Art.Emoji("🧒")), it.rig) }
             else -> Art.Img("dp_friend_b", Art.Emoji("🧒"))
         }
 
@@ -1418,6 +1427,7 @@ class DemoState {
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
+        generatedFriend = null; friendRequested = null
         achievements.clear(); reactions = 0
         log.clear(); done.clear(); events.clear()
         heroTries.clear()
@@ -1467,3 +1477,14 @@ fun ro(w: String) = if (bat(w) && (w.last().code - 0xAC00) % 28 != 8) "으로" e
 fun ege(w: String) = "에게"
 fun ya(w: String) = if (bat(w)) "아" else "야"
 fun rang(w: String) = if (bat(w)) "이랑" else "랑"
+
+/** 아이가 말한 사람에 맞는 프리셋 그림 — 없으면 null (일기 · 같이 만들기 공통) */
+internal fun companionPreset(kind: String): Art? = when {
+    "선생님" in kind -> Art.Img("dp_teacher", Art.Emoji("🧑‍🏫"))
+    "할머니" in kind -> Art.Img("ic_p_grandma", Art.Emoji("👵"))
+    "할아버지" in kind -> Art.Img("ic_p_grandpa", Art.Emoji("👴"))
+    "엄마" in kind -> Art.Img("ic_p_mom", Art.Emoji("👩"))
+    "아빠" in kind -> Art.Img("ic_p_dad", Art.Emoji("👨"))
+    "언니" in kind || "누나" in kind || "동생" in kind -> Art.Img("dp_friend_g", Art.Emoji("👧"))
+    else -> null
+}

@@ -22,7 +22,9 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     fun conversationWorld() = Stage.World(listOfNotNull(
         // spots shared with the scene kit layout, which keeps them clear (demo/scene/SceneLayout.kt)
         WorldItem(s.storyHeroArt, HERO_SPOT.x, 0.32f, 0.11f, depth = HERO_SPOT.depth),
-        if (s.drawing.isNotEmpty()) WorldItem(s.friendArt, FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth) else null,
+        // 오또가 만든 새 친구 인형(10-06 · FriendArt.kt)도 선다 — 대본의 기본 낙서가 아니라 아이가 말한 친구다
+        if (s.drawing.isNotEmpty() || s.storyFriendDoll != null)
+            WorldItem(s.friendArt, FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth) else null,
     ))
 
     fun showConversation() {
@@ -103,7 +105,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 }
             }
             if (prompt.slot == "newcomer" && !s.slots["newcomer"].isNullOrBlank() && (looks || s.storyClarificationSlot == "newcomer")) {
-                if (!friendDrawingPrepared) { prepareStoryFriendDrawing(); friendDrawingPrepared = true }
+                if (!friendDrawingPrepared) { drawFriend(); prepareStoryFriendDrawing(); friendDrawingPrepared = true }
                 s.storyClarificationSlot = null; s.storyNextSlot = null; s.storyServerQuestion = null
                 log("새 친구 생김새 질문 → 그리기로 대신함")
                 continue
@@ -156,6 +158,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             s.syncStoryPresentation()
             if (by != "mascot") judge(variant, reply, question.text)
             updateBackground()
+            drawFriend()                        // 새 친구에 맞는 그림이 없으면 뒤에서 인형을 만든다 — 기다리지 않는다 (FriendArt.kt)
             if (!friendDrawingPrepared && !s.slots["newcomer"].isNullOrBlank()) {
                 prepareStoryFriendDrawing()
                 friendDrawingPrepared = true
