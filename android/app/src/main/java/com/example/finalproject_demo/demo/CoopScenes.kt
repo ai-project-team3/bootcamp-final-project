@@ -149,6 +149,8 @@ data class CoopAsked(
 /** 이 이야기에서 어느 걸음에 이미 물었고, 부모 질문을 몇 개 썼고, 질문마다 아이가 뭐라고 했나 */
 private class CoopTrack {
     val askedSteps = mutableSetOf<String>()
+    /** 꼬리 칸(detail · said · try · after)마다 마지막으로 물은 질문 — 책에 「질문」에 「답」으로 보낸다 */
+    val tailQuestion = mutableMapOf<String, String>()
     var parentUsed = 0
     val asked = mutableListOf<CoopAsked>()
     /** 방금 `/turn` 이 정한 다음 칸과 그 칸을 묻는 LLM 질문 — 바로 다음 걸음에서 한 번만 쓰고 버린다 */
@@ -382,6 +384,9 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
     if (idx != null && firstAsk) track.partQuestions[idx] = text
     val r = ask(q.copy(text = text, silent = false))
     track.stats.count(r)
+    // 꼬리 질문은 무엇을 물었는지 같이 책에 보낸다 — 「엄마가 뭐라고 할까?」의 답인지 몰라 서버가 「엄마에게 재밌냐고 물어볼 것 같아요」로
+    // 말한 사람을 바꿨고, 「제일 먼저 뭐 할 거야?」의 답을 「“물로 끌 거야.”라고 말할 거예요」로 썼다(10-06 실기기 · 촬영 세션)
+    if (key in COOP_TAIL_KEYS) track.tailQuestion[key] = text
     // 부모 리포트 「고른 이야기 · 적은 질문에 한 답」 — 지금 방식과 같이 앱 기본 질문 · 사다리는 남기지 않는다
     if (src != CoopSource.LADDER) track.asked += when (r) {
         is Reply.Spoke -> CoopAsked(text, r.text, "child", parent = src == CoopSource.PARENT)
@@ -711,6 +716,9 @@ private val COOP_SKELETON = setOf("place", "problem", "cause", "solution")
 /** 꼬리질문으로 모은 문장 — 서버에는 `extra` 한 칸으로 보낸다. 맺음(`keep`)은 따로 간다 */
 private val COOP_TAIL_KEYS = listOf("detail", "said", "try", "after")
 
+/** 이 꼬리 칸에 마지막으로 물은 질문 — 없으면 null(답만 보낸다) */
+internal fun DemoState.coopTailQuestion(key: String): String? = if (!isCoop) null else trackByState[this]?.tailQuestion?.get(key)
+
 /**
  * 서버를 켰으면 협업 책 문장을 `/story`(`mode: "coop"`)로 받는다. 지금 책은 틀 문장(`diaryTemplate()`) 빈칸 채우기라 딱딱하다.
  *
@@ -746,7 +754,7 @@ suspend fun Director.coopWriteBook() {
     s.stage = Stage.Making("이야기 문장을 쓰는 중… (${pages.size}쪽)")
     val mask = s.nameMask()
     // 부모 질문의 답은 질문과 함께 — 「빨강」만 가면 무엇에 한 답인지 모른다 (10-05)
-    val tails = COOP_TAIL_KEYS.mapNotNull { s.slots[it]?.takeIf(String::isNotBlank) } +
+    val tails = COOP_TAIL_KEYS.mapNotNull { k -> s.slots[k]?.takeIf(String::isNotBlank)?.let { v -> s.coopTailQuestion(k)?.let { "「$it」에 「$v」" } ?: v } } +
         s.coopParentAnswers.map { (question, answer) -> "「$question」에 「$answer」" }
     val slots = mapOf(
         "place" to s.coopBookPlace(), "problem" to s.problem, "cause" to s.cause, "solution" to s.solution,
