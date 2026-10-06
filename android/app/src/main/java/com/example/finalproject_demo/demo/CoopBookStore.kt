@@ -300,6 +300,8 @@ object CoopShelf {
     private val books = WeakHashMap<DemoState, MutableList<SavedCoopBook>>()
     /** 책 id → 다시 그리는 재료. 읽기 화면은 상태를 따로 만들어 열기 때문에 상태가 아니라 책 id 로 찾는다 */
     private val snapshots = java.util.concurrent.ConcurrentHashMap<String, CoopBookSnapshot>()
+    /** 이 상태에서 방금 꽂은 같이 만들기 책 — 부모 리포트가 「오늘 책」의 짝을 찾는다 */
+    private val lastShelved = WeakHashMap<DemoState, String>()
 
     fun attach(s: DemoState, store: CoopBookStore) {
         stores[s] = store
@@ -347,6 +349,7 @@ object CoopShelf {
             books.getOrPut(s) { mutableListOf() }.add(0, book)
             book.snapshot?.let { snapshots[book.book.id] = it }
             s.shelf.add(0, book.book.onCoopShelf(fresh = true))
+            lastShelved[s] = book.book.id
             afterShelved(s, book)
             CoopShelved.SAVED
         } catch (_: Exception) { CoopShelved.FAILED }
@@ -369,6 +372,13 @@ object CoopShelf {
         }
         return true
     }
+
+    /** 이 상태에서 방금 꽂은 같이 만들기 책 id — 아직 없으면 null */
+    fun lastShelved(s: DemoState): String? = lastShelved[s]
+
+    /** 책장의 한 권(`ShelfBook.savedStoryId`)에 짝이 있나 — 책등 🧳 */
+    fun hasPair(s: DemoState, shelfId: String?): Boolean =
+        shelfId != null && shelfId.startsWith(COOP_SHELF_ID) && pairOf(s, shelfId.removePrefix(COOP_SHELF_ID)) != null
 
     /** 이 책의 짝 — 짝 표시가 없거나 상대가 책장에 없으면(지워졌으면) null */
     fun pairOf(s: DemoState, bookId: String): SavedStoryBook? {
