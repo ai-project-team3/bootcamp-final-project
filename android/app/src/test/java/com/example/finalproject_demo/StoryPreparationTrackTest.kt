@@ -56,6 +56,6 @@ class StoryPreparationTrackTest {
         compose.runOnIdle { s.scene = Scene.MAKING; s.stage = Stage.Making("문장 생성 중") }
         check("책 만들기", "writing")
         compose.runOnIdle { s.stage = Stage.Making("완성", 1f) }
-        check("책 완성", "complete")
+        check("책 만들기", "written")
     }
 }

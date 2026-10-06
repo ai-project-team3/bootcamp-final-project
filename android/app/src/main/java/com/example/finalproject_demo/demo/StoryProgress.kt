@@ -6,7 +6,6 @@ enum class StoryPreparationPhase(val label: String) {
     COLLECTING("이야기 모으기"),
     FINISHING("그림·소리 마무리"),
     WRITING("책 만들기"),
-    COMPLETE("책 완성"),
 }
 
 data class StoryPreparationProgress(val filled: Int, val phase: StoryPreparationPhase) {
@@ -18,18 +17,15 @@ val DemoState.liveStoryProgress: StoryPreparationProgress?
     get() {
         if (mode != StoryMode.STORY || !Server.liveFor(mode)) return null
         if (!storyReady) {
-            // Distinct confirmed story facts light up to six stars. Repeated answers, template changes
-            // and an unknown number of follow-up questions must not change the scale or finish a book.
+            // Distinct confirmed facts light up to eight stars. The last two mark final preparation
+            // and starting the book, not extra questions that the app should force the child to answer.
             val facts = slots.count { (key, value) -> key in Server.SLOTS && key != "extra" && value.isNotBlank() }
-            return StoryPreparationProgress(facts.coerceAtMost(6), StoryPreparationPhase.COLLECTING)
+            return StoryPreparationProgress(facts.coerceAtMost(8), StoryPreparationPhase.COLLECTING)
         }
-        if (scene == Scene.BOOK || (scene == Scene.MAKING && (stage as? Stage.Making)?.progress == 1f)) {
-            return StoryPreparationProgress(10, StoryPreparationPhase.COMPLETE)
-        }
-        if (scene == Scene.MAKING) {
+        if (scene == Scene.MAKING || scene == Scene.BOOK) {
             // The live flow reaches MAKING only after finishing the drawing/sound/background work.
-            // Its simulated loading animation must never stand in for the actual story response.
-            return StoryPreparationProgress(9, StoryPreparationPhase.WRITING)
+            // A full track means the story is ready to make into a book, not that generation has finished.
+            return StoryPreparationProgress(10, StoryPreparationPhase.WRITING)
         }
-        return StoryPreparationProgress(7, StoryPreparationPhase.FINISHING)
+        return StoryPreparationProgress(9, StoryPreparationPhase.FINISHING)
     }
