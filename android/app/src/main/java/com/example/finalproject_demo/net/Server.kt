@@ -336,9 +336,30 @@ object Server {
         return try { JSONObject(bytes.decodeToString()) } catch (e: Exception) { warn("$path json", e); null }
     }
 
+    // ── calls per session (10-06) ──────────────────────────────────
+    //
+    // The per-device limit for the Play build is set from what one real session costs, per mode.
+    // The shared server's /stats mixes everyone's calls, so the phone counts its own: every POST
+    // attempt by path, failures included (they still cost a request). Read at the end of a book.
+
+    private val calls = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    @Volatile private var callsSince = System.currentTimeMillis()
+
+    /** "total 73 · /stt 24 · /turn 24 · /tts 22 · /story 1 · /image 2 · 18 min" — empty when nothing was called. */
+    fun callSummary(): String {
+        val snap = calls.toMap()
+        if (snap.isEmpty()) return ""
+        val min = (System.currentTimeMillis() - callsSince) / 60_000
+        return (listOf("total ${snap.values.sum()}") + snap.entries.sortedByDescending { it.value }.map { "${it.key} ${it.value}" } + "$min min")
+            .joinToString(" · ")
+    }
+
+    fun resetCalls() { calls.clear(); callsSince = System.currentTimeMillis() }
+
     private suspend fun post(path: String, body: ByteArray, type: String, readMs: Int = 15_000): Pair<Int, ByteArray>? =
         withContext(Dispatchers.IO) {
             val b = base ?: return@withContext null
+            calls.merge(path, 1, Int::plus)
             val t0 = System.nanoTime()
             try {
                 val c = URL(b + path).openConnection() as HttpURLConnection

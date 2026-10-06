@@ -3,6 +3,7 @@ package com.example.finalproject_demo.demo
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.Trace
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
 import kotlinx.coroutines.async
@@ -1661,6 +1662,12 @@ private suspend fun Director.sceneFriends() {
 private suspend fun Director.sceneEnd() {
     inputs(false, false)
     buttons()
+    // 10-06: what one real session called, per mode — the Play build's per-device limit is set from these
+    Server.callSummary().takeIf { it.isNotEmpty() }?.let {
+        log("서버 호출 (이번 세션) · $it")
+        Trace.line("calls", "${s.mode.name.lowercase()} finished · $it")
+        Server.resetCalls()
+    }
     s.stage = Stage.Gifts(0)
     pause(600)
     s.stage = Stage.Gifts(1)
