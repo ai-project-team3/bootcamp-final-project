@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -116,25 +117,50 @@ private val TAB_H = 92.dp
 /** How far into the actors' depth range the kit's horizon sits — 0.35 puts it near 0.70 H on a phone (10-05) */
 private const val KIT_NEAREST_FAR = 0.35f
 
+/** The stage geometry the kit and the plain felt floor share */
+private fun androidx.compose.ui.unit.Density.stageFrame(wPx: Float, hPx: Float, bottomInset: Dp, topInset: Dp): SceneFrame {
+    // The kit starts at the actors' depth KIT_NEAREST_FAR, not 0: with the horizon at the depth-0 feet line
+    // (0.62 H) the ground took ~38 % of the screen — 「바닥 너무 비율이 커」 (10-05 device). Same perspective
+    // line, its far end cut, so pieces and actors still match in size where they stand.
+    val near = minOf(hPx * FEET_NEAR, hPx - bottomInset.toPx())
+    val far = hPx * FEET_FAR + (near - hPx * FEET_FAR) * KIT_NEAREST_FAR
+    return SceneFrame(
+        w = wPx, h = hPx,
+        feetFar = far,
+        feetNear = near,
+        tallFar = hPx * (TALL_FAR + (TALL_NEAR - TALL_FAR) * KIT_NEAREST_FAR), tallNear = hPx * TALL_NEAR,
+        top = topInset.toPx(), bottom = hPx - bottomInset.toPx(),
+        tabW = TAB_W.toPx(), tabH = TAB_H.toPx(),
+    )
+}
+
 @Composable
 private fun rememberKitScene(kit: SceneKitDef, seedBase: Long, actors: Int, wPx: Float, hPx: Float, bottomInset: Dp, topInset: Dp): Pair<KitScene, SceneFrame> {
     val density = LocalDensity.current
     return remember(kit, seedBase, actors, wPx, hPx, bottomInset, topInset) {
-        with(density) {
-            // The kit starts at the actors' depth KIT_NEAREST_FAR, not 0: with the horizon at the depth-0 feet line
-            // (0.62 H) the ground took ~38 % of the screen — 「바닥 너무 비율이 커」 (10-05 device). Same perspective
-            // line, its far end cut, so pieces and actors still match in size where they stand.
-            val near = minOf(hPx * FEET_NEAR, hPx - bottomInset.toPx())
-            val far = hPx * FEET_FAR + (near - hPx * FEET_FAR) * KIT_NEAREST_FAR
-            val f = SceneFrame(
-                w = wPx, h = hPx,
-                feetFar = far,
-                feetNear = near,
-                tallFar = hPx * (TALL_FAR + (TALL_NEAR - TALL_FAR) * KIT_NEAREST_FAR), tallNear = hPx * TALL_NEAR,
-                top = topInset.toPx(), bottom = hPx - bottomInset.toPx(),
-                tabW = TAB_W.toPx(), tabH = TAB_H.toPx(),
-            )
-            bestScene(kit, actors, f, seedBase = seedBase) to f
+        val f = with(density) { stageFrame(wPx, hPx, bottomInset, topInset) }
+        bestScene(kit, actors, f, seedBase = seedBase) to f
+    }
+}
+
+/**
+ * The kit's felt ground alone, over a background picture that has none (10-06 lead · 「바닥이 됐다 안 됐다」).
+ * Only a kit stage had a floor: a generated background, the space and sea pictures and co-op once its picture
+ * arrived left the actors standing on 84 % of the screen in mid-air. Same horizon, wave and stitches as the
+ * kit's ground, in the colour of the kit the place belongs to — draw it behind the hotspots and the actors.
+ */
+@Composable
+fun FeltFloor(ground: Color, bottomInset: Dp, modifier: Modifier = Modifier) {
+    val grain = remember { ShaderBrush(ImageShader(FeltNoise.grain, TileMode.Repeated, TileMode.Repeated)) }
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val density = LocalDensity.current
+        val wPx = with(density) { maxWidth.toPx() }
+        val hPx = with(density) { maxHeight.toPx() }
+        val f = remember(wPx, hPx, bottomInset) { with(density) { stageFrame(wPx, hPx, bottomInset, 0.dp) } }
+        val shape = remember(f) { hillShape(f, 4f, f.horizon, 5f, 140f) }
+        Canvas(Modifier.fillMaxSize()) {
+            hill(f, shape, ground)
+            clipPath(shape.fill) { drawRect(grain, alpha = 0.07f, blendMode = BlendMode.Overlay) }
         }
     }
 }
