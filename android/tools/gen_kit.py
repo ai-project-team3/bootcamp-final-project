@@ -69,8 +69,8 @@ KITS = {
         "rock_hill": "lavender rocky hill",
         "moon_rock": "lavender moon rock",
         "crystal": "glowing purple crystal cluster",
-        # 「shallow round crater」는 고리(튜브) 모양이 나왔다 (#222)
-        "crater": "shallow round dip in grey moon ground, seen from the side, flat, no ring",
+        # 「shallow round crater」는 고리(튜브) 모양이 나왔다 · 「round · ring」이 튜브를 불러 두 번째도 튜브 (#222)
+        "crater": "a patch of flat grey moon ground with a shallow bowl-shaped hollow pressed into it, a low raised rim of the same grey felt, all grey and pale lilac, no stripes, no colors, seen from the side at a low angle",
         "flag": "little flag on a pole",
     },
     # 3-2 바닷속 — 2순위 셋째 (#97). 목록 §3-2 문구 그대로

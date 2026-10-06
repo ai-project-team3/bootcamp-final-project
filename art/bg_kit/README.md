@@ -70,7 +70,7 @@
 | 조각 | 목록 문구 | 바꾼 문구 | 왜 |
 |---|---|---|---|
 | 우주 작은 행성 | small round blue planet | small round planet with craters and soft stripes, no continents, no oceans | 대륙 그려진 지구가 나왔다 |
-| 우주 분화구 | shallow round crater | shallow round dip in grey moon ground, seen from the side, flat, no ring | 알록달록 튜브(고리)가 나왔다 — 바꾼 뒤에도 테두리는 남지만 회색 달 바닥 위에 납작하게 |
+| 우주 분화구 | shallow round crater | a patch of flat grey moon ground with a shallow bowl-shaped hollow pressed into it, a low raised rim of the same grey felt, all grey and pale lilac, no stripes, no colors, seen from the side at a low angle | 알록달록 튜브(고리)가 나왔다 · 「round · ring」을 넣은 두 번째 문구도 튜브 — 「바닥에 눌린 구덩이」로 바꾸니 회색 달 바닥이 됐다(공통 그림체의 색 점은 가장자리에 조금 남음) |
 | 숲 연못 | small round pond | small round blue pond lying flat on green grass, seen from the side, flat water surface, no ring | 튜브 같은 둥근 테두리가 나왔다 |
 
 ## 알아 둘 것

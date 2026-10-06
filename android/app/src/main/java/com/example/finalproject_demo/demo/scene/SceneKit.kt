@@ -170,7 +170,7 @@ private val ROCK_HILL = KitPiece("rock_hill", "kit_space_rock_hill", PieceRole.F
 private val MOON_ROCK = KitPiece("moon_rock", "kit_space_moon_rock", PieceRole.COVER, 0.3f, 1.008f, words = listOf("돌", "바위"))
 private val MOON_ROCK_FRONT = MOON_ROCK.copy(name = "moon_rock_front", role = PieceRole.FOREGROUND, size = 0.5f)
 private val CRYSTAL = KitPiece("crystal", "kit_space_crystal", PieceRole.COVER, 0.35f, 0.938f, words = listOf("보석", "수정"))
-private val CRATER = KitPiece("crater", "kit_space_crater", PieceRole.FLAT, 0.1f, 2.639f, words = listOf("구멍", "분화구"))
+private val CRATER = KitPiece("crater", "kit_space_crater", PieceRole.FLAT, 0.1f, 3.180f, words = listOf("구멍", "분화구"))
 private val FLAG = KitPiece("flag", "kit_space_flag", PieceRole.COVER, 0.6f, 0.627f, flip = false, copies = 1, words = listOf("깃발"))
 
 /** 우주 — 남색 밤하늘 · 회보라 달 표면 (doc §1 table · the prototype's space colours in `eval/layout_proto.py`) */
