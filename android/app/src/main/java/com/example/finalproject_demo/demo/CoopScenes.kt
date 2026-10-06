@@ -687,8 +687,18 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
         val id = step.variant.id
         val reason = s.bookPick?.reasonOrNull() ?: CoopReason.DREAM
         if (id !in s.coopTrack.parentSteps && !isWildForReality(text, reason)) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
+        // 판정이 이 칸 답이 아니라고 한 말에서 뗀 이름은 다음 질문에 끼우지 않는다 — 「친구들」이 곳 이름으로 끼어
+        // 「친구들에 누구랑 같이 갔어?」 · 「친구들에서 뭐 봤어?」가 세 번 나왔다(10-06 실기기 · 학교 다녀왔어요)
+        roleOf(step.bookKey)?.let { (slot, _) -> s.coopTrack.heard.remove(slot)?.let { n -> log("[${step.bookKey}] 들은 이름 $slot=「$n」 뺌 — 판정이 이 칸 답이 아니라고 했다") } }
     }
 }
+
+/**
+ * 이 칸 값이 판정을 못 받고 들어간 아이 말인가 — 사다리 끝에서 [coopRejectedAnswer] 로 넣은 값.
+ * 아이 말이라 책 재료로는 지키지만, 곳 · 사람 **이름**으로 질문에 끼우지는 않는다(10-06 실기기 「친구들에 …」)
+ */
+internal fun DemoState.coopUnconfirmed(value: String?): Boolean =
+    isCoop && value != null && trackByState[this]?.rejected?.values?.any { value.trim() in it.map(String::trim) } == true
 
 /**
  * 판정이 거절했지만 아이가 이 걸음에 진짜로 한 말 — 마지막 것. 없으면 null.

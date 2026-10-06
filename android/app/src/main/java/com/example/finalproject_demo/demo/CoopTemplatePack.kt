@@ -47,6 +47,8 @@ fun DemoState.coopPartPack(step: DiaryStep): CoopPartPack? = rawPartPack(step)?.
  * 마스코트가 「아직 못 들은 …」으로 메운 칸이면 null — 그때는 「거기」를 그대로 둔다
  */
 internal fun DemoState.heardPlace(): String? {
+    // 판정이 곳이 아니라고 한 아이 말(「친구들」)이 사다리 끝에서 칸에 들어갔으면 「거기」를 그대로 둔다(10-06 실기기)
+    if (coopUnconfirmed(place)) return null
     // 끝 문장부호를 먼저 뗀다 — 「이동이 마당이 좋았어.」는 「.」 때문에 「어」 끝 검사를 비껴가 「에 누구랑 같이 갔어?」가 됐다(10-06 실기기)
     val p = place?.trim()?.trimEnd('.', '!', '?', '~', '…')?.trim()?.removeSuffix("에서")?.removeSuffix("에")?.trim() ?: return null
     if (p.isEmpty() || p.length > 12 || p.split(" ").size > 3 || p.startsWith("아직")) return null
