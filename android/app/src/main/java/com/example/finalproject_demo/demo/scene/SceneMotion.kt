@@ -59,6 +59,10 @@ val MOTION_BY_RES: Map<String, MotionSpec> = mapOf(
     "kit_dino_fern" to MotionSpec(MotionKind.SWAY, 0.110f, 1.4f, 1.3f),
     "kit_dino_hibiscus" to MotionSpec(MotionKind.SWAY, 0.090f, 1.3f, 1.5f),
     "kit_dino_big_leaf" to MotionSpec(MotionKind.SWAY, 0.070f, 0.9f, 1.4f),
+    // 우주 (10-06): the stars twinkle (doc §6-3 「별 — 반짝임」), the flag ripples on its pole
+    "kit_space_star" to MotionSpec(MotionKind.GLOW, 0.12f, 2.6f),
+    "kit_space_crystal" to MotionSpec(MotionKind.GLOW, 0.04f, 1.1f),
+    "kit_space_flag" to MotionSpec(MotionKind.SWAY, 0.030f, 1.6f, 1.2f),
 )
 
 /**
@@ -233,8 +237,10 @@ class SceneMotions(
                 )
             }
             MotionKind.GLOW -> {
-                val s = (1.0 + 0.025 * sin(0.8 * t)).toFloat()
-                PieceMotion(tilt = (3.0 * sin(0.25 * t)).toFloat(), scaleX = s, scaleY = s)
+                // the sun breathes slowly; a star twinkles quicker and bigger (amount · speed), each on its own phase
+                val amount = if (spec.amount == 1f) 0.025 else spec.amount.toDouble()
+                val s = (1.0 + amount * sin(0.8 * spec.speed * t + ph)).toFloat()
+                PieceMotion(tilt = (3.0 * sin(0.25 * t + ph)).toFloat(), scaleX = s, scaleY = s)
             }
         }
     }

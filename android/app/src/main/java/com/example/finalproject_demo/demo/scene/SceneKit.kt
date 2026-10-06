@@ -153,6 +153,42 @@ val DINO_KIT = SceneKitDef(
     ),
 )
 
+// ── §3-1 우주 — 12 pieces (#97 2순위 둘째 · 10-06). No butterfly, no bird: nothing lives in the sky here ──────────────
+private val MOON = KitPiece("moon", "kit_space_moon", PieceRole.SKY_ANCHOR, 0.75f, 0.938f, PieceBase.CENTER, tilt = 12f,
+    words = listOf("달", "달님"))
+private val RING_PLANET = KitPiece("ring_planet", "kit_space_ring_planet", PieceRole.SKY_ANCHOR, 0.4f, 1.508f, PieceBase.CENTER,
+    tilt = 10f, words = listOf("행성", "토성"))
+private val SMALL_PLANET = KitPiece("small_planet", "kit_space_small_planet", PieceRole.SKY_FILL, 0.2f, 1.001f, PieceBase.CENTER,
+    copies = 2, words = listOf("행성", "별", "지구"))
+private val STAR = KitPiece("star", "kit_space_star", PieceRole.SKY_FILL, 0.12f, 1.039f, PieceBase.CENTER, tilt = 25f,
+    copies = 4, words = listOf("별", "별님"))
+private val SHOOTING_STAR = KitPiece("shooting_star", "kit_space_shooting_star", PieceRole.SKY_FILL, 0.3f, 1.608f, PieceBase.CENTER,
+    tilt = 15f, copies = 1, words = listOf("별똥별", "유성"))
+private val ROCKET = KitPiece("rocket", "kit_space_rocket", PieceRole.LANDMARK, 1.3f, 0.627f, words = listOf("로켓", "우주선"))
+private val DOME = KitPiece("dome", "kit_space_dome", PieceRole.LANDMARK, 1.1f, 1.070f, words = listOf("우주 집", "기지", "집"))
+private val ROCK_HILL = KitPiece("rock_hill", "kit_space_rock_hill", PieceRole.FAR, 1.2f, 1.401f, words = listOf("산"))
+private val MOON_ROCK = KitPiece("moon_rock", "kit_space_moon_rock", PieceRole.COVER, 0.3f, 1.008f, words = listOf("돌", "바위"))
+private val MOON_ROCK_FRONT = MOON_ROCK.copy(name = "moon_rock_front", role = PieceRole.FOREGROUND, size = 0.5f)
+private val CRYSTAL = KitPiece("crystal", "kit_space_crystal", PieceRole.COVER, 0.35f, 0.938f, words = listOf("보석", "수정"))
+private val CRATER = KitPiece("crater", "kit_space_crater", PieceRole.FLAT, 0.1f, 1.988f, words = listOf("구멍", "분화구"))
+private val FLAG = KitPiece("flag", "kit_space_flag", PieceRole.COVER, 0.6f, 0.627f, flip = false, copies = 1, words = listOf("깃발"))
+
+/** 우주 — 남색 밤하늘 · 회보라 달 표면 (doc §1 table · the prototype's space colours in `eval/layout_proto.py`) */
+val SPACE_KIT = SceneKitDef(
+    key = "space",
+    skyTop = 0xFF141C44, skyBottom = 0xFF343876,
+    ground = 0xFFC8C4DE,
+    hillFar = 0xFF8A86B4, hillNear = 0xFFA8A4C4,
+    pieces = listOf(
+        MOON, RING_PLANET, SMALL_PLANET, STAR, SHOOTING_STAR,
+        ROCK_HILL,
+        ROCKET, DOME,
+        MOON_ROCK, CRYSTAL, FLAG,
+        CRATER,
+        MOON_ROCK_FRONT,
+    ),
+)
+
 object SceneKits {
     /**
      * **The one switch** (10-05). On: a live story whose place is not one of the three app themes is drawn
@@ -162,7 +198,7 @@ object SceneKits {
      */
     @Volatile var liveStory: Boolean = true
 
-    val all: Map<String, SceneKitDef> = mapOf(PARK_KIT.key to PARK_KIT, DINO_KIT.key to DINO_KIT)
+    val all: Map<String, SceneKitDef> = mapOf(PARK_KIT.key to PARK_KIT, DINO_KIT.key to DINO_KIT, SPACE_KIT.key to SPACE_KIT)
 
     /**
      * Which kit draws [place], or null for the app's own theme pictures.
@@ -180,6 +216,7 @@ object SceneKits {
         // 공룡 나라 is also an app theme: a live story's theme check runs first (`StoryLiveFlow`), so the kit
         // reaches the stage only when the lead routes the theme places here (10-06 · #97)
         listOf("공룡", "정글", "화산", "쥬라기").any { it in place } -> DINO_KIT
+        listOf("우주", "달나라", "별나라", "행성", "로켓").any { it in place } -> SPACE_KIT
         else -> null
     }
 }
