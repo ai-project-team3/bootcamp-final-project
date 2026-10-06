@@ -30,6 +30,9 @@ class TtsRequest(BaseModel):
     voice_id: str | None = None           # persona choice; default is the setting
     previous_text: str | None = None      # smart emotion reads its neighbours
     next_text: str | None = None
+    # 10-06: "typecast" only when the guardian gave the optional consent (third-party provision).
+    # Without it this family's lines never go to TypeCast, whatever TTS_PROVIDER says.
+    provider: str | None = None
 
 
 def _silence_wav(seconds: float = 0.3, rate: int = 16000) -> bytes:
@@ -50,6 +53,11 @@ async def speak(req: TtsRequest) -> Response:
     order = [settings.tts_provider]
     if settings.tts_fallback and settings.tts_fallback != settings.tts_provider:
         order.append(settings.tts_fallback)
+    consented = req.provider == "typecast"
+    if consented and settings.typecast_opt_in:
+        order = ["typecast"] + [p for p in order if p != "typecast"]       # the consenting family hears TypeCast
+    if not consented:
+        order = [p for p in order if p != "typecast"] or ["openai"]       # no consent, nothing to TypeCast
     t0 = time.monotonic()
     last: HTTPException | None = None
     for i, provider in enumerate(order):

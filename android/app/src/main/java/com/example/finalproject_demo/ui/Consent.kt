@@ -117,6 +117,14 @@ object ConsentStore {
     var nameVoiceAgreed by mutableStateOf(false)
         private set
 
+    /**
+     * **선택 동의 — 오또 목소리를 타입캐스트로** (10-06 조장). 타입캐스트는 받은 글자를 자기 서비스 개선 · 새 서비스에 쓸 수 있어
+     * 위탁이 아니라 **제3자 제공**이다 → 따로, 기본 꺼짐. 끄면 이 집의 대사는 타입캐스트로 가지 않고 기본 목소리(OpenAI)로 읽는다.
+     * 서버로는 `Server.typecastVoiceAgreed` 가 같이 움직인다.
+     */
+    var typecastVoiceAgreed by mutableStateOf(false)
+        private set
+
     /** 이 기기에서 신고 화면을 연 기록 — 실제 전달은 메일 앱이 한다(`ReportSection`) */
     val reports = mutableStateListOf<Report>()
 
@@ -129,6 +137,7 @@ object ConsentStore {
     private const val KEY_AGREED = "guardian_agreed"
     private const val KEY_MIC = "mic_notice_shown"
     private const val KEY_NAME_VOICE = "name_voice_agreed"
+    private const val KEY_TYPECAST_VOICE = "typecast_voice_agreed"
 
     /** `MainActivity.onCreate` 에서 한 번. 저장된 값을 읽어 온다 */
     fun attach(context: Context) {
@@ -137,6 +146,15 @@ object ConsentStore {
         guardianAgreed = p.getBoolean(KEY_AGREED, false)
         micNoticeShown = p.getBoolean(KEY_MIC, false)
         nameVoiceAgreed = p.getBoolean(KEY_NAME_VOICE, false)
+        typecastVoiceAgreed = p.getBoolean(KEY_TYPECAST_VOICE, false)
+        com.example.finalproject_demo.net.Server.typecastVoiceAgreed = typecastVoiceAgreed
+    }
+
+    /** 타입캐스트 목소리 선택 동의를 켜고 끈다 — 부모 영역 → 계정에서 언제든 바꿀 수 있다 */
+    fun setTypecastVoice(on: Boolean) {
+        typecastVoiceAgreed = on
+        com.example.finalproject_demo.net.Server.typecastVoiceAgreed = on
+        prefs?.edit()?.putBoolean(KEY_TYPECAST_VOICE, on)?.apply()
     }
 
     /** 이름 읽기 선택 동의를 켜고 끈다 — 부모 설정에서 언제든 바꿀 수 있어야 한다 */
@@ -154,8 +172,11 @@ object ConsentStore {
     fun withdraw() {
         guardianAgreed = false
         nameVoiceAgreed = false      // 본 동의를 물리면 선택 동의도 같이 물린다
+        typecastVoiceAgreed = false
+        com.example.finalproject_demo.net.Server.typecastVoiceAgreed = false
         micNoticeShown = false       // 마이크도 다시 묻는다 — 탈퇴 · 다른 보호자 계정 (10-05 치영 · ui/shell/Shell.kt)
-        prefs?.edit()?.putBoolean(KEY_AGREED, false)?.putBoolean(KEY_NAME_VOICE, false)?.putBoolean(KEY_MIC, false)?.apply()
+        prefs?.edit()?.putBoolean(KEY_AGREED, false)?.putBoolean(KEY_NAME_VOICE, false)?.putBoolean(KEY_TYPECAST_VOICE, false)
+            ?.putBoolean(KEY_MIC, false)?.apply()
     }
 
     fun markMicNoticeShown() {

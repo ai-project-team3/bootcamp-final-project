@@ -82,6 +82,9 @@ class Settings(BaseSettings):
     # same voice into the app (eval/bake_lines.py), so the live ones must match it.
     tts_provider: str = "openai"         # openai | typecast | elevenlabs
     tts_fallback: str = ""               # "" = no fallback
+    # 10-06 조장: TypeCast only for families who gave the optional consent (third-party provision · in-app
+    # terms TYPECAST_VOICE). Off until the paid plan and the re-baked lines are ready — the terms say so.
+    typecast_opt_in: bool = False
     # 조장 10-01: Siwoo · 밝게 (09-26 blind ★) but a little fast — 0.95 until the ear test
     # (eval/bench_tts_tempo.py) settles it
     typecast_emotion: str = "happy"      # a preset name, or "smart" (reads the neighbouring lines)
