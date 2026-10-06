@@ -329,7 +329,7 @@ class PictureDiaryFlowTest {
         assertTrue(d.push("아니"))
         assertTrue(await { s.buttons.any { "너도 그려줘" in it.label } } != null)
         assertTrue(d.push("너도 그려줘"))
-        assertTrue("「너도 그려줘」에 바로 그리지 않았다", await { "나도 강아지를 그려볼게" in s.line } != null)
+        assertTrue("「너도 그려줘」에 바로 그리지 않았다", await { s.line == "나도 그려 볼게! 더 그리고 있어!" && s.log.any { "「강아지」 그린다" in it } } != null)
         s.drawing += stroke(0.6f)
         assertTrue(await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); "짠!" in s.line } != null)
         assertTrue(d.push("내 그림으로"))
@@ -409,7 +409,7 @@ class PictureDiaryFlowTest {
         assertTrue(await { s.diaryDay.watching } != null)
         d.send(Reply.Tapped("name:$dog", "이름 부르기"))
         assertTrue(await { s.line == "강아지!" } != null)
-        d.tell("그려줘") { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" }
+        d.tell("그려줘") { s.line == "나도 그려 볼게! 더 그리고 있어!" && s.log.any { "「강아지」 그린다" in it } }
     }
 
     /**
@@ -436,7 +436,7 @@ class PictureDiaryFlowTest {
         assertTrue("말=${s.line}", await { s.line == "강아지!" } != null)
         assertNull("이름표 누름이 묻던 조각의 답이 됐다", s.diaryDay.pieces.last().name)
         d.sendBoardTool(Reply.Tapped("drawme", "그려 줘"))
-        assertTrue("말=${s.line}", await { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" } != null)
+        assertTrue("말=${s.line}", await { s.line == "나도 그려 볼게! 더 그리고 있어!" && s.log.any { "「강아지」 그린다" in it } } != null)
         assertNull(s.diaryDay.pendingTap)
     }
 
@@ -460,7 +460,7 @@ class PictureDiaryFlowTest {
         d.speak("집이야")
         assertTrue(await { s.line == "아, 집이구나!" } != null)
         d.sendBoardTool(Reply.Tapped("drawme", "그려 줘"))
-        assertTrue("말=${s.line}", await { s.line == "나도 집을 그려볼게! 더 그리고 있어!" } != null)
+        assertTrue("말=${s.line}", await { s.line == "나도 그려 볼게! 더 그리고 있어!" && s.log.any { "「집」 그린다" in it } } != null)
         val said = mutableListOf<String>()
         val ear = launch { while (true) { if (said.lastOrNull() != s.line) said += s.line; delay(3) } }
         // 오또 그림이 오면 고르고(폰에서는 고른 뒤 다음 멈춤에 옛 제안이 나왔다), 아니면 붓을 멈춘다
@@ -486,7 +486,7 @@ class PictureDiaryFlowTest {
         assertTrue(d.push("아니"))
         assertTrue(await { s.diaryDay.watching } != null)
         d.send(Reply.Tapped("drawme", "그려 줘"))
-        assertTrue("[그려 줘]에 그리지 않았다 — 말=${s.line}", await { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" } != null)
+        assertTrue("[그려 줘]에 그리지 않았다 — 말=${s.line}", await { s.line == "나도 그려 볼게! 더 그리고 있어!" && s.log.any { "「강아지」 그린다" in it } } != null)
     }
 
     /** 그림판 오른쪽 [이름 고치기] — 방금 그린 조각의 이름을 다시 묻고 고친다. 고친 이름도 아이 말이다 (10-05 진웅) */
@@ -606,8 +606,8 @@ class PictureDiaryFlowTest {
         d.speak("해야")
         assertTrue(await { s.line == "나도 해를 그려볼까?" } != null)
         assertTrue(d.push("아니"))
-        d.tell("강아지 그려줘") { s.line == "나도 강아지를 그려볼게! 더 그리고 있어!" }
-        d.tell("강아지 그려줘") { s.line == "나도 지금 강아지를 그리고 있어! 조금만 기다려 줘." }
+        d.tell("강아지 그려줘") { s.line == "나도 그려 볼게! 더 그리고 있어!" && s.log.any { "「강아지」 그린다" in it } }
+        d.tell("강아지 그려줘") { s.line == "나도 지금 그리고 있어! 조금만 기다려 줘." && s.log.any { "「강아지」 그리는 중" in it } }
     }
 
     /**

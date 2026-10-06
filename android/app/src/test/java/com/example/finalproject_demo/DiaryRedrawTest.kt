@@ -225,7 +225,7 @@ class DiaryRedrawTest {
                 val bg = s.diaryDay.pieces.first { it.role == PieceRole.BACKGROUND }
                 assertTrue("온 그림이 배경 조각에 안 붙었다", bg.ottoPng.contentEquals(art))
                 // 이름 없는 배경도 고르게 한다 — 이름이 없다고 건너뛰어 그림이 영영 안 보였다 (10-06 실기기)
-                assertTrue("오또 배경을 고르게 하지 않았다 — 말=${s.line}", await { "짠!" in s.line && "바다" in s.line } != null)
+                assertTrue("오또 배경을 고르게 하지 않았다 — 말=${s.line}", await { "짠!" in s.line && s.log.any { "오또 그림이 왔다 — 「바다" in it } } != null)
                 d.send(Reply.Tapped("otto", "오또 그림"))
                 assertTrue("오또 배경을 골랐는데 바뀌지 않았다", await {
                     s.diaryDay.pieces.first { it.role == PieceRole.BACKGROUND }.look == PieceLook.OTTO
