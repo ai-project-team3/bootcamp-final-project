@@ -55,6 +55,11 @@ class StoryCharacterTest {
             withTimeout(5_000) { while (d.s.stage !is Stage.CardsRow) delay(10) }
             val feeder = launch {
                 while (isActive) {
+                    if (d.s.stage is Stage.HeroAnswer) {
+                        d.send(Reply.Tapped("ok", "맞아"))
+                        delay(40)
+                        continue
+                    }
                     if (d.s.stage is Stage.CardsRow) d.send(Reply.Tapped("voice", "말로 만들기"))
                     if (d.s.micEnabled) when {
                         "옷" in d.s.line && "머리" !in d.s.line -> d.send(Reply.Tapped("F9B233", "노란 옷"))
