@@ -89,7 +89,58 @@ KITS = {
         "reef": "blue-grey rocky reef",
     },
     # 3-5 숲 · 시골 — 지금은 「살아 있는 배경」의 새만 (§6-3 · 공원 무대에도 들른다). 나머지 10종은 아직
+    # 3-6 실내 — 3순위 (#97). 하늘 자리가 벽 — 창문 · 액자 · 시계는 벽에 걸린다
+    "indoor": {
+        "window": "window with curtains",
+        "frame": "small picture frame with a flower painting",
+        "clock": "round wall clock",
+        "sofa": "small sofa",
+        "bed": "small bed with a quilt",
+        "bookshelf": "bookshelf with books",
+        "table": "little wooden table",
+        "toy_box": "toy box",
+        "teddy": "teddy bear",
+        "blocks": "stack of toy blocks",
+        "potted_plant": "potted plant",
+        "rug": "round striped rug",
+    },
+    # 3-7 눈 나라 — 5순위 (#97)
+    "snow": {
+        "snowflake": "white snowflake",
+        "snowman": "snowman with a red scarf",
+        "igloo": "igloo",
+        "snow_pine": "snow-covered pine tree",
+        "snow_mountain": "snowy mountain",
+        "sled": "wooden sled",
+        "snowballs": "pile of snowballs",
+        "ice_rock": "light blue ice rock",
+        "snow_bush": "snow-covered bush",
+        "cabin": "snowy cabin with a chimney",
+    },
+    # 3-8 바닷가 — 5순위 (#97)
+    "beach": {
+        "umbrella": "striped beach umbrella",
+        "sandcastle": "sandcastle",
+        "bucket": "beach bucket and spade",
+        "beach_ball": "striped beach ball",
+        "swim_ring": "swim ring",
+        "lighthouse": "red and white lighthouse",
+        "sailboat": "little sailboat",
+        # 「white seagull」은 앉은 갈매기 인형만 나왔다 — 하늘채움이라 나는 모습으로
+        "seagull": "white seagull flying with both wings spread wide, side view, gliding in the air",
+    },
     "forest": {
+        # 3-5 숲 · 시골 — 4순위 (#97). 새(bird · bird_fly)는 10-05 살아 있는 배경 때 먼저 구웠다
+        "cottage": "small cottage with a red roof",
+        "pine": "green pine tree",
+        "mountain": "rounded green mountain",
+        "mushroom": "red spotted mushroom",
+        "stump": "tree stump",
+        "fence": "short wooden fence",
+        "carrots": "carrots growing in soil",
+        "apple_tree": "apple tree with red apples",
+        "pond": "small round pond",
+        "sunflower": "tall sunflower",
         # 목록 문구 「little blue bird」를 두 자세로 — 앉은 새와 나는 새. 옆모습 · 오른쪽을 보게(앱이 가는 쪽으로 뒤집는다)
         "bird": "little round blue bird sitting, side view facing right, wings folded, small orange beak and two tiny feet",
         "bird_fly": "little round blue bird flying, side view facing right, both wings spread wide open upward, small orange beak",
@@ -101,6 +152,10 @@ SIZES = {
     "street_lamp": (768, 1344), "palm_tree": (768, 1344), "waterfall": (768, 1344), "rainbow": (1344, 768), "log": (1344, 768),
     "rocket": (768, 1344), "flag": (768, 1344), "rock_hill": (1344, 768), "crater": (1344, 768), "shooting_star": (1344, 768),
     "seaweed": (768, 1344), "reef": (1344, 768),
+    "bookshelf": (768, 1344), "rug": (1344, 768), "bed": (1344, 768),
+    "snow_pine": (768, 1344), "snow_mountain": (1344, 768), "sled": (1344, 768),
+    "umbrella": (768, 1344), "lighthouse": (768, 1344),
+    "pine": (768, 1344), "mountain": (1344, 768), "fence": (1344, 768), "sunflower": (768, 1344), "pond": (1344, 768),
 }
 
 if __name__ == "__main__":

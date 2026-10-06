@@ -119,6 +119,86 @@ class SceneKitShotTest {
         )
     }
 
+    /** 우리 집 (#97 3~5순위 · 10-06) — `screens/world_kit_indoor.png` is for looking */
+    @Test
+    fun indoorKitWithTwoActors() {
+        val d = Director(CoroutineScope(SupervisorJob()))
+        d.s.mode = StoryMode.STORY
+        d.s.themeKey = "dino"; d.s.generatedBg = true; d.s.placeLabel = "우리 집"
+        d.s.sceneKit = "indoor"; d.s.sceneSeed = 2026L
+        val attr = HeroAttr(hair = "tied", glasses = "round", eyes = "star", bottom = "skirt")
+        d.s.heroAttr = attr
+        d.s.stage = Stage.World(listOf(
+            WorldItem(Art.HeroArt(attr), HERO_SPOT.x, 0.32f, 0.11f, depth = HERO_SPOT.depth),
+            WorldItem(Art.Img("dino_long", Art.Emoji("🦕")), FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth),
+        ))
+        compose.setContent { StageView(d) }
+        compose.onRoot().captureRoboImage(
+            File("screens/world_kit_indoor.png").path,
+            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+        )
+    }
+
+    /** 할머니 집 (#97 3~5순위 · 10-06) — `screens/world_kit_forest.png` is for looking */
+    @Test
+    fun forestKitWithTwoActors() {
+        val d = Director(CoroutineScope(SupervisorJob()))
+        d.s.mode = StoryMode.STORY
+        d.s.themeKey = "dino"; d.s.generatedBg = true; d.s.placeLabel = "할머니 집"
+        d.s.sceneKit = "forest"; d.s.sceneSeed = 2026L
+        val attr = HeroAttr(hair = "tied", glasses = "round", eyes = "star", bottom = "skirt")
+        d.s.heroAttr = attr
+        d.s.stage = Stage.World(listOf(
+            WorldItem(Art.HeroArt(attr), HERO_SPOT.x, 0.32f, 0.11f, depth = HERO_SPOT.depth),
+            WorldItem(Art.Img("dino_long", Art.Emoji("🦕")), FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth),
+        ))
+        compose.setContent { StageView(d) }
+        compose.onRoot().captureRoboImage(
+            File("screens/world_kit_forest.png").path,
+            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+        )
+    }
+
+    /** 바닷가 (#97 3~5순위 · 10-06) — `screens/world_kit_beach.png` is for looking */
+    @Test
+    fun beachKitWithTwoActors() {
+        val d = Director(CoroutineScope(SupervisorJob()))
+        d.s.mode = StoryMode.STORY
+        d.s.themeKey = "dino"; d.s.generatedBg = true; d.s.placeLabel = "바닷가"
+        d.s.sceneKit = "beach"; d.s.sceneSeed = 2026L
+        val attr = HeroAttr(hair = "tied", glasses = "round", eyes = "star", bottom = "skirt")
+        d.s.heroAttr = attr
+        d.s.stage = Stage.World(listOf(
+            WorldItem(Art.HeroArt(attr), HERO_SPOT.x, 0.32f, 0.11f, depth = HERO_SPOT.depth),
+            WorldItem(Art.Img("dino_long", Art.Emoji("🦕")), FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth),
+        ))
+        compose.setContent { StageView(d) }
+        compose.onRoot().captureRoboImage(
+            File("screens/world_kit_beach.png").path,
+            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+        )
+    }
+
+    /** 눈 나라 (#97 3~5순위 · 10-06) — `screens/world_kit_snow.png` is for looking */
+    @Test
+    fun snowKitWithTwoActors() {
+        val d = Director(CoroutineScope(SupervisorJob()))
+        d.s.mode = StoryMode.STORY
+        d.s.themeKey = "dino"; d.s.generatedBg = true; d.s.placeLabel = "눈 나라"
+        d.s.sceneKit = "snow"; d.s.sceneSeed = 2026L
+        val attr = HeroAttr(hair = "tied", glasses = "round", eyes = "star", bottom = "skirt")
+        d.s.heroAttr = attr
+        d.s.stage = Stage.World(listOf(
+            WorldItem(Art.HeroArt(attr), HERO_SPOT.x, 0.32f, 0.11f, depth = HERO_SPOT.depth),
+            WorldItem(Art.Img("dino_long", Art.Emoji("🦕")), FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth),
+        ))
+        compose.setContent { StageView(d) }
+        compose.onRoot().captureRoboImage(
+            File("screens/world_kit_snow.png").path,
+            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+        )
+    }
+
     @Test
     fun aspectsInTheTableMatchThePictures() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()

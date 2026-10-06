@@ -225,6 +225,133 @@ val SEA_KIT = SceneKitDef(
     ),
 )
 
+// ── §3-6 실내 — 12 pieces (#97 3순위 · 10-06). The sky is a wall: window, picture and clock hang on it ─────────────
+// The felt hills read as a wainscot along the wall; no far band (doc §3-6), no wind, no visitors
+private val WINDOW = KitPiece("window", "kit_indoor_window", PieceRole.SKY_ANCHOR, 0.8f, 0.980f, PieceBase.CENTER, flip = false,
+    words = listOf("창문"))
+private val FRAME = KitPiece("frame", "kit_indoor_frame", PieceRole.SKY_FILL, 0.3f, 0.871f, PieceBase.CENTER, flip = false,
+    copies = 1, words = listOf("그림", "액자"))
+private val CLOCK = KitPiece("clock", "kit_indoor_clock", PieceRole.SKY_FILL, 0.25f, 1.003f, PieceBase.CENTER, flip = false,
+    copies = 1, words = listOf("시계"))
+private val SOFA = KitPiece("sofa", "kit_indoor_sofa", PieceRole.LANDMARK, 0.8f, 1.374f, words = listOf("소파", "의자"))
+private val BED = KitPiece("bed", "kit_indoor_bed", PieceRole.LANDMARK, 0.9f, 1.169f, words = listOf("침대"))
+private val BOOKSHELF = KitPiece("bookshelf", "kit_indoor_bookshelf", PieceRole.LANDMARK, 1.4f, 0.862f, flip = false,
+    words = listOf("책", "책장"))
+private val TABLE = KitPiece("table", "kit_indoor_table", PieceRole.LANDMARK, 0.6f, 1.328f, words = listOf("탁자", "책상"))
+private val TOY_BOX = KitPiece("toy_box", "kit_indoor_toy_box", PieceRole.COVER, 0.4f, 1.112f, copies = 1,
+    words = listOf("장난감", "상자"))
+private val TEDDY = KitPiece("teddy", "kit_indoor_teddy", PieceRole.COVER, 0.4f, 0.790f, copies = 1, words = listOf("곰 인형", "인형"))
+private val BLOCKS = KitPiece("blocks", "kit_indoor_blocks", PieceRole.COVER, 0.2f, 0.722f, flip = false, words = listOf("블록"))
+private val POTTED_PLANT = KitPiece("potted_plant", "kit_indoor_potted_plant", PieceRole.COVER, 0.5f, 0.734f,
+    copies = 1, words = listOf("화분", "꽃"))
+private val RUG = KitPiece("rug", "kit_indoor_rug", PieceRole.FLAT, 0.1f, 3.021f, words = listOf("러그", "카펫"))
+
+/** 실내 — 벽지 · 나무 마루 (doc §1 table) */
+val INDOOR_KIT = SceneKitDef(
+    key = "indoor",
+    skyTop = 0xFFF1E0C0, skyBottom = 0xFFF8EEDB,
+    ground = 0xFFC6935E,
+    hillFar = 0xFFE9D3AC, hillNear = 0xFFDFC496,
+    pieces = listOf(
+        WINDOW, FRAME, CLOCK,
+        SOFA, BED, BOOKSHELF, TABLE,
+        TOY_BOX, TEDDY, BLOCKS, POTTED_PLANT,
+        RUG,
+    ),
+)
+
+// ── §3-5 숲·시골 — 10 pieces + the common nine (#97 4순위 · 10-06). The bird lives here (doc §6-3) ────────────
+private val COTTAGE = KitPiece("cottage", "kit_forest_cottage", PieceRole.LANDMARK, 1.6f, 0.997f, flip = false,
+    words = listOf("집", "할머니 집"))
+private val PINE = KitPiece("pine", "kit_forest_pine", PieceRole.LANDMARK, 1.9f, 0.679f, words = listOf("소나무", "나무"))
+private val PINE_FAR = PINE.copy(name = "pine_far", role = PieceRole.FAR)
+private val MOUNTAIN = KitPiece("mountain", "kit_forest_mountain", PieceRole.FAR, 2.0f, 1.221f, words = listOf("산"))
+private val MUSHROOM = KitPiece("mushroom", "kit_forest_mushroom", PieceRole.COVER, 0.25f, 0.920f, words = listOf("버섯"))
+private val STUMP = KitPiece("stump", "kit_forest_stump", PieceRole.COVER, 0.3f, 1.180f, words = listOf("나무", "그루터기"))
+private val FENCE = KitPiece("fence", "kit_forest_fence", PieceRole.COVER, 0.4f, 1.693f, flip = false, copies = 1,
+    words = listOf("울타리"))
+private val CARROTS = KitPiece("carrots", "kit_forest_carrots", PieceRole.COVER, 0.3f, 0.614f, words = listOf("당근", "밭"))
+private val APPLE_TREE = KitPiece("apple_tree", "kit_forest_apple_tree", PieceRole.LANDMARK, 1.6f, 0.893f,
+    words = listOf("사과", "사과나무"))
+private val POND = KitPiece("pond", "kit_forest_pond", PieceRole.FLAT, 0.15f, 1.996f, words = listOf("연못", "물"))
+private val SUNFLOWER = KitPiece("sunflower", "kit_forest_sunflower", PieceRole.COVER, 0.6f, 0.607f, words = listOf("해바라기", "꽃"))
+
+/** 숲·시골 — 하늘색 · 짙은 풀밭 (doc §1 table) */
+val FOREST_KIT = SceneKitDef(
+    key = "forest",
+    skyTop = 0xFF8CC8EC, skyBottom = 0xFFD0EAF6,
+    ground = 0xFF5F9A49,
+    hillFar = 0xFF5E8F58, hillNear = 0xFF7AA867,
+    pieces = listOf(
+        SUN, CLOUD, BUTTERFLY,
+        MOUNTAIN, PINE_FAR, TREE_FAR,
+        COTTAGE, PINE, APPLE_TREE, TREE,
+        MUSHROOM, STUMP, FENCE, CARROTS, SUNFLOWER, BUSH, TULIP, DAISY, STONE, GRASS,
+        POND,
+        GRASS_FRONT,
+    ),
+)
+
+// ── §3-8 바닷가 — 8 pieces (#97 5순위 · 10-06), with the sun · cloud, the sea's shells and the dinosaur land's palm ───
+// The far felt hills are the sea (doc §3-8 「먼 띠가 바다」)
+private val UMBRELLA = KitPiece("umbrella", "kit_beach_umbrella", PieceRole.LANDMARK, 1.4f, 0.978f, words = listOf("파라솔", "우산"))
+private val SANDCASTLE = KitPiece("sandcastle", "kit_beach_sandcastle", PieceRole.COVER, 0.5f, 0.927f, flip = false, copies = 1,
+    words = listOf("모래성", "성"))
+private val BUCKET = KitPiece("bucket", "kit_beach_bucket", PieceRole.COVER, 0.25f, 0.828f, copies = 1, words = listOf("양동이", "삽"))
+private val BEACH_BALL = KitPiece("beach_ball", "kit_beach_beach_ball", PieceRole.COVER, 0.2f, 1.009f, copies = 1, words = listOf("공"))
+private val SWIM_RING = KitPiece("swim_ring", "kit_beach_swim_ring", PieceRole.COVER, 0.3f, 1.008f, copies = 1, words = listOf("튜브"))
+private val LIGHTHOUSE = KitPiece("lighthouse", "kit_beach_lighthouse", PieceRole.LANDMARK, 2.0f, 0.487f, flip = false,
+    words = listOf("등대"))
+private val SAILBOAT = KitPiece("sailboat", "kit_beach_sailboat", PieceRole.FAR, 0.8f, 0.836f, words = listOf("배", "돛단배"))
+private val SEAGULL = KitPiece("seagull", "kit_beach_seagull", PieceRole.SKY_FILL, 0.15f, 2.365f, PieceBase.CENTER, copies = 2,
+    words = listOf("갈매기", "새"))
+private val SCALLOP_BEACH = SCALLOP.copy(name = "scallop_beach")
+private val STARFISH_BEACH = STARFISH.copy(name = "starfish_beach")
+
+/** 바닷가 — 하늘색 · 모래, 먼 띠가 바다 (doc §1 table) */
+val BEACH_KIT = SceneKitDef(
+    key = "beach",
+    skyTop = 0xFF8CC8EC, skyBottom = 0xFFD6EEF7,
+    ground = 0xFFEBD8A6,
+    hillFar = 0xFF4E9CC4, hillNear = 0xFF79BCD8,
+    pieces = listOf(
+        SUN, CLOUD, SEAGULL,
+        SAILBOAT,
+        UMBRELLA, LIGHTHOUSE, PALM,
+        SANDCASTLE, BUCKET, BEACH_BALL, SWIM_RING, SCALLOP_BEACH, STARFISH_BEACH,
+    ),
+)
+
+// ── §3-7 눈 나라 — 10 pieces (#97 5순위 · 10-06), with the common sun and stone ─────────────────────────────────
+private val SNOWFLAKE = KitPiece("snowflake", "kit_snow_snowflake", PieceRole.SKY_FILL, 0.1f, 0.908f, PieceBase.CENTER,
+    tilt = 30f, copies = 6, words = listOf("눈", "눈송이"))
+private val SNOWMAN = KitPiece("snowman", "kit_snow_snowman", PieceRole.LANDMARK, 1.0f, 0.869f, words = listOf("눈사람"))
+private val IGLOO = KitPiece("igloo", "kit_snow_igloo", PieceRole.LANDMARK, 1.1f, 1.234f, words = listOf("이글루", "얼음집"))
+private val SNOW_PINE = KitPiece("snow_pine", "kit_snow_snow_pine", PieceRole.LANDMARK, 1.9f, 0.668f, words = listOf("나무", "소나무"))
+private val SNOW_PINE_FAR = SNOW_PINE.copy(name = "snow_pine_far", role = PieceRole.FAR)
+private val SNOW_MOUNTAIN = KitPiece("snow_mountain", "kit_snow_snow_mountain", PieceRole.FAR, 2.0f, 1.440f, words = listOf("산"))
+private val SLED = KitPiece("sled", "kit_snow_sled", PieceRole.COVER, 0.4f, 1.036f, copies = 1, words = listOf("썰매"))
+private val SNOWBALLS = KitPiece("snowballs", "kit_snow_snowballs", PieceRole.COVER, 0.2f, 1.042f, words = listOf("눈덩이", "눈"))
+private val ICE_ROCK = KitPiece("ice_rock", "kit_snow_ice_rock", PieceRole.COVER, 0.35f, 1.029f, words = listOf("얼음", "바위"))
+private val SNOW_BUSH = KitPiece("snow_bush", "kit_snow_snow_bush", PieceRole.COVER, 0.4f, 1.203f, words = listOf("덤불"))
+private val SNOW_BUSH_FRONT = SNOW_BUSH.copy(name = "snow_bush_front", role = PieceRole.FOREGROUND, size = 0.6f)
+private val CABIN = KitPiece("cabin", "kit_snow_cabin", PieceRole.LANDMARK, 1.5f, 0.998f, flip = false, words = listOf("집"))
+
+/** 눈 나라 — 연회색 하늘 · 눈밭 (doc §1 table) */
+val SNOW_KIT = SceneKitDef(
+    key = "snow",
+    skyTop = 0xFFB8C4D4, skyBottom = 0xFFE4EAF2,
+    ground = 0xFFF4F6FA,
+    hillFar = 0xFFCBD6E4, hillNear = 0xFFDDE5EF,
+    pieces = listOf(
+        SUN, SNOWFLAKE,
+        SNOW_MOUNTAIN, SNOW_PINE_FAR,
+        SNOWMAN, IGLOO, SNOW_PINE, CABIN,
+        SLED, SNOWBALLS, ICE_ROCK, SNOW_BUSH, STONE,
+        SNOW_BUSH_FRONT,
+    ),
+)
+
 object SceneKits {
     /**
      * **The one switch** (10-05). On: a live story whose place is not one of the three app themes is drawn
@@ -234,7 +361,8 @@ object SceneKits {
      */
     @Volatile var liveStory: Boolean = true
 
-    val all: Map<String, SceneKitDef> = mapOf(PARK_KIT.key to PARK_KIT, DINO_KIT.key to DINO_KIT, SPACE_KIT.key to SPACE_KIT, SEA_KIT.key to SEA_KIT)
+    val all: Map<String, SceneKitDef> = mapOf(PARK_KIT.key to PARK_KIT, DINO_KIT.key to DINO_KIT, SPACE_KIT.key to SPACE_KIT, SEA_KIT.key to SEA_KIT,
+        INDOOR_KIT.key to INDOOR_KIT, FOREST_KIT.key to FOREST_KIT, BEACH_KIT.key to BEACH_KIT, SNOW_KIT.key to SNOW_KIT)
 
     /**
      * Which kit draws [place], or null for the app's own theme pictures.
@@ -255,6 +383,11 @@ object SceneKits {
         listOf("우주", "달나라", "별나라", "행성", "로켓").any { it in place } -> SPACE_KIT
         // 「바다」 alone is the beach group in the doc (§1 — 바닷가), not under water
         listOf("바닷속", "바다 밑", "바다 속", "물속", "용궁", "해저").any { it in place } -> SEA_KIT
+        listOf("눈 나라", "눈나라", "겨울", "북극", "눈사람", "이글루", "남극").any { it in place } -> SNOW_KIT
+        listOf("바닷가", "해변", "바다", "모래사장", "해수욕").any { it in place } -> BEACH_KIT
+        // 할머니 집 · 농장 is the countryside (doc §1), checked before the plain 「집」 of indoor
+        listOf("숲", "할머니", "농장", "시골", "밭", "목장", "산").any { it in place } -> FOREST_KIT
+        listOf("집", "방", "어린이집", "유치원", "교실", "거실", "학교").any { it in place } -> INDOOR_KIT
         else -> null
     }
 }
