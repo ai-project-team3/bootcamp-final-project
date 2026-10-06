@@ -32,7 +32,8 @@ def test_only_switched_on_modes_use_jev_and_a_failure_falls_back(monkeypatch):
 
     async def fake_jev(system, user, utterance, timeout_s=6.0):
         calls.append("jev")
-        return {"reason": "jev", "slot_1": "place", "value_1": utterance, "_seconds": 0.2}
+        return {"reason": "jev", "slot_1": "place", "value_1": utterance,
+                "next_slot": "problem", "_seconds": 0.2}
 
     async def fake_luna(*a, **k):
         calls.append("luna")

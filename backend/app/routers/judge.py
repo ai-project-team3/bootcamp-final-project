@@ -68,7 +68,13 @@ async def run(req: JudgeRequest) -> JudgeResult:
         try:
             raw = await jev.judge(judge_prompt.system(), judge_prompt.user(req), req.utterance)
             log.info("judge jev %.2fs", raw.pop("_seconds", 0.0))
-            return enforce(JudgeResult.model_validate(raw), req)
+            result = enforce(JudgeResult.model_validate(raw), req)
+            if req.mode != "story" or result.story_ready or result.next_slot is not None:
+                return result
+            # A dropped/invalid choice is still a successful Jev response. Without
+            # an ending or a next slot it strands the story in an open-ended line
+            # loop (#156). Let the existing full judge choose, never force ready.
+            log.warning("story judge jev has no ending or next slot; full judge instead")
         except jev.JevError as e:
             log.warning("judge jev failed, luna instead: %s", e)
     raw = await complete(judge_prompt.system(req.mode), judge_prompt.user(req), judge_prompt.schema(),
