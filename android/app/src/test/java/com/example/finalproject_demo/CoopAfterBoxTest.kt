@@ -19,6 +19,7 @@ import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.coopAfterAsk
 import com.example.finalproject_demo.demo.coopAfterIntroLine
 import com.example.finalproject_demo.demo.coopBeforeBookId
+import com.example.finalproject_demo.demo.coopStoryPick
 import com.example.finalproject_demo.demo.coopPlanFromJson
 import com.example.finalproject_demo.demo.coopPlanToJson
 import com.example.finalproject_demo.demo.pageCount
@@ -184,6 +185,9 @@ class CoopAfterBoxTest {
         assertNotNull(await { s.scene == Scene.BESTIARY })
         assertTrue(d.tap("카드를 탭"))
         assertNotNull(await { s.scene == Scene.DIARY })
+        // 장면 값은 sceneDiary 가 돌기 전에 바뀐다(Director.go 가 장면 실행을 따로 띄운다) — 오또 소개(coopIntro)가
+        // 이 이야기의 기록을 만들 때까지 기다린다. 소개는 첫 대사 전에 고른 이야기와 가기 전 책을 한꺼번에 적는다
+        assertNotNull("오또 소개가 돌지 않았다", await { s.coopStoryPick != null })
         assertEquals("시작할 때 가기 전 책을 붙잡아야 한다", beforeId, s.coopBeforeBookId)
 
         val afterId = s.shelveBook(CoopPick("place", "동물원", "done"), "지호의 동물원 이야기")
@@ -210,6 +214,9 @@ class CoopAfterBoxTest {
         assertNotNull(await { s.scene == Scene.BESTIARY })
         assertTrue(d.tap("카드를 탭"))
         assertNotNull(await { s.scene == Scene.DIARY })
+        // 장면 값은 sceneDiary 가 돌기 전에 바뀐다(Director.go 가 장면 실행을 따로 띄운다) — 오또 소개(coopIntro)가
+        // 이 이야기의 기록을 만들 때까지 기다린다. 소개는 첫 대사 전에 고른 이야기와 가기 전 책을 한꺼번에 적는다
+        assertNotNull("오또 소개가 돌지 않았다", await { s.coopStoryPick != null })
         assertNull(s.coopBeforeBookId)
     }
 

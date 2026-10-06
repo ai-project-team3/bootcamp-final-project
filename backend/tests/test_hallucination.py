@@ -64,6 +64,17 @@ class HallucinationTest(unittest.TestCase):
         # 1차 강의실 무음이 「고춧가루」를 냈지만 이야기 재료라 목록에 안 넣었다
         self.assertTrue(check_transcript("고춧가루").keep)
 
+    def test_lines_seen_on_the_10_06_phone_are_dropped(self):
+        # #172 · 치영 S10 협업 측정 — 희미한 소리에 whisper 가 낸 것. 셋 다 아이 말로 책 재료 칸에 들어갔었다
+        for line in ["이 영상은 한국국토정보공사의 자막을 사용하였습니다.", "김치볶음밥 김치볶음밥 김치볶음밥",
+                     "이른바 이른바 이른바 이른바 이른바"]:
+            self.assertEqual(check_transcript(line).reason, "hallucination", line)
+
+    def test_a_word_said_twice_is_the_childs(self):
+        # 같은 낱말 두 번은 아이가 한다 — 세 번부터 whisper 의 되풀이로 본다. 낱말이 섞이면 몇 번이든 아이 말이다
+        for line in ["아니 아니", "엄마 엄마", "싫어 싫어!", "기린이랑 코끼리가 보였어", "엄마랑 갔어", "김치볶음밥 먹었어", "멍멍 멍멍 하고 짖었어"]:
+            self.assertTrue(check_transcript(line).keep, line)
+
 
 if __name__ == "__main__":
     unittest.main()

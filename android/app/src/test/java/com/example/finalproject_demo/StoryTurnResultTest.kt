@@ -13,6 +13,48 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StoryTurnResultTest {
+    private fun settledStory() = DemoState().apply {
+        turn = 10
+        templateKey = "E"
+        listOf("place", "problem", "reaction", "cause", "solution").forEach {
+            slots[it] = "existing $it"
+        }
+        template!!.let { it.plot + it.ending }.forEach { slots[it] = "existing $it" }
+    }
+
+    @Test fun nullNextKeepsTheConcreteServerFollowUpAcrossRepeatedTurns() = runBlocking {
+        val s = settledStory()
+        val question = "이제 이야기를 어떻게 마무리할까?"
+        s.exchangeStoryTurn("solution", "어떻게 끝났어?", "행복하게 잘 살았어") {
+            Server.TurnResult(verdict(listOf("solution" to it.utterance)), Server.Line("그랬구나", null, question))
+        }
+        repeat(3) {
+            val prompt = s.nextStoryPrompt(s.storyServerQuestion)!!
+            assertEquals(question, prompt.text)
+            assertNull("An absent verdict slot must not be guessed from the question", prompt.slot)
+            s.exchangeStoryTurn(prompt.slot, prompt.text, "더 없어") { turn ->
+                assertEquals(question, turn.question)
+                Server.TurnResult(verdict(), Server.Line("이제 그만하고 싶구나", null, question))
+            }
+            assertFalse("Only story_ready finishes the story", s.storyReady)
+        }
+    }
+
+    @Test fun rejectedFilledSlotDoesNotReturnThroughTheUnassignedQuestionFallback() = runBlocking {
+        val s = settledStory()
+        s.exchangeStoryTurn(null, "더 들려줄래?", "끝났어") {
+            Server.TurnResult(verdict(next = "place"), Server.Line("그랬구나", null, "어디로 갈까?"))
+        }
+        assertNull(s.storyNextSlot)
+        assertEquals("이야기를 조금 더 들려줄래?", s.nextStoryPrompt(s.storyServerQuestion)?.text)
+    }
+
+    @Test fun nullNextWithoutAQuestionStillUsesTheExistingFallback() = runBlocking {
+        val s = settledStory()
+        s.exchangeStoryTurn(null, "더 들려줄래?", "끝났어") { Server.TurnResult(verdict(), null) }
+        assertEquals("이야기를 조금 더 들려줄래?", s.nextStoryPrompt(s.storyServerQuestion)?.text)
+    }
+
     private fun verdict(
         fills: List<Pair<String, String>> = emptyList(),
         next: String? = null,

@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     stt_warmup: bool = True                   # load at start; first calls raced the load and 502-ed (09-29)
     # lead-only test switch: keep audio + text here to hear what the model heard. Never with a child.
     stt_debug_dir: str = ""
+    # #149 (10-06): below this segment avg_logprob the phone asks the child once more. -0.8 re-asks 16% of
+    # 3-6 year olds' answers, 82% of them truly misheard (CER > 20%); -0.6 catches twice the garbled ones
+    # for 29% re-asked. Free — word probabilities would cost +3.2 s at p95 (eval/results.md 10-06 #149)
+    stt_unsure_below: float = -0.8
 
     # 09-25 vendor, 09-28 team scores: Ruri (smart) was the only 12/12. The lineup is
     # still open, so the voice is a setting and the app may pass its own voice_id (TypeCast only — OpenAI ignores it).

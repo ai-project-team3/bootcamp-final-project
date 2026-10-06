@@ -59,6 +59,66 @@ class SceneKitShotTest {
     }
 
     /** The table's `aspect` must match the baked webp — the layout scores overlaps with it */
+    /** 공룡 나라 (#97 2순위 · 10-06) — the same two actors; `screens/world_kit_dino.png` is for looking */
+    @Test
+    fun dinoKitWithTwoActors() {
+        val d = Director(CoroutineScope(SupervisorJob()))
+        d.s.mode = StoryMode.STORY
+        d.s.themeKey = "dino"; d.s.generatedBg = true; d.s.placeLabel = "공룡 나라"
+        d.s.sceneKit = "dino"; d.s.sceneSeed = 2026L
+        val attr = HeroAttr(hair = "tied", glasses = "round", eyes = "star", bottom = "skirt")
+        d.s.heroAttr = attr
+        d.s.stage = Stage.World(listOf(
+            WorldItem(Art.HeroArt(attr), HERO_SPOT.x, 0.32f, 0.11f, depth = HERO_SPOT.depth),
+            WorldItem(Art.Img("dino_long", Art.Emoji("🦕")), FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth),
+        ))
+        compose.setContent { StageView(d) }
+        compose.onRoot().captureRoboImage(
+            File("screens/world_kit_dino.png").path,
+            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+        )
+    }
+
+    /** 우주 (#97 2순위 · 10-06) — `screens/world_kit_space.png` is for looking */
+    @Test
+    fun spaceKitWithTwoActors() {
+        val d = Director(CoroutineScope(SupervisorJob()))
+        d.s.mode = StoryMode.STORY
+        d.s.themeKey = "space"; d.s.generatedBg = true; d.s.placeLabel = "우주"
+        d.s.sceneKit = "space"; d.s.sceneSeed = 2026L
+        val attr = HeroAttr(hair = "tied", glasses = "round", eyes = "star", bottom = "skirt")
+        d.s.heroAttr = attr
+        d.s.stage = Stage.World(listOf(
+            WorldItem(Art.HeroArt(attr), HERO_SPOT.x, 0.32f, 0.11f, depth = HERO_SPOT.depth),
+            WorldItem(Art.Img("dino_long", Art.Emoji("🦕")), FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth),
+        ))
+        compose.setContent { StageView(d) }
+        compose.onRoot().captureRoboImage(
+            File("screens/world_kit_space.png").path,
+            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+        )
+    }
+
+    /** 바닷속 (#97 2순위 · 10-06) — `screens/world_kit_sea.png` is for looking */
+    @Test
+    fun seaKitWithTwoActors() {
+        val d = Director(CoroutineScope(SupervisorJob()))
+        d.s.mode = StoryMode.STORY
+        d.s.themeKey = "sea"; d.s.generatedBg = true; d.s.placeLabel = "바닷속"
+        d.s.sceneKit = "sea"; d.s.sceneSeed = 2026L
+        val attr = HeroAttr(hair = "tied", glasses = "round", eyes = "star", bottom = "skirt")
+        d.s.heroAttr = attr
+        d.s.stage = Stage.World(listOf(
+            WorldItem(Art.HeroArt(attr), HERO_SPOT.x, 0.32f, 0.11f, depth = HERO_SPOT.depth),
+            WorldItem(Art.Img("dino_long", Art.Emoji("🦕")), FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth),
+        ))
+        compose.setContent { StageView(d) }
+        compose.onRoot().captureRoboImage(
+            File("screens/world_kit_sea.png").path,
+            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+        )
+    }
+
     @Test
     fun aspectsInTheTableMatchThePictures() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()

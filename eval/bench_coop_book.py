@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Does a co-op book still come out with empty pages? (10-05 device round)
+"""How good is a co-op book's text? — the automatic checks of the picture-book design (§5-2-2), per book.
 
-A co-op 「동물원 다녀왔어요」 book came back with three pages running 「…은 아직 듣지 못했어요」 though the
-slots were filled: the server read the day book's pages with the story meanings (FAIL = 해 봤지만 잘 안 된다).
-This runs the same requests through the server's own prompt code and counts the empty-place lines.
+Started 10-05 as an empty-page count (a 「동물원 다녀왔어요」 book came back with three pages running
+「…은 아직 듣지 못했어요」). 10-06: the rest of the design's checks, so a prompt change is measured on one yardstick.
 
     py eval/bench_coop_book.py                        # this checkout's story.py + story_prompt_coop.md
-    py eval/bench_coop_book.py --story-meanings --prompt <old story_prompt_coop.md> --label before
+    py eval/bench_coop_book.py --prompt <old story_prompt_coop.md> --label before
+    OTTO_BACKEND=<other checkout>/backend py eval/bench_coop_book.py --label main   # a true before
 
 Keys come from the repo's .env, read by the backend settings as usual — nothing is printed.
+Every check is a count of pages (or books) that break the rule — lower is better; the summary line adds them up.
 """
 from __future__ import annotations
 
@@ -33,6 +34,72 @@ from app.schemas.story import StoryRequest, StoryResult   # noqa: E402
 from prompt_block import system_block                 # noqa: E402
 
 EMPTY = re.compile(r"아직 (?:듣지 못했|못 들었)|그날 알게 될 거예요")
+# a lesson told, not shown (design R6) — only outside quotes, a child may have said it
+MORAL = re.compile(r"(?:는|은|다는) 걸 (?:알았|배웠)어요|된답니다|해야 해요\.?$")
+# linkers the design allows once per book (R2)
+LINKERS = ["그런데 갑자기", "그때였어요", "그러자", "알고 보니", "드디어", "그래서", "그 뒤로", "바로 그때", "그러고 나서"]
+PAST = re.compile(r"(?:았|었|했)(?:어요|대요|죠)\.?$|(?:갔|봤|왔|탔|먹었|줬|놀았)어요")
+MAX_EOJEOL, MAX_PAGE_EOJEOL = 12, 20
+
+
+def sentences_of(caption: str) -> list[str]:
+    return [x.strip() for x in re.split(r"(?<=[.!?])\s+", caption) if x.strip()]
+
+
+def strip_quotes(text: str) -> str:
+    return re.sub(r"[\"“「『][^\"”」』]*[\"”」』]", "", text)
+
+
+def quoted(text: str) -> list[str]:
+    return [m.strip() for m in re.findall(r"[\"“「『]([^\"”」』]+)[\"”」』]", text)]
+
+
+def norm(s: str) -> str:
+    return re.sub(r"[\s.,!?~…·\"“”「」『』]", "", s)
+
+
+def checks(req: StoryRequest, caps: list[str]) -> dict:
+    """Pages (or 1 for a book-level rule) breaking each design check."""
+    pages = [sentences_of(c) for c in caps]
+    eoj = lambda s: len(s.split())  # noqa: E731
+    too_long = sum(1 for p in pages if not (1 <= len(p) <= 2) or any(eoj(s) > MAX_EOJEOL for s in p) or sum(eoj(s) for s in p) > MAX_PAGE_EOJEOL)
+    first = [norm(p[0].split()[0]) if p and p[0].split() else "" for p in pages]
+    same_start = sum(1 for a, b in zip(first, first[1:]) if a and a == b and a not in refrains)   # a refrain may open two pages
+    linker_twice = sum(1 for l in LINKERS if sum(c.count(l) for c in caps) >= 2)
+    moral = sum(1 for c in caps if MORAL.search(strip_quotes(c)))
+    # refrain (R3): one standalone short sentence on >= 3 pages (2 when the book is <= 5 pages) — only story · dream
+    want_refrain = req.mode == "story" or (req.mode == "coop" and req.reason == "dream")
+    need = 2 if len(caps) <= 5 else 3
+    short = {}
+    for i, p in enumerate(pages):
+        for s in p:
+            key = norm(s)
+            if 2 <= len(key) <= 8 and "{" not in s:
+                short.setdefault(key, set()).add(i)
+    refrains = {k for k, v in short.items() if len(v) >= 2}
+    has_refrain = any(len(v) >= need for v in short.values())
+    no_refrain = 1 if want_refrain and not has_refrain else 0
+    # a sentence on two pages is a repeat — unless it is the refrain the design asks for
+    all_sentences = [s for p in pages for s in p if norm(s) not in refrains]
+    repeats = len(all_sentences) - len(set(all_sentences))
+    # soon: no past tense (R · tense)
+    past = sum(1 for c in caps if PAST.search(c)) if req.reason == "soon" else 0
+    # quotes must be the child's own words (R5) — found verbatim in extra / keep / quotes
+    sources = [v for v in [req.slots.get("extra"), req.keep] if v] + list(getattr(req, "quotes", None) or [])
+    pool = norm(" ".join(sources))
+    bad_quote = sum(1 for c in caps for q in quoted(c) if norm(q) and norm(q) not in pool)
+    # required slots present somewhere (slot coverage)
+    text = norm(" ".join(caps))
+    # a slot counts as present when one of its words (particles stripped, ≥ 1 char — 「달」 is a place) appears in the book
+    def bare(w: str) -> str:
+        return re.sub(r"(으로|에서|에게|한테|이랑|랑|은|는|이|가|을|를|에|로|와|과|도)$", "", norm(w))
+    missing = [k for k in ("place", "problem", "solution")
+               if req.slots.get(k) and not any(bare(w) and bare(w) in text for w in req.slots[k].split())]
+    # mission prop named on its page
+    prop_miss = sum(1 for pg, c in zip(req.pages or [], caps) if pg.prop and norm(pg.prop) not in norm(c))
+    return {"empty": sum(bool(EMPTY.search(c)) for c in caps), "long": too_long, "same_start": same_start,
+            "linker2": linker_twice, "moral": moral, "repeat": repeats, "no_refrain": no_refrain, "past_in_soon": past,
+            "bad_quote": bad_quote, "missing": len(missing), "missing_what": missing, "prop_miss": prop_miss}
 
 
 async def one(case: dict, system: str) -> dict:
@@ -42,10 +109,14 @@ async def one(case: dict, system: str) -> dict:
                          effort=settings.llm_effort_story, max_output_tokens=6000, timeout_s=settings.story_deadline_s)
     result = StoryResult.model_validate(raw)
     caps = [s.caption for s in result.scenes]
-    sentences = [x.strip() for c in caps for x in re.split(r"(?<=[.!?])\s+", c) if x.strip()]
-    return {"id": case["id"], "s": round(time.perf_counter() - t, 1), "rejected": story_route.check(result, req.mode, req.pages),
-            "empty_pages": sum(bool(EMPTY.search(c)) for c in caps), "repeats": len(sentences) - len(set(sentences)),
-            "title": result.title, "captions": caps}
+    return {"id": case["id"], "reason": req.reason, "s": round(time.perf_counter() - t, 1),
+            "rejected": story_route.check(result, req.mode, req.pages), "title": result.title, "captions": caps,
+            "c": checks(req, caps)}
+
+
+KEYS = [("empty", "빈 쪽"), ("long", "긴 쪽"), ("same_start", "첫 어절 반복"), ("linker2", "이음말 2회"), ("moral", "교훈 결말"),
+        ("repeat", "같은 문장"), ("no_refrain", "후렴 없음"), ("past_in_soon", "곧 해요 과거형"), ("bad_quote", "지어낸 인용"),
+        ("missing", "빠진 필수 칸"), ("prop_miss", "미션 물건 빠짐")]
 
 
 async def main() -> None:
@@ -54,6 +125,7 @@ async def main() -> None:
     ap.add_argument("--story-meanings", action="store_true", help="read day-book pages with the story meanings (before 10-05)")
     ap.add_argument("--label", default="after")
     ap.add_argument("--fixtures", default=str(EVAL / "fixtures_book_coop.jsonl"))
+    ap.add_argument("--json", help="also write every book and its checks here (one JSON line per book)")
     a = ap.parse_args()
     if a.story_meanings and hasattr(story_route, "DAY_KIND_MEANING"):
         story_route.DAY_KIND_MEANING = {}
@@ -61,12 +133,20 @@ async def main() -> None:
     cases = [json.loads(l) for l in Path(a.fixtures).read_text(encoding="utf-8").splitlines() if l.strip()]
     rows = [await one(c, system) for c in cases]
     for r in rows:
-        print(f"\n[{a.label}] {r['id']} · {r['s']}s · 빈 쪽 {r['empty_pages']} · 같은 문장 {r['repeats']} · 버림 {r['rejected']} · 『{r['title']}』")
+        flags = " · ".join(f"{k2} {r['c'][k]}" for k, k2 in KEYS if r["c"][k])
+        print(f"\n[{a.label}] {r['id']} ({r['reason']}) · {r['s']}s · 버림 {r['rejected']} · 『{r['title']}』 · {flags or '검사 전부 통과'}"
+              + (f" · 빠진 칸 {r['c']['missing_what']}" if r["c"]["missing_what"] else ""))
         for i, c in enumerate(r["captions"], 1):
             print(f"  {i}. {c}")
-    print(f"\n[{a.label}] 빈 쪽 합계 {sum(r['empty_pages'] for r in rows)} / {sum(len(r['captions']) for r in rows)}쪽 · "
-          f"같은 문장 되풀이 {sum(r['repeats'] for r in rows)} · "
-          f"effort {settings.llm_effort_story}")
+    total = {k: sum(r["c"][k] for r in rows) for k, _ in KEYS}
+    npages = sum(len(r["captions"]) for r in rows)
+    print(f"\n[{a.label}] {len(rows)}권 {npages}쪽 · effort {settings.llm_effort_story} · 버린 책 {sum(1 for r in rows if r['rejected'])}")
+    print("  " + " · ".join(f"{k2} {total[k]}" for k, k2 in KEYS))
+    print(f"  어긴 것 합계 {sum(total.values())}")
+    if a.json:
+        with open(a.json, "w", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps({"label": a.label, **r}, ensure_ascii=False) + "\n")
 
 
 if __name__ == "__main__":

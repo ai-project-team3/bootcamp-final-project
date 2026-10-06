@@ -320,8 +320,32 @@ class Director(
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)
         if (prefetched.size > 4) prefetched.clear()
-        prefetched.getOrPut(line) { scope.async { Voice.baked(line) ?: Server.tts(line) } }
+        prefetched.getOrPut(line) { scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } } }
     }
+
+    /**
+     * Server voices of this session's last lines, by spoken text (#179). A diary keeps its page voices with the book
+     * so reading it again from the shelf does not call /tts again (10-06: 7 calls for one reread). Baked lines are not kept.
+     */
+    private val heardVoices = object : LinkedHashMap<String, ByteArray>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>) = size > 24
+    }
+
+    private fun heard(line: String, mp3: ByteArray) = synchronized(heardVoices) { heardVoices[line] = mp3 }
+
+    internal fun rememberVoice(text: String, mp3: ByteArray) = heard(s.nameMask().speakable(text), mp3)
+
+    /** The voice the server gave for [text] in this session, if it is still remembered */
+    fun voiceOf(text: String): ByteArray? = synchronized(heardVoices) { heardVoices[s.nameMask().speakable(text)] }
+
+    /** Use [mp3] the next time [text] is said instead of asking /tts — a voice kept on the phone (#179) */
+    fun offerVoice(text: String, mp3: ByteArray) {
+        if (!Server.liveFor(s.mode) || text.isBlank()) return
+        if (prefetched.size > 4) prefetched.clear()
+        prefetched[s.nameMask().speakable(text)] = kotlinx.coroutines.CompletableDeferred(mp3)
+    }
+
+    internal fun voiceReady(text: String) = prefetched.containsKey(s.nameMask().speakable(text))
 
     private fun speakLive(text: String) {
         // 소리를 낼 수 없으면(단위 테스트 — Voice 가 붙지 않았다) 목소리를 청하지도 않는다.
@@ -329,7 +353,7 @@ class Director(
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)          // names read as they are (10-02 · ChildCall)
         // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
-        val audio = (prefetched.remove(line) ?: scope.async { Voice.baked(line) ?: Server.tts(line) }).also { queueVoice(it) }
+        val audio = (prefetched.remove(line) ?: scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }).also { queueVoice(it) }
         enqueue { audio.await() }
     }
 
@@ -532,9 +556,15 @@ class Director(
             if (audio == null) { log("🎤 아무것도 못 들음 → 무응답"); send(Reply.Silent); return@launch }
             speakNeutral()
             log("🎤 끝 → 우리 서버로 받아쓰기 (${audio.size / 1024}KB)")
+            Server.lastSttUnsure = false
             val text = Voice.transcribe(audio)
             when {
                 text == null || text.isBlank() -> unheard(if (text == null) "받아쓰기 실패" else "들을 말이 없음", failed = text == null)
+                // 받아쓰기가 자신 없어 한 말 — 웅얼거림을 「친구」처럼 지어 적는다(#149). 질문 하나에 한 번만 되묻고, 또 그러면 그대로 받는다
+                Server.lastSttUnsure && unsureFor !== currentQ -> {
+                    unsureFor = currentQ
+                    unheard("받아쓰기가 자신 없음 (\"$text\")")
+                }
                 else -> {
                     unheardStreak = 0
                     val fixed = fixKnownNames(text, s.knownNames())
@@ -558,6 +588,8 @@ class Director(
     private var unheardStreak = 0
     private var unheardFor: Question? = null
     private var unheardWait: Job? = null
+    /** 받아쓰기가 자신 없어 이미 한 번 되물은 질문 (#149) */
+    private var unsureFor: Question? = null
 
     /** [failed] = 서버 · 네트워크가 실패했다 — 아이 탓(「소리가 작았나 봐」)으로 말하지 않는다 (#154 · 10-06) */
     private fun unheard(why: String, failed: Boolean = false) {
@@ -806,7 +838,10 @@ class Director(
      * 질문을 하고 답을 받는다. 무응답이면 ⭐5 흐름을 끝까지 밟고 결과를 돌려준다.
      * 말로 답한 것만 Reply.Spoke — 탭 · 마스코트가 골라준 것은 수준 신호가 아니다.
      */
-    suspend fun ask(q: Question, silentFollowUp: Boolean = false): Reply {
+    suspend fun ask(
+        q: Question, silentFollowUp: Boolean = false,
+        spokenIsNonAnswer: (String) -> Boolean = { false },
+    ): Reply {
         currentQ = q
         askSay(q, q.text)
         // 앞 장면의 입력은 마이크를 열기 **전에** 버린다 — 연 뒤에 한 말은 이 질문의 답이라 목소리가 끝난 뒤에도 남긴다.
@@ -847,7 +882,7 @@ class Director(
         val result = when {
             first is Reply.Spoke -> {
                 acceptSpoken(first.text)
-                first
+                if (spokenIsNonAnswer(first.text)) noAnswer(q, silentFollowUp, spokenIsNonAnswer) else first
             }
             first is Reply.Tapped && first.value == "draw" -> drawBranch(q)
             first is Reply.Tapped -> {
@@ -855,7 +890,7 @@ class Director(
                 first
             }
             first is Reply.PartnerOnly -> partnerBranch(q)
-            else -> noAnswer(q, silentFollowUp)
+            else -> noAnswer(q, silentFollowUp, spokenIsNonAnswer)
         }
         currentQ = null
         inputs(mic = false, next = false)
@@ -963,7 +998,7 @@ class Director(
     }
 
     /** 기다림 → 쉬운 질문 → (힌트 질문 → 마스코트) 또는 (그림 카드 → 교체 3 → 마스코트) (⭐5 · ⭐22 · v0.8) */
-    private suspend fun noAnswer(q: Question, silentFollowUp: Boolean): Reply {
+    private suspend fun noAnswer(q: Question, silentFollowUp: Boolean, spokenIsNonAnswer: (String) -> Boolean): Reply {
         s.modeSilent++
         feel(Mood.WAITING)
         mark("noanswer")
@@ -989,10 +1024,11 @@ class Director(
             b += DemoBtn("🤐 여전히 대답 없음") { send(Reply.Silent) }
             buttons(*b.toTypedArray())
             val r = waitReply(5.0)
+            if (r != null && TurnHistory.isNav(r)) return r
             if (r is Reply.Tapped && r.value == "draw") return drawBranch(q)
             if (r is Reply.Spoke) {
                 acceptSpoken(r.text)
-                return r
+                if (!spokenIsNonAnswer(r.text)) return r
             }
         }
 
@@ -1048,6 +1084,7 @@ class Director(
                 DemoBtn("🤐 안 고름 (➡️와 같음)") { send(Reply.Silent) },
             )
             val r = waitReply(7.0)
+            if (r != null && TurnHistory.isNav(r)) return r
             if (r is Reply.Tapped && r.value == "draw") return drawBranch(q)
             if (r is Reply.Tapped) {
                 acceptTap(r)
@@ -1055,7 +1092,7 @@ class Director(
             }
             if (r is Reply.Spoke) {
                 acceptSpoken(r.text)
-                return r
+                if (!spokenIsNonAnswer(r.text)) return r
             }
             if (reread) {
                 reread = false
