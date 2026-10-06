@@ -2,6 +2,7 @@ package com.example.finalproject_demo.demo
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import java.util.WeakHashMap
@@ -133,6 +134,12 @@ class DiaryDay {
 
     /** 그림 실마리로 이미 짚은 조각 — 다시 짚지 않는다 (`DiaryClue.kt` · [CLUE_MAX]) */
     val cluesUsed = mutableSetOf<Int>()
+
+    /** 그린 조각마다 들은 이야기 — 조각 id → 아이 말(#220 ②). 책 재료(`extra`)에는 「이름: 말」로 쌓는다 */
+    val pieceStories = mutableStateMapOf<Int, String>()
+
+    /** 이야기를 물은 조각 — 답이 없었어도 다시 묻지 않는다 */
+    val pieceStoryAsked = mutableSetOf<Int>()
 
     /**
      * 서버 대화 호출(`/turn`) 수 — **세기만 하고 막지 않는다.**

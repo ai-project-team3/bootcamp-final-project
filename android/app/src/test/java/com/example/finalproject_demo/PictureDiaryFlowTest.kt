@@ -735,6 +735,7 @@ class PictureDiaryFlowTest {
         assertTrue(await { s.diaryDay.watching } != null)
         // 이야기 칸은 이미 찼다고 둔다 — 그리는 중 이야기 질문 없이 「다 그렸어?」 세기만 본다
         s.slots["place"] = "놀이터"; s.slots["problem"] = "넘어졌어"
+        s.diaryDay.pieceStoryAsked += s.diaryDay.pieces.map { it.id }        // 강아지 이야기도 이미 물었다 (#220 ②)
         repeat(3) {                                                  // 크레용 뒤 멈춤 셋 — 세지 않는다
             assertTrue(await { s.diaryDay.watching } != null)
             d.send(Reply.Tapped("pause", CRAYON_PAUSE)); delay(80)
