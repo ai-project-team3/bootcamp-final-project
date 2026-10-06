@@ -495,7 +495,8 @@ private fun RecordTab(d: Director) {
         Column {
             listOf(
                 "ⓘ 놀이 대화 요약이며 언어발달 평가 · 진단이 아닙니다.",
-                "ⓘ 아이 목소리와 그림은 폰 안에만 있고, 이름은 가린 뒤에야 밖으로 나갑니다.",
+                // 10-06: 「이름은 가린 뒤에야」는 10-02 전 설계다 — 지금은 가리지 않는다(guidelines/1 규칙 6 · Terms.kt 10-05 판과 같은 말로)
+                "ⓘ 아이 목소리는 글자로 바꾼 뒤 바로 지워지고, 글자는 호칭 · 이름 그대로 처리 위탁사(OpenAI)로 갑니다. 그림과 녹음한 소리는 폰 안에만 있어요.",
                 "ⓘ 궁금한 점은 영유아건강검진(K-DST)이나 언어재활사와 상담하세요.",
             ).forEach { Text(it, fontSize = 11.sp, color = PSub) }
         }
@@ -662,7 +663,7 @@ private fun CoopQuestionsTab(c: CoopDraft) {
             listOf(
                 "ⓘ 넣은 질문에 점수를 매기지 않아요. 아이가 더 길게 답할 만한 방법만 귀띔해요.",
                 "ⓘ 질문을 안 적어도 괜찮아요. 오또가 고른 이야기에 맞춰 처음부터 끝까지 물어봐요.",
-                "ⓘ 아이 말은 마이크로 받고, 이름은 가린 뒤에야 밖으로 나가요.",
+                "ⓘ 아이 말은 마이크로 받아 글자로 바꾼 뒤 바로 지워요. 글자는 이름 그대로 서버와 처리 위탁사로 가요.",
             ).forEach { Text(it, fontSize = 11.sp, color = PSub) }
         }
     }
@@ -1145,14 +1146,16 @@ private fun SettingsTab(d: Director) {
         listOf(
             "아이가 녹음한 소리(울음소리 등)" to "이 폰에만 · 폰 밖으로 안 나가요 · 책을 지우면 같이 지워져요",
             "아이가 말한 음성" to "글자로 바꾸려고 우리 서버까지만 가요 · 글자가 되면 바로 지워요 · 다른 회사에는 안 보내요",
-            "글자로 바뀐 말" to "이름은 폰에서 가린 뒤에야 서버로 가요 · 이 폰에 기록으로 남아요",
-            "아이 그림" to "이 폰에만 · AI가 다시 그리지 않아요",
+            // 10-06: 세 줄을 Terms.kt 10-05 판과 맞췄다 — 이름은 가리지 않고(규칙 6), 그림은 「오또가 그려 줘」를 고를 때만 다시 그리며
+            //        (demo/DiaryRedraw.kt), 책은 이 폰의 책장에 저장된다(StoryBookStore · DiaryBookStore · CoopBookStore)
+            "글자로 바뀐 말" to "호칭 · 이름 그대로 서버와 처리 위탁사(OpenAI)로 가요 · 이 폰에 기록으로 남아요",
+            "아이 그림" to "이 폰에만 · 「오또가 그려 줘」를 고른 조각만 우리 서버에서 다시 그리고 바로 지워요",
             "어른이 넣어 둔 질문" to "그 이야기 한 번에만 쓰고 지워요",
         ).forEach { (what, how) ->
             Text(what, fontSize = 13.sp, color = Ink, fontWeight = FontWeight.Bold)
             Text(how, fontSize = 12.sp, color = PSub, modifier = Modifier.padding(bottom = 6.dp))
         }
-        Text("ⓘ 지금 데모는 아무것도 저장하지 않아요. 앱을 끄면 다 사라져요.", fontSize = 11.sp, color = PSub)
+        Text("ⓘ 만든 책 · 아이 그림 · 녹음은 이 폰의 책장에만 저장돼요. 책을 지우거나 탈퇴하면 같이 지워져요.", fontSize = 11.sp, color = PSub)
     }
 
     Section("AI 목소리 알림")
