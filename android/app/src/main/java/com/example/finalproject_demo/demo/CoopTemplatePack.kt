@@ -70,7 +70,7 @@ private fun DemoState.rawPartPack(step: DiaryStep): CoopPartPack? {
     val part = listOf("place", "problem", "cause", "solution").indexOf(step.slot).takeIf { it >= 0 } ?: return null
     val first = pick.templateQuestions().getOrNull(part) ?: return null
     val body = when (pick.kind) {
-        "place" -> placePart(pick.name.trim(), reason, part)
+        "place" -> placePart(pick.name.trim(), reason, part, coopItem(pick.name)?.spots)
         "job" -> jobPart(pick.name.trim(), reason, part)
         "sport" -> sportPart(pick.name.trim(), reason, part)
         else -> null
@@ -103,15 +103,24 @@ private fun dunno() = Answer("몰라.", "", lv = 1)
 /** 선택지 먼저 · 질문 마지막. 순서는 매번 섞는다 (부록 §5-1) */
 private fun choices(vararg c: String, ask: String) = c.toList().shuffled().joinToString(", ") + ". " + ask
 
+/** 곳 안의 자리를 선택지로 — 고른 곳에 자리 목록이 없으면 어디에나 맞는 입구 · 한가운데 · 맨 안쪽 */
+private fun spotChoices(spots: List<String>?, ask: String) =
+    choices(*(spots?.takeIf { it.size >= 2 } ?: listOf("입구", "한가운데", "맨 안쪽")).toTypedArray(), ask = ask)
+
 // 다녀왔어요 · 곧 해요는 아이의 실제 일 — 지어내지 않는다
 private fun notHeard(what: String, line: String) = Answer("아직 못 들은 $what", "아직 못 들은 $what|$line")
 
 // ── 장소 · 탐험 이야기 ─────────────────────────────────────────
 
-private fun placePart(x: String, r: CoopReason, part: Int): Body? = when (part) {
+/**
+ * [spots] — 고른 곳 안의 자리(학교면 교실 · 운동장 · 도서관). 쉬운 질문의 선택지로 쓴다. 없으면 입구 · 한가운데 · 맨 안쪽.
+ * 사다리 첫 칸은 **곳을 묻는다** — 「들어가자마자 뭐가 보였어?」는 「친구들」 · 「기린」처럼 사람 · 물건을 불러
+ * 장소 칸에 맞지 않았다(10-06 실기기 · 학교 다녀왔어요)
+ */
+private fun placePart(x: String, r: CoopReason, part: Int, spots: List<String>? = null): Body? = when (part) {
     0 -> when (r) {
         CoopReason.DONE -> Body(
-            listOf("${x}에 들어가자마자 뭐가 보였어?", choices("입구", "한가운데", "맨 안쪽", ask = "어디가 좋았어?")),
+            listOf("${x}에서 제일 오래 있었던 데는 어디야?", spotChoices(spots, ask = "어디가 좋았어?")),
             listOf(
                 a("입구!", "$x 입구", "$x 입구가 제일 좋았어요", lv = 1),
                 a("맨 안쪽!", "$x 맨 안쪽", "$x 맨 안쪽이 제일 좋았어요", lv = 1),
@@ -122,7 +131,7 @@ private fun placePart(x: String, r: CoopReason, part: Int): Body? = when (part) 
             Answer(x, "$x|${x}에 다녀왔어요"),
         )
         CoopReason.SOON -> Body(
-            listOf("${x}에 가면 뭐부터 보고 싶어?", choices("입구", "한가운데", "맨 안쪽", ask = "어디부터 갈까?")),
+            listOf("${x}에 가면 어디부터 가 보고 싶어?", spotChoices(spots, ask = "어디부터 갈까?")),
             listOf(
                 a("입구부터!", "$x 입구", "${x}에 가면 입구부터 둘러볼 거예요", lv = 1),
                 a("맨 안쪽!", "$x 맨 안쪽", "${x}에 가면 맨 안쪽까지 가 볼 거예요", lv = 1),
@@ -133,7 +142,7 @@ private fun placePart(x: String, r: CoopReason, part: Int): Body? = when (part) 
             Answer(x, "$x|${x}에 갈 거예요"),
         )
         CoopReason.DREAM -> Body(
-            listOf("${x}에 가면 뭐가 있을까?", choices("입구", "한가운데", "맨 안쪽", ask = "어디가 좋아?")),
+            listOf("${x}에서 제일 가 보고 싶은 데는 어디야?", spotChoices(spots, ask = "어디가 좋아?")),
             listOf(
                 a("한가운데!", "$x 한가운데", "$x 한가운데가 제일 좋았어요", lv = 1),
                 a("맨 안쪽!", "$x 맨 안쪽", "$x 맨 안쪽이 제일 좋았어요", lv = 1),
