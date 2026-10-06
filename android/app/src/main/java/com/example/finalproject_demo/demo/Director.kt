@@ -806,7 +806,10 @@ class Director(
      * 질문을 하고 답을 받는다. 무응답이면 ⭐5 흐름을 끝까지 밟고 결과를 돌려준다.
      * 말로 답한 것만 Reply.Spoke — 탭 · 마스코트가 골라준 것은 수준 신호가 아니다.
      */
-    suspend fun ask(q: Question, silentFollowUp: Boolean = false): Reply {
+    suspend fun ask(
+        q: Question, silentFollowUp: Boolean = false,
+        spokenIsNonAnswer: (String) -> Boolean = { false },
+    ): Reply {
         currentQ = q
         askSay(q, q.text)
         // 앞 장면의 입력은 마이크를 열기 **전에** 버린다 — 연 뒤에 한 말은 이 질문의 답이라 목소리가 끝난 뒤에도 남긴다.
@@ -847,7 +850,7 @@ class Director(
         val result = when {
             first is Reply.Spoke -> {
                 acceptSpoken(first.text)
-                first
+                if (spokenIsNonAnswer(first.text)) noAnswer(q, silentFollowUp, spokenIsNonAnswer) else first
             }
             first is Reply.Tapped && first.value == "draw" -> drawBranch(q)
             first is Reply.Tapped -> {
@@ -855,7 +858,7 @@ class Director(
                 first
             }
             first is Reply.PartnerOnly -> partnerBranch(q)
-            else -> noAnswer(q, silentFollowUp)
+            else -> noAnswer(q, silentFollowUp, spokenIsNonAnswer)
         }
         currentQ = null
         inputs(mic = false, next = false)
@@ -963,7 +966,7 @@ class Director(
     }
 
     /** 기다림 → 쉬운 질문 → (힌트 질문 → 마스코트) 또는 (그림 카드 → 교체 3 → 마스코트) (⭐5 · ⭐22 · v0.8) */
-    private suspend fun noAnswer(q: Question, silentFollowUp: Boolean): Reply {
+    private suspend fun noAnswer(q: Question, silentFollowUp: Boolean, spokenIsNonAnswer: (String) -> Boolean): Reply {
         s.modeSilent++
         feel(Mood.WAITING)
         mark("noanswer")
@@ -989,10 +992,11 @@ class Director(
             b += DemoBtn("🤐 여전히 대답 없음") { send(Reply.Silent) }
             buttons(*b.toTypedArray())
             val r = waitReply(5.0)
+            if (r != null && TurnHistory.isNav(r)) return r
             if (r is Reply.Tapped && r.value == "draw") return drawBranch(q)
             if (r is Reply.Spoke) {
                 acceptSpoken(r.text)
-                return r
+                if (!spokenIsNonAnswer(r.text)) return r
             }
         }
 
@@ -1048,6 +1052,7 @@ class Director(
                 DemoBtn("🤐 안 고름 (➡️와 같음)") { send(Reply.Silent) },
             )
             val r = waitReply(7.0)
+            if (r != null && TurnHistory.isNav(r)) return r
             if (r is Reply.Tapped && r.value == "draw") return drawBranch(q)
             if (r is Reply.Tapped) {
                 acceptTap(r)
@@ -1055,7 +1060,7 @@ class Director(
             }
             if (r is Reply.Spoke) {
                 acceptSpoken(r.text)
-                return r
+                if (!spokenIsNonAnswer(r.text)) return r
             }
             if (reread) {
                 reread = false
