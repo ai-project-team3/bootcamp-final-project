@@ -60,7 +60,8 @@ KITS = {
     "space": {
         "moon": "yellow crescent moon",
         "ring_planet": "orange planet with a ring",
-        "small_planet": "small round blue planet",
+        # 「small round blue planet」은 대륙 그려진 지구가 나왔다 (#222)
+        "small_planet": "small round planet with craters and soft stripes, no continents, no oceans",
         "star": "yellow five-pointed star",
         "shooting_star": "shooting star with a tail",
         "rocket": "red and white toy rocket",
@@ -68,7 +69,8 @@ KITS = {
         "rock_hill": "lavender rocky hill",
         "moon_rock": "lavender moon rock",
         "crystal": "glowing purple crystal cluster",
-        "crater": "shallow round crater",
+        # 「shallow round crater」는 고리(튜브) 모양이 나왔다 (#222)
+        "crater": "shallow round dip in grey moon ground, seen from the side, flat, no ring",
         "flag": "little flag on a pole",
     },
     # 3-2 바닷속 — 2순위 셋째 (#97). 목록 §3-2 문구 그대로
@@ -139,7 +141,8 @@ KITS = {
         "fence": "short wooden fence",
         "carrots": "carrots growing in soil",
         "apple_tree": "apple tree with red apples",
-        "pond": "small round pond",
+        # 「small round pond」는 튜브 같은 둥근 테두리가 나왔다 (#222)
+        "pond": "small round blue pond lying flat on green grass, seen from the side, flat water surface, no ring",
         "sunflower": "tall sunflower",
         # 목록 문구 「little blue bird」를 두 자세로 — 앉은 새와 나는 새. 옆모습 · 오른쪽을 보게(앱이 가는 쪽으로 뒤집는다)
         "bird": "little round blue bird sitting, side view facing right, wings folded, small orange beak and two tiny feet",

@@ -65,6 +65,14 @@
 |---|---|---|---|
 | 갈매기 | white seagull | white seagull flying with both wings spread wide, side view, gliding in the air | 앉은 갈매기 인형만 나왔다 — 하늘채움이라 나는 모습이 필요 |
 
+## 다시 구운 셋 (#222 · 10-06)
+
+| 조각 | 목록 문구 | 바꾼 문구 | 왜 |
+|---|---|---|---|
+| 우주 작은 행성 | small round blue planet | small round planet with craters and soft stripes, no continents, no oceans | 대륙 그려진 지구가 나왔다 |
+| 우주 분화구 | shallow round crater | shallow round dip in grey moon ground, seen from the side, flat, no ring | 알록달록 튜브(고리)가 나왔다 — 바꾼 뒤에도 테두리는 남지만 회색 달 바닥 위에 납작하게 |
+| 숲 연못 | small round pond | small round blue pond lying flat on green grass, seen from the side, flat water surface, no ring | 튜브 같은 둥근 테두리가 나왔다 |
+
 ## 알아 둘 것
 
 - 앱 공통 그림체 문구(`gen_room.STYLE`)의 색 목록(크림 · 머스터드 · 코랄 · 청록 · 하늘) 때문에 **물체에 그 색 조각 · 점이 들어간다** — 돌의 점, 「빨강 · 하양 공」이 파스텔 여러 색, 풀이 여러 색. 앱 다른 그림과 맞추려고 그대로 두었다
