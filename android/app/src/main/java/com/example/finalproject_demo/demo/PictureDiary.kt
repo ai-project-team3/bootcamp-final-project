@@ -1066,6 +1066,13 @@ private fun Director.firstEmptyQuestion(skip: Set<String> = emptySet()): Triple<
 private fun Director.tomorrowQuestion(skip: Set<String>): Triple<String, String, String>? =
     firstEmptyQuestion(skip + PICTURE_QUESTIONS.map { it.key }.filter { it != "keep" })
 
+/**
+ * 한 칸을 비워 두고 넘어갈 때 다음 질문 — 판정이 이미 `story_ready` 를 줬으면 「내일」만 남는다.
+ * 그 뒤에 빈 「누구랑」(#220 ③)까지 다시 묻지 않는다 — 이야기가 다 모였다는 판정을 따른다
+ */
+private fun Director.afterGivingUp(skip: Set<String>): Triple<String, String, String>? =
+    if (s.endReason == "story_ready") tomorrowQuestion(skip) else firstEmptyQuestion(skip)
+
 /** 판정 슬롯 → 책 키. 그림일기 쪽이 있는 칸만 책에 들어가고, 나머지는 칸에만 남는다 */
 /**
  * 판정이 다음에 물을 칸으로 고른 [slot] 의 답이 들어갈 책 키 — 일기에서 `extra` 를 물으면 「내일 또 하고 싶은 거」라 `keep` 에 넣는다.
@@ -1161,7 +1168,7 @@ private suspend fun Director.askEmptySlotsLive() {
         if ((tries[next.third] ?: 0) >= SLOT_TRIES) {
             gaveUp += next.third
             log("[${next.third}] ${SLOT_TRIES}번 물었다 → 비워 둔다")
-            next = firstEmptyQuestion(gaveUp) ?: break
+            next = afterGivingUp(gaveUp) ?: break
             continue
         }
         if (!wrapOffered && diaryRanLong()) {
@@ -1190,7 +1197,7 @@ private suspend fun Director.askEmptySlotsLive() {
         val r = ask(q)
         if (r !is Reply.Spoke || r.text.isBlank()) {
             judge(step?.variant, r, q.text)
-            next = firstEmptyQuestion(gaveUp + key)
+            next = afterGivingUp(gaveUp + key)
             continue
         }
         // 「내일」에 「없어」 — 판정에 보내면 「없어」가 내일 칸에 들어간다. 비워 두고 다시 묻지 않는다 (10-05 실기기)
@@ -1334,6 +1341,8 @@ internal val PICTURE_REQUIRED = listOf("place", "problem")
 /** 다 그린 뒤 묻는 칸 — 이 차례로, 빈 것만 */
 internal val PICTURE_QUESTIONS = listOf(
     PictureQuestion("place", { "오늘 어디 갔었어?" }, "아침 먹고 어디 갔어?"),
+    // 누구랑 — 그리는 중 사람 조각 이야기나 다른 답에서 이미 나왔으면 찬 칸이라 묻지 않는다 (#220 ③)
+    PictureQuestion("companion", { "누구랑 같이 있었어?" }, "혼자 있었어, 아니면 같이 있었어?"),
     PictureQuestion("problem", { if (it.slots["place"].isNullOrBlank()) "오늘 무슨 일이 있었어?" else atPlace(it, "무슨 일이 있었어?") }, "거기서 뭐 했어?"),
     PictureQuestion("solution", { "그래서 어떻게 됐어?" }, "그다음엔 뭐 했어?"),
     PictureQuestion("keep", { "내일 또 하고 싶은 거 있어?" }, "내일은 뭐 하고 싶어?"),
