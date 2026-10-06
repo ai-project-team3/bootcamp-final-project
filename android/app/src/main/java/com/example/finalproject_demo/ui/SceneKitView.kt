@@ -195,17 +195,22 @@ private fun DrawScope.drawKitBack(
  * The kit as **one still picture** — no actors, nothing moving (#222 · 10-06). The stage draws a kit from pieces, but the
  * book, the shelf thumbnail and the puzzle draw one picture (`bgName`): without it a 바닷가 · 실내 · 숲 story's book fell back
  * to the snow picture. Saved like a generated background, so every later screen just reads a file.
- * Laid out for two actors like the stage, so the pieces leave the same room for the hero and the friend on the book page.
+ * Laid out **in the stage's own frame** — the landscape screen, the same top · bottom chrome and ↶ ↪ buttons — so the same
+ * seed puts every piece where the stage had it: the book page shows the place the child just saw (10-06 · #222).
  */
-fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBase: Long, wPx: Int = 1600, hPx: Int = 900): Bitmap {
+fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBase: Long, wPx: Int = 0, hPx: Int = 0): Bitmap {
     val res = context.resources
     val opt = android.graphics.BitmapFactory.Options().apply { inScaled = false; inPreferredConfig = Bitmap.Config.ARGB_8888 }
     @Suppress("DiscouragedApi")
     fun load(name: String) = res.getIdentifier(name, "drawable", context.packageName).takeIf { it != 0 }
         ?.let { android.graphics.BitmapFactory.decodeResource(res, it, opt)?.asImageBitmap() }
     val imgs = kit.pieces.map { it.res }.distinct().mapNotNull { r -> load(r)?.let { r to it } }.toMap()
-    val density = res.displayMetrics.density
-    val f = kitFrame(wPx.toFloat(), hPx.toFloat(), 0f, 0f, TAB_W.value * density, TAB_H.value * density)
+    val dm = res.displayMetrics
+    val density = dm.density
+    // the stage is landscape; size 0 = this phone's screen, as the stage sees it
+    val w = if (wPx > 0) wPx else max(dm.widthPixels, dm.heightPixels)
+    val h = if (hPx > 0) hPx else minOf(dm.widthPixels, dm.heightPixels)
+    val f = kitFrame(w.toFloat(), h.toFloat(), BottomChrome.value * density, TopChrome.value * density, TAB_W.value * density, TAB_H.value * density)
     val scene = bestScene(kit, 2, f, seedBase = seedBase)
     val seed = scene.seed.toFloat()
     val hills = listOf(
@@ -214,10 +219,10 @@ fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBas
         hillShape(f, seed + 4, f.horizon, 5f, 140f),
     )
     val grain = ShaderBrush(ImageShader(FeltNoise.grain, TileMode.Repeated, TileMode.Repeated))
-    val out = androidx.compose.ui.graphics.ImageBitmap(wPx, hPx)
+    val out = androidx.compose.ui.graphics.ImageBitmap(w, h)
     androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
         androidx.compose.ui.unit.Density(density), androidx.compose.ui.unit.LayoutDirection.Ltr,
-        androidx.compose.ui.graphics.Canvas(out), Size(wPx.toFloat(), hPx.toFloat()),
+        androidx.compose.ui.graphics.Canvas(out), Size(w.toFloat(), h.toFloat()),
     ) {
         drawKitBack(kit, scene, f, imgs, hills, grain, null, null)
         scene.pieces.filter { it.front }.forEach { drawPiece(imgs, it, Color(kit.skyBottom)) }
@@ -370,7 +375,7 @@ private fun DrawScope.drawPiece(imgs: Map<String, ImageBitmap>, p: PlacedPiece, 
                     drawImage(img, srcSize = src, dstOffset = at, dstSize = dst, alpha = p.fade * 0.55f,
                         colorFilter = ColorFilter.tint(haze, BlendMode.SrcIn), filterQuality = FilterQuality.Medium)
                 } else {
-                    drawImage(img, srcSize = src, dstOffset = at, dstSize = dst, filterQuality = FilterQuality.Medium)
+                    drawImage(img, srcSize = src, dstOffset = at, dstSize = dst, alpha = m.alpha, filterQuality = FilterQuality.Medium)
                 }
             }
         }

@@ -150,6 +150,8 @@ data class PieceMotion(
     val bend: Float = 0f, val stiff: Float = 1.5f,
     val tilt: Float = 0f,
     val scaleX: Float = 1f, val scaleY: Float = 1f,
+    /** 0 … 1 — a falling flake or a rising bubble fades in at the start of its run and out at the end (#222) */
+    val alpha: Float = 1f,
 ) {
     val still: Boolean get() = this == NONE
 
@@ -232,6 +234,9 @@ class SceneMotions(
         }
     }
 
+    /** Along a looping run (0 = start, 1 = end): in over the first 15 %, out over the last 15 % — no pop at the wrap */
+    private fun runFade(at: Double): Float = (minOf(at / 0.15, (1 - at) / 0.15).coerceIn(0.0, 1.0)).toFloat()
+
     /** A steady number in 0 … 1 for this piece — its own phase, so two tulips never move as one */
     private fun phase(p: PlacedPiece): Double {
         val i = index[p] ?: 0
@@ -272,7 +277,9 @@ class SceneMotions(
                 val v = f.h * 0.025 * (0.7 + 0.6 * phase(p))
                 val down = ((p.y - p.h / 2 - f.top) + v * t + phase(p) * span) % span
                 val y = f.top + p.h / 2 + down
-                PieceMotion(dx = (p.h * 0.8 * sin(0.9 * t + ph)).toFloat(), dy = (y - p.y).toFloat(), tilt = (40.0 * sin(0.5 * t + ph)).toFloat())
+                // fades in under the top and out above the horizon — the wrap back to the top used to pop (10-06 · d3)
+                PieceMotion(dx = (p.h * 0.8 * sin(0.9 * t + ph)).toFloat(), dy = (y - p.y).toFloat(), tilt = (40.0 * sin(0.5 * t + ph)).toFloat(),
+                    alpha = runFade(down / span))
             }
             MotionKind.RISE -> {
                 // floor (the horizon) → the top of the water, then again from the floor; a slow side-to-side wobble
@@ -280,7 +287,7 @@ class SceneMotions(
                 val v = f.h * 0.035 * (0.7 + 0.6 * phase(p))
                 val up = ((f.horizon - p.h / 2 - p.y) + v * t + phase(p) * span) % span
                 val y = f.horizon - p.h / 2 - up
-                PieceMotion(dx = (p.h * 0.5 * sin(1.4 * t + ph)).toFloat(), dy = (y - p.y).toFloat())
+                PieceMotion(dx = (p.h * 0.5 * sin(1.4 * t + ph)).toFloat(), dy = (y - p.y).toFloat(), alpha = runFade(up / span))
             }
             MotionKind.BOB -> {
                 val w = wind(t, p.x / f.w)
