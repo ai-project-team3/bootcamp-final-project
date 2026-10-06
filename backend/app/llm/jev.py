@@ -13,9 +13,9 @@ Same questions and the same 0.6 floor as eval/providers/typesafe_adapter.py (mea
 choice fields 86.4 → 94.0 % above it). A choice under the floor is left empty, so the next
 question asks the slot again. On any error the caller falls back to the luna judge.
 
-⚠️ Text sent here is the child's words as they are (rule 6 since 10-02 masks no names) to a
-vendor not in the published privacy policy — switch on for internal tests only
-(docs/배경_조각_목록.md §6-4).
+Names do not go here (10-06): the request's `names` are replaced with `{주인공}` · `{친구n}` before
+sending (mask_names) — picking a slot needs none. ⚠️ The child's other words still go as they are;
+TypeSafe must be in the published privacy policy before the Play build talks to the server.
 """
 from __future__ import annotations
 
@@ -59,6 +59,22 @@ NOUL_Q = {
 
 class JevError(Exception):
     pass
+
+
+def mask_names(text: str, names: list[str]) -> str:
+    """The session's names → `{주인공}` · `{친구n}`, the same marks the app's NameMask turns back (10-06).
+
+    Jev only picks slots, so it needs no names; the luna judge and the voice still get them (rule 6).
+    Longest name first, so 「민수야」's 「민수」 is not cut out of 「김민수」 the wrong way round.
+    """
+    marks = {}
+    for i, n in enumerate(names):
+        n = (n or "").strip()
+        if n and not n.startswith("{") and n not in marks:
+            marks[n] = "{주인공}" if i == 0 else f"{{친구{i}}}"
+    for n in sorted(marks, key=len, reverse=True):
+        text = text.replace(n, marks[n])
+    return text
 
 
 def questions() -> dict:

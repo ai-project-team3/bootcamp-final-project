@@ -96,6 +96,7 @@ class StoryLiveSoundTurnTest {
             assertFalse("audio and local paths must stay on the device", choice.toString().contains(folder.path))
             assertFalse(choice.has("audio"))
             assertFalse(choice.has("png_base64"))
+            assertTrue("the session names go along so the server can hide them from Jev (10-06)", choice.has("names"))
             assertEquals("story_ready", d.s.endReason)
             assertEquals(1, d.s.notes.size)
             assertEquals("숲에서 친구와 놀았어", d.s.notes.single().a)
