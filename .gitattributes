@@ -6,6 +6,5 @@
 *.jsonl text eol=lf
 *.json  text eol=lf
 *.py    text eol=lf
-# 셸 스크립트 — CRLF 로 풀리면 bash 가 $'
-' 에서 멈춘다(eval/whisper_ft/download.sh)
+# 셸 스크립트 — CRLF 로 풀리면 bash 가 줄 끝의 CR 문자에서 멈춘다(eval/whisper_ft/download.sh)
 *.sh    text eol=lf
