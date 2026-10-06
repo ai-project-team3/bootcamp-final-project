@@ -92,4 +92,14 @@ def check_transcript(text: str) -> Verdict:
         return Verdict(False, "no_hangul")
     if t in EXACT or any(t.startswith(p) for p in PREFIX):
         return Verdict(False, "hallucination")
+    if _one_word_repeated(text):
+        return Verdict(False, "hallucination")
     return Verdict(True)
+
+
+def _one_word_repeated(text: str) -> bool:
+    """One word three or more times and nothing else — 10-06 phone (#172): 「김치볶음밥 김치볶음밥 김치볶음밥」 and
+    「이른바 이른바 이른바 이른바 이른바」 came back for a child's sentence and went into the book as the child's words.
+    Whisper loops like this on faint audio. A word said twice (「아니 아니」) is a child's and is kept."""
+    words = [w for w in (_norm(w) for w in (text or "").split()) if w]
+    return len(words) >= 3 and len(set(words)) == 1
