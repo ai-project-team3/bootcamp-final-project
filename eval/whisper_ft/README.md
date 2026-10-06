@@ -44,7 +44,8 @@
 | 7 | 세션 | 진짜 학습 — 명령 ②(6~8시간 추정). 첫 25걸음의 속도를 조장에게 알린다(진행 막대의 `s/it` × 2,500 이 남은 시간) | 끝에 `→ .../best` |
 | 8 | 세션 | 합치기 · 변환 — 명령 ③(10분) | `D:/whisper_ft/ct2/model.bin` |
 | 9 | 세션 | 평가 — 명령 ④(30분 남짓). 어른 녹음은 이 PC 에 없어 기준 3 은 ⏸ 보류로 나온다. 표와 판정을 그대로 조장에게 | 「판정: …」 |
-| 10 | 세션 | **정리** — ① `eval/results.md` 맨 위에 날짜 절(`## 2026-10-0X · 받아쓰기 미세조정 …`)로 표 · 판정 · 채택 기준 다섯 줄 · 데이터 나누기 · 걸음 수 · 걸린 시간 · 한계를 적는다 ② **`git rm eval/whisper_ft/README.md`** ③ 두 변경을 한 커밋으로 이 브랜치에 푸시(데이터 · 모델은 넣지 않는다) ④ 조장에게 커밋 번호와 판정을 알린다 | README 가 없고 `results.md` 에 절이 있다 |
+| 9-1 | 세션 | **추가 비교** — 남이 Unsloth 로 한국어 미세조정해 올린 모델을 같은 평가 세트 · 같은 서버 설정으로 잰다. 명령 ⑤(변환 10분 · 모델 3GB 받기) → ⑥(30분). 아래 「추가 비교」 참고. 학습(7번)과 GPU 를 같이 쓰지 않게 **9번 뒤에** 한다 | 판정 줄이 하나 더 나온다 |
+| 10 | 세션 | **정리** — ① `eval/results.md` 맨 위에 날짜 절(`## 2026-10-0X · 받아쓰기 미세조정 …`)로 우리 모델 표 · 판정 · 채택 기준 다섯 줄 · 데이터 나누기 · 걸음 수 · 걸린 시간 · 한계, 그리고 **추가 비교 표 · 판정**을 적는다 ② **`git rm eval/whisper_ft/README.md`** ③ 두 변경을 한 커밋으로 이 브랜치에 푸시(데이터 · 모델은 넣지 않는다) ④ 조장에게 커밋 번호와 판정 둘을 알린다 | README 가 없고 `results.md` 에 절이 있다 |
 
 **명령** — PowerShell. `$R` · `$L` 은 4번에서 찍힌 경로. 경로 구분은 `/` 로 써도 된다
 
@@ -59,8 +60,19 @@ $L = "<4번에 찍힌 라벨 zip 경로>"
 # ③ 합치기 · 변환
 .venv-ft/Scripts/python eval/whisper_ft/merge_convert.py --adapter D:/whisper_ft/lora/best --out D:/whisper_ft/ct2
 # ④ 평가 — 원래 large-v3 와 나란히
-.venv-ft/Scripts/python eval/whisper_ft/evaluate.py --data D:/whisper_ft/data --tuned D:/whisper_ft/ct2
+.venv-ft/Scripts/python eval/whisper_ft/evaluate.py --data D:/whisper_ft/data --tuned D:/whisper_ft/ct2 --tag ours
+# ⑤ 추가 비교 — 남이 올린 한국어 미세조정 모델을 우리 서버 형식으로 (학습 없이 바꾸기만)
+.venv-ft/Scripts/python eval/whisper_ft/merge_convert.py --model sikaro/unsloth_whisper_large_v3_16bit_Zeroth_kor --out D:/whisper_ft/ct2_zeroth
+# ⑥ 추가 비교 평가 — 같은 평가 세트 · 같은 기준
+.venv-ft/Scripts/python eval/whisper_ft/evaluate.py --data D:/whisper_ft/data --tuned D:/whisper_ft/ct2_zeroth --tag zeroth
 ```
+
+**추가 비교 — 왜 · 어떻게 읽나** (10-06 조장)
+- 대상: [`sikaro/unsloth_whisper_large_v3_16bit_Zeroth_kor`](https://huggingface.co/sikaro/unsloth_whisper_large_v3_16bit_Zeroth_kor) — `large-v3` 를 Unsloth 로 한국어 미세조정한 개인 업로드(Apache-2.0). 이름으로 보아 **Zeroth Korean(어른이 문장을 읽은 음성)** 으로 학습했다. 모델 카드에 데이터 · 점수 · 설정이 없다
+- 목적: 「이미 남이 한국어로 다듬은 것을 쓰면 되지 않나」에 숫자로 답한다. 어른 낭독 데이터라 **아이 말에서 나아질 근거는 없다** — 기대는 낮다
+- 판정은 같은 기준으로 나오지만 **참고용이다.** 출처 · 학습 데이터를 모르는 모델이라 기준을 넘어도 바로 서버에 쓰지 않고 조장이 정한다
+- ⑤ 가 「`vocab_size` 가 다르다」 등으로 멈추면 구조가 달라 같은 잣대로 잴 수 없는 것이다 — 그 사실만 적고 넘어간다
+- 같은 계정의 회의 음성판(`sikaro/unsloth_whisper_16bit_model_kor_12000_meeting`)도 같은 방법으로 잴 수 있다. 시간이 남을 때만
 
 **문제가 나면**
 - 받기가 401 · 403 → 키가 틀렸거나 그 계정이 데이터셋 108 이용 승인이 없다 — 사람에게 알린다
@@ -72,4 +84,4 @@ $L = "<4번에 찍힌 라벨 zip 경로>"
 
 ## 확인한 것 (10-06 조장 PC · 시험 한 바퀴)
 
-`whisper-tiny` 로 ①~④ 를 끝까지 돌렸다 — 나누기 35초 · 학습 4걸음 · 합치기 · 변환 · 평가 · 판정까지 오류 없음(숫자는 tiny 4걸음이라 의미 없다). 어른 녹음이 없을 때 기준 3 이 ⏸ 보류로 나오는 것도 확인했다. `download.sh` 는 받는 곳(`aihubshell`) 주소와 파일 번호(48685 · 48616)만 확인했고 실제로 받아 보지는 않았다. `large-v3` 로는 아직 안 돌렸다 — 12GB 에 들어가는지 · 걸음 속도는 남는 PC 의 7번에서 처음 확인한다.
+`whisper-tiny` 로 ①~④ 와 ⑤(합치지 않고 바꾸기만)를 끝까지 돌렸다 — 나누기 35초 · 학습 4걸음 · 합치기 · 변환 · 평가 · 판정까지 오류 없음(숫자는 tiny 4걸음이라 의미 없다). 어른 녹음이 없을 때 기준 3 이 ⏸ 보류로 나오는 것도 확인했다. `download.sh` 는 받는 곳(`aihubshell`) 주소와 파일 번호(48685 · 48616)만 확인했고 실제로 받아 보지는 않았다. `large-v3` 로는 아직 안 돌렸다 — 12GB 에 들어가는지 · 걸음 속도는 남는 PC 의 7번에서 처음 확인한다.

@@ -135,6 +135,7 @@ def main() -> None:
     ap.add_argument("--tuned", required=True, help="merge_convert.py 의 --out")
     ap.add_argument("--base", default="large-v3")
     ap.add_argument("--adult", default=str(ROOT / "audio" / "bias"), help="어른 녹음 폴더(깃 밖 · 데이터와 같이 옮긴다)")
+    ap.add_argument("--tag", default="ours", help="결과 파일 이름 꼬리 — 추가 비교는 zeroth 처럼 다르게 줘서 덮어쓰지 않는다")
     a = ap.parse_args()
     sys.path.insert(0, str(ROOT.parent / "backend"))
     from app.filters.hallucination import check_transcript
@@ -142,7 +143,7 @@ def main() -> None:
     clips = child_clips(Path(a.data)) + adult_clips(Path(a.adult))
     print(f"아이 {sum(c['set'] == 'child' for c in clips)} · 어른 {sum(c['set'] == 'adult' for c in clips)} 클립")
     (ROOT / "raw").mkdir(exist_ok=True)
-    out = ROOT / "raw" / f"whisper_ft_{date.today():%Y%m%d}.csv"
+    out = ROOT / "raw" / f"whisper_ft_{date.today():%Y%m%d}_{a.tag}.csv"
     res: dict[str, list[dict]] = {}
     with open(out, "w", encoding="utf-8-sig", newline="") as f:
         wr = csv.DictWriter(f, fieldnames=["engine", "set", "id", "age", "speaker", "ref", "hyp", "latency_ms", "dropped"])
