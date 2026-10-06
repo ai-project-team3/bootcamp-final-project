@@ -63,8 +63,6 @@ def checks(req: StoryRequest, caps: list[str]) -> dict:
     pages = [sentences_of(c) for c in caps]
     eoj = lambda s: len(s.split())  # noqa: E731
     too_long = sum(1 for p in pages if not (1 <= len(p) <= 2) or any(eoj(s) > MAX_EOJEOL for s in p) or sum(eoj(s) for s in p) > MAX_PAGE_EOJEOL)
-    first = [norm(p[0].split()[0]) if p and p[0].split() else "" for p in pages]
-    same_start = sum(1 for a, b in zip(first, first[1:]) if a and a == b and a not in refrains)   # a refrain may open two pages
     linker_twice = sum(1 for l in LINKERS if sum(c.count(l) for c in caps) >= 2)
     moral = sum(1 for c in caps if MORAL.search(strip_quotes(c)))
     # refrain (R3): one standalone short sentence on >= 3 pages (2 when the book is <= 5 pages) — only story · dream
@@ -77,6 +75,9 @@ def checks(req: StoryRequest, caps: list[str]) -> dict:
             if 2 <= len(key) <= 8 and "{" not in s:
                 short.setdefault(key, set()).add(i)
     refrains = {k for k, v in short.items() if len(v) >= 2}
+    # refrains first — a refrain may open two pages (10-06: same_start read `refrains` before it existed and crashed)
+    first = [norm(p[0].split()[0]) if p and p[0].split() else "" for p in pages]
+    same_start = sum(1 for a, b in zip(first, first[1:]) if a and a == b and a not in refrains)
     has_refrain = any(len(v) >= need for v in short.values())
     no_refrain = 1 if want_refrain and not has_refrain else 0
     # a sentence on two pages is a repeat — unless it is the refrain the design asks for
