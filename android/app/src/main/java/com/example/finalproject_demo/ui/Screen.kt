@@ -326,6 +326,18 @@ private fun FrontGround(bgName: String) {
     }
 }
 
+/**
+ * 키트 없는 무대에 깔 펠트 바닥의 색 — 그림에 땅이 없을 때만, 아니면 null (10-06 조장 · 「바닥이 됐다 안 됐다」).
+ * 서버가 그린 배경(`local:`)과 우주 · 바닷속 그림은 땅이 없어 인물이 공중에 떠 있었다. 색은 그 곳이 속하는 키트의 땅
+ */
+internal fun com.example.finalproject_demo.demo.DemoState.plainFloor(): Color? {
+    val bg = bgName
+    if (!(bg.startsWith("local:") || bg == "bg_space" || bg == "bg_sea")) return null
+    val kit = SceneKits.matching(placeLabel.orEmpty())
+        ?: SceneKits.all[when (bg) { "bg_space" -> "space"; "bg_sea" -> "sea"; else -> "park" }]
+    return kit?.let { Color(it.ground) }
+}
+
 /** 무대 가운데 — 위 제목 · 아래 말풍선에 가리지 않게 안쪽 여백을 둔다 */
 @Composable
 private fun Centered(content: @Composable () -> Unit) {
@@ -565,7 +577,8 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                     dy
                 } else 0f
                 val hot = rememberHotspotState(s.bgName)
-                // ① 배경 층
+                // ① 배경 층 — 바닥이 없는 그림(생성 배경 · 우주 · 바닷속)에는 키트와 같은 펠트 바닥을 먼저 깐다 (10-06)
+                if (kit == null) s.plainFloor()?.let { FeltFloor(it, LocalStageBottomInset.current) }
                 if (kit == null) HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake, state = hot, part = HotspotPart.Pieces)
                 // ② 인물 층
                 Box(Modifier.fillMaxSize().offset { IntOffset(0, quake.roundToInt()) }) {
