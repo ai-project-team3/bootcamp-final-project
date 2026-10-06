@@ -14,7 +14,10 @@ Fixed subjects, no scene LLM, no safety check (eyes only, like eval/redraw_1005)
   4  whole board + band wash · 0.9
 
 Run from backend/ with the backend venv:  COMFY_URL=http://<pc2>:8188 python ../eval/diary_bg_1006/bench.py OUT
+  5  whole board + band wash · 0.88  (added 10-06, between 3 and 4)
+
   --sheets   only redraw the comparison sheets from OUT
+  --only 5   run only these rows (comma-separated) into an OUT that has the others
 """
 import asyncio
 import base64
@@ -149,7 +152,10 @@ VARIANTS = [
     ("2 판 전체 · 색연필 배경 0.9", True, False, 0.9),
     ("3 판 전체 + 띠 채움 · 0.85", True, True, 0.85),
     ("4 판 전체 + 띠 채움 · 0.9", True, True, 0.9),
+    ("5 판 전체 + 띠 채움 · 0.88", True, True, 0.88),      # between 3 and 4 (진웅 10-06)
 ]
+# --only 5 → run just these rows; the sheets still show every row found in OUT
+ONLY = {int(i) for i in sys.argv[sys.argv.index("--only") + 1].split(",")} if "--only" in sys.argv else None
 
 
 def to_png(im: Image.Image) -> bytes:
@@ -170,6 +176,8 @@ async def main() -> None:
     for kind, subject in SUBJECTS.items():
         (OUT / f"{kind}_src.png").write_bytes(to_png(board_png(kind)))
         for vi, (name, board, wash, dn) in enumerate(VARIANTS):
+            if ONLY is not None and vi not in ONLY:
+                continue
             if board:
                 im = board_png(kind)
                 if wash:
@@ -193,7 +201,7 @@ async def main() -> None:
                 log.append({"kind": kind, "variant": name, "seed": seed, "secs": round(secs, 2),
                             "size": list(Image.open(io.BytesIO(raw)).size), "cutout_error": err})
                 print(f"{kind}_{vi}_{seed} {secs:.1f}s {err or ''}", flush=True)
-    (OUT / "log.json").write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
+    (OUT / ("log.json" if ONLY is None else f"log_only_{'_'.join(map(str, sorted(ONLY)))}.json")).write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
     sheets()
 
 
