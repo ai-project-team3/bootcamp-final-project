@@ -68,6 +68,8 @@ class DiaryCallCountTest {
             assertTrue("그림일기 책 선물(D6)로 안 갔다 (${s.stage})", await { s.stage is DiaryGift } != null)
 
             // 이 세션이 서버를 두 번 불렀다 — 대본 모드라 흐름은 서버를 안 부르니 여기서 직접 부른다
+            // the counter is one for the whole app — a call another test left (a /story on shard 0) must not count here
+            Server.resetCalls()
             Server.base = server.base
             Server.tts("오늘 그림일기가 완성됐어!")
             Server.tts("책장에 꽂아 줄래?")
