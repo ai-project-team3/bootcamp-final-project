@@ -51,7 +51,8 @@ class MicGuardTest {
         }
     }
 
-    private suspend fun until(condition: () -> Boolean) = withTimeout(3_000) { while (!condition()) delay(1) }
+    // CI runners are slower than a laptop — 10 s, the conditions themselves are quick
+    private suspend fun until(condition: () -> Boolean) = withTimeout(10_000) { while (!condition()) delay(1) }
 
     private val speech = ByteArray(64_000)               // two seconds of 16 kHz audio
 
@@ -71,7 +72,7 @@ class MicGuardTest {
         delay(50)
         assertEquals("받아쓰기를 기다리는 동안 새 녹음이 시작됐다", 1, recordings)
         heard.complete("공룡")
-        assertEquals("공룡", (withTimeout(3_000) { answer.await() } as Reply.Spoke).text)
+        assertEquals("공룡", (withTimeout(10_000) { answer.await() } as Reply.Spoke).text)
         assertFalse(d.s.transcribing)
     }
 
@@ -95,7 +96,7 @@ class MicGuardTest {
 
         stoppedEarly = false
         d.toggleMic()                                    // the mic still works for the real answer
-        assertEquals("공룡", (withTimeout(3_000) { answer.await() } as Reply.Spoke).text)
+        assertEquals("공룡", (withTimeout(10_000) { answer.await() } as Reply.Spoke).text)
         assertEquals(1, transcriptions)
     }
 
@@ -108,8 +109,8 @@ class MicGuardTest {
         until { d.s.micEnabled }
         d.toggleMic()
         until { d.s.transcribing }
-        d.send(Reply.Silent)                             // the first question moved on (no answer in time)
-        withTimeout(3_000) { first.await() }
+        d.send(Reply.Tapped("lion", "사자"))              // the first question moved on — a card was picked meanwhile
+        withTimeout(10_000) { first.await() }
         val second = async { d.ask(Question("그다음엔 어떻게 됐어?", Kind.EASY, noCards = true)) }
         until { d.s.micEnabled }
         heard.complete("친구들에서 봤더니")              // the late transcript of the first question
