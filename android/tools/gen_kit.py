@@ -38,6 +38,12 @@ KITS = {
         "kite": "diamond kite",
         "tree_row": "row of round trees",
     },
+    # 3-5 숲 · 시골 — 지금은 「살아 있는 배경」의 새만 (§6-3 · 공원 무대에도 들른다). 나머지 10종은 아직
+    "forest": {
+        # 목록 문구 「little blue bird」를 두 자세로 — 앉은 새와 나는 새. 옆모습 · 오른쪽을 보게(앱이 가는 쪽으로 뒤집는다)
+        "bird": "little round blue bird sitting, side view facing right, wings folded, small orange beak and two tiny feet",
+        "bird_fly": "little round blue bird flying, side view facing right, both wings spread wide open upward, small orange beak",
+    },
 }
 
 # 세로로 긴 조각은 세로 판에 굽는다 — 정사각 판에서는 위아래가 잘렸다

@@ -31,6 +31,10 @@ import com.example.finalproject_demo.demo.echoBack
 import com.example.finalproject_demo.demo.hasDiaryCover
 import com.example.finalproject_demo.demo.coverKey
 import com.example.finalproject_demo.demo.pieceNameFrom
+import com.example.finalproject_demo.demo.namesIn
+import com.example.finalproject_demo.demo.splitAcross
+import com.example.finalproject_demo.demo.saysNothing
+import com.example.finalproject_demo.demo.DiaryPiece
 import com.example.finalproject_demo.demo.praiseFor
 import com.example.finalproject_demo.demo.sendBoardTool
 import com.example.finalproject_demo.demo.soundsLikeAName
@@ -871,6 +875,75 @@ class PictureDiaryFlowTest {
         assertTrue(soundsLikeAName("우리 집이야!"))
         assertFalse(soundsLikeAName("나 오늘 너무 배고파"))
         assertFalse(soundsLikeAName("엄마가 그러는데 내일 비 온대"))
+        // 「조개 그렸어」 — 무엇을 그렸는지 말한 것도 이름이다 (10-05 실기기)
+        assertTrue(soundsLikeAName("조개 그렸어."))
+        assertTrue(soundsLikeAName("조개를 그렸어"))
+        assertFalse(soundsLikeAName("놀이터에서 그네 탔어"))
+        assertFalse(soundsLikeAName("새로 그렸어"))
+    }
+
+    /** 「내일 또 하고 싶은 거 있어?」에 「없어」 — 하고 싶은 게 없다는 말이라 칸을 채우지 않는다 (10-05 실기기 · 「없어」가 내일 칸에 들어갔다) */
+    @Test
+    fun nothingForTomorrowIsNotAnAnswer() {
+        listOf("없어", "없어요.", "음 없어", "하고 싶은 거 없어", "아니", "아니요", "없는데").forEach { assertTrue("「$it」", saysNothing(it)) }
+        listOf("놀이터 갈래", "또 바다 가고 싶어", "내일도 놀이터 갈래.", "강아지가 없어서 찾을 거야").forEach { assertFalse("「$it」", saysNothing(it)) }
+    }
+
+    @Test
+    fun nothingForTomorrowLeavesTheSlotEmpty() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그림 없이 이야기할래"))
+        assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+        d.speak("놀이터 갔어")
+        assertTrue(await { s.line == "놀이터에서 무슨 일이 있었어?" } != null)
+        d.speak("그네 탔어")
+        assertTrue(await { s.line == "그래서 어떻게 됐어?" } != null)
+        d.speak("집에 왔어")
+        assertTrue(await { s.line == "내일 또 하고 싶은 거 있어?" } != null)
+        d.speak("없어")
+        assertTrue("「없어」 뒤 책으로 가지 않았다 — 말=${s.line}", await { s.stage is DiaryPaper } != null)
+        assertTrue("「없어」가 내일 칸에 들어갔다 — ${s.slots["keep"]}", s.slots["keep"].isNullOrBlank())
+    }
+
+    /**
+     * 이름 붙은 조각에 이어 그리고 「조개 그렸어」 — 조각은 하나로 그대로 두고, 그린 것 목록에 조개를 더한다.
+     * 전에는 「그렇구나! 계속 그려 봐」로 넘겨 책 첫 쪽에서 조개가 빠졌다 (10-05 실기기 · 바다에 붙여 그린 조개)
+     */
+    @Test
+    fun sayingWhatWasDrawnOnANamedPieceAddsItToTheDrawing() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("바다")
+        assertTrue(await { s.line == "나도 바다를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        s.drawing += Stroke(Color.Red, listOf(Offset(0.12f, 0.3f), Offset(0.2f, 0.5f)))   // 바다에 다른 색으로 이어 그린다 — 같은 조각
+        d.tell("조개 그렸어") { "조개" in s.diaryDay.pieceNames }
+        assertTrue("받아 주기 — 말=${s.line}", await { s.line == "조개도 그렸구나!" } != null)
+        assertEquals(listOf("바다", "조개"), s.diaryDay.pieceNames)
+        assertEquals(1, s.diaryDay.pieces.size)
+    }
+
+    /** 이름 없는 새 조각을 그리며 「조개 그렸어」 — 그 조각의 이름이다(「조개야」 꼴만 받던 것을 넓혔다) */
+    @Test
+    fun sayingWhatWasDrawnNamesTheNewPiece() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.speak("바다")
+        assertTrue(await { s.line == "나도 바다를 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        s.drawing += stroke(0.12f)                                   // 같은 색으로 옆에 — 새 조각
+        d.tell("조개 그렸어") { "조개" in s.diaryDay.pieceNames }
+        assertEquals(2, s.diaryDay.pieces.size)
+        assertEquals("조개", s.diaryDay.pieces.last().name)
     }
 
     /**
@@ -900,6 +973,33 @@ class PictureDiaryFlowTest {
             // 「새로 그린 거야」가 「새로 그린 거요」로 들렸다 — 「요」가 이름이 됐다 (10-02 실기기)
             "새로 그린 거요", "새로 그린 거예요", "새로 그린 거야", "요", "야",
         ).forEach { assertEquals("「$it」은 이름이 아니다", null, pieceNameFrom(Reply.Spoke(it))) }
+    }
+
+    /** 「해랑 구름」 — 이어 말한 이름을 낱낱이. 「고양이랑」의 「이」는 낱말이라 남긴다 */
+    @Test
+    fun namesSaidTogetherComeApart() {
+        mapOf(
+            "해랑 구름" to listOf("해", "구름"), "미끄럼틀이랑 해" to listOf("미끄럼틀", "해"),
+            "고양이랑 강아지" to listOf("고양이", "강아지"), "엄마하고 아빠" to listOf("엄마", "아빠"),
+            "집이랑 나무 그리고 해" to listOf("집", "나무", "해"), "우리 집이랑 나무" to listOf("우리 집", "나무"),
+            "호랑이" to listOf("호랑이"), "해랑" to listOf("해랑"), "엄마랑 나" to listOf("엄마", "나"),
+        ).forEach { (name, parts) -> assertEquals("「$name」", parts, namesIn(name)) }
+    }
+
+    /**
+     * 「해랑 구름」을 한 번에 말해도 앞에 이름 없는 조각이 있으면 그린 차례대로 나눠 붙인다 — 지금 조각이 마지막 이름.
+     * 이름 없는 조각이 모자라면 한 조각에 둘을 그린 것이다 — 「엄마랑 나」처럼 통째로 (10-05 실기기 「해랑 구름」 · 「미끄럼틀이랑 해」)
+     */
+    @Test
+    fun twoNamesAtOnceGoToTheUnnamedPiecesInDrawingOrder() {
+        fun p(id: Int, name: String? = null) = DiaryPiece(id, listOf(stroke(id * 0.1f)), name)
+        val sun = p(1); val cloud = p(2)
+        assertEquals(listOf(1 to "해", 2 to "구름"), splitAcross("해랑 구름", cloud, listOf(sun, cloud)))
+        assertEquals(listOf(2 to "해", 3 to "구름"), splitAcross("해랑 구름", p(3), listOf(p(1, "미끄럼틀"), p(2), p(3))))
+        assertEquals("한 조각뿐 — 둘을 한 조각에 그렸다", null, splitAcross("엄마랑 나", cloud, listOf(cloud)))
+        assertEquals("앞 조각은 이미 이름이 있다", null, splitAcross("해랑 구름", cloud, listOf(p(1, "미끄럼틀"), cloud)))
+        assertEquals("이름 셋에 이름 없는 조각 둘", null, splitAcross("집이랑 나무 그리고 해", cloud, listOf(sun, cloud)))
+        assertEquals("뒤에 그린 조각은 앞 이름을 받지 않는다", null, splitAcross("해랑 구름", sun, listOf(sun, cloud)))
     }
 
     /** D3 — 필수 두 칸 다음에 이름 없는 조각 하나를 「이건 뭐 그린 거야?」로 묻는다. 카드에는 그 조각만 (프로토타입 nextD3) */

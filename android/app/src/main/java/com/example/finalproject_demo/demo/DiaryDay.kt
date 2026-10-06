@@ -171,8 +171,14 @@ class DiaryDay {
 
     fun canCallTurn(): Boolean = turnBudget.let { it == null || turnCalls < it }
 
-    /** 이름 붙은 조각의 이름 — 그린 차례대로. 같은 이름은 한 번만 */
-    val pieceNames: List<String> get() = pieces.mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) }.distinct()
+    /** 이름 붙은 조각의 이름 — 그린 차례대로, 뒤에 [alsoDrawn]. 같은 이름은 한 번만 */
+    val pieceNames: List<String> get() = (pieces.mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) } + alsoDrawn).distinct()
+
+    /**
+     * 이름 붙은 조각에 이어 그리고 아이가 말한 것 — 「조개 그렸어」(바다에 붙여 그렸다). 조각은 하나로 두고 그린 것 이름에만 더한다.
+     * 아이가 말한 이름이다(규칙 5)
+     */
+    val alsoDrawn = mutableStateListOf<String>()
 
     /** 그림에서 날씨를 알아볼 수 있으면 채운다. 아이가 이미 눌렀으면 건드리지 않는다 */
     fun weatherFromDrawing() {
