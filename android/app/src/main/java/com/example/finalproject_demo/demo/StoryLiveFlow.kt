@@ -128,6 +128,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                     log(if (undo) "↩ 직전 차례를 되돌림 — 같은 질문을 다시" else "↪ 되돌린 차례를 다시 적용")
                     say(if (undo) "그럼 다시 말해 줄래?" else "좋아, 아까 그 이야기로 갈게!")
                     updateBackground()
+                    s.holdStoryGauge()
                 }
                 continue
             }
@@ -138,6 +139,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 continue
             }
             deferredSlot = null
+            s.storyAnswers++
             val by = when {
                 reply is Reply.Spoke -> "child"
                 reply is Reply.Tapped && !reply.byMascot -> "card"
@@ -170,6 +172,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             // still needs a page plan, but does not force extra questions just to reach turn 3.
             if (s.templateKey == null && (s.turn >= 3 || s.storyReady)) decideTemplate("서버 대화")
             mark("live:${prompt.slot ?: "extra"}")
+            s.holdStoryGauge()
             history.done()
         }
         true
