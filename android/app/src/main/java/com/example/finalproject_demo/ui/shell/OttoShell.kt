@@ -70,6 +70,16 @@ fun OttoShell(d: Director) {
                 )
             }
         }
+        // ⏸ 일시정지 (#125) — 이어 하기 · 방으로 나가기. 뒤로 가기도 이어 하기
+        if (d.s.holding) Shield(onBack = { d.resumeSession() }) {
+            Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {
+                ConfirmDialog(
+                    "⏸", "잠깐 쉬는 중",
+                    no = "▶" to "이어 하기", yes = "🏠" to "방으로 나가기",
+                    onNo = { d.resumeSession() }, onYes = { d.leaveToRoom() },
+                )
+            }
+        }
         // 이야기 도중 🏠 — 「방으로 갈까?」 (KidTopBar 가 켠다. 화면 전체를 덮어야 해서 여기서 그린다)
         if (Shell.askHome) Shield(onBack = { Shell.askHome = false }) {
             Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {

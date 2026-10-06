@@ -1298,6 +1298,9 @@ class DemoState {
      * 새 이야기를 시작하거나 이어 가면 비운다. 앱을 끄면 사라진다(메모리뿐)
      */
     var paused by mutableStateOf<Scene?>(null)
+
+    /** ⏸ 일시정지 중 (#125) — 오또 목소리 · 녹음이 멈추고 흐름이 그 자리에 선다. [이어 하기]까지 아이 차례 시간도 세지 않는다 */
+    var holding by mutableStateOf(false)
     var micOn by mutableStateOf(false)
     var micEnabled by mutableStateOf(false)
     /** 되돌리기 · 앞으로 가기를 보일 차례인가 — `TurnHistory` 가 정한다 (10-02) */
