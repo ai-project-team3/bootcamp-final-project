@@ -1371,6 +1371,12 @@ private suspend fun Director.giveDiaryBook() {
     // 실제로 걸린 분 — 고정값이 아니다 (#64-4)
     val minutes = if (s.diaryStart > 0L) ((System.currentTimeMillis() - s.diaryStart) / 60_000L).coerceAtLeast(1L) else null
     event("session_end", "duration" to (minutes?.let { "${it}분" } ?: "모름"), "counted" to s.quotes.size, "total" to (s.quotes.size + 1))
+    // 서버 호출 수 — 동화의 선물 화면(`sceneEnd`)과 같은 줄. 전에는 여기서 안 남겨 다 끝낸 일기가 다음 세션 시작 때 unfinished 로 찍혔다 (#172)
+    com.example.finalproject_demo.net.Server.callSummary().takeIf { it.isNotEmpty() }?.let {
+        log("서버 호출 (이번 세션) · $it")
+        com.example.finalproject_demo.net.Trace.line("calls", "diary finished · $it")
+        com.example.finalproject_demo.net.Server.resetCalls()
+    }
     go(Scene.SHELF)
 }
 
