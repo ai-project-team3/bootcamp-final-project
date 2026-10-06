@@ -1313,6 +1313,8 @@ class DemoState {
     /** ⏸ 일시정지 중 (#125) — 오또 목소리 · 녹음이 멈추고 흐름이 그 자리에 선다. [이어 하기]까지 아이 차례 시간도 세지 않는다 */
     var holding by mutableStateOf(false)
     var micOn by mutableStateOf(false)
+    /** 녹음은 끝났고 받아쓰기를 기다리는 중 — 🎤 를 눌러도 새 녹음을 시작하지 않는다 (#203) */
+    var transcribing by mutableStateOf(false)
     var micEnabled by mutableStateOf(false)
     /** 되돌리기 · 앞으로 가기를 보일 차례인가 — `TurnHistory` 가 정한다 (10-02) */
     /** 이 이야기 주인공의 이름 — 아이가 인형에 지어 준 것. 없으면 `{주인공}` 은 아이 호칭으로 읽는다 */
