@@ -29,6 +29,11 @@ def enforce(result: JudgeResult, req: JudgeRequest) -> JudgeResult:
         if name is not None and name not in SLOT_NAMES:
             setattr(result, field, None)
 
+    # the book's title is asked by the app after the book is made, never as the next turn —
+    # the model picked it once the story was full, and the app looped on 「더 들려줄래?」(#156 · 10-06)
+    if result.next_slot == "title":
+        result.next_slot = None
+
     # never ask again for a slot that already has a value (confirming an
     # unclear word is the one exception)
     if result.next_slot and req.slots.get(result.next_slot) and not result.unclear:
