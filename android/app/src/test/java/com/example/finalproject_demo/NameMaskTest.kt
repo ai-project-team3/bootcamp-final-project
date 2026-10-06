@@ -51,6 +51,15 @@ class NameMaskTest {
         assertEquals("콩은 웃었어.", NameMask("콩").unmask("{주인공}는 웃었어."))
     }
 
+    /** 10-06: the request's `names` follow the marks, so the server's Jev masking and [NameMask.unmask] agree */
+    @Test
+    fun namesAreSentInTheOrderOfTheMarks() {
+        assertEquals(listOf("지민", "민수", "하늘"), m.names)
+        // no hero name — an empty first entry keeps 민수 as {친구1}
+        assertEquals(listOf("", "민수"), NameMask(null, listOf("민수")).names)
+        assertEquals("민수가 왔어.", NameMask(null, listOf("민수")).unmask("{친구1}가 왔어."))
+    }
+
     @Test
     fun withNoCallTheChildIsFriend() {
         ChildCall.reset()

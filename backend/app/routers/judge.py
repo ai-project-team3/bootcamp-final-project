@@ -66,7 +66,9 @@ async def run(req: JudgeRequest) -> JudgeResult:
         return enforce(mock(req), req)
     if req.mode in {m.strip() for m in settings.judge_jev_modes.split(",") if m.strip()}:
         try:
-            raw = await jev.judge(judge_prompt.system(), judge_prompt.user(req), req.utterance)
+            # names stay with us — TypeSafe gets placeholders (10-06); the app unmasks value_1
+            raw = await jev.judge(judge_prompt.system(), jev.mask_names(judge_prompt.user(req), req.names),
+                                  jev.mask_names(req.utterance, req.names))
             log.info("judge jev %.2fs", raw.pop("_seconds", 0.0))
             result = enforce(JudgeResult.model_validate(raw), req)
             if req.mode != "story" or result.story_ready or result.next_slot is not None:

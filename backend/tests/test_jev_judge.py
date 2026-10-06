@@ -54,5 +54,29 @@ def test_only_switched_on_modes_use_jev_and_a_failure_falls_back(monkeypatch):
     assert calls == ["jev", "luna", "luna"]
 
 
+def test_names_never_reach_jev_but_luna_keeps_them(monkeypatch):
+    sent = {}
+
+    async def fake_jev(system, user, utterance, timeout_s=6.0):
+        sent["user"], sent["utterance"] = user, utterance
+        return {"reason": "jev", "slot_1": "companion", "value_1": utterance, "next_slot": "problem"}
+
+    monkeypatch.setattr(jev, "judge", fake_jev)
+    monkeypatch.setattr(settings, "mock", False)
+    monkeypatch.setattr(settings, "judge_jev_modes", "story")
+    r = JudgeRequest(mode="story", slots={"name": "민수"}, asked_slot="companion", question="지우는 누구랑 갔어?",
+                     utterance="지우는 민수랑 김민수 형이랑 갔어", names=["지우", "민수", "김민수"])
+    out = asyncio.run(judge.run(r))
+    assert "지우" not in sent["user"] and "민수" not in sent["user"]
+    assert sent["utterance"] == "{주인공}는 {친구1}랑 {친구2} 형이랑 갔어"   # longest name first
+    assert out.value_1.startswith("{주인공}")                                    # the app unmasks it
+    assert r.utterance.startswith("지우")                                         # the request itself is untouched
+
+
+def test_mask_names_skips_blanks_and_placeholders():
+    assert jev.mask_names("친구랑 놀았어", ["", "{친구1}"]) == "친구랑 놀았어"
+    assert jev.mask_names("아무 이름 없음", []) == "아무 이름 없음"
+
+
 def test_off_by_default():
     assert settings.judge_jev_modes == ""
