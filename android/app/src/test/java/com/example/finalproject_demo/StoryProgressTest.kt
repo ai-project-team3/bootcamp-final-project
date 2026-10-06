@@ -28,7 +28,7 @@ class StoryProgressTest {
         place = "숲"; problem = "길을 잃었어"; cause = "어두워서"
         newcomer = "고양이"; sound = "야옹"; solution = "함께 돌아왔어"
         (template!!.plot + template!!.ending).forEach { slots[it] = "아이의 답" }
-        listOf("place", "problem", "reaction", "cause", "solution").forEach { slots[it] = "아이의 답" }
+        listOf("place", "problem", "reaction", "cause", "solution", "newcomer", "sound").forEach { slots[it] = "아이의 답" }
     }
 
     @Test fun fullMaterialsDoNotShowCompletionWhileTheStoryStillAsksForMore() {
@@ -41,10 +41,50 @@ class StoryProgressTest {
         }
     }
 
-    @Test fun readyCompletesTheTrackEvenWithUnneededMaterialsMissing() {
+    @Test fun readyFinishesConversationWithoutClaimingTheBookIsComplete() {
         val s = DemoState().apply { endReason = "story_ready" }
-        assertEquals(s.askTotal, s.askDone)
+        assertEquals(10, s.askTotal)
+        assertEquals(7, s.askDone)
         assertNull(s.nextStoryPrompt())
+    }
+
+    @Test fun finalVerdictThenBookWritingAndCompletionHaveSeparateMilestones() {
+        val s = DemoState().apply {
+            listOf("place", "problem", "reaction", "newcomer", "solution").forEach { slots[it] = "아이의 답" }
+            syncStoryPresentation()
+        }
+        assertEquals(5, s.askDone)
+        s.applyStoryVerdict(Server.Verdict("ready", emptyList(), null, null, true, false, null, false, false, false, null), "child")
+        assertEquals("the last answer must not fill the whole track", 7, s.askDone)
+        s.scene = Scene.MAKING
+        s.stage = Stage.Making("이야기 문장을 쓰는 중…")
+        assertEquals(9, s.askDone)
+        s.stage = Stage.Making("『완성된 책』", 1f)
+        assertEquals(s.askTotal, s.askDone)
+    }
+
+    @Test fun extraQuestionsAndTemplateChoiceDoNotInventProgressOrChangeTheScale() {
+        val s = filledStory()
+        val before = s.askDone to s.askTotal
+        assertEquals(6 to 10, before)
+        repeat(12) {
+            s.turn++
+            s.slots["place"] = "같은 장소를 다시 말한 답"
+            s.templateKey = if (it % 2 == 0) "A" else "C"
+            assertEquals(before, s.askDone to s.askTotal)
+        }
+        assertNull(s.storyEndCondition())
+    }
+
+    @Test fun drawingAndSoundAloneDoNotClaimConversationOrBookCompletion() {
+        val s = filledStory().apply { storySoundAttempted = true; stage = Stage.DrawPad() }
+        assertEquals(6, s.askDone)
+        assertNull(s.storyEndCondition())
+        s.endReason = "story_ready"
+        assertEquals(7, s.askDone)
+        s.scene = Scene.MAKING
+        s.stage = Stage.Making("준비", 0.95f)
+        assertEquals(9, s.askDone)
     }
 
     @Test fun legacyEndReasonsCannotCompleteALiveStoryTrack() {
