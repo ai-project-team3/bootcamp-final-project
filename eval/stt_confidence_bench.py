@@ -12,7 +12,10 @@ word, a misheard one, or a split that no longer matches. Prints the AUC and, per
 words a 「below → ask again」 rule would catch and how many right answers it would send back.
 
     set AIHUB_CHILD=D:\\aihub\\child36
-    .venv-diar/Scripts/python.exe -m eval.stt_confidence_bench [--limit 15]
+    .venv-diar/Scripts/python.exe -m eval.stt_confidence_bench [--limit 15] [--holdout] [--model <folder>]
+
+Fine-tuning (#149 B): never train on the speakers in eval/stt_holdout_speakers.tsv. Run this with --holdout
+before and after, with the same --limit, and compare CER as well as the confidence tables.
 
 ⚠️ AI-Hub data must not be redistributed; the CSV goes to eval/raw/ (ignored). No external STT.
 """
@@ -58,16 +61,22 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=None, help="clips per speaker")
-    ap.add_argument("--model", default="large-v3")
+    ap.add_argument("--model", default="large-v3", help="a model name or a local CTranslate2 folder (fine-tuned)")
+    ap.add_argument("--holdout", action="store_true",
+                    help="only the 51 held-out speakers (eval/stt_holdout_speakers.tsv) — compare before/after fine-tuning")
     a = ap.parse_args()
     if not DATA.exists():
         sys.exit(f"no data at {DATA} — set AIHUB_CHILD")
 
     w = Whisper(a.model)
     clips = list(items(a.limit))
+    if a.holdout:
+        held = {l.split("	")[0] for l in (RAW.parent / "stt_holdout_speakers.tsv").read_text(encoding="utf-8").splitlines()
+                if l and not l.startswith("#")}
+        clips = [c for c in clips if any(f"_{sid}_" in c["clip_id"] for sid in held)]
     RAW.mkdir(exist_ok=True)
     out = RAW / f"stt_confidence_{date.today():%Y%m%d}.csv"
-    words, utts = [], []                             # (age, prob, right) · (age, min prob, cer)
+    words, utts = [], []                             # (age, prob, right) · (age, min word prob, cer, avg_logprob)
     with io.open(out, "w", encoding="utf-8-sig", newline="") as f:
         wr = csv.writer(f)
         wr.writerow(["clip_id", "age", "ref", "hyp", "word", "prob", "right"])
@@ -90,7 +99,9 @@ def main() -> None:
                     wr.writerow([it["clip_id"], age, it["ref"], hyp, token, f"{x.probability:.4f}", int(right)])
             ref_c, hyp_c = "".join(eojeols(it["ref"])), "".join(eojeols(hyp))
             cer = edit_distance(ref_c, hyp_c) / max(1, len(ref_c))
-            utts.append((age, min(probs) if probs else 0.0, cer))
+            # avg_logprob comes with every segment at no extra cost; word probabilities need an alignment pass
+            avg = min((s.avg_logprob for s in segs), default=-9.0)
+            utts.append((age, min(probs) if probs else 0.0, cer, avg))
             if n % 100 == 0:
                 print(f"\r{n}/{len(clips)}", end="", flush=True)
     print(f"\n→ {out}\n")
@@ -116,6 +127,14 @@ def main() -> None:
         print(f"| {t} | {sum(p < t for p in neg_all) / len(neg_all):.0%} | {sum(p < t for p in pos_all) / len(pos_all):.0%} "
               f"| {len(flagged) / len(utts):.0%} | {ok_flagged / max(1, len(flagged)):.0%} "
               f"| {sum(1 for u in bad if u[1] < t) / max(1, len(bad)):.0%} |")
+
+    print("\n문턱 아래면 되묻는다 — 발화 단위 avg_logprob (추가 계산 없음):")
+    print("| avg_logprob 문턱 | 되묻는 발화 | 그중 멀쩡한 답(CER ≤ 20%) | CER > 50% 발화 중 걸러짐 |")
+    print("|---:|---:|---:|---:|")
+    for t in (-1.2, -1.0, -0.8, -0.6, -0.5, -0.4):
+        flagged = [u for u in utts if u[3] < t]
+        print(f"| {t} | {len(flagged) / len(utts):.0%} | {sum(1 for u in flagged if u[2] <= 0.2) / max(1, len(flagged)):.0%} "
+              f"| {sum(1 for u in bad if u[3] < t) / max(1, len(bad)):.0%} |")
 
 
 if __name__ == "__main__":
