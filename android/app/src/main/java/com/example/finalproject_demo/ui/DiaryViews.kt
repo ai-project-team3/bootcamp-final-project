@@ -377,16 +377,20 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
             val whole = BoardBox(0f, 0f, 1f, 1f)
             val otto = day.pieces.filter { it.look == PieceLook.OTTO }
             val hidden = otto.flatMap { it.strokes }.toSet()
+            // 겹 순서: 배경 획 → 오또 그림 → 나머지 아이 선 · 지금 긋는 선. 나중에 그은 땅 · 하늘이 물체를 덮지 않고,
+            // 오또 그림 위에 새로 긋는 선이 그 아래에 묻히지 않는다 (10-06 진웅 실기기)
+            val behind = day.pieces.filter { it.role == PieceRole.BACKGROUND }.flatMap { it.strokes }.toSet()
             Canvas(Modifier.fillMaxSize()) {
-                // 배경 획을 먼저 — 나중에 그은 땅 · 하늘이 물체를 덮지 않는다
-                val behind = day.pieces.filter { it.role == PieceRole.BACKGROUND }.flatMap { it.strokes }.toSet()
-                s.drawing.filter { it !in hidden }.sortedBy { if (it in behind) 0 else 1 }.forEach { drawBoardStroke(it, whole) }
+                s.drawing.filter { it !in hidden && it in behind }.forEach { drawBoardStroke(it, whole) }
+            }
+            otto.forEach { p -> p.ottoSpots().forEach { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
+            Canvas(Modifier.fillMaxSize()) {
+                s.drawing.filter { it !in hidden && it !in behind }.forEach { drawBoardStroke(it, whole) }
                 if (live.size >= 2) {
                     val p = Path().apply { live.forEachIndexed { i, o -> if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) } }
                     drawPath(p, color, style = Stroke(size.width * PEN_W, cap = StrokeCap.Round, join = StrokeJoin.Round))
                 }
             }
-            otto.forEach { p -> p.ottoSpots().forEach { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
             PieceRings(day.pieces.toList(), day.askingPiece, cq)
             // 방금 누른 이름표 — 새 획을 긋기 전까지 [그려 줘] · [이름 고치기]가 이 조각을 가리킨다. 청록으로 구별한다 (10-05 진웅)
             val selected = day.focus?.takeIf { it.second == s.drawing.size }?.first
