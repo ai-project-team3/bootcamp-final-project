@@ -504,13 +504,22 @@ private suspend fun Director.drawMe(scope: CoroutineScope, day: DiaryDay, waitin
     val tapped = day.focus?.takeIf { it.second == s.drawing.size }?.let { (id, _) -> day.pieces.firstOrNull { it.id == id } }
     val target = said?.let { day.namedIn(it, except = -1) } ?: tapped
         ?: day.pieces.lastOrNull { s.drawing.lastOrNull() in it.strokes } ?: day.pieces.lastOrNull()
-    val what = target?.name?.let { "${you(it)}${eul(you(it))} " }.orEmpty()
+    // The lines carry no piece name, so they play baked from the app instead of /tts (10-06 lead: 3 of the
+    // 4-5 server lines per Otto drawing were these). The board already marks the piece; the log names it
+    val label = target?.name ?: "이름 없는 조각"
     when {
         target == null -> say("그림을 먼저 그려 줘! 그다음에 나도 그려 볼게.")
-        waiting.any { it.pieceId == target.id } -> say("나도 지금 ${what}그리고 있어! 조금만 기다려 줘.")
-        target.ottoPng != null -> say("벌써 ${what}그렸어! 반짝이는 이름표를 눌러 봐.")
+        waiting.any { it.pieceId == target.id } -> {
+            log("오또 그림 — 「$label」 그리는 중")
+            say("나도 지금 그리고 있어! 조금만 기다려 줘.")
+        }
+        target.ottoPng != null -> {
+            log("오또 그림 — 「$label」 벌써 그렸다")
+            say("벌써 그렸어! 반짝이는 이름표를 눌러 봐.")
+        }
         else -> {
-            say("나도 ${what}그려볼게! 더 그리고 있어!")
+            log("오또 그림 — 「$label」 그린다")
+            say("나도 그려 볼게! 더 그리고 있어!")
             // 이름 없는 배경은 아이가 말한 장소로 주문한다 — 배경을 그리면 「여기는 어디야?」를 물었다 (#168)
             val words = target.name
                 ?: s.slots["place"]?.takeIf { target.role == PieceRole.BACKGROUND && it.isNotBlank() }
@@ -868,7 +877,8 @@ private suspend fun Director.showOttoDrawing(day: DiaryDay, piece: DiaryPiece) {
         ?: "배경".takeIf { piece.role == PieceRole.BACKGROUND }
         ?: return
     s.stage = DiaryBoard(pick = piece.id)
-    say("짠! 나도 ${you(name)}${eul(you(name))} 그려 봤어! 어떤 게 좋아?")
+    log("오또 그림이 왔다 — 「$name」 · 고르게 한다")
+    say("짠! 나도 그려 봤어! 어떤 게 좋아?")                // baked — the board marks which piece (10-06)
     buttons(
         DemoBtn("🖍 내 그림으로") { send(Reply.Tapped("orig", "내 그림")) },
         DemoBtn("✨ 오또 그림으로 ${ottoEmoji(name)}") { send(Reply.Tapped("otto", "오또 그림")) },
@@ -881,10 +891,10 @@ private suspend fun Director.showOttoDrawing(day: DiaryDay, piece: DiaryPiece) {
     s.reactions++
     event("utterance", "speaker" to "child", "mode" to "card", "text" to if (look == PieceLook.OTTO) "오또 그림" else "내 그림")
     if (look == PieceLook.OTTO) {
-        say("펑! 내가 그린 ${you(name)}${ida(you(name))}야. 고마워!")
+        say("펑! 내가 그린 거야. 고마워!")
         log("「$name」 → 오또 그림으로 (부모 기록: 아이가 고른 오또 그림 · 원본도 보관)")
     } else {
-        say("띠용! 역시 네가 그린 ${you(name)}${ida(you(name))}!")
+        say("띠용! 역시 네가 그린 게 최고야!")
         log("「$name」 → 아이 원본 그대로")
     }
     pause(900)
