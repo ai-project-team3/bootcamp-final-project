@@ -13,6 +13,11 @@ import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.pieceToPng
 import com.example.finalproject_demo.demo.requestRedraw
+import com.example.finalproject_demo.demo.requestBackgroundRedraw
+import com.example.finalproject_demo.demo.boardToPng
+import com.example.finalproject_demo.demo.ottoSpots
+import com.example.finalproject_demo.demo.BoardBox
+import com.example.finalproject_demo.demo.PieceRole
 import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -162,6 +167,70 @@ class DiaryRedrawTest {
             assertNull(house.ottoPng)
             assertEquals(PieceLook.ORIGINAL, house.look)
             assertTrue("그림 고르기를 띄웠다", s.log.none { "짠!" in it })
+        }
+    }
+
+    // ── 배경 조각 (#168 · 10-06 진웅) ─────────────────────────────
+
+    /** 배경은 잘라 보내지 않는다 — 판 전체, 선은 그린 자리 그대로(80% 높이의 땅은 PNG 에서도 80%) */
+    @Test
+    fun aBackgroundBecomesAPngOfTheWholeBoard() {
+        val ground = DiaryPiece(0, listOf(line(Color(0xFF5AAA50), .05f, .80f, .95f, .80f)), role = PieceRole.BACKGROUND)
+        val png = boardToPng(ground, aspect = 2f)
+        assertNotNull(png)
+        val bmp = BitmapFactory.decodeByteArray(png, 0, png!!.size)
+        assertEquals("판 비율이 아니다 (${bmp.width}×${bmp.height})", 2f, bmp.width / bmp.height.toFloat(), 0.02f)
+        assertEquals("위는 투명해야 한다", 0, bmp.getPixel(bmp.width / 2, bmp.height / 4) ushr 24)
+        assertTrue("땅 선이 80% 높이에 없다", bmp.getPixel(bmp.width / 2, (bmp.height * 0.8f).toInt()) ushr 24 > 0)
+        assertEquals("양 끝까지 잘라 냈다 — 판 왼쪽 2% 는 비어 있어야 한다", 0, bmp.getPixel(bmp.width / 100, (bmp.height * 0.8f).toInt()) ushr 24)
+    }
+
+    /** 오또 배경은 판 전체에 깔린다 — 조각 가운데 정사각형이 아니다 */
+    @Test
+    fun aBackgroundsOttoDrawingCoversTheWholeBoard() {
+        val ground = DiaryPiece(0, listOf(line(Color.Green, .05f, .80f, .95f, .82f)), role = PieceRole.BACKGROUND)
+        assertEquals(listOf(BoardBox(0f, 0f, 1f, 1f)), ground.ottoSpots())
+    }
+
+    /**
+     * 땅을 그렸다 → 「여기는 어디야?」 → 「바다야」 → [그려 줘] — 배경 부탁으로 판 전체를 보내고,
+     * 온 그림은 그 배경 조각에 붙는다. 물건 부탁은 부르지 않는다
+     */
+    @Test
+    fun drawMeOnABackgroundSendsTheWholeBoardAsABackground() {
+        val art = byteArrayOf(9, 9, 9)
+        var sent: ByteArray? = null
+        var words: String? = null
+        var pieceCalls = 0
+        live({ _, _ -> pieceCalls++; null }) { d ->
+            val s = d.s
+            val real = requestBackgroundRedraw
+            requestBackgroundRedraw = { png, description -> sent = png; words = description; art }
+            try {
+                d.go(Scene.DIARY)
+                assertTrue(await { d.send(Reply.Tapped("draw", "그릴래")); s.buttons.any { "붓이 멈춤" in it.label } } != null)
+                s.drawing += line(Color(0xFF5AAA50), .05f, .80f, .50f, .79f, .95f, .80f)
+                assertTrue("말=${s.line}", await { s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick(); s.line == "여기는 어디야?" } != null)
+                d.say("바다야") { s.line != "여기는 어디야?" }
+                assertTrue(await { s.diaryDay.watching } != null)
+                d.send(Reply.Tapped("drawme", "그려 줘"))
+                assertTrue("오또 배경을 보여 주지 않았다 — 말=${s.line}", await {
+                    s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick()
+                    s.diaryDay.pieces.any { it.ottoPng != null }
+                } != null)
+                assertEquals("물건 부탁을 불렀다", 0, pieceCalls)
+                assertTrue("배경 이름이 아니라 다른 말을 보냈다: $words", words.orEmpty().contains("바다"))
+                val bmp = BitmapFactory.decodeByteArray(sent, 0, sent!!.size)
+                assertEquals("판 전체가 아니다 (${bmp.width}×${bmp.height})", 2f, bmp.width / bmp.height.toFloat(), 0.02f)
+                val bg = s.diaryDay.pieces.first { it.role == PieceRole.BACKGROUND }
+                assertTrue("온 그림이 배경 조각에 안 붙었다", bg.ottoPng.contentEquals(art))
+                // 이름 없는 배경도 고르게 한다 — 이름이 없다고 건너뛰어 그림이 영영 안 보였다 (10-06 실기기)
+                assertTrue("오또 배경을 고르게 하지 않았다 — 말=${s.line}", await { "짠!" in s.line && "바다" in s.line } != null)
+                d.send(Reply.Tapped("otto", "오또 그림"))
+                assertTrue("오또 배경을 골랐는데 바뀌지 않았다", await {
+                    s.diaryDay.pieces.first { it.role == PieceRole.BACKGROUND }.look == PieceLook.OTTO
+                } != null)
+            } finally { requestBackgroundRedraw = real }
         }
     }
 }

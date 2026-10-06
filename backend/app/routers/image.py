@@ -70,15 +70,23 @@ async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
     if req.kind == "redraw":
         # the child's drawing lives only in this call: decoded, sent to ComfyUI through
         # memory (comfy_nodes/otto_memory.py), history entry deleted in comfy.run
-        drawing = await asyncio.to_thread(character.prepare_drawing, base64.b64decode(req.png_base64))
-        if req.mode == "diary":                  # colored pencil keeps an outline an outline: fill it (10-05)
-            drawing = await asyncio.to_thread(character.fill_closed, drawing)
+        backdrop = req.role == "background"
+        if backdrop:                             # the whole board, lines where they were; bands washed (#168)
+            drawing = await asyncio.to_thread(character.prepare_board, base64.b64decode(req.png_base64))
+            drawing = await asyncio.to_thread(character.wash_bands, drawing)
+        else:
+            drawing = await asyncio.to_thread(character.prepare_drawing, base64.b64decode(req.png_base64))
+            if req.mode == "diary":              # colored pencil keeps an outline an outline: fill it (10-05)
+                drawing = await asyncio.to_thread(character.fill_closed, drawing)
         # one redraw in ComfyUI at a time: the queue behind a story picture stays at most one
         # redraw long (~5 s), and the story picture still jumps the rest (front=True)
         async with _redraw_turn:
             raw = await comfy.run(comfy.redraw_workflow(scene, random.randrange(2 ** 31),
-                                                        base64.b64encode(drawing).decode(), mode=req.mode))
+                                                        base64.b64encode(drawing).decode(), mode=req.mode,
+                                                        role=req.role))
         del drawing
+        if backdrop:                             # a scene behind everything — nothing to cut out
+            return raw
         return await asyncio.to_thread(character.cut_out_all, raw)
     tmpl = character.template(rig)
     if tmpl is not None and rig not in _uploaded:
