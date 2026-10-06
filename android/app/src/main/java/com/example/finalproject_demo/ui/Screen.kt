@@ -471,17 +471,19 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
             ) {
-                Text("이렇게 들었어. 맞아?", fontSize = 20.sp, color = InkBrown)
-                Text(stage.heard, fontSize = 26.sp, color = InkBrown, textAlign = TextAlign.Center,
+                Text("이렇게 들었어. 맞아?", fontSize = 20.sp, lineHeight = 28.sp, color = InkBrown)
+                Text(stage.heard, fontSize = 26.sp, lineHeight = 34.sp, color = InkBrown, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().felt(WoolCream, RoundedCornerShape(20.dp)).padding(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped("ok", "맞아")) },
-                        modifier = Modifier.heightIn(min = Touch.KidMin)) {
-                        Text("맞아", fontSize = 20.sp, color = FeltWhite, modifier = Modifier.padding(14.dp))
+                        modifier = Modifier.weight(1f).heightIn(min = Touch.KidMin)) {
+                        Text("맞아", fontSize = 20.sp, lineHeight = 28.sp, color = FeltWhite,
+                            textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(14.dp))
                     }
                     FeltButton(WoolCream, onClick = { d.send(Reply.Tapped("no", "다시 말할래")) },
-                        modifier = Modifier.heightIn(min = Touch.KidMin)) {
-                        Text("다시 말할래", fontSize = 20.sp, color = InkBrown, modifier = Modifier.padding(14.dp))
+                        modifier = Modifier.weight(1f).heightIn(min = Touch.KidMin)) {
+                        Text("다시 말할래", fontSize = 20.sp, lineHeight = 28.sp, color = InkBrown,
+                            textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(14.dp))
                     }
                 }
             }
