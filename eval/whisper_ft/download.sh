@@ -5,13 +5,24 @@
 # 파일 번호는 `aihubshell -mode l -datasetkey 108` 로 10-06 에 확인한 값이다.
 #
 # ⚠️ 재배포 금지 데이터다. 받은 폴더를 레포 · 클라우드 · 메신저에 올리지 않는다(레포는 공개다).
-# ⚠️ API 키는 사람이 사용자 환경 변수 AIHUB_APIKEY 로 미리 넣는다 — 채팅 · 파일 · 명령줄에 적지 않는다.
-#    넣는 법은 README 「키 넣기」(입력칸에 붙여 넣는 방식 · 명령 기록에 안 남는다). Git Bash 도 그 값을 읽는다
+# ⚠️ API 키는 사람이 **레포 루트 `.env`** 에 `AIHUB_APIKEY=<키>` 한 줄로 넣는다(README 「키 넣기」).
+#    `.env` 는 .gitignore 에 있어 커밋되지 않는다 — 이 스크립트가 직접 읽고 화면에 찍지 않는다.
+#    Claude 세션은 `.env` 를 열지 않는다(CLAUDE.md). 키를 채팅 · 명령줄에 적지 않는다.
+#    (환경 변수 AIHUB_APIKEY 가 이미 있으면 그것을 쓴다)
 #
 #   bash eval/whisper_ft/download.sh D:/aihub
 set -euo pipefail
 DEST="${1:?받을 폴더를 준다 — 예: D:/aihub}"
-: "${AIHUB_APIKEY:?AIHUB_APIKEY 가 없다 — 사람이 환경 변수로 넣는다(위 주석)}"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+if [ -z "${AIHUB_APIKEY:-}" ] && [ -f "$ROOT/.env" ]; then
+    # 레포가 공개라 .env 가 깃에서 빠지는지 먼저 본다 — 아니면 멈춘다
+    git -C "$ROOT" check-ignore -q .env || { echo ".env 가 .gitignore 에 없다 — 키가 공개될 수 있어 멈춘다"; exit 1; }
+    # 메모장으로 저장하면 줄 끝 CR · 따옴표 · BOM 이 붙는다 — 떼고 읽는다. 값은 찍지 않는다
+    AIHUB_APIKEY="$(sed -n 's/^\xEF\xBB\xBF//; s/^[[:space:]]*AIHUB_APIKEY[[:space:]]*=[[:space:]]*//p' "$ROOT/.env" | tail -1 | tr -d '\r"'"'"'' | sed 's/[[:space:]]*$//')"
+fi
+[ -n "${AIHUB_APIKEY:-}" ] || { echo "AI-Hub 키가 없다 — 레포 루트 .env 에 AIHUB_APIKEY=<키> 한 줄을 사람이 넣는다(README 「키 넣기」)"; exit 1; }
+export AIHUB_APIKEY
+echo "AI-Hub 키: 있음(${#AIHUB_APIKEY}자)"
 mkdir -p "$DEST"
 cd "$DEST"
 [ -f aihubshell ] || curl -fsSL -o aihubshell https://api.aihub.or.kr/api/aihubshell.do
