@@ -1,5 +1,7 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.storyPagePlan
+import com.example.finalproject_demo.demo.storyMissionResult
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.PageKind
 import com.example.finalproject_demo.demo.StoryMode
@@ -113,11 +115,39 @@ class MissionPickerTest {
     }
 
     @Test
-    fun withoutBlowingWordsOrOutsideCoopSlot1StillRubs() {
+    fun withoutBlowingWordsOrInTheDiarySlot1StillRubs() {
         assertEquals(MissionId.A6, pickMissions(coop("블록이 무너졌어")).slot1)
         assertEquals(MissionId.A6, pickMissions(coop(null)).slot1)
-        // 동화는 협업 미션이 몇 개 생긴 뒤에 따라온다 (설계 §7-3)
-        assertEquals(MissionId.A6, pickMissions(StoryFacts(StoryMode.STORY, null, "생일 촛불", null, null, false)).slot1)
+        // 그림일기는 자기 책(퍼즐 쪽)이라 말 신호를 보지 않는다
+        assertEquals(MissionId.A6, pickMissions(StoryFacts(StoryMode.DIARY, null, "생일 촛불", null, null, true)).slot1)
+    }
+
+    /** 10-06 조장: 협업에만 있던 미션을 동화도 쓴다 — 같은 말 신호 */
+    @Test
+    fun aStoryPicksTheCoopMissionsFromTheChildsWords() {
+        fun story(problem: String?, solution: String? = null) = StoryFacts(StoryMode.STORY, "C", problem, null, solution, false)
+        assertEquals(MissionId.C1, pickMissions(story("생일 촛불")).slot1)
+        assertEquals(MissionId.A1, pickMissions(story("숲에 불이 났어", "불을 껐어")).slot2)
+        assertEquals(MissionId.A6, pickMissions(story("바위가 굴러왔어")).slot1)
+        assertEquals(MissionId.E1, pickMissions(story("바위가 굴러왔어")).slot2)
+    }
+
+    /** 동화 책 쪽 계획 · 결과 문장도 그 미션의 물건으로 */
+    @Test
+    fun aStoryBookCarriesTheCoopMissionAndItsLines() {
+        val s = DemoState().apply {
+            mode = StoryMode.STORY
+            templateKey = "C"
+            problem = "생일 촛불이 너무 많았어"
+        }
+        val rub = s.storyPagePlan().first { it.kind == "RUB" }
+        assertEquals("C1", rub.mission)
+        assertEquals("촛불", rub.prop)
+        s.storyCaptions = List(s.template!!.pages.size) { "쪽" }
+        val i = s.template!!.pages.indexOfFirst { it.kind == PageKind.RUB } + 1
+        assertNull(s.storyMissionResult(i))
+        s.m1Result = "solo"
+        assertEquals("촛불이 다 꺼졌어요.", s.storyMissionResult(i))
     }
 
     /** 협업 책 쪽 계획도 C1 을 서버에 보낸다(서버 `MissionId` 에 있다) · 책 문장은 미션 전후로 */
@@ -186,8 +216,8 @@ class MissionPickerTest {
             assertEquals("${f.slot1Words} / ${f.slot2Words}", want, got.slot1 to got.slot2)
             assertTrue(got.slot1 != got.slot2)
         }
-        // 동화는 아직 그대로 (설계 §7-3)
-        assertEquals(MissionId.E1, pickMissions(StoryFacts(StoryMode.STORY, null, "불이 났어", null, "물을 뿌려 껐어", false)).slot2)
+        // 동화도 같은 말 신호로 고른다 (10-06 조장)
+        assertEquals(MissionId.A1, pickMissions(StoryFacts(StoryMode.STORY, null, "불이 났어", null, "물을 뿌려 껐어", false)).slot2)
     }
 
     @Test
