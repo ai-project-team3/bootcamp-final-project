@@ -97,7 +97,7 @@ fun DiaryDay.addStroke(stroke: Stroke): Int {
         return target.id
     }
     // 배경선 — 판을 가로지르는 납작한 선(땅 · 하늘 · 바다). 배경 조각끼리만 묶고, 물체와 섞지 않는다
-    if (isBackgroundStroke(b)) {
+    if (isBackgroundStroke(b) || isBackgroundFill(stroke, b)) {
         continuing = null
         pieces.lastOrNull { it.role == PieceRole.BACKGROUND && touchesIt(it) }?.let { return put(it) }
         // 배경을 두 획에 나눠 긋기도 한다 — 바로 전에 같은 색으로 이어 그은 첫 획(휘어 내려와 납작하지 않다)은 물체가 됐다.
@@ -194,6 +194,8 @@ fun DiaryDay.mergeInto(from: Int, into: Int) {
 internal const val BG_MIN_WIDTH = 0.55f
 /** 높이는 이만큼 이하인 납작한 선 (판 높이 비율) */
 internal const val BG_MAX_HEIGHT = 0.25f
+/** 칠한 배경 — 촘촘히 오가며 판 폭의 이만큼 이상을 칠했으면 높이와 상관없이 배경이다. 값은 10-06 한 장(모래 1.02 · 바다 1.07)으로 잡았다 */
+internal const val BG_FILL_WIDTH = 0.85f
 /** 색칠 — 획 길이가 획 상자 긴 변의 이만큼 배 이상이면 촘촘히 오간 것이다(지그재그 · 덧칠) */
 internal const val FILL_DENSITY = 3.0f
 
@@ -255,6 +257,12 @@ fun DiaryPiece.ottoSpots(): List<BoardBox> =
 
 /** 판을 가로지르는 납작한 선인가 — 땅 · 하늘 · 바다. 3~7세 값은 획 기록으로 다시 잡는다 */
 internal fun isBackgroundStroke(b: BoardBox): Boolean = b.width >= BG_MIN_WIDTH && b.height <= BG_MAX_HEIGHT
+
+/**
+ * 판을 끝에서 끝까지 칠한 배경인가 — 모래 · 바다 · 하늘을 지그재그로 칠하면 납작한 선이 아니라 높다.
+ * 10-06 실기기(15:23): 모래(높이 0.40)와 바다(0.68)가 물체가 되고 닿아 있어 한 물체로 묶였다
+ */
+internal fun isBackgroundFill(s: Stroke, b: BoardBox): Boolean = b.width >= BG_FILL_WIDTH && isFilling(s, b)
 
 /** 촘촘히 오간 획인가 — 색칠 */
 internal fun isFilling(s: Stroke, b: BoardBox): Boolean {
