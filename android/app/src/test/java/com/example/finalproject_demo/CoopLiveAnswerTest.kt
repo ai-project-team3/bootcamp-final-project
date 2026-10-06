@@ -3,6 +3,9 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.companionName
+import com.example.finalproject_demo.demo.COOP_STEPS
+import com.example.finalproject_demo.demo.coopPartPack
+import com.example.finalproject_demo.demo.heardPlace
 import com.example.finalproject_demo.demo.eul
 import com.example.finalproject_demo.demo.ga
 import com.example.finalproject_demo.demo.wa
@@ -378,6 +381,29 @@ class CoopLiveAnswerTest {
             assertEquals("마스코트가 지어 채운 것으로 셌다", 0, d.s.mascotPicks)
             val placeTurns = server.requests.count { it.first == "/turn" && it.second.optString("asked_slot") == "place" }
             assertEquals("다시 묻는 건 한 번까지인데 더 물었다", 2, placeTurns)
+        } finally { server.close() }
+    }
+
+    /**
+     * 10-06 실기기(학교 다녀왔어요) — 「뭐가 보였어?」에 「친구들」. 판정은 곳이 아니라고 했고, 사다리 끝에서 아이 말로
+     * 장소 칸에 들어갔다. 그 말이 곳 이름으로 끼어 「친구들에 누구랑 같이 갔어?」 · 「친구들에서 뭐 봤어?」가 세 번 나왔다.
+     * 아이 말은 칸에 지키되, 곳 이름으로 질문에 끼우지 않는다
+     */
+    @Test
+    fun aRejectedAnswerKeptInThePlaceSlotIsNotUsedAsAPlaceName() = run { d ->
+        val server = StoryTestServer { path, _ ->
+            if (path != "/turn") JSONObject() else JSONObject().put("judge", JSONObject().put("reason", "장소가 아니라 사람"))
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("place", "학교", "done"))
+            d.answer("체육시간")
+            d.speakUntil("친구들") { d.s.place != null }
+            assertEquals("아이 말을 칸에 지키지 않았다", "친구들", d.s.place)
+            assertNull("판정이 거절한 말을 곳 이름으로 쓴다", d.s.heardPlace())
+            val companion = COOP_STEPS.first { it.slot == "companion" }
+            d.s.coopPartPack(companion)?.rungs?.forEach { q -> assertFalse("「$q」", "친구들에" in q) }
         } finally { server.close() }
     }
 
