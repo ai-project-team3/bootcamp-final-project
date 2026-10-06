@@ -738,7 +738,11 @@ suspend fun Director.coopWriteBook() {
  * 틀 문장 책에는 이 결과가 원래 들어 있었다(「먼지를 탈탈 털어 냈어」) — 서버 문장 책에서만 빠졌던 것을 채운다.
  * 아직 안 끝냈거나 미션 쪽이 아니면 null
  */
-internal fun DemoState.coopMissionResult(kind: PageKind): String? = if (!coopMissionInBook(kind)) null else when (kind) {
+internal fun DemoState.coopMissionResult(kind: PageKind): String? =
+    // 곧 해요 책은 「-ㄹ 거예요」 — 「물을 뿌릴 거예요」 뒤에 「불이 다 꺼졌어요」가 붙었다(10-06 실기기 · CoopTense.kt)
+    coopMissionResultAsDone(kind)?.let { if (coopServerTense() == CoopReason.SOON) soonTense(it) else it }
+
+private fun DemoState.coopMissionResultAsDone(kind: PageKind): String? = if (!coopMissionInBook(kind)) null else when (kind) {
     PageKind.RUB -> if (m1Result != null) slot1Prop()?.result ?: mission1().blobName.let { "${it}${ga(it)} 사라졌어요." } else null
     PageKind.DRAG -> if (m2Result != null) {
         slot2Prop()?.result ?: if (missions().slot2 == MissionId.A3) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
