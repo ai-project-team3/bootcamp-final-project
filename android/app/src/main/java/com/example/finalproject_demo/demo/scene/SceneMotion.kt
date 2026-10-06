@@ -24,6 +24,7 @@ import kotlin.math.sqrt
  *  - [MotionKind.GLOW]    the sun breathes · stars twinkle
  *  - [MotionKind.SWIM]    fish: a butterfly's round (coral to coral) without the wing beat, turned to where they swim
  *  - [MotionKind.RISE]    bubbles rise from the sea floor and wobble on the way up
+ *  - [MotionKind.FALL]    snowflakes drift down to the horizon, turning, and start again at the top
  *  - visitors             a bird that is **not in the layout** flies in, sits on a tree or a bench for a while
  *                         and flies on ([SceneMotions.visitors]) — the still scene and its screenshots have no bird
  *
@@ -33,7 +34,7 @@ import kotlin.math.sqrt
  * Which piece moves how is a table by picture name ([MOTION_BY_RES]), next to the piece tags in `SceneKit.kt`
  * rather than inside them for now (the prototype — once settled the column moves into [KitPiece]).
  */
-enum class MotionKind { SWAY, DRIFT, FLUTTER, BOB, GLOW, SWIM, RISE }
+enum class MotionKind { SWAY, DRIFT, FLUTTER, BOB, GLOW, SWIM, RISE, FALL }
 
 /**
  * @param amount SWAY: how far the top leans at wind 1, as a share of the piece's height ·
@@ -72,6 +73,16 @@ val MOTION_BY_RES: Map<String, MotionSpec> = mapOf(
     "kit_sea_clownfish" to MotionSpec(MotionKind.SWIM),
     "kit_sea_bubble" to MotionSpec(MotionKind.RISE),
     "kit_sea_jellyfish" to MotionSpec(MotionKind.BOB, 3f, 0.6f),
+    // 숲·시골 (10-06)
+    "kit_forest_pine" to MotionSpec(MotionKind.SWAY, 0.030f, 0.7f, 2.0f),
+    "kit_forest_apple_tree" to MotionSpec(MotionKind.SWAY, 0.030f, 0.7f, 2.0f),
+    "kit_forest_sunflower" to MotionSpec(MotionKind.SWAY, 0.080f, 1.1f, 1.6f),
+    "kit_forest_carrots" to MotionSpec(MotionKind.SWAY, 0.060f, 1.3f, 1.8f),
+    // 바닷가 · 눈 나라 (10-06)
+    "kit_beach_seagull" to MotionSpec(MotionKind.DRIFT),
+    "kit_beach_sailboat" to MotionSpec(MotionKind.BOB, 2f, 0.5f),
+    "kit_snow_snowflake" to MotionSpec(MotionKind.FALL),
+    "kit_snow_snow_pine" to MotionSpec(MotionKind.SWAY, 0.020f, 0.6f, 2.0f),
 )
 
 /**
@@ -88,6 +99,16 @@ val PERCHES_BY_RES: Map<String, List<Pair<Float, Float>>> = mapOf(
     "kit_dino_palm_tree" to listOf(0.50f to 0.06f),                       // the crown, where the fronds meet
     "kit_dino_log" to listOf(0.35f to 0.12f, 0.70f to 0.12f),             // on top of the log
     "kit_dino_nest" to listOf(0.50f to 0.30f),                            // in the nest
+    "kit_forest_cottage" to listOf(0.82f to 0.04f, 0.45f to 0.05f),       // the chimney, the roof ridge
+    "kit_forest_pine" to listOf(0.50f to 0.02f),
+    "kit_forest_apple_tree" to listOf(0.50f to 0.04f, 0.20f to 0.15f, 0.80f to 0.15f),
+    "kit_forest_fence" to listOf(0.30f to 0.06f, 0.70f to 0.06f),
+    "kit_forest_stump" to listOf(0.50f to 0.08f),
+    "kit_beach_umbrella" to listOf(0.50f to 0.02f),
+    "kit_beach_lighthouse" to listOf(0.50f to 0.01f),
+    "kit_snow_snowman" to listOf(0.50f to 0.01f),
+    "kit_snow_cabin" to listOf(0.22f to 0.04f),
+    "kit_snow_snow_pine" to listOf(0.50f to 0.02f),
 )
 
 /**
@@ -100,7 +121,7 @@ data class VisitorSpec(val sit: String, val fly: String, val size: Float, val si
 val BIRD = VisitorSpec("kit_forest_bird", "kit_forest_bird_fly", size = 0.19f, sitAspect = 0.972f, flyAspect = 1.112f)
 
 /** Who visits which kit (doc §6-3 table: the bird comes to the forest and the park) */
-val VISITORS_BY_KIT: Map<String, List<VisitorSpec>> = mapOf("park" to listOf(BIRD), "dino" to listOf(BIRD))
+val VISITORS_BY_KIT: Map<String, List<VisitorSpec>> = mapOf("park" to listOf(BIRD), "dino" to listOf(BIRD), "forest" to listOf(BIRD), "snow" to listOf(BIRD))
 
 /**
  * A visitor as drawn this instant: [res] with its bottom centre at ([x], [y]), [h] px tall.
@@ -112,7 +133,7 @@ data class Visitor(
 )
 
 /** Where a butterfly rests — flowers, and for want of a flower the top of a bush or a tuft of grass */
-private val FLOWERS = setOf("kit_common_tulip", "kit_common_daisy", "kit_dino_hibiscus")
+private val FLOWERS = setOf("kit_common_tulip", "kit_common_daisy", "kit_dino_hibiscus", "kit_forest_sunflower")
 private val GREENS = setOf("kit_common_bush", "kit_common_grass", "kit_dino_fern", "kit_sea_pink_coral", "kit_sea_fan_coral")
 
 /**
@@ -244,6 +265,14 @@ class SceneMotions(
                 val right = next.dx > now.dx
                 PieceMotion(dx = now.dx, dy = now.dy, tilt = now.tilt * 0.4f,
                     scaleX = (if (right) -1f else 1f) * (if (p.flip) -1f else 1f))
+            }
+            MotionKind.FALL -> {
+                // top → the horizon, slower than a bubble, swaying and turning; then again from the top
+                val span = (f.horizon - f.top - p.h).coerceAtLeast(1f).toDouble()
+                val v = f.h * 0.025 * (0.7 + 0.6 * phase(p))
+                val down = ((p.y - p.h / 2 - f.top) + v * t + phase(p) * span) % span
+                val y = f.top + p.h / 2 + down
+                PieceMotion(dx = (p.h * 0.8 * sin(0.9 * t + ph)).toFloat(), dy = (y - p.y).toFloat(), tilt = (40.0 * sin(0.5 * t + ph)).toFloat())
             }
             MotionKind.RISE -> {
                 // floor (the horizon) → the top of the water, then again from the floor; a slow side-to-side wobble
