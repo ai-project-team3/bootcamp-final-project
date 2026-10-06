@@ -132,7 +132,8 @@ fun DemoApp() {
     LaunchedEffect(Unit) { d.go(Scene.ADULT) }
 
     val pinStage = s.stage as? Stage.Pin
-    val bubbleHidden = s.scene in setOf(Scene.ADULT, Scene.BOOK, Scene.PARENT) || pinStage != null
+    // 책장 아래 선반 줄을 말풍선이 가렸다 — 책장에서는 오또 말은 목소리로만(#154)
+    val bubbleHidden = s.scene in setOf(Scene.ADULT, Scene.BOOK, Scene.PARENT, Scene.SHELF) || pinStage != null
     // 그림일기 화면은 대사 칸 · 별 막대를 스스로 그린다 (D1 작은 말풍선 · D3 별 둘 · D5 없음 — ui/DiaryViews.kt)
     val diaryOwnsChrome = s.stage is com.example.finalproject_demo.demo.DiaryStage
 

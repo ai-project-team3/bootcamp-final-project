@@ -1381,6 +1381,10 @@ class DemoState {
 
     /** 이야기 한 권 분량만 지운다. 책장 · 부모 설정 · 하루 별 · 도감 · 수준(다음 세션 시작점) · 쓴 질문은 남긴다 */
     fun resetStory() {
+        // A session left before its book still tells what it called (10-06 · per-mode call counts)
+        com.example.finalproject_demo.net.Server.callSummary().takeIf { it.isNotEmpty() }
+            ?.let { com.example.finalproject_demo.net.Trace.line("calls", "${mode.name.lowercase()} unfinished · $it") }
+        com.example.finalproject_demo.net.Server.resetCalls()
         clearStorySound()
         enteredOnStage.clear()
         canUndo = false; canRedo = false
