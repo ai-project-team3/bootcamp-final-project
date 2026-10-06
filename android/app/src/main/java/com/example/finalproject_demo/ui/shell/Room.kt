@@ -562,6 +562,14 @@ fun LockDoor(modifier: Modifier = Modifier, onOpen: () -> Unit) {
     }
 }
 
+/** ⏸ 일시정지 — 동화 · 같이 만들기 도중 오른쪽 위 (#125 · 10-05 조장: 이야기 중에는 🔒 대신) */
+@Composable
+fun PauseButton(modifier: Modifier = Modifier, onPause: () -> Unit) {
+    TopSlot(onPause, modifier.size(TopSlot)) {
+        FeltButton(WoolCream, onClick = onPause, modifier = Modifier.size(TopFace), shape = CircleShape) { Text("⏸", fontSize = 19.sp) }
+    }
+}
+
 /**
  * 왼쪽 위 시스템 버튼 자리 (10-01) — 보이는 펠트는 [TopFace](48dp)로 줄여 덜 답답하게, 누르는 자리는 [TopSlot](56dp) 그대로.
  * 보이는 원 바깥 4dp 테두리도 눌린다 — 크기를 줄여도 누르기는 어려워지지 않는다

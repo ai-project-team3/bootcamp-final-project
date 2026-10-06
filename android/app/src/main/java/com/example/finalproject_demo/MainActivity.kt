@@ -15,11 +15,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
@@ -150,7 +152,22 @@ fun DemoApp() {
 
         // 왼쪽 위 = 시스템 — 🏠 방으로 · 🔒 부모 문(2초). 방 · 부모 · 책장은 자기 버튼이 있어 뺀다
         val kidScreen = pinStage == null && s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF)
-        if (kidScreen) com.example.finalproject_demo.ui.shell.KidTopBar(d, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 10.dp), lock = !diaryOwnsChrome)
+        // 동화 · 같이 만들기 도중에는 🔒 대신 오른쪽 위 ⏸ (#125 · 10-05 조장 — 이야기 중에는 부모 모드가 필요 없다).
+        // 그림일기는 자리를 진웅님과 정하는 중이라 그대로(🔒 는 일기 화면에서 이미 뺐다)
+        val pausable = kidScreen && !diaryOwnsChrome && (s.mode == com.example.finalproject_demo.demo.StoryMode.STORY || s.isCoop)
+        if (kidScreen) com.example.finalproject_demo.ui.shell.KidTopBar(d, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 10.dp), lock = !diaryOwnsChrome && !pausable)
+        if (pausable) com.example.finalproject_demo.ui.shell.PauseButton(Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 10.dp)) { d.holdSession() }
+
+        // 화면이 꺼지거나 앱이 뒤로 가면 이야기 도중이면 ⏸ (#125) — 돌아오면 「잠깐 쉬는 중」이 떠 있다
+        val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+        val inSession by rememberUpdatedState(kidScreen)
+        DisposableEffect(owner) {
+            val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP && inSession) d.holdSession()
+            }
+            owner.lifecycle.addObserver(obs)
+            onDispose { owner.lifecycle.removeObserver(obs) }
+        }
 
         // 시작 화면 오른쪽 위 — 하루 별
         if (s.scene == Scene.ADULT && pinStage == null) {
