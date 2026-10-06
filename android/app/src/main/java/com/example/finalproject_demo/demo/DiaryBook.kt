@@ -145,15 +145,15 @@ fun buildDiaryBook(input: DiaryBookInput): List<DiaryPage> {
         return withMissions(pages, input)
     }
     line(DiaryPageKind.PLACE)?.let { pages += page(DiaryPageKind.PLACE, placeSentence(it), castAll = true) }
-    line(DiaryPageKind.PROBLEM)?.let { pages += page(DiaryPageKind.PROBLEM, yo(it)) }
-    line(DiaryPageKind.REACTION)?.let { pages += page(DiaryPageKind.REACTION, joinWith("그때", yo(it))) }
+    line(DiaryPageKind.PROBLEM)?.let { pages += page(DiaryPageKind.PROBLEM, yoAll(it)) }
+    line(DiaryPageKind.REACTION)?.let { pages += page(DiaryPageKind.REACTION, joinWith("그때", yoAll(it))) }
     line(DiaryPageKind.SOLUTION)?.let {
         // 문제가 없던 날에는 해결 말투를 쓰지 않는다 · 마스코트가 메운 결말에는 「마침내」를 붙이지 않는다 (guidelines/7 §5-1)
-        val text = if (by(DiaryPageKind.SOLUTION) == "mascot") yo(it)
-        else joinWith(if (troubled(lines)) "마침내" else "그러고 나서", yo(it))
+        val text = if (by(DiaryPageKind.SOLUTION) == "mascot") yoAll(it)
+        else joinWith(if (troubled(lines)) "마침내" else "그러고 나서", yoAll(it))
         pages += page(DiaryPageKind.SOLUTION, text)
     }
-    line(DiaryPageKind.KEEP)?.let { pages += page(DiaryPageKind.KEEP, yo(it)) }
+    line(DiaryPageKind.KEEP)?.let { pages += page(DiaryPageKind.KEEP, yoAll(it)) }
 
     // 빈 결말은 지어내지 않고 비었다고 쓴다 — 일어난 일 쪽 끝에 붙인다
     if (line(DiaryPageKind.SOLUTION) == null) {
@@ -200,6 +200,9 @@ internal fun troubled(lines: Map<String, String>): Boolean =
  * 아이 말 → -어요체 한 문장. **서버가 없을 때만 쓰는 어림**이다 — 진짜 문장은 `/story` 가 쓴다.
  * 이미 -요 로 끝나면 그대로, 「거야」는 「거예요」, 「-어 · -아 · -해 …」는 「-요」를 붙인다.
  */
+/** 한 칸에 덧붙은 말(「앞 말 / 새 말」 · #220)은 문장마다 「~요」로 */
+internal fun yoAll(raw: String): String = raw.split(" / ").map(String::trim).filter(String::isNotEmpty).joinToString(" ") { yo(it) }
+
 internal fun yo(raw: String): String {
     val t = raw.trim().trimEnd('.', '!', '?', '~').trim()
     return when {

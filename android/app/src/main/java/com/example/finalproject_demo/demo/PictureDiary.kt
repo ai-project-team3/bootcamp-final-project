@@ -304,6 +304,20 @@ private enum class Heard { DONE, DRAW_ME, NAMED, OTHER }
 private val DRAW_ME = Regex("너도 ?그려|오또도 ?그려|같이 ?그려|그려 ?줘|그려 ?줄래")
 
 /**
+ * 묻지 않았는데 한 말이 **이야기**인가(#220) — 두 어절 이상이거나 한 일을 말하는 끝(「~했어」 · 「~졌어」 · 「~갔어요」).
+ * 한 낱말(「양동이」 · 「응」)은 조각 이름이거나 대답이라 판정에 보내지 않는다
+ */
+internal fun isStoryTalk(text: String): Boolean {
+    val t = text.trim().trimEnd('.', '!', '?', '~', '…').trim()
+    if (t.isEmpty() || dontKnow(t)) return false
+    if (t.split(Regex("\\s+")).size >= 2) return true
+    // 끝이 「어」 · 「어요」 · 「요」이고 그 앞 글자에 받침 ㅆ — 「했어」 「넘어졌어」 「갔어요」
+    val stem = t.removeSuffix("요").removeSuffix("어")
+    val last = stem.lastOrNull() ?: return false
+    return stem.length < t.length && last in '가'..'힣' && (last - '가') % 28 == 20
+}
+
+/**
  * 그리는 중에 들은 말 — 「다 그렸어」면 끝, 「너도 그려줘」면 묻지 않고 바로 오또가 그린다(이름이 아직 없어도),
  * 방금 그리던 조각에 이름이 없으면 그 말을 이름으로 받는다(「이건 강아지야」). 아이 말은 모두 아이 출처다.
  */
@@ -335,7 +349,45 @@ private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke, as
         }
     }
     say("그렇구나! 계속 그려 봐.")
+    if (isStoryTalk(r.text)) keepUntoldStory(day, r)
     return Heard.OTHER
+}
+
+/**
+ * 그리는 중 묻지 않았는데 한 이야기(「아빠가 도와줬어」)를 책 재료로 남긴다(#220 ①). 전에는 받기만 하고 버렸다.
+ * 서버 모드면 `/turn` 판정이 고른 칸에 **덧붙이고**, 맞는 칸이 없거나 서버가 없으면 `extra` 에 쌓는다 — 모두 아이 출처.
+ * 오또는 이미 구운 짧은 말로 받았다 — 서버 대사(목소리)는 쓰지 않는다(한 번 1원 안쪽 · #172 비용의 대부분이 목소리)
+ */
+private suspend fun Director.keepUntoldStory(day: DiaryDay, r: Reply.Spoke) {
+    val said = r.text.trim()
+    if (Server.liveFor(s.mode)) {
+        day.turnCalls++
+        val result = s.exchangeTurn("diary", null, "", said)
+        val v = result?.verdict
+        if (v?.reason == "blocked_by_filter") { log("서버 안전 판정 — 그리는 중 한 말을 책 재료에서 뺀다"); return }
+        val fills = v?.fills.orEmpty().filter { (slot, value) -> slot in Server.SLOTS && value.isNotBlank() }
+        if (fills.isNotEmpty()) {
+            quote(said)
+            fills.forEachIndexed { i, (slot, value) ->
+                val key = bookKeyOf(slot, "")
+                addToDiarySlot(slot, key, value.trim(), if (i == 0) said else value.trim())
+                if (i > 0) day.sameSaying += key
+            }
+            result?.let { serverNext(it) }?.let { day.nextStory = it }
+            log("그리는 중 묻지 않은 이야기 「$said」 → 판정 ${fills.joinToString { it.first }} 에 덧붙임 (child · #220)")
+            return
+        }
+    }
+    quote(said)
+    addToDiarySlot("extra", "extra", said, said)
+    log("그리는 중 묻지 않은 이야기 「$said」 → 맞는 칸이 없어 extra 에 쌓음 (child · #220)")
+}
+
+/** 칸에 **덧붙인다** — 이미 있으면 「앞 말 / 새 말」(#220 · 두 사건을 덮어쓰지 않는다). 같은 말이면 그대로 */
+private fun Director.addToDiarySlot(slot: String, bookKey: String, value: String, line: String) {
+    val before = s.slots[bookKey]?.takeIf(String::isNotBlank)
+    if (before != null && line in before.split(" / ")) return
+    setDiarySlot(slot, bookKey, value, if (before == null) line else "$before / $line", "child")
 }
 
 /**
