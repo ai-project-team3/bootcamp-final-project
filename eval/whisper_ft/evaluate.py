@@ -186,7 +186,8 @@ def main() -> None:
         return {r["id"]: norm(r["ref"]) in norm(r["hyp"]) for r in rows if r["set"] == "adult"}
     ab, at = adult_ok(res["base"]), adult_ok(res["tuned"])
     lost = [k for k in ab if ab[k] and not at.get(k)]
-    print(f"\n어른 세트: 맞힘 {sum(ab.values())}/{len(ab)} → {sum(at.values())}/{len(at)} · 원래는 맞히다 놓친 것 {len(lost)}: {lost[:8]}")
+    if ab:
+        print(f"\n어른 세트: 맞힘 {sum(ab.values())}/{len(ab)} → {sum(at.values())}/{len(at)} · 원래는 맞히다 놓친 것 {len(lost)}: {lost[:8]}")
 
     # ── 판정 ──
     yb, yt = stats(res["base"], YOUNG), stats(res["tuned"], YOUNG)
@@ -197,14 +198,22 @@ def main() -> None:
     checks = [
         (f"3~5세 어절 보존 +{MIN_GAIN_YOUNG:.0f}%p 이상 · 95% 구간 아래끝 > 0", gain >= MIN_GAIN_YOUNG and lo > 0, f"{gain:+.1f}%p [{lo:+.1f}, {hi:+.1f}]"),
         (f"6세 CER 악화 ≤ {MAX_LOSS_SIX_CER}%p", st["cer"] - sb["cer"] <= MAX_LOSS_SIX_CER, f"{st['cer'] - sb['cer']:+.1f}%p"),
-        (f"어른 세트에서 놓친 것 ≤ {MAX_ADULT_WORSE}", len(lost) <= MAX_ADULT_WORSE, f"{len(lost)}개"),
+        # 어른 녹음(조장 목소리)은 깃 밖이라 남는 PC 에는 없다 — 그때는 보류로 두고 조장 PC 에서 마저 잰다
+        (f"어른 세트에서 놓친 것 ≤ {MAX_ADULT_WORSE}", None if not ab else len(lost) <= MAX_ADULT_WORSE,
+         "어른 녹음 없음 — 조장 PC 에서 따로 확인" if not ab else f"{len(lost)}개"),
         (f"헛문장 버림 증가 ≤ {MAX_DROP_RISE}%p", at_all["drop"] - ab_all["drop"] <= MAX_DROP_RISE, f"{at_all['drop'] - ab_all['drop']:+.1f}%p"),
         (f"지연 p50 증가 ≤ {MAX_LATENCY_RISE_MS}ms", at_all["p50"] - ab_all["p50"] <= MAX_LATENCY_RISE_MS, f"{at_all['p50'] - ab_all['p50']:+.0f}ms"),
     ]
     print("\n**채택 기준** (README · 10-06 고정)")
     for name, ok, val in checks:
-        print(f"- {'✅' if ok else '❌'} {name} — {val}")
-    print("\n**판정: " + ("채택 — 서버 STT_MODEL 을 바꿔도 된다**" if all(ok for _, ok, _ in checks) else "탈락 — 서버는 그대로 둔다**"))
+        print(f"- {'⏸' if ok is None else '✅' if ok else '❌'} {name} — {val}")
+    if any(ok is False for _, ok, _ in checks):
+        verdict = "탈락 — 서버는 그대로 둔다"
+    elif any(ok is None for _, ok, _ in checks):
+        verdict = "나머지 기준 통과 · 어른 확인 보류 — 조장이 어른 녹음으로 마저 확인한 뒤 정한다"
+    else:
+        verdict = "채택 — 서버 STT_MODEL 을 바꿔도 된다"
+    print(f"\n**판정: {verdict}**")
 
 
 if __name__ == "__main__":
