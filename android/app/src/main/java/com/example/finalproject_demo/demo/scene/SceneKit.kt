@@ -189,6 +189,42 @@ val SPACE_KIT = SceneKitDef(
     ),
 )
 
+// ── §3-2 바닷속 — 13 pieces (#97 2순위 셋째 · 10-06). Fish take the butterflies' place, bubbles the clouds' ──────────
+private val JELLYFISH = KitPiece("jellyfish", "kit_sea_jellyfish", PieceRole.SKY_ANCHOR, 0.45f, 0.829f, PieceBase.CENTER,
+    tilt = 6f, words = listOf("해파리"))
+private val BUBBLE = KitPiece("bubble", "kit_sea_bubble", PieceRole.SKY_FILL, 0.08f, 1.003f, PieceBase.CENTER, copies = 5,
+    words = listOf("거품", "방울"))
+private val YELLOW_FISH = KitPiece("yellow_fish", "kit_sea_yellow_fish", PieceRole.FLOAT, 0.25f, 1.073f, PieceBase.CENTER,
+    copies = 2, words = listOf("물고기", "물고기 떼"))
+private val CLOWNFISH = KitPiece("clownfish", "kit_sea_clownfish", PieceRole.FLOAT, 0.25f, 1.079f, PieceBase.CENTER,
+    copies = 1, words = listOf("물고기", "니모"))
+private val PINK_CORAL = KitPiece("pink_coral", "kit_sea_pink_coral", PieceRole.LANDMARK, 1.0f, 0.978f, words = listOf("산호"))
+private val FAN_CORAL = KitPiece("fan_coral", "kit_sea_fan_coral", PieceRole.COVER, 0.5f, 1.099f, words = listOf("산호"))
+private val SEAWEED = KitPiece("seaweed", "kit_sea_seaweed", PieceRole.LANDMARK, 1.4f, 0.609f, words = listOf("미역", "해초"))
+private val SEAWEED_FAR = SEAWEED.copy(name = "seaweed_far", role = PieceRole.FAR)
+private val SEAWEED_FRONT = SEAWEED.copy(name = "seaweed_front", role = PieceRole.FOREGROUND, size = 0.9f)
+private val CHEST = KitPiece("chest", "kit_sea_chest", PieceRole.LANDMARK, 0.6f, 1.112f, flip = false, words = listOf("보물", "상자"))
+private val CLAM = KitPiece("clam", "kit_sea_clam", PieceRole.COVER, 0.3f, 0.973f, words = listOf("진주", "조개"))
+private val SCALLOP = KitPiece("scallop", "kit_sea_scallop", PieceRole.COVER, 0.2f, 1.111f, words = listOf("조개"))
+private val STARFISH = KitPiece("starfish", "kit_sea_starfish", PieceRole.COVER, 0.2f, 1.023f, words = listOf("불가사리"))
+private val SEA_ROCK = KitPiece("sea_rock", "kit_sea_sea_rock", PieceRole.COVER, 0.4f, 1.134f, words = listOf("돌", "바위"))
+private val REEF = KitPiece("reef", "kit_sea_reef", PieceRole.FAR, 1.2f, 1.486f, words = listOf("동굴", "바위"))
+
+/** 바닷속 — 청록 물빛 · 모래 (doc §1 table); the far felt hills read as a reef */
+val SEA_KIT = SceneKitDef(
+    key = "sea",
+    skyTop = 0xFF2A7F92, skyBottom = 0xFF7CC6C4,
+    ground = 0xFFE4D2A2,
+    hillFar = 0xFF4A95A2, hillNear = 0xFF6CB0AE,
+    pieces = listOf(
+        JELLYFISH, BUBBLE, YELLOW_FISH, CLOWNFISH,
+        REEF, SEAWEED_FAR,
+        PINK_CORAL, SEAWEED, CHEST,
+        FAN_CORAL, CLAM, SCALLOP, STARFISH, SEA_ROCK,
+        SEAWEED_FRONT,
+    ),
+)
+
 object SceneKits {
     /**
      * **The one switch** (10-05). On: a live story whose place is not one of the three app themes is drawn
@@ -198,7 +234,7 @@ object SceneKits {
      */
     @Volatile var liveStory: Boolean = true
 
-    val all: Map<String, SceneKitDef> = mapOf(PARK_KIT.key to PARK_KIT, DINO_KIT.key to DINO_KIT, SPACE_KIT.key to SPACE_KIT)
+    val all: Map<String, SceneKitDef> = mapOf(PARK_KIT.key to PARK_KIT, DINO_KIT.key to DINO_KIT, SPACE_KIT.key to SPACE_KIT, SEA_KIT.key to SEA_KIT)
 
     /**
      * Which kit draws [place], or null for the app's own theme pictures.
@@ -217,6 +253,8 @@ object SceneKits {
         // reaches the stage only when the lead routes the theme places here (10-06 · #97)
         listOf("공룡", "정글", "화산", "쥬라기").any { it in place } -> DINO_KIT
         listOf("우주", "달나라", "별나라", "행성", "로켓").any { it in place } -> SPACE_KIT
+        // 「바다」 alone is the beach group in the doc (§1 — 바닷가), not under water
+        listOf("바닷속", "바다 밑", "바다 속", "물속", "용궁", "해저").any { it in place } -> SEA_KIT
         else -> null
     }
 }
