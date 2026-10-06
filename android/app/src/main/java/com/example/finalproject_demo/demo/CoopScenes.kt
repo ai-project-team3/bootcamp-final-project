@@ -701,6 +701,28 @@ private val COOP_TAIL_KEYS = listOf("detail", "said", "try", "after")
  * 받은 문장은 `storyCaptions` 에 담고 책은 그 문장으로 그린다(`StoryBank.kt` `bookCaption`).
  * 실패하거나 수가 안 맞으면 지금 틀 문장 그대로다. 이름은 보낼 때 가리고 받은 글에서 되돌린다(규칙 6).
  */
+/**
+ * 책을 쓰라고 보낼 곳 — 아이 문장에서 **곳 이름**을 뗄 수 있으면 이름만(「소방서에서 일할 것 같았어.」 → 소방서).
+ * 문장째 보내면 서버가 받아 적어 책 1쪽이 「소방서에서 일할 것 같다고 생각할 거예요」가 됐다(10-06 실기기).
+ * 칸 값은 그대로 둔다 — 부모 리포트는 아이가 한 말 원문을 보여 준다. 이름을 못 떼면(「기린 마당이 보였어」) 원문 그대로
+ */
+internal fun DemoState.coopBookPlace(): String? = place?.let { p -> bookPlaceName(p) ?: p }
+
+/**
+ * 「(곳)에서/에 (서술어)」 꼴에서 곳 이름. 공용 이름 떼기(`coopNameFrom`)는 「소방서」의 「서」를 이음 끝(「가서」)으로 봐서 못 뗀다.
+ * 이름답지 않으면 null — 조사가 붙은 어절(「엄마랑 집」) · 「거기」 · ㅆ받침(서술어) · 너무 긴 말
+ */
+internal fun bookPlaceName(said: String): String? {
+    val t = said.trim().trimEnd('.', '!', '?', '~', '…').trim()
+    val name = Regex("^(.+?)(?:에서|에)\\s+\\S").find(t)?.groupValues?.get(1)?.trim() ?: return null
+    val words = name.split(" ")
+    if (name.length > 12 || words.size > 3 || name in setOf("거기", "여기", "저기")) return null
+    // 앞 어절에 조사가 붙었으면 곳 이름이 아니라 말 토막(「엄마랑 집」). 마지막 어절은 보지 않는다 — 「제주도」 · 「독도」
+    if (words.dropLast(1).any { w -> w.length > 1 && Regex("(랑|하고|와|과|가|이|은|는|을|를|도)$").containsMatchIn(w) }) return null
+    if (name.any { c -> c in '가'..'힣' && (c - '가') % 28 == 20 }) return null
+    return name
+}
+
 suspend fun Director.coopWriteBook() {
     if (!s.isCoop || !Server.liveFor(s.mode)) return
     val pages = s.template?.pages ?: return
@@ -710,7 +732,7 @@ suspend fun Director.coopWriteBook() {
     val tails = COOP_TAIL_KEYS.mapNotNull { s.slots[it]?.takeIf(String::isNotBlank) } +
         s.coopParentAnswers.map { (question, answer) -> "「$question」에 「$answer」" }
     val slots = mapOf(
-        "place" to s.place, "problem" to s.problem, "cause" to s.cause, "solution" to s.solution,
+        "place" to s.coopBookPlace(), "problem" to s.problem, "cause" to s.cause, "solution" to s.solution,
         "reaction" to s.reaction, "companion" to s.friend,
         "extra" to tails.joinToString(" / ").ifBlank { null },
     )
