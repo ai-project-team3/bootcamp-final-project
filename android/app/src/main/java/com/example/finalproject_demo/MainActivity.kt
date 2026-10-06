@@ -41,6 +41,7 @@ import com.example.finalproject_demo.demo.LocalStoryBookStore
 import com.example.finalproject_demo.demo.StoryImageStore
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.Stage
+import com.example.finalproject_demo.demo.liveStoryProgress
 import com.example.finalproject_demo.ui.Bg
 import com.example.finalproject_demo.ui.DemoDrawer
 import com.example.finalproject_demo.ui.FloatingControls
@@ -48,6 +49,7 @@ import com.example.finalproject_demo.ui.MascotBubble
 import com.example.finalproject_demo.ui.ParentBand
 import com.example.finalproject_demo.ui.Muted
 import com.example.finalproject_demo.ui.ProgressTrack
+import com.example.finalproject_demo.ui.StoryPreparationTrack
 import com.example.finalproject_demo.ui.PuppetTypography
 import com.example.finalproject_demo.ui.ConsentStore
 import com.example.finalproject_demo.ui.FeelPrefs
@@ -152,10 +154,14 @@ fun DemoApp() {
         // redraw 60 times a second — ~140% CPU idle on a Galaxy S10 5G (eval/results.md 09-30)
         if (s.stage != Stage.Adult) StageView(d, Modifier.fillMaxSize())
 
-        // 맨 위 가운데 — 별 모으기 진행만 (09-29 디자인 시스템: 화면 이름 칩은 없다 — 아이는 글을 못 읽는다)
-        // 필수 칸은 동화 모드 6개 · 일기 모드 기승전결 네 자리 (일기 설계 §2-1)
-        // 막대는 **물은 질문 수**로 찬다 (9/22). 끝나는 조건은 여전히 filled/reqCount 가 정한다 (Model.askTotal)
-        if (s.progressVisible && pinStage == null && !diaryOwnsChrome) ProgressTrack(s.askDone, s.askTotal, Modifier.align(Alignment.TopCenter).padding(top = 4.dp))
+        // Live story progress names preparation milestones, not an unknown number of future questions.
+        // Other modes and scripted stories keep their existing track; diary stages own their chrome.
+        if (s.progressVisible && pinStage == null && !diaryOwnsChrome) {
+            val trackModifier = Modifier.align(Alignment.TopCenter).padding(top = 4.dp)
+            val storyProgress = s.liveStoryProgress
+            if (storyProgress != null) StoryPreparationTrack(storyProgress, trackModifier)
+            else ProgressTrack(s.askDone, s.askTotal, trackModifier)
+        }
 
         // 왼쪽 위 = 시스템 — 🏠 방으로 · 🔒 부모 문(2초). 방 · 부모 · 책장은 자기 버튼이 있어 뺀다
         val kidScreen = pinStage == null && s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF)

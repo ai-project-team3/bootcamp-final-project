@@ -981,7 +981,7 @@ class DemoState {
     private val questionSteps: List<DiaryStep> get() = if (isCoop) COOP_STEPS else DIARY_STEPS
 
     val askTotal: Int
-        get() = (
+        get() = liveStoryProgress?.total ?: (
             if (isDiary) questionSteps.count { it.ask(this) }.coerceAtLeast(reqCount)
             // 템플릿은 3턴째에 정해진다. 그전에는 **가장 많은 경우(3)로 잡아 둔다** —
             // 0으로 두면 3턴째에 분모가 6 → 9로 늘면서 막대가 **뒤로 물러난다** (9/22)
@@ -1023,7 +1023,7 @@ class DemoState {
      * 그래서 양쪽을 **같은 기준(칸이 찼는가)** 으로 맞췄다.
      */
     val askDone: Int
-        get() = when {
+        get() = liveStoryProgress?.filled ?: when {
             // 이야기가 끝났으면 막대도 끝까지 찬다. 기승전결이 일찍 차면 남은 질문을 안 묻고 끝나는데
             // (`story_ready`), 그때 9/10에서 멈춰 있으면 아이는 **덜 한 것처럼** 본다 (9/22)
             endReason != null && (mode != StoryMode.STORY || !Server.liveFor(mode) || storyReady) -> askTotal
