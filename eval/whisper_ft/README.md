@@ -41,11 +41,12 @@
 | 4 | 세션 | 받기 — 같은 창에서 `bash eval/whisper_ft/download.sh D:/aihub`(약 17GB · 회선에 따라 30분~2시간). 끝에 찍힌 원천 · 라벨 경로를 아래 명령의 `$R` · `$L` 로 | 두 경로가 찍힌다 |
 | 5 | 세션 | 데이터 나누기 — 명령 ①(약 15분) | 학습 · 확인 · 평가 클립 수가 찍힌다(평가 화자 65명 근처) |
 | 6 | 세션 | **시험 한 바퀴** — 명령 ②에 `--base openai/whisper-tiny --max-steps 4` 를 붙이고 `--out` 만 `D:/whisper_ft/smoke` 로(1분). 멈추면 고치고 조장에게 알린다 | `D:/whisper_ft/smoke/best` 가 생긴다 |
+| 6-1 | 세션 | **small 파일럿**(1~2시간) — 같은 데이터로 `whisper-small` 을 먼저 학습 · 평가한다. 명령 ②-s → ③-s → ④-s. 학습한 small 을 **원래 small** 과 비교한다(large 와 비교하지 않는다). 첫 25걸음 속도와 판정을 조장에게 알린다. **3~5세 어절 보존이 오르지 않았거나(+0%p 이하) 학습 손실(loss)이 줄지 않으면 7번을 시작하지 말고 멈춰서 조장에게 알린다** — large 에 하룻밤을 쓰기 전에 데이터 · 라벨 · 학습률을 먼저 본다 | 「판정: …」(참고용) |
 | 7 | 세션 | 진짜 학습 — 명령 ②(6~8시간 추정). 첫 25걸음의 속도를 조장에게 알린다(진행 막대의 `s/it` × 2,500 이 남은 시간) | 끝에 `→ .../best` |
 | 8 | 세션 | 합치기 · 변환 — 명령 ③(10분) | `D:/whisper_ft/ct2/model.bin` |
 | 9 | 세션 | 평가 — 명령 ④(30분 남짓). 어른 녹음은 이 PC 에 없어 기준 3 은 ⏸ 보류로 나온다. 표와 판정을 그대로 조장에게 | 「판정: …」 |
 | 9-1 | 세션 | **추가 비교** — 남이 Unsloth 로 한국어 미세조정해 올린 모델을 같은 평가 세트 · 같은 서버 설정으로 잰다. 명령 ⑤(변환 10분 · 모델 3GB 받기) → ⑥(30분). 아래 「추가 비교」 참고. 학습(7번)과 GPU 를 같이 쓰지 않게 **9번 뒤에** 한다 | 판정 줄이 하나 더 나온다 |
-| 10 | 세션 | **정리** — ① `eval/results.md` 맨 위에 날짜 절(`## 2026-10-0X · 받아쓰기 미세조정 …`)로 우리 모델 표 · 판정 · 채택 기준 다섯 줄 · 데이터 나누기 · 걸음 수 · 걸린 시간 · 한계, 그리고 **추가 비교 표 · 판정**을 적는다 ② **`git rm eval/whisper_ft/README.md`** ③ 두 변경을 한 커밋으로 이 브랜치에 푸시(데이터 · 모델은 넣지 않는다) ④ 조장에게 커밋 번호와 판정 둘을 알린다 | README 가 없고 `results.md` 에 절이 있다 |
+| 10 | 세션 | **정리** — ① `eval/results.md` 맨 위에 날짜 절(`## 2026-10-0X · 받아쓰기 미세조정 …`)로 small 파일럿 표 · 판정(참고용이라고 적는다), 우리 모델 표 · 판정 · 채택 기준 다섯 줄 · 데이터 나누기 · 걸음 수 · 걸린 시간 · 한계, 그리고 **추가 비교 표 · 판정**을 적는다 ② **`git rm eval/whisper_ft/README.md`** ③ 두 변경을 한 커밋으로 이 브랜치에 푸시(데이터 · 모델은 넣지 않는다) ④ 조장에게 커밋 번호와 판정 둘을 알린다 | README 가 없고 `results.md` 에 절이 있다 |
 
 **명령** — PowerShell. `$R` · `$L` 은 4번에서 찍힌 경로. 경로 구분은 `/` 로 써도 된다
 
@@ -55,6 +56,10 @@ $R = "<4번에 찍힌 원천 zip 경로>"
 $L = "<4번에 찍힌 라벨 zip 경로>"
 # ① 나누기
 .venv-ft/Scripts/python eval/whisper_ft/prepare.py --raw $R --labels $L --out D:/whisper_ft/data
+# ②-s · ③-s · ④-s  small 파일럿 (6-1번) — 결과 파일은 _small 로 따로 남는다
+.venv-ft/Scripts/python eval/whisper_ft/train_lora.py --base openai/whisper-small --data D:/whisper_ft/data --out D:/whisper_ft/lora_small
+.venv-ft/Scripts/python eval/whisper_ft/merge_convert.py --base openai/whisper-small --adapter D:/whisper_ft/lora_small/best --out D:/whisper_ft/ct2_small
+.venv-ft/Scripts/python eval/whisper_ft/evaluate.py --base small --data D:/whisper_ft/data --tuned D:/whisper_ft/ct2_small --tag small
 # ② 학습 (끊기면 같은 명령에 --resume)
 .venv-ft/Scripts/python eval/whisper_ft/train_lora.py --data D:/whisper_ft/data --out D:/whisper_ft/lora
 # ③ 합치기 · 변환
