@@ -1358,6 +1358,7 @@ private suspend fun Director.giveDiaryBook() {
         }
         book != null && DiaryShelf.save(s, book) -> {
             log("책장에 꽂기 → 폰 안에 저장(diary_books · 그림 ${book.pieces.size}조각) · 서버에는 보내지 않음")
+            keepPageVoices(book)
             book.onShelf(fresh = true)
         }
         // 저장에 실패한 책은 저장된 것처럼 꽂지 않는다 — 동화와 같은 원칙(`Director.saveFinishedStory`)
@@ -1382,21 +1383,40 @@ suspend fun Director.openSavedDiary(shelfId: String): Boolean {
     if (!shelfId.startsWith(DIARY_SHELF_ID)) return false
     val book = DiaryShelf.book(s, shelfId) ?: return false
     log("책장 → 그림일기 『${book.title}』 다시 읽기 (${book.madeAt})")
-    s.withSavedDiary(book) { day -> readPictureDiary(day, reread = true) }
+    s.withSavedDiary(book) { day -> readPictureDiary(day, reread = true, bookId = book.id) }
     say("우리가 만든 책들이야!")                        // 책장으로 돌아온다 — 마지막 쪽 문장을 말풍선에 남기지 않는다
     return true
 }
 
-/** 한 쪽씩 넘긴다. 마지막 줄이 비었으면(오늘 기분을 말하지 않았다) 얼굴을 눌러 채운다 */
-private suspend fun Director.readPictureDiary(day: DiaryDay, reread: Boolean = false) {
+/** 오또가 읽는 그 쪽의 문장 — 처음 읽을 때와 책장에서 다시 읽을 때 같은 글이라 목소리를 다시 쓴다(#179) */
+internal fun diaryPageCaption(p: DiaryPage): String =
+    if (p.kind == DiaryPageKind.PUZZLE) "내 그림을 맞춰 볼까? 조각을 끌어다 제자리에 놓아 봐!"
+    else listOfNotNull(p.text, p.tail, p.closing ?: if (p.asksFeel) "$FEEL_LEAD …" else null).joinToString(" ")
+
+/**
+ * 책장에 꽂는 책 옆에, 이번 세션에 서버에서 받은 쪽 목소리를 남긴다(#179 · 폰 안 · 오또 목소리).
+ * 다시 읽을 때 `/tts` 를 다시 부르지 않는다 — 10-06 실기기: 7쪽 일기 한 번 다시 읽기에 `/tts` 7번 · 약 26원
+ */
+private fun Director.keepPageVoices(book: SavedDiaryBook) {
+    val kept = buildDiaryBook(book.input).map(::diaryPageCaption).distinct()
+        .count { line -> voiceOf(line)?.also { DiaryShelf.keepVoice(s, book.id, line, it) } != null }
+    if (kept > 0) log("쪽 목소리 ${kept}줄을 책 옆에 남김 — 다시 읽을 때 /tts 를 부르지 않는다 (#179)")
+}
+
+/**
+ * 한 쪽씩 넘긴다. 마지막 줄이 비었으면(오늘 기분을 말하지 않았다) 얼굴을 눌러 채운다.
+ * 책장에서 다시 읽으면([bookId]) 책 옆에 남긴 목소리를 틀고, 없던 쪽은 이번에 받은 목소리를 채워 둔다(#179)
+ */
+private suspend fun Director.readPictureDiary(day: DiaryDay, reread: Boolean = false, bookId: String? = null) {
     var i = 0
+    val missing = mutableSetOf<String>()
     while (true) {
         val pages = buildDiaryBook(s.diaryBookInput())
         val p = pages[i]
         val last = i == pages.lastIndex
-        val caption = if (p.kind == DiaryPageKind.PUZZLE) "내 그림을 맞춰 볼까? 조각을 끌어다 제자리에 놓아 봐!"
-        else listOfNotNull(p.text, p.tail, p.closing ?: if (p.asksFeel) "$FEEL_LEAD …" else null).joinToString(" ")
+        val caption = diaryPageCaption(p)
         s.stage = DiaryPaper(i)
+        if (bookId != null) DiaryShelf.voice(s, bookId, caption)?.let { offerVoice(caption, it) } ?: missing.add(caption)
         say(caption)
         val b = mutableListOf<DemoBtn>()
         if (i == 0 && day.weather == null) DiaryWeather.entries.forEach { w ->
@@ -1428,6 +1448,7 @@ private suspend fun Director.readPictureDiary(day: DiaryDay, reread: Boolean = f
             r.value == "next" -> if (!last) i++ else {
                 // 다 읽고 나면 제목을 한 번 묻는다 — 내용을 다 본 뒤라 아이가 붙이기 쉽다. 이미 붙였으면 묻지 않는다 (10-01 안 2)
                 if (!reread && s.slotBy["title"] != "child") askTitle()     // 책장에서 다시 읽을 때는 묻지 않는다
+                if (bookId != null) missing.forEach { line -> voiceOf(line)?.let { DiaryShelf.keepVoice(s, bookId, line, it) } }
                 return
             }
         }
