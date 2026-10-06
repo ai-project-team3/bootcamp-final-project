@@ -35,7 +35,8 @@ def _fake(monkeypatch, typecast_status: int):
 
 def test_typecast_speaks_siwoo_happy_a_little_slower(monkeypatch):
     seen = _fake(monkeypatch, 200)
-    out = asyncio.run(tts_route.speak(tts_route.TtsRequest(text="안녕")))
+    monkeypatch.setattr(tts_route.settings, "typecast_opt_in", True)
+    out = asyncio.run(tts_route.speak(tts_route.TtsRequest(text="안녕", provider="typecast")))
     assert out.body == b"TCmp3" and out.headers["X-Otto-TTS"] == "typecast"
     body = seen[0][1]
     assert body["voice_id"] == "tc_6699eb3849dfac016c29444c"                       # Siwoo
@@ -45,7 +46,8 @@ def test_typecast_speaks_siwoo_happy_a_little_slower(monkeypatch):
 def test_a_refused_typecast_falls_back_to_openai_sage_0320(monkeypatch):
     """403 UNUSUAL_ACTIVITY_DETECTED / 402 out of credit must not silence the mascot."""
     seen = _fake(monkeypatch, 403)
-    out = asyncio.run(tts_route.speak(tts_route.TtsRequest(text="안녕")))
+    monkeypatch.setattr(tts_route.settings, "typecast_opt_in", True)
+    out = asyncio.run(tts_route.speak(tts_route.TtsRequest(text="안녕", provider="typecast")))
     assert out.body == b"OAmp3" and out.headers["X-Otto-TTS"] == "openai"
     assert seen[1][0].endswith("/audio/speech") and seen[1][1]["voice"] == "sage" and seen[1][1]["model"] == "gpt-4o-mini-tts-2025-03-20"
 
@@ -75,3 +77,22 @@ def test_elevenlabs_without_a_voice_falls_back_instead_of_going_silent(monkeypat
 def test_the_default_is_still_openai():
     from app.config import Settings
     assert Settings.model_fields["tts_provider"].default == "openai"
+
+
+def test_without_the_consent_nothing_goes_to_typecast_even_when_it_is_the_provider(monkeypatch):
+    """10-06: TypeCast is a third-party provision — only a family that opted in may be sent there."""
+    seen = _fake(monkeypatch, 200)                      # provider typecast, fallback openai
+    out = asyncio.run(tts_route.speak(tts_route.TtsRequest(text="안녕")))
+    assert out.headers["X-Otto-TTS"] == "openai" and not any("typecast" in u for u, _ in seen)
+
+
+def test_a_consenting_family_hears_typecast_only_once_it_is_switched_on(monkeypatch):
+    seen = _fake(monkeypatch, 200)
+    monkeypatch.setattr(tts_route.settings, "tts_provider", "openai")
+    monkeypatch.setattr(tts_route.settings, "tts_fallback", "")
+    monkeypatch.setattr(tts_route.settings, "typecast_opt_in", False)
+    out = asyncio.run(tts_route.speak(tts_route.TtsRequest(text="안녕", provider="typecast")))
+    assert out.headers["X-Otto-TTS"] == "openai"                                   # not ready yet: default voice
+    monkeypatch.setattr(tts_route.settings, "typecast_opt_in", True)
+    out = asyncio.run(tts_route.speak(tts_route.TtsRequest(text="안녕", provider="typecast")))
+    assert out.headers["X-Otto-TTS"] == "typecast" and "typecast" in seen[-1][0]

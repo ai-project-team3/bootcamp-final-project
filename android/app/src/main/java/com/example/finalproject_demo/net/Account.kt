@@ -50,6 +50,8 @@ sealed interface AuthResult {
 data class ConsentRecord(
     val terms: Boolean, val privacy: Boolean, val guardian: Boolean, val marketing: Boolean, val at: Long,
     val overseas: Boolean = false, val nameVoice: Boolean = false, val version: String = "",
+    /** 10-06 선택 동의 — 오또 목소리를 타입캐스트로(제3자 제공) */
+    val typecastVoice: Boolean = false,
 )
 
 /** 이메일 · 비밀번호 규칙 — 화면이 입력하는 동안 보여 주는 것과 저장할 때 막는 것이 같아야 한다 */
@@ -132,6 +134,7 @@ class LocalAccountApi(private val ctx: Context) : AccountApi {
     override suspend fun recordConsent(r: ConsentRecord): Boolean {
         prefs.edit().putBoolean("c_terms", r.terms).putBoolean("c_privacy", r.privacy).putBoolean("c_guardian", r.guardian)
             .putBoolean("c_marketing", r.marketing).putBoolean("c_overseas", r.overseas).putBoolean("c_name_voice", r.nameVoice)
+            .putBoolean("c_typecast_voice", r.typecastVoice)
             .putString("c_version", r.version).putLong("c_at", r.at).apply()
         return true
     }
