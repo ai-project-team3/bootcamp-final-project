@@ -196,8 +196,10 @@ fun SceneBack(kit: SceneKitDef, seedBase: Long, actors: Int, bottomInset: Dp, to
             scene.pieces.filter { it.piece.base == PieceBase.CENTER && it.piece.role != PieceRole.FLOAT }
                 .sortedBy { it.h }.forEach { drawPiece(it) }
             // hills — two felt layers above the horizon, then the hazy far band
-            hill(f, hills[0], Color(kit.hillFar))
-            hill(f, hills[1], Color(kit.hillNear))
+            if (kit.hills) {
+                hill(f, hills[0], Color(kit.hillFar))
+                hill(f, hills[1], Color(kit.hillNear))
+            }
             scene.pieces.filter { it.fade > 0f }.forEach { drawPiece(it) }
             // ground — from the actors' depth-0 feet line down, soft wavy stitched edge
             hill(f, hills[2], Color(kit.ground))

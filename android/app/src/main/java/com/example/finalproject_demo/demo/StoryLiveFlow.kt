@@ -219,7 +219,9 @@ internal fun DemoState.syncStoryPresentation() {
         s.generatedBg = theme == null
         // a new place gets a new kit layout seed; the same place keeps its scene (turn after turn, undo/redo)
         if (s.place != place) s.sceneSeed = kotlin.random.Random.nextLong()
-        s.sceneKit = if (theme == null && SceneKits.liveStory) SceneKits.matching(place)?.key else null
+        // the three app themes (공룡 나라 · 우주 · 바다) go to their kits too — the kit has a floor and lives (birds, bubbles);
+        // the theme picture is only for a place no kit matches (10-06 lead decision on #222 · device-checked all eight kits)
+        s.sceneKit = if (SceneKits.liveStory) SceneKits.matching(place)?.key else null
         s.place = place
     }
     s.problem = s.slots["problem"]
