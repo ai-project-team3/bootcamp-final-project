@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.scene.FRIEND_SPOT
+import com.example.finalproject_demo.demo.scene.HERO_SPOT
 import com.example.finalproject_demo.ui.HeroAttr
 
 /*
@@ -96,9 +98,14 @@ private fun Director.diaryWorld(items: List<WorldItem>, bump: Boolean): Stage.Wo
 
 /** 무대 — 배경은 아이가 말한 장소, 그 위에 주인공과 (말했다면) 같이 있던 사람 */
 private fun Director.diaryStage(bump: Boolean = false): Stage {
+    // On a felt kit (co-op, #222) the actors stand on the spots the kit layout keeps clear — HERO_SPOT · FRIEND_SPOT, the
+    // same as a story. Elsewhere (a background picture) the spots tuned for those pictures stay.
+    val kit = s.isCoop && s.sceneKit != null
     val items = buildList {
-        add(WorldItem(diaryHero, 0.22f, 0.34f, 0.11f))
-        s.companionArt?.let { add(WorldItem(it, 0.58f, 0.32f, 0.12f)) }
+        add(if (kit) WorldItem(diaryHero, HERO_SPOT.x, 0.34f, 0.11f, depth = HERO_SPOT.depth) else WorldItem(diaryHero, 0.22f, 0.34f, 0.11f))
+        s.companionArt?.let {
+            add(if (kit) WorldItem(it, FRIEND_SPOT.x, 0.32f, 0.12f, depth = FRIEND_SPOT.depth) else WorldItem(it, 0.58f, 0.32f, 0.12f))
+        }
     }
     return diaryWorld(items, bump)
 }

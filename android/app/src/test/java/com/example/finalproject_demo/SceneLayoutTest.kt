@@ -85,12 +85,13 @@ class SceneLayoutTest {
         assertTrue("a big piece is ${(worst * 100).toInt()} % under a button: $where", worst <= 0.05f)
     }
 
+    /** Every kit, phone and tablet — a story and a co-op stage put their actors on the same spots (#222 · 민우 review) */
     @Test fun smallPiecesNeverTouchActorsOrTabs() {
-        for (f in listOf(phone, tabletFrame)) for (base in listOf(0L, 100L, 7777L)) {
-            val best = bestScene(PARK_KIT, 2, f, seedBase = base)
+        for (kit in SceneKits.all.values) for (f in listOf(phone, tabletFrame)) for (base in listOf(0L, 100L, 7777L)) {
+            val best = bestScene(kit, 2, f, seedBase = base)
             val keep = keepOut(f, 2)
             for (p in best.pieces.filter { it.piece.role in hard }) {
-                assertTrue("${p.piece.name} overlaps a keep-out box", keep.none { it.inter(p.box) > 0f })
+                assertTrue("${kit.key} ${p.piece.name} overlaps a keep-out box", keep.none { it.inter(p.box) > 0f })
             }
         }
     }

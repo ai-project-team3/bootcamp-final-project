@@ -231,12 +231,7 @@ fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBas
     val w = f.w.roundToInt()
     val h = f.h.roundToInt()
     val scene = bestScene(kit, 2, f, seedBase = seedBase)
-    val seed = scene.seed.toFloat()
-    val hills = listOf(
-        hillShape(f, seed, f.horizon - 0.13f * f.h, 16f, 120f),
-        hillShape(f, seed + 2, f.horizon - 0.07f * f.h, 12f, 90f),
-        hillShape(f, seed + 4, f.horizon, 5f, 140f),
-    )
+    val hills = kitHills(f, scene)
     val grain = ShaderBrush(ImageShader(FeltNoise.grain, TileMode.Repeated, TileMode.Repeated))
     val out = androidx.compose.ui.graphics.ImageBitmap(w, h)
     androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
@@ -274,14 +269,7 @@ fun SceneBack(kit: SceneKitDef, seedBase: Long, actors: Int, bottomInset: Dp, to
         val grain = remember { ShaderBrush(ImageShader(FeltNoise.grain, TileMode.Repeated, TileMode.Repeated)) }
         val motions = remember(scene, f, actors) { SceneMotions(scene, f, VISITORS_BY_KIT[kit.key].orEmpty(), actors) }
         // the hills never move — their paths are made once, not every living frame
-        val hills = remember(scene, f) {
-            val seed = scene.seed.toFloat()
-            listOf(
-                hillShape(f, seed, f.horizon - 0.13f * f.h, 16f, 120f),
-                hillShape(f, seed + 2, f.horizon - 0.07f * f.h, 12f, 90f),
-                hillShape(f, seed + 4, f.horizon, 5f, 140f),
-            )
-        }
+        val hills = remember(scene, f) { kitHills(f, scene) }
         val clock = sceneClock()
         Canvas(Modifier.fillMaxSize()) { drawKitBack(kit, scene, f, imgs, hills, grain, motions, clock?.value) }
     }
@@ -305,6 +293,16 @@ fun SceneFront(kit: SceneKitDef, seedBase: Long, actors: Int, bottomInset: Dp, t
             }
         }
     }
+}
+
+/** The two hills and the ground edge of a scene — one recipe for the stage and the book picture, so they stay alike */
+private fun kitHills(f: SceneFrame, scene: KitScene): List<HillShape> {
+    val seed = scene.seed.toFloat()
+    return listOf(
+        hillShape(f, seed, f.horizon - 0.13f * f.h, 16f, 120f),
+        hillShape(f, seed + 2, f.horizon - 0.07f * f.h, 12f, 90f),
+        hillShape(f, seed + 4, f.horizon, 5f, 140f),
+    )
 }
 
 /** The three paths of one felt layer: the wavy top edge, the fill down to the bottom, the running stitches under the edge */

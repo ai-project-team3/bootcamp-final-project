@@ -48,7 +48,7 @@ class SceneKitRoutingTest {
         listOf("산에 갔어", "뒷산", "등산", "높은 산 꼭대기", "산속 오두막").forEach { assertEquals(it, "forest", SceneKits.matching(it)?.key) }
         assertNull(SceneKits.matching("우산 나라"))
         assertNull(SceneKits.matching("산타 마을"))
-        assertEquals("산책은 공원", "park", SceneKits.matching("산책길")?.key)
+        assertEquals("a walk (산책) is the park", "park", SceneKits.matching("산책길")?.key)
     }
 
     /** Indoors the sky is a wall — no hills there; every other kit keeps them */

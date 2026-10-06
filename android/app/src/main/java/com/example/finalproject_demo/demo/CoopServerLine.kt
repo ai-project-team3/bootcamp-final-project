@@ -86,10 +86,10 @@ internal suspend fun Director.drawCoopBackground() {
     if (kit != null) {
         s.sceneSeed = kotlin.random.Random.nextLong()
         val seed = s.sceneSeed
-        log("[배경] 「$place」 키트 ${kit.key} 로 그린다 · /image 없음")
+        log("[background] 「$place」 drawn from kit ${kit.key} · no /image")
         CoroutineScope(currentCoroutineContext()).launch {
             val saved = saveKitPicture(kit, seed)
-            if (saved != null && s.coopUseGeneratedBackground(saved, place)) log("[배경] 키트 그림을 책 배경으로 저장")
+            if (saved != null && s.coopUseGeneratedBackground(saved, place)) log("[background] kit picture saved as the book background")
         }
         return
     }
