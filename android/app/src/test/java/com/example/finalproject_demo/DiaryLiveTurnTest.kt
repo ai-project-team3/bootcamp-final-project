@@ -65,7 +65,7 @@ class DiaryLiveTurnTest {
      */
     private fun live(
         fake: (JSONObject) -> String?,
-        story: suspend (Map<String, String?>, Map<String, String>, String?) -> List<String>? = { _, _, _ -> null },
+        story: suspend (Map<String, String?>, Map<String, String>, String?, List<Server.Page>?) -> List<String>? = { _, _, _, _ -> null },
         block: suspend (Director) -> Unit,
     ) = runBlocking {
         val http = FakeHttp { path, body -> if (path == "/turn") fake(JSONObject(body)) else null }
@@ -318,7 +318,7 @@ class DiaryLiveTurnTest {
         var sent: Map<String, String?>? = null
         live(
             { t -> if (t.getString("asked_slot") == "extra") wish() else turn(listOf("place" to "놀이터"), null, "놀이터에 갔구나!", null, ready = true) },
-            { slots, _, _ -> sent = slots; listOf("나는 오늘 놀이터에 갔어요.", "그 뒤에 어떻게 되었는지는 아직 듣지 못했어요.", "재미있었어요.") },
+            { slots, _, _, _ -> sent = slots; listOf("나는 오늘 놀이터에 갔어요.", "그 뒤에 어떻게 되었는지는 아직 듣지 못했어요.", "재미있었어요.") },
         ) { d ->
             val s = d.s
             d.toQuestions()
@@ -327,6 +327,24 @@ class DiaryLiveTurnTest {
             d.answer("또 가고 싶어") { s.stage is DiaryPaper }
             assertEquals("놀이터 갔어", sent?.get("place"))
             assertEquals("나는 오늘 놀이터에 갔어요.", buildDiaryBook(s.diaryBookInput()).first().text)
+        }
+    }
+
+    /** 앱이 정한 쪽 구성을 `pages` 로 보내고, 그 수대로 오면 쪽 종류를 짐작하지 않고 그대로 쓴다 (#220 ③) */
+    @Test
+    fun theBookIsAskedPageByPageInTheAppsPlan() {
+        var pages: List<Server.Page>? = null
+        live(
+            { t -> if (t.getString("asked_slot") == "extra") wish() else turn(listOf("place" to "놀이터"), null, "놀이터에 갔구나!", null, ready = true) },
+            { _, _, _, p -> pages = p; listOf("나는 오늘 놀이터에 갔어요.", "내일도 또 가고 싶어요.") },
+        ) { d ->
+            val s = d.s
+            d.toQuestions()
+            assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+            d.answer("놀이터 갔어") { s.line == "내일 또 하고 싶은 거 있어?" }
+            d.answer("또 가고 싶어") { s.stage is DiaryPaper }
+            assertEquals(listOf("DEPART", "TOGETHER"), pages?.map { it.kind })
+            assertEquals(listOf("DEPART", "TOGETHER"), s.diaryDay.writtenPlan?.map { it.serverKind })
         }
     }
 
@@ -343,7 +361,7 @@ class DiaryLiveTurnTest {
                 else if (t.getString("asked_slot") == "place") turn(listOf("place" to "놀이터"), "problem", "놀이터에 갔구나!", "놀이터에서 무슨 일이 있었어?")
                 else turn(listOf("problem" to "뽀삐가 미끄럼틀에서 넘어졌다", "reaction" to "울었다"), null, "그랬구나!", null, ready = true)
             },
-            { slots, _, _ -> sent = slots; null },
+            { slots, _, _, _ -> sent = slots; null },
         ) { d ->
             val s = d.s
             d.toQuestions()
