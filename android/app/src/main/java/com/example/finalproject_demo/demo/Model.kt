@@ -904,6 +904,15 @@ class DemoState {
     /** 마스코트가 대신 채운 것이 **연속으로** 몇 번인가. 2회 연속이 끝나는 조건이다 (§3) */
     var mascotPicks by mutableStateOf(0)
 
+    /** Bumped when a mode starts — the overlay flies one star from the wallet to the track (ui/StarFlight.kt). Not reset */
+    var starFlights by mutableStateOf(0)
+
+    /** Live story: answers actually given (speech, card or mascot pick) — moves the star track every turn ([liveStoryProgress]) */
+    var storyAnswers by mutableStateOf(0)
+
+    /** Live story: highest track position shown so far — undo never moves the track back */
+    var storyGaugeHigh by mutableStateOf(0)
+
     /** 무엇으로 끝났나 — story_ready · mascot_pick · timeout (§3) */
     var endReason by mutableStateOf<String?>(null)
 
@@ -1409,7 +1418,7 @@ class DemoState {
         partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY
-        diaryStart = 0L; diaryTimeUp = false; mascotPicks = 0; endReason = null
+        diaryStart = 0L; diaryTimeUp = false; mascotPicks = 0; storyAnswers = 0; storyGaugeHigh = 0; endReason = null
         companionKind = ""
         parentCard = null; parentAsk = null; parentRung = 0; parentHasMore = false; adultLine = null
         stepsDone = 0; hotspotIntroShown = false

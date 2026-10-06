@@ -428,7 +428,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
             // 왼쪽 위 부모 문 — 누르면 부모 비밀번호
             LockDoor(Modifier.padding(12.dp)) { d.send(Reply.Tapped("parent", "부모 모드")) }
             // 오른쪽 위 오늘 만들 수 있는 책
-            StarWallet(s.dayStars, unlimited = !s.limitOn, modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 64.dp))
+            StarWallet(s.dayStars, unlimited = !s.limitOn, modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 64.dp), flightSource = true)
         }
 
         if (asking) target?.let { t ->

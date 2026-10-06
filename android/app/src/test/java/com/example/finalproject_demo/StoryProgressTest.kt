@@ -43,8 +43,8 @@ class StoryProgressTest {
 
     @Test fun readyLeavesTheLastStarForStartingBookCreation() {
         val s = DemoState().apply { endReason = "story_ready" }
-        assertEquals(10, s.askTotal)
-        assertEquals(9, s.askDone)
+        assertEquals(40, s.askTotal)
+        assertEquals(36, s.askDone)
         assertNull(s.nextStoryPrompt())
     }
 
@@ -53,9 +53,9 @@ class StoryProgressTest {
             listOf("place", "problem", "reaction", "newcomer", "solution").forEach { slots[it] = "아이의 답" }
             syncStoryPresentation()
         }
-        assertEquals(5, s.askDone)
+        assertEquals(21, s.askDone)
         s.applyStoryVerdict(Server.Verdict("ready", emptyList(), null, null, true, false, null, false, false, false, null), "child")
-        assertEquals("the last answer leaves the book-start star open", 9, s.askDone)
+        assertEquals("the last answer leaves the book-start star open", 36, s.askDone)
         s.scene = Scene.MAKING
         s.stage = Stage.Making("이야기 문장을 쓰는 중…")
         assertEquals("book creation starts with the preparation track full", s.askTotal, s.askDone)
@@ -66,7 +66,7 @@ class StoryProgressTest {
     @Test fun extraQuestionsAndTemplateChoiceDoNotInventProgressOrChangeTheScale() {
         val s = filledStory()
         val before = s.askDone to s.askTotal
-        assertEquals(7 to 10, before)
+        assertEquals(26 to 40, before)
         repeat(12) {
             s.turn++
             s.slots["place"] = "같은 장소를 다시 말한 답"
@@ -78,13 +78,13 @@ class StoryProgressTest {
 
     @Test fun drawingAndSoundAloneDoNotClaimConversationOrBookCompletion() {
         val s = filledStory().apply { storySoundAttempted = true; stage = Stage.DrawPad() }
-        assertEquals(7, s.askDone)
+        assertEquals(26, s.askDone)
         assertNull(s.storyEndCondition())
         s.endReason = "story_ready"
-        assertEquals(9, s.askDone)
+        assertEquals(36, s.askDone)
         s.scene = Scene.MAKING
         s.stage = Stage.Making("준비", 0.95f)
-        assertEquals(10, s.askDone)
+        assertEquals(40, s.askDone)
     }
 
     @Test fun legacyEndReasonsCannotCompleteALiveStoryTrack() {
@@ -102,5 +102,35 @@ class StoryProgressTest {
         Server.base = "http://localhost:1"
         Server.liveModes = StoryMode.entries.toSet()
         assertEquals(before, diary.askDone to diary.askTotal)
+    }
+
+    /** 10-06 (종훈): the track sat near half and jumped to 90% on story_ready. It now rises every answer */
+    @Test fun aTypicalLiveStoryRisesEveryAnswerAndNeverJumpsAtTheEnd() {
+        val s = DemoState()
+        val answers = listOf("place", "problem", null, "cause", "newcomer", "solution")
+        var last = s.askDone
+        answers.forEach { slot ->
+            s.storyAnswers++
+            if (slot != null) s.slots[slot] = "아이의 답"
+            s.holdStoryGauge()
+            assertTrue("each answer moves the track: $last -> ${s.askDone}", s.askDone > last)
+            last = s.askDone
+        }
+        assertTrue("about 70% before story_ready, got $last/40", last >= 26)
+        s.endReason = "story_ready"
+        assertTrue("story_ready jumps ${s.askDone - last} steps", s.askDone - last <= 8)
+        assertEquals(36, s.askDone)
+    }
+
+    @Test fun undoNeverMovesTheTrackBackAndCollectingNeverFillsIt() {
+        val s = DemoState()
+        listOf("place", "problem", "cause").forEach { s.storyAnswers++; s.slots[it] = "답"; s.holdStoryGauge() }
+        val shown = s.askDone
+        s.slots.remove("cause")                 // undo removed the last fact
+        s.holdStoryGauge()
+        assertEquals(shown, s.askDone)
+        repeat(60) { s.storyAnswers++; s.holdStoryGauge() }
+        assertTrue("collecting stops short of the finishing star: ${s.askDone}", s.askDone in 30..StoryPreparationProgress.COLLECTING_MAX)
+        assertNull("the track never ends the story (rule 3)", s.storyEndCondition())
     }
 }
