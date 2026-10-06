@@ -1394,6 +1394,12 @@ class DemoState {
     /** 리포트 6축의 재료 — 남겨야 할 이벤트 (구현대본 §0-5) */
     val events = mutableStateListOf<String>()
 
+    /** Report transcript: Otto's questions and every answer with its source (demo/SessionReport.kt) */
+    val talk = mutableStateListOf<TalkLine>()
+    var talkStartedAtMs = 0L
+    /** The last shelved book's report — the parent screen shows it once the session is reset */
+    var lastReport by mutableStateOf<SessionReport?>(null)
+
     /** 말한 방식 — 부모 리포트의 원그래프 재료 (많고 적음을 평가하지 않는다) */
     var modeVoice by mutableStateOf(0)
     var modeCard by mutableStateOf(0)
@@ -1444,7 +1450,7 @@ class DemoState {
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
         generatedFriend = null; friendRequested = null
         achievements.clear(); reactions = 0
-        log.clear(); done.clear(); events.clear()
+        log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
         heroTries.clear()
         modeVoice = 0; modeCard = 0; modeDraw = 0; modeSilent = 0
         shelf.replaceAll { it.copy(fresh = false) }

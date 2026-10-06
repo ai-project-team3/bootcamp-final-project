@@ -569,9 +569,14 @@ class CoopFlowTest {
         assertTrue("새로 꽂힌 책 표시가 없다", shelved.fresh)
         assertEquals("동화 책장에 섞였다", null, d.savedStory(saved.id))
 
-        // 책장에서 누르면 저장된 그 책이 열린다
-        d.send(com.example.finalproject_demo.demo.Reply.Tapped("book", shelved.savedStoryId!!))
-        val opened = await(5_000) { (s.stage as? com.example.finalproject_demo.demo.Stage.SavedStory)?.book?.id == saved.id }
+        // 책장에서 누르면 저장된 그 책이 열린다.
+        // The shelf scene may not be waiting for a tap yet when the scene flips — a tap sent before it waits is
+        // dropped, as a child's early tap is. Tap again until the book opens (the race failed on CI · 10-06)
+        var polls = 0
+        val opened = await(5_000) {
+            if (polls++ % 60 == 0 && s.stage is com.example.finalproject_demo.demo.Stage.Shelf) d.send(com.example.finalproject_demo.demo.Reply.Tapped("book", shelved.savedStoryId!!))
+            (s.stage as? com.example.finalproject_demo.demo.Stage.SavedStory)?.book?.id == saved.id
+        }
         assertTrue("책장에서 다시 열리지 않았다: ${s.stage}", opened != null)
 
         // 읽기 화면처럼 새 상태에 되살린다 — 만들 때와 같은 책이어야 한다 (저장 형식 한 바퀴는 CoopBookStoreTest)
