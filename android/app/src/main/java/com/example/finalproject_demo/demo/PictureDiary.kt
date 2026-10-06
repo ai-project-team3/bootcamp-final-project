@@ -860,7 +860,11 @@ private const val RENAMED = "@renamed:"
 
 /** 오또 그림이 왔다 — 보여 주고 아이가 고른다. 원본이 기본값이다 */
 private suspend fun Director.showOttoDrawing(day: DiaryDay, piece: DiaryPiece) {
-    val name = piece.name ?: return
+    // 이름 없는 배경은 아이가 말한 장소로 부른다 — 배경은 이름 대신 「여기는 어디야?」를 물었다 (#168 · 10-06 실기기)
+    val name = piece.name
+        ?: s.slots["place"]?.takeIf { piece.role == PieceRole.BACKGROUND && it.isNotBlank() }
+        ?: "배경".takeIf { piece.role == PieceRole.BACKGROUND }
+        ?: return
     s.stage = DiaryBoard(pick = piece.id)
     say("짠! 나도 ${you(name)}${eul(you(name))} 그려 봤어! 어떤 게 좋아?")
     buttons(
