@@ -426,7 +426,9 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
 private suspend fun Director.coopLiveSignals(q: Question, question: String, said: String, wild: Boolean): Answer {
     val text = said.trim()
     val step = COOP_STEPS.firstOrNull { "diary_${it.bookKey}" == q.id }
-    val turn = if (step != null && !wild && !isNonAnswer(text) && Server.liveFor(s.mode)) {
+    // 한 번 거절된 말을 똑같이 다시 했으면 판정을 다시 부르지 않는다 — coopLiveValueAsSaid 가 아이 말로 받는다 (10-06 조장)
+    val repeated = step != null && s.coopRejectedAnswer(step)?.let { sameSyllables(it, text) } == true
+    val turn = if (step != null && !wild && !repeated && !isNonAnswer(text) && Server.liveFor(s.mode)) {
         val asked = step.slot.takeIf { it in Server.SLOTS && it != "extra" }
         s.exchangeTurn("coop", asked, question, text)
     } else null
@@ -661,6 +663,12 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
         return null
     }
     if (!Server.liveFor(s.mode)) return text
+    // 10-06 조장: 한 번 거절된 말을 아이가 🎤 를 다시 눌러 **같은 음절로** 또 말했으면, 그게 아이가 이야기에 넣고 싶은 말이다.
+    // 판정을 다시 부르지 않고 바로 아이 말로 받는다(두 번째 거절을 기다리지 않는다 · 서버 한 번 덜) — #100 「딴 얘기」 필드 대신
+    s.coopRejectedAnswer(step)?.takeIf { sameSyllables(it, text) }?.let {
+        log("[${step.bookKey}] 한 번 거절된 말 「$text」을 아이가 다시 똑같이 했다 → 하고 싶은 말로 받는다 (판정 다시 안 부름)")
+        return text
+    }
     val asked = step.slot.takeIf { it in Server.SLOTS && it != "extra" }
     // 바뀐 방식은 받아주기 전에 이미 한 번 불렀다(coopLiveSignals) — 그 결과를 쓴다
     val cached = s.coopTrack.liveTurn?.takeIf { it.utterance == text }.also { s.coopTrack.liveTurn = null }
@@ -692,7 +700,7 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
         log("[${step.slot}] /turn 이 이 칸을 못 찾았다 — 질문에 맞는 답이 아니었다 → 사다리")
         // 우리가 물은 걸음에 아이가 진짜로 한 답 — 사다리가 끝나면 마스코트가 짓는 대신 이 말을 넣는다.
         // 빼는 것은 상상 낱말이 든 그 말 하나뿐 — 「진짜로는」 뒤의 진짜 답은 받는다 (#99 리뷰 2)
-        // 「딴 얘기」(「쉬 마려」)도 지금은 아이 말로 지킨다 — 판정에 딴 얘기 신호가 생기면 그것으로 가른다 (#99 리뷰 1 · #100)
+        // 「딴 얘기」(「쉬 마려」)도 아이 말로 지킨다 — 다시 물었는데 같은 말을 하면 하고 싶은 말이다(10-06 조장 · #100 · 딴 얘기 필드는 만들지 않음)
         val id = step.variant.id
         val reason = s.bookPick?.reasonOrNull() ?: CoopReason.DREAM
         if (id !in s.coopTrack.parentSteps && !isWildForReality(text, reason)) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
@@ -718,6 +726,12 @@ internal fun DemoState.coopUnconfirmed(value: String?): Boolean =
  */
 internal fun DemoState.coopRejectedAnswer(step: DiaryStep): String? =
     if (!isCoop) null else trackByState[this]?.rejected?.get(step.variant.id)?.lastOrNull()
+
+/** 같은 음절인가 — 띄어쓰기 · 문장부호 · 「~」 같은 꾸밈은 빼고 글자만 본다(받아쓰기가 띄어쓰기를 매번 다르게 한다) */
+internal fun sameSyllables(a: String, b: String): Boolean {
+    fun core(t: String) = t.filter { it.isLetterOrDigit() }
+    return core(a).isNotEmpty() && core(a) == core(b)
+}
 
 /** 이 걸음에서 판정이 거절한 아이 답이 몇 번이었나 — 두 번이면 사다리를 더 내려가지 않는다 */
 internal fun DemoState.coopRejectedCount(step: DiaryStep): Int =
