@@ -21,6 +21,17 @@
 - 둘 다 **오른쪽을 본다** — 앱이 날아가는 쪽으로 뒤집는다. 문구: `little round blue bird sitting, side view facing right, wings folded …` / `… flying, side view facing right, both wings spread wide open upward …`
 - 배치 조각이 아니라 무대에 **들르는 손님**이다(`demo/scene/SceneMotion.kt` `VISITORS_BY_KIT` · 앉을 자리 `PERCHES_BY_RES`). 숲 · 시골 묶음의 나머지 10종은 아직 굽지 않았다
 
+## 2순위 ① 공룡 나라 — 12종 (#97 · 10-06)
+
+- 목록 §3-3 그대로 12종 · `kit_dino_*` · 후보 3장 중 하나씩. 앱 키트는 `SceneKit.kt` `DINO_KIT`(연노랑 하늘 · 황토 흙 · 하늘에는 공용 해 · 구름 · 나비도 같이)
+- 세로로 긴 야자나무 · 폭포는 768×1344, 가로로 긴 무지개 · 통나무는 1344×768 판에 구웠다
+
+| 조각 | 목록 문구 | 바꾼 문구 | 왜 |
+|---|---|---|---|
+| 화산 | small smoking volcano | cone-shaped brown volcano mountain with a dark red crater and a small white puff of smoke rising from its top | 연기 없는 전등갓 모양이 나왔다 |
+| 고사리 | green fern plant | clump of green fern fronds growing straight out of the ground, no pot, no soil | 화분에 심긴 채 나왔다 |
+| 공룡 발자국 | three-toed footprint | flat brown dinosaur footprint shape with three big toes, top view, a flat cut-out shape lying on the ground | 사람 발 인형이 나왔다 |
+
 ## 알아 둘 것
 
 - 앱 공통 그림체 문구(`gen_room.STYLE`)의 색 목록(크림 · 머스터드 · 코랄 · 청록 · 하늘) 때문에 **물체에 그 색 조각 · 점이 들어간다** — 돌의 점, 「빨강 · 하양 공」이 파스텔 여러 색, 풀이 여러 색. 앱 다른 그림과 맞추려고 그대로 두었다

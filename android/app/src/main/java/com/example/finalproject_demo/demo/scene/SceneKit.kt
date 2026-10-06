@@ -121,6 +121,38 @@ val PARK_KIT = SceneKitDef(
     ),
 )
 
+// ── §3-3 공룡 나라 — 12 pieces (#97 2순위 첫째 · 10-06), plus the common sun · cloud · butterfly in the sky ──────
+// aspects measured from the trimmed webps (`SceneKitShotTest.aspectsInTheTableMatchThePictures`)
+private val VOLCANO = KitPiece("volcano", "kit_dino_volcano", PieceRole.FAR, 2.5f, 0.872f, words = listOf("화산"))
+private val PALM = KitPiece("palm_tree", "kit_dino_palm_tree", PieceRole.LANDMARK, 1.9f, 0.813f, words = listOf("야자나무", "나무"))
+private val WATERFALL = KitPiece("waterfall", "kit_dino_waterfall", PieceRole.LANDMARK, 1.8f, 1.111f, words = listOf("폭포"))
+private val JUNGLE = KitPiece("jungle", "kit_dino_jungle", PieceRole.FAR, 1.4f, 1.002f, words = listOf("숲", "정글"))
+private val FERN = KitPiece("fern", "kit_dino_fern", PieceRole.COVER, 0.5f, 0.977f, words = listOf("풀", "잎"))
+private val BIG_LEAF = KitPiece("big_leaf", "kit_dino_big_leaf", PieceRole.FOREGROUND, 0.7f, 0.801f, words = listOf("잎", "나뭇잎"))
+private val EGG = KitPiece("egg", "kit_dino_egg", PieceRole.COVER, 0.25f, 0.816f, words = listOf("알", "공룡 알"))
+private val NEST = KitPiece("nest", "kit_dino_nest", PieceRole.COVER, 0.4f, 1.407f, words = listOf("둥지"))
+private val FOOTPRINT = KitPiece("footprint", "kit_dino_footprint", PieceRole.FLAT, 0.1f, 0.980f, words = listOf("발자국"))
+private val HIBISCUS = KitPiece("hibiscus", "kit_dino_hibiscus", PieceRole.COVER, 0.35f, 1.044f, words = listOf("꽃"))
+private val LOG = KitPiece("log", "kit_dino_log", PieceRole.COVER, 0.35f, 1.759f, copies = 1, words = listOf("나무", "통나무"))
+private val RAINBOW = KitPiece("rainbow", "kit_dino_rainbow", PieceRole.SKY_ANCHOR, 0.9f, 1.600f, PieceBase.CENTER, flip = false,
+    words = listOf("무지개"))
+
+/** 공룡 나라 — 연노랑 하늘 · 황토 흙 (doc §1 table), jungle-green hills behind */
+val DINO_KIT = SceneKitDef(
+    key = "dino",
+    skyTop = 0xFFF3DF95, skyBottom = 0xFFFCF3D2,
+    ground = 0xFFC9A35E,
+    hillFar = 0xFF8FB06A, hillNear = 0xFFA9C46E,
+    pieces = listOf(
+        RAINBOW, SUN, CLOUD, BUTTERFLY,
+        VOLCANO, JUNGLE,
+        PALM, WATERFALL,
+        FERN, EGG, NEST, HIBISCUS, LOG,
+        FOOTPRINT,
+        BIG_LEAF,
+    ),
+)
+
 object SceneKits {
     /**
      * **The one switch** (10-05). On: a live story whose place is not one of the three app themes is drawn
@@ -130,7 +162,7 @@ object SceneKits {
      */
     @Volatile var liveStory: Boolean = true
 
-    val all: Map<String, SceneKitDef> = mapOf(PARK_KIT.key to PARK_KIT)
+    val all: Map<String, SceneKitDef> = mapOf(PARK_KIT.key to PARK_KIT, DINO_KIT.key to DINO_KIT)
 
     /**
      * Which kit draws [place], or null for the app's own theme pictures.
@@ -143,6 +175,11 @@ object SceneKits {
 
     /** The kit whose places the child named, or null — then the place is generated as before (rule 8).
      *  10-05 device: 「미래 도시」 came out as a park; only the park kit exists yet, so only park words reach it */
-    fun matching(place: String): SceneKitDef? =
-        PARK_KIT.takeIf { listOf("공원", "놀이터", "운동장", "잔디", "산책").any { it in place } }
+    fun matching(place: String): SceneKitDef? = when {
+        listOf("공원", "놀이터", "운동장", "잔디", "산책").any { it in place } -> PARK_KIT
+        // 공룡 나라 is also an app theme: a live story's theme check runs first (`StoryLiveFlow`), so the kit
+        // reaches the stage only when the lead routes the theme places here (10-06 · #97)
+        listOf("공룡", "정글", "화산", "쥬라기").any { it in place } -> DINO_KIT
+        else -> null
+    }
 }
