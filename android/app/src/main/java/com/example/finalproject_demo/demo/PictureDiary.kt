@@ -1458,9 +1458,9 @@ private suspend fun Director.finishPictureDiary(day: DiaryDay) {
     giveDiaryBook()
 }
 
-/** 책 문장을 부르는 곳 — 테스트가 서버 없이 바꿔 끼운다. (가린 칸 · 출처 · 맺음 원문) → 쪽 문장 */
-internal var requestDiaryStory: suspend (Map<String, String?>, Map<String, String>, String?) -> List<String>? = { slots, by, keep ->
-    Server.story("diary", slots, by, keep = keep)
+/** 책 문장을 부르는 곳 — 테스트가 서버 없이 바꿔 끼운다. (가린 칸 · 출처 · 맺음 원문 · 쪽 구성) → 쪽 문장 */
+internal var requestDiaryStory: suspend (Map<String, String?>, Map<String, String>, String?, List<Server.Page>?) -> List<String>? = { slots, by, keep, pages ->
+    Server.story("diary", slots, by, keep = keep, pages = pages)
 }
 
 /**
@@ -1479,8 +1479,13 @@ private suspend fun Director.writeDiaryBook(day: DiaryDay) {
     // 한 말의 둘째 칸은 빼고 보낸다 — 첫 칸에 아이 말 그대로 있다([DiaryDay.sameSaying])
     val slots = mask.maskSlots(Server.SLOTS.associateWith { if (it in day.sameSaying) null else s.slots[it] })
     val keep = s.slots["keep"]?.takeIf(String::isNotBlank)?.let(mask::mask)
+    // 쪽 구성은 앱이 정한다(#220 ③) — 서버는 이 차례 · 이 수대로 쓰고, 앱은 쪽 종류를 짐작하지 않는다
+    val plan = diaryPagePlan(listOf("place", "companion", "problem", "reaction", "cause", "solution", "keep", "extra")
+        .associateWith { k -> if (k in day.sameSaying) null else s.slots[k] }).takeIf(List<DiaryPlanPage>::isNotEmpty)
     val t0 = System.currentTimeMillis()
-    val written = withTimeoutOrNull(DIARY_STORY_WAIT_MS) { requestDiaryStory(slots, s.slotBy.toMap(), keep) }
+    // extra 는 쪽을 받은 말만 보낸다 — RUB 쪽마다 차례대로 하나씩 쓰므로(프롬프트 규칙 10) 쪽과 말의 짝이 어긋나지 않게
+    val sent = if (plan == null) slots else slots + ("extra" to plan.mapNotNull { it.item }.joinToString(" / ").takeIf(String::isNotEmpty)?.let(mask::mask))
+    val written = withTimeoutOrNull(DIARY_STORY_WAIT_MS) { requestDiaryStory(sent, s.slotBy.toMap(), keep, plan?.map { Server.Page(it.serverKind) }) }
         ?.map(mask::unmask)?.filter(String::isNotBlank)
     val ms = System.currentTimeMillis() - t0
     if (written.isNullOrEmpty()) {
@@ -1489,6 +1494,7 @@ private suspend fun Director.writeDiaryBook(day: DiaryDay) {
         return
     }
     day.written = written
+    day.writtenPlan = plan?.takeIf { it.size == written.size }
     event("story_request", "mode" to "diary", "result" to "generated", "pages" to written.size)
     log("책 문장 ${written.size}쪽 — /story diary (${ms}ms)")
 }
