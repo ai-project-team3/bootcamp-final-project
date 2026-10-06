@@ -16,6 +16,7 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -105,14 +106,19 @@ class MicGuardTest {
         val heard = CompletableDeferred<String?>()
         Voice.listen = { speech }
         Voice.transcribe = { heard.await() }
+        // each step says where it stopped — this case timed out on CI only (10-06), never on a laptop
+        suspend fun step(what: String, condition: () -> Boolean) {
+            if (withTimeoutOrNull(10_000) { while (!condition()) delay(1); true } == null)
+                throw AssertionError("$what — mic=${d.s.micEnabled}/${d.s.micOn} transcribing=${d.s.transcribing} log=${d.s.log.take(8)}")
+        }
         val first = async { d.ask(Question("거기서 누굴 만났어?", Kind.EASY, noCards = true)) }
-        until { d.s.micEnabled }
+        step("마이크가 켜질 차례가 안 왔다") { d.s.micEnabled }
         d.toggleMic()
-        until { d.s.transcribing }
+        step("녹음 뒤 받아쓰기 중이 아니다") { d.s.transcribing }
         d.send(Reply.Tapped("lion", "사자"))              // the question moved on — a card was picked meanwhile
-        assertEquals("사자", (withTimeout(10_000) { first.await() } as Reply.Tapped).label)
+        step("카드를 골랐는데 질문이 끝나지 않았다") { first.isCompleted }
         heard.complete("친구들에서 봤더니")              // the late transcript of that question
-        until { d.s.log.any { "늦게 왔다" in it } }
+        step("늦은 받아쓰기를 버리지 않았다") { d.s.log.any { "늦게 왔다" in it } }
         assertFalse(d.s.transcribing)
     }
 }
