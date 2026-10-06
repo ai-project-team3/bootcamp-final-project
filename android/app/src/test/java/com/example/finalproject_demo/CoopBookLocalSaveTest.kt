@@ -39,6 +39,8 @@ class CoopBookLocalSaveTest {
         val result = CoopShelf.shelve(made)
         assertEquals(CoopShelved.SAVED, result)
         assertEquals(1, LocalCoopBookStore(context).load().size)
+        // 고른 이야기도 같이 남는다 — 다시 열어도 「다녀왔어요」 책인 줄 안다 (협업모드_확장_설계 §2-3)
+        assertEquals(CoopPick("place", "동물원", "done"), LocalCoopBookStore(context).load().single().snapshot!!.pick)
     }
 
     /**
