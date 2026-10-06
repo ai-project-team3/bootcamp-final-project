@@ -447,13 +447,15 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                 )
             } else if (t == Thing.SOFA && !s.coopReady) {
                 // 준비된 이야기가 없다 — 옛 흐름(어른이 띠를 읽고 묻기)으로 들어가지 않고 부모님께 부탁하라고 한다 (09-29 사용자 요청).
-                // 버튼은 하나 — 아이가 막히지 않고 방으로 돌아간다
+                // [알겠어!]는 방으로 돌아가고, [이야기 준비]는 부모님이 눌러 부모 모드의 같이 만들기 준비 탭으로 바로 간다
+                // (비밀번호를 거쳐서 · #65 조장 요청 10-06). 아이가 보고 부모님께 부탁하면 되니 두 버튼은 같은 크기다
                 ConfirmDialog(
                     "🎁", "아직 준비된 이야기가 없어!", title = t.title, art = t.art, accent = t.color,
                     detail = "부모님한테 이야기를 골라 달라고 부탁해 볼까?",
-                    note = "부모님은 🔒 → 같이 만들기에서 골라요",
-                    no = null, yes = "✓" to "알겠어!",
-                    onNo = {}, onYes = { asking = false; target = null; scope.launch { walkX.animateTo(HOME_X, tween(500)); paws.clear() } },
+                    note = "부모님이 📝 버튼으로 바로 골라 줄 수 있어요 (비밀번호 필요)",
+                    no = "📝" to "이야기 준비", yes = "✓" to "알겠어!",
+                    onNo = { done(); d.send(Reply.Tapped("parent:coop", "이야기 준비")) },
+                    onYes = { asking = false; target = null; scope.launch { walkX.animateTo(HOME_X, tween(500)); paws.clear() } },
                     modifier = Modifier.align(Alignment.Center),
                 )
             } else ConfirmDialog(

@@ -213,7 +213,7 @@ private suspend fun Director.sceneAdult() {
     )
     // 갈래가 갈라지는 유일한 자리 (일기 §1 · 협업 §3). 뒤의 흐름은 질문 세트와 **묻는 사람**만 다르고 나머지는 같다
     var picked = StoryMode.STORY
-    when (awaitValue("start", "diary", "coop", "shelf", "parent", "notice:ok", "notice:shelf", "resume", "shelf:tidy")) {
+    when (awaitValue("start", "diary", "coop", "shelf", "parent", "parent:coop", "notice:ok", "notice:shelf", "resume", "shelf:tidy")) {
         "shelf", "notice:shelf" -> { go(Scene.SHELF); return }
         // 이야기 도중 나갔다가 「이어서 할까?」에 응 (09-29) — 별을 다시 쓰지 않고, 이야기 조각을 지우지 않고 멈춘 장면부터
         "resume" -> {
@@ -223,6 +223,11 @@ private suspend fun Director.sceneAdult() {
         }
         "parent" -> {
             if (pinGate("parent")) go(Scene.PARENT) else go(Scene.ADULT)
+            return
+        }
+        // 소파 [이야기 준비] — 준비된 이야기가 없을 때 부모 모드의 같이 만들기 준비 탭으로 바로 (#65 조장 요청 · 10-06)
+        "parent:coop" -> {
+            if (pinGate("parent")) { s.parentOpenTab = "coop"; go(Scene.PARENT) } else go(Scene.ADULT)
             return
         }
         "notice:ok" -> { go(Scene.ADULT); return }
@@ -1758,8 +1763,8 @@ private suspend fun Director.sceneShelf() {
 
 private suspend fun Director.sceneParent() {
     inputs(false, false)
-    // 책장이 꽉 차 [부모 모드로]로 왔으면 책장 정리부터 (#80)
-    var tab = if (s.shelfTidyMode != null) "shelf" else "rec"
+    // 책장이 꽉 차 [부모 모드로]로 왔으면 책장 정리부터 (#80) · 소파 [이야기 준비]로 왔으면 같이 만들기 준비부터 (#65)
+    var tab = s.parentOpenTab?.also { s.parentOpenTab = null } ?: if (s.shelfTidyMode != null) "shelf" else "rec"
     buttons(
         DemoBtn("📋 오늘의 기록") { send(Reply.Tapped("tab:rec", "기록")) },
         DemoBtn("🏅 업적 보기") { send(Reply.Tapped("tab:ach", "업적")) },
