@@ -12,6 +12,7 @@ import java.io.File
  * 저장하는 곳이 새로 생기면 [PREFS] · [FILES] · [NO_BACKUP] 에 한 줄 더한다 — `LocalWipeTest` 가 지금 목록을 지킨다.
  * 계정 · 동의 · 앱 틀 설정은 각자의 저장소가 지운다(`Accounts.withdraw` · `ConsentStore.withdraw` · `Shell.resetToFirstRun`).
  * 효과음 설정(`feel`)은 아이 데이터가 아니라서 남긴다.
+ * 서버 호출 한도(`call_limits` · 날짜와 숫자뿐)도 남긴다 — 지우면 탈퇴 · 재가입으로 하루 한도가 풀린다 (10-06 · net/CallLimits.kt).
  */
 object LocalWipe {
     /** SharedPreferences — 책 목록 · 같이 만들기 질문 · 아이 이름 */

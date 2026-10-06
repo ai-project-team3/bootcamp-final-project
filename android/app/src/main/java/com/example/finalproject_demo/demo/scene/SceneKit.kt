@@ -161,7 +161,7 @@ private val MOON = KitPiece("moon", "kit_space_moon", PieceRole.SKY_ANCHOR, 0.75
     words = listOf("달", "달님"))
 private val RING_PLANET = KitPiece("ring_planet", "kit_space_ring_planet", PieceRole.SKY_ANCHOR, 0.4f, 1.508f, PieceBase.CENTER,
     tilt = 10f, words = listOf("행성", "토성"))
-private val SMALL_PLANET = KitPiece("small_planet", "kit_space_small_planet", PieceRole.SKY_FILL, 0.2f, 1.001f, PieceBase.CENTER,
+private val SMALL_PLANET = KitPiece("small_planet", "kit_space_small_planet", PieceRole.SKY_FILL, 0.2f, 0.987f, PieceBase.CENTER,
     copies = 2, words = listOf("행성", "별", "지구"))
 private val STAR = KitPiece("star", "kit_space_star", PieceRole.SKY_FILL, 0.12f, 1.039f, PieceBase.CENTER, tilt = 25f,
     copies = 4, words = listOf("별", "별님"))
@@ -173,7 +173,7 @@ private val ROCK_HILL = KitPiece("rock_hill", "kit_space_rock_hill", PieceRole.F
 private val MOON_ROCK = KitPiece("moon_rock", "kit_space_moon_rock", PieceRole.COVER, 0.3f, 1.008f, words = listOf("돌", "바위"))
 private val MOON_ROCK_FRONT = MOON_ROCK.copy(name = "moon_rock_front", role = PieceRole.FOREGROUND, size = 0.5f)
 private val CRYSTAL = KitPiece("crystal", "kit_space_crystal", PieceRole.COVER, 0.35f, 0.938f, words = listOf("보석", "수정"))
-private val CRATER = KitPiece("crater", "kit_space_crater", PieceRole.FLAT, 0.1f, 1.988f, words = listOf("구멍", "분화구"))
+private val CRATER = KitPiece("crater", "kit_space_crater", PieceRole.FLAT, 0.1f, 3.180f, words = listOf("구멍", "분화구"))
 private val FLAG = KitPiece("flag", "kit_space_flag", PieceRole.COVER, 0.6f, 0.627f, flip = false, copies = 1, words = listOf("깃발"))
 
 /** 우주 — 남색 밤하늘 · 회보라 달 표면 (doc §1 table · the prototype's space colours in `eval/layout_proto.py`) */
@@ -277,7 +277,7 @@ private val FENCE = KitPiece("fence", "kit_forest_fence", PieceRole.COVER, 0.4f,
 private val CARROTS = KitPiece("carrots", "kit_forest_carrots", PieceRole.COVER, 0.3f, 0.614f, words = listOf("당근", "밭"))
 private val APPLE_TREE = KitPiece("apple_tree", "kit_forest_apple_tree", PieceRole.LANDMARK, 1.6f, 0.893f,
     words = listOf("사과", "사과나무"))
-private val POND = KitPiece("pond", "kit_forest_pond", PieceRole.FLAT, 0.15f, 1.996f, words = listOf("연못", "물"))
+private val POND = KitPiece("pond", "kit_forest_pond", PieceRole.FLAT, 0.15f, 2.528f, words = listOf("연못", "물"))
 private val SUNFLOWER = KitPiece("sunflower", "kit_forest_sunflower", PieceRole.COVER, 0.6f, 0.607f, words = listOf("해바라기", "꽃"))
 
 /** 숲·시골 — 하늘색 · 짙은 풀밭 (doc §1 table) */

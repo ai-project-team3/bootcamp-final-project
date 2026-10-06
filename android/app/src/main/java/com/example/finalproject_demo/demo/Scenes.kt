@@ -271,9 +271,21 @@ private suspend fun Director.sceneAdult() {
         log("부모 설정: 이야기를 시작하려면 비밀번호 → 어른이 함께 있을 때만 시작")
         if (!pinGate("start")) { go(Scene.ADULT); return }
     }
+    // 서버 연결판 하루 한도 (10-06 팀 합의 · CallLimits) — 부모의 하루 별과 따로, 부모가 풀 수 없다(비용 상한)
+    if (Server.liveFor(picked) && com.example.finalproject_demo.net.CallLimits.booksLeftToday() <= 0) {
+        s.notice = "오늘은 오또랑 책을 두 권이나 만들었어! 새 이야기는 내일 같이 하자. 책장에서 만든 책을 볼까?"
+        log("서버 연결 하루 ${com.example.finalproject_demo.net.CallLimits.BOOKS_PER_DAY}권을 다 썼다 → 새 이야기를 막고 책장을 권한다")
+        buttons(
+            DemoBtn("📚 책장 보기") { send(Reply.Tapped("notice:shelf", "책장")) },
+            DemoBtn("🙂 괜찮아") { send(Reply.Tapped("notice:ok", "괜찮아")) },
+        )
+        if (awaitValue("notice:shelf", "notice:ok") == "notice:shelf") go(Scene.SHELF) else go(Scene.ADULT)
+        return
+    }
     s.paused = null          // 새 이야기 — 멈춰 둔 이야기는 버린다
     s.resetStory()
     s.mode = picked
+    if (Server.liveFor(picked)) com.example.finalproject_demo.net.CallLimits.bookStarted()
     if (s.isDiary) {
         s.diaryStart = System.currentTimeMillis()
         mark("diaryentry")

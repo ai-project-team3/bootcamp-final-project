@@ -82,6 +82,9 @@ class Settings(BaseSettings):
     # same voice into the app (eval/bake_lines.py), so the live ones must match it.
     tts_provider: str = "openai"         # openai | typecast | elevenlabs
     tts_fallback: str = ""               # "" = no fallback
+    # 10-06 조장: TypeCast only for families who gave the optional consent (third-party provision · in-app
+    # terms TYPECAST_VOICE). Off until the paid plan and the re-baked lines are ready — the terms say so.
+    typecast_opt_in: bool = False
     # 조장 10-01: Siwoo · 밝게 (09-26 blind ★) but a little fast — 0.95 until the ear test
     # (eval/bench_tts_tempo.py) settles it
     typecast_emotion: str = "happy"      # a preset name, or "smart" (reads the neighbouring lines)
@@ -103,6 +106,11 @@ class Settings(BaseSettings):
     image_warmup: bool = True            # draw one picture at start so models are loaded
     # rule 8: our image model has no safety filter — every picture is checked
     moderation_model: str = "omni-moderation-latest"
+
+    # 10-06 Play build: the whole server's paid spend per day (app/limits.py). 0 = off.
+    # About 15 testers at the phone's own limit (2 books ≈ 300 won a day) stay well under it.
+    daily_cap_krw: float = 10_000.0
+    daily_cap_state: str = ""            # where the day's total is kept; empty = backend/daily_cap.json
 
 
 settings = Settings()

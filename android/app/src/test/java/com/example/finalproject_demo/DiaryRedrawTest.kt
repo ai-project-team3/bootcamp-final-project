@@ -13,6 +13,7 @@ import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.pieceToPng
 import com.example.finalproject_demo.demo.requestRedraw
+import com.example.finalproject_demo.demo.sendBoardTool
 import com.example.finalproject_demo.demo.requestBackgroundRedraw
 import com.example.finalproject_demo.demo.boardToPng
 import com.example.finalproject_demo.demo.ottoSpots
@@ -231,6 +232,58 @@ class DiaryRedrawTest {
                     s.diaryDay.pieces.first { it.role == PieceRole.BACKGROUND }.look == PieceLook.OTTO
                 } != null)
             } finally { requestBackgroundRedraw = real }
+        }
+    }
+
+    // ── 이름 없는 조각에 [그려 줘] (10-06 실기기) ─────────────────
+
+    /** 묻기 전에 바로 그린 조각 — 이름이 없다 */
+    private suspend fun Director.drawAnUnnamedPiece() {
+        assertTrue(await { send(Reply.Tapped("draw", "그릴래")); s.buttons.any { "붓이 멈춤" in it.label } } != null)
+        s.drawing += line(Color.Blue, .10f, .40f, .30f, .40f, .30f, .80f, .10f, .80f)
+        assertTrue(await { s.diaryDay.watching } != null)
+    }
+
+    /** 감독은 듣기 전에 온 입력을 버린다 — 오또 말이 바뀔 때까지 [그려 줘]를 누른다 */
+    private suspend fun Director.tapDrawMe() {
+        val before = s.line
+        assertTrue("[그려 줘]가 먹히지 않았다 — 말=${s.line}", await { sendBoardTool(Reply.Tapped("drawme", "그려 줘")); Thread.sleep(150); s.line != before } != null)
+    }
+
+    /**
+     * 이름 없는 조각을 「아이가 그린 그림」으로 주문하면 서버가 무엇인지 몰라 늘 거절했다 — 오또는 「잘 못 그렸어」 (10-06 17:09).
+     * 먼저 무엇인지 묻고, 들은 이름으로 주문한다. 그 이름은 아이가 말한 조각 이름이다
+     */
+    @Test
+    fun drawMeOnAnUnnamedPieceAsksWhatItIsFirst() {
+        var words: String? = null
+        live({ _, description -> words = description; byteArrayOf(1, 2, 3) }) { d ->
+            val s = d.s
+            d.go(Scene.DIARY)
+            d.drawAnUnnamedPiece()
+            d.tapDrawMe()
+            assertTrue("그리기 전에 무엇인지 묻지 않았다 — 말=${s.line}", await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+            assertNull("이름을 듣기 전에 주문했다", words)
+            d.say("공이야") { s.diaryDay.pieces.any { it.name == "공" } }
+            assertTrue("들은 이름으로 주문하지 않았다 — $words", await { words == "공" } != null)
+        }
+    }
+
+    /** 무엇인지 끝내 못 들었으면 주문하지 않는다 — 되지도 않을 그림을 부르고 「잘 못 그렸어」라고 하지 않는다 */
+    @Test
+    fun drawMeOnAnUnnamedPieceWithNoNameOrdersNothing() {
+        var calls = 0
+        live({ _, _ -> calls++; null }) { d ->
+            val s = d.s
+            d.go(Scene.DIARY)
+            d.drawAnUnnamedPiece()
+            d.tapDrawMe()
+            assertTrue("말=${s.line}", await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+            d.say("음") { s.line != "우와, 지금 그리는 건 뭐야?" }
+            assertTrue("이름 없이 넘어가지 않았다 — 말=${s.line}", await { s.line == "그래, 그대로 둘게!" } != null)
+            delay(300)
+            assertEquals("이름 없이 그림을 주문했다", 0, calls)
+            assertTrue("「잘 못 그렸어」라고 했다", s.log.none { "잘 못 그렸어" in it })
         }
     }
 }

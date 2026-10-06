@@ -343,11 +343,13 @@ fun ConsentStep(onBack: () -> Unit, onDone: () -> Unit, onDecline: () -> Unit = 
                 val now = System.currentTimeMillis()
                 // 원래 동의 저장소를 그대로 쓴다 — 거기 동의가 있어야 아이가 말할 수 있다 (개인정보보호법 제22조의2)
                 ConsentStore.agree()
+                ConsentStore.setTypecastVoice(on(TermsDoc.TYPECAST_VOICE))      // 선택 — 기본 꺼짐 (10-06)
                 Shell.saveConsent(TERMS_VERSION, news = on(TermsDoc.NEWS), at = now)
                 scope.launch {
                     Accounts.api.recordConsent(ConsentRecord(
                         terms = on(TermsDoc.TERMS), privacy = on(TermsDoc.GUARDIAN_INFO), guardian = on(TermsDoc.CHILD_INFO),
                         marketing = on(TermsDoc.NEWS), at = now, overseas = on(TermsDoc.OVERSEAS),
+                        typecastVoice = on(TermsDoc.TYPECAST_VOICE),
                         version = TERMS_VERSION,
                     ))
                 }

@@ -47,6 +47,22 @@ internal fun clueKindOf(piece: DiaryPiece): ClueKind? {
     return ClueKind.THING
 }
 
+/**
+ * 이야기를 아직 못 들은 사람 · 물건 조각과 그 질문(#220 ②) — 나중에 그린 것부터. 말투는 실마리와 같다(그린 사실 + 열린 질문).
+ * 실마리와 달리 **이름을 말한 것만으로는 빼지 않는다** — 이름은 조각을 물어 들은 것이라 늘 아이 말에 있다.
+ * 찬 칸(그림 이름 칸 `whiteboard` 는 빼고)에 그 이름이 이미 나왔으면 이야기를 한 것으로 본다
+ */
+internal fun DemoState.pieceStoryQuestion(day: DiaryDay): Pair<DrawnClue, String>? {
+    val told = slots.filterKeys { it != "whiteboard" }.values.filterNotNull().joinToString(" ")
+    val c = day.pieces.reversed().firstNotNullOfOrNull { p ->
+        val kind = clueKindOf(p)?.takeIf { it != ClueKind.PLACE } ?: return@firstNotNullOfOrNull null
+        val name = p.name!!.trim()
+        if (p.id in day.pieceStories || p.id in day.pieceStoryAsked || name in told) null else DrawnClue(p.id, name, kind)
+    } ?: return null
+    return c to if (c.kind == ClueKind.PERSON) "${c.name}도 그렸네! ${c.name}${eun(c.name)} 오늘 뭐 했어?"
+    else "${c.name}도 그렸네! ${c.name} 이야기 해 줄래?"
+}
+
 /** 아이가 이미 말한 것 — 찬 칸 값과 아이 말 인용 */
 private fun DemoState.saidSoFar(): String = (slots.values.filterNotNull() + quotes).joinToString(" ")
 

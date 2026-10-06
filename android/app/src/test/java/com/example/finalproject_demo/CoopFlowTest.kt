@@ -22,6 +22,7 @@ import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.coopParentAnswers
 import com.example.finalproject_demo.demo.heardPlace
+import com.example.finalproject_demo.demo.coopTailQuestion
 import com.example.finalproject_demo.demo.here
 import com.example.finalproject_demo.demo.stopCoopByParent
 import com.example.finalproject_demo.ui.templateQuestions
@@ -318,6 +319,24 @@ class CoopFlowTest {
      * 협업은 부모가 준비한 것을 다 물으면 끝난다 (09-30 확정 · guidelines/2 §1-1 · #36) — 남은 꼬리질문은 묻지 않는다.
      * 템플릿만 골랐으면 네 자리가 부모가 준비한 전부라, 결말 자리 뒤의 걸음은 묻지 않는다.
      */
+    /**
+     * 10-06 실기기(촬영 세션) — 꼬리 답을 질문 없이 보내서 서버가 「엄마가 뭐라고 할까?」의 답을 「엄마에게 재밌냐고 물어볼 것 같아요」로
+     * 말한 사람을 바꿨다. 꼬리 칸마다 실제로 물은 질문을 기억해 두고, 책을 쓸 때 「질문」에 「답」으로 보낸다
+     */
+    @Test
+    fun eachTailAnswerKeepsTheQuestionThatWasAsked() = run { d ->
+        val s = d.s
+        d.startCoopWith(pick = firefighter)
+        val askedTexts = d.walkToBook(mapOf())
+        val tails = listOf("detail", "said", "try", "after").filter { !s.slots[it].isNullOrBlank() }
+        assertTrue("꼬리 답이 하나도 없다 — 검사가 아무것도 안 봤다: ${s.slots}", tails.isNotEmpty())
+        tails.forEach { k ->
+            val q = s.coopTailQuestion(k)
+            assertNotNull("[$k] 물은 질문을 기억하지 않았다", q)
+            assertTrue("[$k] 기억한 질문 「$q」을 오또가 묻지 않았다: $askedTexts", q in askedTexts)
+        }
+    }
+
     @Test
     fun coopEndsAfterTheSolutionWhenOnlyAStoryWasPicked() = run { d ->
         val s = d.s

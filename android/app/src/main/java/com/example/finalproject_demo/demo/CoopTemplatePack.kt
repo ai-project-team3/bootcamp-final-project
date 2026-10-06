@@ -61,6 +61,21 @@ internal fun DemoState.heardPlace(): String? {
 /** 말끝이 이러면 이름이 아니라 문장이다 (갔어 · 있어요 · 했다 · 몰라 …) */
 private val PLACE_NOT_A_NAME = listOf("어", "요", "다", "야", "지", "까", "해", "서", "고", "니", "라")
 
+/** 집 이야기인가 — 고른 곳이 우리 집이거나, 아이가 말한 곳이 우리 집 · 내 방 · 거실. 할머니 집은 다녀오는 곳이라 아니다 */
+internal fun DemoState.coopAtHome(): Boolean {
+    val picked = coopPick?.takeIf { it.kind == "place" }?.name?.trim()
+    if (picked == "우리집" || picked == "우리 집" || picked == "집") return true
+    val said = place?.trim().orEmpty()
+    return listOf("우리 집", "우리집", "내 방", "거실").any { said.startsWith(it) }
+}
+
+/** 같이 간 사람 질문의 「갔어 · 갈 거야」를 집에 맞게 「있었어 · 있을 거야」로 */
+private fun atHome(q: String): String = q
+    .replace("거기 누구랑 같이 갔어?", "거기서 누구랑 같이 있었어?")
+    .replace("누구랑 갔어?", "누구랑 있었어?")
+    .replace("누구랑 같이 갈 거야?", "누구랑 같이 있을 거야?")
+    .replace("누구랑 갈까?", "누구랑 있을까?")
+
 /** 「거기서」 → 「큰 건물에서」 · 「거기 」 → 「큰 건물에 」 */
 internal fun String.here(place: String): String = replace("거기서", "${place}에서").replace("거기 ", "${place}에 ")
 
@@ -68,7 +83,10 @@ private fun DemoState.rawPartPack(step: DiaryStep): CoopPartPack? {
     if (!isCoop) return null
     val pick = coopPick ?: return null
     val reason = pick.reasonOrNull() ?: CoopReason.DREAM
-    if (!step.required) return tailPack(step.bookKey, reason, childName, friendCallName)
+    if (!step.required) return tailPack(step.bookKey, reason, childName, friendCallName)?.let { p ->
+        // 집은 「같이 갔어」가 아니다 — 「우리 집 거실에 누구랑 같이 갔어?」(10-06 실기기 · #222 키트 확인) → 「거기서 누구랑 같이 있었어?」
+        if (step.bookKey == "companion" && coopAtHome()) CoopPartPack(p.rungs.map(::atHome), p.answers, p.mascot) else p
+    }
     val part = listOf("place", "problem", "cause", "solution").indexOf(step.slot).takeIf { it >= 0 } ?: return null
     val first = pick.templateQuestions().getOrNull(part) ?: return null
     val body = when (pick.kind) {

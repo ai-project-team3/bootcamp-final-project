@@ -54,7 +54,8 @@ class LocalWipeTest {
             Regex("""PREFS\s*=\s*"([a-z_]+)"""").findAll(code).map { it.groupValues[1] }
         val dirs = Regex("""File\([^,]*(?:filesDir|noBackupFilesDir)[^,]*,\s*"([a-z_]+)"""").findAll(code).map { it.groupValues[1] }
         // 각자의 탈퇴 경로가 지우는 것 · 아이 데이터가 아닌 것
-        val handledElsewhere = setOf("otto_account", "otto_shell", "consent", "feel")
+        // call_limits: a date and counts, not the child's — kept so withdrawing does not lift the day's limit
+        val handledElsewhere = setOf("otto_account", "otto_shell", "consent", "feel", "call_limits")
         val missingPrefs = prefs.toSet() - LocalWipe.PREFS.toSet() - handledElsewhere
         val missingDirs = dirs.toSet() - LocalWipe.FILES.toSet() - LocalWipe.NO_BACKUP.toSet()
         assertTrue("탈퇴할 때 안 지우는 SharedPreferences: $missingPrefs — ui/shell/LocalWipe.kt 에 더하세요", missingPrefs.isEmpty())

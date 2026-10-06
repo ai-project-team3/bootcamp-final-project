@@ -130,7 +130,7 @@ class PictureDiaryFlowTest {
             if (await(2_000) { s.buttons.any { "🎬 오늘 이야기 시연 답" in it.label } } == null) break
             d.push("🎬 오늘 이야기 시연 답")
         }
-        assertEquals("다 그린 뒤 빈 칸 넷(어디 · 무슨 일 · 결말 · 내일)을 다 묻는다 — 전체 상한 없음 (#89)", 4, s.stepsDone)
+        assertEquals("다 그린 뒤 빈 칸 다섯(어디 · 누구랑 · 무슨 일 · 결말 · 내일)을 다 묻는다 — 전체 상한 없음 (#89 · #220)", 5, s.stepsDone)
         assertEquals("story_ready", s.endReason)
         assertEquals(listOf("child", "child", "child"), listOf("place", "problem", "solution").map { s.slotBy[it] })
         assertTrue("빈 칸을 마스코트가 메웠다: ${s.slotBy}", s.slotBy.values.none { it == "mascot" })
@@ -161,6 +161,8 @@ class PictureDiaryFlowTest {
 
         assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
         d.speak("놀이터 갔어")                       // 서버 모드의 답 — 대본 값이 없다
+        assertTrue("어디 다음에 누구랑을 묻지 않았다 (#220)", await { s.line == "누구랑 같이 있었어?" } != null)
+        d.speak("친구랑")
         assertTrue(await { s.line == "놀이터에서 무슨 일이 있었어?" } != null)
         d.speak("몰라")
         assertTrue("「몰라」에 쉬운 말로 한 번 더 묻지 않았다", await { s.line == "거기서 뭐 했어?" } != null)
@@ -711,8 +713,9 @@ class PictureDiaryFlowTest {
         d.speak("몰라")
         assertTrue(await { s.line == "괜찮아, 계속 그려 봐!" } != null)
         assertTrue(d.push("✅ 다 그렸어"))
+        // 다 그린 뒤 첫 질문은 「어디」 다음 칸 「누구랑」 — 이미 답한 「어디」는 다시 묻지 않는다 (#220 ③)
         assertTrue("다 그린 뒤 이미 답한 「어디」를 또 물었다 — 말=${s.line}",
-            await { s.stage is DiaryAsk && s.line == "놀이터에서 무슨 일이 있었어?" } != null)
+            await { s.stage is DiaryAsk && s.line == "누구랑 같이 있었어?" } != null)
     }
 
     /**
@@ -732,6 +735,7 @@ class PictureDiaryFlowTest {
         assertTrue(await { s.diaryDay.watching } != null)
         // 이야기 칸은 이미 찼다고 둔다 — 그리는 중 이야기 질문 없이 「다 그렸어?」 세기만 본다
         s.slots["place"] = "놀이터"; s.slots["problem"] = "넘어졌어"
+        s.diaryDay.pieceStoryAsked += s.diaryDay.pieces.map { it.id }        // 강아지 이야기도 이미 물었다 (#220 ②)
         repeat(3) {                                                  // 크레용 뒤 멈춤 셋 — 세지 않는다
             assertTrue(await { s.diaryDay.watching } != null)
             d.send(Reply.Tapped("pause", CRAYON_PAUSE)); delay(80)
@@ -897,6 +901,8 @@ class PictureDiaryFlowTest {
         assertTrue(d.push("그림 없이 이야기할래"))
         assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
         d.speak("놀이터 갔어")
+        assertTrue(await { s.line == "누구랑 같이 있었어?" } != null)
+        d.speak("친구랑")
         assertTrue(await { s.line == "놀이터에서 무슨 일이 있었어?" } != null)
         d.speak("그네 탔어")
         assertTrue(await { s.line == "그래서 어떻게 됐어?" } != null)
@@ -1012,6 +1018,8 @@ class PictureDiaryFlowTest {
         s.drawing += stroke(0.2f)
         assertTrue(d.push("✅ 다 그렸어"))
         assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+        assertTrue(d.push("🎬 오늘 이야기 시연 답"))
+        assertTrue(await { s.line == "누구랑 같이 있었어?" } != null)
         assertTrue(d.push("🎬 오늘 이야기 시연 답"))
         assertTrue(await { "무슨 일이" in s.line } != null)
         assertTrue(d.push("🎬 오늘 이야기 시연 답"))
