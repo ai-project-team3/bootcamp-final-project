@@ -139,6 +139,10 @@ class CoopTemplatePackTest {
         assertEquals("소방관이 일하는 곳", heard("소방관이 일하는 곳"))
         assertNull(heard("큰 건물에서 일할 것 같아"))
         assertNull(heard("놀이터에 갔어"))
+        // 10-06 실기기 — 끝 「.」 때문에 문장이 이름으로 끼어 「에 누구랑 같이 갔어?」가 됐다
+        assertNull(heard("이동이 마당이 좋았어."))
+        assertNull(heard("기린 봤어!"))
+        assertEquals("기린 마당", heard("기린 마당."))
         assertNull(heard("아직 못 들은 곳"))
         assertNull(heard(null))
         val s = state(CoopPick("job", "소방관", "soon")).apply { place = "큰 건물에서 일할 것 같아" }
