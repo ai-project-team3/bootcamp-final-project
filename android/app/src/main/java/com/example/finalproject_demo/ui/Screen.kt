@@ -378,7 +378,7 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                         }
                     }
                     if (stage.plus) {
-                        repeat((4 - stage.heroes.size).coerceAtLeast(0)) {
+                        repeat(if (stage.heroes.size < 4) 1 else 0) {   // 「새로 만들기」는 한 칸만 (#154)
                             Box(
                                 Modifier
                                     .size(146.dp, 176.dp)
