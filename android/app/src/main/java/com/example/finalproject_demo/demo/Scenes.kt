@@ -1578,10 +1578,12 @@ private suspend fun Director.sceneBook() {
             vv == "gag" -> log("장난 반응 (미션과 무관 · 저장 안 함)")
             vv == "mission" && s.bookPage == dragPage && s.m2Result == null -> {
                 s.m2Result = if (s.m1Result == "helped") "easy" else "solo"; s.reactions++; feel(Mood.CHEER)
-                s.achievements += "${m2.itemName} 건넨 손"
+                // 아이 말에서 고른 미션(불 끄기 · 잠그기 …)이면 그 미션으로 남긴다 — 「별 건넨 손」 · 「별 · 하트가 퐁」은 건네주기 때만(10-06 실기기)
+                val fix = s.slot2Prop()
+                s.achievements += fix?.badge ?: "${m2.itemName} 건넨 손"
                 show(); announce(); refreshButtons()
                 event("mission", "id" to 2, "motion" to "drag", "result" to s.m2Result)
-                log("미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (연출은 공통)")
+                log(fix?.let { "미션 2 완료 — ${it.mission.name} · 「${it.cheer}」" } ?: "미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (연출은 공통)")
                 mark("book")
             }
             vv == "dino" || vv == "sound" -> {
