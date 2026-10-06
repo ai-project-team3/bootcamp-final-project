@@ -238,6 +238,7 @@ suspend fun DemoState.exchangeTurn(
         },
         level = level.name.lowercase(),
         reason = if (mode == "coop") coopStoryReason() else null,
+        names = mask.names,
     )) ?: return null
     val verdict = response.verdict?.copy(
         fills = response.verdict.fills.map { (slot, value) -> slot to mask.unmask(value) },

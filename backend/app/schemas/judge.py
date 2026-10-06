@@ -28,7 +28,10 @@ class JudgeRequest(BaseModel):
     level: Optional[str] = None
     turn: int = 0                        # reference value, not a cap
     question: str
-    utterance: str                       # names already masked on the phone
+    utterance: str                       # names as they are since rule 6 (10-02)
+    # [hero call, friend 1, friend 2, …] — masked only on the way to Jev (TypeSafe): choosing a slot
+    # needs no names, and a vendor outside the published policy gets none (10-06). Luna and voice keep them.
+    names: list[str] = []
 
 
 class JudgeResult(BaseModel):

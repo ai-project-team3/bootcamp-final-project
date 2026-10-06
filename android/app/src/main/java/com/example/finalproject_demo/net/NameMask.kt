@@ -19,6 +19,13 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
 
     private val toName: Map<String, String>
 
+    /**
+     * `[hero, friend 1, friend 2, …]` in the order of the marks — sent as the request's `names`, so the
+     * server can hide them from Jev (10-06) with the same `{주인공}` · `{친구n}` that [unmask] turns back.
+     * An empty first entry when there is no hero name keeps the friends' numbers right.
+     */
+    val names: List<String>
+
     init {
         val pairs = buildList {
             child?.trim()?.takeIf { usable(it) }?.let { add(it to HERO) }
@@ -26,6 +33,7 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
                 .forEachIndexed { i, f -> add(f to "{친구${i + 1}}") }
         }
         toName = pairs.associate { (name, mark) -> mark to name }
+        names = pairs.map { it.first }.let { if (pairs.firstOrNull()?.second == HERO) it else listOf("") + it }
     }
 
     /** Kept so callers need not change: names are no longer hidden (10-02), so text passes as is. */
