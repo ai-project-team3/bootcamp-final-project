@@ -134,12 +134,26 @@ internal fun kitFrame(wPx: Float, hPx: Float, bottomInsetPx: Float, topInsetPx: 
     )
 }
 
+/**
+ * The frame the stage last drew a kit in (px) — the book's kit picture uses it so the same seed lays the pieces out the
+ * same. The screen size the system reports leaves out the navigation bar (2050 vs 2280 on the S10), which moved pieces.
+ */
+internal object KitStageFrame {
+    @Volatile var last: SceneFrame? = null
+
+    /** The landscape stage's size, noted by every world stage — so even the first kit has the stage's frame */
+    fun note(wPx: Float, hPx: Float, density: Float) {
+        last = kitFrame(wPx, hPx, BottomChrome.value * density, TopChrome.value * density, TAB_W.value * density, TAB_H.value * density)
+    }
+}
+
 @Composable
 private fun rememberKitScene(kit: SceneKitDef, seedBase: Long, actors: Int, wPx: Float, hPx: Float, bottomInset: Dp, topInset: Dp): Pair<KitScene, SceneFrame> {
     val density = LocalDensity.current
     return remember(kit, seedBase, actors, wPx, hPx, bottomInset, topInset) {
         with(density) {
             val f = kitFrame(wPx, hPx, bottomInset.toPx(), topInset.toPx(), TAB_W.toPx(), TAB_H.toPx())
+            if (bottomInset > 0.dp) KitStageFrame.last = f      // the landscape stage, not the portrait tablet's inner frame
             bestScene(kit, actors, f, seedBase = seedBase) to f
         }
     }
@@ -207,10 +221,15 @@ fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBas
     val imgs = kit.pieces.map { it.res }.distinct().mapNotNull { r -> load(r)?.let { r to it } }.toMap()
     val dm = res.displayMetrics
     val density = dm.density
-    // the stage is landscape; size 0 = this phone's screen, as the stage sees it
-    val w = if (wPx > 0) wPx else max(dm.widthPixels, dm.heightPixels)
-    val h = if (hPx > 0) hPx else minOf(dm.widthPixels, dm.heightPixels)
-    val f = kitFrame(w.toFloat(), h.toFloat(), BottomChrome.value * density, TopChrome.value * density, TAB_W.value * density, TAB_H.value * density)
+    // size 0 = the frame the stage itself last drew in; before any stage, this screen with the stage's chrome
+    val stage = KitStageFrame.last.takeIf { wPx <= 0 }
+    val f = stage ?: run {
+        val w0 = if (wPx > 0) wPx else max(dm.widthPixels, dm.heightPixels)
+        val h0 = if (hPx > 0) hPx else minOf(dm.widthPixels, dm.heightPixels)
+        kitFrame(w0.toFloat(), h0.toFloat(), BottomChrome.value * density, TopChrome.value * density, TAB_W.value * density, TAB_H.value * density)
+    }
+    val w = f.w.roundToInt()
+    val h = f.h.roundToInt()
     val scene = bestScene(kit, 2, f, seedBase = seedBase)
     val seed = scene.seed.toFloat()
     val hills = listOf(
