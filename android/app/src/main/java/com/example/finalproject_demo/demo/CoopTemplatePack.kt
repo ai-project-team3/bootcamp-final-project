@@ -47,9 +47,12 @@ fun DemoState.coopPartPack(step: DiaryStep): CoopPartPack? = rawPartPack(step)?.
  * 마스코트가 「아직 못 들은 …」으로 메운 칸이면 null — 그때는 「거기」를 그대로 둔다
  */
 internal fun DemoState.heardPlace(): String? {
-    val p = place?.trim()?.removeSuffix("에서")?.removeSuffix("에")?.trim() ?: return null
+    // 끝 문장부호를 먼저 뗀다 — 「이동이 마당이 좋았어.」는 「.」 때문에 「어」 끝 검사를 비껴가 「에 누구랑 같이 갔어?」가 됐다(10-06 실기기)
+    val p = place?.trim()?.trimEnd('.', '!', '?', '~', '…')?.trim()?.removeSuffix("에서")?.removeSuffix("에")?.trim() ?: return null
     if (p.isEmpty() || p.length > 12 || p.split(" ").size > 3 || p.startsWith("아직")) return null
     if (PLACE_NOT_A_NAME.any { p.endsWith(it) }) return null
+    // 마지막 어절에 ㅆ받침(갔 · 했 · 좋았)이 들었으면 서술어 — 이름이 아니라 문장이다
+    if (p.substringAfterLast(' ').any { c -> c in '가'..'힣' && (c - '가') % 28 == 20 }) return null
     return p
 }
 
