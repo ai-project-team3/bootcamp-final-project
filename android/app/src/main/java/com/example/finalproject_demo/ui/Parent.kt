@@ -1108,7 +1108,8 @@ private fun SettingRow(title: String, desc: String, checked: Boolean, onToggle: 
 
 /** 설정 — 하루 한도(토글 · 권수) · 시작 비밀번호(토글) · 그림체 4종 · 데이터. 다시 그리기 상한은 뺐다 (v0.8) */
 /**
- * 오또가 아이를 부르는 말 (10-02 조장) — 실명 칸이 아니라 **호칭**이다. 별명이면 충분하다.
+ * 오또가 아이를 부르는 말 (10-02 조장) — 실명 칸이 아니라 **호칭**이다. 10-06 조장: 별명을 권한다(예시도 별명만) —
+ * 이 말은 대사 · 목소리와 함께 위탁사로 가므로, 실명이 아니면 알아볼 수 있는 정보가 하나 준다.
  * 그대로 서버(대사 · 책)와 목소리로 간다(`net/ChildCall`). 비우면 「친구」.
  */
 @Composable
@@ -1116,7 +1117,7 @@ private fun ChildCallSection() {
     var text by remember { mutableStateOf(com.example.finalproject_demo.net.ChildCall.name ?: "") }
     PCard(Modifier.fillMaxWidth()) {
         Text("오또가 아이를 뭐라고 부를까요?", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
-        Text("별명도 좋아요 · 오또가 이야기에서 이렇게 불러요 · 비우면 「친구」", fontSize = 12.sp, color = PSub)
+        Text("실명 대신 별명을 권해요 · 오또가 이야기와 목소리에서 이렇게 불러요 · 비우면 「친구」", fontSize = 12.sp, color = PSub)
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextField(
@@ -1124,7 +1125,7 @@ private fun ChildCallSection() {
                 onValueChange = { text = it.take(10) },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                placeholder = { Text("예: 콩이 · 하준이", fontSize = 14.sp, color = PSub.copy(alpha = 0.6f)) },
+                placeholder = { Text("예: 콩이 · 별님 · 꼬마공룡", fontSize = 14.sp, color = PSub.copy(alpha = 0.6f)) },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = PBg, unfocusedContainerColor = PBg,
                     focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
