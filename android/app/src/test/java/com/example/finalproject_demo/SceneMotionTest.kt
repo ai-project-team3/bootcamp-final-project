@@ -8,6 +8,7 @@ import com.example.finalproject_demo.demo.scene.MOTION_BY_RES
 import com.example.finalproject_demo.demo.scene.MotionKind
 import com.example.finalproject_demo.demo.scene.PARK_KIT
 import com.example.finalproject_demo.demo.scene.PERCHES_BY_RES
+import com.example.finalproject_demo.demo.scene.SEA_KIT
 import com.example.finalproject_demo.demo.scene.PieceMotion
 import com.example.finalproject_demo.demo.scene.SceneFrame
 import com.example.finalproject_demo.demo.scene.SceneMotions
@@ -219,5 +220,56 @@ class SceneMotionTest {
         }
         assertTrue("the bird never sat down in twelve scenes", sat > 0)
         assertTrue("the bird always takes the same perch", withTwoPerches > 0)
+    }
+
+    // ── 바닷속 (10-06): fish swim between the corals, bubbles rise ──────────────────────────────
+
+    /** A fish never jumps, stays in the water, and faces where it swims (the pictures face left) */
+    @Test fun fishSwimFacingTheWayTheyGo() {
+        var fish = 0
+        for (seed in 0L until 8L) {
+            val scene = bestScene(SEA_KIT, 2, f, seedBase = seed * 100)
+            val m = SceneMotions(scene, f)
+            for (p in scene.pieces.filter { kindOf(it.piece.res) == MotionKind.SWIM }) {
+                fish++
+                var lx = p.x + m.of(p, 0.0).dx
+                var ly = p.y + m.of(p, 0.0).dy
+                for (t in times.drop(1)) {
+                    val at = m.of(p, t)
+                    val x = p.x + at.dx
+                    val y = p.y + at.dy
+                    assertTrue("jumped at t=$t", hypot(x - lx, y - ly) < p.h * 0.6f)
+                    assertTrue("left the water: $y", y > f.top - 1f && y < f.bottom)
+                    if (abs(x - lx) > 1f) {
+                        val screenFacesRight = (if (p.flip) -1f else 1f) * at.scaleX < 0f
+                        assertEquals("swims tail first at t=$t", x > lx, screenFacesRight)
+                    }
+                    lx = x; ly = y
+                }
+            }
+        }
+        assertTrue("no fish in eight sea scenes", fish > 0)
+    }
+
+    /** A bubble only goes up between the floor and the top of the water, except the one drop back to the floor */
+    @Test fun bubblesRiseFromTheFloor() {
+        var bubbles = 0
+        var wraps = 0
+        for (seed in 0L until 8L) {
+            val scene = bestScene(SEA_KIT, 2, f, seedBase = seed * 100)
+            val m = SceneMotions(scene, f)
+            for (p in scene.pieces.filter { kindOf(it.piece.res) == MotionKind.RISE }) {
+                bubbles++
+                var ly = p.y + m.of(p, 0.0).dy
+                for (t in times.drop(1)) {
+                    val y = p.y + m.of(p, t).dy
+                    assertTrue("bubble at $y outside the water", y >= f.top - 1f && y <= f.horizon)
+                    if (y > ly + 1f) wraps++ else assertTrue("bubble sank at t=$t", y <= ly + 0.01f)
+                    ly = y
+                }
+            }
+        }
+        assertTrue("no bubbles in eight sea scenes", bubbles > 0)
+        assertTrue("no bubble ever reached the top", wraps > 0)
     }
 }

@@ -99,6 +99,26 @@ class SceneKitShotTest {
         )
     }
 
+    /** 바닷속 (#97 2순위 · 10-06) — `screens/world_kit_sea.png` is for looking */
+    @Test
+    fun seaKitWithTwoActors() {
+        val d = Director(CoroutineScope(SupervisorJob()))
+        d.s.mode = StoryMode.STORY
+        d.s.themeKey = "sea"; d.s.generatedBg = true; d.s.placeLabel = "바닷속"
+        d.s.sceneKit = "sea"; d.s.sceneSeed = 2026L
+        val attr = HeroAttr(hair = "tied", glasses = "round", eyes = "star", bottom = "skirt")
+        d.s.heroAttr = attr
+        d.s.stage = Stage.World(listOf(
+            WorldItem(Art.HeroArt(attr), HERO_SPOT.x, 0.32f, 0.11f, depth = HERO_SPOT.depth),
+            WorldItem(Art.Img("dino_long", Art.Emoji("🦕")), FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth),
+        ))
+        compose.setContent { StageView(d) }
+        compose.onRoot().captureRoboImage(
+            File("screens/world_kit_sea.png").path,
+            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+        )
+    }
+
     @Test
     fun aspectsInTheTableMatchThePictures() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()

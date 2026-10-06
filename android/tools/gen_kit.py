@@ -74,7 +74,8 @@ KITS = {
     # 3-2 바닷속 — 2순위 셋째 (#97). 목록 §3-2 문구 그대로
     "sea": {
         "jellyfish": "pink jellyfish",
-        "bubble": "clear water bubble",
+        # 「clear water bubble」는 색 조각 박힌 펠트 공이 나왔다 — 속이 비친 동그란 방울로
+        "bubble": "single round transparent soap-bubble-like water bubble, pale see-through light blue with a small white shine highlight, hollow and empty inside",
         "yellow_fish": "small yellow fish",
         "clownfish": "orange striped clownfish",
         "pink_coral": "pink branching coral",
