@@ -320,8 +320,32 @@ class Director(
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)
         if (prefetched.size > 4) prefetched.clear()
-        prefetched.getOrPut(line) { scope.async { Voice.baked(line) ?: Server.tts(line) } }
+        prefetched.getOrPut(line) { scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } } }
     }
+
+    /**
+     * Server voices of this session's last lines, by spoken text (#179). A diary keeps its page voices with the book
+     * so reading it again from the shelf does not call /tts again (10-06: 7 calls for one reread). Baked lines are not kept.
+     */
+    private val heardVoices = object : LinkedHashMap<String, ByteArray>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>) = size > 24
+    }
+
+    private fun heard(line: String, mp3: ByteArray) = synchronized(heardVoices) { heardVoices[line] = mp3 }
+
+    internal fun rememberVoice(text: String, mp3: ByteArray) = heard(s.nameMask().speakable(text), mp3)
+
+    /** The voice the server gave for [text] in this session, if it is still remembered */
+    fun voiceOf(text: String): ByteArray? = synchronized(heardVoices) { heardVoices[s.nameMask().speakable(text)] }
+
+    /** Use [mp3] the next time [text] is said instead of asking /tts — a voice kept on the phone (#179) */
+    fun offerVoice(text: String, mp3: ByteArray) {
+        if (!Server.liveFor(s.mode) || text.isBlank()) return
+        if (prefetched.size > 4) prefetched.clear()
+        prefetched[s.nameMask().speakable(text)] = kotlinx.coroutines.CompletableDeferred(mp3)
+    }
+
+    internal fun voiceReady(text: String) = prefetched.containsKey(s.nameMask().speakable(text))
 
     private fun speakLive(text: String) {
         // 소리를 낼 수 없으면(단위 테스트 — Voice 가 붙지 않았다) 목소리를 청하지도 않는다.
@@ -329,7 +353,7 @@ class Director(
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)          // names read as they are (10-02 · ChildCall)
         // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
-        val audio = (prefetched.remove(line) ?: scope.async { Voice.baked(line) ?: Server.tts(line) }).also { queueVoice(it) }
+        val audio = (prefetched.remove(line) ?: scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }).also { queueVoice(it) }
         enqueue { audio.await() }
     }
 
