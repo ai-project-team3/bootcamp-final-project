@@ -118,6 +118,53 @@ class CoopLiveAnswerTest {
         }
     }
 
+    /**
+     * 10-06 실기기(촬영 세션 · 소방관 곧 체험해요) — 「불이 나면 소방관은 무슨 일을 할까?」에 「물로 불을 꺼」. 판정이 이 「할 일」을
+     * 해결 칸에 넣어 사건 칸을 또 물었고(「불 꺼」), 결말 질문은 건너뛰었다. 이 틀의 사건 = 할 일 — 사건 칸으로 옮기고 결말은 남긴다
+     */
+    @Test
+    fun aSoonJobTaskTheJudgeCallsASolutionGoesToTheProblemSlot() = run { d ->
+        val server = StoryTestServer { path, body ->
+            if (path != "/turn") JSONObject() else {
+                val asked = body.optString("asked_slot").takeIf { it.isNotBlank() && it != "null" }
+                val slot = if (asked == "problem") "solution" else asked       // 실기기 판정처럼 할 일을 해결로
+                JSONObject().put("judge", JSONObject().put("reason", "ok").apply { if (slot != null) put("slot_1", slot).put("value_1", body.optString("utterance")) })
+            }
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("job", "소방관", "soon"))
+            d.answer("소방서")
+            d.answer("엄마랑")
+            withTimeoutOrNull(10_000) { while (d.s.problem == null) { d.send(Reply.Spoke("물로 불을 꺼")); delay(60) } }
+            assertEquals("할 일이 사건 칸에 안 갔다", "물로 불을 꺼", d.s.problem)
+            assertNull("할 일이 해결 칸에도 들어가 결말 질문을 건너뛴다", d.s.solution)
+        } finally { server.close() }
+    }
+
+    /** 다녀왔어요 · 장소는 그대로 — 판정이 해결로 본 답은 해결 칸이다 */
+    @Test
+    fun outsideSoonJobsTheJudgesSolutionStaysASolution() = run { d ->
+        val server = StoryTestServer { path, body ->
+            if (path != "/turn") JSONObject() else {
+                val asked = body.optString("asked_slot").takeIf { it.isNotBlank() && it != "null" }
+                val slot = if (asked == "problem") "solution" else asked
+                JSONObject().put("judge", JSONObject().put("reason", "ok").apply { if (slot != null) put("slot_1", slot).put("value_1", body.optString("utterance")) })
+            }
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("place", "동물원", "done"))
+            d.answer("기린 마당")
+            d.answer("엄마랑")
+            withTimeoutOrNull(10_000) { while (d.s.solution == null) { d.send(Reply.Spoke("나뭇잎을 줬어")); delay(60) } }
+            assertEquals("나뭇잎을 줬어", d.s.solution)
+            assertNull(d.s.problem)
+        } finally { server.close() }
+    }
+
     /** 이번 걸음의 질문이 바뀔 때까지 같은 답을 한다. 바뀐 뒤의 질문을 돌려준다 */
     private suspend fun Director.answer(text: String): String {
         val before = s.line

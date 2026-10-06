@@ -672,6 +672,10 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
         return null
     }
     val fills = verdict.fills.filter { (slot, v) -> slot in Server.SLOTS && slot != "extra" && v.isNotBlank() }
+        .let { f -> if (step.slot == "problem" && s.coopJobTaskIsProblem() && f.none { it.first == "problem" } && !diaryFilled("problem"))
+            f.map { if (it.first == "solution") "problem" to it.second else it }.also { m ->
+                if (m != f) log("[problem] 곧 해요 · 직업 — 판정이 해결 칸에 넣은 「할 일」을 사건 칸으로 옮긴다(이 틀의 사건 = 그 직업이 할 일)")
+            } else f }
     fills.filter { (slot, _) -> slot != step.slot && slot in COOP_SKELETON && !diaryFilled(slot) }.forEach { (slot, v) ->
         val said = if (slot == "companion") companionName(v.trim()) else v.trim()
         setDiarySlot(slot, slot, said, said, "child")
@@ -715,6 +719,14 @@ internal fun DemoState.coopRejectedCount(step: DiaryStep): Int =
     if (!isCoop) 0 else trackByState[this]?.rejected?.get(step.variant.id)?.size ?: 0
 
 private val COOP_SKELETON = setOf("place", "problem", "cause", "solution")
+
+/**
+ * 「곧 체험해요 · 직업」은 사건 칸이 **그 직업이 할 일**이다 — 「불이 나면 소방관은 무슨 일을 할까?」 · 「왜 그 일이 필요할까?」.
+ * 판정은 「물로 불을 꺼」 같은 할 일을 해결 칸에 넣어서, 사건 칸이 비어 「하루 종일 뭐 할까?」로 같은 것을 다시 묻고(「불 꺼」)
+ * 결말 질문은 이미 찼다며 건너뛰었다 — 책에 불 끄기가 네 쪽 되풀이됐다(10-06 실기기 · 촬영 세션)
+ */
+internal fun DemoState.coopJobTaskIsProblem(): Boolean =
+    isCoop && coopPick?.kind == "job" && coopPick?.reasonOrNull() == CoopReason.SOON
 
 // ── 책 문장 — /story (#47 2번 · 10-01) ──────────────────────────────
 
