@@ -81,13 +81,14 @@ class MainActivity : ComponentActivity() {
         // 동의를 기기에서 읽어 온다 — 없으면 켤 때마다 동의 화면이 다시 뜬다 (09-25)
         ConsentStore.attach(this)
         FeelPrefs.load(this)      // 효과음 · 진동 켬/끔 (부모 설정 · 09-25)
-        // 서버 주소 — `-e server` 가 먼저. 없으면 **테스트용(디버그) 빌드만** 공개 주소로 세 모드를 켠다(10-02 #47):
-        // 폰을 PC 에 꽂지 않아도 붙는다. 스토어(릴리스) 빌드는 그대로 꺼진 채 대본 — 서버 연결판은 처리방침 · 데이터 보안이 먼저다.
-        // 화면 검사(Robolectric)는 디버그라도 끈다 — 검사가 진짜 서버를 부르면 안 된다
+        // 서버 주소 — `-e server` 가 먼저(디버그만). 없으면 공개 주소로 세 모드를 켠다(10-02 #47).
+        // 10-06 조장: 스토어(릴리스) 빌드도 서버 연결판이다 — 호출 한도(`net/CallLimits` · 기기 하루 두 권)와
+        // 서버 하루 상한(`backend/app/limits.py`)이 같이 켜지고, 처리방침(약관 2026-10-06.3)을 같은 업로드에서 맞췄다.
+        // 화면 검사(Robolectric)는 끈다 — 검사가 진짜 서버를 부르면 안 된다
         val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-        val byDefault = debuggable && !android.os.Build.FINGERPRINT.contains("robolectric", ignoreCase = true)
+        val byDefault = !android.os.Build.FINGERPRINT.contains("robolectric", ignoreCase = true)
         // 인자는 **디버그 빌드만** 읽는다 (10-06) — 런처가 exported 라, 릴리스에서도 읽으면 다른 앱이 임의 https 주소를 넣어
-        // 아이 음성(/stt)을 그쪽으로 보낼 수 있다. 스토어 빌드는 인자를 무시하고 대본으로 돈다
+        // 아이 음성(/stt)을 그쪽으로 보낼 수 있다. 스토어 빌드는 인자를 무시하고 공개 주소로만 간다
         val extra: (String) -> String? = { k -> if (debuggable) intent?.getStringExtra(k) else null }
         (extra("server") ?: DEFAULT_SERVER.takeIf { byDefault })?.let { Server.base = it.trimEnd('/') }
         // 어느 모드를 서버로 돌릴지 — `-e live story,diary,coop` 또는 `all`. 기본 주소로 켰으면 전부
