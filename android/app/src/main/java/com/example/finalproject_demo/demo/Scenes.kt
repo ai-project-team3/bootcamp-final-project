@@ -436,6 +436,12 @@ private suspend fun Director.sceneMakeHero() {
         }
     }
 
+    /**
+     * 아이 말 그대로 서버에서 주인공을 그리나 — 동화 · 협업(같이 만들기). 전에는 동화만이라, 협업에서 「슈퍼히어로」 ·
+     * 「가면 쓰고 있어」가 버려지고 머리 · 옷 색 · 안경 낱말 표에서 못 찾으면 기본 인형이 나왔다(10-06 실기기)
+     */
+    fun heroFromWords() = (s.mode == StoryMode.STORY || s.mode == StoryMode.COOP) && Server.liveFor(s.mode)
+
     suspend fun generate() {
         inputs(false, false)
         buttons()
@@ -444,7 +450,7 @@ private suspend fun Director.sceneMakeHero() {
         say("조금만 기다려!")
         generatedImage = null
         generatedRig = null
-        if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
+        if (heroFromWords()) {
             val description = descriptions.joinToString("; ").ifBlank { heroName() } +
                 if (confirmedChoices.isNotEmpty()) "\nLatest confirmed choices override earlier descriptions: " +
                     confirmedChoices.entries.joinToString("; ") { "${it.key}=${it.value}" } else ""
@@ -528,7 +534,11 @@ private suspend fun Director.sceneMakeHero() {
         val found = (if (key != null) r.value.takeIf { it.isNotBlank() }?.let { key to it } else null)
             ?: r.value.split(":").takeIf { it.size == 2 }?.let { it[0] to it[1] }
             ?: heroValueIn(key, r.text)
-        if (found == null) { log("\"${r.text}\" 에서 바꿀 모습을 못 찾음 → 그대로 둔다"); return }
+        if (found == null) {
+            log(if (heroFromWords()) "\"${r.text}\" — 모습 표에는 없음 → 말 그대로 그림에 보낸다"
+                else "\"${r.text}\" 에서 바꿀 모습을 못 찾음 → 그대로 둔다")
+            return
+        }
         apply(found.first, found.second)
         log("\"${r.text}\" → ${found.first}=${found.second}")
     }
@@ -540,7 +550,7 @@ private suspend fun Director.sceneMakeHero() {
                 // No half-made preview: it was the grey mannequin, far from the finished doll (10-05 device · 3-1)
                 s.stage = Stage.HeroShow(null, "주인공 만드는 중 — 마이크로 말해 줘")
                 val r = ask(Question(text = q.text, kind = Kind.EASY, spoken = q.spoken, easierText = q.easier, easierAsk = "골라 볼래?", choices = q.cards))
-                if (r is Reply.Spoke && s.mode == StoryMode.STORY && Server.liveFor(s.mode) &&
+                if (r is Reply.Spoke && heroFromWords() &&
                     !confirmHeroDescription(r.text)) continue
                 when (r) {
                     is Reply.Spoke -> applySpoken(q.key, r)

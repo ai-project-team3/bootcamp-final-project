@@ -103,4 +103,55 @@ class StoryCharacterTest {
             server.close()
         }
     }
+
+    /**
+     * 10-06 실기기(같이 만들기) — 「멋있게」 · 「슈퍼히어로」 · 「가면 쓰고 있어」가 모두 「바꿀 모습을 못 찾음」으로 버려지고
+     * 기본 인형이 나왔다. 말 그대로 그리는 길이 동화에만 열려 있었다. 협업에서도 아이 말이 그림 요청에 간다
+     */
+    @Test
+    fun coopHeroCreationSendsTheChildsWordsToThePicture() = runBlocking {
+        val previousBase = Server.base
+        val previousModes = Server.liveModes
+        val png = ByteArrayOutputStream().apply output@{
+            Bitmap.createBitmap(32, 32, Bitmap.Config.ARGB_8888).apply {
+                eraseColor(android.graphics.Color.RED)
+                compress(Bitmap.CompressFormat.PNG, 100, this@output)
+            }
+        }.toByteArray()
+        val server = StoryTestServer { _, _ -> JSONObject().put("preset", false)
+            .put("rig", "human").put("png_base64", Base64.getEncoder().encodeToString(png)) }
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val d = Director(scope, LocalStoryBookStore(context), StoryImageStore(context))
+        d.s.speed = 0.01
+        d.s.mode = StoryMode.COOP
+        Server.base = server.base
+        Server.liveModes = setOf(StoryMode.COOP)
+        try {
+            d.go(Scene.MAKEHERO)
+            withTimeout(5_000) { while (d.s.stage !is Stage.CardsRow) delay(10) }
+            val feeder = launch {
+                while (isActive) {
+                    if (d.s.stage is Stage.HeroAnswer) { d.send(Reply.Tapped("ok", "맞아")); delay(40); continue }
+                    if (d.s.stage is Stage.CardsRow) d.send(Reply.Tapped("voice", "말로 만들기"))
+                    if (d.s.micEnabled) when {
+                        "머리" in d.s.line -> d.send(Reply.Spoke("멋있게"))
+                        "옷" in d.s.line -> d.send(Reply.Spoke("슈퍼히어로"))
+                        else -> d.send(Reply.Spoke("가면 쓰고 있어"))
+                    }
+                    delay(40)
+                }
+            }
+            withTimeout(8_000) { while (d.s.stage !is Stage.Confirm) delay(10) }
+            feeder.cancelAndJoin()
+            assertTrue("협업도 서버가 그린 인형을 보여 준다", (d.s.stage as Stage.Confirm).art is Art.Img)
+            val description = server.requests.single { it.first == "/image" }.second.getString("description")
+            listOf("멋있게", "슈퍼히어로", "가면").forEach { assertTrue("「$it」이 그림 요청에 없다: $description", it in description) }
+        } finally {
+            scope.coroutineContext[Job]!!.cancelAndJoin()
+            Server.base = previousBase
+            Server.liveModes = previousModes
+            server.close()
+        }
+    }
 }
