@@ -24,6 +24,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -155,11 +156,13 @@ fun DemoApp() {
 
         // 왼쪽 위 = 시스템 — 🏠 방으로 · 🔒 부모 문(2초). 방 · 부모 · 책장은 자기 버튼이 있어 뺀다
         val kidScreen = pinStage == null && s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF)
-        // 동화 · 같이 만들기 도중에는 🔒 대신 오른쪽 위 ⏸ (#125 · 10-05 조장 — 이야기 중에는 부모 모드가 필요 없다).
-        // 그림일기는 자리를 진웅님과 정하는 중이라 그대로(🔒 는 일기 화면에서 이미 뺐다)
-        val pausable = kidScreen && !diaryOwnsChrome && (s.mode == com.example.finalproject_demo.demo.StoryMode.STORY || s.isCoop)
+        // 이야기 도중에는 🔒 대신 오른쪽 위 ⏸ (#125 · 10-05 조장 — 이야기 중에는 부모 모드가 필요 없다).
+        // 그림일기도 같은 자리 — 일기 화면이 그 아래로 비킨다 (#163 · 10-06 진웅 · ui/DiaryViews.kt PauseBottom)
+        val pausable = kidScreen && (s.mode == com.example.finalproject_demo.demo.StoryMode.STORY || s.mode == com.example.finalproject_demo.demo.StoryMode.DIARY || s.isCoop)
         if (kidScreen) com.example.finalproject_demo.ui.shell.KidTopBar(d, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 10.dp), lock = !diaryOwnsChrome && !pausable)
-        if (pausable) com.example.finalproject_demo.ui.shell.PauseButton(Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 10.dp)) { d.holdSession() }
+        // 시연 서랍 칸(오른쪽 위 48dp · 아래)보다 위에 — 아니면 ⏸ 가운데와 오른쪽 위 누름을 서랍 칸이 먹는다(10-06 화면 검사).
+        // 서랍은 ⏸ 바깥 구석(오른쪽 끝 12dp · 위 10dp)을 길게 누르면 그대로 열린다
+        if (pausable) com.example.finalproject_demo.ui.shell.PauseButton(Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 10.dp).zIndex(12f).testTag("pause")) { d.holdSession() }
 
         // 화면이 꺼지거나 앱이 뒤로 가면 이야기 도중이면 ⏸ (#125) — 돌아오면 「잠깐 쉬는 중」이 떠 있다
         val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
