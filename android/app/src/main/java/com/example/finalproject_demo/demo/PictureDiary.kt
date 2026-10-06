@@ -109,6 +109,8 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
     val held = mutableListOf<Pair<Int, String>>() // 미뤄 둔 「나도 그려볼까?」 — 조각 · 이름 (앞 것부터 · 덮어쓰지 않는다)
     say("좋아! 다 그리면 알려 줘.")
     while (true) {
+        // 이야기를 마친 조각 — 이제부터 그 위 · 곁에 긋는 선은 새 그림으로 보고 묻는다. 이야기하는 사이 그은 선까지는 그 조각이다 (10-06 실기기)
+        askedPieces.forEach { day.talkedAbout(it, s.drawing.size) }
         buttons(
             DemoBtn("✏️ (시연) 붓이 멈춤 — 조각 하나를 그렸다") { send(Reply.Tapped("pause", "멈춤")) },
             DemoBtn("✅ 다 그렸어") { send(Reply.Tapped("done", "완료")) },

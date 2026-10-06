@@ -105,6 +105,31 @@ class DiaryBoardTest {
     }
 
     /**
+     * 오또가 이야기를 마친 조각에는 그 뒤에 그은 선을 몰래 붙이지 않는다 — 크레용을 바꿔 위에 그려도(10-06 실기기 11:04),
+     * 이름 없는 조각 곁이어도(10:44). 이야기하는 사이에 그은 선은 전처럼 그 조각에 이어 그린 것이다
+     */
+    @Test
+    fun aStrokeAfterOttoTalkedAboutAPieceStartsANewOne() {
+        fun line(c: Color, vararg xy: Float) = Stroke(c, xy.toList().chunked(2).map { Offset(it[0], it[1]) })
+        val day = DiaryDay()
+        val trees = day.addStroke(line(Color.Blue, .50f, .50f, .80f, .50f, .80f, .95f))
+        day.pieces[0] = day.pieces[0].copy(name = "나무들")
+        day.talkedAbout(trees, strokesSoFar = 1)
+        assertNotEquals("크레용을 바꿔 위에 그린 새 그림이 「나무들」에 붙었다", trees, day.addStroke(line(Color.Red, .40f, .65f, .64f, .90f)))
+
+        val day2 = DiaryDay()
+        val tree = day2.addStroke(line(Color.Green, .60f, .40f, .80f, .80f))          // 물었지만 답이 없었다(이름 없음)
+        day2.talkedAbout(tree, strokesSoFar = 1)
+        assertNotEquals("답 없던 조각 곁에 나중에 그린 점이 그 조각에 붙었다", tree, day2.addStroke(line(Color.Green, .74f, .52f, .79f, .57f)))
+
+        val day3 = DiaryDay()
+        val house = day3.addStroke(line(Color.Blue, .10f, .40f, .30f, .40f, .30f, .80f))
+        day3.talkedAbout(house, strokesSoFar = 2)                                     // 묻는 사이 한 획을 더 그었다
+        assertEquals("이야기하는 사이 그은 선은 그 조각에 이어 그린 것", house, day3.addStroke(line(Color.Blue, .12f, .45f, .28f, .45f)))
+        assertNotEquals("이야기를 마친 뒤 그은 선은 새 조각", house, day3.addStroke(line(Color.Blue, .14f, .50f, .26f, .50f)))
+    }
+
+    /**
      * 색을 바꿔 방금 그리던 조각에 이어 그리면 — 그새 이름이 붙었어도 같은 조각. 새 색으로 이어 긋는 선도 붙고,
      * 다른 데에 그으면 거기서 끝난다. 같은 색으로 이름 조각에 닿게 그린 선은 전처럼 새 조각(「더 그린 거야?」) (10-01 진웅)
      */
