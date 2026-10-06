@@ -63,6 +63,10 @@ import com.example.finalproject_demo.demo.shelfCount
 import com.example.finalproject_demo.demo.shelfDeleteSignal
 import com.example.finalproject_demo.demo.shelfEntries
 import com.example.finalproject_demo.demo.CoopPlan
+import com.example.finalproject_demo.demo.CoopAfter
+import com.example.finalproject_demo.demo.CoopShelf
+import com.example.finalproject_demo.demo.COOP_AFTER_SUGGESTION
+import com.example.finalproject_demo.demo.coopAfterAsk
 import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.coopReportCopy
 import com.example.finalproject_demo.demo.coopParentUsed
@@ -566,6 +570,8 @@ fun coopSuggestions(reason: CoopReason?): List<String> = when (reason) {
 private fun CoopQuestionsTab(c: CoopDraft) {
     if (!c.editing) { CoopSavedCard(c); return }
     val qs = c.qs
+    // 「다녀온 뒤」 상자 — 준비된 이야기가 없고, 지금 상자에서 꺼내 고치는 중이 아닐 때만 (협업모드_확장_설계 §2-2)
+    if (!c.hasSaved && c.fromAfter == null) CoopAfterCards(c)
 
     fun set(i: Int, text: String) {
         while (qs.size <= i) qs.add("")
@@ -578,7 +584,7 @@ private fun CoopQuestionsTab(c: CoopDraft) {
     }
 
     CoopTemplateCards(c)
-    val suggestions = coopSuggestions(c.pick?.reasonOrNull())
+    val suggestions = (if (c.fromAfter != null) listOf(COOP_AFTER_SUGGESTION) else emptyList()) + coopSuggestions(c.pick?.reasonOrNull())
 
     Section("더 물어볼 질문 (선택)", "오또가 이야기 중간에 적은 순서대로 끼워서 물어봐요 · ${COOP_MAX}개까지")
     val rows = maxOf(1, qs.size)
@@ -802,8 +808,23 @@ private class CoopDraft(private val s: DemoState) {
     /** 저장된 것이 없으면 처음부터 고치는 화면, 있으면 저장된 카드부터 */
     var editing by mutableStateOf(!s.coopReady)
     var askDelete by mutableStateOf(false)
+    /** 「다녀온 뒤」 상자에서 꺼내 채운 초안이면 그 칸 — [save] 할 때 같은 이야기 · 다녀왔어요 그대로면 짝을 지을 책을 기억한다 */
+    var fromAfter by mutableStateOf<CoopAfter?>(null)
+    /** [아직이에요] 로 닫은 칸 — 부모 모드를 나갔다 오면 다시 보인다 */
+    val hidden = mutableStateListOf<CoopAfter>()
 
     init { load() }
+
+    /** 상자 — 가기 전 책이 아직 책장에 있는 것만 */
+    val afters: List<CoopAfter>
+        get() = CoopPlan.after(s).filter { a -> a !in hidden && CoopShelf.books(s).any { it.id == a.beforeBookId } }
+
+    /** [있었던 일로 준비하기] — 같은 종류 · 이름 · 다녀왔어요로 채운 편집 화면. 질문 칸은 비운다. 확정은 [저장하기] */
+    fun prepareAfter(a: CoopAfter) {
+        qs.clear(); pick = CoopPick(a.kind, a.name, CoopReason.DONE.key); fromAfter = a; askDelete = false; editing = true
+    }
+
+    fun dismissAfter(a: CoopAfter) = CoopPlan.dismissAfter(s, a)
 
     val hasSaved: Boolean get() = s.coopReady
     /** 이야기를 골랐거나 질문을 하나라도 적었나 */
@@ -816,18 +837,48 @@ private class CoopDraft(private val s: DemoState) {
 
     fun edit() { load(); askDelete = false; editing = true }
 
-    fun cancel() { load(); editing = !s.coopReady }
+    fun cancel() { load(); fromAfter = null; editing = !s.coopReady }
 
     fun save() {
         if (!canSave) return
         s.parentQuestions.clear(); s.parentQuestions.addAll(qs.dropLastWhile { it.isBlank() })
         s.parentQIndex = 0
         s.coopPick = pick
+        // 상자에서 꺼낸 그대로(같은 이야기 · 다녀왔어요)일 때만 짝 — 부모가 이름이나 이유를 바꿨으면 다른 이야기다
+        fromAfter?.takeIf { a -> pick?.kind == a.kind && pick?.name?.trim() == a.name && pick?.reasonOrNull() == CoopReason.DONE }
+            ?.let { CoopPlan.startAfter(s, it) }
+        fromAfter = null
         CoopPlan.saved(s)         // 앱을 껐다 켜도 남는다 (#98 · CoopPlanStore.kt)
         load(); editing = false
     }
 
     fun delete() { s.clearParentQuestions(); load(); askDelete = false; editing = true }
+}
+
+/**
+ * 「다녀온 뒤」 상자 카드 (협업모드_확장_설계 §2-2) — 곧 해요로 지은 책마다 하나.
+ * 아이 화면에는 아무 표시가 없다(다음 책을 권하지 않는다). 다녀온 이야기를 열지는 부모가 여기서 정한다
+ */
+@Composable
+private fun CoopAfterCards(c: CoopDraft) {
+    c.afters.forEach { a ->
+        PCard(Modifier.fillMaxWidth()) {
+            Text("🧳 ${coopAfterAsk(a)}", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                listOfNotNull(a.madeAt.takeIf(String::isNotBlank)?.let { "${it}에" }, "「${a.beforeTitle}」${eul(a.beforeTitle)} 지었어요.").joinToString(" ") +
+                    " 다녀왔다면 이번엔 진짜 있었던 일로 지어 봐요. 두 책을 부모 리포트에서 나란히 볼 수 있어요.",
+                fontSize = 13.sp, color = PSub,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PButton("있었던 일로 준비하기", PMint, Modifier.weight(1.4f)) { c.prepareAfter(a) }
+                PButton("아직이에요", PSub, Modifier.weight(1f), outline = true) { c.hidden += a }
+                PButton("안 하게 됐어요", PSub, Modifier.weight(1f), outline = true) { c.dismissAfter(a) }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+    }
 }
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
