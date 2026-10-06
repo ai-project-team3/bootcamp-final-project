@@ -115,7 +115,9 @@ class MicGuardTest {
         step("마이크가 켜질 차례가 안 왔다") { d.s.micEnabled }
         d.toggleMic()
         step("녹음 뒤 받아쓰기 중이 아니다") { d.s.transcribing }
-        d.send(Reply.Tapped("lion", "사자"))              // the question moved on — a card was picked meanwhile
+        // the question moved on — a card was picked meanwhile. Sent until taken: a question drops input that came
+        // before it started waiting (`awaitReply`), and on a slow runner the mic is enabled a little before that
+        repeat(50) { if (!first.isCompleted) { d.send(Reply.Tapped("lion", "사자")); delay(200) } }
         step("카드를 골랐는데 질문이 끝나지 않았다") { first.isCompleted }
         heard.complete("친구들에서 봤더니")              // the late transcript of that question
         step("늦은 받아쓰기를 버리지 않았다") { d.s.log.any { "늦게 왔다" in it } }
