@@ -22,6 +22,7 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.Stroke
+import com.example.finalproject_demo.demo.WENT_QUIET
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.diaryDay
@@ -1127,6 +1128,55 @@ class PictureDiaryFlowTest {
         assertTrue(d.push("응"))
         assertTrue("말=${s.line}", await { "나도 그려 볼게" in s.line } != null)
         assertTrue("오또 그림을 주문하다 흐름이 멈췄다", d.push("✅ 다 그렸어") && await { s.stage is DiaryAsk } != null)
+    }
+
+    /**
+     * 오또가 이미 이야기한 조각 위에 **크레용을 바꿔** 새로 그려도 말없이 합치지 않는다 — 그린 것을 묻는다.
+     * 10-06 실기기(11:04): 「나무들」 이름을 듣고 30초 뒤 다른 색으로 그 위에 그린 것이 「나무들」에 합쳐지고
+     * 「여기는 어디야?」가 나왔다
+     */
+    @Test
+    fun aNewCrayonOverAPieceOttoAlreadyTalkedAboutIsAskedAbout() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        assertTrue(d.push("우리 집이야"))
+        assertTrue(await { s.line == "나도 우리 집을 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
+        assertTrue(await { s.diaryDay.watching } != null)
+        s.drawing += Stroke(Color.Red, listOf(Offset(0.12f, 0.35f), Offset(0.2f, 0.55f)))   // 다른 색 · 집 위에
+        assertTrue("말=${s.line}", await {
+            s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick()
+            s.line == "우리 집에 더 그린 거야, 새로 그린 거야?" || s.line == "여기는 어디야?"
+        } != null)
+        assertEquals("새로 그린 것을 묻지 않았다", "우리 집에 더 그린 거야, 새로 그린 거야?", s.line)
+    }
+
+    /**
+     * 답을 못 들은 조각 곁에 나중에 그린 것도 그 조각에 몰래 붙이지 않는다 — 새로 그린 것을 묻는다.
+     * 10-06 실기기(10:44): 대답 없이 지나간 조각 옆에 그린 점들이 합쳐지고 「여기는 어디야?」가 나왔다
+     */
+    @Test
+    fun drawingNextToAnUnansweredPieceAsksAboutTheNewDrawing() = run { d ->
+        val s = d.s
+        d.go(Scene.DIARY)
+        assertTrue(d.push("그릴래"))
+        s.drawing += stroke(0.1f)
+        assertTrue(d.push("붓이 멈춤"))
+        assertTrue(await { s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        d.send(Reply.Tapped(WENT_QUIET, "조용함"))
+        assertTrue("말=${s.line}", await { s.diaryDay.watching && s.line != "우와, 지금 그리는 건 뭐야?" } != null)
+        assertTrue(s.diaryDay.pieces.single().name == null)
+        s.drawing += stroke(0.12f)                                   // 그 조각에 닿게
+        assertTrue("말=${s.line}", await {
+            s.buttons.firstOrNull { "붓이 멈춤" in it.label }?.onClick()
+            s.line == "우와, 지금 그리는 건 뭐야?" || s.line == "여기는 어디야?"
+        } != null)
+        assertEquals("새로 그린 것을 묻지 않았다", "우와, 지금 그리는 건 뭐야?", s.line)
+        assertEquals("말없이 합쳤다", 2, s.diaryDay.pieces.size)
     }
 
     /**
