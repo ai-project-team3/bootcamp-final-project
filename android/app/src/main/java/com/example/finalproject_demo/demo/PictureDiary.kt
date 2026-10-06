@@ -518,18 +518,39 @@ private suspend fun Director.drawMe(scope: CoroutineScope, day: DiaryDay, waitin
             say("벌써 그렸어! 반짝이는 이름표를 눌러 봐.")
         }
         else -> {
-            log("오또 그림 — 「$label」 그린다")
-            say("나도 그려 볼게! 더 그리고 있어!")
-            // 이름 없는 배경은 아이가 말한 장소로 주문한다 — 배경을 그리면 「여기는 어디야?」를 물었다 (#168)
+            // 이름 없는 배경은 아이가 말한 장소로 주문한다 — 배경을 그리면 「여기는 어디야?」를 물었다 (#168).
+            // 이름 없는 물체는 먼저 무엇인지 묻는다 — 「아이가 그린 그림」으로는 서버가 무엇인지 몰라 늘 거절했다 (10-06 실기기)
             val words = target.name
                 ?: s.slots["place"]?.takeIf { target.role == PieceRole.BACKGROUND && it.isNotBlank() }
-                ?: "아이가 그린 그림"
+                ?: askNameToDraw(day, target)
+                ?: return false
+            log("오또 그림 — 「$words」 그린다")
+            say("나도 그려 볼게! 더 그리고 있어!")
             waiting += orderOttoDrawing(scope, target, words)
             pause(600)
             return true
         }
     }
     return false
+}
+
+/**
+ * [그려 줘]를 누른 조각에 이름이 없다 — 무엇인지 물어 이름을 붙이고 그 이름을 돌려준다. 못 들었으면 null(주문하지 않는다).
+ * 묻는 말 · 못 들었을 때의 말은 앱에 구운 대사라 `/tts` 를 부르지 않는다
+ */
+private suspend fun Director.askNameToDraw(day: DiaryDay, piece: DiaryPiece): String? {
+    val q = Question(text = "우와, 지금 그리는 건 뭐야?", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_piece", waitSec = D1_WAIT_SEC)
+    day.askingPiece = piece.id
+    val r = try { askWhileDrawing(q, day, about = piece.id) } finally { day.askingPiece = null }
+    if (r is Reply.Tapped && r.value == MOVED_ON) return null       // 다른 걸 그리러 갔다 — 말없이
+    val name = (r as? Reply.Spoke)?.let { pieceNameFrom(it) }
+    if (name == null || !setPieceName(day, piece.id, name, (r as Reply.Spoke).text)) {
+        log("오또 그림 — 이름 없는 조각 · 이름을 못 들었다 → 주문하지 않는다")
+        say("그래, 그대로 둘게!")
+        pause(600)
+        return null
+    }
+    return name
 }
 
 /**
