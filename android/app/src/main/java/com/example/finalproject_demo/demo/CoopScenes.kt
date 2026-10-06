@@ -140,7 +140,11 @@ internal val DemoState.coopParentAnswers: List<Pair<String, String>>
  * 고른 이야기의 질문 · 부모가 적은 질문 하나에 아이가 뭐라고 했나 — 부모 리포트의 재료.
  * `by` 는 출처 3종 그대로(`child` · `card` · `mascot`), 답이 없으면 null (구현설계 §2-3).
  */
-data class CoopAsked(val question: String, val answer: String?, val by: String?)
+data class CoopAsked(
+    val question: String, val answer: String?, val by: String?,
+    /** 부모가 적은 질문이었나 — 리포트 「다음에 넣어 볼 질문」이 이것만 후보로 본다 (CoopReport.kt) */
+    val parent: Boolean = false,
+)
 
 /** 이 이야기에서 어느 걸음에 이미 물었고, 부모 질문을 몇 개 썼고, 질문마다 아이가 뭐라고 했나 */
 private class CoopTrack {
@@ -367,9 +371,9 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
     track.stats.count(r)
     // 부모 리포트 「고른 이야기 · 적은 질문에 한 답」 — 지금 방식과 같이 앱 기본 질문 · 사다리는 남기지 않는다
     if (src != CoopSource.LADDER) track.asked += when (r) {
-        is Reply.Spoke -> CoopAsked(text, r.text, "child")
-        is Reply.Tapped -> CoopAsked(text, r.label, if (r.byMascot) "mascot" else "card")
-        else -> CoopAsked(text, null, null)
+        is Reply.Spoke -> CoopAsked(text, r.text, "child", parent = src == CoopSource.PARENT)
+        is Reply.Tapped -> CoopAsked(text, r.label, if (r.byMascot) "mascot" else "card", parent = src == CoopSource.PARENT)
+        else -> CoopAsked(text, null, null, parent = src == CoopSource.PARENT)
     }
     if (src == CoopSource.PARENT) {
         event("utterance", "speaker" to "adult", "mode" to "typed", "text" to text)
@@ -439,9 +443,9 @@ private suspend fun Director.coopAskInFlowBefore(q: Question): Reply {
     val r = ask(q.copy(text = text, silent = false))
     // 부모 리포트 「고른 이야기 · 적은 질문에 한 답」 — 템플릿 질문도 부모가 고른 이야기라 함께 남긴다
     s.coopTrack.asked += when (r) {
-        is Reply.Spoke -> CoopAsked(text, r.text, "child")
-        is Reply.Tapped -> CoopAsked(text, r.label, if (r.byMascot) "mascot" else "card")
-        else -> CoopAsked(text, null, null)
+        is Reply.Spoke -> CoopAsked(text, r.text, "child", parent = line is CoopLine.Parent)
+        is Reply.Tapped -> CoopAsked(text, r.label, if (r.byMascot) "mascot" else "card", parent = line is CoopLine.Parent)
+        else -> CoopAsked(text, null, null, parent = line is CoopLine.Parent)
     }
     if (line is CoopLine.Parent) {
         // 부모가 지은 질문이라는 것은 기록에 남는다 — payload.speaker: adult. `by` 3종은 늘리지 않는다 (협업 §4-1 · §8)
