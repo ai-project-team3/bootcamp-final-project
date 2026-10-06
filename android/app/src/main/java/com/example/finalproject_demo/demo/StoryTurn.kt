@@ -71,7 +71,8 @@ suspend fun Director.askStory(
         s.stage = conversationStage
         // Once a slot is settled, "더 없어" is an ending intent for the server to judge.
         val reply = if (Server.liveFor(s.mode)) askLiveStoryReply(currentQuestion, s.optionsFor(askedSlot, question.text), singleAttempt) {
-            askedSlot != null && s.slots[askedSlot].isNullOrBlank() && storyNonAnswer(it)
+            !singleAttempt && !s.storyReady && askedSlot != null &&
+                s.slots[askedSlot].isNullOrBlank() && storyNonAnswer(it)
         }
             else ask(currentQuestion)
         if (!Server.liveFor(s.mode) || TurnHistory.isNav(reply)) return reply
