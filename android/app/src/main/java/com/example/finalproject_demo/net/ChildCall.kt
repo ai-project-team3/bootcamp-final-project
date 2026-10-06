@@ -8,7 +8,7 @@ import androidx.compose.runtime.setValue
 /**
  * What the mascot calls the child — a nickname the guardian types in parent mode (10-02 조장).
  *
- * Not a real-name field: the guardian is asked how Otto should call the child ("별명도 좋아요"), and
+ * Not a real-name field: the guardian is asked how Otto should call the child ("별명을 권해요" · 10-06), and
  * that word goes to the server and the voice as is. Names are no longer masked (10-02 — rule 6 revised):
  * a name alone does not single out a child, and hiding it made the mascot say 「너」 · 「그 친구」.
  * Unset → [DEFAULT]. Kept on the phone only (shared_prefs, no backup — the manifest already excludes it).
