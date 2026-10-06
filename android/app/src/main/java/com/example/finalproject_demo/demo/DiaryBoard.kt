@@ -107,7 +107,10 @@ fun DiaryDay.addStroke(stroke: Stroke): Int {
     }
     // 색칠 — 한 조각 안에 들어가 촘촘히 오가는 획은 그 조각을 칠한 것이다(이름이 있어도 · 묻지 않는다). 가장 작은 조각에
     if (isFilling(stroke, b)) {
-        pieces.filter { p -> boxOf(p.strokes)?.grow(PIECE_GAP / 3)?.contains(b) == true }
+        // 배경은 판을 가로지르는 띠라 그 안의 촘촘한 선이 다 칠하기로 잡힌다 — 같은 색일 때만 배경을 칠한 것이다.
+        // 다른 색이면 그 위에 그린 새 물건이다(10-06 실기기: 바다 위 배 몸통이 바다에 삼켜졌다)
+        pieces.filter { p -> p.role != PieceRole.BACKGROUND || p.strokes.any { it.color == stroke.color } }
+            .filter { p -> boxOf(p.strokes)?.grow(PIECE_GAP / 3)?.contains(b) == true }
             .minByOrNull { p -> boxOf(p.strokes)!!.let { it.width * it.height } }
             ?.let { continuing = null; return put(it) }
     }

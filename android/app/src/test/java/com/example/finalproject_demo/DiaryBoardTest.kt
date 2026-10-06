@@ -238,6 +238,27 @@ class DiaryBoardTest {
         assertNotEquals("큰 것까지 무리에 넣었다", first, day.addStroke(mark(Color.Yellow, .50f, .70f, .2f)))
     }
 
+    /**
+     * 바다 띠 안에 다른 색으로 촘촘히 그은 것은 새 물건(배)이다 — 바다를 칠한 것으로 삼키면 배 첫 획이 빠졌다
+     * (10-06 실기기 14:10 · 바다 x.03~1.06 y.54~.72 · 배 몸통 x.60~.90 y.53~.74). 같은 색이면 지금처럼 배경을 칠한 것
+     */
+    @Test
+    fun aDenseStrokeOfAnotherColourInsideABackgroundIsANewPiece() {
+        val sea = Color(-12616743)
+        val boat = Color(-12965346)
+        fun wave(c: Color) = Stroke(c, (0..40).map { i -> Offset(.03f + 1.03f * i / 40, .63f + .09f * kotlin.math.sin(i * .9f)) })
+        fun zigzag(c: Color) = Stroke(c, (0..10).map { i -> Offset(.60f + .30f * (i % 2), .55f + .015f * i) })
+        val day = DiaryDay()
+        val bg = day.addStroke(wave(sea))
+        assertEquals(com.example.finalproject_demo.demo.PieceRole.BACKGROUND, day.pieces.single().role)
+        val hull = day.addStroke(zigzag(boat))
+        assertNotEquals("다른 색 배 몸통을 바다 칠하기로 삼켰다", bg, hull)
+        assertEquals(com.example.finalproject_demo.demo.PieceRole.OBJECT, day.pieces.first { it.id == hull }.role)
+        val painted = DiaryDay()
+        val bg2 = painted.addStroke(wave(sea))
+        assertEquals("같은 색으로 촘촘히 칠한 것은 바다다", bg2, painted.addStroke(zigzag(sea)))
+    }
+
     private fun diaryLine(vararg xy: Float) =
         com.example.finalproject_demo.demo.Stroke(androidx.compose.ui.graphics.Color.Blue, xy.toList().chunked(2).map { androidx.compose.ui.geometry.Offset(it[0], it[1]) })
 }
