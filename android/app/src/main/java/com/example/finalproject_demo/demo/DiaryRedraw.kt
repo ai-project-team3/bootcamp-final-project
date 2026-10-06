@@ -58,18 +58,57 @@ fun pieceToPng(piece: DiaryPiece, aspect: Float, side: Int = REDRAW_SIDE): ByteA
         .also { bmp.recycle() }
 }
 
+/** 배경으로 보낼 판의 폭 — 서버는 판 비율 그대로 높이 768 로 다시 맞춘다 (eval/diary_bg_1006) */
+private const val BOARD_SEND_W = 1232
+
+/**
+ * 배경 조각의 선만 투명한 **판 전체** PNG (#168) — 땅 · 하늘은 어디에 그었는지가 뜻이라 자르지 않는다.
+ * 폭 [width] px, 높이는 판 비율([aspect] = 폭/높이)대로. 다른 조각은 안 간다
+ */
+fun boardToPng(piece: DiaryPiece, aspect: Float, width: Int = BOARD_SEND_W): ByteArray? {
+    if (piece.strokes.none { it.pts.size >= 2 }) return null
+    val a = aspect.takeIf { it > 0f } ?: 1f
+    val h = (width / a).toInt().coerceAtLeast(8)
+    val bmp = Bitmap.createBitmap(width, h, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    piece.strokes.forEach { s ->
+        if (s.pts.size < 2) return@forEach
+        val p = Path()
+        s.pts.forEachIndexed { i, o -> if (i == 0) p.moveTo(o.x * width, o.y * h) else p.lineTo(o.x * width, o.y * h) }
+        paint.color = s.color.toArgb()
+        paint.strokeWidth = (s.w * width).coerceAtLeast(2f)          // 선 굵기는 판 폭에 대한 비율
+        canvas.drawPath(p, paint)
+    }
+    return ByteArrayOutputStream().use { out -> bmp.compress(Bitmap.CompressFormat.PNG, 100, out); out.toByteArray() }
+        .also { bmp.recycle() }
+}
+
 /**
  * 오또 그림을 부르는 곳 — 테스트가 서버 없이 바꿔 끼운다. null = 원본 그대로(검사에 걸림 · 늦음 · 실패).
  * [description] 은 이름을 가린 조각 이름이다(규칙 6).
  */
 internal var requestRedraw: suspend (png: ByteArray, description: String) -> ByteArray? = { png, description ->
+    redrawLogged(png, description, role = null)
+}
+
+/** 배경 조각을 부르는 곳 (#168) — [png] 는 [boardToPng] 의 판 전체. 받는 것은 판 비율의 장면 그림이다 */
+internal var requestBackgroundRedraw: suspend (png: ByteArray, description: String) -> ByteArray? = { png, description ->
+    redrawLogged(png, description, role = "background")
+}
+
+private suspend fun redrawLogged(png: ByteArray, description: String, role: String?): ByteArray? {
     val t0 = System.currentTimeMillis()
-    Server.redraw(png, description, mode = "diary").also { out ->
+    return Server.redraw(png, description, mode = "diary", role = role).also { out ->
         // 실기기에서 「지금 보낸 것에 지금 온 그림」인지 맞춰 보는 기록 — 가린 이름 · 크기 · 시간 · 지문만(그림은 남기지 않는다)
         runCatching {
             android.util.Log.i(
                 "Diary",
-                "redraw 「$description」 sent ${png.size}B #${fingerprint(png)} → " +
+                "redraw${role?.let { " $it" }.orEmpty()} 「$description」 sent ${png.size}B #${fingerprint(png)} → " +
                     (out?.let { "got ${it.size}B #${fingerprint(it)}" } ?: "nothing (preset · failed)") +
                     " in ${System.currentTimeMillis() - t0}ms",
             )

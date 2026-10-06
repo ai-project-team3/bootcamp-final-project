@@ -33,6 +33,7 @@ import com.example.finalproject_demo.demo.DiaryPaper
 import com.example.finalproject_demo.demo.DiaryWeather
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.PieceLook
+import com.example.finalproject_demo.demo.PieceRole
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
@@ -465,6 +466,34 @@ class DiaryViewsTest {
         d.s.stage = DiaryBoard()
         show(d)
         snap("diary_board_otto_flat_piece")
+    }
+
+    /**
+     * 오또가 그린 배경(#168)은 판 비율의 장면 그림이다 — 판 전체에 깔린다(조각 가운데 정사각형이 아니다).
+     * 다른 조각의 선은 그 위에 남는다
+     */
+    @Test
+    fun ottosBackgroundCoversTheWholeBoard() {
+        val d = director()
+        d.s.drawing += line(Color(0xFF5AAA50), .05f, .80f, .95f, .80f)       // 땅 — 판을 가로지르는 선
+        d.s.drawing += line(Color(0xFFE8604C), .40f, .40f, .55f, .40f, .55f, .60f, .40f, .60f)
+        val day = d.s.newDiaryDay()
+        day.catchUp(d.s.drawing)
+        val ground = day.pieces.indexOfFirst { it.role == PieceRole.BACKGROUND }
+        assertTrue("땅이 배경 조각이 아니다", ground >= 0)
+        val bmp = android.graphics.Bitmap.createBitmap(128, 64, android.graphics.Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(bmp).drawColor(android.graphics.Color.rgb(150, 200, 120))
+        val png = java.io.ByteArrayOutputStream().also { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+        day.pieces[ground] = day.pieces[ground].copy(name = "바다", look = PieceLook.OTTO, ottoPng = png)
+        d.s.stage = DiaryBoard()
+        show(d)
+        val board = compose.onNodeWithTag("diary-board").getUnclippedBoundsInRoot()
+        val look = compose.onNodeWithTag("otto-look-${day.pieces[ground].id}").getUnclippedBoundsInRoot()
+        assertEquals("배경이 판 폭에 안 맞는다", (board.right - board.left).value, (look.right - look.left).value, 2f)
+        assertEquals("배경이 판 높이에 안 맞는다", (board.bottom - board.top).value, (look.bottom - look.top).value, 2f)
+        assertEquals("배경이 판 위에서 어긋났다", board.top.value, look.top.value, 2f)
+        assertEquals("배경이 판 왼쪽에서 어긋났다", board.left.value, look.left.value, 2f)
+        snap("diary_board_otto_background")
     }
 
     /** D0 — 방에서 손 흔드는 오또 · [그릴래!] · [그림 없이 말할래] (docs/일기모드_UI.html) */

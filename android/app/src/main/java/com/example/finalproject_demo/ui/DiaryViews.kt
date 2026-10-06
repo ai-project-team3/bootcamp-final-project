@@ -377,6 +377,9 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
             val whole = BoardBox(0f, 0f, 1f, 1f)
             val otto = day.pieces.filter { it.look == PieceLook.OTTO }
             val hidden = otto.flatMap { it.strokes }.toSet()
+            // 오또가 그린 배경(#168)은 판 전체 장면 — 아이 선보다 먼저(뒤에) 깐다
+            val (ottoBehind, ottoFront) = otto.partition { it.role == PieceRole.BACKGROUND }
+            ottoBehind.forEach { p -> p.ottoSpots().forEach { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
             Canvas(Modifier.fillMaxSize()) {
                 // 배경 획을 먼저 — 나중에 그은 땅 · 하늘이 물체를 덮지 않는다
                 val behind = day.pieces.filter { it.role == PieceRole.BACKGROUND }.flatMap { it.strokes }.toSet()
@@ -386,7 +389,7 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                     drawPath(p, color, style = Stroke(size.width * PEN_W, cap = StrokeCap.Round, join = StrokeJoin.Round))
                 }
             }
-            otto.forEach { p -> p.ottoSpots().forEach { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
+            ottoFront.forEach { p -> p.ottoSpots().forEach { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
             PieceRings(day.pieces.toList(), day.askingPiece, cq)
             // 방금 누른 이름표 — 새 획을 긋기 전까지 [그려 줘] · [이름 고치기]가 이 조각을 가리킨다. 청록으로 구별한다 (10-05 진웅)
             val selected = day.focus?.takeIf { it.second == s.drawing.size }?.first
@@ -598,7 +601,9 @@ private fun ChildPiece(piece: DiaryPiece, aspect: Float) {
 private fun OttoArt(piece: DiaryPiece, modifier: Modifier) {
     val png = piece.ottoPng
     val bmp = remember(png) { png?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
-    if (bmp != null) Image(bmp, contentDescription = piece.name, modifier = modifier)
+    // 배경은 판 비율의 장면이다(#168) — 판을 꽉 채운다. 책 쪽처럼 잘라 낸 창이면 그 창 밖은 잘린다
+    val fit = if (piece.role == PieceRole.BACKGROUND) ContentScale.FillBounds else ContentScale.Fit
+    if (bmp != null) Image(bmp, contentDescription = piece.name, modifier = modifier, contentScale = fit)
     else EmojiView(ottoEmoji(piece.name.orEmpty()), modifier)
 }
 
@@ -610,14 +615,17 @@ private fun OttoArt(piece: DiaryPiece, modifier: Modifier) {
 private fun OttoLook(piece: DiaryPiece, b: BoardBox, crop: BoardBox, wDp: Float, hDp: Float, alpha: Float = 1f) {
     val pop = remember(piece.id, piece.look) { Animatable(0.4f) }
     LaunchedEffect(piece.id, piece.look) { pop.animateTo(1f, spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessLow)) }
-    // 오또 그림은 정사각형(640²)이다 — 조각이 납작한 선이어도 쪼그라들지 않게 조각의 긴 변만 한 정사각형을 조각 가운데에
     val w = b.width / crop.width * wDp
     val h = b.height / crop.height * hDp
-    val side = maxOf(w, h, 24f)
-    val x = ((b.left + b.right) / 2f - crop.left) / crop.width * wDp - side / 2f
-    val y = ((b.top + b.bottom) / 2f - crop.top) / crop.height * hDp - side / 2f
+    // 배경(#168)은 자리(판 전체) 그대로. 물건 그림은 정사각형(640²)이다 — 조각이 납작한 선이어도 쪼그라들지 않게
+    // 조각의 긴 변만 한 정사각형을 조각 가운데에
+    val backdrop = piece.role == PieceRole.BACKGROUND
+    val bw = if (backdrop) w else maxOf(w, h, 24f)
+    val bh = if (backdrop) h else bw
+    val x = ((b.left + b.right) / 2f - crop.left) / crop.width * wDp - bw / 2f
+    val y = ((b.top + b.bottom) / 2f - crop.top) / crop.height * hDp - bh / 2f
     Box(
-        Modifier.offset(x = x.dp, y = y.dp).size(side.dp).alpha(alpha)
+        Modifier.offset(x = x.dp, y = y.dp).size(bw.dp, bh.dp).alpha(alpha)
             .graphicsLayer { scaleX = 2f - pop.value; scaleY = pop.value }
             .testTag("otto-look-${piece.id}")
     ) { OttoArt(piece, Modifier.fillMaxSize()) }

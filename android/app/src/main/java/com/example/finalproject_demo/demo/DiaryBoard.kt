@@ -233,9 +233,12 @@ fun DiaryPiece.redrawSample(): DiaryPiece =
     if (role != PieceRole.GROUP) this
     else copy(strokes = clusters().maxByOrNull { c -> boxOf(c)!!.let { it.width * it.height } } ?: strokes)
 
-/** 오또 그림을 놓을 자리 — 무리면 덩어리마다, 아니면 조각 하나 */
-fun DiaryPiece.ottoSpots(): List<BoardBox> =
-    if (role == PieceRole.GROUP) clusters().mapNotNull { boxOf(it) } else listOfNotNull(boxOf(strokes))
+/** 오또 그림을 놓을 자리 — 무리면 덩어리마다, 배경이면 판 전체(판 비율의 장면 그림 · #168), 아니면 조각 하나 */
+fun DiaryPiece.ottoSpots(): List<BoardBox> = when (role) {
+    PieceRole.GROUP -> clusters().mapNotNull { boxOf(it) }
+    PieceRole.BACKGROUND -> listOf(BoardBox(0f, 0f, 1f, 1f))
+    PieceRole.OBJECT -> listOfNotNull(boxOf(strokes))
+}
 
 /** 판을 가로지르는 납작한 선인가 — 땅 · 하늘 · 바다. 3~7세 값은 획 기록으로 다시 잡는다 */
 internal fun isBackgroundStroke(b: BoardBox): Boolean = b.width >= BG_MIN_WIDTH && b.height <= BG_MAX_HEIGHT
