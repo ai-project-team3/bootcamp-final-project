@@ -171,7 +171,7 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
                 Text(
                     b.title,
                     fontSize = 9.sp, lineHeight = 11.sp, color = Ink, fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center, maxLines = 2,
+                    textAlign = TextAlign.Center, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 3.dp, vertical = 2.dp),
                 )
             }
@@ -183,13 +183,7 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
                     .felt(FeltCoral, RoundedCornerShape(Radius.Round), lift = 2.dp, stitch = false)
                     .padding(horizontal = 8.dp, vertical = 2.dp)
             ) { Text("새 책!", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold) }
-            // 책 이름은 나중에 책장에서 바꿀 수 있다 — 자리만 둔다
-            Box(
-                Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = 16.dp).size(28.dp)
-                    .shadow(4.dp, CircleShape).clip(CircleShape).background(Color.White)
-                    .border(2.dp, Sun, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) { Tappable(text = { "이름 바꾸기는 곧 생겨요" }, modifier = Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("✏️", fontSize = 13.sp) } } }
+            // ✏️ 이름 바꾸기는 기능이 생길 때 다시 둔다 — 「곧 생겨요」만 뜨는 버튼은 뺐다(#154)
             Text("✨", fontSize = 22.sp, modifier = Modifier.align(Alignment.BottomStart).offset(x = (-12).dp).alpha(tw))
         }
     }

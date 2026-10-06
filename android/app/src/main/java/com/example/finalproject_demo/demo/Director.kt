@@ -532,7 +532,7 @@ class Director(
             log("🎤 끝 → 우리 서버로 받아쓰기 (${audio.size / 1024}KB)")
             val text = Voice.transcribe(audio)
             when {
-                text == null || text.isBlank() -> unheard(if (text == null) "받아쓰기 실패" else "들을 말이 없음")
+                text == null || text.isBlank() -> unheard(if (text == null) "받아쓰기 실패" else "들을 말이 없음", failed = text == null)
                 else -> {
                     unheardStreak = 0
                     val fixed = fixKnownNames(text, s.knownNames())
@@ -557,7 +557,8 @@ class Director(
     private var unheardFor: Question? = null
     private var unheardWait: Job? = null
 
-    private fun unheard(why: String) {
+    /** [failed] = 서버 · 네트워크가 실패했다 — 아이 탓(「소리가 작았나 봐」)으로 말하지 않는다 (#154 · 10-06) */
+    private fun unheard(why: String, failed: Boolean = false) {
         if (unheardFor !== currentQ) { unheardFor = currentQ; unheardStreak = 0 }
         unheardStreak++
         if (unheardStreak > UNHEARD_RETRIES) {
@@ -568,7 +569,11 @@ class Director(
         }
         log("$why — 말소리는 들렸다 → 같은 질문으로 되묻기 ($unheardStreak/$UNHEARD_RETRIES)")
         hushVoice()                                       // 「잘 들었어」 리액션이 아직 나오고 있으면 끊는다
-        say(if (unheardStreak == 1) "어? 소리가 작았나 봐. 한 번 더 말해 줄래?" else "미안, 또 못 들었어. 천천히 한 번만 더 말해 줄래?")
+        say(when {
+            unheardStreak > 1 -> "미안, 또 못 들었어. 천천히 한 번만 더 말해 줄래?"
+            failed -> "앗, 오또 귀가 잠깐 멍해졌어. 한 번 더 말해 줄래?"
+            else -> "어? 소리가 작았나 봐. 한 번 더 말해 줄래?"
+        })
         val asked = currentQ
         unheardWait?.cancel()
         unheardWait = scope.launch {
