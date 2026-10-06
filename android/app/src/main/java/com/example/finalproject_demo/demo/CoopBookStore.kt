@@ -48,6 +48,16 @@ data class CoopBookSnapshot(
     val fields: Map<String, String> = emptyMap(),
     val slotBy: Map<String, String> = emptyMap(),
     val feelings: List<String> = emptyList(),
+    /**
+     * 이 책을 지을 때 부모가 고른 이야기(종류 · 이름 · 이유) — 질문만 적었거나 10-06 전에 저장한 책이면 null.
+     * 다시 열어도 「곧 해요」였는지 알 수 있게 남긴다 (협업모드_확장_설계 §2-3 ①)
+     */
+    val pick: CoopPick? = null,
+    /**
+     * 짝책 — 「가기 전」(곧 해요) 책이면 다녀온 책 id, 「다녀온 뒤」 책이면 가기 전 책 id. 없으면 null.
+     * 상대가 지워져도 이 값은 그대로 둔다 — 읽을 때 상대가 없으면 짝 없음이다([CoopShelf.pairOf])
+     */
+    val pairId: String? = null,
 )
 
 /** 쪽 구성 · 그림이 읽는 뼈대 칸 — 이름 → (읽기, 쓰기) */
@@ -72,6 +82,8 @@ interface CoopBookStore {
     fun delete(id: String): Boolean { error("Co-op book deletion is not supported") }
     /** 책들이 쓰는 그림 — 읽지 못한 책이 있으면 null(어느 그림을 남길지 모른다 · 그림 정리를 멈춘다) */
     fun imageReferences(): Set<String>? = load().flatMap { listOfNotNull(it.book.bgName) + it.book.visuals?.images.orEmpty() }.toSet()
+    /** 두 책을 짝으로 잇는다(양쪽 `pairId`). 둘 중 하나라도 없거나 재료가 없는 책이면 false — 아무것도 바꾸지 않는다 */
+    fun linkPair(a: String, b: String): Boolean = false
 }
 
 /** 지금 같이 만든 이야기를 책 한 권으로 — 빈 쪽이 있으면 null(책이 덜 됐다) */
@@ -94,6 +106,8 @@ fun DemoState.completedCoopBook(): SavedCoopBook? {
         partnerKey, partnerCall, partnerHelpLine, bookNote, bgName,
         COOP_BOOK_FIELDS.mapNotNull { (k, f) -> f.first(this)?.let { k to it } }.toMap(),
         slotBy.toMap(), feelings.toList(),
+        // 이야기가 끝나면 coopPick 은 비어 있다(coopFinishLog) — 시작할 때 남긴 것까지 보는 bookPick
+        pick = bookPick,
     )
     return SavedCoopBook(book, snapshot)
 }
@@ -165,6 +179,21 @@ class LocalCoopBookStore(context: Context) : CoopBookStore {
         check(prefs.edit().putString("books", coopBooksToJson(current.filterNot { it.book.id == id })).commit()) { "같이 만들기 책을 빼지 못했습니다" }
         return true
     }
+
+    override fun linkPair(a: String, b: String): Boolean {
+        if (a == b) return false
+        val raw = prefs.getString("books", null) ?: return false
+        val current = coopBooksFromJson(raw)
+        // 읽지 못한 책이 있으면 다시 쓰지 않는다 — 다시 쓰면 그 책까지 지워진다
+        check(current.size == JSONArray(raw).length()) { "읽지 못한 같이 만들기 책이 있어 짝을 잇지 않는다" }
+        if (listOf(a, b).any { id -> current.none { it.book.id == id && it.snapshot != null } }) return false
+        val linked = current.map { c ->
+            val other = when (c.book.id) { a -> b; b -> a; else -> return@map c }
+            c.copy(snapshot = c.snapshot!!.copy(pairId = other))
+        }
+        check(prefs.edit().putString("books", coopBooksToJson(linked)).commit()) { "같이 만들기 책 짝을 저장하지 못했습니다" }
+        return true
+    }
 }
 
 private fun JSONObject?.toStringMap(): Map<String, String> =
@@ -212,6 +241,8 @@ private fun snapshotToJson(s: CoopBookSnapshot): JSONObject {
             .put("fields", JSONObject().also { o -> s.fields.forEach { (k, v) -> o.put(k, v) } })
             .put("slotBy", JSONObject().also { o -> s.slotBy.forEach { (k, v) -> o.put(k, v) } })
             .put("feelings", JSONArray().also { a -> s.feelings.forEach { a.put(it) } })
+            .put("pick", s.pick?.let { p -> JSONObject().put("kind", p.kind).put("name", p.name).put("reason", p.reason ?: JSONObject.NULL) } ?: JSONObject.NULL)
+            .put("pairId", s.pairId ?: JSONObject.NULL)
 }
 
 /** 망가진 책은 건너뛴다(읽기). 쓰기는 [LocalCoopBookStore.save] 가 수를 맞춰 보고 막는다 */
@@ -242,6 +273,11 @@ internal fun coopBooksFromJson(raw: String): List<SavedCoopBook> = runCatching {
                 c.getString("bookNote"), c.getString("bgName"),
                 c.optJSONObject("fields").toStringMap(), c.optJSONObject("slotBy").toStringMap(),
                 c.optJSONArray("feelings")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
+                // 10-06 전 책에는 두 칸이 없다 — null(고른 이야기 모름 · 짝 없음)
+                pick = c.optJSONObject("pick")?.let { p ->
+                    CoopPick(p.getString("kind"), p.getString("name"), if (p.isNull("reason")) null else p.getString("reason"))
+                },
+                pairId = if (!c.has("pairId") || c.isNull("pairId")) null else c.getString("pairId").ifBlank { null },
             )
             SavedCoopBook(book, snap)
         }.getOrNull()
@@ -309,6 +345,30 @@ object CoopShelf {
             s.shelf.add(0, book.book.onCoopShelf(fresh = true))
             CoopShelved.SAVED
         } catch (_: Exception) { CoopShelved.FAILED }
+    }
+
+    /**
+     * 두 책을 짝으로 잇는다 — 저장소에 먼저 쓰고, 성공했을 때만 다시 그리는 재료도 바꾼다.
+     * 「다녀온 뒤」 책이 꽂힐 때 「가기 전」 책과 잇는다 (협업모드_확장_설계 §2-3)
+     */
+    fun linkPair(s: DemoState, a: String, b: String): Boolean {
+        val store = stores[s] ?: return false
+        if (!runCatching { store.linkPair(a, b) }.getOrDefault(false)) return false
+        listOf(a to b, b to a).forEach { (id, other) -> snapshots[id]?.let { snapshots[id] = it.copy(pairId = other) } }
+        books[s]?.replaceAll { c ->
+            when (c.book.id) {
+                a -> c.copy(snapshot = c.snapshot?.copy(pairId = b))
+                b -> c.copy(snapshot = c.snapshot?.copy(pairId = a))
+                else -> c
+            }
+        }
+        return true
+    }
+
+    /** 이 책의 짝 — 짝 표시가 없거나 상대가 책장에 없으면(지워졌으면) null */
+    fun pairOf(s: DemoState, bookId: String): SavedStoryBook? {
+        val other = snapshots[bookId]?.pairId ?: return null
+        return books[s]?.firstOrNull { it.book.id == other }?.book
     }
 
     /** 책장에서 누른 책이 같이 만들기 책이면 그 책 */
