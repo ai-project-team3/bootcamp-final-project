@@ -24,6 +24,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,9 +86,12 @@ class MainActivity : ComponentActivity() {
         // 화면 검사(Robolectric)는 디버그라도 끈다 — 검사가 진짜 서버를 부르면 안 된다
         val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         val byDefault = debuggable && !android.os.Build.FINGERPRINT.contains("robolectric", ignoreCase = true)
-        (intent?.getStringExtra("server") ?: DEFAULT_SERVER.takeIf { byDefault })?.let { Server.base = it.trimEnd('/') }
+        // 인자는 **디버그 빌드만** 읽는다 (10-06) — 런처가 exported 라, 릴리스에서도 읽으면 다른 앱이 임의 https 주소를 넣어
+        // 아이 음성(/stt)을 그쪽으로 보낼 수 있다. 스토어 빌드는 인자를 무시하고 대본으로 돈다
+        val extra: (String) -> String? = { k -> if (debuggable) intent?.getStringExtra(k) else null }
+        (extra("server") ?: DEFAULT_SERVER.takeIf { byDefault })?.let { Server.base = it.trimEnd('/') }
         // 어느 모드를 서버로 돌릴지 — `-e live story,diary,coop` 또는 `all`. 기본 주소로 켰으면 전부
-        (intent?.getStringExtra("live") ?: "all".takeIf { byDefault && Server.base == DEFAULT_SERVER })
+        (extra("live") ?: "all".takeIf { byDefault && Server.base == DEFAULT_SERVER })
             ?.let { Server.liveModes = Server.parseLive(it) }
         Voice.attach(this)        // 진짜 마이크 · 마스코트 목소리 — 서버 모드에서만 쓴다 (net/Voice.kt)
         com.example.finalproject_demo.sound.ChildSound.attach(this)   // 아이가 만든 소리 — 폰에만 (#42)
@@ -152,11 +156,13 @@ fun DemoApp() {
 
         // 왼쪽 위 = 시스템 — 🏠 방으로 · 🔒 부모 문(2초). 방 · 부모 · 책장은 자기 버튼이 있어 뺀다
         val kidScreen = pinStage == null && s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF)
-        // 동화 · 같이 만들기 도중에는 🔒 대신 오른쪽 위 ⏸ (#125 · 10-05 조장 — 이야기 중에는 부모 모드가 필요 없다).
-        // 그림일기는 자리를 진웅님과 정하는 중이라 그대로(🔒 는 일기 화면에서 이미 뺐다)
-        val pausable = kidScreen && !diaryOwnsChrome && (s.mode == com.example.finalproject_demo.demo.StoryMode.STORY || s.isCoop)
+        // 이야기 도중에는 🔒 대신 오른쪽 위 ⏸ (#125 · 10-05 조장 — 이야기 중에는 부모 모드가 필요 없다).
+        // 그림일기도 같은 자리 — 일기 화면이 그 아래로 비킨다 (#163 · 10-06 진웅 · ui/DiaryViews.kt PauseBottom)
+        val pausable = kidScreen && (s.mode == com.example.finalproject_demo.demo.StoryMode.STORY || s.mode == com.example.finalproject_demo.demo.StoryMode.DIARY || s.isCoop)
         if (kidScreen) com.example.finalproject_demo.ui.shell.KidTopBar(d, Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 10.dp), lock = !diaryOwnsChrome && !pausable)
-        if (pausable) com.example.finalproject_demo.ui.shell.PauseButton(Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 10.dp)) { d.holdSession() }
+        // 시연 서랍 칸(오른쪽 위 48dp · 아래)보다 위에 — 아니면 ⏸ 가운데와 오른쪽 위 누름을 서랍 칸이 먹는다(10-06 화면 검사).
+        // 서랍은 ⏸ 바깥 구석(오른쪽 끝 12dp · 위 10dp)을 길게 누르면 그대로 열린다
+        if (pausable) com.example.finalproject_demo.ui.shell.PauseButton(Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 10.dp).zIndex(12f).testTag("pause")) { d.holdSession() }
 
         // 화면이 꺼지거나 앱이 뒤로 가면 이야기 도중이면 ⏸ (#125) — 돌아오면 「잠깐 쉬는 중」이 떠 있다
         val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -218,8 +224,9 @@ fun DemoApp() {
             if (s.canRedo) com.example.finalproject_demo.ui.TurnNavButton(d, undo = false, Modifier.align(Alignment.CenterEnd).zIndex(11f))
         }
 
-        // 오른쪽 위 구석 길게 누르기 → 시연 서랍
-        Box(
+        // 오른쪽 위 구석 길게 누르기 → 시연 서랍 — **디버그 빌드만** (10-06). 서랍에는 「🔢 (시연) 비밀번호 4자리 입력」 ·
+        // 하루 한도 되돌리기 · 서버 스위치가 있어, 릴리스에 두면 아이가 구석을 길게 눌러 부모 영역에 닿는다
+        if (BuildConfig.DEBUG) Box(
             Modifier
                 .align(Alignment.TopEnd)
                 .size(48.dp)

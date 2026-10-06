@@ -38,6 +38,56 @@ KITS = {
         "kite": "diamond kite",
         "tree_row": "row of round trees",
     },
+    # 3-3 공룡 나라 — 2순위 첫째 (#97 조장 10-05 순서: 공룡 → 우주 → 바닷속). 목록 §3-3 문구 그대로, 「먼띠 · 랜드마크」 큰 것은 세로 판
+    "dino": {
+        # 「small smoking volcano」는 연기 없는 전등갓 모양이 나왔다 — 산 모양과 연기를 적어 준다
+        "volcano": "cone-shaped brown volcano mountain with a dark red crater and a small white puff of smoke rising from its top",
+        "palm_tree": "palm tree",
+        "waterfall": "little waterfall over rocks",
+        "jungle": "clump of jungle trees",
+        # 「green fern plant」는 화분에 심긴 채 나왔다
+        "fern": "clump of green fern fronds growing straight out of the ground, no pot, no soil",
+        "big_leaf": "big tropical leaf",
+        "egg": "spotted dinosaur egg",
+        "nest": "twig nest",
+        # 「three-toed footprint」는 사람 발 인형이 나왔다 — 바닥에 납작한 공룡 발자국 모양으로
+        "footprint": "flat brown dinosaur footprint shape with three big toes, top view, a flat cut-out shape lying on the ground",
+        "hibiscus": "red hibiscus flower",
+        "log": "fallen log",
+        "rainbow": "rainbow arch",
+    },
+    # 3-1 우주 — 2순위 둘째 (#97). 목록 §3-1 문구 그대로
+    "space": {
+        "moon": "yellow crescent moon",
+        "ring_planet": "orange planet with a ring",
+        "small_planet": "small round blue planet",
+        "star": "yellow five-pointed star",
+        "shooting_star": "shooting star with a tail",
+        "rocket": "red and white toy rocket",
+        "dome": "little round dome house",
+        "rock_hill": "lavender rocky hill",
+        "moon_rock": "lavender moon rock",
+        "crystal": "glowing purple crystal cluster",
+        "crater": "shallow round crater",
+        "flag": "little flag on a pole",
+    },
+    # 3-2 바닷속 — 2순위 셋째 (#97). 목록 §3-2 문구 그대로
+    "sea": {
+        "jellyfish": "pink jellyfish",
+        # 「clear water bubble」는 색 조각 박힌 펠트 공이 나왔다 — 속이 비친 동그란 방울로
+        "bubble": "single round transparent soap-bubble-like water bubble, pale see-through light blue with a small white shine highlight, hollow and empty inside",
+        "yellow_fish": "small yellow fish",
+        "clownfish": "orange striped clownfish",
+        "pink_coral": "pink branching coral",
+        "fan_coral": "orange fan coral",
+        "seaweed": "tall green seaweed",
+        "chest": "small wooden treasure chest",
+        "clam": "open clam shell with a pearl",
+        "scallop": "pink scallop shell",
+        "starfish": "orange starfish",
+        "sea_rock": "mossy blue-grey sea rock",
+        "reef": "blue-grey rocky reef",
+    },
     # 3-5 숲 · 시골 — 지금은 「살아 있는 배경」의 새만 (§6-3 · 공원 무대에도 들른다). 나머지 10종은 아직
     "forest": {
         # 목록 문구 「little blue bird」를 두 자세로 — 앉은 새와 나는 새. 옆모습 · 오른쪽을 보게(앱이 가는 쪽으로 뒤집는다)
@@ -47,7 +97,11 @@ KITS = {
 }
 
 # 세로로 긴 조각은 세로 판에 굽는다 — 정사각 판에서는 위아래가 잘렸다
-SIZES = {"street_lamp": (768, 1344)}
+SIZES = {
+    "street_lamp": (768, 1344), "palm_tree": (768, 1344), "waterfall": (768, 1344), "rainbow": (1344, 768), "log": (1344, 768),
+    "rocket": (768, 1344), "flag": (768, 1344), "rock_hill": (1344, 768), "crater": (1344, 768), "shooting_star": (1344, 768),
+    "seaweed": (768, 1344), "reef": (1344, 768),
+}
 
 if __name__ == "__main__":
     out = sys.argv[1]

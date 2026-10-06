@@ -33,7 +33,7 @@ interface StoryBookStore {
     /** Persist removal first — the director then drops the shelf entry and the book's sound (#80, parent mode only). */
     fun delete(id: String): Boolean { error("Story deletion is not supported") }
     /** Null means metadata cannot safely identify the files to retain. */
-    fun imageReferences(): Set<String>? = load().flatMap { listOfNotNull(it.bgName, it.visuals?.hero?.image) }.toSet()
+    fun imageReferences(): Set<String>? = load().flatMap { listOfNotNull(it.bgName) + it.visuals?.images.orEmpty() }.toSet()
 }
 
 fun DemoState.completedStoryBook(): SavedStoryBook? {
@@ -63,6 +63,9 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
                         check(hero.has("image")) { "Unknown story hero references" }
                         if (!hero.isNull("image"))
                             add(hero.get("image") as? String ?: error("Unreadable story hero reference"))
+                        entry.getJSONObject("visuals").optJSONObject("friend")?.let { friend ->
+                            add(friend.get("image") as? String ?: error("Unreadable story friend reference"))
+                        }
                     }
                 }
             }.toSet()

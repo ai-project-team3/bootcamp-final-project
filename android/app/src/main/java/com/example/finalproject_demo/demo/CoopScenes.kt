@@ -140,7 +140,11 @@ internal val DemoState.coopParentAnswers: List<Pair<String, String>>
  * 고른 이야기의 질문 · 부모가 적은 질문 하나에 아이가 뭐라고 했나 — 부모 리포트의 재료.
  * `by` 는 출처 3종 그대로(`child` · `card` · `mascot`), 답이 없으면 null (구현설계 §2-3).
  */
-data class CoopAsked(val question: String, val answer: String?, val by: String?)
+data class CoopAsked(
+    val question: String, val answer: String?, val by: String?,
+    /** 부모가 적은 질문이었나 — 리포트 「다음에 넣어 볼 질문」이 이것만 후보로 본다 (CoopReport.kt) */
+    val parent: Boolean = false,
+)
 
 /** 이 이야기에서 어느 걸음에 이미 물었고, 부모 질문을 몇 개 썼고, 질문마다 아이가 뭐라고 했나 */
 private class CoopTrack {
@@ -174,6 +178,8 @@ private class CoopTrack {
     val rejected = mutableMapOf<String, MutableList<String>>()
     /** 이 이야기를 시작할 때 고른 이야기 — 리포트를 열 때는 `coopPick` 이 이미 비어 있다(`clearParentQuestions`) */
     var pick: CoopPick? = null
+    /** 「다녀온 뒤」 이야기면 짝이 될 「가기 전」 책 id — 시작할 때 붙잡는다(끝나면 계획과 같이 비므로) · 협업모드_확장_설계 §2 */
+    var beforeBookId: String? = null
     /** 아이가 말한 곳으로 서버가 그린 배경(저장 경로)과, 그림을 요청한 곳 — 같은 곳을 두 번 그리지 않는다 (10-05) */
     var generatedBg by mutableStateOf<String?>(null)
     var bgAskedFor: String? = null
@@ -269,6 +275,8 @@ val DemoState.coopAsked: List<CoopAsked> get() = trackByState[this]?.asked.orEmp
 /** 이 이야기를 시작할 때 고른 이야기 · 부모 질문을 몇 개 썼나 — 부모 리포트의 말을 가른다 (CoopReport.kt) */
 val DemoState.coopStoryPick: CoopPick? get() = trackByState[this]?.pick
 val DemoState.coopParentUsed: Int get() = trackByState[this]?.parentUsed ?: 0
+/** 이 이야기가 짝을 지을 「가기 전」 책 id — 「다녀온 뒤」 이야기가 아니면 null */
+val DemoState.coopBeforeBookId: String? get() = trackByState[this]?.beforeBookId
 
 /**
  * 지금 이야기의 고른 이야기 — 부모가 고른 것(`coopPick`), 비었으면 이 이야기를 시작할 때 남겨 둔 것.
@@ -287,11 +295,20 @@ private val BEFORE_STORY = setOf(Scene.ADULT, Scene.PARTNER, Scene.BESTIARY, Sce
 suspend fun Director.coopIntro(childName: String) {
     s.newCoopTrack()
     s.coopTrack.pick = s.coopPick
+    // 「다녀온 뒤」 — 상자에서 꺼낸 계획이고, 가기 전 책이 아직 책장에 있을 때만 (협업모드_확장_설계 §2-2)
+    s.coopTrack.beforeBookId = CoopPlan.beforeBookId(s)
+        ?.takeIf { s.coopPick?.reasonOrNull() == CoopReason.DONE }
+        ?.takeIf { id -> CoopShelf.books(s).any { it.id == id } }
     if (s.coopReady) {
         // 템플릿으로 골랐으면 무슨 이야기인지 먼저 알려 준다 (09-29) — 호칭은 "부모님" (사용자 결정)
         val pick = s.coopPick
         if (pick != null) say("${childName}${ya(childName)}, 부모님이 고른 ‘${pick.name}’ 이야기를 같이 만들어 보자!")
         else say("${childName}${ya(childName)}, 부모님이 물어보고 싶은 게 있대! 내가 같이 물어볼게.")
+        // 가기 전 책은 이 한 줄에서만 말한다 — 질문 중에 「지난번엔 사자 본댔잖아」로 아이 답을 끌고 가지 않는다(지어내지 않기)
+        if (pick != null && s.coopTrack.beforeBookId != null) {
+            say(coopAfterIntroLine(pick))
+            log("「다녀온 뒤」 이야기 — 가기 전 책(${s.coopTrack.beforeBookId})과 짝이 된다. 가기 전 책은 서버에 보내지 않는다")
+        }
         log("부모 협업 모드 — 오또가 일반 모드처럼 걸음마다 묻는다. " +
             (pick?.let { "기승전결 네 자리는 고른 ‘${it.name}’(${it.reason ?: "이유 없음 → 상상"})에 맞춘 질문 — LLM이 붙으면 이 맥락을 프롬프트에 넣는다. " } ?: "") +
             "부모가 적은 질문 ${s.parentQuestions.count { it.isNotBlank() }}개는 꼬리질문 자리에 끼워 묻는다 (09-30)")
@@ -367,9 +384,9 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
     track.stats.count(r)
     // 부모 리포트 「고른 이야기 · 적은 질문에 한 답」 — 지금 방식과 같이 앱 기본 질문 · 사다리는 남기지 않는다
     if (src != CoopSource.LADDER) track.asked += when (r) {
-        is Reply.Spoke -> CoopAsked(text, r.text, "child")
-        is Reply.Tapped -> CoopAsked(text, r.label, if (r.byMascot) "mascot" else "card")
-        else -> CoopAsked(text, null, null)
+        is Reply.Spoke -> CoopAsked(text, r.text, "child", parent = src == CoopSource.PARENT)
+        is Reply.Tapped -> CoopAsked(text, r.label, if (r.byMascot) "mascot" else "card", parent = src == CoopSource.PARENT)
+        else -> CoopAsked(text, null, null, parent = src == CoopSource.PARENT)
     }
     if (src == CoopSource.PARENT) {
         event("utterance", "speaker" to "adult", "mode" to "typed", "text" to text)
@@ -439,9 +456,9 @@ private suspend fun Director.coopAskInFlowBefore(q: Question): Reply {
     val r = ask(q.copy(text = text, silent = false))
     // 부모 리포트 「고른 이야기 · 적은 질문에 한 답」 — 템플릿 질문도 부모가 고른 이야기라 함께 남긴다
     s.coopTrack.asked += when (r) {
-        is Reply.Spoke -> CoopAsked(text, r.text, "child")
-        is Reply.Tapped -> CoopAsked(text, r.label, if (r.byMascot) "mascot" else "card")
-        else -> CoopAsked(text, null, null)
+        is Reply.Spoke -> CoopAsked(text, r.text, "child", parent = line is CoopLine.Parent)
+        is Reply.Tapped -> CoopAsked(text, r.label, if (r.byMascot) "mascot" else "card", parent = line is CoopLine.Parent)
+        else -> CoopAsked(text, null, null, parent = line is CoopLine.Parent)
     }
     if (line is CoopLine.Parent) {
         // 부모가 지은 질문이라는 것은 기록에 남는다 — payload.speaker: adult. `by` 3종은 늘리지 않는다 (협업 §4-1 · §8)
@@ -701,6 +718,28 @@ private val COOP_TAIL_KEYS = listOf("detail", "said", "try", "after")
  * 받은 문장은 `storyCaptions` 에 담고 책은 그 문장으로 그린다(`StoryBank.kt` `bookCaption`).
  * 실패하거나 수가 안 맞으면 지금 틀 문장 그대로다. 이름은 보낼 때 가리고 받은 글에서 되돌린다(규칙 6).
  */
+/**
+ * 책을 쓰라고 보낼 곳 — 아이 문장에서 **곳 이름**을 뗄 수 있으면 이름만(「소방서에서 일할 것 같았어.」 → 소방서).
+ * 문장째 보내면 서버가 받아 적어 책 1쪽이 「소방서에서 일할 것 같다고 생각할 거예요」가 됐다(10-06 실기기).
+ * 칸 값은 그대로 둔다 — 부모 리포트는 아이가 한 말 원문을 보여 준다. 이름을 못 떼면(「기린 마당이 보였어」) 원문 그대로
+ */
+internal fun DemoState.coopBookPlace(): String? = place?.let { p -> bookPlaceName(p) ?: p }
+
+/**
+ * 「(곳)에서/에 (서술어)」 꼴에서 곳 이름. 공용 이름 떼기(`coopNameFrom`)는 「소방서」의 「서」를 이음 끝(「가서」)으로 봐서 못 뗀다.
+ * 이름답지 않으면 null — 조사가 붙은 어절(「엄마랑 집」) · 「거기」 · ㅆ받침(서술어) · 너무 긴 말
+ */
+internal fun bookPlaceName(said: String): String? {
+    val t = said.trim().trimEnd('.', '!', '?', '~', '…').trim()
+    val name = Regex("^(.+?)(?:에서|에)\\s+\\S").find(t)?.groupValues?.get(1)?.trim() ?: return null
+    val words = name.split(" ")
+    if (name.length > 12 || words.size > 3 || name in setOf("거기", "여기", "저기")) return null
+    // 앞 어절에 조사가 붙었으면 곳 이름이 아니라 말 토막(「엄마랑 집」). 마지막 어절은 보지 않는다 — 「제주도」 · 「독도」
+    if (words.dropLast(1).any { w -> w.length > 1 && Regex("(랑|하고|와|과|가|이|은|는|을|를|도)$").containsMatchIn(w) }) return null
+    if (name.any { c -> c in '가'..'힣' && (c - '가') % 28 == 20 }) return null
+    return name
+}
+
 suspend fun Director.coopWriteBook() {
     if (!s.isCoop || !Server.liveFor(s.mode)) return
     val pages = s.template?.pages ?: return
@@ -710,7 +749,7 @@ suspend fun Director.coopWriteBook() {
     val tails = COOP_TAIL_KEYS.mapNotNull { s.slots[it]?.takeIf(String::isNotBlank) } +
         s.coopParentAnswers.map { (question, answer) -> "「$question」에 「$answer」" }
     val slots = mapOf(
-        "place" to s.place, "problem" to s.problem, "cause" to s.cause, "solution" to s.solution,
+        "place" to s.coopBookPlace(), "problem" to s.problem, "cause" to s.cause, "solution" to s.solution,
         "reaction" to s.reaction, "companion" to s.friend,
         "extra" to tails.joinToString(" / ").ifBlank { null },
     )
@@ -738,7 +777,11 @@ suspend fun Director.coopWriteBook() {
  * 틀 문장 책에는 이 결과가 원래 들어 있었다(「먼지를 탈탈 털어 냈어」) — 서버 문장 책에서만 빠졌던 것을 채운다.
  * 아직 안 끝냈거나 미션 쪽이 아니면 null
  */
-internal fun DemoState.coopMissionResult(kind: PageKind): String? = if (!coopMissionInBook(kind)) null else when (kind) {
+internal fun DemoState.coopMissionResult(kind: PageKind): String? =
+    // 곧 해요 책은 「-ㄹ 거예요」 — 「물을 뿌릴 거예요」 뒤에 「불이 다 꺼졌어요」가 붙었다(10-06 실기기 · CoopTense.kt)
+    coopMissionResultAsDone(kind)?.let { if (coopServerTense() == CoopReason.SOON) soonTense(it) else it }
+
+private fun DemoState.coopMissionResultAsDone(kind: PageKind): String? = if (!coopMissionInBook(kind)) null else when (kind) {
     PageKind.RUB -> if (m1Result != null) slot1Prop()?.result ?: mission1().blobName.let { "${it}${ga(it)} 사라졌어요." } else null
     PageKind.DRAG -> if (m2Result != null) {
         slot2Prop()?.result ?: if (missions().slot2 == MissionId.A3) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
@@ -781,9 +824,9 @@ private fun DemoState.coopChildSaid(): String {
     return (slots.filterKeys { slotBy[it] in mine }.values + fields.filterKeys { slotBy[it] in mine }.values.filterNotNull()).joinToString(" ")
 }
 
-private val SOUND_THING = mapOf(SoundProp.SIREN to "소방차", SoundProp.CAR to "자동차", SoundProp.TRAIN to "기차",
+internal val SOUND_THING = mapOf(SoundProp.SIREN to "소방차", SoundProp.CAR to "자동차", SoundProp.TRAIN to "기차",
     SoundProp.LION to "사자", SoundProp.DOG to "강아지", SoundProp.CHEER to "공")
-private val FIX_THING = mapOf(FixProp.FIRE to "불", FixProp.FAUCET to "수도꼭지", FixProp.BALL to "공",
+internal val FIX_THING = mapOf(FixProp.FIRE to "불", FixProp.FAUCET to "수도꼭지", FixProp.BALL to "공",
     FixProp.PIECES to "떨어진 조각", FixProp.BLOCKS to "블록")
 
 /**

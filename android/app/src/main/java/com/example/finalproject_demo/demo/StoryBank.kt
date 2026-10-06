@@ -1,5 +1,8 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.slot1Prop
+import com.example.finalproject_demo.demo.missions.slot2Prop
+
 
 /*
  * 이야기 엔진 (v0.9) — 질문 은행 · 더미 답 · 발달 판단 · 수준별 동화 템플릿.
@@ -1034,6 +1037,10 @@ fun DemoState.bookCaption(i: Int): String =
         if (result == null) caption else "$caption $result"
     }
     // The scripted RUB page names its ride, which is not drawn in a live story. Keep its fallback playable.
-    else if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode) && pageKind(i) == PageKind.RUB)
+    else if (mode == StoryMode.STORY && pageKind(i) == PageKind.RUB &&
+        (com.example.finalproject_demo.net.Server.liveFor(mode) || slot1Prop() != null))
         if (m1Result == null) m1Before() else m1Done()
+    // A co-op mission in a story (10-06): the template's 「건네주었어요」 would not be what the child did
+    else if (mode == StoryMode.STORY && pageKind(i) == PageKind.DRAG && slot2Prop() != null)
+        slot2Prop()!!.let { if (m2Result == null) it.before else "${storyActor}${eun(storyActor)} ${it.did} ${it.result}" }
     else template?.pages?.getOrNull(i - 1)?.text?.invoke(this) ?: ""

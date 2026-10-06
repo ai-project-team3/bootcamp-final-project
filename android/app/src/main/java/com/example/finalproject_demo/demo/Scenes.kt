@@ -2,6 +2,7 @@ package com.example.finalproject_demo.demo
 
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.missions.slot1Prop
+import com.example.finalproject_demo.demo.missions.slot2Prop
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Trace
 import com.example.finalproject_demo.net.nameMask
@@ -213,7 +214,7 @@ private suspend fun Director.sceneAdult() {
     )
     // 갈래가 갈라지는 유일한 자리 (일기 §1 · 협업 §3). 뒤의 흐름은 질문 세트와 **묻는 사람**만 다르고 나머지는 같다
     var picked = StoryMode.STORY
-    when (awaitValue("start", "diary", "coop", "shelf", "parent", "notice:ok", "notice:shelf", "resume", "shelf:tidy")) {
+    when (awaitValue("start", "diary", "coop", "shelf", "parent", "parent:coop", "notice:ok", "notice:shelf", "resume", "shelf:tidy")) {
         "shelf", "notice:shelf" -> { go(Scene.SHELF); return }
         // 이야기 도중 나갔다가 「이어서 할까?」에 응 (09-29) — 별을 다시 쓰지 않고, 이야기 조각을 지우지 않고 멈춘 장면부터
         "resume" -> {
@@ -223,6 +224,11 @@ private suspend fun Director.sceneAdult() {
         }
         "parent" -> {
             if (pinGate("parent")) go(Scene.PARENT) else go(Scene.ADULT)
+            return
+        }
+        // 소파 [이야기 준비] — 준비된 이야기가 없을 때 부모 모드의 같이 만들기 준비 탭으로 바로 (#65 조장 요청 · 10-06)
+        "parent:coop" -> {
+            if (pinGate("parent")) { s.parentOpenTab = "coop"; go(Scene.PARENT) } else go(Scene.ADULT)
             return
         }
         "notice:ok" -> { go(Scene.ADULT); return }
@@ -530,13 +536,18 @@ private suspend fun Director.sceneMakeHero() {
     suspend fun voiceStep(from: Int) {
         for (i in from until questions.size) {
             val q = questions[i]
-            // No half-made preview: it was the grey mannequin, far from the finished doll (10-05 device · 3-1)
-            s.stage = Stage.HeroShow(null, "주인공 만드는 중 — 마이크로 말해 줘")
-            val r = ask(Question(text = q.text, kind = Kind.EASY, spoken = q.spoken, easierText = q.easier, easierAsk = "골라 볼래?", choices = q.cards))
-            when (r) {
-                is Reply.Spoke -> applySpoken(q.key, r)
-                is Reply.Tapped -> apply(q.key, r.value)
-                else -> {}
+            while (true) {
+                // No half-made preview: it was the grey mannequin, far from the finished doll (10-05 device · 3-1)
+                s.stage = Stage.HeroShow(null, "주인공 만드는 중 — 마이크로 말해 줘")
+                val r = ask(Question(text = q.text, kind = Kind.EASY, spoken = q.spoken, easierText = q.easier, easierAsk = "골라 볼래?", choices = q.cards))
+                if (r is Reply.Spoke && s.mode == StoryMode.STORY && Server.liveFor(s.mode) &&
+                    !confirmHeroDescription(r.text)) continue
+                when (r) {
+                    is Reply.Spoke -> applySpoken(q.key, r)
+                    is Reply.Tapped -> apply(q.key, r.value)
+                    else -> {}
+                }
+                break
             }
         }
     }
@@ -1499,10 +1510,12 @@ private suspend fun Director.sceneBook() {
         when {
             i == 0 -> {}
             i == rubPage && s.m1Result == null -> log(
-                if (s.isDiary) "${i}쪽 미션 1 (쉬움 · 문지르기) — 뼈대는 그대로, 소품만 하루에서 나온 것으로 (${m1.blobName} · 도구 ${m1.toolName} · §7-1 ②)"
+                // 아이 말에서 고른 미션(불기 · 소리 흉내)이면 그것을 적는다 — 화면은 「삐뽀삐뽀」인데 로그는 「문지르기 · 먼지」였다(10-06 실기기)
+                s.slot1Prop()?.let { "${i}쪽 미션 1 (쉬움 · ${it.badge}) — 아이 말에서 고른 미션 · 「${it.ask}」" }
+                    ?: if (s.isDiary) "${i}쪽 미션 1 (쉬움 · 문지르기) — 뼈대는 그대로, 소품만 하루에서 나온 것으로 (${m1.blobName} · 도구 ${m1.toolName} · §7-1 ②)"
                 else "${i}쪽 미션 1 (쉬움 · 문지르기) — 장면 4의 \"${s.newcomerKind}\"에서 나온 ${m1.blobName} · 도구 ${m1.toolName}"
             )
-            i == dragPage && s.m2Result == null -> log("${i}쪽 미션 2 (${if (s.m1Result == "helped") "쉬움 · 탭" else "보통 · 끌어다 놓기"}) — ${if (s.isDiary) "4턴째에 말한" else "장면 10에서 말한"} ${m2.itemName}${eul(m2.itemName)} ${s.friendCallName}에게")
+            i == dragPage && s.m2Result == null -> log(s.slot2Prop()?.let { "${i}쪽 미션 2 (${it.mission.name}) — 아이 말에서 고른 미션 · 「${it.ask}」" } ?: "${i}쪽 미션 2 (${if (s.m1Result == "helped") "쉬움 · 탭" else "보통 · 끌어다 놓기"}) — ${if (s.isDiary) "4턴째에 말한" else "장면 10에서 말한"} ${m2.itemName}${eul(m2.itemName)} ${s.friendCallName}에게")
             i == last && s.isDiary -> log("${i}쪽(마지막): 일기 모드도 미션 난이도 신호가 그대로 나온다 (§7-1 ②) · 공룡 소리 칸은 묻지 않았다 (§2-2)")
             i == last -> log("${i}쪽(마지막): ${if (s.partnerHelpLine != null) "${s.pn} 참여 한 줄 들어감" else "${s.pn}${ga(s.pn)} 답하지 않아 그 줄 없음"} · 소리 대상 ${soundHolder?.name ?: "없음"}")
             else -> log("${i}쪽 [${s.pageKind(i)}] — 템플릿 ${s.template?.code} 칸으로 만든 자막")
@@ -1758,8 +1771,8 @@ private suspend fun Director.sceneShelf() {
 
 private suspend fun Director.sceneParent() {
     inputs(false, false)
-    // 책장이 꽉 차 [부모 모드로]로 왔으면 책장 정리부터 (#80)
-    var tab = if (s.shelfTidyMode != null) "shelf" else "rec"
+    // 책장이 꽉 차 [부모 모드로]로 왔으면 책장 정리부터 (#80) · 소파 [이야기 준비]로 왔으면 같이 만들기 준비부터 (#65)
+    var tab = s.parentOpenTab?.also { s.parentOpenTab = null } ?: if (s.shelfTidyMode != null) "shelf" else "rec"
     buttons(
         DemoBtn("📋 오늘의 기록") { send(Reply.Tapped("tab:rec", "기록")) },
         DemoBtn("🏅 업적 보기") { send(Reply.Tapped("tab:ach", "업적")) },

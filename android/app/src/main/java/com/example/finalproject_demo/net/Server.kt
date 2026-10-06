@@ -284,7 +284,11 @@ object Server {
      * hallucination) — treat it as no answer. Null means the call failed.
      * ⚠️ The text still holds real names. Mask before it goes anywhere else (rule 6).
      */
+    /** The last /stt said its text was a guess (#149) — the director asks the child once more. */
+    @Volatile var lastSttUnsure = false
+
     suspend fun stt(audio: ByteArray, fileName: String = "turn.wav", mime: String = "audio/wav"): String? {
+        lastSttUnsure = false
         val boundary = "otto${System.nanoTime()}"
         val out = ByteArrayOutputStream().apply {
             write("--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"$fileName\"\r\nContent-Type: $mime\r\n\r\n".toByteArray())
@@ -294,7 +298,9 @@ object Server {
         val (code, bytes) = post("/stt", out, "multipart/form-data; boundary=$boundary", readMs = 30_000) ?: return null
         if (code != 200) { Log.w(TAG, "/stt $code ${bytes.decodeToString()}"); return null }
         return try {
-            JSONObject(bytes.decodeToString()).getString("text").also { Trace.line("heard", it.ifBlank { "(empty — no speech or a dropped hallucination)" }) }
+            val j = JSONObject(bytes.decodeToString())
+            lastSttUnsure = j.optBoolean("unsure")
+            j.getString("text").also { Trace.line("heard", it.ifBlank { "(empty — no speech or a dropped hallucination)" } + if (lastSttUnsure) " (unsure)" else "") }
         } catch (e: Exception) { warn("/stt parse", e); null }
     }
 

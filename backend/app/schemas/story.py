@@ -26,7 +26,7 @@ class Page(BaseModel):
 
 class Scene(BaseModel):
     index: int
-    caption: str      # -어요 ending, 15 eojeol or fewer, names still masked
+    caption: str      # -어요 ending, 1-2 sentences of 12 eojeol or fewer (20 a page · 10-06), names still masked
     keywords: str     # English, for asset lookup
     kind: Optional[PageKindName] = None   # stamped by the server from the request, never the model's
 

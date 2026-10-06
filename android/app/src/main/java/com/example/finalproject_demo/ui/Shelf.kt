@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.ShelfBook
+import com.example.finalproject_demo.demo.CoopShelf
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.restoreStoryBook
 import com.example.finalproject_demo.demo.restoreCoopBook
@@ -176,6 +177,8 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
                 )
             }
         }
+        // 「가기 전 · 다녀온 뒤」 짝책 — 표시만, 말은 없다(아이에게 두 책을 권하지 않는다 · 협업모드_확장_설계 §2-6)
+        if (CoopShelf.hasPair(d.s, b.savedStoryId)) Text("🧳", fontSize = 13.sp, modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-6).dp))
         if (fresh) {
             Box(
                 Modifier.align(Alignment.TopCenter).offset(y = (-14).dp)

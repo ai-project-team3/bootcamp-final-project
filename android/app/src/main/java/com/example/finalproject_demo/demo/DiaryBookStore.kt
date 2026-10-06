@@ -41,6 +41,9 @@ interface DiaryBookStore {
     fun save(book: SavedDiaryBook)
     /** 한 권 빼기 — 부모 모드에서만(#80). 그런 책이 없으면 false */
     fun delete(id: String): Boolean { error("Diary deletion is not supported") }
+    /** 그 책 쪽 문장의 오또 목소리(mp3) — 다시 읽을 때 `/tts` 를 다시 부르지 않게 (#179). 없으면 null */
+    fun voice(bookId: String, line: String): ByteArray? = null
+    fun keepVoice(bookId: String, line: String, mp3: ByteArray) {}
 }
 
 /** 책장 「다시 읽기」 표시 — 동화 책 id 와 섞이지 않게 앞에 붙인다(`ShelfBook.savedStoryId`) */
@@ -64,10 +67,12 @@ fun DemoState.completedDiaryBook(title: String, today: LocalDate = LocalDate.now
  * 앱 내부 저장소에만 보관한다 — 백업 · 기기 이전은 매니페스트가 막는다(`allowBackup="false"` · 09-23).
  * 글은 `shared_prefs/diary_books` 에 전체 배열을 한 번에 교체하고, 오또 그림 PNG 는 `files/diary_images/` 에 둔다
  * (한 장 약 200KB — 글 저장소에 넣으면 무겁다). 동화의 `LocalStoryBookStore` 와 같은 길이다.
+ * 쪽 문장의 오또 목소리는 `files/diary_voices/` 에 둔다(#179 · 한 권 약 100~150KB) — 오또 목소리라 아이 소리 규칙과 상관없다.
  */
 class LocalDiaryBookStore(context: Context) : DiaryBookStore {
     private val prefs = context.applicationContext.getSharedPreferences("diary_books", Context.MODE_PRIVATE)
     private val images = File(context.applicationContext.filesDir, "diary_images")
+    private val voices = File(context.applicationContext.filesDir, "diary_voices")
 
     override fun load(): List<SavedDiaryBook> {
         val raw = prefs.getString("books", null) ?: return emptyList()
@@ -96,7 +101,22 @@ class LocalDiaryBookStore(context: Context) : DiaryBookStore {
         current.filterNot { it.id == id }.forEach { array.put(it.toJson()) }
         check(prefs.edit().putString("books", array.toString()).commit()) { "그림일기를 빼지 못했습니다" }
         images.listFiles()?.filter { it.name.startsWith("${id}_") }?.forEach { it.delete() }
+        voices.listFiles()?.filter { it.name.startsWith("${id}_") }?.forEach { it.delete() }
         return true
+    }
+
+    override fun voice(bookId: String, line: String): ByteArray? =
+        File(voices, voiceName(bookId, line)).takeIf { it.exists() }?.readBytes()
+
+    override fun keepVoice(bookId: String, line: String, mp3: ByteArray) {
+        voices.mkdirs()
+        File(voices, voiceName(bookId, line)).writeBytes(mp3)
+    }
+
+    /** 문장은 파일 이름이 될 수 없다(띄어쓰기 · 부호 · 길이) — 해시로 */
+    private fun voiceName(bookId: String, line: String): String {
+        val hash = java.security.MessageDigest.getInstance("SHA-256").digest(line.toByteArray()).take(8).joinToString("") { "%02x".format(it) }
+        return "${bookId}_$hash.mp3"
     }
 
     private fun readPng(bookId: String, pieceId: Int): ByteArray? =
@@ -135,6 +155,15 @@ object DiaryShelf {
             books.getOrPut(s) { mutableListOf() }.add(0, book)
             true
         } catch (_: Exception) { false }
+    }
+
+    /** 그 책 쪽 문장의 오또 목소리 — 저장소가 없거나 못 읽으면 null(그때는 `/tts` 로 간다) */
+    fun voice(s: DemoState, bookId: String, line: String): ByteArray? =
+        stores[s]?.let { runCatching { it.voice(bookId, line) }.getOrNull() }
+
+    /** 남긴다 — 못 남겨도 책은 그대로다(다음 다시 읽기에 `/tts` 를 부를 뿐) */
+    fun keepVoice(s: DemoState, bookId: String, line: String, mp3: ByteArray) {
+        stores[s]?.let { runCatching { it.keepVoice(bookId, line, mp3) } }
     }
 
     fun book(s: DemoState, shelfId: String): SavedDiaryBook? =

@@ -9,11 +9,16 @@ import com.example.finalproject_demo.demo.PageKind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.CoopBookSnapshot
+import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.demo.CoopShelf
+import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.SavedCoopBook
 import com.example.finalproject_demo.demo.SavedStoryBook
 import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.SavedStoryPage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -70,6 +75,62 @@ class CoopBookStoreTest {
         assertTrue("13권째가 들어갔다", refused)
         assertEquals(COOP_SHELF_CAPACITY, store.load().size)
         assertTrue(store.load().none { it.book.id == "new" })
+    }
+
+    /** 협업모드_확장_설계 §2-3 ① — 고른 이야기 · 짝이 다시 켜도 남는다 */
+    @Test
+    fun thePickedStoryAndThePairSurviveARestart() {
+        val store = LocalCoopBookStore(context)
+        val before = book("before").let { it.copy(snapshot = it.snapshot!!.copy(pick = CoopPick("place", "동물원", "soon"))) }
+        val after = book("after").let { it.copy(snapshot = it.snapshot!!.copy(pick = CoopPick("place", "동물원", "done"))) }
+        store.save(before); store.save(after)
+        assertTrue(store.linkPair("before", "after"))
+        val again = LocalCoopBookStore(context).load().associateBy { it.book.id }
+        assertEquals(CoopPick("place", "동물원", "soon"), again.getValue("before").snapshot!!.pick)
+        assertEquals("after", again.getValue("before").snapshot!!.pairId)
+        assertEquals("before", again.getValue("after").snapshot!!.pairId)
+        // 이유를 안 고른 이야기(상상)도 null 그대로 돌아온다
+        store.save(book("dream").let { it.copy(snapshot = it.snapshot!!.copy(pick = CoopPick("job", "소방관", null))) })
+        assertNull(LocalCoopBookStore(context).load().first().snapshot!!.pick!!.reason)
+    }
+
+    /** 10-06 전 저장 모양 — 두 키가 아예 없어도 읽고, 고른 이야기 모름 · 짝 없음이다 */
+    @Test
+    fun aBookSavedBeforeTheseFieldsReadsAsNoPickAndNoPair() {
+        LocalCoopBookStore(context).save(book("old"))
+        val prefs = context.getSharedPreferences("coop_books", Context.MODE_PRIVATE)
+        val old = org.json.JSONArray(prefs.getString("books", null)).also { a ->
+            a.getJSONObject(0).getJSONObject("coop").apply { remove("pick"); remove("pairId") }
+        }
+        prefs.edit().putString("books", old.toString()).commit()
+        val snap = LocalCoopBookStore(context).load().single().snapshot!!
+        assertNull(snap.pick); assertNull(snap.pairId)
+        assertEquals(book("old").snapshot!!.slots, snap.slots)
+    }
+
+    @Test
+    fun aPairNeedsBothBooksAndChangesNothingOtherwise() {
+        val store = LocalCoopBookStore(context)
+        store.save(book("a"))
+        val prefs = context.getSharedPreferences("coop_books", Context.MODE_PRIVATE)
+        val before = prefs.getString("books", null)
+        assertFalse(store.linkPair("a", "gone"))
+        assertFalse(store.linkPair("a", "a"))
+        assertEquals(before, prefs.getString("books", null))
+    }
+
+    @Test
+    fun theShelfFindsThePairAndForgetsItWhenOneIsRemoved() {
+        val store = LocalCoopBookStore(context)
+        store.save(book("before")); store.save(book("after"))
+        val s = DemoState()
+        CoopShelf.attach(s, store)
+        assertNull(CoopShelf.pairOf(s, "before"))
+        assertTrue(CoopShelf.linkPair(s, "before", "after"))
+        assertEquals("after", CoopShelf.pairOf(s, "before")?.id)
+        assertEquals("before", CoopShelf.pairOf(s, "after")?.id)
+        assertTrue(CoopShelf.delete(s, "after"))
+        assertNull("지운 책을 짝으로 돌려줬다", CoopShelf.pairOf(s, "before"))
     }
 
     @Test

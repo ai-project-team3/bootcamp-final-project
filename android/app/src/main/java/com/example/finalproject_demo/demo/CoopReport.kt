@@ -2,6 +2,7 @@ package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.ui.CoopReason
 import com.example.finalproject_demo.ui.coopKind
+import com.example.finalproject_demo.ui.questionHint
 import com.example.finalproject_demo.ui.reasonOrNull
 import com.example.finalproject_demo.ui.templateQuestions
 
@@ -44,13 +45,15 @@ fun DemoState.coopReportCopy(): CoopReportCopy {
     val pick = coopStoryPick
     val parent = coopParentUsed > 0
     val defaultWhy = "“재밌었어?” 처럼 예/아니오로 끝나는 질문 대신 이렇게 넣어 보세요. 의문사는 하나만, 선택지는 질문보다 먼저."
+    // 부모가 적은 질문에 아이가 한 답이 있으면 거기서 고른다 — 없으면 이유별 예시 (협업모드_확장_설계 §3)
+    val picked = nextQuestionFromAnswers(coopAsked, childName)
     if (pick == null) return CoopReportCopy(
         madeFrom = "오늘 있었던 일로 · 어른이 넣어 둔 질문으로 지은 책이에요",
         who = "어른 질문으로 · ",
         askedTitle = "어른이 넣어 둔 질문에 한 답",
         askedSub = "넣은 순서대로 · 아이가 말한 것만 따옴표",
-        nextQuestion = "오늘 제일 재밌었던 거 하나만 말해 줄래?",
-        nextWhy = defaultWhy,
+        nextQuestion = picked?.question ?: "오늘 제일 재밌었던 거 하나만 말해 줄래?",
+        nextWhy = picked?.why ?: defaultWhy,
         playCards = null,
     )
     val reason = pick.reasonOrNull() ?: CoopReason.DREAM
@@ -66,12 +69,12 @@ fun DemoState.coopReportCopy(): CoopReportCopy {
         who = if (parent) "고른 이야기 · 어른 질문으로 · " else "고른 이야기로 · ",
         askedTitle = if (parent) "고른 이야기 질문 · 넣어 둔 질문에 한 답" else "고른 이야기 질문에 한 답",
         askedSub = "물은 순서대로 · 아이가 말한 것만 따옴표",
-        nextQuestion = when (reason) {
+        nextQuestion = picked?.question ?: when (reason) {
             CoopReason.DONE -> "오늘 제일 재밌었던 거 하나만 말해 줄래?"
             CoopReason.SOON -> "$name 이야기에서 제일 궁금한 게 뭐야?"
             CoopReason.DREAM -> "이 이야기 다음엔 무슨 일이 생길까?"
         },
-        nextWhy = when (reason) {
+        nextWhy = picked?.why ?: when (reason) {
             CoopReason.DONE -> defaultWhy
             CoopReason.SOON -> "아직 안 해 본 일이라 “뭐 했어?” 대신 “~할까?” “~궁금해?” 처럼 앞으로의 말로 물어보세요. 다녀온 뒤 「${coopKind(pick.kind)?.reasonLabels?.get(CoopReason.DONE) ?: "다녀왔어요"}」로 한 번 더 만들면 생각한 것과 견줄 수 있어요."
             CoopReason.DREAM -> "상상 이야기라 정답이 없어요. “~했을까?” “~할까?” 처럼 열어 두면 아이가 더 길게 지어요."
@@ -92,6 +95,51 @@ fun DemoState.coopReportCopy(): CoopReportCopy {
             )
         },
     )
+}
+
+// ── 「다음에 넣어 볼 질문」 — 부모가 적은 질문에 아이가 한 답에서 고른다 (협업모드_확장_설계 §3) ──
+
+/**
+ * 리포트 「다음에 넣어 볼 질문」 한 줄 — [question] 은 부모가 다음에 넣어 볼 질문, [why] 는 그 까닭.
+ *
+ * 이 모드가 파는 것은 「질문하는 법」이다(부모협업모드_설계 §7). 점수를 매기지 않는다 —
+ * 잘 된 질문 하나(아이가 제일 많이 말한 것)가 먼저고, 하나도 없을 때만 답이 안 나온 질문 하나를 바꿔 쓴 예와 함께.
+ * 글자 수 · 순위는 보여 주지 않는다(「당신의 질문은 60점」은 앱을 지우게 만든다).
+ */
+data class NextQuestionPick(val question: String, val why: String)
+
+/** 「몰라」 · 「응」 · 빈 말처럼 답이라고 볼 수 없는 것 — 카드 · 마스코트가 채운 것도 아이 답이 아니다 */
+private fun CoopAsked.answeredByChild(): Boolean =
+    by == "child" && !answer.isNullOrBlank() && !isNonAnswer(answer) && !dontKnow(answer)
+
+/**
+ * 부모가 적은 질문([CoopAsked.parent])만 본다. 하나도 없으면 null — 부르는 쪽이 이유별 예시를 쓴다.
+ * 1. 아이가 제일 길게 답한 부모 질문(공백 뺀 글자 수 · 동률이면 먼저 물은 것) — 그 질문을 다음에도
+ * 2. 그런 답이 없으면 답이 안 나온 첫 부모 질문 — `questionHint` 규칙으로 바꿔 쓴 예
+ */
+internal fun nextQuestionFromAnswers(asked: List<CoopAsked>, childName: String): NextQuestionPick? {
+    val mine = asked.filter { it.parent }
+    if (mine.isEmpty()) return null
+    val best = mine.filter { it.answeredByChild() }.maxByOrNull { it.answer!!.count { c -> !c.isWhitespace() } }
+    if (best != null) return NextQuestionPick(
+        question = best.question,
+        why = "넣어 둔 질문 중 이 질문에 ${childName}${ga(childName)} 제일 많이 말했어요 — “${best.answer!!.trim()}”. " +
+            "다음에도 이렇게 하나만 묻는 질문이 잘 통해요.",
+    )
+    val missed = mine.first()
+    val q = missed.question.trim()
+    val hint = questionHint(q)
+    val rewritten = when {
+        "언제" in q -> q.replace("언제", "어디")
+        hint != null && hint.why.startsWith("한 번에 하나만") -> q.substringBefore("?").trim() + "?"
+        else -> q
+    }
+    val advice = when {
+        hint == null -> "다음엔 선택지 두세 개를 먼저 말하고 마지막에 물어보세요 — “○○, △△. 뭐가 제일 좋았어?”"
+        hint.why.startsWith("예/아니오") -> "예/아니오로 끝나기 쉬운 질문이에요. 다음엔 선택지 두세 개를 먼저 말하고 마지막에 물어보세요 — “○○, △△. 뭐가 제일 좋았어?”"
+        else -> "${hint.why}. ${hint.example}"
+    }
+    return NextQuestionPick(question = rewritten, why = "“$q”에는 답이 안 나왔어요. $advice")
 }
 
 // ── 아이 화면 · 책의 말 — 일기 모드 문구(「오늘 만난」)를 협업 곧 해요 · 좋아해요에 쓰지 않는다 (10-03 실기기) ──
@@ -163,3 +211,74 @@ fun feelingsSaid(feelings: List<String>): String {
     return if (joined.all { it != null }) "${joined.joinToString(", ")} 마음을 말했어요"
     else "마음을 말했어요 — ${words.joinToString(" · ") { "‘$it’" }}"
 }
+
+// ── 「가기 전 · 다녀온 뒤」 짝책의 말 (협업모드_확장_설계 §2) ──
+
+/** 「동물원에 가기 전에」 · 「소방관 체험하기 전에」 · 「수영을 해 보기 전에」 */
+fun coopBeforeWhen(kind: String, name: String): String {
+    val n = name.trim()
+    return when (kind) {
+        "job" -> "$n 체험하기 전에"
+        "sport" -> "$n${eul(n)} 해 보기 전에"
+        else -> "${n}에 가기 전에"
+    }
+}
+
+/** 「다녀온 뒤」 이야기를 시작할 때 오또가 하는 한 줄 — 가기 전 책을 말하는 유일한 자리 */
+fun coopAfterIntroLine(pick: CoopPick): String =
+    "${coopBeforeWhen(pick.kind, pick.name)} 지은 이야기 기억나? 이번엔 진짜 있었던 일을 들려줘!"
+
+/** 부모 카드 제목 — 「동물원, 다녀왔나요?」 · 「소방관, 체험했나요?」 · 「수영, 해 봤나요?」 */
+fun coopAfterAsk(a: CoopAfter): String {
+    val done = coopKind(a.kind)?.reasonLabels?.get(CoopReason.DONE) ?: "다녀왔어요"
+    return "${a.name}, ${done.removeSuffix("어요")}나요?"
+}
+
+/** 리포트 「가기 전 · 다녀온 뒤」 칸의 한 줄 — 자리 이름 · 가기 전 답 · 다녀온 뒤 답 (출처 표시까지 붙인 글) */
+data class BeforeAfterRow(val label: String, val before: String, val after: String, val beforeByChild: Boolean, val afterByChild: Boolean)
+
+/** 리포트 「가기 전 · 다녀온 뒤」 칸 (협업모드_확장_설계 §2-5) */
+data class BeforeAfter(val name: String, val beforeDate: String, val afterDate: String, val rows: List<BeforeAfterRow>, val summary: String?)
+
+/** 뼈대 네 자리 — 두 책의 템플릿 질문이 달라서(곧 해요 · 다녀왔어요) 질문 대신 자리 이름으로 맞춘다 */
+private val BEFORE_AFTER_PARTS = listOf("place" to "어디", "problem" to "무슨 일", "cause" to "왜", "solution" to "그래서")
+
+/** 한 칸의 글 — 아이가 말한 것만 따옴표. 카드 · 마스코트는 그렇다고 적는다(guidelines/2 §1-4 · 지금 「한 답」 칸과 같다) */
+private fun CoopBookSnapshot.answerOf(key: String): Pair<String, Boolean> {
+    val v = (fields[key] ?: slots[key])?.trim()?.takeIf { it.isNotEmpty() } ?: return "답하지 않았어요" to false
+    return when (slotBy[key]) {
+        "child" -> "“$v”" to true
+        "card" -> "$v (카드로 골랐어요)" to false
+        "mascot" -> "(마스코트가 대신 정했어요)" to false
+        else -> v to false
+    }
+}
+
+/**
+ * 오늘 꽂은 책이 「다녀온 뒤」 책이고 짝(「가기 전」 책)이 책장에 있으면 두 책을 나란히 — 아니면 null(칸이 없다).
+ *
+ * 맞고 틀림 · 늘고 줄음을 말하지 않는다. 글자 수 · 신호 수를 두 책 사이에서 견주지 않는다(두 책은 질문이 다르다).
+ * 요약 한 줄은 「무슨 일」 자리가 두 책 모두 아이 말일 때만, 고정 틀 + 인용 — LLM 을 부르지 않는다
+ */
+fun DemoState.coopBeforeAfter(): BeforeAfter? {
+    val todayId = CoopShelf.lastShelved(this) ?: return null
+    val today = CoopShelf.snapshotOf(todayId) ?: return null
+    if (today.pick?.reasonOrNull() != CoopReason.DONE) return null
+    val beforeBook = CoopShelf.pairOf(this, todayId) ?: return null
+    val before = CoopShelf.snapshotOf(beforeBook.id) ?: return null
+    val todayBook = CoopShelf.books(this).firstOrNull { it.id == todayId } ?: return null
+    val rows = BEFORE_AFTER_PARTS.map { (key, label) ->
+        val (b, bc) = before.answerOf(key); val (a, ac) = today.answerOf(key)
+        BeforeAfterRow(label, b, a, bc, ac)
+    }
+    val trouble = rows.first { it.label == "무슨 일" }
+    val summary = if (trouble.beforeByChild && trouble.afterByChild)
+        "가기 전엔 ${trouble.before}라고 상상했고, 다녀와서는 ${trouble.after}라고 말했어요." else null
+    return BeforeAfter(today.pick?.name?.trim() ?: "", beforeBook.madeAt, todayBook.madeAt, rows, summary)
+}
+
+/** 「다녀온 뒤」 책 리포트의 첫 놀이 카드 — 두 책을 같이 읽는 것은 부모가 여는 놀이다(앱이 아이에게 권하지 않는다) */
+const val COOP_PAIR_PLAY_CARD = "\"가기 전에 지은 이야기도 다시 읽어 볼까? 뭐가 달랐어?\""
+
+/** 상자에서 꺼낸 「다녀온 뒤」 계획의 첫 추천 질문 — 비교는 아이에게 시키지 않고 부모가 물을 때만 */
+const val COOP_AFTER_SUGGESTION = "가기 전에 지은 이야기랑 뭐가 달랐어?"

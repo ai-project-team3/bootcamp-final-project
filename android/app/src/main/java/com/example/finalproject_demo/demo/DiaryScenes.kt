@@ -134,6 +134,7 @@ suspend fun Director.sceneDiary() {
             s.coopCoverPart(step.variant.id)
         } else askDiaryStep(step)
         drawCoopBackground()                    // 장소 칸이 찼으면 그곳으로 배경을 그린다 — 기다리지 않는다 (10-05 · CoopServerLine.kt)
+        drawFriend()                            // 같이 간 사람에 맞는 그림이 없으면 인형을 만든다 — 기다리지 않는다 (FriendArt.kt)
         // 진행 막대는 **지나온 걸음 수**로 찬다 (9/22). 칸이 찼는지로 세면, 아이가 답하지 않은
         // 선택 질문이 하나라도 있으면 마지막 질문까지 가도 막대가 끝까지 가지 않는다
         s.stepsDone++

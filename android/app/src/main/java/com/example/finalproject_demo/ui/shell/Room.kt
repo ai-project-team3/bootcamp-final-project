@@ -106,7 +106,7 @@ import kotlinx.coroutines.launch
  * 물건을 누르면 오또가 발자국을 남기며 그 물건으로 걸어가서 묻는다 — "책장으로 갈까?" (그림 · 목소리 · ✓/✕ 큰 버튼).
  * 「응!」이면 흐름에 **지금 첫 화면 버튼과 같은 신호**를 보낸다 → 흐름(`Scenes.sceneAdult`)은 그대로다.
  * 아무것도 안 누르고 6초가 지나면 오또가 무대를 권한다 — 반짝임은 **추천 하나에만**.
- * 왼쪽 위 🔒 는 **2초 길게** 눌러야 열린다.
+ * 왼쪽 위 🔒 는 **한 번 누르면** 부모 비밀번호가 뜬다(09-29 — 길게 누르기는 「안 열린다」는 지적으로 뺐다 · [LockDoor]).
  *
  * 자리는 `.pen` 의 800×360 좌표를 화면 비율로 옮긴다.
  */
@@ -447,13 +447,15 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
                 )
             } else if (t == Thing.SOFA && !s.coopReady) {
                 // 준비된 이야기가 없다 — 옛 흐름(어른이 띠를 읽고 묻기)으로 들어가지 않고 부모님께 부탁하라고 한다 (09-29 사용자 요청).
-                // 버튼은 하나 — 아이가 막히지 않고 방으로 돌아간다
+                // [알겠어!]는 방으로 돌아가고, [이야기 준비]는 부모님이 눌러 부모 모드의 같이 만들기 준비 탭으로 바로 간다
+                // (비밀번호를 거쳐서 · #65 조장 요청 10-06). 아이가 보고 부모님께 부탁하면 되니 두 버튼은 같은 크기다
                 ConfirmDialog(
                     "🎁", "아직 준비된 이야기가 없어!", title = t.title, art = t.art, accent = t.color,
                     detail = "부모님한테 이야기를 골라 달라고 부탁해 볼까?",
-                    note = "부모님은 🔒 → 같이 만들기에서 골라요",
-                    no = null, yes = "✓" to "알겠어!",
-                    onNo = {}, onYes = { asking = false; target = null; scope.launch { walkX.animateTo(HOME_X, tween(500)); paws.clear() } },
+                    note = "부모님이 📝 버튼으로 바로 골라 줄 수 있어요 (비밀번호 필요)",
+                    no = "📝" to "이야기 준비", yes = "✓" to "알겠어!",
+                    onNo = { done(); d.send(Reply.Tapped("parent:coop", "이야기 준비")) },
+                    onYes = { asking = false; target = null; scope.launch { walkX.animateTo(HOME_X, tween(500)); paws.clear() } },
                     modifier = Modifier.align(Alignment.Center),
                 )
             } else ConfirmDialog(

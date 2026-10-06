@@ -81,10 +81,15 @@ fun boxOf(strokes: List<Stroke>): BoardBox? {
  * 0. 단, **크레용을 바꿔 방금 그리던 조각에 이어 그리면** 그 조각이다 — 그새 이름이 붙었어도.
  *    색을 고르는 데 오래 걸리면 그 사이 오또가 묻고 이름이 붙는다(10-01 진웅). 새 색으로 이어 긋는 선도
  *    다른 데에 그을 때까지 그 조각에 붙는다
+ *
+ * 0 · 1 · 2 는 **오또가 이야기를 마치기 전에** 그은 선에만 — 그 뒤에 그은 선은 새 조각이 되어 오또가 묻는다
+ * ([DiaryDay.talkedAbout] · 10-06 실기기: 이야기한 조각 위에 새로 그린 것이 합쳐지고 「여기는 어디야?」가 나왔다)
  */
 fun DiaryDay.addStroke(stroke: Stroke): Int {
     val b = boxOf(listOf(stroke)) ?: return -1
-    fun near(p: DiaryPiece) = boxOf(p.strokes)?.grow(PIECE_GAP)?.touches(b) == true
+    val at = pieces.sumOf { it.strokes.size }            // 이 획이 판에서 몇 번째인가 — catchUp 이 차례대로 붙인다
+    fun touchesIt(p: DiaryPiece) = boxOf(p.strokes)?.grow(PIECE_GAP)?.touches(b) == true
+    fun near(p: DiaryPiece) = touchesIt(p) && openFor(p.id, at)
     fun put(target: DiaryPiece): Int {
         val i = pieces.indexOfFirst { it.id == target.id }
         pieces[i] = target.copy(strokes = target.strokes + stroke)
@@ -94,7 +99,7 @@ fun DiaryDay.addStroke(stroke: Stroke): Int {
     // 배경선 — 판을 가로지르는 납작한 선(땅 · 하늘 · 바다). 배경 조각끼리만 묶고, 물체와 섞지 않는다
     if (isBackgroundStroke(b)) {
         continuing = null
-        pieces.lastOrNull { it.role == PieceRole.BACKGROUND && near(it) }?.let { return put(it) }
+        pieces.lastOrNull { it.role == PieceRole.BACKGROUND && touchesIt(it) }?.let { return put(it) }
         lastStroke = stroke
         val p = DiaryPiece(id = (pieces.maxOfOrNull { it.id } ?: -1) + 1, strokes = listOf(stroke), role = PieceRole.BACKGROUND)
         pieces += p

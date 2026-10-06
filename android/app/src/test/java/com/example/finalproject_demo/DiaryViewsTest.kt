@@ -47,6 +47,8 @@ import com.example.finalproject_demo.ui.Bg
 import com.example.finalproject_demo.ui.StageView
 import com.example.finalproject_demo.ui.diaryAskPose
 import com.example.finalproject_demo.ui.shell.Pose
+import com.github.takahirom.roborazzi.RoborazziOptions
+import com.github.takahirom.roborazzi.RoborazziTaskType
 import com.github.takahirom.roborazzi.captureRoboImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -494,6 +496,34 @@ class DiaryViewsTest {
         assertEquals("배경이 판 위에서 어긋났다", board.top.value, look.top.value, 2f)
         assertEquals("배경이 판 왼쪽에서 어긋났다", board.left.value, look.left.value, 2f)
         snap("diary_board_otto_background")
+    }
+
+    /**
+     * 오또 그림이 온 자리에 새로 그은 선은 오또 그림 위에 보인다 — 아래에 깔려 어떻게 그리는지 안 보였다
+     * (10-06 진웅 실기기). 오또 그림으로 바꾼 조각의 원래 선은 그대로 숨는다
+     */
+    @Test
+    fun aNewStrokeOverOttosDrawingStaysOnTop() {
+        val d = director()
+        d.s.drawing += line(Color(0xFF3060C0), .30f, .30f, .50f, .30f, .50f, .70f, .30f, .70f, .30f, .30f)
+        val day = d.s.newDiaryDay()
+        day.catchUp(d.s.drawing)
+        val bmp = android.graphics.Bitmap.createBitmap(64, 64, android.graphics.Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(bmp).drawColor(android.graphics.Color.rgb(40, 90, 230))     // 꽉 찬 파랑
+        val png = java.io.ByteArrayOutputStream().also { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+        day.pieces[0] = day.pieces[0].copy(name = "집", look = PieceLook.OTTO, ottoPng = png)
+        d.s.drawing += line(Color(0xFFE8604C), .25f, .50f, .55f, .50f)        // 오또 그림 위를 가로지르는 새 선
+        d.s.stage = DiaryBoard()
+        show(d)
+        // 기준 대조 없이 기록만 — captureToImage 는 멈춘 시계 때문에 시간 초과가 난다 (ScreenShotTest.snap)
+        val shot = File("build/tmp/diary_stroke_over_otto.png")
+        compose.onNodeWithTag("diary-board").captureRoboImage(
+            shot.path, roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+        )
+        val board = android.graphics.BitmapFactory.decodeFile(shot.path)
+        val px = board.getPixel((board.width * 0.40f).toInt(), (board.height * 0.50f).toInt())
+        val (r, b) = android.graphics.Color.red(px) to android.graphics.Color.blue(px)
+        assertTrue("새 선이 오또 그림 아래에 깔렸다 — rgb(${r}, ${android.graphics.Color.green(px)}, ${b})", r > 180 && b < 140)
     }
 
     /** D0 — 방에서 손 흔드는 오또 · [그릴래!] · [그림 없이 말할래] (docs/일기모드_UI.html) */

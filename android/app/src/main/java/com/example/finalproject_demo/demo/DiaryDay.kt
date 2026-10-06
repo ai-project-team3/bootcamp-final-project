@@ -158,6 +158,19 @@ class DiaryDay {
     internal var continuing: Int? = null
 
     /**
+     * 오또가 이야기를 마친 조각 → 그때 판에 있던 획 수. 그 뒤에 그은 선은 [addStroke] 가 이 조각에 몰래 붙이지 않는다 —
+     * 새 조각으로 두고 「○○에 더 그린 거야, 새로 그린 거야?」 · 「뭐 그린 거야?」로 묻는다 (10-06 실기기 · 진웅).
+     * 이야기하는 사이에 그은 선(그 수보다 앞)은 전처럼 이어 그린 것이다
+     */
+    private val talkedUpTo = mutableMapOf<Int, Int>()
+
+    /** [piece] 에 대한 오또의 이야기가 끝났다 — 처음 한 번만 적는다 */
+    fun talkedAbout(piece: Int, strokesSoFar: Int) { talkedUpTo.putIfAbsent(piece, strokesSoFar) }
+
+    /** [strokeAt] 번째 획을 그을 때 [piece] 가 아직 이어 그릴 수 있는 조각인가 */
+    internal fun openFor(piece: Int, strokeAt: Int): Boolean = talkedUpTo[piece]?.let { strokeAt < it } ?: true
+
+    /**
      * 서버가 앞 이야기 답을 받아 골라 둔 다음 질문 — (판정 슬롯 · 질문 · 책 키). 그리는 중 다음 이야기 차례나 D3 첫 질문이 이것을 쓴다.
      * 서버 질문은 맥락을 담는다(「놀이터에서 무슨 일이 있었어?」) — 그림 질문이 사이에 끼어도 아이가 알아듣게
      */

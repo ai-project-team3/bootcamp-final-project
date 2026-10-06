@@ -578,7 +578,9 @@ fun MicStep(onBack: () -> Unit, onDone: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) { Text(if (state == "on") "✓  마이크 허용됨" else "✕  마이크 허용 안 됨", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = FeltWhite) }
         Spacer(Modifier.height(8.dp))
-        listOf("👂" to "말할 차례에만 들어요 — 오또가 귀를 쫑긋할 때", "🛡" to "녹음은 폰 밖으로 나가지 않아요", "✋" to "안 켜도 그림을 골라서 만들 수 있어요").forEach { (ic, t) ->
+        // 🛡 줄 — 10-06: 「녹음은 폰 밖으로 나가지 않아요」는 사실과 달랐다(음성은 글자로 바꾸려고 우리 서버까지 간다 · net/Server.kt /stt).
+        //    이 화면이 markMicNoticeShown() 을 불러 정확한 고지(ui/Consent.kt 「우리 서버까지만」)가 다시 안 뜨므로 여기서 바로 말한다 (guidelines/1 §1-5)
+        listOf("👂" to "말할 차례에만 들어요 — 오또가 귀를 쫑긋할 때", "🛡" to "소리는 글자로 바꾸려고 우리 서버까지만 가고 바로 지워요", "✋" to "안 켜도 그림을 골라서 만들 수 있어요").forEach { (ic, t) ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
                 Box(Modifier.size(32.dp).felt(FeltTeal, CircleShape, lift = 0.dp, stitch = false), contentAlignment = Alignment.Center) { Text(ic, fontSize = 15.sp) }
                 Spacer(Modifier.width(12.dp))

@@ -63,8 +63,15 @@ import com.example.finalproject_demo.demo.shelfCount
 import com.example.finalproject_demo.demo.shelfDeleteSignal
 import com.example.finalproject_demo.demo.shelfEntries
 import com.example.finalproject_demo.demo.CoopPlan
+import com.example.finalproject_demo.demo.CoopAfter
+import com.example.finalproject_demo.demo.CoopShelf
+import com.example.finalproject_demo.demo.COOP_AFTER_SUGGESTION
+import com.example.finalproject_demo.demo.coopAfterAsk
+import com.example.finalproject_demo.demo.coopBeforeAfter
+import com.example.finalproject_demo.demo.COOP_PAIR_PLAY_CARD
 import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.coopReportCopy
+import com.example.finalproject_demo.demo.coopParentUsed
 import com.example.finalproject_demo.demo.feelingsSaid
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.DemoState
@@ -433,13 +440,42 @@ private fun RecordTab(d: Director) {
         }
     }
 
+    // 「가기 전 · 다녀온 뒤」 — 오늘 책이 다녀온 책이고 짝이 책장에 있을 때만 (협업모드_확장_설계 §2-5)
+    val pair = remember(s.isCoop, s.shelf.size) { if (s.isCoop) s.coopBeforeAfter() else null }
+    if (pair != null) {
+        Section("가기 전 · 다녀온 뒤", "‘${pair.name}’ · 맞고 틀린 게 아니라 상상한 말과 겪고 나서 한 말이에요")
+        PCard(Modifier.fillMaxWidth()) {
+            Row {
+                Spacer(Modifier.width(64.dp))
+                Text("가기 전${pair.beforeDate.takeIf(String::isNotBlank)?.let { " ($it)" } ?: ""}", fontSize = 12.sp, color = PSub, modifier = Modifier.weight(1f))
+                Text("다녀온 뒤${pair.afterDate.takeIf(String::isNotBlank)?.let { " ($it)" } ?: ""}", fontSize = 12.sp, color = PSub, modifier = Modifier.weight(1f))
+            }
+            pair.rows.forEach { r ->
+                Spacer(Modifier.height(6.dp))
+                Row {
+                    Text(r.label, fontSize = 12.sp, color = PSub, modifier = Modifier.width(64.dp))
+                    Text(r.before, fontSize = 13.sp, color = Ink, fontWeight = if (r.beforeByChild) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
+                    Text(r.after, fontSize = 13.sp, color = Ink, fontWeight = if (r.afterByChild) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
+                }
+            }
+            pair.summary?.let {
+                Spacer(Modifier.height(10.dp))
+                Text(it, fontSize = 14.sp, color = Ink)
+            }
+            Spacer(Modifier.height(4.dp))
+            Text("ⓘ 두 책은 질문이 달라서 길이나 횟수를 견주지 않아요. 아이가 한 말 그대로예요.", fontSize = 11.sp, color = PSub)
+        }
+    }
+
     // 부모 협업 모드가 파는 것 — 동화책이 아니라 **질문하는 법**이다 (협업 §7).
     // ⚠️ 점수를 보여 주지 않는다. "당신의 질문은 60점"은 앱을 지우게 만든다. 남기는 형태는 다음에 넣어 볼 질문 한 개다.
     // 9/22 — 협업은 **부모가 질문을 미리 넣어 두는 모드**가 됐다 (guidelines/9 §9-5). 부모가 옆에서 기다린다는 전제의
     //    문구("아이가 막히면 재촉하지 말고 기다려 주세요")는 뺐다. 넣어 둔 질문을 규칙으로 살펴 주는 일은 아직 없다 —
-    //    그래서 지금은 예시 한 개만 보여 준다.
+    //    10-06 — 넣어 둔 질문에 아이가 한 답이 있으면 거기서 하나를 고른다(`CoopReport.kt` nextQuestionFromAnswers ·
+    //    아이가 제일 많이 말한 질문, 없으면 답이 안 나온 질문 하나를 바꿔 쓴 예와 함께). 넣은 질문이 없으면 이유별 예시 한 개.
     if (s.isCoop) {
-        Section("다음에 넣어 볼 질문", "부모 협업 모드에서만 · 점수가 아니라 질문 한 개예요")
+        Section("다음에 넣어 볼 질문", if (s.coopParentUsed > 0) "넣어 둔 질문에 아이가 한 답에서 골랐어요 · 점수가 아니라 질문 한 개예요"
+            else "부모 협업 모드에서만 · 점수가 아니라 질문 한 개예요")
         PCard(Modifier.fillMaxWidth()) {
             val copy = coopCopy!!
             Text("“${copy.nextQuestion}”", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
@@ -463,7 +499,7 @@ private fun RecordTab(d: Director) {
     // ⚠️ 아이가 아무도 말하지 않은 날에는 "새 친구" 질문을 넣지 않는다 — 없는 친구를 앱이 만들어 내면 안 된다 (§3-2)
     // ⚠️ 일기 · 협업은 "누구랑 같이 만들래?"를 묻지 않았다 — `s.pn` 은 기본값 "엄마"라 질문 카드에 쓰면 없는 사람이 생긴다 (9/22)
     // 협업 곧 해요 · 좋아해요는 「오늘 있었던 일」 카드가 맞지 않는다 — 고른 이유대로 (CoopReport.kt)
-    val playCards = coopCopy?.playCards ?: if (s.isDiary) listOfNotNull(
+    val playCards = (pair?.let { listOf(COOP_PAIR_PLAY_CARD) } ?: emptyList()) + (coopCopy?.playCards ?: if (s.isDiary) listOfNotNull(
         s.friendName.takeUnless { it.startsWith("{") }?.let { n -> "\"${n}${eun(n)} 내일은 뭐 하고 놀까?\"" },
         "\"오늘 ${s.placeName}에서 제일 재밌었던 게 뭐였어?\"",
         "\"내일 ${s.placeName}에 가면 뭐 하고 싶어?\"",
@@ -472,7 +508,9 @@ private fun RecordTab(d: Director) {
         "\"${f}${eun(f)} 오늘 뭐 하고 놀까?\"",
         "\"${s.dino.name}${ga(s.dino.name)} 또 울면 어떻게 할까?\"",
         "\"${s.placeName}에 또 가면 누구를 만날까?\"",
-    )
+    ))
+    // 「가기 전 · 다녀온 뒤」 카드가 앞에 붙으면 셋을 넘는다 — 질문 카드는 3장
+    .take(3)
     // 카드 높이는 가장 긴 질문에 맞춘다 — 고정 높이면 협업 질문(「…해 보고 싶은 게 뭐야?」)의 끝이 잘렸다 (10-03 실기기)
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         playCards.forEachIndexed { i, q ->
@@ -495,7 +533,8 @@ private fun RecordTab(d: Director) {
         Column {
             listOf(
                 "ⓘ 놀이 대화 요약이며 언어발달 평가 · 진단이 아닙니다.",
-                "ⓘ 아이 목소리와 그림은 폰 안에만 있고, 이름은 가린 뒤에야 밖으로 나갑니다.",
+                // 10-06: 「이름은 가린 뒤에야」는 10-02 전 설계다 — 지금은 가리지 않는다(guidelines/1 규칙 6 · Terms.kt 10-05 판과 같은 말로)
+                "ⓘ 아이 목소리는 글자로 바꾼 뒤 바로 지워지고, 글자는 호칭 · 이름 그대로 처리 위탁사(OpenAI)로 갑니다. 그림과 녹음한 소리는 폰 안에만 있어요.",
                 "ⓘ 궁금한 점은 영유아건강검진(K-DST)이나 언어재활사와 상담하세요.",
             ).forEach { Text(it, fontSize = 11.sp, color = PSub) }
         }
@@ -562,6 +601,8 @@ fun coopSuggestions(reason: CoopReason?): List<String> = when (reason) {
 private fun CoopQuestionsTab(c: CoopDraft) {
     if (!c.editing) { CoopSavedCard(c); return }
     val qs = c.qs
+    // 「다녀온 뒤」 상자 — 준비된 이야기가 없고, 지금 상자에서 꺼내 고치는 중이 아닐 때만 (협업모드_확장_설계 §2-2)
+    if (!c.hasSaved && c.fromAfter == null) CoopAfterCards(c)
 
     fun set(i: Int, text: String) {
         while (qs.size <= i) qs.add("")
@@ -574,7 +615,7 @@ private fun CoopQuestionsTab(c: CoopDraft) {
     }
 
     CoopTemplateCards(c)
-    val suggestions = coopSuggestions(c.pick?.reasonOrNull())
+    val suggestions = (if (c.fromAfter != null) listOf(COOP_AFTER_SUGGESTION) else emptyList()) + coopSuggestions(c.pick?.reasonOrNull())
 
     Section("더 물어볼 질문 (선택)", "오또가 이야기 중간에 적은 순서대로 끼워서 물어봐요 · ${COOP_MAX}개까지")
     val rows = maxOf(1, qs.size)
@@ -662,7 +703,7 @@ private fun CoopQuestionsTab(c: CoopDraft) {
             listOf(
                 "ⓘ 넣은 질문에 점수를 매기지 않아요. 아이가 더 길게 답할 만한 방법만 귀띔해요.",
                 "ⓘ 질문을 안 적어도 괜찮아요. 오또가 고른 이야기에 맞춰 처음부터 끝까지 물어봐요.",
-                "ⓘ 아이 말은 마이크로 받고, 이름은 가린 뒤에야 밖으로 나가요.",
+                "ⓘ 아이 말은 마이크로 받아 글자로 바꾼 뒤 바로 지워요. 글자는 이름 그대로 서버와 처리 위탁사로 가요.",
             ).forEach { Text(it, fontSize = 11.sp, color = PSub) }
         }
     }
@@ -798,8 +839,23 @@ private class CoopDraft(private val s: DemoState) {
     /** 저장된 것이 없으면 처음부터 고치는 화면, 있으면 저장된 카드부터 */
     var editing by mutableStateOf(!s.coopReady)
     var askDelete by mutableStateOf(false)
+    /** 「다녀온 뒤」 상자에서 꺼내 채운 초안이면 그 칸 — [save] 할 때 같은 이야기 · 다녀왔어요 그대로면 짝을 지을 책을 기억한다 */
+    var fromAfter by mutableStateOf<CoopAfter?>(null)
+    /** [아직이에요] 로 닫은 칸 — 부모 모드를 나갔다 오면 다시 보인다 */
+    val hidden = mutableStateListOf<CoopAfter>()
 
     init { load() }
+
+    /** 상자 — 가기 전 책이 아직 책장에 있는 것만 */
+    val afters: List<CoopAfter>
+        get() = CoopPlan.after(s).filter { a -> a !in hidden && CoopShelf.books(s).any { it.id == a.beforeBookId } }
+
+    /** [있었던 일로 준비하기] — 같은 종류 · 이름 · 다녀왔어요로 채운 편집 화면. 질문 칸은 비운다. 확정은 [저장하기] */
+    fun prepareAfter(a: CoopAfter) {
+        qs.clear(); pick = CoopPick(a.kind, a.name, CoopReason.DONE.key); fromAfter = a; askDelete = false; editing = true
+    }
+
+    fun dismissAfter(a: CoopAfter) = CoopPlan.dismissAfter(s, a)
 
     val hasSaved: Boolean get() = s.coopReady
     /** 이야기를 골랐거나 질문을 하나라도 적었나 */
@@ -812,18 +868,48 @@ private class CoopDraft(private val s: DemoState) {
 
     fun edit() { load(); askDelete = false; editing = true }
 
-    fun cancel() { load(); editing = !s.coopReady }
+    fun cancel() { load(); fromAfter = null; editing = !s.coopReady }
 
     fun save() {
         if (!canSave) return
         s.parentQuestions.clear(); s.parentQuestions.addAll(qs.dropLastWhile { it.isBlank() })
         s.parentQIndex = 0
         s.coopPick = pick
+        // 상자에서 꺼낸 그대로(같은 이야기 · 다녀왔어요)일 때만 짝 — 부모가 이름이나 이유를 바꿨으면 다른 이야기다
+        fromAfter?.takeIf { a -> pick?.kind == a.kind && pick?.name?.trim() == a.name && pick?.reasonOrNull() == CoopReason.DONE }
+            ?.let { CoopPlan.startAfter(s, it) }
+        fromAfter = null
         CoopPlan.saved(s)         // 앱을 껐다 켜도 남는다 (#98 · CoopPlanStore.kt)
         load(); editing = false
     }
 
     fun delete() { s.clearParentQuestions(); load(); askDelete = false; editing = true }
+}
+
+/**
+ * 「다녀온 뒤」 상자 카드 (협업모드_확장_설계 §2-2) — 곧 해요로 지은 책마다 하나.
+ * 아이 화면에는 아무 표시가 없다(다음 책을 권하지 않는다). 다녀온 이야기를 열지는 부모가 여기서 정한다
+ */
+@Composable
+private fun CoopAfterCards(c: CoopDraft) {
+    c.afters.forEach { a ->
+        PCard(Modifier.fillMaxWidth()) {
+            Text("🧳 ${coopAfterAsk(a)}", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                listOfNotNull(a.madeAt.takeIf(String::isNotBlank)?.let { "${it}에" }, "「${a.beforeTitle}」${eul(a.beforeTitle)} 지었어요.").joinToString(" ") +
+                    " 다녀왔다면 이번엔 진짜 있었던 일로 지어 봐요. 두 책을 부모 리포트에서 나란히 볼 수 있어요.",
+                fontSize = 13.sp, color = PSub,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PButton("있었던 일로 준비하기", PMint, Modifier.weight(1.4f)) { c.prepareAfter(a) }
+                PButton("아직이에요", PSub, Modifier.weight(1f), outline = true) { c.hidden += a }
+                PButton("안 하게 됐어요", PSub, Modifier.weight(1f), outline = true) { c.dismissAfter(a) }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+    }
 }
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -1145,14 +1231,16 @@ private fun SettingsTab(d: Director) {
         listOf(
             "아이가 녹음한 소리(울음소리 등)" to "이 폰에만 · 폰 밖으로 안 나가요 · 책을 지우면 같이 지워져요",
             "아이가 말한 음성" to "글자로 바꾸려고 우리 서버까지만 가요 · 글자가 되면 바로 지워요 · 다른 회사에는 안 보내요",
-            "글자로 바뀐 말" to "이름은 폰에서 가린 뒤에야 서버로 가요 · 이 폰에 기록으로 남아요",
-            "아이 그림" to "이 폰에만 · AI가 다시 그리지 않아요",
+            // 10-06: 세 줄을 Terms.kt 10-05 판과 맞췄다 — 이름은 가리지 않고(규칙 6), 그림은 「오또가 그려 줘」를 고를 때만 다시 그리며
+            //        (demo/DiaryRedraw.kt), 책은 이 폰의 책장에 저장된다(StoryBookStore · DiaryBookStore · CoopBookStore)
+            "글자로 바뀐 말" to "호칭 · 이름 그대로 서버와 처리 위탁사(OpenAI)로 가요 · 이 폰에 기록으로 남아요",
+            "아이 그림" to "이 폰에만 · 「오또가 그려 줘」를 고른 조각만 우리 서버에서 다시 그리고 바로 지워요",
             "어른이 넣어 둔 질문" to "그 이야기 한 번에만 쓰고 지워요",
         ).forEach { (what, how) ->
             Text(what, fontSize = 13.sp, color = Ink, fontWeight = FontWeight.Bold)
             Text(how, fontSize = 12.sp, color = PSub, modifier = Modifier.padding(bottom = 6.dp))
         }
-        Text("ⓘ 지금 데모는 아무것도 저장하지 않아요. 앱을 끄면 다 사라져요.", fontSize = 11.sp, color = PSub)
+        Text("ⓘ 만든 책 · 아이 그림 · 녹음은 이 폰의 책장에만 저장돼요. 책을 지우거나 탈퇴하면 같이 지워져요.", fontSize = 11.sp, color = PSub)
     }
 
     Section("AI 목소리 알림")
