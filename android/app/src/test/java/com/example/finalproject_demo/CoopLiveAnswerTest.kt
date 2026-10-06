@@ -3,6 +3,9 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.companionName
+import com.example.finalproject_demo.demo.eul
+import com.example.finalproject_demo.demo.ga
+import com.example.finalproject_demo.demo.wa
 import com.example.finalproject_demo.demo.feelingsSaid
 import com.example.finalproject_demo.demo.feelingPhrase
 import com.example.finalproject_demo.demo.autoTitleFor
@@ -693,22 +696,33 @@ class CoopLiveAnswerTest {
     @Test
     fun aCompanionAnswerBecomesANameBeforeItIsUsed() {
         mapOf(
-            "엄마랑 아빠랑" to "엄마와 아빠",
+            // 여럿이면 쉼표로 — 「와」로 이으면 책에 「엄마와 아빠와 동물원에 갔어요」가 나왔다(10-06 실기기)
+            "엄마랑 아빠랑" to "엄마, 아빠",
             "할머니하고" to "할머니",
-            "엄마랑… 아빠도" to "엄마와 아빠",
-            "동생이랑 형이랑 누나랑" to "동생, 형과 누나",
+            "엄마랑… 아빠도" to "엄마, 아빠",
+            "동생이랑 형이랑 누나랑" to "동생, 형, 누나",
             "친구" to "친구",
             "아빠" to "아빠",
             // 10-06 실기기 — 「오늘 만난 엄마, 아빠와 갔어를 그려 줄래?」 · 「유치원, 친구들과 선생님이 뭐라고 할까?」
-            "엄마랑 아빠랑 갔어" to "엄마와 아빠",
-            "엄마, 아빠와 갔어" to "엄마와 아빠",
-            "엄마랑 아빠랑 같이 갔어" to "엄마와 아빠",
-            "유치원 친구들이랑 선생님이랑" to "유치원 친구들과 선생님",
-            "토끼랑 곰돌이" to "토끼와 곰돌이",
-            "곰돌이랑 토끼랑" to "곰돌이와 토끼",
-            "민준이랑 형이랑" to "민준과 형",
+            "엄마랑 아빠랑 갔어" to "엄마, 아빠",
+            "엄마, 아빠와 갔어" to "엄마, 아빠",
+            "엄마랑 아빠랑 같이 갔어" to "엄마, 아빠",
+            "엄마와 아빠" to "엄마, 아빠",      // 서버 판정이 「와」로 이어 준 날
+            "유치원 친구들이랑 선생님이랑" to "유치원 친구들, 선생님",
+            "토끼랑 곰돌이" to "토끼, 곰돌이",
+            "곰돌이랑 토끼랑" to "곰돌이, 토끼",
+            "민준이랑 형이랑" to "민준, 형",
             "엄마 아빠" to "엄마 아빠",
-            "동생이랑 나" to "동생과 나",
+            "동생이랑 나" to "동생, 나",
         ).forEach { (said, name) -> assertEquals(said, name, companionName(said)) }
+    }
+
+    /** 10-06 실기기 — 이름 뒤에 조사가 붙어도 「와」가 겹치지 않는다 */
+    @Test
+    fun companionNamesTakeAParticleWithoutDoubling() {
+        val who = companionName("엄마랑 아빠랑 갔어")
+        assertEquals("엄마, 아빠와", who + wa(who))
+        assertEquals("엄마, 아빠가", who + ga(who))
+        assertEquals("엄마, 아빠를", who + eul(who))
     }
 }

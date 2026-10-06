@@ -132,7 +132,7 @@ fun coopFill(template: String, heard: Map<String, String>): String? {
 }
 
 /**
- * 같이 간 사람 칸 — 아이 말 「엄마랑 아빠랑」 · 「할머니하고」를 이름으로 다듬는다 → 「엄마와 아빠」 · 「할머니」.
+ * 같이 간 사람 칸 — 아이 말 「엄마랑 아빠랑」 · 「할머니하고」를 이름으로 다듬는다 → 「엄마, 아빠」 · 「할머니」.
  * 그대로 두면 「엄마랑 아빠랑이 뭐라고 했어?」 · 「오늘 만난 엄마랑 아빠랑을 그려 줄래?」가 됐다(10-05 실기기).
  * 서버 판정이 다듬어 주는 날도 있고 원문 그대로 주는 날도 있어 앱이 받는 쪽에서 한 번 더 다듬는다.
  * 떼어 낼 것이 없으면(「친구」 · 「동생이랑 나」의 「나」만 남는 경우 등) 손대지 않는다
@@ -147,8 +147,9 @@ fun companionName(raw: String): String {
         // 「엄마랑 아빠랑 **갔어**」 · 「…**같이**」 — 서술어 · 꾸밈말은 이름이 아니다. 그대로 두면 「엄마, 아빠와 갔어를 그려 줄래?」가 됐다(10-06 실기기)
         .filter { p -> p.isNotBlank() && p !in NOT_COMPANIONS && !looksLikeAPhrase(p) }
     if (names.isEmpty() || names == listOf(t)) return t
-    if (names.size == 1) return names[0]
-    return names.dropLast(1).joinToString(", ") + "${wa(names[names.size - 2])} ${names.last()}"
+    // 쉼표로 잇는다 — 「와」로 이으면 뒤에 붙는 조사와 겹쳐 책에 「엄마와 아빠와 동물원에 갔어요」가 나왔다(10-06 실기기).
+    // 「엄마, 아빠」는 「엄마, 아빠와 갔어요」 · 「엄마, 아빠가 뭐라고 했어?」 어디에 붙어도 읽힌다
+    return names.joinToString(", ")
 }
 
 /** 같이 간 사람을 잇는 말 — 뒤에 띄어쓰기 · 문장부호가 오거나 말끝일 때만(「과자」 · 「와플」의 「과 · 와」는 이름의 일부) */
