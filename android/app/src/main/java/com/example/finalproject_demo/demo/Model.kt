@@ -981,7 +981,7 @@ class DemoState {
     private val questionSteps: List<DiaryStep> get() = if (isCoop) COOP_STEPS else DIARY_STEPS
 
     val askTotal: Int
-        get() = (
+        get() = liveStoryProgress?.total ?: (
             if (isDiary) questionSteps.count { it.ask(this) }.coerceAtLeast(reqCount)
             // 템플릿은 3턴째에 정해진다. 그전에는 **가장 많은 경우(3)로 잡아 둔다** —
             // 0으로 두면 3턴째에 분모가 6 → 9로 늘면서 막대가 **뒤로 물러난다** (9/22)
@@ -1023,7 +1023,7 @@ class DemoState {
      * 그래서 양쪽을 **같은 기준(칸이 찼는가)** 으로 맞췄다.
      */
     val askDone: Int
-        get() = when {
+        get() = liveStoryProgress?.filled ?: when {
             // 이야기가 끝났으면 막대도 끝까지 찬다. 기승전결이 일찍 차면 남은 질문을 안 묻고 끝나는데
             // (`story_ready`), 그때 9/10에서 멈춰 있으면 아이는 **덜 한 것처럼** 본다 (9/22)
             endReason != null && (mode != StoryMode.STORY || !Server.liveFor(mode) || storyReady) -> askTotal
@@ -1313,6 +1313,8 @@ class DemoState {
     /** ⏸ 일시정지 중 (#125) — 오또 목소리 · 녹음이 멈추고 흐름이 그 자리에 선다. [이어 하기]까지 아이 차례 시간도 세지 않는다 */
     var holding by mutableStateOf(false)
     var micOn by mutableStateOf(false)
+    /** 녹음은 끝났고 받아쓰기를 기다리는 중 — 🎤 를 눌러도 새 녹음을 시작하지 않는다 (#203) */
+    var transcribing by mutableStateOf(false)
     var micEnabled by mutableStateOf(false)
     /** 되돌리기 · 앞으로 가기를 보일 차례인가 — `TurnHistory` 가 정한다 (10-02) */
     /** 이 이야기 주인공의 이름 — 아이가 인형에 지어 준 것. 없으면 `{주인공}` 은 아이 호칭으로 읽는다 */

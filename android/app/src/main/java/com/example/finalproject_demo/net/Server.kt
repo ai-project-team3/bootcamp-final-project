@@ -380,7 +380,10 @@ object Server {
     private suspend fun post(path: String, body: ByteArray, type: String, readMs: Int = 15_000): Pair<Int, ByteArray>? =
         withContext(Dispatchers.IO) {
             val b = base ?: return@withContext null
+            // Play build call limits (10-06 · CallLimits) — past them a call is null, as when the server is down
+            CallLimits.blocks(path, calls)?.let { why -> Trace.line("limit", "$path not called · $why"); return@withContext null }
             calls.merge(path, 1, Int::plus)
+            CallLimits.counted(path)
             val t0 = System.nanoTime()
             try {
                 val c = URL(b + path).openConnection() as HttpURLConnection

@@ -107,5 +107,10 @@ class Settings(BaseSettings):
     # rule 8: our image model has no safety filter — every picture is checked
     moderation_model: str = "omni-moderation-latest"
 
+    # 10-06 Play build: the whole server's paid spend per day (app/limits.py). 0 = off.
+    # About 15 testers at the phone's own limit (2 books ≈ 300 won a day) stay well under it.
+    daily_cap_krw: float = 10_000.0
+    daily_cap_state: str = ""            # where the day's total is kept; empty = backend/daily_cap.json
+
 
 settings = Settings()

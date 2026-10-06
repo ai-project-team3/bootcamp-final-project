@@ -52,6 +52,19 @@ class CoopTemplatePackTest {
         assertEquals("학교에서 제일 가 보고 싶은 데는 어디야?", state(CoopPick("place", "학교", "dream")).coopPartPack(parts[0])!!.rungs[1])
     }
 
+    /** 10-06 실기기 — 「우리 집 거실에 누구랑 같이 갔어?」. 집은 다녀오는 곳이 아니라 「같이 있었어」 · 할머니 집은 그대로 「갔어」 */
+    @Test
+    fun atHomeTheCompanionQuestionAsksWhoWasThere() {
+        val companion = tails.first { it.slot == "companion" }
+        val home = state(CoopPick("place", "우리집", "done")).apply { place = "우리 집 거실" }.coopPartPack(companion)!!.rungs
+        assertEquals("우리 집 거실에서 누구랑 같이 있었어?", home[0])
+        assertTrue("「${home[1]}」", home[1].endsWith("누구랑 있었어?"))
+        assertEquals("누구랑 같이 있을 거야?", state(CoopPick("place", "우리집", "soon")).coopPartPack(companion)!!.rungs[0])
+        // 다른 곳을 골랐어도 아이가 집이라고 했으면
+        assertEquals("우리 집에서 누구랑 같이 있었어?", state(CoopPick("place", "동물원", "done")).apply { place = "우리 집" }.coopPartPack(companion)!!.rungs[0])
+        assertEquals("할머니 집에 누구랑 같이 갔어?", state(CoopPick("place", "할머니 집", "done")).apply { place = "할머니 집" }.coopPartPack(companion)!!.rungs[0])
+    }
+
     @Test
     fun theFourPartsAreInOrderPlaceProblemCauseSolution() {
         assertEquals(listOf("place", "problem", "cause", "solution"), parts.map { it.slot })
