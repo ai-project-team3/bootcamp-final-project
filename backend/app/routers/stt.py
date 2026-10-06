@@ -61,12 +61,14 @@ def _model():
                         compute_type=settings.stt_compute_type)
 
 
-def _transcribe(audio: bytes) -> str:
+def _transcribe(audio: bytes) -> tuple[str, float]:
+    """The text and the weakest segment's avg_logprob — how sure the model was (#149)."""
     # In memory only. The child's voice never touches the disk (spec §3-4) — except the
     # lead's own test switch below, off by default.
     with _gpu:
-        segments, _ = _model().transcribe(io.BytesIO(audio), language="ko", beam_size=5)
-        return "".join(s.text for s in segments).strip()
+        segments = list(_model().transcribe(io.BytesIO(audio), language="ko", beam_size=5)[0])
+        sure = min((s.avg_logprob for s in segments), default=0.0)
+        return "".join(s.text for s in segments).strip(), sure
 
 
 def warm_up() -> None:
@@ -136,10 +138,10 @@ async def transcribe(file: UploadFile) -> dict:
     if not audio:
         raise HTTPException(400, "empty audio")
     if settings.mock:
-        return {"text": "공룡나라 갈래"}
+        return {"text": "공룡나라 갈래", "unsure": False}
     try:
         t0 = time.monotonic()
-        text = await asyncio.to_thread(_transcribe, audio)
+        text, sure = await asyncio.to_thread(_transcribe, audio)
     except Exception as e:      # decoder or CUDA failure: the phone falls back, it does not stop
         log.warning("stt failed: %s: %s", type(e).__name__, e)
         raise HTTPException(502, f"stt failed: {type(e).__name__}") from e
@@ -149,8 +151,10 @@ async def transcribe(file: UploadFile) -> dict:
     if kept and text != whole:
         log.info("stt dropped a hallucinated tail · %d of %d chars kept", len(text), len(whole))
     # length and timing only — the words are a child's
-    log.info("stt %.2fs · %d KB · %d chars · %s · %s", time.monotonic() - t0, len(audio) // 1024,
-             len(text), "kept" if kept else "dropped as hallucination", audio_stats(audio))
+    unsure = kept and bool(text) and sure < settings.stt_unsure_below
+    log.info("stt %.2fs · %d KB · %d chars · %s · logprob %.2f%s · %s", time.monotonic() - t0, len(audio) // 1024,
+             len(text), "kept" if kept else "dropped as hallucination", sure, " unsure" if unsure else "",
+             audio_stats(audio))
     _debug_keep(audio, text, kept)
     del audio
-    return {"text": text if kept else ""}
+    return {"text": text if kept else "", "unsure": unsure}
