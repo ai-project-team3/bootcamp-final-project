@@ -78,6 +78,47 @@ class CoopLiveAnswerTest {
         try { block(d) } finally { sup.cancel(); Server.liveModes = emptySet(); Server.base = null }
     }
 
+    /** 그림을 저장하는 감독 — 키트 그림 · 생성 배경을 파일로 남기는 검사용 */
+    private fun runWithStore(block: suspend CoroutineScope.(Director) -> Unit) = runBlocking {
+        val sup = SupervisorJob()
+        val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val d = Director(CoroutineScope(coroutineContext + sup), com.example.finalproject_demo.demo.LocalStoryBookStore(ctx),
+            com.example.finalproject_demo.demo.StoryImageStore(ctx))
+        d.s.speed = 0.01
+        try { block(d) } finally { sup.cancel(); Server.liveModes = emptySet(); Server.base = null }
+    }
+
+    /**
+     * #222 (10-06) — 협업에서도 아이가 말한 곳이 키트에 맞으면 동화와 같은 펠트 키트로 그린다. 무대는 키트, 책은 그 키트를
+     * 한 장으로 저장한 그림이고 `/image` 는 부르지 않는다. 맞는 키트가 없으면(동물원) 지금처럼 그림을 그려 달라고 한다
+     */
+    @Test
+    fun aCoopPlaceAKitDrawsUsesTheKitAndAsksForNoPicture() = runWithStore { d ->
+        val server = llmServer(emptyMap())
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("place", "우리집", "done"))
+            d.answer("우리 집 거실")
+            assertNotNull("키트를 고르지 않았다", await(8_000) { d.s.sceneKit == "indoor" })
+            assertNotNull("키트 그림을 책 배경으로 저장하지 않았다: ${d.s.bgName}", await(10_000) { d.s.bgName.startsWith("local:") })
+            assertTrue("키트인데 그림을 그려 달라고 했다", server.requests.none { it.first == "/image" })
+        } finally { server.close() }
+    }
+
+    @Test
+    fun aCoopPlaceWithNoKitStillAsksForAPicture() = runWithStore { d ->
+        val server = llmServer(emptyMap())
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("place", "동물원", "done"))
+            d.answer("기린 마당")
+            assertNotNull("그림을 그려 달라고 하지 않았다", await(8_000) { server.requests.any { it.first == "/image" } })
+            assertNull(d.s.sceneKit)
+        } finally { server.close() }
+    }
+
     /** 같이 만들기 → 주인공 → 첫 질문(어디)을 기다리는 데까지 */
     private suspend fun Director.toFirstQuestion() {
         go(Scene.ADULT)

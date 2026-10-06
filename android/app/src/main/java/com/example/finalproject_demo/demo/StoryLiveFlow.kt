@@ -49,6 +49,16 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             s.storyBackground = null
             if (s.stage is Stage.World || s.stage === waitingConversation) showConversation()
             log("scene kit ${s.sceneKit} draws the place · no /image request")
+            // the book draws one picture, not pieces — save the kit as that picture (#222: a 바닷가 book fell back to snow)
+            val kit = SceneKits.all[s.sceneKit] ?: return
+            val seed = s.sceneSeed
+            imageJob = launch {
+                val saved = saveKitPicture(kit, seed)
+                if (saved != null && s.slots["place"] == place && s.sceneKit == kit.key) {
+                    s.storyBackground = saved
+                    log("scene kit ${kit.key} saved as the book's picture")
+                }
+            }
             return
         }
         backgroundPending = true

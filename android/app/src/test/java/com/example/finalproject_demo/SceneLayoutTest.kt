@@ -1,6 +1,7 @@
 package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.scene.PARK_KIT
+import com.example.finalproject_demo.demo.scene.SceneKits
 import com.example.finalproject_demo.demo.scene.PieceRole
 import com.example.finalproject_demo.demo.scene.SceneFrame
 import com.example.finalproject_demo.demo.scene.bestScene
@@ -64,6 +65,24 @@ class SceneLayoutTest {
                 }
             }
         }
+    }
+
+    /**
+     * #222 (10-06 device) — the lamp, the bed, the lighthouse and the moon stood behind ↶. Big pieces (landmarks, sky
+     * anchors) may stand behind an actor but not under a button: in every kit, at most a sliver (5 % of the piece) under one
+     */
+    @Test fun bigPiecesStayOutFromUnderTheButtons() {
+        val big = setOf(PieceRole.LANDMARK, PieceRole.SKY_ANCHOR)
+        var worst = 0f
+        var where = ""
+        for (kit in SceneKits.all.values) for (f in listOf(phone, tabletFrame)) for (base in listOf(0L, 100L, 7777L, 2026L, 31L)) {
+            val tabs = keepOut(f, 2).takeLast(2)
+            for (p in bestScene(kit, 2, f, seedBase = base).pieces.filter { it.piece.role in big }) {
+                val r = tabs.sumOf { it.inter(p.box).toDouble() }.toFloat() / p.box.area
+                if (r > worst) { worst = r; where = "${kit.key} ${p.piece.name} seed $base" }
+            }
+        }
+        assertTrue("a big piece is ${(worst * 100).toInt()} % under a button: $where", worst <= 0.05f)
     }
 
     @Test fun smallPiecesNeverTouchActorsOrTabs() {

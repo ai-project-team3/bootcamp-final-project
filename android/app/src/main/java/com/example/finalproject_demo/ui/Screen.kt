@@ -336,7 +336,8 @@ private fun Centered(content: @Composable () -> Unit) {
 fun StageView(d: Director, modifier: Modifier = Modifier) {
     val s = d.s
     val stage = s.stage
-    val kit = s.sceneKit?.takeIf { s.mode == StoryMode.STORY }?.let { SceneKits.all[it] }
+    // story and co-op (#222 · 10-06) — the diary's stage is the child's own drawing
+    val kit = s.sceneKit?.takeIf { s.mode == StoryMode.STORY || s.isCoop }?.let { SceneKits.all[it] }
     // 주인공 · 공룡이 정해지는 순간 **뒤에서 뼈대를 붙여 둔다** (09-28) — 대화가 끝나 책이 열릴 때는 이미 끝나 있다
     val ctx = LocalContext.current
     val heroName = s.heroAttr?.let { heroImageName(it) }
