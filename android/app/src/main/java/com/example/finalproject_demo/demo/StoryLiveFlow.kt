@@ -42,6 +42,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         imagePlace = place
         imageJob?.cancel()
         if (s.sceneKit != null) {
+            log("background route=kit place=$place kit=${s.sceneKit}")
             // 10-05 scene kit: the place is drawn from pre-made felt pieces at once — no /image request, nothing
             // to wait for. The generated background below stays as the documented alternative
             // (`docs/배경_조각_목록.md` §1 (가)); `SceneKits.liveStory = false` brings it back.
@@ -51,6 +52,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             log("scene kit ${s.sceneKit} draws the place · no /image request")
             return
         }
+        log("background route=generated place=$place")
         backgroundPending = true
         s.storyBackground = null
         if (s.stage is Stage.World || s.stage === waitingConversation) showConversation()
@@ -68,6 +70,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 if (s.place == place && imagePlace == place) {
                     s.storyBackground = saved
                     backgroundPending = false
+                    log("background result=${if (saved == null) "preset" else "generated"} place=$place")
                     // Only refresh our waiting conversation, never a drawing/card/retry stage.
                     if (waitingConversation != null && s.stage === waitingConversation) {
                         waitingConversation = null
