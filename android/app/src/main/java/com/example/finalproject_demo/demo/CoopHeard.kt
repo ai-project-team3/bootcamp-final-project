@@ -30,7 +30,7 @@ private const val NAME_MAX_WORDS = 3
 private val COOP_FILLER = Regex("^(음+|어+|아+|저기|그러니까|그니까|그냥|있잖아|이제)[.…,~! ]+")
 
 /** 「-이」로 끝나는 이름 — 「고양이야」의 「이」를 떼면 「고양」이 된다 */
-private val NOUNS_ENDING_IN_I = setOf("고양이", "원숭이", "호랑이", "오이", "아이", "거북이", "멍멍이", "야옹이", "토끼인형")
+private val NOUNS_ENDING_IN_I = setOf("고양이", "원숭이", "호랑이", "오이", "아이", "거북이", "멍멍이", "야옹이", "토끼인형", "곰돌이", "강아지", "어린이")
 
 /** 이름이 아닌 짧은 말 — [isNonAnswer] 가 못 거르는 것 */
 private val NOT_NAMES = setOf("그거", "이거", "저거", "그냥", "아무거나", "몰라요", "없어요")
@@ -132,16 +132,28 @@ fun coopFill(template: String, heard: Map<String, String>): String? {
 }
 
 /**
- * 같이 간 사람 칸 — 아이 말 「엄마랑 아빠랑」 · 「할머니하고」를 이름으로 다듬는다 → 「엄마와 아빠」 · 「할머니」.
+ * 같이 간 사람 칸 — 아이 말 「엄마랑 아빠랑」 · 「할머니하고」를 이름으로 다듬는다 → 「엄마, 아빠」 · 「할머니」.
  * 그대로 두면 「엄마랑 아빠랑이 뭐라고 했어?」 · 「오늘 만난 엄마랑 아빠랑을 그려 줄래?」가 됐다(10-05 실기기).
  * 서버 판정이 다듬어 주는 날도 있고 원문 그대로 주는 날도 있어 앱이 받는 쪽에서 한 번 더 다듬는다.
  * 떼어 낼 것이 없으면(「친구」 · 「동생이랑 나」의 「나」만 남는 경우 등) 손대지 않는다
  */
 fun companionName(raw: String): String {
-    val words = raw.trim().trimEnd('.', '!', '?', '~', '…').split(Regex("[\\s,]+")).filter { it.isNotBlank() && it != "그리고" }
-    // 「엄마랑…」처럼 낱말 끝에 붙은 말줄임표 · 느낌표를 먼저 뗀다
-    val names = words.map { it.trimEnd('.', '!', '?', '~', '…') }.map { w -> w.removeSuffix("이랑").removeSuffix("랑").removeSuffix("하고").removeSuffix("도") }.filter { it.isNotBlank() }
-    if (names.isEmpty() || names == words) return raw.trim()
-    if (names.size == 1) return names[0]
-    return names.dropLast(1).joinToString(", ") + "${wa(names[names.size - 2])} ${names.last()}"
+    val t = raw.trim().trimEnd('.', '!', '?', '~', '…').trim()
+    // 띄어쓰기가 아니라 **잇는 말**에서 가른다 — 띄어쓰기로 가르면 「유치원 친구들이랑 선생님이랑」이 「유치원, 친구들과 선생님」이 됐다(10-06 실기기)
+    val pieces = t.split(COMPANION_JOIN).map { it.trim().trimEnd('.', '!', '?', '~', '…') }.filter { it.isNotBlank() }
+    // 「동생이랑」의 「이」는 조사 · 「곰돌이랑」의 「이」는 이름 — 받침 뒤 「이」는 떼되 「-이」로 끝나는 이름은 둔다
+    val names = pieces.map { p -> p.removeSuffix("도") }
+        .map { p -> if (p.length >= 2 && p.endsWith("이") && bat(p.dropLast(1)) && p !in NOUNS_ENDING_IN_I) p.dropLast(1) else p }
+        // 「엄마랑 아빠랑 **갔어**」 · 「…**같이**」 — 서술어 · 꾸밈말은 이름이 아니다. 그대로 두면 「엄마, 아빠와 갔어를 그려 줄래?」가 됐다(10-06 실기기)
+        .filter { p -> p.isNotBlank() && p !in NOT_COMPANIONS && !looksLikeAPhrase(p) }
+    if (names.isEmpty() || names == listOf(t)) return t
+    // 쉼표로 잇는다 — 「와」로 이으면 뒤에 붙는 조사와 겹쳐 책에 「엄마와 아빠와 동물원에 갔어요」가 나왔다(10-06 실기기).
+    // 「엄마, 아빠」는 「엄마, 아빠와 갔어요」 · 「엄마, 아빠가 뭐라고 했어?」 어디에 붙어도 읽힌다
+    return names.joinToString(", ")
 }
+
+/** 같이 간 사람을 잇는 말 — 뒤에 띄어쓰기 · 문장부호가 오거나 말끝일 때만(「과자」 · 「와플」의 「과 · 와」는 이름의 일부) */
+private val COMPANION_JOIN = Regex("\\s*(?:랑|하고|그리고|와|과|,)(?:[\\s.…,~!]+|$)")
+
+/** 같이 간 사람 자리에 끼지 않는 꾸밈말 */
+private val NOT_COMPANIONS = setOf("같이", "함께", "다", "다같이", "다 같이", "둘이", "셋이", "넷이", "모두")

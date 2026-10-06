@@ -75,6 +75,15 @@ class CoopMissionFitTest {
         assertEquals("딸기", zooDay("dream").apply { solution = "간식을 먹었어"; solutionItem = "strawberry" }.coopMissionProp(PageKind.DRAG))
     }
 
+    /** 10-06 실기기 — 곧 해요 책의 결과 문장은 「-ㄹ 거예요」, 다녀왔어요 · 상상은 과거형 그대로 */
+    @Test
+    fun aSoonBookTellsTheMissionResultInTheFuture() {
+        fun sand(reason: String) = zooDay(reason).apply { problem = "모래놀이를 하다가 옷에 모래가 묻었어"; m1Result = "solo" }
+        assertEquals("모래가 사라질 거예요.", sand("soon").coopMissionResult(PageKind.RUB))
+        assertEquals("모래가 사라졌어요.", sand("done").coopMissionResult(PageKind.RUB))
+        assertEquals("모래가 사라졌어요.", sand("dream").coopMissionResult(PageKind.RUB))
+    }
+
     @Test
     fun anImaginedStoryStillPutsTheMissionInTheBook() {
         val s = zooDay("dream")

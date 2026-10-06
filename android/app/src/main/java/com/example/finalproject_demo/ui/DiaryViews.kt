@@ -167,8 +167,11 @@ private val DiaryMicGap = 12.dp
  */
 private val BoardRail = 72.dp
 
-/** 앱 틀 오른쪽 위의 시연 서랍 자리(`MainActivity` · 48dp) — 그 위의 짧은 누름은 서랍이 먹는다 */
-private val DrawerCorner = 48.dp
+/**
+ * 앱 틀 오른쪽 위 ⏸ 의 아래 끝(`MainActivity` · 위 10 + 누르는 자리 56dp) — 오른쪽 위의 것들은 여기서부터 둔다 (#163 · 10-06 진웅).
+ * 시연 서랍 자리(오른쪽 위 48dp · 길게 누르기)보다 아래라 서랍도 같이 비킨다
+ */
+private val PauseBottom = 66.dp
 private val RailButtonSize = 52.dp
 private val RailMicSize = 64.dp
 
@@ -377,16 +380,20 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
             val whole = BoardBox(0f, 0f, 1f, 1f)
             val otto = day.pieces.filter { it.look == PieceLook.OTTO }
             val hidden = otto.flatMap { it.strokes }.toSet()
+            // 겹 순서: 배경 획 → 오또 그림 → 나머지 아이 선 · 지금 긋는 선. 나중에 그은 땅 · 하늘이 물체를 덮지 않고,
+            // 오또 그림 위에 새로 긋는 선이 그 아래에 묻히지 않는다 (10-06 진웅 실기기)
+            val behind = day.pieces.filter { it.role == PieceRole.BACKGROUND }.flatMap { it.strokes }.toSet()
             Canvas(Modifier.fillMaxSize()) {
-                // 배경 획을 먼저 — 나중에 그은 땅 · 하늘이 물체를 덮지 않는다
-                val behind = day.pieces.filter { it.role == PieceRole.BACKGROUND }.flatMap { it.strokes }.toSet()
-                s.drawing.filter { it !in hidden }.sortedBy { if (it in behind) 0 else 1 }.forEach { drawBoardStroke(it, whole) }
+                s.drawing.filter { it !in hidden && it in behind }.forEach { drawBoardStroke(it, whole) }
+            }
+            otto.forEach { p -> p.ottoSpots().forEach { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
+            Canvas(Modifier.fillMaxSize()) {
+                s.drawing.filter { it !in hidden && it !in behind }.forEach { drawBoardStroke(it, whole) }
                 if (live.size >= 2) {
                     val p = Path().apply { live.forEachIndexed { i, o -> if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) } }
                     drawPath(p, color, style = Stroke(size.width * PEN_W, cap = StrokeCap.Round, join = StrokeJoin.Round))
                 }
             }
-            otto.forEach { p -> p.ottoSpots().forEach { b -> OttoLook(p, b, whole, maxWidth.value, maxHeight.value) } }
             PieceRings(day.pieces.toList(), day.askingPiece, cq)
             // 방금 누른 이름표 — 새 획을 긋기 전까지 [그려 줘] · [이름 고치기]가 이 조각을 가리킨다. 청록으로 구별한다 (10-05 진웅)
             val selected = day.focus?.takeIf { it.second == s.drawing.size }?.first
@@ -513,8 +520,8 @@ private fun BoardTools(d: Director, stage: DiaryBoard, modifier: Modifier) {
     val free = stage.pick == null
     val tools = free && day.drawingTalk
     Column(
-        // 위는 앱 틀의 시연 서랍 자리(오른쪽 위 48dp · 길게 누르기)를 비킨다 — 거기 걸린 [다 그렸어]는 눌러도 안 됐다 (10-05 실기기)
-        modifier.width(BoardRail).fillMaxHeight().padding(top = DrawerCorner + 8.dp, bottom = 12.dp),
+        // 위는 앱 틀의 ⏸ 를 비킨다(#163). 그 자리는 시연 서랍(길게 누르기)도 먹어 거기 걸린 [다 그렸어]는 눌러도 안 됐다 (10-05 실기기)
+        modifier.width(BoardRail).fillMaxHeight().padding(top = PauseBottom + 4.dp, bottom = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         RailButton("다 그렸어", enabled = free && (day.watching || s.micEnabled), tag = "rail-done", onClick = { d.send(Reply.Tapped("done", "다 그렸어")) }) {
@@ -806,7 +813,7 @@ private fun DiaryPaperView(d: Director, stage: DiaryPaper, cq: Dp) {
                 ) { Text(t.icon, fontSize = (cq.value * 2.6f).sp) }
             }
         }
-        PageDots(stage.index, pages.size, cq, Modifier.align(Alignment.TopEnd).padding(end = cq, top = cq * 3))
+        PageDots(stage.index, pages.size, cq, Modifier.align(Alignment.TopEnd).padding(end = cq, top = PauseBottom + cq))      // 앱 틀 ⏸ 아래
         NavDot("◀", Color.White, enabled = stage.index > 0, cq = cq, modifier = Modifier.align(Alignment.BottomStart).padding(start = cq * 1.4f, bottom = cq * 3)) {
             d.send(Reply.Tapped("prev", "앞"))
         }

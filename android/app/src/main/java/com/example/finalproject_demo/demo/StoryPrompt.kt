@@ -46,7 +46,7 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null, deferredSlot: Stri
     // 응답이 불완전할 때의 최소 복구. 12칸의 순서를 정상 흐름에 강요하지 않는다.
     val missing = listOf("place", "problem", "reaction", "cause", "solution").firstOrNull(::open)
     if (missing != null) return StoryPrompt(missing, CORE_QUESTIONS.getValue(missing))
-    return StoryPrompt(null, "이야기를 조금 더 들려줄래?")
+    return StoryPrompt(null, serverQuestion?.takeIf(String::isNotBlank) ?: "이야기를 조금 더 들려줄래?")
 }
 
 /** 시간과 대리 선택 횟수로 끝내지 않는다. story_ready만 책 제작을 시작한다. */

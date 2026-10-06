@@ -7,6 +7,14 @@ import kotlinx.coroutines.*
 
 internal data class StoryOptions(val slot: String?, val question: String, val values: List<String>)
 
+/** Only standalone refusals, not a story sentence such as "몰라서 엄마에게 물어봤어". */
+internal fun storyNonAnswer(text: String): Boolean {
+    val normalized = text.trim().replace(Regex("[\\s.!?,…~]+"), "")
+    return normalized in setOf("몰라", "몰라요", "몰라이제", "이제몰라", "모르겠어", "모르겠어요",
+        "잘모르겠어", "잘모르겠어요", "더없어", "더없어요", "더없다", "이제더없어", "이제더없어요",
+        "생각안나", "생각이안나", "생각안나요", "생각이안나요")
+}
+
 private fun DemoState.optionsFor(slot: String?, question: String): List<String> =
     storyAnswerOptions?.takeIf {
         it.slot == slot && it.question == question && storyServerQuestion == question
@@ -14,10 +22,15 @@ private fun DemoState.optionsFor(slot: String?, question: String): List<String> 
 
 /** Keep candidates with their question, so a reset or a different slot cannot reuse them. */
 private fun DemoState.rememberStoryQuestion(response: Server.TurnResult) {
-    storyServerQuestion = response.line?.question
+    // A null next slot can still carry a concrete follow-up. A rejected named slot
+    // must not reopen through that fallback (filled, unneeded, companion or recorded sound).
+    val next = response.verdict?.nextSlot
+    val accepted = next == null || (storyNextSlot != null && next != "companion" &&
+        !(next == "sound" && storySoundAttempted))
+    storyServerQuestion = response.line?.question?.takeIf { accepted && !storyReady }
     storyAnswerOptions = null
     val line = response.line ?: return
-    val question = line.question?.takeIf(String::isNotBlank) ?: return
+    val question = storyServerQuestion?.takeIf(String::isNotBlank) ?: return
     val options = line.options?.filter(String::isNotBlank)?.distinct()?.take(3).orEmpty()
     if (options.isNotEmpty()) storyAnswerOptions = StoryOptions(storyNextSlot, question, options)
 }
@@ -56,7 +69,11 @@ suspend fun Director.askStory(
     val conversationStage = s.stage
     while (true) {
         s.stage = conversationStage
-        val reply = if (Server.liveFor(s.mode)) askLiveStoryReply(currentQuestion, s.optionsFor(askedSlot, question.text), singleAttempt)
+        // Once a slot is settled, "더 없어" is an ending intent for the server to judge.
+        val reply = if (Server.liveFor(s.mode)) askLiveStoryReply(currentQuestion, s.optionsFor(askedSlot, question.text), singleAttempt) {
+            !singleAttempt && !s.storyReady && askedSlot != null &&
+                s.slots[askedSlot].isNullOrBlank() && storyNonAnswer(it)
+        }
             else ask(currentQuestion)
         if (!Server.liveFor(s.mode) || TurnHistory.isNav(reply)) return reply
         val utterance = when (reply) {
@@ -74,7 +91,6 @@ suspend fun Director.askStory(
         response.verdict.fills.filter { it.first in Server.SLOTS && it.second.isNotBlank() }.forEach { (slot, value) ->
             event("slot_filled", "slot" to slot, "value" to value, "source" to by)
         }
-        s.storyServerQuestion = response.line?.question
         val line = response.line
         // the question's voice is made while the ack is voiced and played, not after (10-05 trace: −2.5 s a turn)
         line?.question?.let { prefetchSpeech(it) }
@@ -97,30 +113,37 @@ suspend fun Director.askStory(
 }
 
 /** The same question gets one easier attempt before its server candidates are revealed. */
-private suspend fun Director.askLiveStoryReply(question: Question, options: List<String>, singleAttempt: Boolean): Reply {
+private suspend fun Director.askLiveStoryReply(
+    question: Question, options: List<String>, singleAttempt: Boolean,
+    spokenIsNonAnswer: (String) -> Boolean,
+): Reply {
     val open = question.copy(
         kind = if (question.kind == Kind.CHOICE) Kind.EASY else question.kind,
         choices = emptyList(), noCards = true, fallback = null, hint = null,
         easierText = if (singleAttempt) null else question.easierText,
         ladder = if (singleAttempt) emptyList() else listOf(question.easierText ?: "천천히 생각해 봐. ${question.text}"),
     )
-    val reply = ask(open, silentFollowUp = options.isNotEmpty() && !singleAttempt)
+    val reply = ask(open, silentFollowUp = options.isNotEmpty() && !singleAttempt,
+        spokenIsNonAnswer = spokenIsNonAnswer)
     if (reply != Reply.Silent || options.isEmpty() || singleAttempt) return reply
     val cards = options.map { Card(it, Art.Mascot, it) }
     try {
         setListening(question.copy(choices = cards))
         // Reorder the same safe choices at most three times; never invent new candidates.
         repeat(4) { round ->
-            s.stage = Stage.CardsRow(if (round == 0) cards else cards.shuffled(), drawerHint = false)
-            inputs(mic = true, next = true)
-            say(if (round == 0) "이 중에서 골라 볼까? ${options.joinToString(", ")}." else "다시 보고 골라도 돼.")
-            log("서버 답 후보 카드 · 교체 ${round}회")
-            buttons(DemoBtn("안 고름") { send(Reply.Silent) })
-            awaitVoice()
-            val chosen = awaitStoryCardReply()
+            val chosen = awaitStoryCardReply {
+                s.stage = Stage.CardsRow(if (round == 0) cards else cards.shuffled(), drawerHint = false)
+                inputs(mic = true, next = true)
+                say(if (round == 0) "이 중에서 골라 볼까? ${options.joinToString(", ")}." else "다시 보고 골라도 돼.")
+                log("서버 답 후보 카드 · 교체 ${round}회")
+                buttons(DemoBtn("안 고름") { send(Reply.Silent) })
+            }
             if (chosen != null && TurnHistory.isNav(chosen)) return chosen
             when (chosen) {
-                is Reply.Spoke -> { acceptSpoken(chosen.text); return chosen }
+                is Reply.Spoke -> {
+                    acceptSpoken(chosen.text)
+                    if (!spokenIsNonAnswer(chosen.text)) return chosen
+                }
                 is Reply.Tapped -> if (chosen.value in options && !chosen.byMascot) {
                     val card = Reply.Tapped(chosen.value, chosen.value)
                     acceptTap(card)
@@ -143,9 +166,12 @@ private suspend fun Director.askLiveStoryReply(question: Question, options: List
 }
 
 /** Once recording starts, wait through STT and unheard retries; one receiver owns the input. */
-private suspend fun Director.awaitStoryCardReply(): Reply? = coroutineScope {
-    val receiver = async { awaitReply() }
+private suspend fun Director.awaitStoryCardReply(show: () -> Unit): Reply? = coroutineScope {
+    // Drain before exposing the next round. A quick reply to visible cards belongs to
+    // this round and must survive the voice wait, including a spoken non-answer.
+    val receiver = async(start = CoroutineStart.UNDISPATCHED) { awaitReplyShowing(show) }
     try {
+        awaitVoice()
         if (!s.timerOn) return@coroutineScope receiver.await()
         var remaining = 7.0
         while (remaining > 0) {
@@ -186,7 +212,6 @@ internal suspend fun Director.notifyStorySoundChoice(prompt: StoryPrompt) {
     val recorded = s.storySoundClip != null
     val utterance = if (recorded) "친구의 소리를 직접 만들었어요" else "친구의 소리는 소리 없이 넘어갈래"
     val response = exchangeStoryTurnWithRetry("sound", prompt.text, utterance, if (recorded) "child" else "card")
-    s.storyServerQuestion = response.line?.question
     response.line?.ack?.takeIf(String::isNotBlank)?.let { say(it); pause(600) }
 }
 

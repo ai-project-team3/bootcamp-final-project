@@ -54,17 +54,17 @@ private fun DemoState.coopImagined(): Boolean =
  * The word-signal table (§6-1) comes in with the first new mission screen.
  */
 fun pickMissions(facts: StoryFacts): BookMissions {
-    // 1-b (co-op): slot 2 is picked first (design §6-2) — the child's own solution verb (껐어 · 잠갔어) before the
-    // things in the trouble (불 · 물이 샜어). No signal: the frame rule as before
-    val fix = if (facts.mode == StoryMode.COOP) fixPropIn(facts.slot2Words, facts.slot1Words) else null
+    // 1-b: slot 2 is picked first (design §6-2) — the child's own solution verb (껐어 · 잠갔어) before the
+    // things in the trouble (불 · 물이 샜어). No signal: the frame rule as before.
+    // Story and co-op share the word signals (10-06 lead) — the co-op missions were not reachable from a story
+    val words = facts.mode == StoryMode.STORY || facts.mode == StoryMode.COOP
+    val fix = if (words) fixPropIn(facts.slot2Words, facts.slot1Words) else null
     val slot2 = fix?.mission ?: if (facts.templateKey in PUZZLE_FRAMES) MissionId.A3 else MissionId.E1
-    // 1-b (co-op first · design §7-1): slot 1 blows (C1) when the child's own words have something to blow —
-    // 촛불 · 생일 · 민들레 · 먼지 · 바람. The story mode follows once more co-op missions exist (§7-3)
-    // C3 (sound) waits until the server knows its ID (SERVER_KNOWS_C3 · design §8)
-    val coop = facts.mode == StoryMode.COOP
+    // 1-b (design §7-1 · §7-3): slot 1 blows (C1) when the child's own words have something to blow —
+    // 촛불 · 생일 · 민들레 · 먼지 · 바람 — or makes the sound (C3) of what the child named
     val slot1 = when {
-        coop && blowPropIn(facts.slot1Words, facts.realDay) != null -> MissionId.C1
-        coop && SERVER_KNOWS_C3 && soundPropIn(facts.slot1Words) != null -> MissionId.C3
+        words && blowPropIn(facts.slot1Words, facts.realDay) != null -> MissionId.C1
+        words && SERVER_KNOWS_C3 && soundPropIn(facts.slot1Words) != null -> MissionId.C3
         else -> MissionId.A6
     }
     check(slot1.built && slot2.built) { "picked a mission without a screen: $slot1 / $slot2" }
