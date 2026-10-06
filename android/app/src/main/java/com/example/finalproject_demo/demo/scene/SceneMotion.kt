@@ -53,6 +53,12 @@ val MOTION_BY_RES: Map<String, MotionSpec> = mapOf(
     "kit_park_balloons" to MotionSpec(MotionKind.BOB, 4f, 0.8f),
     "kit_park_kite" to MotionSpec(MotionKind.BOB, 7f, 1.2f),
     "kit_common_sun" to MotionSpec(MotionKind.GLOW),
+    // 공룡 나라 (10-06)
+    "kit_dino_palm_tree" to MotionSpec(MotionKind.SWAY, 0.050f, 0.6f, 2.2f),      // fronds swing, the trunk hardly bends
+    "kit_dino_jungle" to MotionSpec(MotionKind.SWAY, 0.014f, 0.6f, 1.8f),
+    "kit_dino_fern" to MotionSpec(MotionKind.SWAY, 0.110f, 1.4f, 1.3f),
+    "kit_dino_hibiscus" to MotionSpec(MotionKind.SWAY, 0.090f, 1.3f, 1.5f),
+    "kit_dino_big_leaf" to MotionSpec(MotionKind.SWAY, 0.070f, 0.9f, 1.4f),
 )
 
 /**
@@ -66,6 +72,9 @@ val PERCHES_BY_RES: Map<String, List<Pair<Float, Float>>> = mapOf(
     "kit_park_slide" to listOf(0.36f to 0.02f, 0.85f to 0.02f),      // the two side panels
     "kit_park_swing" to listOf(0.50f to 0.07f),                       // the top bar
     "kit_park_street_lamp" to listOf(0.50f to 0.01f),
+    "kit_dino_palm_tree" to listOf(0.50f to 0.06f),                       // the crown, where the fronds meet
+    "kit_dino_log" to listOf(0.35f to 0.12f, 0.70f to 0.12f),             // on top of the log
+    "kit_dino_nest" to listOf(0.50f to 0.30f),                            // in the nest
 )
 
 /**
@@ -78,7 +87,7 @@ data class VisitorSpec(val sit: String, val fly: String, val size: Float, val si
 val BIRD = VisitorSpec("kit_forest_bird", "kit_forest_bird_fly", size = 0.19f, sitAspect = 0.972f, flyAspect = 1.112f)
 
 /** Who visits which kit (doc §6-3 table: the bird comes to the forest and the park) */
-val VISITORS_BY_KIT: Map<String, List<VisitorSpec>> = mapOf("park" to listOf(BIRD))
+val VISITORS_BY_KIT: Map<String, List<VisitorSpec>> = mapOf("park" to listOf(BIRD), "dino" to listOf(BIRD))
 
 /**
  * A visitor as drawn this instant: [res] with its bottom centre at ([x], [y]), [h] px tall.
@@ -90,8 +99,8 @@ data class Visitor(
 )
 
 /** Where a butterfly rests — flowers, and for want of a flower the top of a bush or a tuft of grass */
-private val FLOWERS = setOf("kit_common_tulip", "kit_common_daisy")
-private val GREENS = setOf("kit_common_bush", "kit_common_grass")
+private val FLOWERS = setOf("kit_common_tulip", "kit_common_daisy", "kit_dino_hibiscus")
+private val GREENS = setOf("kit_common_bush", "kit_common_grass", "kit_dino_fern")
 
 /**
  * How one piece is drawn this instant, on top of where the layout put it.
