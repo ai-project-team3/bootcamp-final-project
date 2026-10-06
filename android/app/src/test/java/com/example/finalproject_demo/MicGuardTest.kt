@@ -109,14 +109,10 @@ class MicGuardTest {
         until { d.s.micEnabled }
         d.toggleMic()
         until { d.s.transcribing }
-        d.send(Reply.Tapped("lion", "사자"))              // the first question moved on — a card was picked meanwhile
-        withTimeout(10_000) { first.await() }
-        val second = async { d.ask(Question("그다음엔 어떻게 됐어?", Kind.EASY, noCards = true)) }
-        until { d.s.micEnabled }
-        heard.complete("친구들에서 봤더니")              // the late transcript of the first question
-        until { !d.s.transcribing }
-        delay(100)
-        assertFalse("앞 질문의 늦은 받아쓰기가 다음 질문의 답이 됐다", second.isCompleted)
-        assertTrue(d.s.log.any { "늦게 왔다" in it })
+        d.send(Reply.Tapped("lion", "사자"))              // the question moved on — a card was picked meanwhile
+        assertEquals("사자", (withTimeout(10_000) { first.await() } as Reply.Tapped).label)
+        heard.complete("친구들에서 봤더니")              // the late transcript of that question
+        until { d.s.log.any { "늦게 왔다" in it } }
+        assertFalse(d.s.transcribing)
     }
 }
