@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -340,7 +341,7 @@ private fun RecordTab(d: Director) {
     axes.chunked(2).forEach { row ->
         Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             row.forEach { a ->
-                PCard(Modifier.weight(1f).height(96.dp)) {
+                PCard(Modifier.weight(1f).heightIn(min = 96.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(a.emoji, fontSize = 16.sp)
                         Spacer(Modifier.width(6.dp))
@@ -350,7 +351,7 @@ private fun RecordTab(d: Director) {
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(a.what, fontSize = 13.sp, color = Ink, maxLines = 2)
-                    a.quote?.let { Text("\"$it\"", fontSize = 12.sp, color = PSub, maxLines = 1) }
+                    a.quote?.let { Text("\"$it\"", fontSize = 12.sp, color = PSub, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
                 }
             }
         }
@@ -1044,7 +1045,7 @@ private fun ChildCallSection() {
                 ),
             )
             Spacer(Modifier.width(8.dp))
-            PButton("저장", PAccent) { com.example.finalproject_demo.net.ChildCall.set(text) }
+            PButton("저장", PAccent, Modifier.widthIn(min = 72.dp)) { com.example.finalproject_demo.net.ChildCall.set(text) }
         }
     }
 }
@@ -1090,9 +1091,11 @@ private fun SettingsTab(d: Director) {
         Text("아이 혼자 별을 다 써 버리거나 이야기를 계속 이어 만드는 것을 막을 때 켜 두세요.", fontSize = 11.sp, color = PSub)
     }
 
+    // 준비된 그림체가 하나뿐이면 고를 것이 없다 — 칸째 숨긴다(「데모 그림 준비 중」 견본만 보이던 것 · #154)
+    if (ART_STYLES.count { it.ready } > 1) {
     Section("그림체", "다음 책부터 세계 그림에 적용 · 아이 그림 · 도감 주인공은 그대로")
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ART_STYLES.forEach { st ->
+        ART_STYLES.filter { it.ready }.forEach { st ->
             val on = s.artStyle == st.key
             Column(
                 Modifier
@@ -1113,9 +1116,9 @@ private fun SettingsTab(d: Director) {
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(st.name, fontSize = 12.sp, color = Ink, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2)
-                if (!st.ready) Text("데모 그림 준비 중", fontSize = 10.sp, color = PSub)
             }
         }
+    }
     }
 
     // ── 아래 넷은 9/22 멘토 검토가 찾은 공백이다 (guidelines/9 §9-5 박진웅). **스케치다** — 자리와 문구만 있고

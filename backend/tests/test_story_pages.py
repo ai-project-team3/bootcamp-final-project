@@ -212,3 +212,11 @@ def test_an_imagined_or_story_book_still_sets_the_mission_up():
 def test_a_day_book_asks_for_no_sentence_twice():
     req = StoryRequest(mode="coop", slots={}, reason="done", pages=[Page(kind="DRAG", mission="E1"), Page(kind="TOGETHER")])
     assert "같은 문장을 두 쪽에 쓰지 않는다" in story_route.plan(req)
+
+
+# #100 10번 (10-06): the child had already said 「촛불 후~ 불었어」 and the C1 page wrote 「불었어요」 — the book
+# said it before the child did it. A mission page stops just before the action, whatever the slots say.
+def test_a_mission_page_stops_before_the_action():
+    req = StoryRequest(mode="coop", slots={"problem": "촛불 후~ 불었어"}, reason="done",
+                       pages=[Page(kind="RUB", mission="C1", prop="촛불")])
+    assert "하기 바로 전에서 멈추고" in story_route.plan(req)

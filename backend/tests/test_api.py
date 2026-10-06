@@ -176,3 +176,13 @@ def test_a_short_diary_day_keeps_its_one_page():
     assert story_route.check(_book("놀이터에 갔어요."), "diary") is None
     assert story_route.check(_book("놀이터에 갔어요."), "coop")
     assert story_route.check(_book(*["가요."] * 7), "diary")
+
+
+def test_the_title_is_never_the_next_turn():
+    """#156: the app asks the title after the book; a judge that picks it loops the story."""
+    from app.routers.judge import enforce
+    from app.schemas.judge import JudgeResult
+    r = JudgeResult(reason="r", slot_1=None, value_1=None, slot_2=None, value_2=None, contradiction=False,
+                    contradiction_with=None, s1_reason=False, s2_addition=False, emotion=None, unclear=False,
+                    unclear_of=None, next_slot="title", next_reason="제목", no_longer_needed=None, story_ready=False)
+    assert enforce(r, JudgeRequest(**judge_body())).next_slot is None

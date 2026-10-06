@@ -3,6 +3,7 @@ package com.example.finalproject_demo.demo
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.Trace
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
 import kotlinx.coroutines.async
@@ -1603,60 +1604,54 @@ private suspend fun Director.sceneFriends() {
     }
     say(s.coopFriendsLine() ?: "오늘 만난 친구들이야. 누구를 또 만나고 싶어?")   // 협업 곧 해요 · 좋아해요 (CoopReport.kt)
     log("친구 평가 — 고르지 않아도 넘어갈 수 있다. 지우는 선택지는 없다")
+    // 10-05 device round: a mis-tap on 「안녕」 moved on at once. A tap now only marks the card (and can be
+    // changed); the arrow 「다 했어」 confirms. Undecided friends' buttons come first, then the arrow, then
+    // the change buttons — the demo drawer (and the flow tests) push the first button.
     fun refresh() {
         s.stage = Stage.FriendRate(items.toList())
         val b = mutableListOf<DemoBtn>()
-        items.forEach {
-            if (it.keep == null) {
-                b += DemoBtn("💛 ${it.name} — 또 만날래") { send(Reply.Tapped("keep:${it.id}", it.name)) }
-                b += DemoBtn("👋 ${it.name} — 안녕") { send(Reply.Tapped("bye:${it.id}", it.name)) }
-            }
+        items.filter { it.keep == null }.forEach {
+            b += DemoBtn("💛 ${it.name} — 또 만날래") { send(Reply.Tapped("keep:${it.id}", it.name)) }
+            b += DemoBtn("👋 ${it.name} — 안녕") { send(Reply.Tapped("bye:${it.id}", it.name)) }
         }
-        b += DemoBtn("➡️ 다 골랐어") { send(Reply.Tapped("done", "다음")) }
+        b += DemoBtn("➡️ 다 했어") { send(Reply.Tapped("done", "다음")) }
+        items.filter { it.keep != null }.forEach {
+            b += if (it.keep == true) DemoBtn("👋 ${it.name} — 안녕으로 바꾸기") { send(Reply.Tapped("bye:${it.id}", it.name)) }
+            else DemoBtn("💛 ${it.name} — 또 만날래로 바꾸기") { send(Reply.Tapped("keep:${it.id}", it.name)) }
+        }
         buttons(*b.toTypedArray())
     }
     refresh()
     val interruptible = s.mode == StoryMode.STORY
     var pending: Reply? = null
     while (true) {
-        val reply = pending ?: if (interruptible) awaitChoice() else awaitReply()
+        val reply = pending ?: awaitChoice()
         pending = null
-        val r = reply as? Reply.Tapped
-        if (r == null) {
-            if (interruptible) pending = pauseOrChoice(0)
-            continue
-        }
+        val r = reply as? Reply.Tapped ?: continue
         if (r.value == "done") break
         val (act, id) = r.value.split(":", limit = 2).let { it.getOrElse(0) { "" } to it.getOrElse(1) { "" } }
         val i = items.indexOfFirst { it.id == id }
-        if (i < 0 || (interruptible && (act !in setOf("keep", "bye") || items[i].keep != null))) {
+        val keep = act == "keep"
+        if (i < 0 || act !in setOf("keep", "bye") || items[i].keep == keep) {
             // Preserve a queued next choice even when a repeated tap is ignored.
-            if (interruptible) pending = pauseOrChoice(0)
+            pending = pauseOrChoice(0)
             continue
         }
-        val keep = act == "keep"
         items[i] = items[i].copy(keep = keep)
-        s.reactions++
-        event("friend_rating", "friend_id" to id, "keep" to keep)
-        val feedback = if (keep) {
-            if (items[i].name !in s.keptFriends) s.keptFriends += items[i].name
-            log("또 만날래 → ${items[i].name}${eun(items[i].name)} 다음 이야기의 확인 카드 후보 (⭐26 · 폰 소품함)")
-            "${items[i].name}${eul(items[i].name)} 또 만나자! 다음 이야기에 나올 수 있어."
-        } else {
-            log("안녕 → 지우지 않는다. 폰에 남고 이 책에는 그대로 나온다")
-            "${items[i].name}, 안녕! 오늘 고마웠어."
-        }
-        mark("friends")
-        if (interruptible) {
-            refresh()
-            // Do not start farewell audio when the last choice already leaves this scene.
-            if (items.all { it.keep != null }) break
-        }
-        say(feedback)
-        if (interruptible) pending = pauseOrChoice(1100) else pause(1100)
         refresh()
-        if (items.all { it.keep != null }) break
+        say(if (keep) "${items[i].name}${eul(items[i].name)} 또 만나자! 다음 이야기에 나올 수 있어." else "${items[i].name}, 안녕! 오늘 고마웠어.")
+        pending = pauseOrChoice(if (interruptible) 0 else 600)
     }
+    // Only the confirmed choices count — a changed mind is not two ratings.
+    items.filter { it.keep != null }.forEach {
+        s.reactions++
+        event("friend_rating", "friend_id" to it.id, "keep" to it.keep)
+        if (it.keep == true) {
+            if (it.name !in s.keptFriends) s.keptFriends += it.name
+            log("또 만날래 → ${it.name}${eun(it.name)} 다음 이야기의 확인 카드 후보 (⭐26 · 폰 소품함)")
+        } else log("안녕 → 지우지 않는다. 폰에 남고 이 책에는 그대로 나온다")
+    }
+    if (items.any { it.keep != null }) mark("friends")
     say("좋아! 이제 선물이 있어.")
     if (!interruptible) pause(1200)
     go(Scene.END)
@@ -1667,6 +1662,12 @@ private suspend fun Director.sceneFriends() {
 private suspend fun Director.sceneEnd() {
     inputs(false, false)
     buttons()
+    // 10-06: what one real session called, per mode — the Play build's per-device limit is set from these
+    Server.callSummary().takeIf { it.isNotEmpty() }?.let {
+        log("서버 호출 (이번 세션) · $it")
+        Trace.line("calls", "${s.mode.name.lowercase()} finished · $it")
+        Server.resetCalls()
+    }
     s.stage = Stage.Gifts(0)
     pause(600)
     s.stage = Stage.Gifts(1)

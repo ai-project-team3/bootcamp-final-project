@@ -239,6 +239,7 @@ class Director(
      * 밀린 대사가 버려져 뒤로 갈수록 목소리가 안 들렸다.
      */
     suspend fun pause(ms: Long) {
+        while (s.holding) delay(100)                  // ⏸ 동안 흐름은 그 자리에 선다 (#125)
         val total = (ms * s.speed).toLong()
         if (!Server.liveFor(s.mode)) { delay(total); return }
         val t0 = System.currentTimeMillis()
@@ -340,6 +341,7 @@ class Director(
         val before = voiceJob
         voiceJob = queueVoice(scope.launch {
             before?.join()
+            while (s.holding) delay(100)              // ⏸ 동안 받아 둔 대사는 [이어 하기] 뒤에 (#125)
             sound()?.let { play(it) }
         })
     }
@@ -532,7 +534,7 @@ class Director(
             log("🎤 끝 → 우리 서버로 받아쓰기 (${audio.size / 1024}KB)")
             val text = Voice.transcribe(audio)
             when {
-                text == null || text.isBlank() -> unheard(if (text == null) "받아쓰기 실패" else "들을 말이 없음")
+                text == null || text.isBlank() -> unheard(if (text == null) "받아쓰기 실패" else "들을 말이 없음", failed = text == null)
                 else -> {
                     unheardStreak = 0
                     val fixed = fixKnownNames(text, s.knownNames())
@@ -557,7 +559,8 @@ class Director(
     private var unheardFor: Question? = null
     private var unheardWait: Job? = null
 
-    private fun unheard(why: String) {
+    /** [failed] = 서버 · 네트워크가 실패했다 — 아이 탓(「소리가 작았나 봐」)으로 말하지 않는다 (#154 · 10-06) */
+    private fun unheard(why: String, failed: Boolean = false) {
         if (unheardFor !== currentQ) { unheardFor = currentQ; unheardStreak = 0 }
         unheardStreak++
         if (unheardStreak > UNHEARD_RETRIES) {
@@ -568,7 +571,11 @@ class Director(
         }
         log("$why — 말소리는 들렸다 → 같은 질문으로 되묻기 ($unheardStreak/$UNHEARD_RETRIES)")
         hushVoice()                                       // 「잘 들었어」 리액션이 아직 나오고 있으면 끊는다
-        say(if (unheardStreak == 1) "어? 소리가 작았나 봐. 한 번 더 말해 줄래?" else "미안, 또 못 들었어. 천천히 한 번만 더 말해 줄래?")
+        say(when {
+            unheardStreak > 1 -> "미안, 또 못 들었어. 천천히 한 번만 더 말해 줄래?"
+            failed -> "앗, 오또 귀가 잠깐 멍해졌어. 한 번 더 말해 줄래?"
+            else -> "어? 소리가 작았나 봐. 한 번 더 말해 줄래?"
+        })
         val asked = currentQ
         unheardWait?.cancel()
         unheardWait = scope.launch {
@@ -668,8 +675,30 @@ class Director(
      * 다시 같은 모드로 들어오면 「이어서 할까?」 → `resume` 신호로 이 장면부터 이어 간다 (`Scenes.sceneAdult`)
      */
     fun leaveToRoom() {
+        s.holding = false
         pauseStory()
         goHome()
+    }
+
+    /**
+     * ⏸ 일시정지 (#125 · 10-05 조장) — 이야기 중의 ⏸ 를 누르거나 화면이 꺼지면(앱이 뒤로 가면).
+     * 오또 목소리를 끊고, 녹음 중이면 그 녹음은 버린다(보내지 않는다). 흐름은 다음 쉼 · 아이 차례에서 선다.
+     * 앱이 살아 있는 동안만 이어진다 — 안드로이드가 앱을 내리면 「이어하기」(체크포인트)가 따로 필요하다
+     */
+    fun holdSession() {
+        if (s.holding) return
+        s.holding = true
+        hushVoice()
+        if (s.micOn) { stopMic = true; micJob?.cancel(); s.micOn = false }
+        log("⏸ 일시정지 — 목소리 · 녹음을 멈추고 흐름을 세운다")
+    }
+
+    /** ▶ 이어 하기 — 멈출 때 말하던 대사를 다시 들려준다(끊겼으니) */
+    fun resumeSession() {
+        if (!s.holding) return
+        s.holding = false
+        log("▶ 이어 하기")
+        replayLine()
     }
 
     /** 지금이 이야기 **안**이면 그 장면을 기억한다 — 방 · 부모 · 책장은 이야기 밖이다 */
@@ -710,6 +739,7 @@ class Director(
         var left = sec
         s.countdown = left
         while (left > 0.0) {
+            if (s.holding) { delay(100); continue }   // ⏸ 동안은 세지 않는다 (#125)
             if (s.micOn) { // 마이크가 켜져 있는 동안은 세지 않는다
                 s.countdown = null
                 val r = input.receive()
