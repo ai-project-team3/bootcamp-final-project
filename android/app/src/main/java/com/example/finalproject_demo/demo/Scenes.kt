@@ -315,6 +315,8 @@ private suspend fun Director.sceneAdult() {
         event("story_start", modeField, "star_before" to "무제한", "star_after" to "무제한")
         log("하루 한도 꺼짐(부모 설정) → 별을 쓰지 않고 시작")
     }
+    // a star leaves the room's wallet and lands on the mode's star track (ui/StarFlight.kt · 10-06 종훈)
+    s.starFlights++
     mark("adult")
     pause(500)
     // 일기 · 협업 모드는 "누구랑 같이 만들래?"를 묻지 않는다 (9/21 사용자 요청).

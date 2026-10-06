@@ -696,23 +696,13 @@ private fun DiaryAskView(d: Director, cq: Dp) {
     }
 }
 
-/** 별 둘 — 필수 두 칸(place · problem)이 찰 때마다 하나씩 켜진다. 털실 막대가 그만큼 찬다 */
+/**
+ * 별 둘 — 필수 두 칸(place · problem)이 찰 때마다 하나씩 켜진다.
+ * 10-06 (종훈): 세 모드가 같은 별 막대를 쓴다 — 가운데 별 구슬 하나 + 끝 메달 하나가 곧 별 둘이다 (ui/Chrome.kt ProgressTrack)
+ */
 @Composable
-private fun TwoStars(filled: Int, cq: Dp, modifier: Modifier) {
-    Row(
-        modifier.shadow(cq * 1.2f, RoundedCornerShape(cq * 4)).background(Color.White, RoundedCornerShape(cq * 4))
-            .padding(horizontal = cq * 2.2f, vertical = cq)
-            .testTag("d3-stars"),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(cq * 1.2f),
-    ) {
-        Box(Modifier.size(cq * 20, cq * 1.2f).background(WoolCream, RoundedCornerShape(cq))) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(filled / 2f).background(FeltMustard, RoundedCornerShape(cq)))
-        }
-        repeat(2) { i ->
-            Text("⭐", fontSize = (cq.value * 2.6f).sp, modifier = Modifier.alpha(if (i < filled) 1f else 0.35f))
-        }
-    }
+private fun TwoStars(filled: Int, @Suppress("UNUSED_PARAMETER") cq: Dp, modifier: Modifier) {
+    ProgressTrack(filled, PICTURE_REQUIRED.size, modifier.testTag("d3-stars"))
 }
 
 /** 책에 들어갈 조각 — 묶인 조각이 없으면 화이트보드 그림 한 덩어리 */
