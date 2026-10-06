@@ -1072,22 +1072,24 @@ private fun FriendRateView(d: Director, stage: Stage.FriendRate) {
                     ArtView(f.art, Modifier.fillMaxWidth().height(104.dp))
                     Text(f.name, fontSize = TextSize.KidCard, color = InkBrown)
                     Spacer(Modifier.height(8.dp))
-                    if (f.keep == null) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FeltButton(FeltWhite, onClick = { d.send(Reply.Tapped("bye:${f.id}", f.name)) }, modifier = Modifier.width(104.dp).height(Touch.KidMin), shape = RoundedCornerShape(22.dp)) {
-                                Text("👋 안녕", fontSize = 16.sp, color = InkBrown)
-                            }
-                            FeltButton(Cheek, onClick = { d.send(Reply.Tapped("keep:${f.id}", f.name)) }, modifier = Modifier.width(104.dp).height(Touch.KidMin), shape = RoundedCornerShape(22.dp)) {
-                                Text("💗 또 만날래", fontSize = 15.sp, color = FeltWhite)
-                            }
+                    // 10-05 device round: both buttons stay so a mis-tap can be changed; the picked one is
+                    // marked, the other fades. Nothing is final until the arrow 「다 했어」.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val byeOn = f.keep == false; val keepOn = f.keep == true
+                        FeltButton(FeltWhite, onClick = { d.send(Reply.Tapped("bye:${f.id}", f.name)) }, modifier = Modifier.width(104.dp).height(Touch.KidMin).alpha(if (keepOn) 0.45f else 1f), shape = RoundedCornerShape(22.dp)) {
+                            Text(if (byeOn) "✔ 안녕" else "👋 안녕", fontSize = 16.sp, color = InkBrown)
                         }
-                    } else {
-                        Text(if (f.keep) "또 만나기로 했어 💗" else "안녕! 👋", fontSize = 17.sp, color = if (f.keep) FeltCoral else InkSoft, modifier = Modifier.padding(vertical = 18.dp))
+                        FeltButton(Cheek, onClick = { d.send(Reply.Tapped("keep:${f.id}", f.name)) }, modifier = Modifier.width(104.dp).height(Touch.KidMin).alpha(if (byeOn) 0.45f else 1f), shape = RoundedCornerShape(22.dp)) {
+                            Text(if (keepOn) "✔ 또 만날래" else "💗 또 만날래", fontSize = 15.sp, color = FeltWhite)
+                        }
                     }
                 }
             }
-            FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped("done", "다음")) }, modifier = Modifier.size(Touch.Kid), shape = CircleShape) {
-                ArtView(Art.Img("ic_next", Art.Emoji("➡️")), Modifier.size(40.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped("done", "다음")) }, modifier = Modifier.size(Touch.Kid), shape = CircleShape) {
+                    ArtView(Art.Img("ic_next", Art.Emoji("➡️")), Modifier.size(40.dp))
+                }
+                Text("다 했어", fontSize = 16.sp, color = InkBrown, modifier = Modifier.padding(top = 4.dp))
             }
         }
     }
@@ -1098,7 +1100,8 @@ private fun FriendRateView(d: Director, stage: Stage.FriendRate) {
 private fun GiftsView(d: Director, stage: Stage.Gifts) {
     Box(Modifier.fillMaxSize()) {
         Centered {
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            // 10-05 device round: a one-line name made a shorter card than a two-line one — same size for all
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
                 listOf(Triple("gift_book", "🧩", "해결 방법 도감\n친구와 함께"), Triple("gift_crayon", "🌈", "무지개 크레용"))
                     // 받지 않는 선물은 흐리게도 그리지 않는다 — 흐린 카드는 "못 받았다"로 읽힌다
                     .take(d.s.giftCount).forEachIndexed { i, (img, e, t) ->
@@ -1121,7 +1124,7 @@ private fun GiftsView(d: Director, stage: Stage.Gifts) {
                     ) {
                         ArtView(Art.Img(img, Art.Emoji(e)), Modifier.size(110.dp))
                         Spacer(Modifier.height(4.dp))
-                        Text(t, fontSize = 17.sp, color = InkBrown, textAlign = TextAlign.Center)
+                        Text(t, fontSize = 17.sp, color = InkBrown, textAlign = TextAlign.Center, minLines = 2, maxLines = 2)
                     }
                 }
             }
