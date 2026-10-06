@@ -23,6 +23,22 @@ fi
 [ -n "${AIHUB_APIKEY:-}" ] || { echo "AI-Hub 키가 없다 — 레포 루트 .env 에 AIHUB_APIKEY=<키> 한 줄을 사람이 넣는다(README 「키 넣기」)"; exit 1; }
 export AIHUB_APIKEY
 echo "AI-Hub 키: 있음(${#AIHUB_APIKEY}자)"
+
+# --check: 받지 않고 키만 확인한다 — 라벨 파일 앞 1KB 만 요청해 응답 코드를 본다(10-06 확인: 키가 없거나
+# 틀리면 HTTP 502 + 「인증실패, 권한이 거부되었습니다」). 키 값은 찍지 않는다
+if [ "${2:-}" = "--check" ]; then
+    body="$(mktemp)"
+    code=$(curl -s -o "$body" -r 0-1023 --max-time 20 -H "apikey:$AIHUB_APIKEY" -w "%{http_code}" \
+        "https://api.aihub.or.kr/down/0.6/108.do?fileSn=48685" || true)
+    if [ "$code" = "200" ] || [ "$code" = "206" ]; then
+        echo "키 정상 — 데이터셋 108 을 받을 수 있다 (HTTP $code)"
+    else
+        echo "키 확인 실패 — HTTP $code · 응답: $(head -c 200 "$body" | tr -d '\0')"
+        echo "  「인증실패」면: 키가 틀렸거나(앞뒤 공백 · 줄바꿈 · 다른 계정의 키) · 재발급으로 옛 키가 무효가 됐거나 · 그 계정에 데이터셋 108 이용 승인이 없다"
+    fi
+    rm -f "$body"
+    exit 0
+fi
 mkdir -p "$DEST"
 cd "$DEST"
 [ -f aihubshell ] || curl -fsSL -o aihubshell https://api.aihub.or.kr/api/aihubshell.do
