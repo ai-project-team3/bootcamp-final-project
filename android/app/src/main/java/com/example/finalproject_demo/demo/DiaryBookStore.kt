@@ -180,6 +180,7 @@ object DiaryShelf {
         books[s]?.removeAll { it.id == id }
         s.diaryCovers.remove(DIARY_SHELF_ID + id)
         s.shelf.removeAll { it.savedStoryId == DIARY_SHELF_ID + id }
+        SessionReports.forget(DIARY_SHELF_ID + id)
         return true
     }
 }

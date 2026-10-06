@@ -56,6 +56,9 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.SessionReport
+import com.example.finalproject_demo.demo.SessionReports
+import com.example.finalproject_demo.demo.buildSessionReport
 import com.example.finalproject_demo.demo.SHELF_CAPACITY
 import com.example.finalproject_demo.demo.SHELF_MODES
 import com.example.finalproject_demo.demo.ShelfEntry
@@ -255,7 +258,8 @@ private fun ParentViewBody(d: Director, tab: String) {
 }
 
 /**
- * 오늘의 기록 — 6축 · 말한 방식 · 같은 질문에 한 답 · 누리과정 · 질문 카드 · 고지. 등급 · 비교 · 수준 이름은 없다 (16).
+ * 오늘의 기록 — 숫자 칸 · 이야기의 뼈대 · 오늘 보인 순간 · 처음 해낸 것 · 집에서 이어 가기 · 대화 전체 · 지난 기록 (10-06 종훈 시안).
+ * 등급 · 비교 · 수준 이름은 없다 (16 · 규칙 9). 화면은 `SessionReportView.kt`, 재료는 `demo/SessionReport.kt`.
  * 세 모드가 다 여기로 온다 — 문구는 그 모드가 실제로 물은 것만 쓴다 (일기 · 협업은 함께할 사람을 안 묻는다 · 9/22).
  */
 @Composable
@@ -263,7 +267,15 @@ private fun RecordTab(d: Director) {
     val s = d.s
     // 협업 리포트의 말 — 한 번만 만들어 아래 여러 칸이 같이 쓴다 (#99 리뷰 4)
     val coopCopy = if (s.isCoop) s.coopReportCopy() else null
-    if (s.title == null && s.quotes.isEmpty()) {
+    // 지금 세션 — 꽂았으면 그 책의 리포트, 아직이면 지금까지 주고받은 것으로 (demo/SessionReport.kt · 10-06 종훈 시안)
+    val live = remember(s.talk.size, s.lastReport, s.title) {
+        if (s.talk.isEmpty()) null else s.lastReport?.takeIf { it.talk.size == s.talk.size } ?: s.buildSessionReport()
+    }
+    val past = remember(s.lastReport, s.shelf.size) { SessionReports.all() }
+    var picked by remember { mutableStateOf<SessionReport?>(null) }
+    var talkOpen by remember { mutableStateOf(false) }
+    val r = picked ?: live ?: s.lastReport ?: past.firstOrNull()
+    if (r == null) {
         // 빈 화면도 막다른 곳이 아니게 — 무엇이 여기에 생기는지 보여 주고, 아이 화면으로 돌아갈 길 (09-29)
         PCard(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -290,137 +302,17 @@ private fun RecordTab(d: Director) {
         }
         return
     }
-    PCard(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(54.dp, 54.dp).clip(RoundedCornerShape(12.dp))) {
-                AssetImage(s.bgName, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop) { Box(Modifier.fillMaxSize().background(Sun2)) }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("『${s.title ?: "만드는 중"}』", fontSize = 17.sp, color = Ink, fontWeight = FontWeight.Bold)
-                // 일기 · 협업 모드는 "누구랑 같이 만들래?"를 묻지 않는다 →
-                // 물어보지 않은 사람 이름을 지어내지 않는다. 협업은 어른이 질문을 넣어 둔 것이 확실하므로 그렇게만 적는다
-                val who = when {
-                    s.isCoop -> coopCopy!!.who
-                    s.isDiary -> ""
-                    else -> "${s.pn}${wa(s.pn)} 함께 · "
-                }
-                // 걸린 시간은 잰 것만 적는다. 동화 모드는 시작 시각을 남기지 않아 쓸 수 없다 — 없는 숫자를 만들지 않는다 (9/22)
-                val minutes = if (s.isDiary && s.diaryStart > 0L) ((System.currentTimeMillis() - s.diaryStart) / 60_000L).coerceAtLeast(1L) else null
-                val took = minutes?.let { "약 ${it}분 · " } ?: ""
-                Text("오늘 · $took$who${s.placeName} · ${s.pageCount}쪽", fontSize = 12.sp, color = PSub)
-                // 일기 · 협업으로 만든 책은 부모 화면에서만 그렇게 보인다 (아이 화면에는 이 말이 없다 · 일기 §0)
-                // 협업은 고른 이유대로 — 곧 해요를 「오늘 있었던 일」로 적지 않는다 (10-03 실기기 · CoopReport.kt)
-                if (coopCopy != null) Text(coopCopy.madeFrom, fontSize = 12.sp, color = PAccent)
-                else if (s.isDiary) Text("오늘 있었던 일로 만든 책이에요", fontSize = 12.sp, color = PAccent)
-            }
-            Chip("${s.modeVoice}번 말했어요", PMint)
-        }
+    if (talkOpen) {
+        SessionTalkView(r, s.childName, onBack = { talkOpen = false })
+        return
     }
-
-    val s1 = s.signals.filter { it.startsWith("S1") }.map { it.substringAfter("\"").substringBefore("\"") }
-    val s2 = s.signals.filter { it.startsWith("S2") }.map { it.substringAfter("\"").substringBefore("\"") }
-    val made = reportMade(s)
-    val reasonQuote = s1.firstOrNull()
-    val fillQuote = s2.firstOrNull { it != reasonQuote } ?: s2.firstOrNull()
-    val talkQuote = s.quotes.firstOrNull { it != reasonQuote && it != fillQuote } ?: s.quotes.firstOrNull()
-    data class Axis(val emoji: String, val name: String, val n: Int, val what: String, val quote: String?)
-    val axes = listOf(
-        // 카드마다 다른 말을 보여 준다 (같은 문장이 되풀이되지 않게)
-        Axis("🗣", "말하기", s.modeVoice, "마이크로 ${s.modeVoice}번 말했어요", talkQuote),
-        Axis("💡", "이유 말하기", s.s1count, if (s.s1count == 0) "오늘은 까닭을 말하지 않았어요" else "까닭을 ${s.s1count}번 말했어요", reasonQuote),
-        Axis("💗", "마음 말하기", s.feelings.size, if (s.feelings.isEmpty()) "오늘은 마음을 말하지 않았어요" else feelingsSaid(s.feelings), null),
-        Axis("🧩", "이야기 채우기", s2.size, if (s2.isEmpty()) "물어본 것에 답했어요" else "묻지 않은 것을 ${s2.size}번 덧붙였어요", fillQuote),
-        Axis("🖍", "만들기", made.size, made.joinToString(" · ").ifEmpty { "오늘은 프리셋을 골랐어요" }, null),
-        Axis(
-            "🤝", "함께하기", s.partnerTurns,
-            when {
-                // 협업 모드는 어른이 넣어 둔 질문으로 아이에게 묻는다 — 이 축이 처음으로 제대로 찬다 (협업 §4-2 · guidelines/9 §9-5)
-                s.isCoop -> coopCopy!!.together(s.partnerTurns)
-                // 일기 모드는 함께할 사람을 묻지 않았다. 없는 사람 이름을 지어내지 않는다
-                s.isDiary -> if (s.companionKind.isBlank()) "오늘은 마스코트와 주고받았어요" else "오늘 ${s.companionKind}${wa(s.companionKind)} 있었던 이야기예요"
-                else -> "${s.pn}${wa(s.pn)} ${s.partnerTurns}번 주고받았어요"
-            },
-            if (s.isCoop) s.adultLine else s.partnerHelp,
-        ),
-    )
-    Section("오늘 ${s.childName}${ga(s.childName)} 한 것", "●●● · ●●○ · ●○○ 는 오늘 어디까지 해 봤는지일 뿐, 점수가 아니에요")
-    axes.chunked(2).forEach { row ->
-        Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            row.forEach { a ->
-                PCard(Modifier.weight(1f).heightIn(min = 96.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(a.emoji, fontSize = 16.sp)
-                        Spacer(Modifier.width(6.dp))
-                        Text(a.name, fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.weight(1f))
-                        Dots(if (a.n >= 3) 3 else if (a.n >= 1) 2 else 1)
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text(a.what, fontSize = 13.sp, color = Ink, maxLines = 2)
-                    a.quote?.let { Text("\"$it\"", fontSize = 12.sp, color = PSub, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
-                }
-            }
-        }
-    }
-
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        PCard(Modifier.weight(1f)) {
-            Text("말한 방식", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            val parts = listOf(
-                Triple("말로", s.modeVoice, PAccent),
-                Triple("카드로", s.modeCard, Sun),
-                Triple("그림으로", s.modeDraw, PMint),
-                Triple("말 없이", s.modeSilent, Color(0xFFBDB1A2)),
-            )
-            val total = parts.sumOf { it.second }.coerceAtLeast(1)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Canvas(Modifier.size(84.dp)) {
-                    var start = -90f
-                    val sw = size.minDimension * 0.22f
-                    val inset = sw / 2
-                    parts.forEach { (_, n, c) ->
-                        val sweep = 360f * n / total
-                        if (sweep > 0) drawArc(c, start, sweep, useCenter = false, topLeft = Offset(inset, inset), size = Size(size.width - sw, size.height - sw), style = Stroke(sw))
-                        start += sweep
-                    }
-                }
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    parts.forEach { (t, n, c) ->
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 3.dp)) {
-                            Box(Modifier.size(10.dp).clip(CircleShape).background(c))
-                            Spacer(Modifier.width(6.dp))
-                            Text("$t ${n}번", fontSize = 13.sp, color = Ink)
-                        }
-                    }
-                }
-            }
-        }
-        PCard(Modifier.weight(1f)) {
-            Text("같은 질문에 한 답", fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
-            // 일기 · 협업 모드의 기준 질문 ①은 "오늘 어디 갔었어?" 다 — 같은 자리, 다른 재료 (일기 설계 §0 · §4-1)
-            // 협업은 고른 이야기의 첫 질문 — 곧 해요에 「오늘 어디 갔었어?」가 나오지 않게 (10-03 실기기)
-            val firstQ = coopCopy?.firstQuestion
-            Text("\"${firstQ ?: if (s.isDiary) "오늘 어디 갔었어?" else "어디로 가 볼까?"}\"", fontSize = 13.sp, color = PSub)
-            Spacer(Modifier.height(8.dp))
-            // ⚠️ "지난번" 줄은 뺐다 (9/22). 전에는 "\"바다\" 한 낱말" 같은 **글자 상수**를 지난번 답인 것처럼 보여 줬는데,
-            //    앱은 아직 아무것도 저장하지 않는다 — 지난번 기록이 없다. 없는 숫자를 진짜인 척하지 않는다 (guidelines/9 §9-5).
-            //    저장이 붙으면 이 자리에 지난 답들이 날짜와 함께 나란히 선다 (README 「부모 리포트」 예).
-            Row {
-                Text("오늘", fontSize = 12.sp, color = PSub, modifier = Modifier.width(44.dp))
-                Text(s.quotes.firstOrNull()?.let { "\"$it\"" } ?: "\"${s.place ?: "-"}\" (카드로 고름)", fontSize = 12.sp, color = Ink, maxLines = 2)
-            }
-            Spacer(Modifier.height(6.dp))
-            Text("지난 기록은 아직 없어요. 책이 쌓이면 같은 질문에 한 답이 날짜별로 나란히 보여요.", fontSize = 11.sp, color = PSub)
-            Text("다른 아이가 아니라 ${s.childName}${ga(s.childName)} 지난번의 ${s.childName}${wa3(s.childName)}만 견줘요", fontSize = 11.sp, color = PSub)
-        }
-    }
+    SessionReportView(r, s.childName, onTalk = { talkOpen = true })
+    // 협업 칸은 지금 세션의 것 — 지난 책을 고른 동안은 보이지 않는다
+    val coopNow = s.isCoop && picked == null && live != null
 
     // 협업 모드의 결과물 — **부모가 궁금해한 것에 아이가 뭐라고 했나** (부모협업모드_설계 §0 · 구현설계 §2-3).
     // 인용은 아이가 말한 것(`by: child`)만 따옴표로. 카드 · 마스코트가 채운 것은 그렇다고 적는다 (guidelines/2 §1-4)
-    if (s.isCoop && s.coopAsked.isNotEmpty()) {
+    if (coopNow && s.coopAsked.isNotEmpty()) {
         val copy = coopCopy!!
         Section(copy.askedTitle, copy.askedSub)
         PCard(Modifier.fillMaxWidth()) {
@@ -441,7 +333,7 @@ private fun RecordTab(d: Director) {
     }
 
     // 「가기 전 · 다녀온 뒤」 — 오늘 책이 다녀온 책이고 짝이 책장에 있을 때만 (협업모드_확장_설계 §2-5)
-    val pair = remember(s.isCoop, s.shelf.size) { if (s.isCoop) s.coopBeforeAfter() else null }
+    val pair = remember(coopNow, s.shelf.size) { if (coopNow) s.coopBeforeAfter() else null }
     if (pair != null) {
         Section("가기 전 · 다녀온 뒤", "‘${pair.name}’ · 맞고 틀린 게 아니라 상상한 말과 겪고 나서 한 말이에요")
         PCard(Modifier.fillMaxWidth()) {
@@ -473,7 +365,7 @@ private fun RecordTab(d: Director) {
     //    문구("아이가 막히면 재촉하지 말고 기다려 주세요")는 뺐다. 넣어 둔 질문을 규칙으로 살펴 주는 일은 아직 없다 —
     //    10-06 — 넣어 둔 질문에 아이가 한 답이 있으면 거기서 하나를 고른다(`CoopReport.kt` nextQuestionFromAnswers ·
     //    아이가 제일 많이 말한 질문, 없으면 답이 안 나온 질문 하나를 바꿔 쓴 예와 함께). 넣은 질문이 없으면 이유별 예시 한 개.
-    if (s.isCoop) {
+    if (coopNow) {
         Section("다음에 넣어 볼 질문", if (s.coopParentUsed > 0) "넣어 둔 질문에 아이가 한 답에서 골랐어요 · 점수가 아니라 질문 한 개예요"
             else "부모 협업 모드에서만 · 점수가 아니라 질문 한 개예요")
         PCard(Modifier.fillMaxWidth()) {
@@ -486,48 +378,8 @@ private fun RecordTab(d: Director) {
         }
     }
 
-    Section("누리과정으로 보면")
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Chip("의사소통 · 말하기", PAccent)
-        Chip("듣기와 말하기", Sun)
-        Chip("예술경험 · 창의적으로 표현하기", PMint)
-    }
-
-    Section("오늘 이야기로 해 볼 놀이", "질문 카드 3장")
-    val f = s.friendName.takeUnless { it.startsWith("{") } ?: "새 친구"
-    // 일기 모드의 질문 카드는 오늘 있었던 일에서 나온다 — 공룡 · 소리 칸은 묻지 않았다 (일기 설계 §2-2).
-    // ⚠️ 아이가 아무도 말하지 않은 날에는 "새 친구" 질문을 넣지 않는다 — 없는 친구를 앱이 만들어 내면 안 된다 (§3-2)
-    // ⚠️ 일기 · 협업은 "누구랑 같이 만들래?"를 묻지 않았다 — `s.pn` 은 기본값 "엄마"라 질문 카드에 쓰면 없는 사람이 생긴다 (9/22)
-    // 협업 곧 해요 · 좋아해요는 「오늘 있었던 일」 카드가 맞지 않는다 — 고른 이유대로 (CoopReport.kt)
-    val playCards = (pair?.let { listOf(COOP_PAIR_PLAY_CARD) } ?: emptyList()) + (coopCopy?.playCards ?: if (s.isDiary) listOfNotNull(
-        s.friendName.takeUnless { it.startsWith("{") }?.let { n -> "\"${n}${eun(n)} 내일은 뭐 하고 놀까?\"" },
-        "\"오늘 ${s.placeName}에서 제일 재밌었던 게 뭐였어?\"",
-        "\"내일 ${s.placeName}에 가면 뭐 하고 싶어?\"",
-        "\"오늘 있었던 일을 하나만 더 이야기해 줄래?\"",
-    ).take(3) else listOf(
-        "\"${f}${eun(f)} 오늘 뭐 하고 놀까?\"",
-        "\"${s.dino.name}${ga(s.dino.name)} 또 울면 어떻게 할까?\"",
-        "\"${s.placeName}에 또 가면 누구를 만날까?\"",
-    ))
-    // 「가기 전 · 다녀온 뒤」 카드가 앞에 붙으면 셋을 넘는다 — 질문 카드는 3장
-    .take(3)
-    // 카드 높이는 가장 긴 질문에 맞춘다 — 고정 높이면 협업 질문(「…해 보고 싶은 게 뭐야?」)의 끝이 잘렸다 (10-03 실기기)
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        playCards.forEachIndexed { i, q ->
-            Column(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .heightIn(min = 86.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(listOf(Color(0xFFFFE7DD), Color(0xFFFFF1CC), Color(0xFFDDF2EA))[i])
-                    .padding(12.dp)
-            ) {
-                Text("질문 ${i + 1}", fontSize = 11.sp, color = PSub)
-                Text(q, fontSize = 14.sp, color = Ink, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
+    Spacer(Modifier.height(18.dp))
+    PastReports(past, r) { picked = it; talkOpen = false }
     Spacer(Modifier.height(14.dp))
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF3EDE3)).padding(12.dp)) {
         Column {

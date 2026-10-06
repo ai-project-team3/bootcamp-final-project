@@ -1533,6 +1533,7 @@ private suspend fun Director.giveDiaryBook() {
         // 표지는 책마다 — 제목이 같은 날 두 권이 한 표지를 나눠 쓰지 않게 책 id 로 단다 (#64-2)
         if (coverPieces.isNotEmpty()) s.diaryCovers[shelved.coverKey()] = DiaryCover(coverPieces, s.drawingAspect)
         s.shelf.add(0, shelved)
+        SessionReports.keep(s, shelved.savedStoryId.orEmpty())
     }
     // 실제로 걸린 분 — 고정값이 아니다 (#64-4)
     val minutes = if (s.diaryStart > 0L) ((System.currentTimeMillis() - s.diaryStart) / 60_000L).coerceAtLeast(1L) else null

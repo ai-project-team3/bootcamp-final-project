@@ -105,6 +105,7 @@ class Director(
             s.commitStorySound()
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))
+            SessionReports.keep(s, book.id)
             recoverStoryImages()
             true
         } catch (_: Exception) { false }
@@ -127,6 +128,7 @@ class Director(
         return try {
             if (storyBookStore != null && !storyBookStore.delete(id)) return false
             savedStories.removeAll { it.id == id }
+            SessionReports.forget(id)
             s.shelf.removeAll { it.savedStoryId == id }
             runCatching { com.example.finalproject_demo.sound.ChildSound.deleteBook(id) }
             recoverStoryImages()
@@ -266,7 +268,23 @@ class Director(
         s.lineId++
         com.example.finalproject_demo.net.Trace.line(if (who == "마스코트") "otto" else "said:$who", text)
         if (who == "마스코트" && surprise.containsMatchIn(text)) feel(Mood.SURPRISED)
-        if (who == "마스코트") { dumpSpoken(text); speakLive(text) }
+        if (who == "마스코트") { dumpSpoken(text); speakLive(text); heardQuestion(text) }
+    }
+
+    /** Otto's last question — written into the report transcript only once an answer follows it */
+    private var pendingQuestion: String? = null
+
+    private fun heardQuestion(text: String) {
+        if ('?' in text) pendingQuestion = text.trim()
+    }
+
+    /** One answer in the report transcript, after the question it answers (demo/SessionReport.kt · rule 5) */
+    fun talk(who: String, text: String) {
+        if (text.isBlank()) return
+        if (s.talkStartedAtMs == 0L) s.talkStartedAtMs = System.currentTimeMillis()
+        pendingQuestion?.let { s.talk += TalkLine("otto", it) }
+        pendingQuestion = null
+        s.talk += TalkLine(who, text.trim())
     }
 
     /**
@@ -473,6 +491,7 @@ class Director(
         if (s.parentAsk != null && s.parentAsk != text) s.parentRung++
         s.parentAsk = text
         s.parentCard = text
+        heardQuestion(text)
         // 띠에 질문이 올라오면 말풍선은 비운다 — 자막 둘이 같이 뜨지 않는다 (9/22)
         s.line = ""
     }
@@ -510,6 +529,14 @@ class Director(
         val body = fields.filter { it.second != null }.joinToString(", ") { "${it.first}=${it.second}" }
         s.events.add(0, if (body.isEmpty()) name else "$name  $body")
         if (s.events.size > 60) s.events.removeAt(s.events.size - 1)
+        if (name == "utterance") {
+            val f = fields.toMap()
+            val text = f["text"]?.toString().orEmpty()
+            when (f["speaker"]) {
+                "child" -> talk(when (f["mode"]) { "card" -> "card"; "draw" -> "draw"; else -> "child" }, text)
+                "adult", "peer" -> talk("adult", text)
+            }
+        }
     }
 
     /**
@@ -1074,6 +1101,7 @@ class Director(
                 say("혹시 ${fb.text}일까? 그렇게 해 볼게!")
                 log("끝까지 말이 없음 → 마스코트가 \"혹시 ${fb.text}일까?\" 하고 채움 (카드 없음 · source=mascot)")
             }
+            talk("mascot", fb.text)
             pause(1600)
             return Reply.Tapped(fb.value, fb.text, byMascot = true)
         }
@@ -1129,6 +1157,7 @@ class Director(
                 say("그럼 마스코트가 고를게! ${c.label}!")
                 log("마스코트가 골라줌: ${c.label} (벌점 · 아쉬움 표현 없음)")
                 s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = c.value) ?: s.stage
+                talk("mascot", c.label)
                 pause(1300)
                 return Reply.Tapped(c.value, c.label, byMascot = true)
             }
@@ -1147,6 +1176,10 @@ class Director(
     fun signal(kind: String, evidence: String, note: String = "") {
         s.signals += "$kind — \"$evidence\"${if (note.isNotEmpty()) " · $note" else ""}"
         if (kind == "S1") s.s1count++
+        // the report's 「오늘 보인 순간」 — on the child's own line that showed it
+        val i = s.talk.indexOfLast { it.who == "child" && (it.text == evidence || evidence in it.text) }
+        val tag = if (kind == "S1") MOMENT_REASON else MOMENT_ADD
+        if (i >= 0 && tag !in s.talk[i].tags) s.talk[i] = s.talk[i].let { it.copy(tags = it.tags + tag) }
         event("signal", "S1" to (kind == "S1"), "S2" to (if (kind == "S2") note else null))
         log("신호 $kind — \"$evidence\"${if (note.isNotEmpty()) " · $note" else ""}")
     }
