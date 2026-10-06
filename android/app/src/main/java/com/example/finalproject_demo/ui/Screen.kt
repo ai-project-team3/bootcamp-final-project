@@ -465,6 +465,26 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
 
             is Stage.HeroBuilder -> HeroBuilderView(d, stage)
             is Stage.NameEntry -> NameEntryView(d, stage)
+            is Stage.HeroAnswer -> Column(
+                Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = TopChrome, bottom = BottomChrome)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+            ) {
+                Text("이렇게 들었어. 맞아?", fontSize = 20.sp, color = InkBrown)
+                Text(stage.heard, fontSize = 26.sp, color = InkBrown, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().felt(WoolCream, RoundedCornerShape(20.dp)).padding(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped("ok", "맞아")) },
+                        modifier = Modifier.heightIn(min = Touch.KidMin)) {
+                        Text("맞아", fontSize = 20.sp, color = FeltWhite, modifier = Modifier.padding(14.dp))
+                    }
+                    FeltButton(WoolCream, onClick = { d.send(Reply.Tapped("no", "다시 말할래")) },
+                        modifier = Modifier.heightIn(min = Touch.KidMin)) {
+                        Text("다시 말할래", fontSize = 20.sp, color = InkBrown, modifier = Modifier.padding(14.dp))
+                    }
+                }
+            }
 
             // ⑩ 책 만드는 중 (09-29 디자인 시스템) — 흐릿한 그림책 쪽이 점점 또렷해지고, 가운데 **바느질 로딩**
             //   (바늘이 앞으로 가며 꿰맴 · 숫자 % 없음). 끝나면 책 더미가 숨 쉰다

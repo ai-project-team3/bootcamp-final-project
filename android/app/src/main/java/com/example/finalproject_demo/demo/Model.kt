@@ -645,6 +645,8 @@ sealed interface Stage {
     ) : Stage
 
     data class HeroShow(val attr: HeroAttr?, val caption: String) : Stage
+    /** Stable transcript and explicit confirmation while creating a live story hero. */
+    data class HeroAnswer(val heard: String) : Stage
 
     /** 그림 한 장을 가운데 보여 주기만 한다 (질문하는 동안 앞 화면의 버튼이 남지 않게) */
     data class Show(val art: Art, val caption: String = "") : Stage

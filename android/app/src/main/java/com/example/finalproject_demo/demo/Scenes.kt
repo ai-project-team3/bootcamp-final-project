@@ -535,13 +535,18 @@ private suspend fun Director.sceneMakeHero() {
     suspend fun voiceStep(from: Int) {
         for (i in from until questions.size) {
             val q = questions[i]
-            // No half-made preview: it was the grey mannequin, far from the finished doll (10-05 device · 3-1)
-            s.stage = Stage.HeroShow(null, "주인공 만드는 중 — 마이크로 말해 줘")
-            val r = ask(Question(text = q.text, kind = Kind.EASY, spoken = q.spoken, easierText = q.easier, easierAsk = "골라 볼래?", choices = q.cards))
-            when (r) {
-                is Reply.Spoke -> applySpoken(q.key, r)
-                is Reply.Tapped -> apply(q.key, r.value)
-                else -> {}
+            while (true) {
+                // No half-made preview: it was the grey mannequin, far from the finished doll (10-05 device · 3-1)
+                s.stage = Stage.HeroShow(null, "주인공 만드는 중 — 마이크로 말해 줘")
+                val r = ask(Question(text = q.text, kind = Kind.EASY, spoken = q.spoken, easierText = q.easier, easierAsk = "골라 볼래?", choices = q.cards))
+                if (r is Reply.Spoke && s.mode == StoryMode.STORY && Server.liveFor(s.mode) &&
+                    !confirmHeroDescription(r.text)) continue
+                when (r) {
+                    is Reply.Spoke -> applySpoken(q.key, r)
+                    is Reply.Tapped -> apply(q.key, r.value)
+                    else -> {}
+                }
+                break
             }
         }
     }
