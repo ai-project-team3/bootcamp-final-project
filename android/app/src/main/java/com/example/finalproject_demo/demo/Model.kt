@@ -1346,6 +1346,8 @@ class DemoState {
 
     /** 부모 모드 「책장 정리」에서 보고 있는 모드 — 알림의 [부모 모드로]가 그 모드로 바로 연다 (#80) */
     var shelfTidyMode by mutableStateOf<StoryMode?>(null)
+    /** 부모 모드를 열 때 바로 보일 탭 — 소파 [이야기 준비]가 "coop" 을 넣는다. 한 번 쓰고 비운다 (#65 · 10-06) */
+    var parentOpenTab by mutableStateOf<String?>(null)
 
     /** 실제 완성된 책만 들어간다. 동화책은 기기 저장소에서 시작할 때 복원한다. */
     val shelf = mutableStateListOf<ShelfBook>()

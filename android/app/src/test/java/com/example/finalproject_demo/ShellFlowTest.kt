@@ -223,12 +223,25 @@ class ShellFlowTest {
         waitText("오또랑 새 동화 만들래?"); shot("13_room_ask_story")
         tap("아니")
         compose.waitUntil(5_000) { count("오또랑 새 동화 만들래?") == 0 }
-        // 부모님이 준비한 이야기가 없으면 소파는 부모님께 부탁하라고 한다 — 버튼은 「알겠어!」 하나 (09-29)
+        // 부모님이 준비한 이야기가 없으면 소파는 부모님께 부탁하라고 한다 — [알겠어!]는 방으로, [이야기 준비]는 부모 모드로 (09-29 · #65 10-06)
         tap("같이 만들기")
         waitText("아직 준비된 이야기가 없어!"); shot("14_room_ask_coop_empty")
         assertEquals(0, count("아니"))
+        assertEquals(1, count("이야기 준비"))
         tap("알겠어!")
         compose.waitUntil(5_000) { count("아직 준비된 이야기가 없어!") == 0 }
+        // [이야기 준비] → 부모 비밀번호 → 부모 모드가 같이 만들기 준비 탭으로 열린다
+        tap("같이 만들기")
+        waitText("아직 준비된 이야기가 없어!")
+        tap("이야기 준비")
+        compose.waitUntil(5_000) { director.s.stage is Stage.Pin }
+        "1234".forEach { tap(it.toString()) }
+        compose.mainClock.advanceTimeBy(600)
+        compose.waitUntil(5_000) { director.s.scene == com.example.finalproject_demo.demo.Scene.PARENT }
+        assertEquals("같이 만들기 준비 탭으로 열리지 않았다", "coop", (director.s.stage as? Stage.Parent)?.tab)
+        shot("14b_parent_coop_from_sofa")
+        tap("아이 화면으로")
+        compose.waitUntil(5_000) { director.s.stage == Stage.Adult }
         // 준비해 두면 🎁 표시가 붙고, 무슨 이야기인지 알려 준다
         director.s.coopPick = com.example.finalproject_demo.demo.CoopPick("job", "소방관", "soon")
         compose.waitForIdle()
