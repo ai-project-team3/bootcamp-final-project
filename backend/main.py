@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse
 # parsing the body") and 404, which FastAPI's subclass handler would miss.
 from starlette.exceptions import HTTPException
 
+from app import limits
 from app.config import settings
 from app.image import comfy
 
@@ -28,6 +29,7 @@ from app.image import comfy
 # Nothing was configured before, so only warnings showed (10-01). httpx logs each URL at INFO — kept quiet.
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(name)s · %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
+log_cap = logging.getLogger("limits")
 from app.routers import image, judge, story, stt, tts, turn
 
 
@@ -85,7 +87,13 @@ _ESTATUS: Counter[tuple[str, str, int]] = Counter()
 @app.middleware("http")
 async def _count(request: Request, call_next):
     t0 = time.monotonic()
+    # the server's daily spend cap (10-06 · app/limits.py) — the app treats 429 as the server being away
+    if limits.over(request.url.path):
+        log_cap.warning("daily cap reached — %s refused", request.url.path)
+        return JSONResponse({"error": True, "message": "daily cap"}, status_code=429)
     response = await call_next(request)
+    if response.status_code == 200:
+        limits.spent(request.url.path)
     ms = (time.monotonic() - t0) * 1000
     # The route template, not the raw path: an unmatched path (bots probe "/" and worse on the
     # public tunnel) must not grow a new counter every time.
