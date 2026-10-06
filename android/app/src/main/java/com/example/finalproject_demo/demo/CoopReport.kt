@@ -94,31 +94,6 @@ fun DemoState.coopReportCopy(): CoopReportCopy {
     )
 }
 
-// ── 「가기 전 · 다녀온 뒤」 짝책의 말 (협업모드_확장_설계 §2) ──
-
-/** 「동물원에 가기 전에」 · 「소방관 체험하기 전에」 · 「수영을 해 보기 전에」 */
-fun coopBeforeWhen(kind: String, name: String): String {
-    val n = name.trim()
-    return when (kind) {
-        "job" -> "$n 체험하기 전에"
-        "sport" -> "$n${eul(n)} 해 보기 전에"
-        else -> "${n}에 가기 전에"
-    }
-}
-
-/** 「다녀온 뒤」 이야기를 시작할 때 오또가 하는 한 줄 — 가기 전 책을 말하는 유일한 자리 */
-fun coopAfterIntroLine(pick: CoopPick): String =
-    "${coopBeforeWhen(pick.kind, pick.name)} 지은 이야기 기억나? 이번엔 진짜 있었던 일을 들려줘!"
-
-/** 부모 카드 제목 — 「동물원, 다녀왔나요?」 · 「소방관, 체험했나요?」 · 「수영, 해 봤나요?」 */
-fun coopAfterAsk(a: CoopAfter): String {
-    val done = coopKind(a.kind)?.reasonLabels?.get(CoopReason.DONE) ?: "다녀왔어요"
-    return "${a.name}, ${done.removeSuffix("어요")}나요?"
-}
-
-/** 상자에서 꺼낸 「다녀온 뒤」 계획의 첫 추천 질문 — 비교는 아이에게 시키지 않고 부모가 물을 때만 */
-const val COOP_AFTER_SUGGESTION = "가기 전에 지은 이야기랑 뭐가 달랐어?"
-
 // ── 아이 화면 · 책의 말 — 일기 모드 문구(「오늘 만난」)를 협업 곧 해요 · 좋아해요에 쓰지 않는다 (10-03 실기기) ──
 
 /** 협업에서 고른 이유 — 일기 · 고른 이야기 없음 · 다녀왔어요면 null(일기 문구 그대로) */
@@ -188,3 +163,28 @@ fun feelingsSaid(feelings: List<String>): String {
     return if (joined.all { it != null }) "${joined.joinToString(", ")} 마음을 말했어요"
     else "마음을 말했어요 — ${words.joinToString(" · ") { "‘$it’" }}"
 }
+
+// ── 「가기 전 · 다녀온 뒤」 짝책의 말 (협업모드_확장_설계 §2) ──
+
+/** 「동물원에 가기 전에」 · 「소방관 체험하기 전에」 · 「수영을 해 보기 전에」 */
+fun coopBeforeWhen(kind: String, name: String): String {
+    val n = name.trim()
+    return when (kind) {
+        "job" -> "$n 체험하기 전에"
+        "sport" -> "$n${eul(n)} 해 보기 전에"
+        else -> "${n}에 가기 전에"
+    }
+}
+
+/** 「다녀온 뒤」 이야기를 시작할 때 오또가 하는 한 줄 — 가기 전 책을 말하는 유일한 자리 */
+fun coopAfterIntroLine(pick: CoopPick): String =
+    "${coopBeforeWhen(pick.kind, pick.name)} 지은 이야기 기억나? 이번엔 진짜 있었던 일을 들려줘!"
+
+/** 부모 카드 제목 — 「동물원, 다녀왔나요?」 · 「소방관, 체험했나요?」 · 「수영, 해 봤나요?」 */
+fun coopAfterAsk(a: CoopAfter): String {
+    val done = coopKind(a.kind)?.reasonLabels?.get(CoopReason.DONE) ?: "다녀왔어요"
+    return "${a.name}, ${done.removeSuffix("어요")}나요?"
+}
+
+/** 상자에서 꺼낸 「다녀온 뒤」 계획의 첫 추천 질문 — 비교는 아이에게 시키지 않고 부모가 물을 때만 */
+const val COOP_AFTER_SUGGESTION = "가기 전에 지은 이야기랑 뭐가 달랐어?"
