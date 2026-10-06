@@ -83,9 +83,12 @@ class MainActivity : ComponentActivity() {
         // 화면 검사(Robolectric)는 디버그라도 끈다 — 검사가 진짜 서버를 부르면 안 된다
         val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         val byDefault = debuggable && !android.os.Build.FINGERPRINT.contains("robolectric", ignoreCase = true)
-        (intent?.getStringExtra("server") ?: DEFAULT_SERVER.takeIf { byDefault })?.let { Server.base = it.trimEnd('/') }
+        // 인자는 **디버그 빌드만** 읽는다 (10-06) — 런처가 exported 라, 릴리스에서도 읽으면 다른 앱이 임의 https 주소를 넣어
+        // 아이 음성(/stt)을 그쪽으로 보낼 수 있다. 스토어 빌드는 인자를 무시하고 대본으로 돈다
+        val extra: (String) -> String? = { k -> if (debuggable) intent?.getStringExtra(k) else null }
+        (extra("server") ?: DEFAULT_SERVER.takeIf { byDefault })?.let { Server.base = it.trimEnd('/') }
         // 어느 모드를 서버로 돌릴지 — `-e live story,diary,coop` 또는 `all`. 기본 주소로 켰으면 전부
-        (intent?.getStringExtra("live") ?: "all".takeIf { byDefault && Server.base == DEFAULT_SERVER })
+        (extra("live") ?: "all".takeIf { byDefault && Server.base == DEFAULT_SERVER })
             ?.let { Server.liveModes = Server.parseLive(it) }
         Voice.attach(this)        // 진짜 마이크 · 마스코트 목소리 — 서버 모드에서만 쓴다 (net/Voice.kt)
         com.example.finalproject_demo.sound.ChildSound.attach(this)   // 아이가 만든 소리 — 폰에만 (#42)
@@ -200,8 +203,9 @@ fun DemoApp() {
             if (s.canRedo) com.example.finalproject_demo.ui.TurnNavButton(d, undo = false, Modifier.align(Alignment.CenterEnd).zIndex(11f))
         }
 
-        // 오른쪽 위 구석 길게 누르기 → 시연 서랍
-        Box(
+        // 오른쪽 위 구석 길게 누르기 → 시연 서랍 — **디버그 빌드만** (10-06). 서랍에는 「🔢 (시연) 비밀번호 4자리 입력」 ·
+        // 하루 한도 되돌리기 · 서버 스위치가 있어, 릴리스에 두면 아이가 구석을 길게 눌러 부모 영역에 닿는다
+        if (BuildConfig.DEBUG) Box(
             Modifier
                 .align(Alignment.TopEnd)
                 .size(48.dp)
