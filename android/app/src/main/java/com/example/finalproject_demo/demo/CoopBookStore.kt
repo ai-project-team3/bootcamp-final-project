@@ -71,7 +71,7 @@ interface CoopBookStore {
     /** 한 권 빼기 — 부모 모드에서만(#80). 그런 책이 없으면 false */
     fun delete(id: String): Boolean { error("Co-op book deletion is not supported") }
     /** 책들이 쓰는 그림 — 읽지 못한 책이 있으면 null(어느 그림을 남길지 모른다 · 그림 정리를 멈춘다) */
-    fun imageReferences(): Set<String>? = load().flatMap { listOfNotNull(it.book.bgName, it.book.visuals?.hero?.image) }.toSet()
+    fun imageReferences(): Set<String>? = load().flatMap { listOfNotNull(it.book.bgName) + it.book.visuals?.images.orEmpty() }.toSet()
 }
 
 /** 지금 같이 만든 이야기를 책 한 권으로 — 빈 쪽이 있으면 null(책이 덜 됐다) */
@@ -84,7 +84,7 @@ fun DemoState.completedCoopBook(): SavedCoopBook? {
         template?.key ?: "N", persona, Hero(childName, heroAttr ?: com.example.finalproject_demo.ui.HeroAttr(), storyHeroImage, storyHeroRig),
         drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
         dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
-        newcomerKind, soundLine, causeLine,
+        newcomerKind, soundLine, causeLine, friend = generatedFriend,
     )
     val book = SavedStoryBook(UUID.randomUUID().toString(), title ?: autoTitleFor(), themeKey, bgName, pages, visuals,
         madeAt = java.time.LocalDate.now().toString())
@@ -153,7 +153,7 @@ class LocalCoopBookStore(context: Context) : CoopBookStore {
         val raw = prefs.getString("books", null) ?: return emptySet()
         val current = coopBooksFromJson(raw)
         if (runCatching { JSONArray(raw).length() }.getOrNull() != current.size) return null
-        return current.flatMap { listOfNotNull(it.book.bgName, it.book.visuals?.hero?.image) }.toSet()
+        return current.flatMap { listOfNotNull(it.book.bgName) + it.book.visuals?.images.orEmpty() }.toSet()
     }
 
     override fun delete(id: String): Boolean {

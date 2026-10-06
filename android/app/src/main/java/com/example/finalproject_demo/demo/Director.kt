@@ -142,9 +142,9 @@ class Director(
     fun recoverStoryImages() {
         val store = storyImageStore ?: return
         val saved = storyBookStore?.let { runCatching { it.imageReferences() }.getOrNull() ?: return }
-            ?: savedStories.flatMap { listOfNotNull(it.bgName, it.visuals?.hero?.image) }.toSet()
+            ?: savedStories.flatMap { listOfNotNull(it.bgName) + it.visuals?.images.orEmpty() }.toSet()
         val coop = CoopShelf.imageReferences(s) ?: return
-        val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground) +
+        val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground, s.generatedFriend?.image) +
             s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName }
         store.recover(saved + coop + active)
     }

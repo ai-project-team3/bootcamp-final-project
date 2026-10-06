@@ -781,9 +781,9 @@ private fun DemoState.coopChildSaid(): String {
     return (slots.filterKeys { slotBy[it] in mine }.values + fields.filterKeys { slotBy[it] in mine }.values.filterNotNull()).joinToString(" ")
 }
 
-private val SOUND_THING = mapOf(SoundProp.SIREN to "소방차", SoundProp.CAR to "자동차", SoundProp.TRAIN to "기차",
+internal val SOUND_THING = mapOf(SoundProp.SIREN to "소방차", SoundProp.CAR to "자동차", SoundProp.TRAIN to "기차",
     SoundProp.LION to "사자", SoundProp.DOG to "강아지", SoundProp.CHEER to "공")
-private val FIX_THING = mapOf(FixProp.FIRE to "불", FixProp.FAUCET to "수도꼭지", FixProp.BALL to "공",
+internal val FIX_THING = mapOf(FixProp.FIRE to "불", FixProp.FAUCET to "수도꼭지", FixProp.BALL to "공",
     FixProp.PIECES to "떨어진 조각", FixProp.BLOCKS to "블록")
 
 /**
