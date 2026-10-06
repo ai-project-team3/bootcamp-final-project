@@ -532,9 +532,15 @@ class Director(
             if (audio == null) { log("🎤 아무것도 못 들음 → 무응답"); send(Reply.Silent); return@launch }
             speakNeutral()
             log("🎤 끝 → 우리 서버로 받아쓰기 (${audio.size / 1024}KB)")
+            Server.lastSttUnsure = false
             val text = Voice.transcribe(audio)
             when {
                 text == null || text.isBlank() -> unheard(if (text == null) "받아쓰기 실패" else "들을 말이 없음", failed = text == null)
+                // 받아쓰기가 자신 없어 한 말 — 웅얼거림을 「친구」처럼 지어 적는다(#149). 질문 하나에 한 번만 되묻고, 또 그러면 그대로 받는다
+                Server.lastSttUnsure && unsureFor !== currentQ -> {
+                    unsureFor = currentQ
+                    unheard("받아쓰기가 자신 없음 (\"$text\")")
+                }
                 else -> {
                     unheardStreak = 0
                     val fixed = fixKnownNames(text, s.knownNames())
@@ -558,6 +564,8 @@ class Director(
     private var unheardStreak = 0
     private var unheardFor: Question? = null
     private var unheardWait: Job? = null
+    /** 받아쓰기가 자신 없어 이미 한 번 되물은 질문 (#149) */
+    private var unsureFor: Question? = null
 
     /** [failed] = 서버 · 네트워크가 실패했다 — 아이 탓(「소리가 작았나 봐」)으로 말하지 않는다 (#154 · 10-06) */
     private fun unheard(why: String, failed: Boolean = false) {

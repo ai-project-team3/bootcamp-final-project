@@ -105,6 +105,19 @@ def test_stt_returns_text(client):
     assert r.status_code == 200 and isinstance(r.json()["text"], str)
 
 
+@pytest.mark.parametrize("text, sure, unsure", [
+    ("공룡나라 갈래", -0.3, False),
+    ("친구", -1.1, True),          # a word the model made up for a mumble (#149)
+    ("", -1.5, False),             # nothing heard is not "unsure" — the phone already re-asks
+])
+def test_stt_flags_an_unsure_transcript(client, monkeypatch, text, sure, unsure):
+    from app.routers import stt
+    monkeypatch.setattr(settings, "mock", False)
+    monkeypatch.setattr(stt, "_transcribe", lambda audio: (text, sure))
+    r = client.post("/stt", files={"file": ("a.wav", b"RIFF....", "audio/wav")})
+    assert r.status_code == 200 and r.json() == {"text": text, "unsure": unsure}
+
+
 def test_stt_refuses_empty_audio(client):
     r = client.post("/stt", files={"file": ("a.wav", b"", "audio/wav")})
     assert r.status_code == 400 and r.json()["error"] is True
