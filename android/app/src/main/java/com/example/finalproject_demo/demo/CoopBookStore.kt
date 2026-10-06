@@ -1,6 +1,8 @@
 package com.example.finalproject_demo.demo
 
 import android.content.Context
+import com.example.finalproject_demo.ui.CoopReason
+import com.example.finalproject_demo.ui.reasonOrNull
 import androidx.compose.ui.graphics.toArgb
 import org.json.JSONArray
 import org.json.JSONObject
@@ -108,6 +110,8 @@ fun DemoState.completedCoopBook(): SavedCoopBook? {
         slotBy.toMap(), feelings.toList(),
         // 이야기가 끝나면 coopPick 은 비어 있다(coopFinishLog) — 시작할 때 남긴 것까지 보는 bookPick
         pick = bookPick,
+        // 「다녀온 뒤」 책이면 가기 전 책과 짝 — 그 책이 아직 책장에 있을 때만
+        pairId = coopBeforeBookId?.takeIf { id -> CoopShelf.books(this).any { it.id == id } },
     )
     return SavedCoopBook(book, snapshot)
 }
@@ -343,6 +347,7 @@ object CoopShelf {
             books.getOrPut(s) { mutableListOf() }.add(0, book)
             book.snapshot?.let { snapshots[book.book.id] = it }
             s.shelf.add(0, book.book.onCoopShelf(fresh = true))
+            afterShelved(s, book)
             CoopShelved.SAVED
         } catch (_: Exception) { CoopShelved.FAILED }
     }
@@ -369,6 +374,19 @@ object CoopShelf {
     fun pairOf(s: DemoState, bookId: String): SavedStoryBook? {
         val other = snapshots[bookId]?.pairId ?: return null
         return books[s]?.firstOrNull { it.book.id == other }?.book
+    }
+
+    /**
+     * 꽂은 뒤 — 「다녀온 뒤」 책이면 가기 전 책과 짝을 잇고, 「곧 해요」 책이면 「다녀온 뒤」 상자에 넣는다 (협업모드_확장_설계 §2-3).
+     * 꽂히지 않은 책(FULL · FAILED)은 여기 오지 않는다 — 짝이 될 책이 없다
+     */
+    private fun afterShelved(s: DemoState, saved: SavedCoopBook) {
+        val snap = saved.snapshot ?: return
+        snap.pairId?.let { linkPair(s, it, saved.book.id) }
+        val pick = snap.pick ?: return
+        if (pick.reasonOrNull() == CoopReason.SOON) {
+            CoopPlan.rememberAfter(s, CoopAfter(pick.kind, pick.name.trim(), saved.book.id, saved.book.title, saved.book.madeAt))
+        }
     }
 
     /** 책장에서 누른 책이 같이 만들기 책이면 그 책 */

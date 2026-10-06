@@ -174,6 +174,8 @@ private class CoopTrack {
     val rejected = mutableMapOf<String, MutableList<String>>()
     /** 이 이야기를 시작할 때 고른 이야기 — 리포트를 열 때는 `coopPick` 이 이미 비어 있다(`clearParentQuestions`) */
     var pick: CoopPick? = null
+    /** 「다녀온 뒤」 이야기면 짝이 될 「가기 전」 책 id — 시작할 때 붙잡는다(끝나면 계획과 같이 비므로) · 협업모드_확장_설계 §2 */
+    var beforeBookId: String? = null
     /** 아이가 말한 곳으로 서버가 그린 배경(저장 경로)과, 그림을 요청한 곳 — 같은 곳을 두 번 그리지 않는다 (10-05) */
     var generatedBg by mutableStateOf<String?>(null)
     var bgAskedFor: String? = null
@@ -269,6 +271,8 @@ val DemoState.coopAsked: List<CoopAsked> get() = trackByState[this]?.asked.orEmp
 /** 이 이야기를 시작할 때 고른 이야기 · 부모 질문을 몇 개 썼나 — 부모 리포트의 말을 가른다 (CoopReport.kt) */
 val DemoState.coopStoryPick: CoopPick? get() = trackByState[this]?.pick
 val DemoState.coopParentUsed: Int get() = trackByState[this]?.parentUsed ?: 0
+/** 이 이야기가 짝을 지을 「가기 전」 책 id — 「다녀온 뒤」 이야기가 아니면 null */
+val DemoState.coopBeforeBookId: String? get() = trackByState[this]?.beforeBookId
 
 /**
  * 지금 이야기의 고른 이야기 — 부모가 고른 것(`coopPick`), 비었으면 이 이야기를 시작할 때 남겨 둔 것.
@@ -287,11 +291,20 @@ private val BEFORE_STORY = setOf(Scene.ADULT, Scene.PARTNER, Scene.BESTIARY, Sce
 suspend fun Director.coopIntro(childName: String) {
     s.newCoopTrack()
     s.coopTrack.pick = s.coopPick
+    // 「다녀온 뒤」 — 상자에서 꺼낸 계획이고, 가기 전 책이 아직 책장에 있을 때만 (협업모드_확장_설계 §2-2)
+    s.coopTrack.beforeBookId = CoopPlan.beforeBookId(s)
+        ?.takeIf { s.coopPick?.reasonOrNull() == CoopReason.DONE }
+        ?.takeIf { id -> CoopShelf.books(s).any { it.id == id } }
     if (s.coopReady) {
         // 템플릿으로 골랐으면 무슨 이야기인지 먼저 알려 준다 (09-29) — 호칭은 "부모님" (사용자 결정)
         val pick = s.coopPick
         if (pick != null) say("${childName}${ya(childName)}, 부모님이 고른 ‘${pick.name}’ 이야기를 같이 만들어 보자!")
         else say("${childName}${ya(childName)}, 부모님이 물어보고 싶은 게 있대! 내가 같이 물어볼게.")
+        // 가기 전 책은 이 한 줄에서만 말한다 — 질문 중에 「지난번엔 사자 본댔잖아」로 아이 답을 끌고 가지 않는다(지어내지 않기)
+        if (pick != null && s.coopTrack.beforeBookId != null) {
+            say(coopAfterIntroLine(pick))
+            log("「다녀온 뒤」 이야기 — 가기 전 책(${s.coopTrack.beforeBookId})과 짝이 된다. 가기 전 책은 서버에 보내지 않는다")
+        }
         log("부모 협업 모드 — 오또가 일반 모드처럼 걸음마다 묻는다. " +
             (pick?.let { "기승전결 네 자리는 고른 ‘${it.name}’(${it.reason ?: "이유 없음 → 상상"})에 맞춘 질문 — LLM이 붙으면 이 맥락을 프롬프트에 넣는다. " } ?: "") +
             "부모가 적은 질문 ${s.parentQuestions.count { it.isNotBlank() }}개는 꼬리질문 자리에 끼워 묻는다 (09-30)")
