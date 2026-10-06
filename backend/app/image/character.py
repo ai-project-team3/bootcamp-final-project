@@ -63,6 +63,79 @@ def prepare_drawing(png: bytes) -> bytes:
     return out.getvalue()
 
 
+# A background piece is sent as the whole board (#168 · 10-06): ground · sky lines mean where they are, so it is
+# neither cropped nor centred. SDXL-sized like the bench (eval/diary_bg_1006: 1232×768 for a 1.6 board).
+BOARD_H = 768
+BOARD_MAX_W = 1536
+
+
+def prepare_board(png: bytes) -> bytes:
+    """The whole board (transparent, lines where the child drew them) → RGB on white, 768 high, width a
+    multiple of 8 from the board's own shape (at most 2:1). Raises CutoutError like prepare_drawing."""
+    try:
+        im = Image.open(io.BytesIO(png))
+        im.load()
+    except Exception as e:
+        raise CutoutError(f"not a picture: {type(e).__name__}") from e
+    im = im.convert("RGBA")
+    if not im.getchannel("A").getbbox():
+        raise CutoutError("empty drawing")
+    w = min(BOARD_MAX_W, max(BOARD_H, round(BOARD_H * im.width / im.height / 8) * 8))
+    paper = Image.new("RGBA", (w, BOARD_H), (255, 255, 255, 255))
+    paper.alpha_composite(im.resize((w, BOARD_H), Image.LANCZOS))
+    out = io.BytesIO(); paper.convert("RGB").save(out, "PNG")
+    return out.getvalue()
+
+
+def wash_bands(board: bytes) -> bytes:
+    """A prepared board → each flat line's band washed with its colour (same mix as fill_closed).
+
+    A flat line encloses nothing, so fill_closed has nothing to fill, and on white the redraw came back as
+    a thin decorated line with paper all round (eval 10-06, row 1). A line in the top third is a sky edge:
+    washed up to the top. Any other line is a ground or water edge: washed down to the next line, or the
+    bottom. Lines are never painted over; dark lines keep their paper like fill_closed.
+    """
+    im = Image.open(io.BytesIO(board)).convert("RGB")
+    W, H = im.size
+    sw, sh = max(1, W // 4), max(1, H // 4)
+    small = np.asarray(im.resize((sw, sh), Image.BILINEAR)).astype(int)
+    ink = small.min(axis=2) <= 225
+    lines = [blob for _, size, blob in _components(ink) if size >= 4]
+    if not lines:
+        return board
+    rows = np.arange(sh)[:, None]
+    tops = []                                     # each line's height in every column (nan where it is not)
+    for blob in lines:
+        cnt = blob.sum(axis=0)
+        mean = np.where(cnt > 0, (blob * rows).sum(axis=0) / np.maximum(cnt, 1), np.nan)
+        tops.append(mean)
+    wash = np.zeros((sh, sw, 3)); painted = np.zeros((sh, sw), bool)
+    for blob, ys in zip(lines, tops):
+        colour = small[blob].mean(axis=0)
+        if colour.max() < FILL_DARK:
+            continue
+        sky = np.nanmean(ys) < sh / 3
+        for x in np.nonzero(~np.isnan(ys))[0]:
+            y = int(ys[x])
+            if sky:
+                y0, y1 = 0, y
+            else:
+                below = [t[x] for t in tops if not np.isnan(t[x]) and t[x] > y + 1]
+                y0, y1 = y, int(min(below)) if below else sh
+            wash[y0:y1, x] = colour * FILL_MIX + 255 * (1 - FILL_MIX)
+            painted[y0:y1, x] = True
+    painted &= ~ink
+    if not painted.any():
+        return board
+    big = np.asarray(im).astype(float)
+    m = np.asarray(Image.fromarray((painted * 255).astype(np.uint8)).resize((W, H), Image.BILINEAR)) / 255.0
+    m = (m * (big.min(axis=2) > 200))[..., None]            # paper only — never over a line
+    colour = np.asarray(Image.fromarray(wash.clip(0, 255).astype(np.uint8)).resize((W, H), Image.NEAREST)).astype(float)
+    out = big * (1 - m) + colour * m
+    buf = io.BytesIO(); Image.fromarray(out.clip(0, 255).astype(np.uint8)).save(buf, "PNG")
+    return buf.getvalue()
+
+
 # fill_closed — 10-05 진웅 (eval/redraw_1005 · docs/review/일기모드_1005_redraw): an outline on white
 # comes back from the diary redraw (colored pencil 0.85) as the same outline, the inside left paper.
 # Washing each closed shape with its outline colour gave the blue house its blue walls and the

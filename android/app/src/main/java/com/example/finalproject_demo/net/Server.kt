@@ -270,10 +270,13 @@ object Server {
      * [png] = the piece with a transparent background, cropped to what was drawn. It goes to our
      * server only — never to an outside company, never kept (guidelines/1 §1-5). Call it only when
      * the child picks it; the original stays the default. About 4 s warm. [description] must be name-masked.
+     * [role] "background" (#168 · 10-06): [png] is the whole board with a background piece's lines where they
+     * were, and the answer is a scene in the board's shape, not cut out. Null = a piece, as above.
      */
-    suspend fun redraw(png: ByteArray, description: String, mode: String = "diary"): ByteArray? {
+    suspend fun redraw(png: ByteArray, description: String, mode: String = "diary", role: String? = null): ByteArray? {
         val body = JSONObject().put("kind", "redraw").put("description", description).put("mode", mode)
             .put("png_base64", android.util.Base64.encodeToString(png, android.util.Base64.NO_WRAP))
+        if (role != null) body.put("role", role)
         // nobody waits on it — the diary shows it at the next brush pause — so it can queue behind story pictures
         return postImage(body, "redraw", readMs = 50_000) { png, _ -> png }
     }

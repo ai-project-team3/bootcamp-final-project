@@ -227,7 +227,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
             // 다른 조각을 그리러 갔다 — 이 조각은 안 물은 것으로 두고(나중에 · D3), 다음 멈춤에 지금 그리는 조각을 먼저 묻는다
             if (answer.movedOn) { askedPieces -= piece.id; continue }
             val name = answer.name
-            // 배경은 오또가 다시 그려 주지 않는다 — 배경 다시 그리기는 ComfyUI 확인 뒤에 (10-02 진웅)
+            // 배경은 먼저 「그려볼까?」를 묻지 않는다 — 아이가 [그려 줘]를 누르거나 말할 때만 판 전체로 그린다 (#168 · 10-06 진웅)
             if (name == null || offers >= OTTO_OFFERS || piece.role == PieceRole.BACKGROUND) continue
             // 답하는 사이 새 선을 긋기 시작했으면 그리기를 끊지 않는다 — 제안은 물을 것 없는 다음 멈춤에
             if (s.drawing.size > linesBefore) {
@@ -344,15 +344,17 @@ private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke, as
  */
 private fun Director.orderOttoDrawing(scope: CoroutineScope, piece: DiaryPiece, name: String): OttoOrder {
     if (!Server.liveFor(s.mode)) return OttoOrder(piece.id, null)
-    // 무리는 가장 큰 덩어리 하나만 보낸다 — 받은 그림을 덩어리 자리마다 찍는다(서버는 여럿을 보내면 자리를 바꿔 다시 짠다 · 10-02 측정)
-    val png = pieceToPng(piece.redrawSample(), s.drawingAspect)
+    // 배경은 판 전체를 보낸다 — 땅 · 하늘은 그은 자리가 뜻이다(#168). 무리는 가장 큰 덩어리 하나만 보낸다 —
+    // 받은 그림을 덩어리 자리마다 찍는다(서버는 여럿을 보내면 자리를 바꿔 다시 짠다 · 10-02 측정)
+    val backdrop = piece.role == PieceRole.BACKGROUND
+    val png = if (backdrop) boardToPng(piece, s.drawingAspect) else pieceToPng(piece.redrawSample(), s.drawingAspect)
     if (png == null) {
         log("오또 그림 부탁 — 조각에 선이 없다. 원본 그대로")
         return OttoOrder(piece.id, scope.async { null })
     }
     val words = s.nameMask().mask(drawWords(name))
-    log("오또 그림 부탁 → /image redraw (조각 PNG ${png.size / 1024} KB · 우리 서버까지만 · 서버는 쓰고 지운다)")
-    return OttoOrder(piece.id, scope.async { requestRedraw(png, words) })
+    log("오또 그림 부탁 → /image redraw${if (backdrop) " 배경(판 전체)" else ""} (PNG ${png.size / 1024} KB · 우리 서버까지만 · 서버는 쓰고 지운다)")
+    return OttoOrder(piece.id, scope.async { if (backdrop) requestBackgroundRedraw(png, words) else requestRedraw(png, words) })
 }
 
 /**
@@ -509,7 +511,11 @@ private suspend fun Director.drawMe(scope: CoroutineScope, day: DiaryDay, waitin
         target.ottoPng != null -> say("벌써 ${what}그렸어! 반짝이는 이름표를 눌러 봐.")
         else -> {
             say("나도 ${what}그려볼게! 더 그리고 있어!")
-            waiting += orderOttoDrawing(scope, target, target.name ?: "아이가 그린 그림")
+            // 이름 없는 배경은 아이가 말한 장소로 주문한다 — 배경을 그리면 「여기는 어디야?」를 물었다 (#168)
+            val words = target.name
+                ?: s.slots["place"]?.takeIf { target.role == PieceRole.BACKGROUND && it.isNotBlank() }
+                ?: "아이가 그린 그림"
+            waiting += orderOttoDrawing(scope, target, words)
             pause(600)
             return true
         }
@@ -856,7 +862,11 @@ private const val RENAMED = "@renamed:"
 
 /** 오또 그림이 왔다 — 보여 주고 아이가 고른다. 원본이 기본값이다 */
 private suspend fun Director.showOttoDrawing(day: DiaryDay, piece: DiaryPiece) {
-    val name = piece.name ?: return
+    // 이름 없는 배경은 아이가 말한 장소로 부른다 — 배경은 이름 대신 「여기는 어디야?」를 물었다 (#168 · 10-06 실기기)
+    val name = piece.name
+        ?: s.slots["place"]?.takeIf { piece.role == PieceRole.BACKGROUND && it.isNotBlank() }
+        ?: "배경".takeIf { piece.role == PieceRole.BACKGROUND }
+        ?: return
     s.stage = DiaryBoard(pick = piece.id)
     say("짠! 나도 ${you(name)}${eul(you(name))} 그려 봤어! 어떤 게 좋아?")
     buttons(

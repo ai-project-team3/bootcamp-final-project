@@ -100,8 +100,16 @@ fun DiaryDay.addStroke(stroke: Stroke): Int {
     if (isBackgroundStroke(b)) {
         continuing = null
         pieces.lastOrNull { it.role == PieceRole.BACKGROUND && touchesIt(it) }?.let { return put(it) }
+        // 배경을 두 획에 나눠 긋기도 한다 — 바로 전에 같은 색으로 이어 그은 첫 획(휘어 내려와 납작하지 않다)은 물체가 됐다.
+        // 아직 이름도 없고 오또가 이야기하지도 않은 그 조각은 새 배경으로 옮긴다 (10-06 실기기 14:09 · 진웅)
+        val prev = lastStroke
+        val start = prev?.let { s -> pieces.firstOrNull { s in it.strokes } }?.takeIf { p ->
+            p.role == PieceRole.OBJECT && p.name == null && openFor(p.id, at) && touchesIt(p) &&
+                p.strokes.all { it.color == stroke.color }
+        }
+        if (start != null) pieces.removeAll { it.id == start.id }
         lastStroke = stroke
-        val p = DiaryPiece(id = (pieces.maxOfOrNull { it.id } ?: -1) + 1, strokes = listOf(stroke), role = PieceRole.BACKGROUND)
+        val p = DiaryPiece(id = (pieces.maxOfOrNull { it.id } ?: -1) + 1, strokes = start?.strokes.orEmpty() + stroke, role = PieceRole.BACKGROUND)
         pieces += p
         return p.id
     }
@@ -241,9 +249,12 @@ fun DiaryPiece.redrawSample(): DiaryPiece =
     if (role != PieceRole.GROUP) this
     else copy(strokes = clusters().maxByOrNull { c -> boxOf(c)!!.let { it.width * it.height } } ?: strokes)
 
-/** 오또 그림을 놓을 자리 — 무리면 덩어리마다, 아니면 조각 하나 */
-fun DiaryPiece.ottoSpots(): List<BoardBox> =
-    if (role == PieceRole.GROUP) clusters().mapNotNull { boxOf(it) } else listOfNotNull(boxOf(strokes))
+/** 오또 그림을 놓을 자리 — 무리면 덩어리마다, 배경이면 판 전체(판 비율의 장면 그림 · #168), 아니면 조각 하나 */
+fun DiaryPiece.ottoSpots(): List<BoardBox> = when (role) {
+    PieceRole.GROUP -> clusters().mapNotNull { boxOf(it) }
+    PieceRole.BACKGROUND -> listOf(BoardBox(0f, 0f, 1f, 1f))
+    PieceRole.OBJECT -> listOfNotNull(boxOf(strokes))
+}
 
 /** 판을 가로지르는 납작한 선인가 — 땅 · 하늘 · 바다. 3~7세 값은 획 기록으로 다시 잡는다 */
 internal fun isBackgroundStroke(b: BoardBox): Boolean = b.width >= BG_MIN_WIDTH && b.height <= BG_MAX_HEIGHT
