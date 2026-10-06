@@ -100,8 +100,16 @@ fun DiaryDay.addStroke(stroke: Stroke): Int {
     if (isBackgroundStroke(b)) {
         continuing = null
         pieces.lastOrNull { it.role == PieceRole.BACKGROUND && touchesIt(it) }?.let { return put(it) }
+        // 배경을 두 획에 나눠 긋기도 한다 — 바로 전에 같은 색으로 이어 그은 첫 획(휘어 내려와 납작하지 않다)은 물체가 됐다.
+        // 아직 이름도 없고 오또가 이야기하지도 않은 그 조각은 새 배경으로 옮긴다 (10-06 실기기 14:09 · 진웅)
+        val prev = lastStroke
+        val start = prev?.let { s -> pieces.firstOrNull { s in it.strokes } }?.takeIf { p ->
+            p.role == PieceRole.OBJECT && p.name == null && openFor(p.id, at) && touchesIt(p) &&
+                p.strokes.all { it.color == stroke.color }
+        }
+        if (start != null) pieces.removeAll { it.id == start.id }
         lastStroke = stroke
-        val p = DiaryPiece(id = (pieces.maxOfOrNull { it.id } ?: -1) + 1, strokes = listOf(stroke), role = PieceRole.BACKGROUND)
+        val p = DiaryPiece(id = (pieces.maxOfOrNull { it.id } ?: -1) + 1, strokes = start?.strokes.orEmpty() + stroke, role = PieceRole.BACKGROUND)
         pieces += p
         return p.id
     }

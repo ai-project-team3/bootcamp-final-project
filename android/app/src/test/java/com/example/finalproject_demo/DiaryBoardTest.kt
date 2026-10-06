@@ -206,6 +206,55 @@ class DiaryBoardTest {
         assertNotEquals("작은 가로선을 배경으로 봤다", com.example.finalproject_demo.demo.PieceRole.BACKGROUND, day.pieces.first { it.id == short }.role)
     }
 
+    /**
+     * 배경을 두 획에 나눠 그었다 — 첫 획(휘어 내려온 선)은 납작하지 않아 물체가 됐고 둘째 획만 배경이었다(10-06 실기기 14:09).
+     * 배경을 처음 긋기 바로 전에 같은 색으로 이어 그은, 아직 이름도 없고 묻지도 않은 조각은 배경으로 옮긴다
+     */
+    @Test
+    fun aBackgroundDrawnInTwoStrokesIsOnePiece() {
+        val green = Color(0xFF7FB14D)
+        fun stroke(c: Color, vararg xy: Float) = Stroke(c, xy.toList().chunked(2).map { Offset(it[0], it[1]) })
+        val day = DiaryDay()
+        day.addStroke(stroke(green, .36f, .49f, .15f, .62f, .05f, .80f, .01f, 1.03f))     // 기록 0 · 폭 0.35 높이 0.54
+        val ground = day.addStroke(stroke(green, .20f, .85f, .60f, .72f, .98f, .67f))      // 기록 1 · 폭 0.78 높이 0.18
+        val bg = day.pieces.single()
+        assertEquals("첫 획이 따로 남았다 — ${day.pieces.map { it.role }}", ground, bg.id)
+        assertEquals(com.example.finalproject_demo.demo.PieceRole.BACKGROUND, bg.role)
+        assertEquals(2, bg.strokes.size)
+    }
+
+    /** 옮기지 않는 때 — 다른 색 · 이름이 붙은 조각 · 오또가 이미 이야기한 조각 · 이미 배경이 있을 때 */
+    @Test
+    fun aBackgroundTakesOnlyItsOwnFirstStroke() {
+        val green = Color(0xFF7FB14D)
+        fun stroke(c: Color, vararg xy: Float) = Stroke(c, xy.toList().chunked(2).map { Offset(it[0], it[1]) })
+        val curve = floatArrayOf(.36f, .49f, .15f, .62f, .05f, .80f, .01f, 1.03f)
+        val across = floatArrayOf(.20f, .85f, .60f, .72f, .98f, .67f)
+
+        val otherColor = DiaryDay()
+        otherColor.addStroke(stroke(Color.Red, *curve))
+        otherColor.addStroke(stroke(green, *across))
+        assertEquals("다른 색 조각을 배경으로 옮겼다", 2, otherColor.pieces.size)
+
+        val named = DiaryDay()
+        named.addStroke(stroke(green, *curve))
+        named.pieces[0] = named.pieces[0].copy(name = "나무")
+        named.addStroke(stroke(green, *across))
+        assertEquals("이름 붙은 조각을 배경으로 옮겼다", 2, named.pieces.size)
+
+        val talked = DiaryDay()
+        val first = talked.addStroke(stroke(green, *curve))
+        talked.talkedAbout(first, 1)                                              // 오또가 묻고 이야기를 마쳤다
+        talked.addStroke(stroke(green, *across))
+        assertEquals("오또가 이야기한 조각을 배경으로 옮겼다", 2, talked.pieces.size)
+
+        val more = DiaryDay()
+        more.addStroke(stroke(green, .05f, .90f, .50f, .92f, .95f, .91f))                  // 땅이 이미 있다
+        val tree = more.addStroke(stroke(green, .30f, .50f, .30f, .87f))                   // 땅에 세운 같은 색 나무
+        more.addStroke(stroke(green, *across))                                             // 땅을 한 번 더
+        assertTrue("땅을 더 그었는데 나무를 빨아들였다", more.pieces.any { it.id == tree })
+    }
+
     /** 조각 안을 촘촘히 오가는 획은 색칠 — 이름이 붙은 조각이어도 그 조각에 붙는다(묻지 않는다) */
     @Test
     fun scribblingInsideAPieceColorsIt() {
