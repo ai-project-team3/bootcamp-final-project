@@ -80,7 +80,7 @@ class Settings(BaseSettings):
     # 10-01 evening, 조장: OpenAI only. A failed TypeCast try before every line cost time, and
     # rotating free keys risks the account being suspended. The fixed lines are baked with this
     # same voice into the app (eval/bake_lines.py), so the live ones must match it.
-    tts_provider: str = "openai"         # typecast | openai
+    tts_provider: str = "openai"         # openai | typecast | elevenlabs
     tts_fallback: str = ""               # "" = no fallback
     # 조장 10-01: Siwoo · 밝게 (09-26 blind ★) but a little fast — 0.95 until the ear test
     # (eval/bench_tts_tempo.py) settles it
@@ -91,6 +91,11 @@ class Settings(BaseSettings):
     # model with the same words · eval/voice_pitch.py, eval/bench_tts_openai_voices3.py). OpenAI has
     # no child voice; the snapshot follows "playful, like talking with a young child" by going higher.
     # ⚠️ a pinned snapshot can be retired — bake the fixed lines while it exists
+    # 10-06: Eleven v4 is wired so a measured switch is one .env line (eval/bench_tts_eleven_v4.py).
+    # Not the default — 10-01 dropped ElevenLabs Flash by ear and pitch, and v4 is not measured yet.
+    elevenlabs_api_key: str = ""
+    elevenlabs_model: str = "eleven_v4_turbo"
+    elevenlabs_voice_id: str = ""      # a Korean voice id, picked by the ear test
     openai_tts_model: str = "gpt-4o-mini-tts-2025-03-20"
     openai_tts_voice: str = "sage"
     openai_tts_instructions: str = ("Warm, friendly and playful. Speak naturally, like talking with a young child. "

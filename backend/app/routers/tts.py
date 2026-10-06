@@ -57,14 +57,15 @@ async def speak(req: TtsRequest) -> Response:
         # leave the fallback room: the first try gets at most 60 % when a second one waits
         budget = max(2.0, left * (0.6 if i < len(order) - 1 else 1.0))
         try:
-            audio = await (_openai_audio if provider == "openai" else _typecast_audio)(req, budget)
+            audio = await _PROVIDERS.get(provider, _typecast_audio)(req, budget)
             # the one mascot loudness, the same as the lines baked into the app (#42) — ~60 ms
             try:
                 audio = await asyncio.to_thread(level, audio)
             except Exception as e:            # an odd file still plays at its own level
                 log.warning("tts level skipped: %s", type(e).__name__)
             # who spoke, in the server log (`docker logs otto-backend`) — the text itself is not logged
-            voice = settings.openai_tts_voice if provider == "openai" else (req.voice_id or settings.typecast_voice_id)
+            voice = {"openai": settings.openai_tts_voice, "elevenlabs": settings.elevenlabs_voice_id}.get(
+                provider, req.voice_id or settings.typecast_voice_id)
             log.info("tts %s · voice %s · %.2fs · %d chars%s", provider, voice, time.monotonic() - t0,
                      len(req.text), " · after a fallback" if i else "")
             return Response(audio, media_type="audio/mpeg", headers={"X-Otto-TTS": provider})
@@ -117,3 +118,25 @@ async def _openai_audio(req: TtsRequest, budget: float) -> bytes:
     if r.status_code != 200:
         raise HTTPException(502, f"tts openai HTTP {r.status_code}")
     return r.content
+
+
+async def _elevenlabs_audio(req: TtsRequest, budget: float) -> bytes:
+    """ElevenLabs (10-06 · off unless TTS_PROVIDER=elevenlabs). Same mp3 back, so the phone does not change.
+    voice_id from the app is a TypeCast id and is ignored; the voice is the setting."""
+    if not settings.elevenlabs_api_key:
+        raise HTTPException(502, "missing ELEVENLABS_API_KEY")
+    if not settings.elevenlabs_voice_id:
+        raise HTTPException(502, "missing ELEVENLABS_VOICE_ID")
+    body = {"text": req.text, "model_id": settings.elevenlabs_model, "language_code": "ko"}
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{settings.elevenlabs_voice_id}?output_format=mp3_44100_128"
+    try:
+        async with httpx.AsyncClient(timeout=budget) as http:
+            r = await http.post(url, json=body, headers={"xi-api-key": settings.elevenlabs_api_key})
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"tts elevenlabs network: {type(e).__name__}") from e
+    if r.status_code != 200:
+        raise HTTPException(502, f"tts elevenlabs HTTP {r.status_code}")
+    return r.content
+
+
+_PROVIDERS = {"openai": _openai_audio, "typecast": _typecast_audio, "elevenlabs": _elevenlabs_audio}
