@@ -303,6 +303,34 @@ internal fun kindMove(kind: DiaryPageKind): PieceMove = when (kind) {
     else -> PieceMove.BOB
 }
 
+/**
+ * 이 쪽에서 다가갈 조각 (#220 ④) — 빈 목록이면 그림 전체. 쪽마다 같은 그림 전체였던 것을 쪽마다 다른 자리로.
+ * 조각 이야기 쪽(「양동이: 물 떠 왔어」)은 그 조각, 다른 쪽은 문장에 나온 조각. 배경은 다가갈 곳이 아니다.
+ * 그림 · 장소 · 맞추기 쪽은 늘 전체 — 무엇을 그렸는지 · 어디였는지 보여 주는 쪽이다
+ */
+fun pageFocus(page: DiaryPage, pieces: List<DiaryPiece>): List<DiaryPiece> {
+    if (page.kind == DiaryPageKind.DRAWING || page.kind == DiaryPageKind.PLACE || page.kind == DiaryPageKind.PUZZLE) return emptyList()
+    val things = pieces.filter { it.role != PieceRole.BACKGROUND }
+    val about = page.item?.substringBefore(":", "")?.trim()?.takeIf(String::isNotEmpty)
+    about?.let { name -> things.filter { it.name == name }.takeIf(List<DiaryPiece>::isNotEmpty)?.let { return it } }
+    return things.filter { it.name != null && it.name in page.cast }
+}
+
+/** 가까이 가도 그림 전체 높이의 이만큼은 보인다 — 작은 조각을 화면 가득 키우면 선이 굵게 뭉개진다 */
+internal const val FOCUS_MIN = 0.45f
+
+/** [focus] 조각으로 다가간 그림 칸(3:1) — 조각이 없거나 전체만큼 크면 그림 전체 */
+fun focusCrop(focus: List<DiaryPiece>, all: List<DiaryPiece>, aspect: Float): BoardBox {
+    val whole = cropFor(all.flatMap { it.strokes }, aspect)
+    if (focus.isEmpty()) return whole
+    val f = cropFor(focus.flatMap { it.strokes }, aspect, pad = 0.06f)
+    if (f.height >= whole.height) return whole
+    val k = maxOf(1f, whole.height * FOCUS_MIN / f.height)
+    val cx = (f.left + f.right) / 2f
+    val cy = (f.top + f.bottom) / 2f
+    return BoardBox(cx - f.width * k / 2f, cy - f.height * k / 2f, cx + f.width * k / 2f, cy + f.height * k / 2f)
+}
+
 internal fun moveFrom(text: String): PieceMove = when {
     Regex("무너|쓰러|넘어|떨어|와르르").containsMatchIn(text) -> PieceMove.TOPPLE
     Regex("쌓|세웠|만들|지었|고쳤").containsMatchIn(text) -> PieceMove.BUILD

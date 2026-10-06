@@ -11,6 +11,9 @@ import com.example.finalproject_demo.demo.PieceMove
 import com.example.finalproject_demo.demo.PieceRole
 import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.buildDiaryBook
+import com.example.finalproject_demo.demo.cropFor
+import com.example.finalproject_demo.demo.focusCrop
+import com.example.finalproject_demo.demo.pageFocus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -21,6 +24,47 @@ import org.junit.Test
  * 아이 그림은 바꾸지 않는다 — 보는 자리만 바뀐다(차별점 1)
  */
 class DiaryPageFocusTest {
+    private fun piece(id: Int, name: String?, x: Float, y: Float, w: Float = 0.1f, h: Float = 0.2f, role: PieceRole = PieceRole.OBJECT) =
+        DiaryPiece(id, listOf(Stroke(Color.Blue, listOf(Offset(x, y), Offset(x + w, y + h)))), name, role = role)
+
+    private val sea = piece(0, "바다", 0f, 0f, 1f, 0.5f, PieceRole.BACKGROUND)
+    private val castle = piece(1, "모래성", 0.2f, 0.5f)
+    private val bucket = piece(2, "양동이", 0.7f, 0.6f, 0.08f, 0.1f)
+    private val dad = piece(3, "아빠", 0.4f, 0.4f)
+    private val all = listOf(sea, castle, bucket, dad)
+
+    private fun page(kind: DiaryPageKind, cast: List<String> = emptyList(), item: String? = null) =
+        DiaryPage(kind, "글", "child", cast, PieceMove.BOB, item = item)
+
+    @Test
+    fun aPieceStoryPageLooksAtThatPiece() {
+        assertEquals(listOf(bucket), pageFocus(page(DiaryPageKind.PROBLEM, item = "양동이: 물 떠 왔어"), all))
+    }
+
+    @Test
+    fun anotherPageLooksAtThePiecesItsSentenceNamesButNotTheBackground() {
+        assertEquals(listOf(castle, dad), pageFocus(page(DiaryPageKind.PROBLEM, cast = listOf("아빠", "모래성", "바다")), all))
+        assertTrue("말한 조각이 없으면 전체", pageFocus(page(DiaryPageKind.SOLUTION), all).isEmpty())
+        assertTrue("말이 「조각: 말」 꼴이 아니면 문장으로", pageFocus(page(DiaryPageKind.PROBLEM, cast = listOf("아빠"), item = "아빠가 밀어 줬어"), all) == listOf(dad))
+    }
+
+    @Test
+    fun placeDrawingAndPuzzlePagesShowTheWholePicture() {
+        listOf(DiaryPageKind.PLACE, DiaryPageKind.DRAWING, DiaryPageKind.PUZZLE).forEach {
+            assertTrue("$it", pageFocus(page(it, cast = listOf("모래성")), all).isEmpty())
+        }
+    }
+
+    @Test
+    fun theZoomStaysInsideThePictureAndNeverGoesTooClose() {
+        val whole = cropFor(all.flatMap { it.strokes }, 2f)
+        val close = focusCrop(listOf(bucket), all, 2f)
+        assertTrue("전체보다 가까이 가지 않았다", close.height < whole.height)
+        assertTrue("작은 조각에 너무 가까이 — 전체의 ${close.height / whole.height}", close.height >= whole.height * 0.45f - 1e-4f)
+        assertEquals("가까이 간 자리가 3:1 이 아니다", 3f, close.width * 2f / close.height, 0.01f)
+        assertEquals("다가갈 조각이 없으면 전체", whole, focusCrop(emptyList(), all, 2f))
+    }
+
     @Test
     fun aSentenceWithNoMoveMovesByItsPageKind() {
         val book = buildDiaryBook(DiaryBookInput(
