@@ -172,7 +172,7 @@ fun buildDiaryBook(input: DiaryBookInput): List<DiaryPage> {
         text = text,
         by = by(kind),
         cast = if (castAll) names else names.filter { mentions(text, it) },
-        move = moveFrom(text),
+        move = moveFrom(text).let { if (it == PieceMove.BOB) kindMove(kind) else it },
         still = names.filter { asPlace(text, it) }.toSet(),
         with = if (castAll) emptySet() else names.filter { Regex(Regex.escape(it) + "(이랑|랑|하고|와|과)").containsMatchIn(text) }.toSet(),
     )
@@ -295,6 +295,13 @@ internal fun drawnList(names: List<String>): List<String> =
 /** 문장이 그 조각을 장소로 쓰나 (「우리 집 앞에」 · 「놀이터에서」) — 그 조각은 걷지 않는다 */
 internal fun asPlace(text: String, name: String): Boolean =
     Regex("${Regex.escape(name)}\\s*(앞|옆|안|뒤|위|밑)?\\s*(에|에서)(\\s|$|[.,!?])").containsMatchIn(text)
+
+/** 문장에 움직임 말이 없을 때 쪽 종류대로 (#220 ④) — 일어난 일은 들썩, 마음은 통통. 나머지는 살랑 */
+internal fun kindMove(kind: DiaryPageKind): PieceMove = when (kind) {
+    DiaryPageKind.PROBLEM -> PieceMove.WALK
+    DiaryPageKind.REACTION -> PieceMove.HOP
+    else -> PieceMove.BOB
+}
 
 internal fun moveFrom(text: String): PieceMove = when {
     Regex("무너|쓰러|넘어|떨어|와르르").containsMatchIn(text) -> PieceMove.TOPPLE
