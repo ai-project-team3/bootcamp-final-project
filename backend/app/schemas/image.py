@@ -15,6 +15,9 @@ class ImageRequest(BaseModel):
     # ⚠️ Never logged, never written, never sent to the (external) check — guidelines/1 §1-5
     png_base64: Optional[str] = None
     mode: Literal["story", "diary", "coop"] = "story"
+    # redraw only (#168 · 10-06): "background" = the diary's ground · sky · sea lines, sent as the whole board.
+    # Drawn as a wide colored-pencil scene and not cut out. None = a piece, as before
+    role: Optional[Literal["object", "background"]] = None
 
     @model_validator(mode="after")
     def _has_words(self):

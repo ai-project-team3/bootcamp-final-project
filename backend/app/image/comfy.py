@@ -200,15 +200,32 @@ DIARY_NEG = ("text, letters, watermark, photo, photorealistic, 3d render, cut pa
              "multiple subjects, nudity, blood, weapon, gore")
 DIARY_DENOISE = 0.85
 
+# A diary background piece (#168 · 10-06 진웅): the whole board with its bands washed, drawn as a wide
+# scene and not cut out. 4 backgrounds × 3 seeds on PC2 — 0.9 kept ground height · sea · sky bands and
+# filled the scene; 0.85 kept the layout 12/12 but stayed flat. With 8 steps there is nothing between:
+# 0.82–0.888 is one schedule, 0.889–1.0 another (eval/results.md 10-06 · eval/diary_bg_1006).
+DIARY_BG_STYLE = (", colored pencil drawing of a wide landscape, children's picture diary illustration, "
+                  "loose hand-drawn colored pencil strokes, light colored pencil shading on white paper, "
+                  "soft and gentle, simple, empty scene, no characters, no people, no animals, no text")
+DIARY_BG_NEG = ("text, letters, watermark, photo, photorealistic, 3d render, cut paper, collage, felt, "
+                "blurry, ugly, scary, dark, horror, frame, border, people, person, child, animal, character, "
+                "nudity, blood, weapon, gore")
+DIARY_BG_DENOISE = 0.9
+
 
 def redraw_workflow(subject: str, seed: int, drawing_b64: str, denoise: float | None = None,
-                    mode: str = "story") -> dict:
+                    mode: str = "story", role: str | None = None) -> dict:
     diary = mode == "diary"
+    scene = role == "background"
     if denoise is None:
-        denoise = DIARY_DENOISE if diary else REDRAW_DENOISE
+        denoise = DIARY_BG_DENOISE if scene else DIARY_DENOISE if diary else REDRAW_DENOISE
     wf = workflow("", seed)
-    wf["2"]["inputs"]["text"] = f"a cute {subject}, full view{DIARY_STYLE if diary else CHAR_STYLE}"
-    wf["3"]["inputs"]["text"] = DIARY_NEG if diary else CHAR_NEG
+    if scene:
+        wf["2"]["inputs"]["text"] = f"{subject}{DIARY_BG_STYLE}"
+        wf["3"]["inputs"]["text"] = DIARY_BG_NEG
+    else:
+        wf["2"]["inputs"]["text"] = f"a cute {subject}, full view{DIARY_STYLE if diary else CHAR_STYLE}"
+        wf["3"]["inputs"]["text"] = DIARY_NEG if diary else CHAR_NEG
     wf["10"] = {"class_type": "OttoLoadImageB64", "inputs": {"png_base64": drawing_b64}}
     wf["11"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["10", 0], "vae": ["1", 2]}}
     wf["5"]["inputs"].update({"latent_image": ["11", 0], "denoise": denoise})
