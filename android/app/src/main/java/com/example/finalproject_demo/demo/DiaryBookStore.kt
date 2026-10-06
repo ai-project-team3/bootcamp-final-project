@@ -196,6 +196,7 @@ internal fun SavedDiaryBook.toJson(): JSONObject {
         .put("pieceNames", JSONArray(i.pieceNames)).put("hasDrawing", i.hasDrawing)
         .put("feel", i.feel?.name ?: JSONObject.NULL)
         .put("written", i.written?.let { JSONArray(it) } ?: JSONObject.NULL)
+        .put("plan", i.plan?.let { pl -> JSONArray().apply { pl.forEach { p -> put(JSONObject().put("server", p.serverKind).put("kind", p.kind.name).put("item", p.item ?: JSONObject.NULL)) } } } ?: JSONObject.NULL)
         .put("missions", i.missions).put("puzzle", i.puzzle)
         .put("weather", weather?.name ?: JSONObject.NULL).put("weatherBy", weatherBy ?: JSONObject.NULL)
         .put("aspect", aspect.toDouble())
@@ -222,6 +223,12 @@ internal fun diaryBookFromJson(obj: JSONObject, png: (String, Int) -> ByteArray?
         hasDrawing = d.getBoolean("hasDrawing"),
         feel = d.optString("feel").takeIf { !d.isNull("feel") }?.let(DiaryFeel::valueOf),
         written = if (d.isNull("written")) null else d.getJSONArray("written").let { a -> (0 until a.length()).map(a::getString) },
+        // 쪽 구성은 10-06(#220)부터 — 없던 옛 책은 짐작으로 읽는다
+        plan = if (!d.has("plan") || d.isNull("plan")) null else d.getJSONArray("plan").let { a ->
+            (0 until a.length()).map { k -> a.getJSONObject(k).let { p ->
+                DiaryPlanPage(p.getString("server"), DiaryPageKind.valueOf(p.getString("kind")), if (p.isNull("item")) null else p.getString("item"))
+            } }
+        },
         missions = d.getBoolean("missions"),
         puzzle = d.getBoolean("puzzle"),
     )

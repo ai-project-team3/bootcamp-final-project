@@ -44,7 +44,52 @@ data class DiaryPage(
     val tail: String? = null,
     val closing: String? = null,
     val asksFeel: Boolean = false,
+    /** 쪽 구성의 extra 쪽이면 그 말(「양동이: 물 떠 왔어」 · #220) — 조각 이야기 쪽이면 그 조각으로 확대한다 */
+    val item: String? = null,
 )
+
+/** 앱이 정한 일기 책 쪽 하나 (#220 ③) — 서버 쪽 종류(`DAY_KIND_MEANING`) · 앱 쪽 종류 · extra 쪽이면 그 말 */
+data class DiaryPlanPage(val serverKind: String, val kind: DiaryPageKind, val item: String? = null)
+
+/**
+ * extra 의 말을 다른 칸(또는 앞의 말)이 거의 그대로 했나 — 낱말 앞 두 글자(「아빠랑」→「아빠」 · 「만들었어」→「만들」)의
+ * [SAID_ALREADY] 이상이 한 칸에 있으면. 그런 말에 쪽을 주면 모델이 같은 뜻을 피하다 아이가 하지 않은 말로 쪽을 채웠다
+ * (10-06 측정: 「아빠: 모래성 같이 만들었어」 + 무슨 일 「아빠랑 모래성 만들었어」 → 「그림 속에 모래성과 양동이가 있었어요」)
+ */
+internal fun saidAlready(item: String, others: List<String>): Boolean {
+    fun stems(t: String) = t.split(Regex("[\\s:,.!?~]+")).filter(String::isNotEmpty).map { it.take(2) }.toSet()
+    val mine = stems(item).takeIf(Set<String>::isNotEmpty) ?: return true
+    return others.any { o -> stems(o).let { theirs -> mine.count { it in theirs } >= SAID_ALREADY * mine.size } }
+}
+
+internal const val SAID_ALREADY = 0.7
+
+/** 그림 · 맞추기 쪽을 뺀 글 쪽 상한 — 옛 설계의 8쪽 (#220) */
+internal const val DIARY_PLAN_MAX = 8
+
+/**
+ * 일기 책 쪽 구성 — 찬 칸만 이 차례로(#220 ③). [slots] 는 칸 → 아이 말(`keep` · `extra` 포함 · 한 말의 둘째 칸은 뺀 것).
+ * 장소+누구랑(DEPART) → 무슨 일(SHAKE) → extra 의 말 하나에 한 쪽(RUB) → 기분+왜를 한 쪽(FAIL) → 어떻게 됐나(DRAG) → 내일(TOGETHER).
+ * 기분과 왜를 한 쪽에 두는 것은 같은 말이 두 쪽에 나오던 것을 막으려고다(10-06 「지루했어요」 · 「재미없었어요」).
+ * [DIARY_PLAN_MAX] 를 넘으면 extra 의 뒤쪽 말부터 뺀다
+ */
+fun diaryPagePlan(slots: Map<String, String?>): List<DiaryPlanPage> {
+    fun has(k: String) = !slots[k].isNullOrBlank()
+    val head = buildList {
+        if (has("place") || has("companion")) add(DiaryPlanPage("DEPART", DiaryPageKind.PLACE))
+        if (has("problem")) add(DiaryPlanPage("SHAKE", DiaryPageKind.PROBLEM))
+    }
+    val tail = buildList {
+        if (has("reaction") || has("cause")) add(DiaryPlanPage("FAIL", DiaryPageKind.REACTION))
+        if (has("solution")) add(DiaryPlanPage("DRAG", DiaryPageKind.SOLUTION))
+        if (has("keep")) add(DiaryPlanPage("TOGETHER", DiaryPageKind.KEEP))
+    }
+    val said = listOf("place", "companion", "problem", "reaction", "cause", "solution", "keep").mapNotNull { slots[it]?.takeIf(String::isNotBlank) }
+    val items = slots["extra"].orEmpty().split(" / ").map(String::trim).filter(String::isNotEmpty)
+        .fold(listOf<String>()) { kept, it -> if (saidAlready(it, said + kept)) kept else kept + it }
+        .take((DIARY_PLAN_MAX - head.size - tail.size).coerceAtLeast(0))
+    return head + items.map { DiaryPlanPage("RUB", DiaryPageKind.PROBLEM, it) } + tail
+}
 
 /** 책을 짜는 데 필요한 것만 — 칸의 책 문장(아이 말) · 출처 · 조각 이름 · 오늘 기분 */
 data class DiaryBookInput(
@@ -60,6 +105,8 @@ data class DiaryBookInput(
     val missions: Boolean = false,
     /** 그림을 세 줄로 나눠 줄마다 선이 있나 — 없으면 🧩 조각 하나가 흰 카드다([puzzleStripsAllDrawn]) */
     val puzzle: Boolean = true,
+    /** [written] 을 받을 때 보낸 쪽 구성 — 같은 수면 쪽 종류를 짐작하지 않고 이것을 쓴다(#220 ③) */
+    val plan: List<DiaryPlanPage>? = null,
 )
 
 /** 🧩 퍼즐 조각 수 — 화면(`DiaryViews` PuzzlePanel)도 이 수로 나눈다 */
@@ -105,6 +152,7 @@ fun DemoState.diaryBookInput(): DiaryBookInput = readingDiary ?: DiaryBookInput(
     hasDrawing = sceneDrawing.isNotEmpty() || diaryDay.pieces.isNotEmpty(),
     feel = diaryDay.feel,
     written = diaryDay.written,
+    plan = diaryDay.writtenPlan,
     missions = true,
     puzzle = puzzleStripsAllDrawn(
         diaryDay.pieces.flatMap { it.strokes }.ifEmpty { sceneDrawing.toList() },
@@ -139,8 +187,10 @@ fun buildDiaryBook(input: DiaryBookInput): List<DiaryPage> {
     if (!written.isNullOrEmpty()) {
         // 서버가 쓴 쪽 — 서버는 「일 · 마음」을 한 쪽에 합쳐 쓰기도 해서 앱의 칸마다 한 쪽과 수가 다를 수 있다.
         // 쪽 종류는 조각 움직임 · 장소 처리에만 쓰이므로 찬 칸의 차례로 어림한다. 빈 결말은 서버가 비었다고 쓴다(규칙 1)
-        val kinds = writtenKinds(STORY_KINDS.filter { line(it) != null }, written.size)
-        written.forEachIndexed { i, text -> pages += page(kinds[i], text, castAll = kinds[i] == DiaryPageKind.PLACE) }
+        // 앱이 쪽 구성을 보냈고 그 수대로 왔으면 그 차례가 곧 쪽 종류다(#220 ③). 아니면(옛 책 · 구성 없이 쓴 책) 짐작한다
+        val plan = input.plan?.takeIf { it.size == written.size }
+        val kinds = plan?.map { it.kind } ?: writtenKinds(STORY_KINDS.filter { line(it) != null }, written.size)
+        written.forEachIndexed { i, text -> pages += page(kinds[i], text, castAll = kinds[i] == DiaryPageKind.PLACE).copy(item = plan?.get(i)?.item) }
         closeWithFeel(pages, line(DiaryPageKind.REACTION) != null, input.feel)
         return withMissions(pages, input)
     }
