@@ -401,6 +401,8 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
             // 리액션 말풍선 · 하트 — 오또 머리 위
             poke?.let { p ->
                 key(pokeId) {
+                    // 누를 때마다 리액션 대사를 목소리로 — 앱에 구운 소리(#223 · 10-06). 같은 대사를 다시 눌러도 key 가 새로 띄운다
+                    OttoSays(p.line)
                     PokeBubble(p.line, Modifier.align(Alignment.TopCenter).offset(y = (-34).dp))
                     if (p.hearts) Hearts(Modifier.align(Alignment.TopCenter).offset(y = 10.dp))
                 }
@@ -434,6 +436,14 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
             // 닫는 것은 알림의 ✕ 버튼뿐이다 (09-29 사용자 요청 — 알림만 터치 가능)
             Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.45f)).noRippleClickable { })
             fun done() { asking = false; target = null; paws.clear(); scope.launch { walkX.snapTo(HOME_X) } }
+            // 아이는 글을 못 읽는다 — 묻는 말을 목소리로도 (#223 · 10-06). 앱에 구운 목소리라 서버를 부르지 않는다
+            OttoSays(
+                when {
+                    s.paused != null && modeOf(t.value) == s.mode -> "만들던 이야기 이어서 할까?"
+                    t == Thing.SOFA && !s.coopReady -> "아직 준비된 이야기가 없어!"
+                    else -> t.question
+                },
+            )
             if (s.paused != null && modeOf(t.value) == s.mode) {
                 // 만들다 멈춘 이야기 — 이어서 할까, 새로 만들까 (09-29). 이어 가면 별을 다시 쓰지 않는다
                 ConfirmDialog(
