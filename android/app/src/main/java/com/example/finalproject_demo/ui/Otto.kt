@@ -434,7 +434,9 @@ fun MicButton(d: Director, size: Dp = 76.dp) {
     val wave by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(1200, easing = LinearEasing)), label = "wave")
     val breathe by inf.animateFloat(0.96f, 1.04f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "breathe")
     val on = s.micOn
-    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+    // 받아쓰기를 기다리는 동안은 눌러도 녹음이 시작되지 않는다(#203) — 흐리게, 숨쉬기 없이 보여 「잠깐」을 알린다
+    val waiting = s.transcribing
+    Box(Modifier.size(size).graphicsLayer { alpha = if (waiting) 0.45f else 1f }, contentAlignment = Alignment.Center) {
         if (on) Canvas(Modifier.fillMaxSize()) {
             val r = this.size.minDimension / 2
             for (k in 0..1) {
@@ -445,7 +447,7 @@ fun MicButton(d: Director, size: Dp = 76.dp) {
         FeltButton(
             if (on) FeltCoral else FeltTeal,
             onClick = { if (ConsentStore.micNoticeShown) d.toggleMic() else askMic = true },
-            modifier = Modifier.size(size * 0.86f).graphicsLayer { val k = if (on) 1f else breathe; scaleX = k; scaleY = k },
+            modifier = Modifier.size(size * 0.86f).graphicsLayer { val k = if (on || waiting) 1f else breathe; scaleX = k; scaleY = k },
             shape = CircleShape,
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

@@ -366,7 +366,8 @@ class Director(
         voiceJob = queueVoice(scope.launch {
             before?.join()
             while (s.holding) delay(100)              // ⏸ 동안 받아 둔 대사는 [이어 하기] 뒤에 (#125)
-            sound()?.let { play(it) }
+            // 녹음 중에 온 목소리는 틀지 않는다 — 녹음에 들어가면 VAD 가 오또 말을 아이 말로 듣는다 (#178 · 글자는 화면에 있다)
+            sound()?.let { if (!s.micOn) play(it) }
         })
     }
 
@@ -542,22 +543,46 @@ class Director(
     @Volatile private var stopMic = false
     private var micJob: Job? = null
 
+    // 10-06 실기기 (#178 · #203): 아이가 🎤 를 두 번 연달아 누르면 두 번째 누름이 ⏹ 가 되어 0.3~0.5초 녹음이 받아쓰기로
+    // 가고(빈 결과 → 「못 들었어」 되묻기 세 번), 녹음이 끝난 바로 그 순간이나 받아쓰기를 기다리는 동안 누르면 새 녹음이
+    // 겹쳐 받아쓰기 셋이 한꺼번에 서버로 갔다(21~25초 · 늦게 온 답이 다음 질문의 답으로 들어감).
+    /** 이보다 짧게 ⏹ 로 끊은 녹음은 말이 아니라 잘못 누른 것이다 — 16 kHz · 16 bit 로 0.8초 */
+    private val MIC_MIN_STOPPED_BYTES = 25_600
+
     private fun liveMic() {
+        if (s.transcribing) { log("🎤 받아쓰기를 기다리는 중 — 누름은 무시한다"); return }
         if (s.micOn) { stopMic = true; return }            // ⏹ — 녹음을 여기서 끊는다
         stopMic = false
         unheardWait?.cancel()                             // 되물은 뒤 다시 말하러 왔다
         hushVoice()                                       // 마스코트 소리가 녹음에 들어가지 않게
         s.micOn = true
         s.countdown = null
+        val asked = currentQ                              // 이 녹음이 대답하는 질문 — 답이 늦게 오면 그사이 바뀌었을 수 있다
         log("🎤 켬 — 진짜 녹음 · 말이 끝나면 저절로 끊는다 (VAD 0.5초)")
         micJob = scope.launch {
             val audio = Voice.listen { stopMic }
+            // 녹음이 끝나는 그 순간부터 받아쓰기 중 — 끝난 바로 뒤(0.002초)의 누름이 새 녹음을 시작했다 (#203)
+            s.transcribing = true
             s.micOn = false
-            if (audio == null) { log("🎤 아무것도 못 들음 → 무응답"); send(Reply.Silent); return@launch }
+            try { heardLive(audio, asked) } finally { s.transcribing = false }
+        }
+    }
+
+    private suspend fun heardLive(audio: ByteArray?, asked: Question?) {
+            if (audio == null) { log("🎤 아무것도 못 들음 → 무응답"); send(Reply.Silent); return }
+            if (stopMic && audio.size < MIC_MIN_STOPPED_BYTES) {
+                // 켜자마자 다시 눌러 끊었다 — 대답이 아니다. 받아쓰기를 부르지 않고 되묻지도 않는다. 🎤 는 다시 누를 수 있다
+                log("🎤 켜자마자 끊음 (${audio.size / 1024}KB) — 잘못 누른 것으로 보고 버린다")
+                return
+            }
             speakNeutral()
             log("🎤 끝 → 우리 서버로 받아쓰기 (${audio.size / 1024}KB)")
             Server.lastSttUnsure = false
             val text = Voice.transcribe(audio)
+            if (currentQ !== asked) {
+                log("받아쓰기가 늦게 왔다 — 그사이 다음 질문으로 넘어가서 버린다 (\"${text.orEmpty()}\")")
+                return
+            }
             when {
                 text == null || text.isBlank() -> unheard(if (text == null) "받아쓰기 실패" else "들을 말이 없음", failed = text == null)
                 // 받아쓰기가 자신 없어 한 말 — 웅얼거림을 「친구」처럼 지어 적는다(#149). 질문 하나에 한 번만 되묻고, 또 그러면 그대로 받는다
@@ -572,7 +597,6 @@ class Director(
                     send(Reply.Spoke(fixed))
                 }
             }
-        }
     }
 
     // ── 말했는데 못 알아들음 (10-02 조장) ───────────────────────────────
