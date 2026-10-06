@@ -67,6 +67,8 @@ import com.example.finalproject_demo.demo.CoopAfter
 import com.example.finalproject_demo.demo.CoopShelf
 import com.example.finalproject_demo.demo.COOP_AFTER_SUGGESTION
 import com.example.finalproject_demo.demo.coopAfterAsk
+import com.example.finalproject_demo.demo.coopBeforeAfter
+import com.example.finalproject_demo.demo.COOP_PAIR_PLAY_CARD
 import com.example.finalproject_demo.demo.coopAsked
 import com.example.finalproject_demo.demo.coopReportCopy
 import com.example.finalproject_demo.demo.feelingsSaid
@@ -437,6 +439,33 @@ private fun RecordTab(d: Director) {
         }
     }
 
+    // 「가기 전 · 다녀온 뒤」 — 오늘 책이 다녀온 책이고 짝이 책장에 있을 때만 (협업모드_확장_설계 §2-5)
+    val pair = remember(s.isCoop, s.shelf.size) { if (s.isCoop) s.coopBeforeAfter() else null }
+    if (pair != null) {
+        Section("가기 전 · 다녀온 뒤", "‘${pair.name}’ · 맞고 틀린 게 아니라 상상한 말과 겪고 나서 한 말이에요")
+        PCard(Modifier.fillMaxWidth()) {
+            Row {
+                Spacer(Modifier.width(64.dp))
+                Text("가기 전${pair.beforeDate.takeIf(String::isNotBlank)?.let { " ($it)" } ?: ""}", fontSize = 12.sp, color = PSub, modifier = Modifier.weight(1f))
+                Text("다녀온 뒤${pair.afterDate.takeIf(String::isNotBlank)?.let { " ($it)" } ?: ""}", fontSize = 12.sp, color = PSub, modifier = Modifier.weight(1f))
+            }
+            pair.rows.forEach { r ->
+                Spacer(Modifier.height(6.dp))
+                Row {
+                    Text(r.label, fontSize = 12.sp, color = PSub, modifier = Modifier.width(64.dp))
+                    Text(r.before, fontSize = 13.sp, color = Ink, fontWeight = if (r.beforeByChild) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
+                    Text(r.after, fontSize = 13.sp, color = Ink, fontWeight = if (r.afterByChild) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
+                }
+            }
+            pair.summary?.let {
+                Spacer(Modifier.height(10.dp))
+                Text(it, fontSize = 14.sp, color = Ink)
+            }
+            Spacer(Modifier.height(4.dp))
+            Text("ⓘ 두 책은 질문이 달라서 길이나 횟수를 견주지 않아요. 아이가 한 말 그대로예요.", fontSize = 11.sp, color = PSub)
+        }
+    }
+
     // 부모 협업 모드가 파는 것 — 동화책이 아니라 **질문하는 법**이다 (협업 §7).
     // ⚠️ 점수를 보여 주지 않는다. "당신의 질문은 60점"은 앱을 지우게 만든다. 남기는 형태는 다음에 넣어 볼 질문 한 개다.
     // 9/22 — 협업은 **부모가 질문을 미리 넣어 두는 모드**가 됐다 (guidelines/9 §9-5). 부모가 옆에서 기다린다는 전제의
@@ -467,7 +496,7 @@ private fun RecordTab(d: Director) {
     // ⚠️ 아이가 아무도 말하지 않은 날에는 "새 친구" 질문을 넣지 않는다 — 없는 친구를 앱이 만들어 내면 안 된다 (§3-2)
     // ⚠️ 일기 · 협업은 "누구랑 같이 만들래?"를 묻지 않았다 — `s.pn` 은 기본값 "엄마"라 질문 카드에 쓰면 없는 사람이 생긴다 (9/22)
     // 협업 곧 해요 · 좋아해요는 「오늘 있었던 일」 카드가 맞지 않는다 — 고른 이유대로 (CoopReport.kt)
-    val playCards = coopCopy?.playCards ?: if (s.isDiary) listOfNotNull(
+    val playCards = (pair?.let { listOf(COOP_PAIR_PLAY_CARD) } ?: emptyList()) + (coopCopy?.playCards ?: if (s.isDiary) listOfNotNull(
         s.friendName.takeUnless { it.startsWith("{") }?.let { n -> "\"${n}${eun(n)} 내일은 뭐 하고 놀까?\"" },
         "\"오늘 ${s.placeName}에서 제일 재밌었던 게 뭐였어?\"",
         "\"내일 ${s.placeName}에 가면 뭐 하고 싶어?\"",
@@ -476,7 +505,9 @@ private fun RecordTab(d: Director) {
         "\"${f}${eun(f)} 오늘 뭐 하고 놀까?\"",
         "\"${s.dino.name}${ga(s.dino.name)} 또 울면 어떻게 할까?\"",
         "\"${s.placeName}에 또 가면 누구를 만날까?\"",
-    )
+    ))
+    // 「가기 전 · 다녀온 뒤」 카드가 앞에 붙으면 셋을 넘는다 — 질문 카드는 3장
+    .take(3)
     // 카드 높이는 가장 긴 질문에 맞춘다 — 고정 높이면 협업 질문(「…해 보고 싶은 게 뭐야?」)의 끝이 잘렸다 (10-03 실기기)
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         playCards.forEachIndexed { i, q ->

@@ -186,5 +186,51 @@ fun coopAfterAsk(a: CoopAfter): String {
     return "${a.name}, ${done.removeSuffix("어요")}나요?"
 }
 
+/** 리포트 「가기 전 · 다녀온 뒤」 칸의 한 줄 — 자리 이름 · 가기 전 답 · 다녀온 뒤 답 (출처 표시까지 붙인 글) */
+data class BeforeAfterRow(val label: String, val before: String, val after: String, val beforeByChild: Boolean, val afterByChild: Boolean)
+
+/** 리포트 「가기 전 · 다녀온 뒤」 칸 (협업모드_확장_설계 §2-5) */
+data class BeforeAfter(val name: String, val beforeDate: String, val afterDate: String, val rows: List<BeforeAfterRow>, val summary: String?)
+
+/** 뼈대 네 자리 — 두 책의 템플릿 질문이 달라서(곧 해요 · 다녀왔어요) 질문 대신 자리 이름으로 맞춘다 */
+private val BEFORE_AFTER_PARTS = listOf("place" to "어디", "problem" to "무슨 일", "cause" to "왜", "solution" to "그래서")
+
+/** 한 칸의 글 — 아이가 말한 것만 따옴표. 카드 · 마스코트는 그렇다고 적는다(guidelines/2 §1-4 · 지금 「한 답」 칸과 같다) */
+private fun CoopBookSnapshot.answerOf(key: String): Pair<String, Boolean> {
+    val v = (fields[key] ?: slots[key])?.trim()?.takeIf { it.isNotEmpty() } ?: return "답하지 않았어요" to false
+    return when (slotBy[key]) {
+        "child" -> "“$v”" to true
+        "card" -> "$v (카드로 골랐어요)" to false
+        "mascot" -> "(마스코트가 대신 정했어요)" to false
+        else -> v to false
+    }
+}
+
+/**
+ * 오늘 꽂은 책이 「다녀온 뒤」 책이고 짝(「가기 전」 책)이 책장에 있으면 두 책을 나란히 — 아니면 null(칸이 없다).
+ *
+ * 맞고 틀림 · 늘고 줄음을 말하지 않는다. 글자 수 · 신호 수를 두 책 사이에서 견주지 않는다(두 책은 질문이 다르다).
+ * 요약 한 줄은 「무슨 일」 자리가 두 책 모두 아이 말일 때만, 고정 틀 + 인용 — LLM 을 부르지 않는다
+ */
+fun DemoState.coopBeforeAfter(): BeforeAfter? {
+    val todayId = CoopShelf.lastShelved(this) ?: return null
+    val today = CoopShelf.snapshotOf(todayId) ?: return null
+    if (today.pick?.reasonOrNull() != CoopReason.DONE) return null
+    val beforeBook = CoopShelf.pairOf(this, todayId) ?: return null
+    val before = CoopShelf.snapshotOf(beforeBook.id) ?: return null
+    val todayBook = CoopShelf.books(this).firstOrNull { it.id == todayId } ?: return null
+    val rows = BEFORE_AFTER_PARTS.map { (key, label) ->
+        val (b, bc) = before.answerOf(key); val (a, ac) = today.answerOf(key)
+        BeforeAfterRow(label, b, a, bc, ac)
+    }
+    val trouble = rows.first { it.label == "무슨 일" }
+    val summary = if (trouble.beforeByChild && trouble.afterByChild)
+        "가기 전엔 ${trouble.before}라고 상상했고, 다녀와서는 ${trouble.after}라고 말했어요." else null
+    return BeforeAfter(today.pick?.name?.trim() ?: "", beforeBook.madeAt, todayBook.madeAt, rows, summary)
+}
+
+/** 「다녀온 뒤」 책 리포트의 첫 놀이 카드 — 두 책을 같이 읽는 것은 부모가 여는 놀이다(앱이 아이에게 권하지 않는다) */
+const val COOP_PAIR_PLAY_CARD = "\"가기 전에 지은 이야기도 다시 읽어 볼까? 뭐가 달랐어?\""
+
 /** 상자에서 꺼낸 「다녀온 뒤」 계획의 첫 추천 질문 — 비교는 아이에게 시키지 않고 부모가 물을 때만 */
 const val COOP_AFTER_SUGGESTION = "가기 전에 지은 이야기랑 뭐가 달랐어?"
