@@ -15,6 +15,12 @@
 | 돌 | round grey stone | plain smooth round grey stone, no spots | 색 점이 박혀 알처럼 보였다 — 다시 구워도 점은 남는다(아래) |
 | 가로등 | old street lamp | old street lamp standing on a long thin straight pole with a small round base … (세로 768×1344 판) | 등 머리만 크게 나와 공원 한가운데 거대한 등이 됐다 — 10-05 다시 구움(후보 4장 중 1번째) |
 
+## 살아 있는 배경의 새 (10-05 · `docs/배경_조각_목록.md` §6-3)
+
+- `kit_forest_bird.png`(앉은 새) · `kit_forest_bird_fly.png`(나는 새) — 목록 §3-5 「새」(`little blue bird`)를 **두 자세**로 구웠다. 후보 3장씩 중 0번(배가 흰 쌍)
+- 둘 다 **오른쪽을 본다** — 앱이 날아가는 쪽으로 뒤집는다. 문구: `little round blue bird sitting, side view facing right, wings folded …` / `… flying, side view facing right, both wings spread wide open upward …`
+- 배치 조각이 아니라 무대에 **들르는 손님**이다(`demo/scene/SceneMotion.kt` `VISITORS_BY_KIT` · 앉을 자리 `PERCHES_BY_RES`). 숲 · 시골 묶음의 나머지 10종은 아직 굽지 않았다
+
 ## 알아 둘 것
 
 - 앱 공통 그림체 문구(`gen_room.STYLE`)의 색 목록(크림 · 머스터드 · 코랄 · 청록 · 하늘) 때문에 **물체에 그 색 조각 · 점이 들어간다** — 돌의 점, 「빨강 · 하양 공」이 파스텔 여러 색, 풀이 여러 색. 앱 다른 그림과 맞추려고 그대로 두었다

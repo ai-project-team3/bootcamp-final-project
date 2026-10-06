@@ -1,11 +1,19 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.scene.BIRD
+import com.example.finalproject_demo.demo.scene.Box
+import com.example.finalproject_demo.demo.scene.FRIEND_SPOT
+import com.example.finalproject_demo.demo.scene.HERO_SPOT
 import com.example.finalproject_demo.demo.scene.MOTION_BY_RES
 import com.example.finalproject_demo.demo.scene.MotionKind
 import com.example.finalproject_demo.demo.scene.PARK_KIT
+import com.example.finalproject_demo.demo.scene.PERCHES_BY_RES
 import com.example.finalproject_demo.demo.scene.PieceMotion
 import com.example.finalproject_demo.demo.scene.SceneFrame
 import com.example.finalproject_demo.demo.scene.SceneMotions
+import com.example.finalproject_demo.demo.scene.VISIT_FIRST_S
+import com.example.finalproject_demo.demo.scene.VISIT_FLY_S
+import com.example.finalproject_demo.demo.scene.actorBox
 import com.example.finalproject_demo.demo.scene.bestScene
 import com.example.finalproject_demo.demo.scene.wind
 import org.junit.Assert.assertEquals
@@ -144,5 +152,72 @@ class SceneMotionTest {
         assertTrue("no butterflies in twelve scenes", butterflies > 0)
         assertTrue("no perch in twelve scenes", perchesThere > 0)
         assertEquals("every butterfly visits every perch in two minutes", perchesThere, perchesSeen)
+    }
+
+    // ── the bird (doc §6-3: flies in → sits on a perch → flies on) ──────────────────────────────
+
+    @Test fun withoutGuestsNobodyComes() {
+        val m = SceneMotions(scenes[0], f)
+        for (t in times) assertTrue(m.visitors(t).isEmpty())
+    }
+
+    /** It shows up soon, is away between visits, and never jumps while it is on the stage */
+    @Test fun theBirdComesAndGoesWithoutAJump() {
+        for (scene in scenes) {
+            val m = SceneMotions(scene, f, listOf(BIRD), actors = 2)
+            assertTrue("no bird in the first seconds", m.visitors(VISIT_FIRST_S + VISIT_FLY_S / 2).size == 1)
+            var away = 0
+            var last: Pair<Float, Float>? = null
+            for (t in times) {
+                val v = m.visitors(t).firstOrNull()
+                if (v == null) { away++; last = null; continue }
+                assertTrue("off the top: ${v.y - v.h}", v.y - v.h >= f.top - 1f)
+                last?.let { (lx, ly) -> assertTrue("jumped ${hypot(v.x - lx, v.y - ly)} px at t=$t", hypot(v.x - lx, v.y - ly) < f.w * 0.04f) }
+                last = v.x to v.y
+            }
+            assertTrue("the bird never left", away > 0)
+        }
+    }
+
+    /** Sitting means on a perch of a piece that has one, clear of the two actors; flying means nose first */
+    @Test fun theBirdSitsOnAPerchAndFliesNoseFirst() {
+        val actors = listOf(HERO_SPOT, FRIEND_SPOT).map { actorBox(f, it) }
+        var sat = 0
+        val spots = HashSet<Int>()
+        var withTwoPerches = 0
+        for (scene in scenes) {
+            val m = SceneMotions(scene, f, listOf(BIRD), actors = 2)
+            val hosts = scene.pieces.filter { it.piece.res in PERCHES_BY_RES && it.fade == 0f && !it.front }
+            val here = HashSet<Int>()
+            var lastX: Float? = null
+            for (t in (0 until 30 * 300).map { it / 30.0 }) {
+                val v = m.visitors(t).firstOrNull()
+                if (v == null) { lastX = null; continue }
+                if (v.sitting) {
+                    sat++
+                    assertEquals(BIRD.sit, v.res)
+                    // on (or a hop above) one of the hosts: within its width — a swaying tree carries it a little — near a perch height
+                    val host = hosts.firstOrNull { h ->
+                        PERCHES_BY_RES.getValue(h.piece.res).any { (u, pv) ->
+                            val px = h.box.l + h.w * (if (h.flip) 1f - u else u)
+                            val py = h.box.t + h.h * pv
+                            abs(v.x - px) < h.h * 0.12f && v.y <= py + 1f && v.y >= py - v.h * 0.2f
+                        }
+                    }
+                    assertTrue("sitting in the air at ${v.x}, ${v.y}", host != null)
+                    val box = Box(v.x - v.h * v.aspect / 2, v.y - v.h, v.x + v.h * v.aspect / 2, v.y)
+                    assertTrue("sat on an actor", actors.none { it.inter(box) > 0f })
+                    here += (v.x / 4).toInt()
+                } else {
+                    assertEquals(BIRD.fly, v.res)
+                    lastX?.let { lx -> if (abs(v.x - lx) > 0.5f) assertEquals("flies tail first at t=$t", v.x < lx, v.flip) }
+                }
+                lastX = if (v.sitting) null else v.x
+            }
+            if (here.size >= 2) withTwoPerches++
+            spots += here
+        }
+        assertTrue("the bird never sat down in twelve scenes", sat > 0)
+        assertTrue("the bird always takes the same perch", withTwoPerches > 0)
     }
 }

@@ -20,40 +20,42 @@ class StoryFriendChoiceTest {
                 (d.s.stage as? Stage.FriendRate)?.friends?.first()?.keep == true
             }
             assertEquals(Scene.FRIENDS, d.s.scene)
-            assertEquals(1, ratings(d).size)
+            assertEquals("Nothing is recorded before the arrow", 0, ratings(d).size)
         }
     }
 
-    @Test fun aSecondChoiceDuringTheReactionIsAppliedInsteadOfDrained() = runBlocking {
-        withFriends(live = false) { d ->
-            d.send(Reply.Tapped("keep:friend", "콩이"))
-            d.send(Reply.Tapped("bye:dino", "공룡"))
-            awaitChange("The second friend's choice was lost during the reaction") {
-                ratings(d).size == 2 && d.s.scene == Scene.END
-            }
-            assertTrue(ratings(d).any { "friend_id=friend, keep=true" in it })
-            assertTrue(ratings(d).any { "friend_id=dino, keep=false" in it })
-        }
-    }
-
-    @Test fun repeatingAChoiceDoesNotOverwriteItOrLoseTheQueuedNextButton() = runBlocking {
-        withFriends(live = false) { d ->
-            d.send(Reply.Tapped("keep:friend", "콩이"))
+    /** 10-05 device round: a mis-tap on 「안녕」 left at once. The last choice no longer leaves the scene. */
+    @Test fun theLastChoiceWaitsForTheArrow() = runBlocking {
+        withFriends(live = true) { d ->
             d.send(Reply.Tapped("bye:friend", "콩이"))
+            awaitChange("The card did not show the choice") { (d.s.stage as? Stage.FriendRate)?.friends?.first()?.keep == false }
+            delay(300)
+            assertEquals(Scene.FRIENDS, d.s.scene)
             d.send(Reply.Tapped("done", "다음"))
-            awaitChange("The next button was lost behind a repeated choice") { d.s.scene == Scene.END }
-            assertEquals(1, ratings(d).size)
-            assertTrue("The first selection must win", "keep=true" in ratings(d).single())
+            awaitChange("The arrow did not move on") { d.s.scene == Scene.END }
+            assertTrue("keep=false" in ratings(d).single())
+        }
+    }
+
+    @Test fun aMisTapCanBeChangedAndOnlyTheFinalChoiceIsRecorded() = runBlocking {
+        withFriends(live = false) { d ->
+            d.send(Reply.Tapped("bye:friend", "콩이"))
+            d.send(Reply.Tapped("keep:friend", "콩이"))
+            d.send(Reply.Tapped("done", "다음"))
+            awaitChange("The next button was lost behind a changed choice") { d.s.scene == Scene.END }
+            assertTrue("The last selection must win", "keep=true" in ratings(d).single())
             assertEquals(1, d.s.keptFriends.count { it == "콩이" })
         }
     }
 
-    @Test fun theLastLiveStoryChoiceMovesOnWithoutWaitingForTheFarewell() = runBlocking {
-        withFriends(live = true) { d ->
-            d.send(Reply.Tapped("bye:friend", "콩이"))
-            awaitChange("The last choice still waited for farewell narration") { d.s.scene == Scene.END }
-            assertEquals(1, ratings(d).size)
-            assertTrue("keep=false" in ratings(d).single())
+    @Test fun choicesForTwoFriendsAreBothRecordedOnTheArrow() = runBlocking {
+        withFriends(live = false) { d ->
+            d.send(Reply.Tapped("keep:friend", "콩이"))
+            d.send(Reply.Tapped("bye:dino", "공룡"))
+            d.send(Reply.Tapped("done", "다음"))
+            awaitChange("A friend's choice was lost") { ratings(d).size == 2 && d.s.scene == Scene.END }
+            assertTrue(ratings(d).any { "friend_id=friend, keep=true" in it })
+            assertTrue(ratings(d).any { "friend_id=dino, keep=false" in it })
         }
     }
 
@@ -69,7 +71,7 @@ class StoryFriendChoiceTest {
     private fun ratings(d: Director) = d.s.events.filter { it.startsWith("friend_rating ") }
 
     private suspend fun awaitChange(message: String, changed: () -> Boolean) {
-        val applied = withTimeoutOrNull(400) {
+        val applied = withTimeoutOrNull(1_500) {
             while (!changed()) delay(5)
             true
         } ?: false

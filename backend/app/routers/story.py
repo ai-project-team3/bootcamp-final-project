@@ -134,6 +134,8 @@ def plan(req: StoryRequest) -> str:
             line = f"{i} {pg.kind} : {meaning(req.mode, pg.kind)}"
             if pg.mission:
                 line += (f" · 미션 {pg.mission} {MISSION_SETUP[pg.mission]}. 이 상황으로 끝내고 풀지 않는다."
+                         " 칸에 그 일을 이미 했다는 말이 있어도 이 쪽은 하기 바로 전에서 멈추고, '~했어요'처럼 한 일로 쓰지 않는다"
+                         " — 결과 문장은 아이가 미션을 마친 뒤 앱이 붙인다(#100 · 10-06)."
                          " 미션 이름 · 도구 이름 · '직전' 같은 설명 말은 쓰지 않고 이야기 속 장면으로만 보여 준다")
                 if prop:
                     line += f" · 이 쪽에 나오는 물건은 「{prop}」 — 다른 물건으로 바꾸지 않는다"

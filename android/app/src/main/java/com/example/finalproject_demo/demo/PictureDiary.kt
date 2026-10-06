@@ -317,6 +317,21 @@ private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke, as
     // 물었는데 이름을 못 받은 조각이면 다시 한 말은 이름을 고쳐 말하는 것이다 — 「○○야」 꼴이 아니어도 받는다
     val retry = piece != null && piece.id in asked
     if (piece != null && (retry || soundsLikeAName(r.text)) && nameThePiece(day, piece, r) != null) return Heard.NAMED
+    // 이름 붙은 조각에 이어 그리고 「조개 그렸어」 — 조각은 그대로, 그린 것 이름에 더한다(10-05 실기기 · 바다에 붙여 그린 조개)
+    if (piece == null && saysWhatWasDrawn(r.text)) {
+        val more = pieceNameFrom(r)?.takeIf { it !in day.pieceNames }
+        if (more != null) {
+            day.alsoDrawn += more
+            s.slots["whiteboard"] = day.pieceNames.joinToString(", ")
+            s.slotBy["whiteboard"] = "child"
+            event("slot_filled", "slot" to "extra", "of" to "whiteboard", "value" to more, "source" to "child")
+            quote(r.text)
+            say("${you(more)}도 그렸구나!")
+            log("「${r.text}」 — 이름 붙은 조각에 이어 그렸다 → 조각은 그대로, 그린 것에 「$more」를 더한다 (아이 말 · child)")
+            pause(700)
+            return Heard.OTHER                                  // 새 조각이 아니다 — 「나도 그려볼까?」를 다시 묻지 않는다
+        }
+    }
     say("그렇구나! 계속 그려 봐.")
     return Heard.OTHER
 }
@@ -674,6 +689,15 @@ private suspend fun Director.nameThePiece(day: DiaryDay, piece: DiaryPiece, r: R
         if (again is Reply.Spoke && pieceNameFrom(again) != null) said = again
     }
     val name = pieceNameFrom(said) ?: return null
+    // 「해랑 구름」 — 앞에 이름 없이 그린 조각이 있으면 그린 차례대로 나눠 붙인다(10-05 실기기 · 한 조각에 「해랑 구름」이 붙었다)
+    splitAcross(name, piece, day.pieces)?.let { split ->
+        split.forEach { (id, part) -> setPieceName(day, id, part, said.text, speak = false) }
+        quote(said.text)
+        say("${you(name)}${ida(you(name))}구나!")
+        log("조각 이름 「$name」 — 그린 차례대로 나눠 붙였다: ${split.joinToString(" · ") { "${it.first}=${it.second}" }} (아이 말 · child)")
+        pause(700)
+        return split.last().second
+    }
     if (!setPieceName(day, piece.id, name, said.text)) return null
     return name
 }
@@ -682,7 +706,7 @@ private suspend fun Director.nameThePiece(day: DiaryDay, piece: DiaryPiece, r: R
  * 조각 이름을 아이 말로 붙이거나 고친다 — 아이 출처(규칙 5). 이름이 바뀌면 옛 이름으로 그린 오또 그림은 떼고 원본으로 둔다.
  * 고칠 때는 「아, 집이구나!」 (10-02 진웅 — 잘못 들은 이름을 고칠 수 있어야 한다)
  */
-private suspend fun Director.setPieceName(day: DiaryDay, pieceId: Int, name: String, said: String): Boolean {
+private suspend fun Director.setPieceName(day: DiaryDay, pieceId: Int, name: String, said: String, speak: Boolean = true): Boolean {
     val i = day.pieces.indexOfFirst { it.id == pieceId }
     if (i < 0) return false
     val old = day.pieces[i].name
@@ -691,6 +715,8 @@ private suspend fun Director.setPieceName(day: DiaryDay, pieceId: Int, name: Str
     s.slots["whiteboard"] = day.pieceNames.joinToString(", ")
     s.slotBy["whiteboard"] = "child"
     event("slot_filled", "slot" to "extra", "of" to "whiteboard", "value" to name, "source" to "child")
+    DiaryTrace.name(pieceId, name)
+    if (!speak) return true                                     // 여럿을 한 번에 — 받아 주기는 부른 쪽에서 한 번
     quote(said)
     if (old == null) {
         say("${you(name)}${ida(you(name))}구나!")
@@ -699,7 +725,6 @@ private suspend fun Director.setPieceName(day: DiaryDay, pieceId: Int, name: Str
         say("아, ${you(name)}${ida(you(name))}구나!")
         log("조각 이름 고침 「$old」 → 「$name」 — 아이가 고쳐 말했다${if (redrawn) " · 옛 이름으로 그린 오또 그림은 떼고 원본으로" else ""}")
     }
-    DiaryTrace.name(pieceId, name)
     pause(700)
     return true
 }
@@ -925,6 +950,13 @@ private suspend fun Director.askPictureSlot(pq: PictureQuestion) {
         // 대본 답은 값이 붙어 온다(빈 값 = 「몰라」 · 「그냥」). 서버 모드의 답에는 값이 없다 — 글자를 읽는다
         val raw = r.answer?.value?.takeIf { it.isNotBlank() }
         val said = if (r.answer != null) raw.orEmpty() else r.text.trim().takeUnless { dontKnow(it) }.orEmpty()
+        // 「내일」에 「없어」 — 하고 싶은 게 없다는 답이다. 다시 묻지 않고 칸을 비워 둔다 (10-05 실기기 · 「없어」가 내일 칸에 들어갔다)
+        if (pq.key == "keep" && r.answer == null && saysNothing(r.text)) {
+            log("[keep] 「${r.text.trim()}」 — 하고 싶은 게 없다 → 비워 둔다. 다시 묻지 않는다")
+            say("그렇구나!")
+            pause(700)
+            return
+        }
         if (said.isEmpty()) {
             if (tries == 0) { log("「몰라」 → 한 번만 쉽게 바꿔 묻는다"); text = pq.easy; continue }
             log("[${pq.key}] 또 모른다 → 비워 둔다. 마스코트가 대신 채우지 않는다")
@@ -1085,6 +1117,16 @@ private suspend fun Director.askEmptySlotsLive() {
         if (r !is Reply.Spoke || r.text.isBlank()) {
             judge(step?.variant, r, q.text)
             next = firstEmptyQuestion(gaveUp + key)
+            continue
+        }
+        // 「내일」에 「없어」 — 판정에 보내면 「없어」가 내일 칸에 들어간다. 비워 두고 다시 묻지 않는다 (10-05 실기기)
+        if (key == "keep" && saysNothing(r.text)) {
+            judge(step?.variant, r, q.text)
+            log("[keep] 「${r.text.trim()}」 — 하고 싶은 게 없다 → 비워 둔다. 다시 묻지 않는다")
+            say("그렇구나!")
+            pause(700)
+            gaveUp += key
+            next = firstEmptyQuestion(gaveUp)?.let { withClue(day, it) }
             continue
         }
         day.turnCalls++                            // #30 — 세기만 한다
@@ -1453,8 +1495,19 @@ private val ENDS_AS_NAME = Regex("(이야|야|이에요|예요)[.!~ ]*$")
  */
 internal fun soundsLikeAName(text: String): Boolean {
     val t = text.trim()
-    return THIS_IS.containsMatchIn(t) || (ENDS_AS_NAME.containsMatchIn(t) && t.split(Regex("\\s+")).size <= 3)
+    return THIS_IS.containsMatchIn(t) || (ENDS_AS_NAME.containsMatchIn(t) && t.split(Regex("\\s+")).size <= 3) || saysWhatWasDrawn(t)
 }
+
+/** 「조개 그렸어」 · 「조개를 그렸어」 — 무엇을 그렸는지 말했다. 「새로 그렸어」는 이름이 없다 */
+private fun saysWhatWasDrawn(text: String): Boolean {
+    val t = text.trim().trimEnd('.', '!', '?', '~', '…', ' ')
+    return DREW.containsMatchIn(t) && !NEW_ONE.containsMatchIn(t) && t.split(Regex("\\s+")).size <= 4
+}
+private val NOTHING = Regex("(없어|없어요|없는데|없다|없을걸)[.!~ ]*$|^(음+ )?(아니|아니요|아니야)[.!~ ]*$")
+
+/** 「내일 또 하고 싶은 거 있어?」에 「없어」 · 「아니」 — 하고 싶은 게 없다. 칸을 채우지 않는다 */
+internal fun saysNothing(text: String): Boolean = NOTHING.containsMatchIn(text.trim())
+
 
 /**
  * 「우리 집이야!」 → 「우리 집」 · 「아니, 블록이야」 → 「블록」 · 「이건 강아지야」 → 「강아지」. 대본 답에는 값이 붙어 있어 그대로 쓴다.
@@ -1496,16 +1549,55 @@ internal fun withoutRepeat(t: String): String {
 /** 「집이야」 → 「집」 · 「고양이에요」 → 「고양이」 · 「강아지요」 → 「강아지」. 끝이 없으면 그대로 */
 private fun withoutEnding(t: String): String {
     val m = ENDING.find(t) ?: return t
-    var s = t.substring(0, m.range.first).trimEnd()
+    val s = t.substring(0, m.range.first).trimEnd()
     if (s.isEmpty()) return ""                                  // 「요」 「야」만 남았다 — 이름이 아니다 (10-02 실기기 「새로 그린 거요」 → 「요」)
-    // 「집이」 「블록이」의 「이」는 받침 뒤에 붙은 말끝이다. 「아이」 「종이」는 낱말이라 남기고,
-    // 세 글자 넘는 「고양이 · 원숭이 · 달팽이 · 멍멍이」는 ㅇ 받침 뒤 「이」까지가 낱말이라 남긴다
+    return withoutI(s)
+}
+
+/**
+ * 「집이」 「블록이」의 「이」는 받침 뒤에 붙은 말끝이다. 「아이」 「종이」는 낱말이라 남기고,
+ * 세 글자 넘는 「고양이 · 원숭이 · 달팽이 · 멍멍이」는 ㅇ 받침 뒤 「이」까지가 낱말이라 남긴다
+ */
+private fun withoutI(s: String): String {
     val word = s.substringAfterLast(' ')
     if (word.length < 2 || !word.endsWith("이") || word in KEEP_I) return s
     val before = word[word.length - 2].toString()
     val ieung = (before[0].code - 0xAC00) % 28 == 21
-    if (bat(before) && (word.length == 2 || !ieung)) s = s.dropLast(1)
-    return s
+    return if (bat(before) && (word.length == 2 || !ieung)) s.dropLast(1) else s
+}
+
+private val AND = Regex("^(.+)(랑|하고)$")
+
+/**
+ * 이어 말한 이름을 낱낱이 — 「해랑 구름」 → [해, 구름] · 「미끄럼틀이랑 해」 → [미끄럼틀, 해] · 「집이랑 나무 그리고 해」 → [집, 나무, 해].
+ * 「랑 · 하고」가 뒤에 다른 말이 올 때만 가른다(「해랑」 한 마디는 그대로). 「와 · 과」는 「사과」 같은 낱말 끝과 헷갈려 쓰지 않는다
+ */
+internal fun namesIn(name: String): List<String> {
+    val words = name.trim().split(Regex("\\s+")).filter(String::isNotEmpty)
+    val parts = mutableListOf<String>()
+    var now = mutableListOf<String>()
+    fun close() { now.joinToString(" ").takeIf(String::isNotBlank)?.let(parts::add); now = mutableListOf() }
+    words.forEachIndexed { i, w ->
+        val and = AND.find(w)?.takeIf { i < words.lastIndex }
+        when {
+            w == "그리고" -> close()
+            and != null -> { now += and.groupValues[1]; now = mutableListOf(withoutI(now.joinToString(" "))); close() }
+            else -> now += w
+        }
+    }
+    close()
+    return parts
+}
+
+/**
+ * 한 번에 말한 이름 여럿을 그린 차례대로 — 지금 조각([piece])이 마지막 이름, 그 앞 이름은 바로 앞의 이름 없는 조각들에.
+ * (조각 id · 이름) 목록, 나눌 수 없으면 null — 이름이 하나거나, 앞에 이름 없는 조각이 모자라면 한 조각에 함께 그린 것이다(「엄마랑 나」)
+ */
+internal fun splitAcross(name: String, piece: DiaryPiece, pieces: List<DiaryPiece>): List<Pair<Int, String>>? {
+    val names = namesIn(name).takeIf { it.size >= 2 } ?: return null
+    val before = pieces.filter { it.id < piece.id && it.name.isNullOrBlank() }.sortedBy { it.id }
+    if (before.size < names.size - 1) return null
+    return (before.takeLast(names.size - 1).map { it.id } + piece.id).zip(names)
 }
 
 private val ME = Regex("^(나|저)(랑|하고|와|도|는|를|의|만)?$")
