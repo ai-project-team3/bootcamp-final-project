@@ -5,9 +5,8 @@
 # 파일 번호는 `aihubshell -mode l -datasetkey 108` 로 10-06 에 확인한 값이다.
 #
 # ⚠️ 재배포 금지 데이터다. 받은 폴더를 레포 · 클라우드 · 메신저에 올리지 않는다(레포는 공개다).
-# ⚠️ API 키는 사람이 환경 변수로 넣는다 — 채팅 · 파일 · 명령줄에 적지 않는다:
-#      PowerShell:  $env:AIHUB_APIKEY = "<AI-Hub 마이페이지의 API 키>"   (그 창에서 이 스크립트를 부른다)
-#      Git Bash:    export AIHUB_APIKEY=...                              (기록에 남지 않게 앞에 공백 한 칸)
+# ⚠️ API 키는 사람이 사용자 환경 변수 AIHUB_APIKEY 로 미리 넣는다 — 채팅 · 파일 · 명령줄에 적지 않는다.
+#    넣는 법은 README 「키 넣기」(입력칸에 붙여 넣는 방식 · 명령 기록에 안 남는다). Git Bash 도 그 값을 읽는다
 #
 #   bash eval/whisper_ft/download.sh D:/aihub
 set -euo pipefail

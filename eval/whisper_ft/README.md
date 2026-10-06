@@ -37,8 +37,8 @@
 |---|---|---|---|
 | 1 | 세션 | 레포를 받고 이 브랜치로: `git clone https://github.com/ai-project-team3/bootcamp-final-project.git` → `git checkout eval/whisper-lora` | `eval/whisper_ft/` 가 있다 |
 | 2 | 세션 | 가상환경: `py -3.12 -m venv .venv-ft` → `.venv-ft/Scripts/python -m pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cu126` → `.venv-ft/Scripts/python -m pip install -r eval/whisper_ft/requirements.txt` | `.venv-ft/Scripts/python -c "import torch;print(torch.cuda.is_available())"` 가 True |
-| 3 | 사람 | **AI-Hub API 키를 환경 변수로** — PowerShell 창에서 `$env:AIHUB_APIKEY = "<키>"`(AI-Hub 마이페이지 · 데이터셋 108 이용 승인된 계정). 키를 채팅에 붙이지 않는다 | 사람이 「넣었다」고 말한다 |
-| 4 | 세션 | 받기 — 같은 창에서 `bash eval/whisper_ft/download.sh D:/aihub`(약 17GB · 회선에 따라 30분~2시간). 끝에 찍힌 원천 · 라벨 경로를 아래 명령의 `$R` · `$L` 로 | 두 경로가 찍힌다 |
+| 3 | 사람 · 세션 | **AI-Hub API 키** — 사람이 세션을 열기 **전에** 아래 「키 넣기」로 사용자 환경 변수 `AIHUB_APIKEY` 에 저장해 둔다(AI-Hub 마이페이지 · 데이터셋 108 이용 승인된 계정). 세션은 `$env:AIHUB_APIKEY.Length` 가 0 보다 큰지만 본다 — **값을 출력하지 않는다.** 0 이면 사람에게 「키 넣기」를 부탁하고 멈춘다 | 길이가 0 보다 크다 |
+| 4 | 세션 | 받기 — `bash eval/whisper_ft/download.sh D:/aihub`(약 17GB · 회선에 따라 30분~2시간). 끝에 찍힌 원천 · 라벨 경로를 아래 명령의 `$R` · `$L` 로 | 두 경로가 찍힌다 |
 | 5 | 세션 | 데이터 나누기 — 명령 ①(약 15분) | 학습 · 확인 · 평가 클립 수가 찍힌다(평가 화자 65명 근처) |
 | 6 | 세션 | **시험 한 바퀴** — 명령 ②에 `--base openai/whisper-tiny --max-steps 4` 를 붙이고 `--out` 만 `D:/whisper_ft/smoke` 로(1분). 멈추면 고치고 조장에게 알린다 | `D:/whisper_ft/smoke/best` 가 생긴다 |
 | 6-1 | 세션 | **small 파일럿**(1~2시간) — 같은 데이터로 `whisper-small` 을 먼저 학습 · 평가한다. 명령 ②-s → ③-s → ④-s. 학습한 small 을 **원래 small** 과 비교한다(large 와 비교하지 않는다). 첫 25걸음 속도와 판정을 조장에게 알린다. **3~5세 어절 보존이 오르지 않았거나(+0%p 이하) 학습 손실(loss)이 줄지 않으면 7번을 시작하지 말고 멈춰서 조장에게 알린다** — large 에 하룻밤을 쓰기 전에 데이터 · 라벨 · 학습률을 먼저 본다 | 「판정: …」(참고용) |
@@ -51,6 +51,18 @@
 | 12 | 세션 | **2차 학습 · 변환** — 명령 ⑧ · ⑨(6~8시간). 1차와 설정이 같다 | `ct2_v2/model.bin` |
 | 13 | 세션 | **2차 평가** — 명령 ⑩(원래 large-v3 와) · ⑪(1차 모델과) 각 30분 | 판정 줄 둘 |
 | 14 | 세션 | **최종 정리** — ① `results.md` 의 날짜 절에 2차 표 · 판정 둘 · 「1차보다 나은가」를 덧붙인다(2차를 안 했으면 「2차 안 함」 한 줄) ② **`git rm eval/whisper_ft/README.md`** ③ 두 변경을 한 커밋으로 푸시(데이터 · 모델은 넣지 않는다) ④ 조장에게 커밋 번호와 판정을 알린다 | README 가 없고 `results.md` 에 1차 · 2차가 있다 |
+
+**키 넣기** (사람 · 세션을 열기 전에 한 번) — `setx AIHUB_APIKEY "키"` 처럼 키를 명령에 쓰면 PowerShell 이 명령 기록 파일(`ConsoleHost_history.txt`)에 키를 남긴다. 그래서 입력칸에 붙여 넣는다:
+
+```powershell
+# ① 아래 한 줄을 붙여 넣고 Enter → 「AI-Hub API 키:」 칸에 키를 붙여 넣고 Enter(화면엔 * 만 · 기록에 안 남는다)
+$s = Read-Host "AI-Hub API 키" -AsSecureString; [Environment]::SetEnvironmentVariable("AIHUB_APIKEY", [Net.NetworkCredential]::new("", $s).Password, "User"); Remove-Variable s
+# ② 이 창을 닫고 PowerShell 을 새로 연다(저장한 값은 새 창부터 보인다) → 길이만 확인
+$env:AIHUB_APIKEY.Length
+# ③ 그 새 창에서 Claude Code 를 연다 · 키를 넣기 전에 열어 둔 Claude Code 창은 닫고 새로 연다
+# ④ 다 끝나면 지운다
+[Environment]::SetEnvironmentVariable("AIHUB_APIKEY", $null, "User")
+```
 
 **명령** — PowerShell. `$R` · `$L` 은 4번에서 찍힌 경로. 경로 구분은 `/` 로 써도 된다
 
