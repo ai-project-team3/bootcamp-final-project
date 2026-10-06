@@ -56,6 +56,38 @@ KITS = {
         "log": "fallen log",
         "rainbow": "rainbow arch",
     },
+    # 3-1 우주 — 2순위 둘째 (#97). 목록 §3-1 문구 그대로
+    "space": {
+        "moon": "yellow crescent moon",
+        "ring_planet": "orange planet with a ring",
+        "small_planet": "small round blue planet",
+        "star": "yellow five-pointed star",
+        "shooting_star": "shooting star with a tail",
+        "rocket": "red and white toy rocket",
+        "dome": "little round dome house",
+        "rock_hill": "lavender rocky hill",
+        "moon_rock": "lavender moon rock",
+        "crystal": "glowing purple crystal cluster",
+        "crater": "shallow round crater",
+        "flag": "little flag on a pole",
+    },
+    # 3-2 바닷속 — 2순위 셋째 (#97). 목록 §3-2 문구 그대로
+    "sea": {
+        "jellyfish": "pink jellyfish",
+        # 「clear water bubble」는 색 조각 박힌 펠트 공이 나왔다 — 속이 비친 동그란 방울로
+        "bubble": "single round transparent soap-bubble-like water bubble, pale see-through light blue with a small white shine highlight, hollow and empty inside",
+        "yellow_fish": "small yellow fish",
+        "clownfish": "orange striped clownfish",
+        "pink_coral": "pink branching coral",
+        "fan_coral": "orange fan coral",
+        "seaweed": "tall green seaweed",
+        "chest": "small wooden treasure chest",
+        "clam": "open clam shell with a pearl",
+        "scallop": "pink scallop shell",
+        "starfish": "orange starfish",
+        "sea_rock": "mossy blue-grey sea rock",
+        "reef": "blue-grey rocky reef",
+    },
     # 3-5 숲 · 시골 — 지금은 「살아 있는 배경」의 새만 (§6-3 · 공원 무대에도 들른다). 나머지 10종은 아직
     "forest": {
         # 목록 문구 「little blue bird」를 두 자세로 — 앉은 새와 나는 새. 옆모습 · 오른쪽을 보게(앱이 가는 쪽으로 뒤집는다)
@@ -65,7 +97,11 @@ KITS = {
 }
 
 # 세로로 긴 조각은 세로 판에 굽는다 — 정사각 판에서는 위아래가 잘렸다
-SIZES = {"street_lamp": (768, 1344), "palm_tree": (768, 1344), "waterfall": (768, 1344), "rainbow": (1344, 768), "log": (1344, 768)}
+SIZES = {
+    "street_lamp": (768, 1344), "palm_tree": (768, 1344), "waterfall": (768, 1344), "rainbow": (1344, 768), "log": (1344, 768),
+    "rocket": (768, 1344), "flag": (768, 1344), "rock_hill": (1344, 768), "crater": (1344, 768), "shooting_star": (1344, 768),
+    "seaweed": (768, 1344), "reef": (1344, 768),
+}
 
 if __name__ == "__main__":
     out = sys.argv[1]

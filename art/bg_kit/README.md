@@ -32,6 +32,21 @@
 | 고사리 | green fern plant | clump of green fern fronds growing straight out of the ground, no pot, no soil | 화분에 심긴 채 나왔다 |
 | 공룡 발자국 | three-toed footprint | flat brown dinosaur footprint shape with three big toes, top view, a flat cut-out shape lying on the ground | 사람 발 인형이 나왔다 |
 
+## 2순위 ② 우주 — 12종 (#97 · 10-06)
+
+- 목록 §3-1 그대로 12종 · `kit_space_*` · 후보 3장 중 하나씩. 앱 키트 `SceneKit.kt` `SPACE_KIT`(남색 밤하늘 · 회보라 달 표면 · 하늘 조각은 달 · 고리 행성 · 작은 행성 · 별 · 별똥별 — 나비 · 새는 없다)
+- 문구는 목록 그대로 썼다. 그대로 두고 알아 둘 것: 「작은 행성」은 대륙이 그려진 지구 모양 · 「달 바위」는 분화구 박힌 둥근 공 · 「분화구」는 고리(튜브) 모양으로 나왔다. 무대에서 어색하면 문구를 바꿔 다시 굽는다
+- 세로로 긴 로켓 · 깃발은 768×1344, 가로로 긴 바위산 · 분화구 · 별똥별은 1344×768 판
+
+## 2순위 ③ 바닷속 — 13종 (#97 · 10-06)
+
+- 목록 §3-2 그대로 13종 · `kit_sea_*`. 앱 키트 `SceneKit.kt` `SEA_KIT`(청록 물빛 · 모래). 물고기가 나비 자리(산호 사이를 돌며 헤엄 · 가는 쪽을 봄), 거품이 구름 자리(바닥에서 떠오름)
+- 세로로 긴 미역은 768×1344, 가로로 긴 먼 바위 언덕은 1344×768 판
+
+| 조각 | 목록 문구 | 바꾼 문구 | 왜 |
+|---|---|---|---|
+| 거품 | clear water bubble | single round transparent soap-bubble-like water bubble, pale see-through light blue with a small white shine highlight, hollow and empty inside | 색 조각 박힌 펠트 공이 나왔다 — 바꾼 뒤에도 테두리는 펠트 조각(3장 중 2번째) |
+
 ## 알아 둘 것
 
 - 앱 공통 그림체 문구(`gen_room.STYLE`)의 색 목록(크림 · 머스터드 · 코랄 · 청록 · 하늘) 때문에 **물체에 그 색 조각 · 점이 들어간다** — 돌의 점, 「빨강 · 하양 공」이 파스텔 여러 색, 풀이 여러 색. 앱 다른 그림과 맞추려고 그대로 두었다
