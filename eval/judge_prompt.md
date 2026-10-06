@@ -62,6 +62,7 @@ next_slot / next_reason : 다음에 물어야 할 칸과 그 이유. 아직 안 
                       (unclear 확인은 예외).
 no_longer_needed    : 이번 답으로 더 이상 필요 없어진 칸이 있으면 그 칸 이름, 없으면 null.
 story_ready         : 템플릿 기준으로 이야기 재료가 다 찼으면 true. 턴 수로 끊지 않는다.
+                      title(책 이름)은 책을 다 만든 뒤 앱이 따로 묻는다 — story_ready 를 정할 때 보지 않고, next_slot 으로 고르지 않는다.
 
 아래는 예시다. 형식을 그대로 따라라.
 
