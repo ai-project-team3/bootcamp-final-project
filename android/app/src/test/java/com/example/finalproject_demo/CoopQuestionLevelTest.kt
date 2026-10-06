@@ -132,4 +132,12 @@ class CoopQuestionLevelTest {
         assertEquals("우리집에서 어디가 제일 좋았어?", CoopPick("place", "우리집", "done").templateQuestions().first())
         assertEquals("할머니 집에 가서 어디가 제일 좋았어?", CoopPick("place", "할머니 집", "done").templateQuestions().first())
     }
+
+    /** 10-06 실기기 — 「학교에 가서 어디가 제일 좋았어?」에 「체육시간」. 매일 가는 곳은 「안에서」 */
+    @Test
+    fun aDailyPlaceAsksWhereInside() {
+        assertEquals("학교 안에서 어디가 제일 좋았어?", CoopPick("place", "학교", "done").templateQuestions().first())
+        assertEquals("유치원 안에서 어디가 제일 좋았어?", CoopPick("place", "유치원", "done").templateQuestions().first())
+        assertEquals("동물원에 가서 어디가 제일 좋았어?", CoopPick("place", "동물원", "done").templateQuestions().first())
+    }
 }

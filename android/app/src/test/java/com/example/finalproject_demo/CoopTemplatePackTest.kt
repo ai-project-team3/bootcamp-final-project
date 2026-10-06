@@ -34,6 +34,24 @@ class CoopTemplatePackTest {
         }
     }
 
+    /**
+     * 10-06 실기기(학교 다녀왔어요) — 사다리 첫 칸 「들어가자마자 뭐가 보였어?」에 「친구들」(사람)이 와서 장소 칸에 맞지 않았다.
+     * 첫 칸도 곳을 묻고, 선택지 칸은 그 곳 안의 자리(교실 · 운동장 · 도서관)를 쓴다
+     */
+    @Test
+    fun thePlaceLadderAsksForAPlaceAndOffersThatPlacesSpots() {
+        val school = state(CoopPick("place", "학교", "done")).coopPartPack(parts[0])!!.rungs
+        assertEquals("학교 안에서 어디가 제일 좋았어?", school[0])
+        assertEquals("학교에서 제일 오래 있었던 데는 어디야?", school[1])
+        listOf("교실", "운동장", "도서관").forEach { assertTrue("「${school[2]}」에 $it 가 없다", it in school[2]) }
+        assertTrue(school.none { "뭐가 보였어" in it })
+        // 자리 목록이 없는 곳(직접 쓴 곳)은 어디에나 맞는 선택지
+        val custom = state(CoopPick("place", "할머니 집", "done")).coopPartPack(parts[0])!!.rungs
+        assertTrue("「${custom[2]}」", "입구" in custom[2] && "맨 안쪽" in custom[2])
+        assertEquals("학교에 가면 어디부터 가 보고 싶어?", state(CoopPick("place", "학교", "soon")).coopPartPack(parts[0])!!.rungs[1])
+        assertEquals("학교에서 제일 가 보고 싶은 데는 어디야?", state(CoopPick("place", "학교", "dream")).coopPartPack(parts[0])!!.rungs[1])
+    }
+
     @Test
     fun theFourPartsAreInOrderPlaceProblemCauseSolution() {
         assertEquals(listOf("place", "problem", "cause", "solution"), parts.map { it.slot })
