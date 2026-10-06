@@ -14,10 +14,15 @@ private fun DemoState.optionsFor(slot: String?, question: String): List<String> 
 
 /** Keep candidates with their question, so a reset or a different slot cannot reuse them. */
 private fun DemoState.rememberStoryQuestion(response: Server.TurnResult) {
-    storyServerQuestion = response.line?.question
+    // A null next slot can still carry a concrete follow-up. A rejected named slot
+    // must not reopen through that fallback (filled, unneeded, companion or recorded sound).
+    val next = response.verdict?.nextSlot
+    val accepted = next == null || (storyNextSlot != null && next != "companion" &&
+        !(next == "sound" && storySoundAttempted))
+    storyServerQuestion = response.line?.question?.takeIf { accepted && !storyReady }
     storyAnswerOptions = null
     val line = response.line ?: return
-    val question = line.question?.takeIf(String::isNotBlank) ?: return
+    val question = storyServerQuestion?.takeIf(String::isNotBlank) ?: return
     val options = line.options?.filter(String::isNotBlank)?.distinct()?.take(3).orEmpty()
     if (options.isNotEmpty()) storyAnswerOptions = StoryOptions(storyNextSlot, question, options)
 }
@@ -74,7 +79,6 @@ suspend fun Director.askStory(
         response.verdict.fills.filter { it.first in Server.SLOTS && it.second.isNotBlank() }.forEach { (slot, value) ->
             event("slot_filled", "slot" to slot, "value" to value, "source" to by)
         }
-        s.storyServerQuestion = response.line?.question
         val line = response.line
         // the question's voice is made while the ack is voiced and played, not after (10-05 trace: −2.5 s a turn)
         line?.question?.let { prefetchSpeech(it) }
@@ -186,7 +190,6 @@ internal suspend fun Director.notifyStorySoundChoice(prompt: StoryPrompt) {
     val recorded = s.storySoundClip != null
     val utterance = if (recorded) "친구의 소리를 직접 만들었어요" else "친구의 소리는 소리 없이 넘어갈래"
     val response = exchangeStoryTurnWithRetry("sound", prompt.text, utterance, if (recorded) "child" else "card")
-    s.storyServerQuestion = response.line?.question
     response.line?.ack?.takeIf(String::isNotBlank)?.let { say(it); pause(600) }
 }
 
