@@ -1,6 +1,13 @@
 package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.BgmMood
+import com.example.finalproject_demo.demo.COOP_SHELF_ID
+import com.example.finalproject_demo.demo.CoopBookStore
+import com.example.finalproject_demo.demo.CoopShelf
+import com.example.finalproject_demo.demo.PageKind
+import com.example.finalproject_demo.demo.SavedCoopBook
+import com.example.finalproject_demo.demo.SavedStoryBook
+import com.example.finalproject_demo.demo.SavedStoryPage
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
@@ -99,6 +106,49 @@ class BookMusicFlowTest {
         d.s.storyCaptions = listOf("같이 만든 이야기예요.")
         d.go(Scene.BOOK)
         assertNotNull(await { d.s.stage is Stage.BookPage })
+        assertNull(Bgm.mixer.playing)
+    }
+
+    // ── 책장 다시 읽기 (Scenes.kt sceneShelf) ──
+
+    private suspend fun Director.shelfWith(book: SavedStoryBook? = null): String {
+        if (book == null) {
+            s.mode = StoryMode.STORY
+            s.templateKey = TEMPLATES.first().key
+            s.storyCaptions = (1..3).map { "아이의 이야기 $it 쪽이에요." }
+            assertTrue("책을 저장하지 못했다", saveFinishedStory())
+        }
+        go(Scene.SHELF)
+        assertNotNull("책장이 열리지 않았다", await { s.stage is Stage.Shelf })
+        return (book ?: s.completedStoryBook()!!).let { b -> if (book == null) storyBooks().first().id else COOP_SHELF_ID + b.id }
+    }
+
+    private suspend fun Director.tapUntil(value: String, label: String, cond: () -> Boolean) =
+        assertNotNull("'$value' 입력이 먹지 않았다", await { send(Reply.Tapped(value, label)); Thread.sleep(20); cond() })
+
+    @Test fun theShelfRereadPlaysTheBooksMoodsAndStopsOnClose() = run { d ->
+        val id = d.shelfWith()
+        val book = d.storyBooks().first()
+        val key = bgmBookKey(book.title, book.pages.first().caption)
+        d.tapUntil("book", id) { d.s.stage is Stage.SavedStory }
+        assertNotNull(await { Bgm.mixer.playing != null })
+        assertEquals(trackOf(BgmMood.DISCOVERY, key), Bgm.mixer.playing)                       // 표지
+        d.tapUntil("next", "다음") { (d.s.stage as? Stage.SavedStory)?.index == 1 }
+        assertEquals(trackOf(moodOf(book.pages[0].kind), key), Bgm.mixer.playing)
+        d.tapUntil("close", "닫기") { d.s.stage is Stage.Shelf }
+        assertNull(Bgm.mixer.playing)
+    }
+
+    @Test fun aCoopBookOnTheShelfPlaysNothing() = run { d ->
+        val coop = SavedStoryBook("c1", "같이 만든 책", "space", "bg_space",
+            listOf(SavedStoryPage(PageKind.TOGETHER, "같이 놀았어요."), SavedStoryPage(PageKind.JOURNEY, "집에 왔어요.")))
+        CoopShelf.attach(d.s, object : CoopBookStore {
+            override fun load() = listOf(SavedCoopBook(coop, null))
+            override fun save(book: SavedCoopBook) {}
+        })
+        val id = d.shelfWith(coop)
+        d.tapUntil("book", id) { d.s.stage is Stage.SavedStory }
+        d.tapUntil("next", "다음") { (d.s.stage as? Stage.SavedStory)?.index == 1 }
         assertNull(Bgm.mixer.playing)
     }
 }
