@@ -1510,8 +1510,11 @@ private suspend fun Director.sceneBook() {
     val last = s.pageCount
     s.bookPage = 0
     s.m1Result = null; s.m2Result = null
-    // 책을 펼칠 때 모든 쪽 목소리를 미리 받는다 — 쪽을 넘길 때마다 /tts 를 기다리지 않게 (#262 · 동화 · 같이 만들기 책)
-    (0..last).forEach { i -> prefetchSpeech(if (i == 0) "『${s.title}』" else s.bookCaption(i)) }
+    // Fetch the voices of the next pages ahead so a page turn does not wait for /tts (#262). Only the next
+    // [BOOK_PREFETCH_AHEAD] — a child who leaves early does not pay for the whole book (#276 review)
+    fun caption(i: Int) = if (i == 0) "『${s.title}』" else s.bookCaption(i)
+    fun prefetchAhead(from: Int) = (from..minOf(last, from + BOOK_PREFETCH_AHEAD)).forEach { prefetchSpeech(caption(it)) }
+    prefetchAhead(0)
     val rubPage = (1..last).firstOrNull { s.pageKind(it) == PageKind.RUB } ?: -1
     val dragPage = (1..last).firstOrNull { s.pageKind(it) == PageKind.DRAG } ?: -1
 
@@ -1532,7 +1535,8 @@ private suspend fun Director.sceneBook() {
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
         }
-        say(if (i == 0) "『${s.title}』" else s.bookCaption(i))
+        say(caption(i))
+        prefetchAhead(i + 1)
         when {
             i == 0 -> {}
             i == rubPage && s.m1Result == null -> log(
@@ -1856,3 +1860,6 @@ private suspend fun Director.sceneParent() {
         }
     }
 }
+
+/** How many pages ahead a book fetches its voices (#262 · #276 review) */
+internal const val BOOK_PREFETCH_AHEAD = 2

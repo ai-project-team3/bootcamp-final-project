@@ -1649,16 +1649,20 @@ private fun Director.keepPageVoices(book: SavedDiaryBook) {
 private suspend fun Director.readPictureDiary(day: DiaryDay, reread: Boolean = false, bookId: String? = null) {
     var i = 0
     val missing = mutableSetOf<String>()
-    // 책을 펼칠 때 모든 쪽 목소리를 미리 받는다 — 전에는 쪽을 넘길 때마다 그제야 /tts 를 불러 쪽마다 1.8~3.5초 기다렸다 (#262 · 10-07 실기기).
-    // 책 옆에 남긴 목소리가 있으면 그것을 넘긴다(#179)
-    buildDiaryBook(s.diaryBookInput()).map(::diaryPageCaption).distinct().forEach { line ->
-        bookId?.let { DiaryShelf.voice(s, it, line) }?.let { offerVoice(line, it) } ?: prefetchSpeech(line)
+    // 쪽 목소리를 미리 받는다 — 전에는 쪽을 넘길 때마다 그제야 /tts 를 불러 쪽마다 1.8~3.5초 기다렸다 (#262 · 10-07 실기기).
+    // 책 옆에 남긴 목소리(#179)는 값이 없으니 펼칠 때 다 넘기고, 새로 받는 것은 지금 쪽과 그다음 [BOOK_PREFETCH_AHEAD] 쪽만 —
+    // 중간에 나가는 아이에게 책 한 권 값을 다 쓰지 않는다 (#276 리뷰)
+    if (bookId != null) buildDiaryBook(s.diaryBookInput()).map(::diaryPageCaption).distinct().forEach { line ->
+        DiaryShelf.voice(s, bookId, line)?.let { offerVoice(line, it) }
     }
     while (true) {
         val pages = buildDiaryBook(s.diaryBookInput())
         val p = pages[i]
         val last = i == pages.lastIndex
         val caption = diaryPageCaption(p)
+        pages.drop(i).take(BOOK_PREFETCH_AHEAD + 1).map(::diaryPageCaption)
+            .filter { line -> bookId?.let { DiaryShelf.voice(s, it, line) } == null }
+            .forEach(::prefetchSpeech)
         if (bookId != null) DiaryShelf.voice(s, bookId, caption)?.let { offerVoice(caption, it) } ?: missing.add(caption)
         say(caption)
         s.stage = DiaryPaper(i)                      // 말한 뒤에 쪽을 연다 — 쪽의 글자가 이 문장의 목소리를 기다린다(#262)
