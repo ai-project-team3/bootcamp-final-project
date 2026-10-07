@@ -101,6 +101,7 @@ class MainActivity : ComponentActivity() {
         com.example.finalproject_demo.net.CallLimits.attach(this)   // 서버 연결판 하루 한도 — 폰에만 (10-06)
         com.example.finalproject_demo.net.CallLimits.enabled = !debuggable   // 스토어 빌드만 — 팀 개발 앱 · 검사는 막지 않는다
         Voice.attach(this)        // 진짜 마이크 · 마스코트 목소리 — 서버 모드에서만 쓴다 (net/Voice.kt)
+        com.example.finalproject_demo.net.Bgm.attach(this)    // 동화책 배경음악 (#221)
         com.example.finalproject_demo.sound.ChildSound.attach(this)   // 아이가 만든 소리 — 폰에만 (#42)
         com.example.finalproject_demo.net.ChildCall.attach(this)     // 마스코트가 아이를 부르는 말 — 부모가 정함 (10-02)
         com.example.finalproject_demo.sound.ChildSound.discardSession()   // 책에 안 넣은 채 앱이 꺼졌던 소리
@@ -116,6 +117,11 @@ class MainActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         setContent { MaterialTheme(typography = PuppetTypography) { com.example.finalproject_demo.ui.FitScreen { DemoApp() } } }
+    }
+
+    override fun onDestroy() {
+        com.example.finalproject_demo.net.Bgm.release()
+        super.onDestroy()
     }
 
     /** 앱으로 돌아올 때 · 창(설정 · 알림)이 닫힐 때마다 다시 전체 화면으로 (09-29) */
