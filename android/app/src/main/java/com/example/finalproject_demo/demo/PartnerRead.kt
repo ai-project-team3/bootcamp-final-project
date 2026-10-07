@@ -21,8 +21,8 @@ internal fun DemoState.partnerWire(mode: String): String? = when (mode) {
  * The answer to 「오늘은 누구랑 같이 이야기를 만들어?」 → (kind, what the child called them), or null to ask again.
  *
  * With the server on, one Jev choice question reads the whole answer (`/partner`, #303): measured 10-07 on 51
- * answers, Jev 153/153 against the word list's 44/51 — the list called 「혼자 안 할래, 엄마랑」 solo and
- * 「엄마 말고 아빠랑」 mom (`eval/results.md`). The word list ([partnerIn]) stays for when the server is away,
+ * answers, Jev 153/153 against the word list's 48/51 — the list still misses relatives and names it has not
+ * listed (「아부지」 · 「하윤이랑 같이 왔어」) (`eval/results.md`). The word list ([partnerIn]) stays for when the server is away,
  * failed or unsure; what the child called the person (「할미」 · 「민수」) still comes from the words.
  */
 suspend fun readPartner(

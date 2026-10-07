@@ -17,8 +17,8 @@ class PartnerReadTest {
         runBlocking { readPartner(text, live) { server } }
 
     @Test fun theServerWinsWhereTheWordListMisreads() {
-        // the list sees 「엄마」 first and picks mom; the child asked for dad
-        assertEquals("dad" to "아빠", read("엄마 말고 아빠랑", "dad"))
+        // 「아부지」 is not on the list, so it reads as a friend's name; the child meant dad
+        assertEquals("dad" to "아빠", read("아부지", "dad"))
     }
 
     @Test fun whatTheChildCalledThemStaysWhenBothAgree() {

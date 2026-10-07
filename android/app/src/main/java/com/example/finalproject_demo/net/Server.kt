@@ -175,7 +175,7 @@ object Server {
     /**
      * Who sits with the child, from the answer to 「누구랑?」(#303): a PARTNERS key, "solo" or "unknown".
      * Null when the server is away, Jev failed or was unsure — read the word list (`partnerIn`) then.
-     * Measured 10-07: Jev 153/153 against the word list's 44/51 (`eval/results.md`).
+     * Measured 10-07: Jev 153/153 against the word list's 48/51 (`eval/results.md`).
      */
     suspend fun partner(utterance: String): String? {
         val j = postJson("/partner", JSONObject().put("utterance", utterance), readMs = 6_000) ?: return null

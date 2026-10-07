@@ -28,7 +28,7 @@ from app.llm import jev  # noqa: E402
 
 FIXTURES = ROOT / "eval" / "fixtures_partner.jsonl"
 
-# ── port of demo/Model.kt partnerIn (rev of #300) ──────────────────────────
+# ── port of demo/Model.kt partnerIn (as merged in #300) ──────────────────────
 PARTNER_WORDS = [
     ("외할아버지", "grandpa"), ("친할아버지", "grandpa"), ("할아버지", "grandpa"), ("할부지", "grandpa"),
     ("외할머니", "grandma"), ("친할머니", "grandma"), ("할머니", "grandma"), ("할미", "grandma"),
@@ -46,7 +46,12 @@ SOLO_EXACT = {"나만", "나만있어", "나만할래", "나만왔어", "저만"
 
 def words(text: str) -> str | None:
     compact = "".join(c for c in text if "가" <= c <= "힣")
-    denies = re.search(r"혼자(?:가)?(?:아니|아닌|말고)", compact)
+    # explicit company first, unless it is turned down right after (#300 final, 10-07 08:22)
+    for w, key in PARTNER_WORDS:
+        m = re.search(re.escape(w) + r"(?:이랑|랑|하고|와|과|같이)", compact)
+        if m and not re.match(r"(?:같이|함께)?(?:는|은)?(?:아니|아닌|말고|안|싫)", compact[m.end():]):
+            return key
+    denies = re.search(r"혼자(?:가|는|서|서는)?(?:아니|아닌|말고|안|싫)", compact)
     if not denies and ("혼자" in compact or "아무도없" in compact or compact in SOLO_EXACT):
         return "solo"
     for w, key in PARTNER_WORDS:
