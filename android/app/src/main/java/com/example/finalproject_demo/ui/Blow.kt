@@ -106,6 +106,7 @@ fun rememberBlow(active: Boolean, beats: androidx.compose.runtime.MutableIntStat
                 var traceAt = 0L
                 var blowFrames = 0
                 var frames = 0
+                var peak = 0f
                 Trace.line("blow", "mic open · echo canceller ${effects.any { it is AcousticEchoCanceler }} · noise suppressor ${effects.any { it is NoiseSuppressor }}")
                 rec.startRecording()
                 while (running) {
@@ -118,11 +119,11 @@ fun rememberBlow(active: Boolean, beats: androidx.compose.runtime.MutableIntStat
                     reading.blowing = f.blowing
                     // 음절 세기는 다듬지 않은 크기로 — 다듬으면 음절 사이 끊김이 메워진다. 스피커가 울리는 동안은 0
                     if (beats != null && onsets.feed(if (f.gated) 0f else f.loud)) beats.intValue += 1
-                    frames++; if (f.blowing) blowFrames++
+                    frames++; if (f.blowing) blowFrames++; peak = maxOf(peak, f.level)
                     // 실기기에서 문턱을 고치는 줄 — 1초에 한 줄 (설계 §3-3)
                     if (now - traceAt >= 1000L) {
-                        Trace.line("blow", "level %.2f · zcr %.2f · high %.2f · gated %b · blowing %d/%d".format(f.level, f.zcr, f.high, f.gated, blowFrames, frames))
-                        traceAt = now; blowFrames = 0; frames = 0
+                        Trace.line("blow", "level %.2f (peak %.2f) · zcr %.2f · high %.2f · gated %b · blowing %d/%d".format(f.level, peak, f.zcr, f.high, f.gated, blowFrames, frames))
+                        traceAt = now; blowFrames = 0; frames = 0; peak = 0f
                     }
                 }
             } catch (_: Throwable) {

@@ -11,15 +11,20 @@ import kotlin.math.abs
  * 그래서 여기서는:
  *
  * 1. **스피커가 소리를 내는 동안과 끝난 뒤 [TAIL_MS] 는 듣지 않는다** — 오또 목소리(`Voice.playing`) · 효과음(`Sfx.soundingUntil`)
- * 2. **크기 · 영점 교차율 · 고음 비율이 함께 [HOLD_MS] 넘게 이어져야** 「부는 중」 — 「후~」는 마찰 잡음이라
- *    영점 교차가 잦고 2kHz 위가 두껍다. 모음은 둘 다 낮고, 「스 · 후」 같은 마찰음은 [HOLD_MS] 보다 짧다
+ * 2. **아주 큰 소리([STRONG_ON])가 [HOLD_MS] 넘게 이어져야** 「부는 중」 — 10-07 실기기(S10 · 치영): 마이크에 대고 부는
+ *    「후~」는 쉬익 소리가 아니라 **낮은 바람 울림**으로 들어와 크기가 꽉 찼다(0.85~1.00 · 영점 교차율 0.04~0.19 ·
+ *    고음 비율 0.05~0.16). 30cm 옆 말소리는 0.10~0.21. 그래서 크기가 주 조건이다.
+ *    마찰음 조건(크기 [LOUD_ON] · 영점 교차율 [ZCR_ON] · 고음 비율 [HIGH_ON] 함께)은 멀리서 약하게 부는 숨을 위한 보조로 남긴다.
+ *    「스 · 후」 같은 짧은 마찰음과 말소리의 음절은 [HOLD_MS] 보다 짧다
  *
  * 무슨 말인지는 보지 않는다(받아쓰기 아님) — 프레임마다 숫자 셋만 뽑고 소리는 버린다.
  * 문턱은 출발값이다. 실기기에서 OttoTrace 「blow」 줄(1초에 한 줄)을 보고 고친다.
  */
 class BlowDetector(private val rate: Int = 16000) {
     companion object {
-        /** 다듬은 크기가 이만큼은 돼야 — 말소리 아래쪽(0.12~)을 뺀다. 지금까지는 0.22 */
+        /** 이만큼 크면 그것만으로 「부는 중」 후보 — 실기기 불기 0.85~1.00 · 30cm 말소리 0.10~0.21 (10-07) */
+        const val STRONG_ON = 0.50f
+        /** 마찰음 조건(보조)의 크기 — 말소리 아래쪽(0.12~)을 뺀다. 지금까지는 0.22 */
         const val LOUD_ON = 0.30f
         /** 프레임 안 영점 교차 비율 — 마찰 잡음은 높고 모음은 낮다 */
         const val ZCR_ON = 0.25f
@@ -29,7 +34,7 @@ class BlowDetector(private val rate: Int = 16000) {
          */
         const val HIGH_ON = 0.18f
         const val HIGH_HZ = 2000.0
-        /** 세 조건이 이만큼 이어져야 「부는 중」 */
+        /** 조건이 이만큼 이어져야 「부는 중」 — 한 프레임(64ms) 끊김은 봐준다(숨이 잠깐 흔들린다) */
         const val HOLD_MS = 300L
         /** 스피커가 멈춘 뒤에도 이만큼은 듣지 않는다 — 방 울림 · 출력 지연 */
         const val TAIL_MS = 500L
@@ -44,6 +49,7 @@ class BlowDetector(private val rate: Int = 16000) {
 
     private var level = 0f
     private var since = -1L
+    private var miss = 0
     private var gateUntil = Long.MIN_VALUE
     // 1차 고역 필터 — y[n] = a·(y[n-1] + x[n] − x[n-1])
     private val a = run { val rc = 1.0 / (2 * PI * HIGH_HZ); (rc / (rc + 1.0 / rate)).toFloat() }
@@ -77,13 +83,14 @@ class BlowDetector(private val rate: Int = 16000) {
         val high = if (all > 0) (hi / all).toFloat().coerceIn(0f, 1f) else 0f
         if (nowMs < gateUntil) {
             // 오또가 말하는 동안 들어온 소리는 아이 소리가 아니다 — 다듬던 값도 버린다
-            level = 0f; since = -1L
+            level = 0f; since = -1L; miss = 0
             return Frame(0f, loud, zcr, high, gated = true, blowing = false)
         }
         // 갑자기 튀지 않게 이어 준다(전과 같은 0.6 / 0.4)
         level = level * 0.6f + loud * 0.4f
-        val windy = level >= LOUD_ON && zcr >= ZCR_ON && high >= HIGH_ON
-        if (!windy) since = -1L else if (since < 0) since = nowMs
+        val windy = level >= STRONG_ON || (level >= LOUD_ON && zcr >= ZCR_ON && high >= HIGH_ON)
+        if (windy) { miss = 0; if (since < 0) since = nowMs }
+        else if (since >= 0 && ++miss > 1) { since = -1L; miss = 0 }
         return Frame(level, loud, zcr, high, gated = false, blowing = windy && nowMs - since >= HOLD_MS)
     }
 }

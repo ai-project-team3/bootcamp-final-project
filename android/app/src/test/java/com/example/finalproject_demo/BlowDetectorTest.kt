@@ -12,15 +12,17 @@ import kotlin.random.Random
 /**
  * #258 (10-07 실기기) — 불지 않아도 불기가 끝났다. 오또 낭독 · 말소리는 「부는 중」이 아니고, 「후~」만 그렇다.
  *
- * 소리는 여기서 만든다: 모음(기본음 + 배음) · 「후~」(넓은 잡음) · 말소리(짧은 마찰음과 모음이 번갈아).
- * 실기기 녹음으로 문턱을 고치는 것은 설계 §3-3 의 다음 단계다(아이 목소리는 넣지 않는다).
+ * 소리는 여기서 만든다: 모음(기본음 + 배음) · 「후~」(넓은 잡음) · 말소리(짧은 마찰음과 모음이 번갈아) ·
+ * 마이크에 대고 분 숨(낮은 바람 울림 · 꽉 찬 크기). 크기는 10-07 실기기(S10) 기록에 맞췄다 — 30cm 말소리 0.10~0.21 ·
+ * 마이크에 대고 분 「후~」 0.85~1.00 · 영점 교차율 0.04~0.19 · 고음 비율 0.05~0.16.
  */
 class BlowDetectorTest {
     private val rate = 16000
     private val frame = 1024
     private val frameMs = frame * 1000L / rate          // 64
 
-    private fun vowel(ms: Long, f0: Double = 220.0, amp: Double = 9000.0): ShortArray {
+    /** 기본 크기는 다듬은 크기 ≈ 0.25 — 30cm 말소리(0.10~0.21)보다 조금 크게 */
+    private fun vowel(ms: Long, f0: Double = 220.0, amp: Double = 3600.0): ShortArray {
         val n = (rate * ms / 1000).toInt()
         return ShortArray(n) { i ->
             var v = 0.0
@@ -68,6 +70,31 @@ class BlowDetectorTest {
         assertTrue("2초 숨 중 부는 중이 ${on}ms", on >= 1400)
     }
 
+    /** 마이크에 대고 분 숨 — 300Hz 아래 바람 울림, 크기가 꽉 찬다 */
+    private fun rumble(ms: Long): ShortArray {
+        val rnd = Random(5)
+        val a = (1.0 / rate) / (1.0 / (2 * PI * 300.0) + 1.0 / rate)
+        var y = 0.0
+        return ShortArray((rate * ms / 1000).toInt()) { y += a * (rnd.nextDouble(-1.0, 1.0) - y); (y * 120000).toInt().coerceIn(-32768, 32767).toShort() }
+    }
+
+    private fun join(parts: List<ShortArray>) =
+        ShortArray(parts.sumOf { it.size }).also { out -> var o = 0; parts.forEach { it.copyInto(out, o); o += it.size } }
+
+    @Test
+    fun aBreathIntoTheMicIsBlowing() {
+        val d = BlowDetector(rate)
+        val on = blowingMs(d, rumble(2500))
+        assertTrue("2.5초 마이크에 분 숨 중 부는 중이 ${on}ms", on >= 1800)
+    }
+
+    @Test
+    fun loudSpeechCloseToTheMicIsNotBlowing() {
+        // 10cm 앞에서 크게 말해도 음절(≈200ms) 사이가 끊긴다 — [HOLD_MS] 까지 이어지지 않는다
+        val parts = (0 until 12).flatMap { listOf(vowel(200, amp = 12000.0), ShortArray(rate * 150 / 1000)) }
+        assertEquals(0L, blowingMs(BlowDetector(rate), join(parts)))
+    }
+
     @Test
     fun aLoudVowelIsNotBlowing() {
         // 오또 낭독 · 아이 말소리의 모음 — 크기는 문턱을 넘어도 부는 것이 아니다
@@ -78,8 +105,8 @@ class BlowDetectorTest {
     @Test
     fun speechWithShortFricativesIsNotBlowing() {
         // 「후~ 불어 볼게」를 말로 — 마찰음(≈130ms)과 모음(≈200ms)이 번갈아 3초
-        val parts = (0 until 10).flatMap { listOf(breath(130, seed = it), vowel(200)) }
-        val pcm = ShortArray(parts.sumOf { it.size }).also { out -> var o = 0; parts.forEach { it.copyInto(out, o); o += it.size } }
+        val parts = (0 until 10).flatMap { listOf(breath(130, amp = 3000, seed = it), vowel(200)) }
+        val pcm = join(parts)
         assertEquals(0L, blowingMs(BlowDetector(rate), pcm))
     }
 
