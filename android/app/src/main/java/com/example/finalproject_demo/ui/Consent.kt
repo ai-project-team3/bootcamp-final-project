@@ -576,6 +576,10 @@ fun SoundSettingsSection() {
         CheckLine(FeelPrefs.soundOn, "효과음") { FeelPrefs.setSound(!FeelPrefs.soundOn) }
         Spacer(Modifier.height(6.dp))
         CheckLine(FeelPrefs.buzzOn, "진동 — 누르거나 해냈을 때 살짝 떨려요") { FeelPrefs.setBuzz(!FeelPrefs.buzzOn) }
+        Spacer(Modifier.height(6.dp))
+        CheckLine(FeelPrefs.musicOn, "배경음악 — 동화책을 읽을 때 장면에 맞는 음악") { FeelPrefs.setMusic(!FeelPrefs.musicOn) }
+        Spacer(Modifier.height(6.dp))
+        Body("배경음악은 ACE-Step 1.5(MIT)로 만들었어요.")
     }
 }
 

@@ -80,4 +80,12 @@ class FeelPrefsTest {
         assertNull(Sfx.buzz(Sound.HISS))
         listOf(Sound.POP, Sound.THUD, Sound.SPARKLE).forEach { assertNotNull("$it 는 떨어야 한다", Sfx.buzz(it)) }
     }
+
+    @Test
+    fun musicIsOnAtFirstAndSurvivesARestart() {
+        assertTrue(FeelPrefs.musicOn)
+        FeelPrefs.setMusic(false)
+        restart()
+        assertFalse(FeelPrefs.musicOn)
+    }
 }

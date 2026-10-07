@@ -69,16 +69,28 @@ object FeelPrefs {
     var buzzOn by mutableStateOf(true)
         private set
 
+    /** 동화책을 읽을 때 배경음악 (#221) */
+    var musicOn by mutableStateOf(true)
+        private set
+
     fun load(context: Context) {
         val p = context.applicationContext.getSharedPreferences("feel", Context.MODE_PRIVATE)
         prefs = p
         soundOn = p.getBoolean("sound", true)
         buzzOn = p.getBoolean("buzz", true)
+        musicOn = p.getBoolean("music", true)
+        com.example.finalproject_demo.net.Bgm.setEnabled(musicOn)
     }
 
     fun setSound(on: Boolean) {
         soundOn = on
         prefs?.edit()?.putBoolean("sound", on)?.apply()
+    }
+
+    fun setMusic(on: Boolean) {
+        musicOn = on
+        prefs?.edit()?.putBoolean("music", on)?.apply()
+        com.example.finalproject_demo.net.Bgm.setEnabled(on)
     }
 
     fun setBuzz(on: Boolean) {
@@ -91,6 +103,7 @@ object FeelPrefs {
         prefs = null
         soundOn = true
         buzzOn = true
+        musicOn = true
     }
 }
 
