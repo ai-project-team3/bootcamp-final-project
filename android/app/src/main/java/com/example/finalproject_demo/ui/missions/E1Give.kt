@@ -132,7 +132,9 @@ internal fun GiveMission(d: Director, done: Boolean, heroArt: Art, tool: String)
         val dens = LocalDensity.current
         val itemSize: Dp = 88.dp
         val itemPx = with(dens) { itemSize.toPx() }
-        val startX = wpx * 0.30f; val startY = hpx * 0.22f
+        // 건넬 물건(별 · 음표 …)은 책 안내 말풍선 아래 띠에서 시작한다 — 0.22 는 말풍선 밑에 깔렸다
+        // (#154 · A4 · C3 · E2 · A5 와 같은 띠 `93bd340`). 위 1/4 아래 · 아래 문장 띠 위
+        val startX = wpx * 0.30f; val startY = hpx * 0.42f
         // 친구 = 목표 (넓게 판정)
         val fx = 0.60f; val fy = 0.26f; val fw = 0.19f
         val fL = fx * wpx; val fT = fy * hpx; val fS = fw * wpx
