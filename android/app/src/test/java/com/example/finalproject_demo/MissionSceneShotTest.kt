@@ -11,8 +11,10 @@ import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.demo.missions.BlowProp
 import com.example.finalproject_demo.demo.missions.SoundProp
 import com.example.finalproject_demo.ui.Bg
+import com.example.finalproject_demo.ui.missions.BlowMission
 import com.example.finalproject_demo.ui.missions.FixMission
 import com.example.finalproject_demo.ui.missions.GiveMission
 import com.example.finalproject_demo.ui.missions.HINT_AFTER_MS
@@ -20,6 +22,7 @@ import com.example.finalproject_demo.ui.missions.HINT_LINE
 import com.example.finalproject_demo.ui.missions.HINT_SHOW_MS
 import com.example.finalproject_demo.ui.missions.HoseMission
 import com.example.finalproject_demo.ui.missions.RollMission
+import com.example.finalproject_demo.ui.missions.RubMission
 import com.example.finalproject_demo.ui.missions.SoundMission
 import com.example.finalproject_demo.ui.missions.StackMission
 import com.example.finalproject_demo.ui.missions.TurnMission
@@ -99,4 +102,8 @@ class MissionSceneShotTest {
     @Test fun a5StackDone() = done("a5_stack") { StackMission(it, true, hero) }
     @Test fun e1GiveHint() = hint("e1_give") { GiveMission(it, false, hero, "hand") }
     @Test fun e2FixHint() = hint("e2_fix") { FixMission(it, false, hero) }
+    @Test fun c1CandleHint() = hint("c1_candle") { BlowMission(it, false, hero, BlowProp.CANDLE) }
+    @Test fun c1CandleDone() = done("c1_candle") { BlowMission(it, true, hero, BlowProp.CANDLE) }
+    @Test fun c1DandelionDone() = done("c1_dandelion") { BlowMission(it, true, hero, BlowProp.DANDELION) }
+    @Test fun a6RubHint() = hint("a6_rub") { RubMission(it, false, hero, hero, "hand") }
 }
