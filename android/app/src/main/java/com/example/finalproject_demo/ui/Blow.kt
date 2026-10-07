@@ -5,16 +5,22 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AudioEffect
+import android.media.audiofx.NoiseSuppressor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import com.example.finalproject_demo.net.Trace
+import com.example.finalproject_demo.net.Voice
+import com.example.finalproject_demo.ui.missions.BlowDetector
 import kotlin.concurrent.thread
-import kotlin.math.abs
 
 /*
  * 후~ 불기 — 마이크를 **음량으로만** 쓴다 (미션 구상 C1 · 9/23).
@@ -28,16 +34,33 @@ import kotlin.math.abs
  *    마이크가 막혀 있거나 권한을 안 주면 조용히 0을 돌려주고 아무 일도 없다.
  */
 
+/** 마이크로 읽은 것 — [level] 소리 세기(0~1, 스피커가 소리를 내는 동안 0) · [blowing] 「후~」가 이어지는 중 ([BlowDetector]) */
+class BlowReading {
+    var level by mutableFloatStateOf(0f)
+        internal set
+    var blowing by mutableStateOf(false)
+        internal set
+}
+
+/** 스피커가 오또 목소리 · 효과음을 내는 중인가 — 그동안 들어온 소리는 아이 소리가 아니다 (#258) */
+internal fun speakerBusy(now: Long = System.currentTimeMillis()) = Voice.playing.value || now < Sfx.soundingUntil
+
+/** 소리 세기만 (C3 소리 흉내) — [rememberBlow] 의 [BlowReading.level] */
+@Composable
+fun rememberBlowLevel(active: Boolean, beats: androidx.compose.runtime.MutableIntState? = null): Float =
+    rememberBlow(active, beats).level
+
 /**
- * 마이크로 들어오는 소리의 세기 (0~1). 듣지 않거나 못 들으면 0.
+ * 마이크로 들어오는 소리 (#258 부터 판정은 [BlowDetector] 한 곳). 듣지 않거나 못 들으면 0 · false.
  *
  * @param active 지금 이 화면이 불기를 받는가
  * @param beats 주면 소리 덩어리(음절)가 하나 시작될 때마다 1 씩 올린다 — C3 소리 흉내가 「삐-뽀-삐-뽀」를 센다([VoiceOnsets])
  */
 @Composable
-fun rememberBlowLevel(active: Boolean, beats: androidx.compose.runtime.MutableIntState? = null): Float {
+fun rememberBlow(active: Boolean, beats: androidx.compose.runtime.MutableIntState? = null): BlowReading {
     val ctx = LocalContext.current
-    var level by remember { mutableFloatStateOf(0f) }
+    val reading = remember { BlowReading() }
+    val idle = remember { BlowReading() }
     var granted by remember {
         mutableFloatStateOf(
             if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO)
@@ -60,6 +83,7 @@ fun rememberBlowLevel(active: Boolean, beats: androidx.compose.runtime.MutableIn
         var running = true
         val t = thread(isDaemon = true, name = "blow") {
             var rec: AudioRecord? = null
+            val effects = mutableListOf<AudioEffect>()
             try {
                 val rate = 16000
                 val frame = 1024
@@ -72,27 +96,43 @@ fun rememberBlowLevel(active: Boolean, beats: androidx.compose.runtime.MutableIn
                     maxOf(min, frame * 8),
                 )
                 if (rec.state != AudioRecord.STATE_INITIALIZED) return@thread
+                // 스피커에서 나온 오또 목소리를 마이크에서 빼 준다 — 있는 기기만. 없으면 [speakerBusy] 문이 막는다 (#258)
+                val session = rec.audioSessionId
+                if (AcousticEchoCanceler.isAvailable()) AcousticEchoCanceler.create(session)?.let { it.enabled = true; effects += it }
+                if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(session)?.let { it.enabled = true; effects += it }
                 val buf = ShortArray(frame)
                 val onsets = VoiceOnsets()
+                val detector = BlowDetector(rate)
+                var traceAt = 0L
+                var blowFrames = 0
+                var frames = 0
+                Trace.line("blow", "mic open · echo canceller ${effects.any { it is AcousticEchoCanceler }} · noise suppressor ${effects.any { it is NoiseSuppressor }}")
                 rec.startRecording()
                 while (running) {
                     val n = rec.read(buf, 0, frame)
                     if (n <= 0) continue
-                    // 평균 크기 하나만 뽑는다. 무슨 소리였는지는 보지 않는다
-                    var sum = 0L
-                    for (i in 0 until n) sum += abs(buf[i].toInt())
-                    val loud = (sum.toFloat() / n / 6000f).coerceIn(0f, 1f)
-                    // 갑자기 튀지 않게 이어 준다 — 숫자가 덜덜 떨리면 불꽃도 덜덜 떨린다
-                    level = level * 0.6f + loud * 0.4f
-                    // 음절 세기는 다듬지 않은 크기로 — 다듬으면 음절 사이 끊김이 메워진다
-                    if (beats != null && onsets.feed(loud)) beats.intValue += 1
+                    // 숫자 몇 개만 뽑는다. 무슨 소리였는지는 보지 않는다
+                    val now = System.currentTimeMillis()
+                    val f = detector.feed(buf, n, now, speakerBusy(now))
+                    reading.level = f.level
+                    reading.blowing = f.blowing
+                    // 음절 세기는 다듬지 않은 크기로 — 다듬으면 음절 사이 끊김이 메워진다. 스피커가 울리는 동안은 0
+                    if (beats != null && onsets.feed(if (f.gated) 0f else f.loud)) beats.intValue += 1
+                    frames++; if (f.blowing) blowFrames++
+                    // 실기기에서 문턱을 고치는 줄 — 1초에 한 줄 (설계 §3-3)
+                    if (now - traceAt >= 1000L) {
+                        Trace.line("blow", "level %.2f · zcr %.2f · high %.2f · gated %b · blowing %d/%d".format(f.level, f.zcr, f.high, f.gated, blowFrames, frames))
+                        traceAt = now; blowFrames = 0; frames = 0
+                    }
                 }
             } catch (_: Throwable) {
                 // 마이크를 못 열면 조용히 포기한다 — 손으로 하면 된다
             } finally {
+                effects.forEach { runCatching { it.release() } }
                 runCatching { rec?.stop() }
                 runCatching { rec?.release() }
-                level = 0f
+                reading.level = 0f
+                reading.blowing = false
             }
         }
         onDispose {
@@ -101,7 +141,8 @@ fun rememberBlowLevel(active: Boolean, beats: androidx.compose.runtime.MutableIn
         }
     }
 
-    return if (active) level else 0f
+    // 듣지 않는 화면이면 남은 값을 보지 않는다
+    return if (active) reading else idle
 }
 
 /**
