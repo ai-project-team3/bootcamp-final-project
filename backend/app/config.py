@@ -113,4 +113,14 @@ class Settings(BaseSettings):
     daily_cap_state: str = ""            # where the day's total is kept; empty = backend/daily_cap.json
 
 
+    # ── admin sign-in for the endpoint monitor (app/admin.py · 10-07) ──
+    # No default: with no hash the monitor and /stats stay locked. Make the hash with
+    # `py backend/scripts/admin_password.py` and put both lines in the server's .env.
+    admin_user: str = ""
+    admin_password_hash: str = ""
+    # Optional separate key for the session cookie; empty = the password hash (a new password signs everyone out)
+    admin_session_secret: str = ""
+    # The public site is https; False only for a plain-http local test
+    admin_cookie_secure: bool = True
+
 settings = Settings()

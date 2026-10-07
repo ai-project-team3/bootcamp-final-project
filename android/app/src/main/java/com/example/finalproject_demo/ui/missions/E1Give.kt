@@ -15,7 +15,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -132,7 +131,9 @@ internal fun GiveMission(d: Director, done: Boolean, heroArt: Art, tool: String)
         val dens = LocalDensity.current
         val itemSize: Dp = 88.dp
         val itemPx = with(dens) { itemSize.toPx() }
-        val startX = wpx * 0.30f; val startY = hpx * 0.22f
+        // 건넬 물건(별 · 음표 …)은 책 안내 말풍선 아래 띠에서 시작한다 — 0.22 는 말풍선 밑에 깔렸다
+        // (#154 · A4 · C3 · E2 · A5 와 같은 띠 `93bd340`). 위 1/4 아래 · 아래 문장 띠 위
+        val startX = wpx * 0.30f; val startY = hpx * 0.42f
         // 친구 = 목표 (넓게 판정)
         val fx = 0.60f; val fy = 0.26f; val fw = 0.19f
         val fL = fx * wpx; val fT = fy * hpx; val fS = fw * wpx
@@ -155,8 +156,8 @@ internal fun GiveMission(d: Director, done: Boolean, heroArt: Art, tool: String)
                 // 미션 2는 건넬 상대가 있어야 한다. 아이가 그린 것 → 아이가 말한 사람 →
                 // 둘 다 없으면 마스코트가 받는다. **없는 친구를 앱이 만들어 내지 않는다** (일기 §3-2)
                 val target = s.friendOrPartnerArt ?: Art.Mascot
+                // no white frame around who receives it (#259) — it read as a cut-out card over the stage; the drag target is still the whole layer
                 Tappable({ reactionFor(s, tool, "friend") }, Modifier.fillMaxSize()) { ArtView(target, Modifier.fillMaxSize()) }
-                if (!given) Box(Modifier.fillMaxSize().border(3.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(24.dp)))
             }
         }
         if (given) {

@@ -56,6 +56,14 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.ShelfBook
 import com.example.finalproject_demo.demo.CoopShelf
 import com.example.finalproject_demo.demo.Stage
+import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.demo.openShelfMode
+import com.example.finalproject_demo.demo.shelfMode
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import com.example.finalproject_demo.demo.restoreStoryBook
 import com.example.finalproject_demo.demo.restoreCoopBook
 import com.example.finalproject_demo.demo.playStorySound
@@ -72,8 +80,11 @@ private val SHELF_Y = listOf(0.645f, 0.985f)   // bg_shelf를 가로 화면에 C
 @Composable
 fun ShelfView(d: Director, stage: Stage.Shelf) {
     val s = d.s
-    var shelfPage by remember { mutableIntStateOf(0) }
-    val lastShelfPage = ((s.shelf.size - 1).coerceAtLeast(0)) / 8
+    // 책장은 모드마다 따로다(#154 · guidelines/3 §3-5) — 왼쪽 그림 탭으로 고른다. 글을 못 읽어도 방 물건과 같은 그림 · 색이다
+    var mode by remember { mutableStateOf(openShelfMode(s.shelf, s.mode)) }
+    val shown = s.shelf.filter { it.shelfMode(s.mode) == mode }
+    var shelfPage by remember(mode) { mutableIntStateOf(0) }
+    val lastShelfPage = ((shown.size - 1).coerceAtLeast(0)) / 8
     if (shelfPage > lastShelfPage) shelfPage = lastShelfPage
     Box(Modifier.fillMaxSize().background(Color(0xFF6B4A33))) {
         AssetImage("bg_shelf", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
@@ -82,18 +93,29 @@ fun ShelfView(d: Director, stage: Stage.Shelf) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val bookW = 72.dp
             val bookH = 98.dp
-            val books = s.shelf.drop(shelfPage * 8).take(8)
+            val books = shown.drop(shelfPage * 8).take(8)
             books.forEachIndexed { i, b ->
                 val row = if (i < 4) 0 else 1
                 val col = if (i < 4) i else i - 4
                 val x = maxWidth * 0.262f + (bookW + 22.dp) * col
                 val y = maxHeight * SHELF_Y[row] - bookH
-                Box(Modifier.offset(x, y).size(bookW, bookH)) {
-                    ShelfBookView(d, b, fresh = b.fresh && stage.fromEnd)
+                // 탭을 바꾸면 다른 책이 같은 자리에 온다 — 내려오는 움직임 · 「새 책!」이 그 책을 따라가게
+                key(b.savedStoryId ?: b.title) {
+                    Box(Modifier.offset(x, y).size(bookW, bookH)) {
+                        ShelfBookView(d, b, fresh = b.fresh && stage.fromEnd)
+                    }
                 }
             }
         }
-        if (s.shelf.isEmpty()) {
+        Column(
+            Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 78.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SHELF_TABS.forEach { tab ->
+                ShelfModeTab(tab, on = tab.mode == mode, count = s.shelf.count { it.shelfMode(s.mode) == tab.mode }) { mode = tab.mode }
+            }
+        }
+        if (shown.isEmpty()) {
             Text("아직 만든 책이 없어요", color = Color.White, fontSize = 24.sp,
                 modifier = Modifier.align(Alignment.Center))
         }
@@ -119,8 +141,43 @@ fun ShelfView(d: Director, stage: Stage.Shelf) {
             Modifier
                 .felt(FeltWhite.copy(alpha = 0.94f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
                 .padding(horizontal = 14.dp, vertical = 6.dp)
-        ) { Text("📚 ${s.shelf.size}권", fontSize = 16.sp, color = Ink) }
+        ) { Text("📚 ${shown.size}권", fontSize = 16.sp, color = Ink) }
         }
+    }
+}
+
+/** 책장 탭 하나 = 모드 하나. 그림 · 색은 방의 물건 이름표와 같다(`ui/shell/Room.kt` Thing) */
+private class ShelfTab(val mode: StoryMode, val name: String, val badge: String, val icon: String, val color: Color)
+
+private val SHELF_TABS = listOf(
+    ShelfTab(StoryMode.STORY, "동화", "icon_story", "🎭", FeltCoral),
+    ShelfTab(StoryMode.DIARY, "그림일기", "icon_diary", "☀️", FeltSky),
+    ShelfTab(StoryMode.COOP, "같이 만들기", "icon_coop", "🛋", FeltTeal),
+)
+
+/** 동그란 펠트 탭 — 고른 탭은 크고 흰 테두리. 오른쪽 위 숫자는 그 책장의 권수 */
+@Composable
+private fun ShelfModeTab(tab: ShelfTab, on: Boolean, count: Int, onClick: () -> Unit) {
+    val size = if (on) 64.dp else 54.dp
+    Box(
+        Modifier.size(64.dp).semantics { contentDescription = "${tab.name} 책장 ${count}권"; selected = on },
+        contentAlignment = Alignment.Center,
+    ) {
+        FeltButton(
+            tab.color, onClick = onClick,
+            modifier = Modifier.size(size).alpha(if (on) 1f else 0.8f)
+                .then(if (on) Modifier.border(4.dp, FeltWhite, CircleShape) else Modifier),
+            shape = CircleShape,
+        ) {
+            AssetImage(tab.badge, Modifier.align(Alignment.Center).size(size * 0.66f)) {
+                Text(tab.icon, fontSize = 24.sp, modifier = Modifier.align(Alignment.Center))
+            }
+        }
+        if (count > 0) Box(
+            Modifier.align(Alignment.TopEnd).size(22.dp)
+                .felt(FeltWhite, CircleShape, lift = 2.dp, stitch = false),
+            contentAlignment = Alignment.Center,
+        ) { Text("$count", fontSize = 12.sp, color = Ink, fontWeight = FontWeight.Bold) }
     }
 }
 

@@ -434,9 +434,9 @@ class TouchTest {
         compose.mainClock.advanceTimeBy(600)
         snap("build/touch/drag_before.png")
 
-        // 물건은 (0.30W, 0.22H) 에서 시작하고 친구는 (0.695W, 0.26H+) 에 있다 — 그 사이를 끈다
+        // 물건은 (0.30W, 0.42H) 에서 시작하고(#154 — 안내 말풍선 아래 띠) 친구는 (0.695W, 0.26H+) 에 있다 — 그 사이를 끈다
         compose.onRoot().performTouchInput {
-            val from = androidx.compose.ui.geometry.Offset(width * 0.355f, height * 0.33f)
+            val from = androidx.compose.ui.geometry.Offset(width * 0.355f, height * 0.53f)
             val to = androidx.compose.ui.geometry.Offset(width * 0.695f, height * 0.46f)
             down(from)
             for (k in 1..8) {
