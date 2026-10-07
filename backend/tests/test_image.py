@@ -26,7 +26,7 @@ def live(monkeypatch):
     async def scene(*_, **__):
         return {"safe": True, "scene": "a dinosaur land with tall ferns"}
 
-    async def draw(_):
+    async def draw(*_):
         return PNG
 
     async def safe(_):
@@ -79,7 +79,7 @@ def test_scene_llm_down_is_a_preset(live):
 
 
 def test_comfy_down_is_a_preset(live):
-    async def boom(_):
+    async def boom(*_):
         raise comfy.ComfyError("network")
     live.setattr(comfy, "background", boom)
     out = post()
@@ -95,7 +95,7 @@ def test_a_flagged_picture_never_reaches_the_child(live):
 
 
 def test_too_slow_is_a_preset(live):
-    async def slow(_):
+    async def slow(*_):
         await asyncio.sleep(1)
         return PNG
     live.setattr(comfy, "background", slow)
@@ -168,3 +168,32 @@ def test_a_background_goes_to_the_front_of_the_gpu_queue(monkeypatch):
     monkeypatch.setattr(comfy, "run", run)
     asyncio.run(comfy.background("a sunny park"))
     assert seen["front"] is True
+
+
+# ── art style (10-07 종훈 · 크레용 아이 그림체) ───────────────────────────
+
+def test_the_book_style_reaches_the_background(live):
+    got = []
+
+    async def draw(scene, style="felt"):
+        got.append(style)
+        return PNG
+    live.setattr(comfy, "background", draw)
+    post()
+    post(style="crayon")
+    assert got == ["felt", "crayon"]
+
+
+def test_an_unknown_style_is_refused():
+    r = TestClient(app).post("/image", json={"place": "공룡나라", "style": "oil"})
+    assert r.status_code == 422
+
+
+def test_felt_words_are_unchanged_and_crayon_has_its_own():
+    felt = comfy.workflow("a beach", seed=1)
+    assert felt["2"]["inputs"]["text"] == "a beach" + comfy.BG_STYLE and felt["3"]["inputs"]["text"] == comfy.NEG
+    crayon = comfy.workflow("a beach", seed=1, style="crayon")
+    text = crayon["2"]["inputs"]["text"]
+    assert "crayon" in text and "felt" not in text
+    assert "felt" in crayon["3"]["inputs"]["text"]          # the negative keeps felt out
+    assert crayon["1"] == felt["1"] and crayon["5"]["inputs"]["steps"] == 8   # same model and steps

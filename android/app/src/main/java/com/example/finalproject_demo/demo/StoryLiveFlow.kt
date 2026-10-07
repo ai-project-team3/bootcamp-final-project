@@ -74,7 +74,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 if (s.place == place) log("배경 생성 8초 경과 · 대화는 계속 진행")
             }
             try {
-                val png = withTimeoutOrNull(15_000) { Server.image(mask.mask(place), "story") }
+                val png = withTimeoutOrNull(15_000) { Server.image(mask.mask(place), "story", s.bookStyle) }
                 val saved = png?.let { withContext(Dispatchers.IO) { saveStoryImage(it) } }
                 currentCoroutineContext().ensureActive()
                 if (s.place == place && imagePlace == place) {
@@ -208,7 +208,7 @@ internal suspend fun Director.completeStoryBackgroundFromBook() {
     s.stage = Stage.Show(s.storyHeroArt, "이야기 그림을 마무리하는 중…")
     inputs(false, false)
     buttons()
-    val png = withTimeoutOrNull(15_000) { Server.image(s.nameMask().mask(scene), "story") }
+    val png = withTimeoutOrNull(15_000) { Server.image(s.nameMask().mask(scene), "story", s.bookStyle) }
     val saved = png?.let { withContext(Dispatchers.IO) { saveStoryImage(it) } }
     currentCoroutineContext().ensureActive()
     s.storyBackground = saved
@@ -237,7 +237,8 @@ internal fun DemoState.syncStoryPresentation() {
         if (s.place != place) s.sceneSeed = kotlin.random.Random.nextLong()
         // the three app themes (공룡 나라 · 우주 · 바다) go to their kits too — the kit has a floor and lives (birds, bubbles);
         // the theme picture is only for a place no kit matches (10-06 lead decision on #222 · device-checked all eight kits)
-        s.sceneKit = if (SceneKits.liveStory) SceneKits.matching(place)?.key else null
+        // a kit in this book's style only — felt pieces under a crayon book would put two styles on one stage (WorldStyle)
+        s.sceneKit = if (SceneKits.liveStory) SceneKits.matching(place)?.takeIf { WorldStyle.kitReady(it, s.bookStyle) }?.key else null
         s.place = place
     }
     s.problem = s.slots["problem"]

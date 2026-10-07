@@ -1360,6 +1360,8 @@ class DemoState {
     var dailyLimit by mutableStateOf(3)
     var pinToStart by mutableStateOf(false)
     var artStyle by mutableStateOf("felt")
+    /** This book's art style — taken from [artStyle] when the book starts, so a change applies from the next book (demo/WorldStyle.kt) */
+    var bookStyle by mutableStateOf("felt")
 
     /** 오늘 쓴 이야기 수 · 남은 하루 별 — 한 권마다 하나씩 쓴다 */
     var usedToday by mutableStateOf(0)
@@ -1456,6 +1458,9 @@ class DemoState {
         heroTries.clear()
         modeVoice = 0; modeCard = 0; modeDraw = 0; modeSilent = 0
         shelf.replaceAll { it.copy(fresh = false) }
+        // a new book takes the parent's art style now; a change made during this book waits for the next one (결정 27)
+        bookStyle = artStyle
+        WorldStyle.current = bookStyle
     }
 
     /** 앱을 새로 켠 것처럼 전부 지운다 (시연 서랍 "처음부터") */

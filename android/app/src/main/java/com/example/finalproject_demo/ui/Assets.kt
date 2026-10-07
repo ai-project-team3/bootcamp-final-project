@@ -25,9 +25,12 @@ import kotlin.math.sin
 fun assetId(name: String): Int {
     if (name.startsWith("local:")) return 0
     val ctx = LocalContext.current
-    return remember(name) {
+    // a world picture in this book's art style when one is bundled, else the felt one (demo/WorldStyle.kt · 결정 27)
+    val style = com.example.finalproject_demo.demo.WorldStyle.current
+    return remember(name, style) {
         @Suppress("DiscouragedApi")
-        ctx.resources.getIdentifier(name, "drawable", ctx.packageName)
+        fun id(n: String) = ctx.resources.getIdentifier(n, "drawable", ctx.packageName)
+        id(com.example.finalproject_demo.demo.WorldStyle.resolve(name, style) { id(it) != 0 })
     }
 }
 

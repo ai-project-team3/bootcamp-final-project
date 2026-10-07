@@ -28,18 +28,44 @@ NEG = ("text, letters, words, watermark, signature, photo, photorealistic, 3d re
        "nudity, blood, weapon, gore")      # last line added for the product; not in the bench
 W, H = 1344, 768
 
+# Crayon (10-07 종훈 picked 「크레용 아이 그림체」 from four candidates: thick hand-drawn outlines, waxy fill).
+# ⚠️ Not measured yet — the app keeps it off (ART_STYLES ready=false) until PC2 timing / cut-out / moderation
+# numbers are in eval/results.md, as felt's were (eval/bench_felt_style.py · bench_felt_character.py).
+CRAYON_BG_STYLE = (", wide landscape, no characters, no people, no animals, children's crayon drawing illustration, "
+                   "thick dark brown hand-drawn outlines, waxy crayon texture fill, simple flat rounded shapes, "
+                   "bright warm colors, on white paper, cute, no text, no letters")
+CRAYON_NEG = ("text, letters, words, watermark, signature, photo, photorealistic, 3d render, 3d, felt, wool, fabric, "
+              "plastic, glossy, blurry, ugly, scary, dark, horror, "
+              "nudity, blood, weapon, gore")
+CRAYON_CHAR_STYLE = (", children's crayon drawing character, thick dark brown hand-drawn outlines, waxy crayon texture "
+                     "fill, simple flat rounded shapes, bright warm colors, isolated on plain pure white background, "
+                     "no shadow, no text")
+CRAYON_CHAR_NEG = ("text, letters, watermark, photo, photorealistic, 3d render, 3d, felt, wool, fabric, plastic, glossy, "
+                   "blurry, ugly, scary, dark, horror, "
+                   "background scenery, frame, border, card, backdrop, circle behind, colored background, "
+                   "multiple characters, nudity, blood, weapon, gore")
+
 
 class ComfyError(Exception):
     pass
 
 
-def workflow(scene: str, seed: int) -> dict:
+def styles(style: str) -> dict:
+    """The words for one art style — background, its negative, character, its negative.
+    Unknown names are the schema's job (422); here they fall back to felt"""
+    if style == "crayon":
+        return {"bg": CRAYON_BG_STYLE, "neg": CRAYON_NEG, "char": CRAYON_CHAR_STYLE, "char_neg": CRAYON_CHAR_NEG}
+    return {"bg": BG_STYLE, "neg": NEG, "char": CHAR_STYLE, "char_neg": CHAR_NEG}
+
+
+def workflow(scene: str, seed: int, style: str = "felt") -> dict:
+    st = styles(style)
     return {
         "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": settings.image_ckpt}},
         "8": {"class_type": "LoraLoaderModelOnly", "inputs": {
             "model": ["1", 0], "lora_name": settings.image_lora, "strength_model": 1.0}},
-        "2": {"class_type": "CLIPTextEncode", "inputs": {"text": scene + BG_STYLE, "clip": ["1", 1]}},
-        "3": {"class_type": "CLIPTextEncode", "inputs": {"text": NEG, "clip": ["1", 1]}},
+        "2": {"class_type": "CLIPTextEncode", "inputs": {"text": scene + st["bg"], "clip": ["1", 1]}},
+        "3": {"class_type": "CLIPTextEncode", "inputs": {"text": st["neg"], "clip": ["1", 1]}},
         "4": {"class_type": "EmptyLatentImage", "inputs": {"width": W, "height": H, "batch_size": 1}},
         "5": {"class_type": "KSampler", "inputs": {
             "model": ["8", 0], "positive": ["2", 0], "negative": ["3", 0], "latent_image": ["4", 0],
@@ -67,9 +93,9 @@ async def _cancel(base: str, pid: str) -> None:
         pass
 
 
-async def background(scene: str) -> bytes:
+async def background(scene: str, style: str = "felt") -> bytes:
     """PNG bytes. Raises ComfyError; the caller owns the deadline and cancelling cancels the job."""
-    return await run(workflow(scene, random.randrange(2 ** 31)), front=True)
+    return await run(workflow(scene, random.randrange(2 ** 31), style), front=True)
 
 
 # ── characters: img2img from a posed mannequin (docs/캐릭터_생성_규격.md §8) ──────────
@@ -112,10 +138,11 @@ async def upload(png: bytes, name: str) -> str:
     return (j["subfolder"] + "/" if j.get("subfolder") else "") + j["name"]
 
 
-def character_workflow(subject: str, rig: str, seed: int, template: str | None) -> dict:
-    wf = workflow("", seed)
-    wf["2"]["inputs"]["text"] = f"a cute {subject} puppet, {CHAR_POSE[rig]}{CHAR_STYLE}"
-    wf["3"]["inputs"]["text"] = CHAR_NEG
+def character_workflow(subject: str, rig: str, seed: int, template: str | None, style: str = "felt") -> dict:
+    st = styles(style)
+    wf = workflow("", seed, style)
+    wf["2"]["inputs"]["text"] = f"a cute {subject} {'drawing' if style == 'crayon' else 'puppet'}, {CHAR_POSE[rig]}{st['char']}"
+    wf["3"]["inputs"]["text"] = st["char_neg"]
     wf["7"]["inputs"]["filename_prefix"] = "otto/char"
     if template is None:                       # blob: nothing to keep, plain text-to-image
         wf["4"]["inputs"].update({"width": 1024, "height": 1024})
@@ -214,7 +241,7 @@ DIARY_BG_DENOISE = 0.9
 
 
 def redraw_workflow(subject: str, seed: int, drawing_b64: str, denoise: float | None = None,
-                    mode: str = "story", role: str | None = None) -> dict:
+                    mode: str = "story", role: str | None = None, style: str = "felt") -> dict:
     diary = mode == "diary"
     scene = role == "background"
     if denoise is None:
@@ -224,8 +251,10 @@ def redraw_workflow(subject: str, seed: int, drawing_b64: str, denoise: float | 
         wf["2"]["inputs"]["text"] = f"{subject}{DIARY_BG_STYLE}"
         wf["3"]["inputs"]["text"] = DIARY_BG_NEG
     else:
-        wf["2"]["inputs"]["text"] = f"a cute {subject}, full view{DIARY_STYLE if diary else CHAR_STYLE}"
-        wf["3"]["inputs"]["text"] = DIARY_NEG if diary else CHAR_NEG
+        # the diary keeps colored pencil whatever the book's style; story · co-op follow the book's style
+        st = styles(style)
+        wf["2"]["inputs"]["text"] = f"a cute {subject}, full view{DIARY_STYLE if diary else st['char']}"
+        wf["3"]["inputs"]["text"] = DIARY_NEG if diary else st["char_neg"]
     wf["10"] = {"class_type": "OttoLoadImageB64", "inputs": {"png_base64": drawing_b64}}
     wf["11"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["10", 0], "vae": ["1", 2]}}
     wf["5"]["inputs"].update({"latent_image": ["11", 0], "denoise": denoise})

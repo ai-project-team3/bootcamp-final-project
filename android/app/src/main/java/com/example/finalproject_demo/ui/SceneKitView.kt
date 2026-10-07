@@ -241,7 +241,8 @@ fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBas
     val res = context.resources
     val opt = android.graphics.BitmapFactory.Options().apply { inScaled = false; inPreferredConfig = Bitmap.Config.ARGB_8888 }
     @Suppress("DiscouragedApi")
-    fun load(name: String) = res.getIdentifier(name, "drawable", context.packageName).takeIf { it != 0 }
+    fun load(name: String) = res.getIdentifier(com.example.finalproject_demo.demo.WorldStyle.resolve(name) { res.getIdentifier(it, "drawable", context.packageName) != 0 },
+        "drawable", context.packageName).takeIf { it != 0 }
         ?.let { android.graphics.BitmapFactory.decodeResource(res, it, opt)?.asImageBitmap() }
     val imgs = kit.pieces.map { it.res }.distinct().mapNotNull { r -> load(r)?.let { r to it } }.toMap()
     val dm = res.displayMetrics
