@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 # parsing the body") and 404, which FastAPI's subclass handler would miss.
 from starlette.exceptions import HTTPException
 
-from app import admin, limits
+from app import admin, limits, reports
 from app.config import settings
 from app.image import comfy
 
@@ -40,7 +40,10 @@ async def lifespan(_: FastAPI):
         asyncio.create_task(comfy.warm_up())
     if not settings.mock and settings.stt_warmup:
         asyncio.create_task(asyncio.to_thread(stt.warm_up))
+    # problem reports done 30 days ago go — now, then once a day (#283 · app/reports.py)
+    sweep = asyncio.create_task(reports.purge_daily())
     yield
+    sweep.cancel()
 
 
 app = FastAPI(title="말로 짓는 인형극", lifespan=lifespan)
@@ -51,6 +54,8 @@ app.include_router(tts.router)
 app.include_router(turn.router)
 app.include_router(image.router)
 app.include_router(admin.router)
+app.include_router(reports.router)
+app.include_router(reports.admin_router)
 
 
 # Spec §3-0: every error has one shape. The app reads `error`, never the status text.
