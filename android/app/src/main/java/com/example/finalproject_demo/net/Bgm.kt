@@ -29,11 +29,13 @@ object Bgm {
     fun attach(context: Context) { ctx = context.applicationContext }
 
     fun play(track: String) = onMain { mixer.play(track, clock()); log("play $track") }
-    fun stop() = onMain { mixer.stop(clock()) }
+    // every scene change calls stop — log it only when a track was actually playing
+    fun stop() = onMain { val was = mixer.playing; mixer.stop(clock()); if (was != null) log("stop $was") }
     fun duck(on: Boolean) { onDuck(on); onMain { mixer.duck(on, clock()) } }
-    fun hold(reason: String) = onMain { mixer.hold(reason) }
-    fun resume(reason: String) = onMain { mixer.resume(reason, clock()) }
-    fun setEnabled(on: Boolean) = onMain { mixer.setEnabled(on, clock()) }
+    // hold · resume come with every recording — logged only while music is there, so question scenes stay quiet
+    fun hold(reason: String) = onMain { mixer.hold(reason); if (mixer.active) log("hold $reason · ${mixer.playing}") }
+    fun resume(reason: String) = onMain { mixer.resume(reason, clock()); if (mixer.active) log("resume $reason${if (mixer.held) " (still held)" else ""}") }
+    fun setEnabled(on: Boolean) = onMain { mixer.setEnabled(on, clock()); log("music ${if (on) "on" else "off"}") }
     fun release() = onMain { mixer.release() }
 
     /** After [release] (activity teardown): drop the ticker and the context so a destroyed activity is not kept alive */
