@@ -31,3 +31,22 @@ fun moodOf(kind: PageKind): BgmMood = when (kind) {
 fun bgmBookKey(title: String, firstCaption: String): Int = java.util.zip.CRC32().apply { update("$title\n$firstCaption".toByteArray(Charsets.UTF_8)) }.value.toInt()
 
 fun trackOf(mood: BgmMood, bookKey: Int): String = mood.tracks[Math.floorMod(bookKey, mood.tracks.size)]
+
+/**
+ * 지금 읽는 동화책의 키 — 책장에 꽂힌 책([completedStoryBook]: 제목 `title ?: autoTitleFor()` · 첫 쪽 `bookCaption(1)`)
+ * 으로 만든 다시 읽기 키와 같아야 같은 곡이 나온다
+ */
+fun DemoState.storyBookKey(): Int = bgmBookKey(title ?: autoTitleFor(), bookCaption(1))
+
+/**
+ * 장면이 바뀔 때 — 책(쪽마다는 `sceneBook`)과 동화의 끝 화면 밖으로 나가면 음악을 끈다.
+ * 끝 화면(친구 · 끝)은 [BgmMood.NIGHT]. 그림일기 · 협업은 음악이 없다(#221 범위)
+ */
+fun Director.sceneMusic(scene: Scene) {
+    when {
+        scene == Scene.BOOK && s.mode == StoryMode.STORY -> {}
+        (scene == Scene.FRIENDS || scene == Scene.END) && s.mode == StoryMode.STORY ->
+            com.example.finalproject_demo.net.Bgm.play(trackOf(BgmMood.NIGHT, s.storyBookKey()))
+        else -> com.example.finalproject_demo.net.Bgm.stop()
+    }
+}

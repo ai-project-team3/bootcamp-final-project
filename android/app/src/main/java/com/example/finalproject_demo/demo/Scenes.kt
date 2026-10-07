@@ -3,6 +3,7 @@ package com.example.finalproject_demo.demo
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
+import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Trace
 import com.example.finalproject_demo.net.nameMask
@@ -1530,6 +1531,7 @@ private suspend fun Director.sceneBook() {
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
         }
+        if (s.mode == StoryMode.STORY) Bgm.play(trackOf(moodOf(s.pageKind(i)), s.storyBookKey()))
         say(if (i == 0) "『${s.title}』" else s.bookCaption(i))
         when {
             i == 0 -> {}
@@ -1783,12 +1785,16 @@ private suspend fun Director.sceneShelf() {
             }
             "book" -> {
                 if (openSavedDiary(tapped.label)) { s.stage = Stage.Shelf(fromEnd); continue }   // 그림일기 다시 읽기(#37)
-                val book = savedStory(tapped.label) ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
+                val story = savedStory(tapped.label)
+                val book = story ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
+                val key = bgmBookKey(book.title, book.pages.firstOrNull()?.caption.orEmpty())
                 var page = 0
                 s.line = ""
                 buttons()
                 while (true) {
                     s.stage = Stage.SavedStory(book, page)
+                    // 동화책만 음악 — 첫 읽기와 같은 쪽 · 같은 곡 (#221)
+                    if (story != null) Bgm.play(trackOf(moodOf(if (page == 0) PageKind.COVER else book.pages[page - 1].kind), key))
                     val action = (awaitReply() as? Reply.Tapped)?.value ?: continue
                     when (action) {
                         "next" -> if (page < book.pages.size) page++
@@ -1796,6 +1802,7 @@ private suspend fun Director.sceneShelf() {
                         "close" -> break
                     }
                 }
+                Bgm.stop()
                 s.stage = Stage.Shelf(fromEnd)
                 say("우리가 만든 책들이야!")
             }

@@ -708,6 +708,7 @@ class Director(
             drain()
             currentQ = null
             s.scene = scene
+            sceneMusic(scene)
             s.buttons.clear()
             s.countdown = null
             s.stage = Stage.Empty
