@@ -24,20 +24,23 @@ internal suspend fun Director.confirmHeroDescription(heard: String): String? {
                     "no" -> return null
                 }
                 is Reply.Spoke -> {
-                    val yesNo = spokenYesNo(reply.text)
+                    val raw = reply.text.trim().trimEnd('.', '!', '?', '~', ' ')
+                    val yesNo = if (s.mode == StoryMode.STORY && spokenYesNo(raw) == true &&
+                        !Regex("^(응|웅|어|네|넹|예|맞아|맞아요|맞|그래|좋아|ㅇㅇ)([,\\s]+(맞아|맞아요|그래|좋아))?$").matches(raw)) null
+                        else spokenYesNo(raw)
                     if (s.mode != StoryMode.STORY) {
                         yesNo?.let { return if (it) candidate else null }
                         continue
                     }
                     // A rejection may include the replacement in the same breath.
-                    val replacement = reply.text.trim()
+                    val replacement = raw
                         .replace(Regex("^(아니야|아니요|아니|아냐|아닌데)[,，.!?\\s]*"), "")
                         .trim().trimEnd('.', '!', '?', '~', ' ')
                     when {
                         yesNo == true -> return candidate
                         yesNo == false && replacement.isBlank() -> return null
-                        yesNo == false && replacement == reply.text.trim().trimEnd('.', '!', '?', '~', ' ') -> return null
-                        yesNo == false && replacement in listOf("다시", "다시 말할래", "다시 할래") -> return null
+                        yesNo == false && replacement == raw -> return null
+                        yesNo == false && Regex("^다시(\\s*(말할래|말할게|할래|할게|말하고 싶어|말할 거야))?$").matches(replacement) -> return null
                         replacement.isNotBlank() -> { candidate = replacement; shown = false }
                     }
                 }

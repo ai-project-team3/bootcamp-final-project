@@ -15,7 +15,22 @@ class HeroDescriptionFlowTest {
     fun aRejectionWithAReplacementKeepsTheReplacementInsteadOfReasking() =
         replacementDescription("아니야 둥글둥글 머리야!")
 
-    private fun replacementDescription(replacement: String) = runBlocking {
+    @Test
+    fun aSquareHairDescriptionIsNotMistakenForYes() = replacementDescription("네모 머리", "네모 머리")
+
+    @Test
+    fun aRejectionWithOnlyARetryPromiseStillReasksTheAttribute() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope).apply { s.speed = 0.01; s.timerOn = false }
+        val confirmation = async { d.confirmHeroDescription("긴 머리") }
+        try {
+            waitFor(d) { d.s.stage is Stage.HeroAnswer }
+            d.send(Reply.Spoke("아니야 다시 말할게"))
+            assertNull(withTimeout(500) { confirmation.await() })
+        } finally { confirmation.cancel(); scope.cancel() }
+    }
+
+    private fun replacementDescription(replacement: String, expected: String = "둥글둥글 머리") = runBlocking {
         val beforeBase = Server.base
         val beforeModes = Server.liveModes
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
@@ -29,13 +44,13 @@ class HeroDescriptionFlowTest {
             d.send(Reply.Spoke(replacement))
             delay(200)
             assertTrue("a correction must be shown for confirmation", d.s.stage is Stage.HeroAnswer)
-            assertTrue("the new description must replace the old one", "둥글둥글 머리" in d.s.line)
+            assertTrue("the new description must replace the old one", expected in d.s.line)
             assertFalse("the rejected candidate must not remain", "뾰족뾰족" in d.s.line)
             assertTrue("a replacement is not consent to advance", "맞아" in d.s.line)
             d.send(Reply.Tapped("ok", "맞아"))
             waitFor(d) { "어떤 옷" in d.s.line }
             assertTrue("the accepted replacement must reach the real attribute handler",
-                d.s.log.any { "둥글둥글 머리" in it })
+                d.s.log.any { expected in it })
         } finally { scope.cancel(); Server.base = beforeBase; Server.liveModes = beforeModes }
     }
 
