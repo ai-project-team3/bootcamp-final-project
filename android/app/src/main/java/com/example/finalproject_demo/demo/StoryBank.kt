@@ -776,9 +776,9 @@ private fun DemoState.eg(w: String) = "${w}에게"
 private fun helperLine(s: DemoState): String {
     val h = s.slot("helper", if (s.hasPartner) s.pn else "")
     return when {
-        h == s.pn && s.partner.honor -> "${s.pSubj()} \"말해 줘서 고맙구나\" 하고 꼭 안아 주셨어요."
-        h == s.pn && !s.partner.adult -> "친구가 \"내가 같이 있을게!\" 하고 손을 잡아 주었어요."
-        h == s.pn -> "$h${ga(h)} \"말해 줘서 고마워\" 하고 꼭 안아 주었어요."
+        s.hasPartner && h == s.pn && s.partner.honor -> "${s.pSubj()} \"말해 줘서 고맙구나\" 하고 꼭 안아 주셨어요."
+        s.hasPartner && h == s.pn && !s.partner.adult -> "친구가 \"내가 같이 있을게!\" 하고 손을 잡아 주었어요."
+        s.hasPartner && h == s.pn -> "$h${ga(h)} \"말해 줘서 고마워\" 하고 꼭 안아 주었어요."
         h == "마스코트" -> "마스코트가 \"걱정 마!\" 하고 날개를 활짝 폈어요."
         else -> "$h${ga(h)} \"잘했어!\" 하고 달려와 주었어요."
     }
@@ -786,7 +786,7 @@ private fun helperLine(s: DemoState): String {
 
 private fun helperPage(s: DemoState): String {
     val helper = s.slot("helper", if (s.hasPartner) s.pn else "")
-    if (helper.isBlank() || helper == "스스로") return "그다음 ${s.c}${eun(s.c)} 무슨 일이 있었는지 돌아보고, 어떻게 할지 생각했어요."
+    if (helper.isBlank() || helper in setOf("스스로", "혼자", "나 혼자")) return "그다음 ${s.c}${eun(s.c)} 무슨 일이 있었는지 돌아보고, 어떻게 할지 생각했어요."
     val to = if (s.hasPartner && helper == s.pn && s.partner.honor) "${helper}께" else "${helper}에게"
     return "그다음 ${s.c}${eun(s.c)} $to 달려가 무슨 일이 있었는지 말했어요. ${helperLine(s)}"
 }

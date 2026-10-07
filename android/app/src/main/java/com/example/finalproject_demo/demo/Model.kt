@@ -159,7 +159,13 @@ private val NOT_A_NAME = setOf("몰라", "없어", "아무도", "혼자", "나",
  */
 fun partnerIn(text: String): Pair<String, String>? {
     val compact = text.filter { it in '가'..'힣' }
-    val deniesSolo = Regex("혼자(?:가)?(?:아니|아닌|말고)").containsMatchIn(compact)
+    // Explicit company takes precedence over an incidental or rejected solo phrase.
+    PARTNER_WORDS.firstOrNull { (word, _) ->
+        val match = Regex("${Regex.escape(word)}(?:이랑|랑|하고|와|과|같이)").find(compact)
+        match != null && !Regex("^(?:같이|함께)?(?:는|은)?(?:아니|아닌|말고|안|싫)")
+            .containsMatchIn(compact.substring(match.range.last + 1))
+    }?.let { (word, key) -> return key to (if (key == "friend") "친구" else word) }
+    val deniesSolo = Regex("혼자(?:가|는|서|서는)?(?:아니|아닌|말고|안|싫)").containsMatchIn(compact)
     if (!deniesSolo && ("혼자" in compact || "아무도없" in compact ||
             compact in setOf("나만", "나만있어", "나만할래", "나만왔어", "저만", "저혼자요"))) {
         return "solo" to "혼자"

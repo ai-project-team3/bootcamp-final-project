@@ -1383,7 +1383,7 @@ private suspend fun Director.sceneSolution() {
         when (t.key) {
             "E" -> "${s.slots["stop"] ?: "여기저기"}${eul(s.slots["stop"] ?: "여기저기")} 지나 왔어! 거의 다 왔나 봐."
             "C" -> s.slots["helper"].orEmpty().ifBlank { if (s.hasPartner) s.pn else "" }.let { helper ->
-                if (helper.isBlank() || helper == "스스로") "어떻게 할지 생각하는 동안 흔들림이 멈췄어!"
+                if (helper.isBlank() || helper in setOf("스스로", "혼자", "나 혼자")) "어떻게 할지 생각하는 동안 흔들림이 멈췄어!"
                 else "$helper${ga(helper)} 도와줘서 흔들림이 멈췄어!"
             }
             "D" -> "${s.slots["role"] ?: "구조대원"} ${s.childName}, 준비됐지?"

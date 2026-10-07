@@ -6,6 +6,25 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SoloPartnerTest {
+    @Test fun anExplicitCompanionWinsOverAnAlonePhrase() {
+        assertEquals("mom", partnerKeyIn("혼자 안 할래, 엄마랑"))
+        assertEquals("dad", partnerKeyIn("혼자는 싫어 아빠랑"))
+        assertEquals("mom", partnerKeyIn("엄마랑 혼자 왔어"))
+        assertEquals("grandma", partnerKeyIn("할머니하고 같이 할래 혼자는 싫어"))
+        assertEquals("solo", partnerKeyIn("엄마는 없고 나 혼자 왔어"))
+        assertEquals("solo", partnerKeyIn("엄마랑 아니고 혼자"))
+    }
+
+    @Test fun anAloneHelperNeverBecomesAnImaginaryFriend() {
+        val s = DemoState().apply {
+            partnerKey = "solo"
+            templateKey = "C"
+            slots["helper"] = "혼자"
+        }
+        val captions = (1..s.pageCount).map { s.bookCaption(it) }
+        assertFalse(captions.any { "내가 같이 있을게" in it || "혼자에게" in it })
+    }
+
     private suspend fun waitFor(predicate: () -> Boolean) {
         withTimeout(3_000) { while (!predicate()) delay(5) }
     }
