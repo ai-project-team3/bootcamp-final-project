@@ -289,23 +289,9 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
                 }
             }
             // 불기를 받는 쪽이면 마이크가 듣고 있다는 것을 **보이게** 둔다 —
-            // 부모가 "마이크가 켜져 있다"를 알 수 있어야 한다 (문서 §같이 생각해 볼 질문)
-            if (blowable && !allOut) {
-                Box(
-                    Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 58.dp)
-                        .felt(Wool.copy(alpha = 0.95f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                ) {
-                    Text(
-                        if (blow > 0.22f) "후~~~ 잘한다!" else "🎤 후~ 불어 봐! (손으로 쓸어도 돼)",
-                        fontSize = 15.sp,
-                        color = if (blow > 0.22f) Coral else Ink,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            }
+            // 부모가 "마이크가 켜져 있다"를 알 수 있어야 한다 (문서 §같이 생각해 볼 질문).
+            // 화면 아래에 둔다 — 위쪽은 책 안내 말풍선 자리라 겹쳤다(#154 · C1 과 같은 `MicListeningTag`)
+            MicListeningTag(blowable && !allOut, blow > 0.22f, "🎤 후~ 불어 봐! (손으로 쓸어도 돼)", "후~~~ 잘한다!")
 
             // 8초 힌트 — 첫 흔적 위를 손이 슥 지나간다
             if (showHint && !allOut) {
