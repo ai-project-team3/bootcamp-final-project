@@ -82,7 +82,17 @@ class BgmMixer(private val out: BgmOutput) {
 
     fun resume(reason: String, now: Long) {
         if (!holds.remove(reason) || holds.isNotEmpty()) return
+        voices.filter { it.dying }.forEach { it.ch.release() }
+        voices.removeAll { it.dying }
         voices.forEach { v -> v.from = 0f; v.to = 1f; v.start = now; v.len = BGM_FADE_MS; v.ch.setVolume(0f); v.ch.start() }
+    }
+
+    /** For teardown when the player goes away: frees every channel at once and forgets the wanted track. */
+    fun release() {
+        voices.forEach { it.ch.release() }
+        voices.clear(); holds.clear()
+        duckFrom = 1f; duckTo = 1f; unduckAt = -1
+        wanted = null
     }
 
     fun setEnabled(on: Boolean, now: Long) {

@@ -126,4 +126,36 @@ class BgmMixerTest {
         mixer.play("a", now); at(1000)
         assertNull(mixer.playing); assertFalse(mixer.active)
     }
+
+    @Test fun stopWhileHeldStaysSilentOnResume() {
+        mixer.play("a", now); at(2000)
+        mixer.hold("mic"); mixer.stop(now)
+        val starts = opened[0].starts
+        mixer.resume("mic", now)
+        assertTrue(opened[0].released); assertNull(mixer.playing); assertEquals(starts, opened[0].starts)
+    }
+
+    @Test fun disableWhileHeldStaysSilentOnResume() {
+        mixer.play("a", now); at(2000)
+        mixer.hold("mic"); mixer.setEnabled(false, now)
+        val starts = opened[0].starts
+        mixer.resume("mic", now)
+        assertTrue(opened[0].released); assertNull(mixer.playing); assertEquals(starts, opened[0].starts)
+    }
+
+    @Test fun newMoodWhileHeldResumesOnlyTheNewOne() {
+        mixer.play("a", now); at(2000)
+        mixer.hold("mic"); mixer.play("b", now)
+        mixer.resume("mic", now)
+        assertTrue(opened[0].released); assertEquals(1, opened[0].starts)
+        assertEquals(1, opened[1].starts); near(0f, opened[1].volume)
+        at(2750); near(BGM_BASE / 2, opened[1].volume)
+    }
+
+    @Test fun releaseFreesEveryChannelAtOnce() {
+        mixer.play("a", now); at(2000); mixer.play("b", now); at(2500)
+        mixer.release()
+        assertTrue(opened[0].released); assertTrue(opened[1].released)
+        assertFalse(mixer.active); assertNull(mixer.playing)
+    }
 }
