@@ -363,6 +363,35 @@ class ShellFlowTest {
     }
 
     /**
+     * #256 (10-07 실기기) — 약관 판이 올라 다시 묻는 화면이 처음 가입과 똑같은 「2 / 5 · 이렇게만 써요」라, 이미 쓰던 보호자는
+     * 왜 또 묻는지 몰랐다. 다시 동의 화면은 단계 점이 없고 「약관이 바뀌었어요」와 바뀐 것을 보인다 · 뒤로는 첫 화면 · 동의하면 방.
+     */
+    @Test
+    fun reconsentSaysWhatChangedAndGoesBackToTheTitle() {
+        compose.activity.getSharedPreferences("otto_account", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        onboard()
+        // 10-05 판에 동의한 보호자가 앱을 다시 켠 것처럼 — Shell 이 붙은 저장소로 쓴다(object 라 앞 검사의 것일 수 있다)
+        Shell.saveConsent("2026-10-05", news = Shell.newsSince != null, at = Shell.newsSince ?: 0L)
+        Shell.step = Step.TITLE
+        tap("눌러서 시작")
+        waitText("약관이 바뀌었어요"); shot("25_reconsent")
+        assertEquals("처음 가입 화면이 그대로 나왔다", 0, count("이렇게만 써요"))
+        assertEquals("다시 동의인데 단계 점이 보인다", 0, count("/ 5"))
+        val lines = com.example.finalproject_demo.ui.shell.termsChangesSince("2026-10-05")
+        lines.take(3).forEach { assertTrue("바뀐 것이 안 보인다: $it", count(it) > 0) }
+        // 뒤로 — 로그인이 아니라 첫 화면
+        tap("←")
+        compose.waitUntil(5_000) { Shell.step == Step.TITLE }
+        assertEquals("2026-10-05", Shell.consentVersion)
+        // 다시 들어가 동의하면 방으로, 판은 지금 판
+        tap("눌러서 시작")
+        waitText("약관이 바뀌었어요")
+        tap("모두 동의해요"); tap("동의하고 계속")
+        compose.waitUntil(5_000) { Shell.step == Step.APP }
+        assertEquals(com.example.finalproject_demo.ui.shell.TERMS_VERSION, Shell.consentVersion)
+    }
+
+    /**
      * 탈퇴 본인 확인 — 이메일 계정은 **그 계정 비밀번호**를 다시 묻는다 (10-05). 틀리면 막히고, 맞으면 마지막 확인으로.
      * 비밀번호를 잊었으면 부모 비밀번호로 대신 확인할 수 있다 — 어떤 경우에도 탈퇴가 막히지 않게.
      */

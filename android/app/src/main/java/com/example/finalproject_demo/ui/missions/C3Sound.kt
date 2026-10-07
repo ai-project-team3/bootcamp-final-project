@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -101,7 +102,9 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
     val finished = done || fill >= 1f
     // 크기만 보면 「아아아아」도 찼다(10-05 실기기) — 끊어 말한 소리 덩어리 수로 채운다(사용자 결정)
     val beats = remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    // 스피커가 울리는 동안(오또 낭독 · 효과음)은 크기 0 · 덩어리도 세지 않는다 — 낭독 음절을 박자로 셌다(#258)
     val voice = rememberBlowLevel(!finished, beats)
+    val speaking by com.example.finalproject_demo.net.Voice.playing.collectAsState()
     val micOn = remember {
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
@@ -191,7 +194,7 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
                     .alpha(0.8f),
             ) { ArtView(Art.Img("ic_hand", Art.Emoji("👆")), Modifier.fillMaxSize()) }
         }
-        MicListeningTag(micOn && !finished, voice > VOICE_ON, "🎤 「${prop.sound}!」 크게 말해 봐! (눌러도 돼)", "${prop.sound}~! 잘한다!")
+        MicListeningTag(micOn && !finished && !speaking, voice > VOICE_ON, "🎤 「${prop.sound}!」 크게 말해 봐! (눌러도 돼)", "${prop.sound}~! 잘한다!")
         if (!micOn && !finished) Text(
             "눌러서 「${prop.sound}!」 해 볼까?", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 92.dp)

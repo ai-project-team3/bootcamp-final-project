@@ -111,6 +111,13 @@ object Sfx {
     private const val RATE = 22050
     private val pool = Executors.newSingleThreadExecutor { r -> Thread(r, "sfx").apply { isDaemon = true } }
 
+    /**
+     * 효과음이 스피커로 나가는 동안(이 시각까지, ms) — 불기 · 소리 미션이 판정에서 뺀다 (#258).
+     * 완료 반짝이가 마이크가 열린 채 울려 다음 소품까지 날렸다
+     */
+    @Volatile var soundingUntil = 0L
+        private set
+
     /** 같은 소리가 겹쳐 터지지 않게 — 문지르는 동안 초당 수십 번 불린다 */
     private val lastAt = HashMap<Sound, Long>()
 
@@ -131,7 +138,11 @@ object Sfx {
         if (view != null && FeelPrefs.buzzOn) buzz(kind)?.let { runCatching { view.performHapticFeedback(it) } }
         if (!FeelPrefs.soundOn) return
         pool.execute {
-            runCatching { blast(render(kind)) }   // 기기에 따라 오디오가 막혀 있을 수 있다 — 소리 때문에 앱이 죽으면 안 된다
+            runCatching {
+                val pcm = render(kind)
+                soundingUntil = maxOf(soundingUntil, System.currentTimeMillis() + pcm.size * 1000L / RATE)
+                blast(pcm)
+            }   // 기기에 따라 오디오가 막혀 있을 수 있다 — 소리 때문에 앱이 죽으면 안 된다
         }
     }
 

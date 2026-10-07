@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -124,9 +125,9 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
     // **날아갈 수 있는 것에만** 붙인다 — 먼지 · 모래는 불면 날아가지만 먹물 · 진흙은 아니다.
     // 손으로 문지르는 길은 **그대로 남는다.** 불기는 덤이지 대신이 아니다 (실패 없는 설계).
     val blowable = m.blobName.contains("먼지") || m.blobName.contains("모래") || m.blobName.contains("가루")
-    val blow = rememberBlowLevel(blowable && !allOut)
-    // 반복문 안에서는 늘 지금 세기를 읽는다 — 그냥 blow 를 쓰면 처음 값(0)에 묶여 아무리 불어도 약하다고 봤다(10-05 실기기)
-    val blowNow by androidx.compose.runtime.rememberUpdatedState(blow)
+    // 판정은 C1 과 같은 [BlowDetector] — 오또가 말하는 동안은 듣지 않고 「후~」만 센다(#258). 같은 객체의 상태라 반복문에서도 지금 값
+    val blow = com.example.finalproject_demo.ui.rememberBlow(blowable && !allOut)
+    val speaking by com.example.finalproject_demo.net.Voice.playing.collectAsState()
     var showHint by remember { mutableStateOf(false) }
     LaunchedEffect(progress, allOut) {
         showHint = false
@@ -183,18 +184,22 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
         val burns = m.blobName.contains("불") || m.blobName.contains("용암")
         LaunchedEffect(done, wpx, hpx, s.isDiary) {
             if (done || motionFrozen) return@LaunchedEffect
+            var last = 0L
             while (true) {
-                withFrameNanos { }
-                // 후~ 부는 세기만큼 흔적이 날아간다. 세게 불수록 빨리 사라진다
-                if (blowable && blowNow > 0.22f) {
-                    blobs.forEachIndexed { i, b ->
-                        if (rub[i] < 3f) {
-                            val before = rub[i]
-                            rub[i] = minOf(3f, rub[i] + blowNow * 0.09f)
-                            // 날아가는 것이 보이게 — 바람을 타고 옆으로 흩어진다
-                            puffs.water(b.x, b.y, blowNow * wpx * 0.02f, -blowNow * wpx * 0.004f, wpx * 0.03f)
-                            if (before < 3f && rub[i] >= 3f) Sfx.play(Sound.SPARKLE, 0L, view = view)
-                        }
+                val now = withFrameNanos { it }
+                val dt = if (last == 0L) 0L else ((now - last) / 1_000_000).coerceAtMost(100L)
+                last = now
+                // 후~ 부는 동안 남은 첫 흔적이 날아간다 — 하나에 [BlowDetector.PER_PROP_MS] (셋 동시 X · #258)
+                if (blowable && blow.blowing) {
+                    val i = rub.indexOfFirst { it < 3f }
+                    if (i >= 0 && i < blobs.size) {
+                        val b = blobs[i]
+                        val before = rub[i]
+                        rub[i] = minOf(3f, rub[i] + dt.toFloat() / BlowDetector.PER_PROP_MS * 3f)
+                        // 날아가는 것이 보이게 — 바람을 타고 옆으로 흩어진다
+                        val s = blow.level
+                        puffs.water(b.x, b.y, s * wpx * 0.02f, -s * wpx * 0.004f, wpx * 0.03f)
+                        if (before < 3f && rub[i] >= 3f) Sfx.play(Sound.SPARKLE, 0L, view = view)
                     }
                 }
 
@@ -291,7 +296,7 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
             // 불기를 받는 쪽이면 마이크가 듣고 있다는 것을 **보이게** 둔다 —
             // 부모가 "마이크가 켜져 있다"를 알 수 있어야 한다 (문서 §같이 생각해 볼 질문).
             // 화면 아래에 둔다 — 위쪽은 책 안내 말풍선 자리라 겹쳤다(#154 · C1 과 같은 `MicListeningTag`)
-            MicListeningTag(blowable && !allOut, blow > 0.22f, "🎤 후~ 불어 봐! (손으로 쓸어도 돼)", "후~~~ 잘한다!")
+            MicListeningTag(blowable && !allOut && !speaking, blow.blowing, "🎤 후~ 불어 봐! (손으로 쓸어도 돼)", "후~~~ 잘한다!")
 
             // 8초 힌트 — 첫 흔적 위를 손이 슥 지나간다
             if (showHint && !allOut) {
