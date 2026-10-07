@@ -32,6 +32,9 @@ class JudgeRequest(BaseModel):
     # [hero call, friend 1, friend 2, …] — masked only on the way to Jev (TypeSafe): choosing a slot
     # needs no names, and a vendor outside the published policy gets none (10-06). Luna and voice keep them.
     names: list[str] = []
+    # who sits with the child this session (#303): "adult" · "peer" · "none" (alone, or never heard).
+    # "none" keeps the judge off the adult slot — there is nobody to ask. None = not sent (older apps).
+    partner: Optional[Literal["adult", "peer", "none"]] = None
 
 
 class JudgeResult(BaseModel):

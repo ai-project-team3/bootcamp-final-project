@@ -674,7 +674,8 @@ private suspend fun Director.scenePartner() {
             is Reply.Spoke -> {
                 s.micOn = false
                 childSays(r.text)
-                val found = r.value.takeIf { v -> v == "solo" || PARTNERS.any { it.key == v } }?.let { it to null } ?: partnerIn(r.text)
+                val found = r.value.takeIf { v -> v == "solo" || PARTNERS.any { it.key == v } }?.let { it to null }
+                    ?: readPartner(r.text, Server.liveFor(s.mode))   // the server reads it first, the word list when it can't (#303)
                 when {
                     found != null -> {
                         key = found.first; call = found.second

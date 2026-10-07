@@ -17,9 +17,10 @@ from ..schemas.judge import JudgeRequest, JudgeResult, SLOT_NAMES
 router = APIRouter()
 log = logging.getLogger("otto.judge")
 
-# Order the mock walks when it picks the next slot. Only for MOCK=1 — the real
-# order is the model's call (rule 2: required slots are not fixed).
-_MOCK_ORDER = ("place", "problem", "reaction", "cause", "solution")
+# Order the mock walks when it picks the next slot. Otherwise the order is the model's call
+# (rule 2: required slots are not fixed); the one other use is standing in for an adult slot
+# nobody can answer (#303).
+_BEAT_ORDER = ("place", "problem", "reaction", "cause", "solution")
 
 
 def enforce(result: JudgeResult, req: JudgeRequest) -> JudgeResult:
@@ -39,6 +40,17 @@ def enforce(result: JudgeResult, req: JudgeRequest) -> JudgeResult:
     if result.next_slot and req.slots.get(result.next_slot) and not result.unclear:
         result.next_slot = None
 
+    # nobody sits with the child (#303): the adult slot is a real adult's line, so there is no one to
+    # ask and nothing to fill. Dropping next_slot alone left the app re-asking 「조금 더 들려줄래?」
+    # every turn, so the next empty story beat is asked instead; a word filed under adult keeps its
+    # text in extra (rule 1)
+    if req.partner == "none":
+        for slot, value in (("slot_1", "value_1"), ("slot_2", "value_2")):
+            if getattr(result, slot) == "adult":
+                setattr(result, slot, "extra" if getattr(result, value) else None)
+        if result.next_slot == "adult":
+            result.next_slot = next((s for s in _BEAT_ORDER if not req.slots.get(s)), None)
+
     return result
 
 
@@ -51,7 +63,7 @@ def mock(req: JudgeRequest) -> JudgeResult:
     """Fixed, spec-shaped answer: the utterance fills the asked slot, then the next empty one."""
     slot = req.asked_slot if req.asked_slot in SLOT_NAMES else "extra"
     filled = {**req.slots, slot: req.utterance}
-    nxt = next((s for s in _MOCK_ORDER if not filled.get(s)), None)
+    nxt = next((s for s in _BEAT_ORDER if not filled.get(s)), None)
     return JudgeResult(
         reason="mock", slot_1=slot, value_1=req.utterance,
         next_slot=nxt, next_reason="mock order", story_ready=nxt is None,
