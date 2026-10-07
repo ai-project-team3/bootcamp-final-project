@@ -620,7 +620,9 @@ fun diaryPlaceBg(place: String?): String {
 
 
 /** 책장에 꽂힌 책 한 권. 저장된 동화만 [savedStoryId]로 다시 읽을 수 있다. */
-data class ShelfBook(val title: String, val themeKey: String, val bgName: String, val pages: Int = 6, val fresh: Boolean = false, val savedStoryId: String? = null)
+data class ShelfBook(val title: String, val themeKey: String, val bgName: String, val pages: Int = 6, val fresh: Boolean = false, val savedStoryId: String? = null,
+    /** The cover is drawn in the book's own art style (demo/WorldStyle.kt) */
+    val artStyle: String = "felt")
 
 /** 부모 모드 그림체 견본 4종 (결정안건 부록 6) */
 data class ArtStyle(val key: String, val name: String, val img: String, val ready: Boolean)

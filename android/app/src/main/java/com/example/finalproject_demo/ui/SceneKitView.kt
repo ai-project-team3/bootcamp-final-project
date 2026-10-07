@@ -430,11 +430,13 @@ private fun DrawScope.drawPiece(imgs: Map<String, ImageBitmap>, p: PlacedPiece, 
  * but a mesh takes neither the saturation filter nor the veil's alpha, so the bent path draws one ready picture.
  * A handful of entries: far pieces of the kit on screen × its sky colour.
  */
-private object HazedPieces {
-    private val made = HashMap<Triple<String, Int, Int>, Bitmap>()
+internal object HazedPieces {
+    // Keyed by the source picture itself, not its piece name: under another art style the same piece name is a
+    // different picture, and a felt far piece must not come back under a crayon book (#253 review)
+    private val made = HashMap<Triple<Bitmap, Int, Int>, Bitmap>()
 
-    fun of(res: String, img: ImageBitmap, fade: Float, haze: Color): Bitmap =
-        made.getOrPut(Triple(res, (fade * 100).roundToInt(), haze.toArgb())) {
+    fun of(img: ImageBitmap, fade: Float, haze: Color): Bitmap =
+        made.getOrPut(Triple(img.asAndroidBitmap(), (fade * 100).roundToInt(), haze.toArgb())) {
             val src = img.asAndroidBitmap().let { if (it.config == Bitmap.Config.HARDWARE) it.copy(Bitmap.Config.ARGB_8888, false) else it }
             val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
             val c = android.graphics.Canvas(out)
@@ -463,7 +465,7 @@ private fun DrawScope.bent(res: String, img: ImageBitmap, box: com.example.final
         verts[j * 4] = box.l + lean; verts[j * 4 + 1] = y
         verts[j * 4 + 2] = box.r + lean; verts[j * 4 + 3] = y
     }
-    val bmp = if (fade > 0f) HazedPieces.of(res, img, fade, haze) else img.asAndroidBitmap()
+    val bmp = if (fade > 0f) HazedPieces.of(img, fade, haze) else img.asAndroidBitmap()
     drawIntoCanvas { c ->
         val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG or android.graphics.Paint.ANTI_ALIAS_FLAG)
         c.nativeCanvas.drawBitmapMesh(bmp, 1, BEND_ROWS, verts, 0, null, 0, paint)

@@ -26,7 +26,8 @@ fun assetId(name: String): Int {
     if (name.startsWith("local:")) return 0
     val ctx = LocalContext.current
     // a world picture in this book's art style when one is bundled, else the felt one (demo/WorldStyle.kt · 결정 27)
-    val style = com.example.finalproject_demo.demo.WorldStyle.current
+    // a saved book on the shelf draws in its own style (LocalWorldStyle) — not the style of the book being made now
+    val style = com.example.finalproject_demo.demo.LocalWorldStyle.current ?: com.example.finalproject_demo.demo.WorldStyle.active
     return remember(name, style) {
         @Suppress("DiscouragedApi")
         fun id(n: String) = ctx.resources.getIdentifier(n, "drawable", ctx.packageName)
