@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.ui
 
 import android.Manifest
+import com.example.finalproject_demo.net.Bgm
 import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -60,6 +61,7 @@ fun rememberBlowLevel(active: Boolean, beats: androidx.compose.runtime.MutableIn
         var running = true
         val t = thread(isDaemon = true, name = "blow") {
             var rec: AudioRecord? = null
+            var held = false
             try {
                 val rate = 16000
                 val frame = 1024
@@ -74,6 +76,8 @@ fun rememberBlowLevel(active: Boolean, beats: androidx.compose.runtime.MutableIn
                 if (rec.state != AudioRecord.STATE_INITIALIZED) return@thread
                 val buf = ShortArray(frame)
                 val onsets = VoiceOnsets()
+                Bgm.hold("blow")
+                held = true
                 rec.startRecording()
                 while (running) {
                     val n = rec.read(buf, 0, frame)
@@ -92,6 +96,7 @@ fun rememberBlowLevel(active: Boolean, beats: androidx.compose.runtime.MutableIn
             } finally {
                 runCatching { rec?.stop() }
                 runCatching { rec?.release() }
+                if (held) Bgm.resume("blow")
                 level = 0f
             }
         }

@@ -10,6 +10,7 @@ import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Voice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
@@ -63,7 +64,9 @@ object ChildSound {
 
     /** Listen, trim, save to the session folder. Null = nothing loud enough was heard, or no mic. */
     suspend fun record(maxMs: Long = MAX_MS): SoundClip? {
-        val pcm = capture(maxMs) ?: return null
+        // the music must not get into the child's own sound
+        Bgm.hold("sound-mic")
+        val pcm = try { capture(maxMs) } finally { Bgm.resume("sound-mic") } ?: return null
         val sound = trim(pcm) ?: return null
         return withContext(Dispatchers.IO) {
             val id = UUID.randomUUID().toString()

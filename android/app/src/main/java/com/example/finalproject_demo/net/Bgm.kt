@@ -20,6 +20,8 @@ object Bgm {
     private var ctx: Context? = null
 
     internal var clock: () -> Long = { System.nanoTime() / 1_000_000 }
+    /** test seam: every [duck] call is reported here too */
+    internal var onDuck: (Boolean) -> Unit = {}
     internal var output: BgmOutput = BgmOutput { track -> open(track) }
     internal var mixer = BgmMixer { output.open(it) }
         private set
@@ -28,7 +30,7 @@ object Bgm {
 
     fun play(track: String) = onMain { mixer.play(track, clock()); log("play $track") }
     fun stop() = onMain { mixer.stop(clock()) }
-    fun duck(on: Boolean) = onMain { mixer.duck(on, clock()) }
+    fun duck(on: Boolean) { onDuck(on); onMain { mixer.duck(on, clock()) } }
     fun hold(reason: String) = onMain { mixer.hold(reason) }
     fun resume(reason: String) = onMain { mixer.resume(reason, clock()) }
     fun setEnabled(on: Boolean) = onMain { mixer.setEnabled(on, clock()) }
