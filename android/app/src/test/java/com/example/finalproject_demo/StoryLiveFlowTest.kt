@@ -29,6 +29,80 @@ class StoryLiveFlowTest {
     @get:org.junit.Rule val sceneKitOff = SceneKitOff()
 
     @Test
+    fun nullNextFollowUpSurvivesUnaskedTemplateSlotsAtTheRealStoryEntry() = runBlocking {
+        val followUp = "스트레칭을 끝내고 누구와 밥을 먹었어?"
+        var turnCalls = 0
+        val server = StoryTestServer { path, body ->
+            when (path) {
+                "/turn" -> {
+                    val first = ++turnCalls == 1
+                    JSONObject().put("judge", JSONObject()
+                        .put("reason", "ok")
+                        .put("slot_1", if (first) "solution" else "extra")
+                        .put("value_1", body.getString("utterance"))
+                        .put("next_slot", JSONObject.NULL)
+                        .put("story_ready", !first))
+                        .put("line", JSONObject().put("ack", "들려줘서 고마워!")
+                            .put("question", if (first) followUp else JSONObject.NULL))
+                }
+                "/story" -> JSONObject().put("scenes", JSONArray().apply {
+                    val pages = body.getJSONArray("pages")
+                    repeat(pages.length()) { i -> put(JSONObject().put("index", i + 1)
+                        .put("kind", pages.getJSONObject(i).getString("kind"))
+                        .put("caption", "운동장에서 운동하고 엄마와 밥을 먹었어요.")) }
+                })
+                else -> JSONObject().put("preset", true)
+            }
+        }
+        val previousBase = Server.base
+        val previousModes = Server.liveModes
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val d = Director(scope, LocalStoryBookStore(context), StoryImageStore(context))
+        d.s.apply {
+            speed = 0.01
+            turn = 8
+            templateKey = "E"
+            listOf("place", "problem", "reaction", "cause").forEach { slots[it] = "existing $it" }
+            slots["place"] = "운동장"
+            storyNextSlot = "solution"
+            storyServerQuestion = "운동은 어떻게 마무리됐어?"
+        }
+        Server.base = server.base
+        Server.liveModes = setOf(StoryMode.STORY)
+        try {
+            d.go(Scene.PLACE)
+            val feeder = launch {
+                while (isActive) {
+                    if ((d.s.stage as? Stage.CardsRow)?.cards?.any { it.value == "sound:skip" } == true) {
+                        d.send(Reply.Tapped("sound:skip", "소리 없이 계속"))
+                    } else if (d.s.micEnabled) {
+                        d.send(Reply.Spoke(if (turnCalls == 0) "스트레칭하고 밥을 먹었어" else "엄마와 먹었어"))
+                    }
+                    delay(40)
+                }
+            }
+            withTimeout(10_000) { while (d.s.scene != Scene.BOOK) delay(10) }
+            feeder.cancelAndJoin()
+            val turns = server.requests.filter { it.first == "/turn" }.map { it.second }
+            assertEquals(2, turns.size)
+            assertEquals("solution", turns[0].getString("asked_slot"))
+            assertEquals(followUp, turns[1].getString("question"))
+            assertTrue(turns[1].isNull("asked_slot"))
+            assertEquals("엄마와 먹었어", d.s.slots["extra"])
+            assertEquals("운동장", d.s.slots["place"])
+            assertEquals("story_ready", d.s.endReason)
+            assertEquals("엄마와 먹었어", server.requests.single { it.first == "/story" }.second
+                .getJSONObject("slots").getString("extra"))
+        } finally {
+            scope.cancel()
+            Server.base = previousBase
+            Server.liveModes = previousModes
+            server.close()
+        }
+    }
+
+    @Test
     fun actualStoryEntryKeepsTheServerExtraQuestionThroughBookCreation() = runBlocking {
         val followUp = "쉬고 난 뒤에는 어떻게 돌아왔어?"
         val server = StoryTestServer { path, body ->
