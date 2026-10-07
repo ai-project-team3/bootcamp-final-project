@@ -45,6 +45,8 @@ class BgmMixer(private val out: BgmOutput) {
 
     val playing: String? get() = voices.lastOrNull { !it.dying }?.track
     val active: Boolean get() = voices.isNotEmpty()
+    /** tick() returns early while held, so a held mixer needs no ticker */
+    val held: Boolean get() = holds.isNotEmpty()
 
     private fun current() = voices.lastOrNull { !it.dying }
     private fun duckGain(now: Long) = duckFrom + (duckTo - duckFrom) * ((now - duckStart).toFloat() / BGM_RAMP_MS).coerceIn(0f, 1f)

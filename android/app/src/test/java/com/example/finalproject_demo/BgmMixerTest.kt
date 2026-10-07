@@ -158,4 +158,13 @@ class BgmMixerTest {
         assertTrue(opened[0].released); assertTrue(opened[1].released)
         assertFalse(mixer.active); assertNull(mixer.playing)
     }
+
+    @Test fun heldIsTrueWhileAnyHoldIsOpen() {
+        mixer.play("a", now); at(2000)
+        assertFalse(mixer.held)
+        mixer.hold("pause"); mixer.hold("screen")
+        assertTrue(mixer.held); assertTrue(mixer.active)
+        mixer.resume("pause", now); assertTrue(mixer.held)
+        mixer.resume("screen", now); assertFalse(mixer.held)
+    }
 }

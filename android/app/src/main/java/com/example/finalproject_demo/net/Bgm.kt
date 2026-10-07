@@ -39,14 +39,14 @@ object Bgm {
     private val ticker = object : Runnable {
         override fun run() {
             mixer.tick(clock())
-            if (mixer.active) main.postDelayed(this, TICK_MS)
+            if (mixer.active && !mixer.held) main.postDelayed(this, TICK_MS)
         }
     }
 
     private fun onMain(block: () -> Unit) {
         // not attached (tests without Android): run in place, no ticker — the mixer is ticked by hand there
         if (ctx == null) { block(); return }
-        val run = { block(); main.removeCallbacks(ticker); if (mixer.active) main.post(ticker) }
+        val run = { block(); main.removeCallbacks(ticker); if (mixer.active && !mixer.held) main.post(ticker) }
         if (Looper.myLooper() == Looper.getMainLooper()) run() else main.post(run)
     }
 
