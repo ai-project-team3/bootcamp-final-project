@@ -103,6 +103,49 @@ def assemble(answers: dict, utterance: str) -> dict:
     return out
 
 
+# Who sits with the child — the answer to 「오늘은 누구랑 같이 이야기를 만들어?」(#303). Keys are the app's
+# PARTNERS (demo/Model.kt) plus solo and unknown. The app's word list missed 「혼자 안 할래, 엄마랑」 (#300)
+# and every relative it had not listed (09-29 「삼촌」 looped); a choice question reads the whole answer.
+PARTNER_CRITERIA = {
+    "mom": "엄마 · 어머니",
+    "dad": "아빠 · 아버지",
+    "aunt": "이모 · 고모 · 숙모 · 큰엄마 같은 여자 어른 친척",
+    "grandma": "할머니 · 외할머니 · 할미",
+    "grandpa": "할아버지 · 외할아버지 · 할부지",
+    "uncle": "삼촌 · 외삼촌 · 이모부 · 고모부 · 큰아빠 같은 남자 어른 친척",
+    "teacher": "선생님 · 쌤 같은 가르치는 어른",
+    "sibling": "언니 · 누나 · 오빠 · 형 · 동생 같은 형제자매",
+    "friend": "친구 — 이름만 말한 아이(민수 · 지민이)도 친구다",
+    "solo": "아무도 없이 아이 혼자 한다 — 「혼자」 · 「나만」 · 「아무도 없어」. 「혼자 안 할래, 엄마랑」은 혼자가 아니다",
+    "unknown": "누구인지 알 수 없다 — 대답이 아니거나 알아들을 수 없는 말",
+}
+PARTNER_Q = "아이가 「오늘은 누구랑 같이 이야기를 만들어?」에 답했다. 지금 아이 옆에서 같이 하는 사람은 누구인가"
+
+
+async def partner(utterance: str, timeout_s: float = 4.0) -> tuple[str | None, float | None, float]:
+    """(key, confidence, seconds). Raises JevError; the app falls back to its word list.
+
+    Under the 0.6 floor the key is None, like the judge's choices.
+    """
+    if not settings.typesafe_api_key:
+        raise JevError("missing TYPESAFE_API_KEY")
+    body = {"state": f"{PARTNER_Q}\n\n아이의 답: {utterance}", "model": settings.jev_model,
+            "questions": {"partner": {"type": "choice", "instructions": PARTNER_Q, "criteria": PARTNER_CRITERIA}}}
+    t0 = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as http:
+            r = await http.post(API, json=body, headers={"Authorization": f"Bearer {settings.typesafe_api_key}"})
+    except httpx.HTTPError as e:
+        raise JevError(f"network: {type(e).__name__}") from e
+    if r.status_code != 200:
+        raise JevError(f"HTTP {r.status_code}")
+    a = (r.json().get("answers", {}) or {}).get("partner") or {}
+    key, conf = a.get("choice"), a.get("confidence")
+    if key not in PARTNER_CRITERIA or (conf is not None and conf < FLOOR):
+        key = None
+    return key, conf, round(time.monotonic() - t0, 2)
+
+
 async def judge(system: str, user: str, utterance: str, timeout_s: float = 6.0) -> dict:
     """Raises JevError; the caller falls back to the luna judge."""
     if not settings.typesafe_api_key:

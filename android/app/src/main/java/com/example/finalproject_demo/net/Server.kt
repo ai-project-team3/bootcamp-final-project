@@ -82,6 +82,8 @@ object Server {
         val reason: String? = null,
         /** [hero, friend 1, …] (NameMask.names) — the server hides these from Jev only (10-06) */
         val names: List<String> = emptyList(),
+        /** who sits with the child — "adult" · "peer" · "none" (#303). "none": the server never asks the adult slot. Null = not sent */
+        val partner: String? = null,
     )
 
     /** The verdict fields the app reads (guidelines/2 §2). Slot names are already checked against the 12 by the server. */
@@ -110,6 +112,7 @@ object Server {
             .put("question", t.question)
             .put("utterance", t.utterance)
             .put("names", JSONArray(t.names))
+        t.partner?.let { body.put("partner", it) }
         val j = postJson("/judge", body) ?: return null
         return try { parseVerdict(j) } catch (e: Exception) { warn("/judge parse", e); null }
     }
@@ -154,6 +157,7 @@ object Server {
             .put("names", JSONArray(t.names))
             .put("reason", t.reason ?: JSONObject.NULL)
             .put("ask", ask)
+        t.partner?.let { body.put("partner", it) }
         val j = postJson("/turn", body, readMs = 30_000) ?: return null   // server answers within 25 s (turn_deadline_s)
         return try {
             TurnResult(
@@ -164,6 +168,18 @@ object Server {
                 },
             )
         } catch (e: Exception) { warn("/turn parse", e); null }
+    }
+
+    // ── /partner ───────────────────────────────────────────────────
+
+    /**
+     * Who sits with the child, from the answer to 「누구랑?」(#303): a PARTNERS key, "solo" or "unknown".
+     * Null when the server is away, Jev failed or was unsure — read the word list (`partnerIn`) then.
+     * Measured 10-07: Jev 153/153 against the word list's 44/51 (`eval/results.md`).
+     */
+    suspend fun partner(utterance: String): String? {
+        val j = postJson("/partner", JSONObject().put("utterance", utterance), readMs = 6_000) ?: return null
+        return str(j, "kind")
     }
 
     // ── /story ─────────────────────────────────────────────────────

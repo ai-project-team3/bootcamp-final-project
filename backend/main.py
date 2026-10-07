@@ -30,7 +30,7 @@ from app.image import comfy
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(name)s · %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 log_cap = logging.getLogger("limits")
-from app.routers import image, judge, story, stt, tts, turn
+from app.routers import image, judge, partner, story, stt, tts, turn
 
 
 @asynccontextmanager
@@ -45,6 +45,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="말로 짓는 인형극", lifespan=lifespan)
 app.include_router(judge.router)
+app.include_router(partner.router)
 app.include_router(story.router)
 app.include_router(stt.router)
 app.include_router(tts.router)
