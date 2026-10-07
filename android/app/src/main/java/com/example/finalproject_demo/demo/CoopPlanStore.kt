@@ -142,6 +142,17 @@ object CoopPlan {
         set(s, cell(s).value.copy(after = (listOf(a) + rest).take(COOP_AFTER_MAX)))
     }
 
+    /**
+     * A co-op book was removed from the shelf (#80 · #223) — its 「다녀온 뒤」 box entry and a plan waiting to pair
+     * with it go too. Otherwise the parent is offered 「있었던 일로 준비하기」 for a book that no longer exists,
+     * and the new book tries to pair with it. The other book's `pairId` stays as designed (read as no pair).
+     */
+    fun forgetBook(s: DemoState, bookId: String) {
+        val x = cell(s).value
+        val next = x.copy(before = x.before.takeUnless { it == bookId }, after = x.after.filterNot { it.beforeBookId == bookId })
+        if (next != x) set(s, next)
+    }
+
     /** [안 하게 됐어요] — 상자에서 뺀다 */
     fun dismissAfter(s: DemoState, a: CoopAfter) = set(s, cell(s).value.copy(after = after(s) - a))
 
