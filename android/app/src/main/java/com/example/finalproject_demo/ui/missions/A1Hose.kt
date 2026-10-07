@@ -65,6 +65,7 @@ internal fun HoseMission(d: Director, done: Boolean, heroArt: Art) {
     val puffs = rememberParticleField()
     var finger by remember { mutableStateOf<Offset?>(null) }
     val idle = rememberIdleHint(life.sum(), allOut)
+    val hint = rememberMissionHint(d, life.sum(), allOut, "A1")
     MissionDoneSignal(d, allOut, done, "미션2")
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -81,7 +82,8 @@ internal fun HoseMission(d: Director, done: Boolean, heroArt: Art) {
             life[i] = minOf(HOSE_FULL, life[i] + amount)
             if (before < HOSE_FULL && life[i] >= HOSE_FULL) {
                 puffs.steam(fires[i].x, fires[i].y, wpx * 0.075f, 10)
-                Sfx.play(Sound.SPARKLE, 0L, view = view)
+                // 불 하나가 꺼질 때는 치익 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
+                Sfx.play(Sound.HISS, 0L, view = view)
             }
         }
 
@@ -143,7 +145,11 @@ internal fun HoseMission(d: Director, done: Boolean, heroArt: Art) {
                 Modifier.offset { IntOffset((nozzle.x - 38 * density).roundToInt(), (nozzle.y - 38 * density).roundToInt()) }.size(76.dp),
             ) { ArtView(Art.Img("prop_hose", Art.Emoji("🚿")), Modifier.fillMaxSize()) }
 
-            if (idle && !allOut) {
+            // 15초 흐릿한 예시 — 손이 호스 옆에서 아직 타는 불로 가서 꾹 누른다(불은 그대로 · 아이가 끈다)
+            if (hint != null && !allOut) {
+                val f0 = fires.firstOrNull { life[fires.indexOf(it)] < HOSE_FULL } ?: fires[0]
+                GhostHand(ghostAlong(listOf(nozzle, f0), hint), wpx * 0.06f, hint)
+            } else if (idle && !allOut) {
                 val press by rememberInfiniteTransition(label = "a1hint").animateFloat(
                     0f, 1f, infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "press",
                 )

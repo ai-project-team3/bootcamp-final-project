@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.finalproject_demo.demo.Art
@@ -39,8 +38,6 @@ import com.example.finalproject_demo.ui.ArtView
 import com.example.finalproject_demo.ui.Coral
 import com.example.finalproject_demo.ui.FeltWhite
 import com.example.finalproject_demo.ui.Puff
-import com.example.finalproject_demo.ui.Sfx
-import com.example.finalproject_demo.ui.Sound
 import com.example.finalproject_demo.ui.Stand
 import com.example.finalproject_demo.ui.motionFrozen
 import com.example.finalproject_demo.ui.rememberParticleField
@@ -67,15 +64,15 @@ internal const val TURN_TAP = TURN_FULL / 5f
  */
 @Composable
 internal fun TurnMission(d: Director, done: Boolean, heroArt: Art) {
-    val view = LocalView.current
     val density = LocalDensity.current.density
     var turned by remember { mutableFloatStateOf(if (done) TURN_FULL else 0f) }
     // 다섯 번 더한 값이 소수점 오차로 TURN_FULL 에 살짝 못 미친다 — 조금 여유를 둔다
     val closed = done || turned >= TURN_FULL - 0.01f
     val puffs = rememberParticleField()
     val idle = rememberIdleHint((turned / 0.5f).roundToInt().toFloat(), closed)
+    // 완료 반짝은 MissionDoneSignal 이 한 번 낸다 — 여기서 또 내서 두 번 울렸다 (#260 효과음 규칙)
     MissionDoneSignal(d, closed, done, "미션2")
-    LaunchedEffect(closed) { if (closed && !done) Sfx.play(Sound.SPARKLE, 0L, view = view) }
+    val hint = rememberMissionHint(d, (turned / 0.5f).roundToInt().toFloat(), closed, "A4")
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
@@ -154,8 +151,15 @@ internal fun TurnMission(d: Director, done: Boolean, heroArt: Art) {
             }
         }
 
-        // 8초 힌트 — 손이 손잡이 둘레를 한 바퀴 돈다
-        if (idle && !closed) {
+        // 15초 흐릿한 예시 — 손이 손잡이 둘레를 천천히 한 바퀴 반(손잡이는 그대로 · 아이가 돌린다)
+        if (hint != null && !closed) {
+            val ring = (0..18).map { k ->
+                val a = (k * 3 * PI / 18).toFloat()
+                Offset(knob.x + knobR * 1.1f * cos(a), knob.y + knobR * 1.1f * sin(a))
+            }
+            GhostHand(ghostAlong(ring, hint), wpx * 0.06f, hint)
+        } else if (idle && !closed) {
+            // 8초 힌트 — 손이 손잡이 둘레를 한 바퀴 돈다
             val spin by rememberInfiniteTransition(label = "a4hint").animateFloat(
                 0f, (2 * PI).toFloat(), infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Restart), label = "spin",
             )

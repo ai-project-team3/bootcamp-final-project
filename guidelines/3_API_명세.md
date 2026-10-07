@@ -33,6 +33,7 @@
 | `/image` | 13초 전체 (작업 취소) · **다시 그리기 45초**(10-02 #32) | 16초 · 다시 그리기 50초 | 4~9초 | `preset: true` |
 | `/tts` | 15초 | 20초 | 약 1초 | 502 → 앱이 소리 없이 넘어감 |
 | `/stt` | 상한 없음 (GPU 하나씩 줄 섬) | 30초 | 1~3초 | — |
+| `/report` | 상한 없음 (저장만 · §3-6) | 10초 | — | 실패 → 앱이 메일로 |
 | 연결 | — | 6초 (공개 https · Cloudflare 경유) | — | — |
 
 - LLM 호출마다 **전체 시간** 상한이다(`complete(timeout_s=…)`). httpx 의 `timeout` 은 단계마다라서 전체가 그보다 길어질 수 있었다
@@ -382,3 +383,67 @@ py -m uvicorn main:app --host 0.0.0.0 --port 8010
 | TTS | **런타임에 없다.** 고정 대사는 번들. **가변 자막은 미정** — 폰 TTS가 9/19 측정에서 탈락했다 |
 
 **엔드포인트를 새로 만들기 전에 조장에게 말한다.** 유일한 예외는 `main.py`에 자기 라우터의 `include_router` 한 줄을 더하는 것.
+
+---
+
+## 3-6. 문제 신고 (10-07 · #283 · 설계 `docs/문제신고_서버_설계_283.md`)
+
+부모 모드의 「문제 신고」를 서버로 받는다. 구현 `backend/app/reports.py`. 서버에 닿지 못하면 앱은 지금처럼 메일로 보낸다(메일에는 첨부가 가지 않는다).
+
+### `POST /report` — 공개 (앱이 부름 · 로그인 없음)
+
+```json
+{
+  "category": "image",              // image | text | error | other
+  "mode": "story",                  // story | diary | coop | null (설정에서 왔을 때)
+  "page": 3,                        // 1~40 | null
+  "note": "주인공 얼굴이 무서워요",   // 0~1000자
+  "app_version": "0.5-closed",      // 1~32자
+  "attachment": null                // 보호자가 체크했을 때만 아래 셋 중 하나
+}
+```
+
+| 첨부 `kind` | 함께 오는 키 | 저장 |
+|---|---|---|
+| `image` | `source`(`background` · `hero` · `friend` · `diary_otto`) · `data_base64`(JPEG · PNG · WebP) | 서버가 다시 굽는다 — 긴 변 1024 · JPEG 85 · 메타데이터 없음 · 투명은 흰 바탕 |
+| `preset` | `name`(영문 · 숫자 · `_` 64자) | JSON 안 |
+| `text` | `text`(1~500자 · 아이 호칭 · 이름은 앱이 자리표시로 바꿔서) | JSON 안 |
+
+- **모르는 키는 422** — 맨 위든 첨부 안이든(`audio` · `drawing` · `device_id` · `wav_base64` …). 저장 전에 튕긴다
+- 첨부는 자기 종류의 키만 — `text` 첨부에 `name` 이 같이 오면 422
+
+| 검사 | 값 | 넘으면 |
+|---|---|---|
+| 본문 전체 | 2.5MB | 413 |
+| 첨부 그림(디코드 뒤) | 1.5MB | 413 |
+| 그림 형식 · 크기 | JPEG · PNG · WebP 머리 · 가로세로 각 64~4096 | 422 |
+| 주소당 (메모리만) | 10분에 5건 | 429 |
+| 서버 하루 (메모리만) | 100건 | 503 |
+| 저장 폴더 | 200MB | 503 |
+
+응답 200: `{"id": "R-1007-3FA2", "keep_days_after_done": 30}` · `MOCK=1` 이면 저장하지 않고 `{"id": "R-0000-MOCK", …}`
+
+앱 기다림 10초(앱 PR 에서) · 서버 상한 없음(저장만) · 실패 · 429 · 503 이면 앱은 메일 길로.
+
+### 관리자 API — 앱은 부르지 않는다
+
+모두 관리자 세션(`app/admin.py` 쿠키)이 있어야 한다. 없으면 401. 모니터 도메인의 nginx `location /admin/` 가 그대로 넘긴다.
+
+| 메서드 · 경로 | 하는 일 |
+|---|---|
+| `GET /admin/reports?status=open\|done\|all` | 목록(기본 `open` = 접수 + 확인 중) · 새것부터 · `counts{open, done, all, stale}` · 행마다 `stale`(처리 전 14일 넘음) |
+| `GET /admin/reports/{id}` | 상세 — 저장된 JSON 전부 + 완료면 `delete_at` |
+| `GET /admin/reports/{id}/attachment` | 첨부 그림 `image/jpeg` · `Cache-Control: no-store` · `nosniff` |
+| `POST /admin/reports/{id}/status` `{"status": …}` | `received` · `reviewing` · `done` — `done` 이면 `done_at` 기록, `done` 에서 나오면 지움 |
+| `DELETE /admin/reports/{id}` | 바로 지우기 — 보호자가 접수 번호로 요청할 때 |
+
+`id` 는 `R-MMDD-XXXX`(받은 날 KST · 16진 4자리). 모양이 다르면 422 · 없으면 404.
+
+### 지켜야 할 것
+
+| | |
+|---|---|
+| **아이 원본은 어떤 경로로도 안 실린다** | 아이가 그린 그림 · 녹음한 소리 · 목소리 · 화면 캡처. 첨부는 그 쪽의 **AI 가 만든** 그림 하나 또는 문장 하나 |
+| **보낸 사람을 쓰지 않는다** | IP · User-Agent · 쿠키 · 헤더는 저장 JSON 에 없다. 남용 막기는 메모리만 |
+| **30일** | 처리 완료 후 30일이 지나면 JSON 과 첨부를 지운다(서버 시작 때 · 하루 한 번 · 관리자 목록 열 때). 처리 전 신고는 지우지 않는다 |
+| **저장 위치** | `REPORT_DIR` — PC1 은 `/state/reports`(호스트 `C:\otto\state\reports` · 배포해도 남음) |

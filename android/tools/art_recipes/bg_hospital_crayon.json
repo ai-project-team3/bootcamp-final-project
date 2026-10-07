@@ -1,0 +1,16 @@
+{
+  "name": "bg_hospital_crayon",
+  "of": "bg_hospital",
+  "kind": "bg",
+  "text": "the inside of a small children's clinic: a wooden reception counter with a bell, a height measuring chart on the wall, a row of empty waiting chairs, a first aid box and a plant, bright and calm, not scary",
+  "style": "crayon",
+  "size": [
+    1280,
+    768
+  ],
+  "seed": 414162588,
+  "prompt": "the inside of a small children's clinic: a wooden reception counter with a bell, a height measuring chart on the wall, a row of empty waiting chairs, a first aid box and a plant, bright and calm, not scary, wide landscape, no characters, no people, no animals, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "gen_diary_more.py",
+  "made": "2026-10-07"
+}
