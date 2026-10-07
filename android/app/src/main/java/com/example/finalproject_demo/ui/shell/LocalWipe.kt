@@ -31,6 +31,7 @@ object LocalWipe {
         "story_images",  // 동화 그림 (demo/StoryImageStore.kt)
         "diary_images",  // 그림일기 그림 (demo/DiaryBookStore.kt)
         "diary_voices",  // 그림일기 쪽 목소리 (demo/DiaryBookStore.kt · #179)
+        "book_voices",   // Saved story and co-op narration.
         "diary_trace",   // 그림일기 대화 기록 (demo/DiaryTrace.kt)
     )
 

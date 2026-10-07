@@ -50,6 +50,8 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -525,7 +527,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
             ) {
                 Text(caption, fontSize = 19.sp, lineHeight = 25.sp, color = InkBrown, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                 Spacer(Modifier.width(8.dp))
-                FeltButton(Cheek, onClick = { onReply(Reply.Tapped("speak", "낭독")) }, modifier = Modifier.size(48.dp), shape = CircleShape) {
+                FeltButton(Cheek, onClick = { onReply(Reply.Tapped("speak", "낭독")) }, modifier = Modifier.size(48.dp).semantics { contentDescription = "이 쪽 다시 읽기" }, shape = CircleShape) {
                     ArtView(Art.Img("ic_speaker", Art.Emoji("🔊")), Modifier.size(28.dp))
                 }
             }

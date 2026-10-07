@@ -2,6 +2,7 @@ package com.example.finalproject_demo
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onRoot
 import com.github.takahirom.roborazzi.RoborazziOptions
@@ -32,6 +33,34 @@ import org.robolectric.shadows.util.DataSource
 @OptIn(com.github.takahirom.roborazzi.ExperimentalRoborazziApi::class)
 class SavedStorySoundTest {
     @get:Rule val compose = createComposeRule()
+
+    @Test fun aCoopBooksSpeakerUsesTheOwningReadersVoiceQueue() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val d = Director(scope)
+        val state = DemoState().apply {
+            mode = StoryMode.COOP
+            coopPick = CoopPick("place", "동물원", "done")
+            title = "함께 만든 책"
+        }
+        val store = object : CoopBookStore {
+            var saved: SavedCoopBook? = null
+            override fun load() = listOfNotNull(saved)
+            override fun save(book: SavedCoopBook) { saved = book }
+        }
+        CoopShelf.attach(state, store)
+        assertEquals(CoopShelved.SAVED, CoopShelf.shelve(state))
+        val book = store.saved!!.book
+        val frozen = motionFrozen
+        var reply: Reply? = null
+        try {
+            motionFrozen = true
+            scope.launch { reply = d.awaitReply() }
+            compose.setContent { SavedStoryView(d, Stage.SavedStory(book, 1)) }
+            compose.onNodeWithContentDescription("이 쪽 다시 읽기").performClick()
+            compose.waitUntil(3_000) { reply != null }
+            assertEquals("speak", (reply as Reply.Tapped).value)
+        } finally { motionFrozen = frozen; scope.cancel() }
+    }
 
     @Test fun aChildSoundWaitsForTheActualSavedStoryNarration() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

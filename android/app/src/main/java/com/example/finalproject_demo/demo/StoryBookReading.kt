@@ -1,11 +1,11 @@
 package com.example.finalproject_demo.demo
 
 /** Read stored story text through the scene's voice queue; never regenerate or save the book. */
-internal suspend fun Director.readSavedStory(book: SavedStoryBook) {
+internal suspend fun Director.readSavedStory(book: SavedStoryBook, mode: StoryMode = StoryMode.STORY) {
     val previousMode = s.mode
     var page = 0
     var shown = -1
-    s.mode = StoryMode.STORY
+    s.mode = mode
     buttons()
     try {
         while (true) {

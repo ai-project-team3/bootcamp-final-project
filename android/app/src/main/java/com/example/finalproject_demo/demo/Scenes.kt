@@ -1800,18 +1800,7 @@ private suspend fun Director.sceneShelf() {
                     continue
                 }
                 val book = CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
-                var page = 0
-                s.line = ""
-                buttons()
-                while (true) {
-                    s.stage = Stage.SavedStory(book, page)
-                    val action = (awaitReply() as? Reply.Tapped)?.value ?: continue
-                    when (action) {
-                        "next" -> if (page < book.pages.size) page++
-                        "prev" -> if (page > 0) page--
-                        "close" -> break
-                    }
-                }
+                readSavedStory(book, StoryMode.COOP)
                 s.stage = Stage.Shelf(fromEnd)
                 say("우리가 만든 책들이야!")
             }
