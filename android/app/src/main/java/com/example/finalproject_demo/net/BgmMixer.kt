@@ -31,6 +31,13 @@ class BgmMixer(private val out: BgmOutput) {
     private class Voice(val track: String, val ch: BgmChannel) {
         var from = 0f; var to = 1f; var start = 0L; var len = 0L
         var dying = false; var looped = false
+        // read once: the length never changes, and asking every 50 ms was ~2,400 calls in 3.5 min (10-07 device)
+        val durationMs = ch.durationMs
+        private var applied = Float.NaN
+        /** sets the channel volume only when it changed — a steady level is not re-sent every tick */
+        fun volume(v: Float) {
+            if (applied.isNaN() || kotlin.math.abs(v - applied) > 0.0005f) { ch.setVolume(v); applied = v }
+        }
         fun gain(now: Long): Float =
             if (len <= 0) to else from + (to - from) * ((now - start).toFloat() / len).coerceIn(0f, 1f)
         fun fade(now: Long, target: Float, ms: Long) { from = gain(now); to = target; start = now; len = ms }
@@ -59,7 +66,7 @@ class BgmMixer(private val out: BgmOutput) {
         val ch = out.open(track) ?: return
         val v = Voice(track, ch).apply { from = 0f; to = 1f; start = now; len = BGM_FADE_MS }
         voices += v
-        ch.setVolume(0f)
+        v.volume(0f)
         if (holds.isEmpty()) ch.start()
     }
 
@@ -86,7 +93,7 @@ class BgmMixer(private val out: BgmOutput) {
         if (!holds.remove(reason) || holds.isNotEmpty()) return
         voices.filter { it.dying }.forEach { it.ch.release() }
         voices.removeAll { it.dying }
-        voices.forEach { v -> v.from = 0f; v.to = 1f; v.start = now; v.len = BGM_FADE_MS; v.ch.setVolume(0f); v.ch.start() }
+        voices.forEach { v -> v.from = 0f; v.to = 1f; v.start = now; v.len = BGM_FADE_MS; v.volume(0f); v.ch.start() }
     }
 
     /** For teardown when the player goes away: frees every channel at once and forgets the wanted track. */
@@ -108,13 +115,13 @@ class BgmMixer(private val out: BgmOutput) {
         if (holds.isNotEmpty()) return
         if (unduckAt in 0..now) { duckFrom = duckGain(now); duckTo = 1f; duckStart = now; unduckAt = -1 }
         current()?.let { v ->
-            val d = v.ch.durationMs
+            val d = v.durationMs
             if (!v.looped && d > BGM_LOOP_MS && v.ch.positionMs >= d - BGM_LOOP_MS) {
                 v.looped = true
                 out.open(v.track)?.let { ch ->
                     v.dying = true; v.fade(now, 0f, BGM_LOOP_MS)
-                    voices += Voice(v.track, ch).apply { from = 0f; to = 1f; start = now; len = BGM_LOOP_MS }
-                    ch.setVolume(0f); ch.start()
+                    voices += Voice(v.track, ch).apply { from = 0f; to = 1f; start = now; len = BGM_LOOP_MS; volume(0f) }
+                    ch.start()
                 }
             }
         }
@@ -122,6 +129,6 @@ class BgmMixer(private val out: BgmOutput) {
         val done = voices.filter { it.dying && now - it.start >= it.len }
         done.forEach { it.ch.release() }
         voices.removeAll(done)
-        voices.forEach { it.ch.setVolume(BGM_BASE * duck * it.gain(now)) }
+        voices.forEach { it.volume(BGM_BASE * duck * it.gain(now)) }
     }
 }

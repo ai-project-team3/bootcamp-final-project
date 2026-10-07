@@ -14,13 +14,15 @@ import org.junit.Test
 class BgmMixerTest {
     private var now = 0L
 
-    inner class FakeChannel(val track: String, override val durationMs: Long) : BgmChannel {
+    inner class FakeChannel(val track: String, private val length: Long) : BgmChannel {
         @JvmField var volume = -1f; var started = false; var released = false; var starts = 0
+        var volumeSets = 0; var durationReads = 0
+        override val durationMs: Long get() { durationReads++; return length }
         private var playedMs = 0L; private var since = -1L
         override val positionMs get() = playedMs + if (since >= 0) now - since else 0
         override fun start() { started = true; starts++; since = now }
         override fun pause() { if (since >= 0) playedMs += now - since; since = -1 }
-        override fun setVolume(v: Float) { volume = v }
+        override fun setVolume(v: Float) { volume = v; volumeSets++ }
         override fun release() { released = true; pause() }
     }
 
@@ -190,5 +192,22 @@ class BgmMixerTest {
         assertTrue(mixer.held); assertTrue(mixer.active)
         mixer.resume("pause", now); assertTrue(mixer.held)
         mixer.resume("screen", now); assertFalse(mixer.held)
+    }
+
+    /** 같은 음량을 50ms 마다 다시 넣지 않는다 — 10-07 실기기: 3분 반에 setVolume 2,000번 넘게 (#221) */
+    @Test fun aSteadyVolumeIsNotSetAgain() {
+        mixer.play("a", now); at(2000)
+        val sets = opened[0].volumeSets
+        repeat(20) { at(now + 50) }
+        assertEquals(sets, opened[0].volumeSets)
+        mixer.duck(true, now); at(now + 50)
+        assertTrue("a change is still applied", opened[0].volumeSets > sets)
+    }
+
+    /** 곡 길이는 열 때 한 번만 묻는다 — 10-07 실기기: 3분 반에 getDuration 2,444번 (#221) */
+    @Test fun theDurationIsReadOnce() {
+        mixer.play("a", now)
+        repeat(100) { at(now + 50) }
+        assertTrue("read ${opened[0].durationReads} times", opened[0].durationReads <= 1)
     }
 }
