@@ -18,6 +18,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -86,6 +87,15 @@ import com.example.finalproject_demo.demo.ruleEstimate
 import com.example.finalproject_demo.demo.CHECKLIST
 import com.example.finalproject_demo.demo.Card
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.BIG_BRUSH
+import com.example.finalproject_demo.demo.GOLD_CRAYON
+import com.example.finalproject_demo.demo.RAINBOW_COLORS
+import com.example.finalproject_demo.demo.RAINBOW_STEP
+import com.example.finalproject_demo.demo.Reward
+import com.example.finalproject_demo.demo.Rewards
+import com.example.finalproject_demo.demo.STAMP_SIZE
+import com.example.finalproject_demo.demo.heartStamp
+import com.example.finalproject_demo.demo.starStamp
 import com.example.finalproject_demo.demo.NEVER
 import com.example.finalproject_demo.demo.Persona
 import com.example.finalproject_demo.demo.Reply
@@ -957,10 +967,14 @@ private fun HeroBuilderView(d: Director, stage: Stage.HeroBuilder) {
  */
 @Composable
 private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
-    // 한 획 = 색 + 점들. 지우개가 획을 끊기 때문에 목록을 통째로 갈아 끼운다
-    val strokes = remember { mutableStateListOf<Pair<Color, MutableList<Offset>>>() }
+    // 한 획 = 색 + 점들 + 굵기. 지우개가 획을 끊기 때문에 목록을 통째로 갈아 끼운다
+    val strokes = remember { mutableStateListOf<PadLine>() }
     var color by remember { mutableStateOf(Coral) }
     var erasing by remember { mutableStateOf(false) }
+    // 업적 보상으로 받은 도구 (demo/Rewards.kt) — null 이면 보통 크레용
+    var tool by remember { mutableStateOf<Reward?>(null) }
+    var rainbowAt by remember { mutableStateOf(0) }
+    var rainbowRun by remember { mutableStateOf(0f) }
     var tick by remember { mutableStateOf(0) }
     var box by remember { mutableStateOf(IntSize(1, 1)) }
 
@@ -970,17 +984,17 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
     /** 지우개가 지나간 자리에서 획을 끊는다 — 남은 토막만 다시 담는다 */
     fun erase(at: Offset) {
         var changed = false
-        val kept = mutableListOf<Pair<Color, MutableList<Offset>>>()
-        strokes.forEach { (c, pts) ->
+        val kept = mutableListOf<PadLine>()
+        strokes.forEach { l ->
             var run = mutableListOf<Offset>()
-            pts.forEach { p ->
+            l.pts.forEach { p ->
                 if ((p - at).getDistance() <= eraseR) {
                     changed = true
-                    if (run.size >= 2) kept += c to run
+                    if (run.size >= 2) kept += l.copy(pts = run)
                     run = mutableListOf()
                 } else run.add(p)
             }
-            if (run.size >= 2) kept += c to run
+            if (run.size >= 2) kept += l.copy(pts = run)
         }
         if (changed) {
             strokes.clear()
@@ -993,8 +1007,8 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
         if (forAnswer) return
         d.s.drawing.clear()
         d.s.drawingAspect = box.width.toFloat() / box.height.toFloat()
-        strokes.forEach { (c, pts) ->
-            if (pts.size >= 2) d.s.drawing += DrawStroke(c, pts.map { Offset(it.x / box.width, it.y / box.height) }, PEN_W)
+        strokes.forEach { l ->
+            if (l.pts.size >= 2) d.s.drawing += DrawStroke(l.color, l.pts.map { Offset(it.x / box.width, it.y / box.height) }, PEN_W * l.w)
         }
     }
 
@@ -1018,8 +1032,27 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
                                 .clip(CircleShape)
                                 .background(c)
                                 .border(if (c == color && !erasing) 4.dp else 1.dp, if (c == color && !erasing) InkBrown else InkBrown.copy(alpha = 0.2f), CircleShape)
-                                .clickable { color = c; erasing = false }
+                                .clickable { color = c; erasing = false; if (tool == Reward.RAINBOW || tool == Reward.GOLD) tool = null }
                         )
+                    }
+                }
+            }
+            // 받은 보상 도구 — 받은 것만 보인다. 처음 받은 것에는 「새로」 점 (demo/Rewards.kt · #223)
+            val owned = Reward.entries.filter { it in Rewards.owned }
+            if (owned.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                owned.forEach { r ->
+                    val on = tool == r && !erasing
+                    Box {
+                        Box(
+                            Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(if (on) Sun2 else WoolCream)
+                                .border(if (on) 4.dp else 1.dp, if (on) InkBrown else InkBrown.copy(alpha = 0.2f), CircleShape)
+                                .clickable { tool = if (tool == r) null else r; erasing = false; Rewards.tried(r) },
+                            contentAlignment = Alignment.Center,
+                        ) { Text(r.emoji, fontSize = 18.sp) }
+                        if (r in Rewards.fresh) Box(Modifier.align(Alignment.TopEnd).size(10.dp).clip(CircleShape).background(FeltCoral))
                     }
                 }
             }
@@ -1046,13 +1079,36 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
                 .fillMaxHeight()
                 .felt(FeltWhite, RoundedCornerShape(R), lift = 6.dp, texture = false)
                 .onSizeChanged { box = it }
-                .pointerInput(erasing) {
+                .pointerInput(erasing, tool, color) {
+                    // 도장은 누른 자리에 한 번 — 끌어도 하나만 찍힌다
+                    detectTapGestures { p -> if (!erasing) stampAt(tool, color, p, box.width)?.let { strokes += it; tick++ } }
+                }
+                .pointerInput(erasing, tool, color) {
+                    var stamped = false
                     detectDragGestures(
-                        onDragStart = { p -> if (erasing) erase(p) else { strokes += color to mutableListOf(p); tick++ } },
+                        onDragStart = { p ->
+                            stamped = false
+                            if (erasing) { erase(p); return@detectDragGestures }
+                            val st = stampAt(tool, color, p, box.width)
+                            if (st != null) { strokes += st; stamped = true; tick++; return@detectDragGestures }
+                            val c = when (tool) { Reward.RAINBOW -> RAINBOW_COLORS[rainbowAt % RAINBOW_COLORS.size]; Reward.GOLD -> GOLD_CRAYON; else -> color }
+                            strokes += PadLine(c, mutableListOf(p), if (tool == Reward.BIG) BIG_BRUSH else 1f)
+                            rainbowRun = 0f; tick++
+                        },
                         onDrag = { change, _ ->
                             if (erasing) erase(change.position)
-                            else {
-                                strokes.lastOrNull()?.second?.add(change.position)
+                            else if (!stamped) {
+                                val line = strokes.lastOrNull()
+                                val last = line?.pts?.lastOrNull()
+                                line?.pts?.add(change.position)
+                                // 무지개 — 조금 갈 때마다 다음 색의 선으로 이어 그린다(한 획 = 한 색이라 책에도 그대로 남는다)
+                                if (tool == Reward.RAINBOW && last != null) {
+                                    rainbowRun += (change.position - last).getDistance()
+                                    if (rainbowRun >= box.width * RAINBOW_STEP) {
+                                        rainbowRun = 0f; rainbowAt++
+                                        strokes += PadLine(RAINBOW_COLORS[rainbowAt % RAINBOW_COLORS.size], mutableListOf(change.position), 1f)
+                                    }
+                                }
                                 tick++
                             }
                             change.consume()
@@ -1062,10 +1118,10 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
         ) {
             Canvas(Modifier.fillMaxSize()) {
                 @Suppress("UNUSED_EXPRESSION") tick
-                strokes.forEach { (c, pts) ->
+                strokes.forEach { l ->
                     val p = Path()
-                    pts.forEachIndexed { i, o -> if (i == 0) p.moveTo(o.x, o.y) else p.lineTo(o.x, o.y) }
-                    drawPath(p, c, style = Stroke(penPx, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                    l.pts.forEachIndexed { i, o -> if (i == 0) p.moveTo(o.x, o.y) else p.lineTo(o.x, o.y) }
+                    drawPath(p, l.color, style = Stroke(penPx * l.w, cap = StrokeCap.Round, join = StrokeJoin.Round))
                 }
             }
             if (strokes.isEmpty()) {
@@ -1082,6 +1138,16 @@ private fun DrawPadView(d: Director, forAnswer: Boolean = false) {
             }
         }
     }
+}
+
+/** 그림판의 한 획 — [w] 는 보통 붓의 몇 배 (굵은 붓 · 도장) */
+private data class PadLine(val color: Color, val pts: MutableList<Offset>, val w: Float = 1f)
+
+/** 도장 도구면 [at] 에 찍을 한 획, 아니면 null */
+private fun stampAt(tool: Reward?, color: Color, at: Offset, width: Int): PadLine? {
+    val r = width * STAMP_SIZE / 2
+    val shape = when (tool) { Reward.STAR -> starStamp(at, r); Reward.HEART -> heartStamp(at, r); else -> return null }
+    return PadLine(color, shape.toMutableList(), 1.4f)
 }
 
 /** 크레용 12색 — 살구 · 갈색까지 넣어 사람도 그릴 수 있게 (9/21) */

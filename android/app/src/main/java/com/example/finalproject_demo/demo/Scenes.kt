@@ -1719,6 +1719,7 @@ private suspend fun Director.sceneEnd() {
         s.stage = Stage.Gifts(2, done = true)
         say("무지개 크레용이 생겼어! 다음에 그려 보자.")
         if ("무지개 크레용" !in s.achievements) s.achievements += "무지개 크레용"
+        Rewards.grant(Reward.RAINBOW)   // kept on the phone — the next book's drawing pad has it (demo/Rewards.kt)
         log("선물 2 — 무지개 크레용 (업적 7: 그림판 그림을 책에 처음 넣음)")
         pause(2600)
     } else {
@@ -1733,7 +1734,7 @@ private suspend fun Director.sceneEnd() {
     while (true) {
         awaitValue("shelf")
         // 같이 만들기는 협업 책장에 따로 저장한다(#83 · CoopBookStore.kt)
-        if (if (s.isCoop) shelveCoopBook() else s.mode != StoryMode.STORY || saveFinishedStory()) break
+        if (if (s.isCoop) shelveCoopBook() else s.mode != StoryMode.STORY || saveFinishedStory()) { rewardsAfterShelving(); break }
         say("책을 기기에 저장하지 못했어. 다시 눌러 줘.")
     }
     mark("end")
@@ -1753,6 +1754,15 @@ private suspend fun Director.sceneShelf() {
     if (fromEnd) {
         val t = s.shelf.first().title
         say("『$t』${if (bat(t)) "이" else "가"} 책장에 꽂혔어! 오늘은 여기까지!")
+        // a reward the book just earned — told once, after the shelving line (demo/Rewards.kt)
+        val news = s.rewardNews.toList()
+        if (news.isNotEmpty()) {
+            s.rewardNews.clear()
+            pause(2400)
+            val names = news.joinToString(", ") { it.title }
+            say("그리고 $names${if (bat(names)) "이" else "가"} 생겼어! 다음에 그릴 때 써 보자!")
+            log("보상 — $names (${news.joinToString(" · ") { it.how }}) · 폰에 남고 다음 그림판에 도구로 나온다")
+        }
         log("새 책이 책장 맨 앞에 꽂힘 · 다음 책을 권하지 않음 (끝이 있는 설계 ⭐2) · 책 이름은 ✏️로 바꿀 수 있게 할 자리")
         mark("shelf")
         buttons(

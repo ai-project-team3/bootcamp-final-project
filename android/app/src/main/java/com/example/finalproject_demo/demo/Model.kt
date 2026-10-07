@@ -1298,6 +1298,8 @@ class DemoState {
     )
 
     val achievements = mutableStateListOf<String>()
+    /** Rewards earned this session, told on the shelf (demo/Rewards.kt) */
+    val rewardNews = mutableStateListOf<Reward>()
     var reactions by mutableStateOf(0)
 
     // ── 화면
@@ -1449,7 +1451,7 @@ class DemoState {
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
         generatedFriend = null; friendRequested = null
-        achievements.clear(); reactions = 0
+        achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
         heroTries.clear()
         modeVoice = 0; modeCard = 0; modeDraw = 0; modeSilent = 0

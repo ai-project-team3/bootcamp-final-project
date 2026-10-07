@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.Reward
+import com.example.finalproject_demo.demo.Rewards
 import com.example.finalproject_demo.demo.SessionReport
 import com.example.finalproject_demo.demo.SessionReports
 import com.example.finalproject_demo.demo.buildSessionReport
@@ -916,30 +918,35 @@ private fun AchievementsTab(d: Director) {
             }
         }
     }
-    Section("받은 선물", "아이가 한 일로만 받아요 · 많이 말한 것 · 빨리 한 것에는 주지 않아요")
-    val items = s.achievements.filterNot { it.startsWith("해결 방법 도감") }
-    if (items.isEmpty()) {
-        PCard(Modifier.fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                AssetImage("pi_achieve", Modifier.size(56.dp).alpha(0.45f)) { Text("🏅", fontSize = 28.sp) }
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text("아직 받은 선물이 없어요", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
-                    Text("미션을 스스로 해내거나 직접 그림을 그리면 받아요", fontSize = 12.sp, color = PSub)
-                }
-            }
-        }
-    }
-    items.chunked(3).forEach { row ->
-        Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            row.forEach { a ->
-                PCard(Modifier.weight(1f)) {
-                    AssetImage(if (a.contains("크레용")) "gift_crayon" else "pi_achieve", Modifier.size(44.dp)) { Text(if (a.contains("크레용")) "🌈" else "🏅", fontSize = 22.sp) }
-                    Text(a, fontSize = 13.sp, color = Ink, fontWeight = FontWeight.Bold)
+    // 받은 보상은 폰에 남고 그림판 도구가 된다 (demo/Rewards.kt · 10-06 종훈 · #223)
+    Section("받은 선물", "아이가 한 일로만 받아요 · 받으면 다음 그림판에서 바로 써요")
+    Reward.entries.chunked(3).forEach { row ->
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            row.forEach { r ->
+                val got = r in Rewards.owned
+                PCard(Modifier.weight(1f).fillMaxHeight()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.size(44.dp).clip(CircleShape).background(if (got) Color(0xFFFFF1CC) else Color(0xFFF3EDE3)),
+                            contentAlignment = Alignment.Center,
+                        ) { Text(if (got) r.emoji else "?", fontSize = 20.sp, color = PSub) }
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(r.title, fontSize = 14.sp, color = if (got) Ink else PSub, fontWeight = FontWeight.Bold)
+                            Text(r.how, fontSize = 12.sp, color = PSub)
+                            Rewards.dayOf(r)?.let { d -> Text("${d.substring(5).replace('-', '/')} 받음 · 그림판에서 써요", fontSize = 11.sp, color = PAccent) }
+                        }
+                    }
                 }
             }
             repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
         }
+    }
+    // 미션에서 오늘 받은 손 배지 — 그 이야기 안의 것이라 오늘만 보인다
+    val badges = s.achievements.filterNot { it.startsWith("해결 방법 도감") || "크레용" in it }
+    if (badges.isNotEmpty()) {
+        Section("오늘 미션에서 받은 것")
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { badges.forEach { Chip("🏅 $it", Sun) } }
     }
 }
 

@@ -1184,6 +1184,11 @@ class Director(
         log("신호 $kind — \"$evidence\"${if (note.isNotEmpty()) " · $note" else ""}")
     }
 
+    /** A shelved book may earn a reward (first diary · first co-op book · the third book) */
+    fun rewardsAfterShelving() {
+        Rewards.bookShelved(s.mode, s.isCoop).forEach { if (it !in s.rewardNews) s.rewardNews += it }
+    }
+
     fun quote(text: String) {
         if (text !in s.quotes) s.quotes += text
     }
