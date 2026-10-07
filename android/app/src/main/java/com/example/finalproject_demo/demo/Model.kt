@@ -124,7 +124,10 @@ val PARTNERS = listOf(
     Partner("sibling", "언니", "ic_p_friend", "🧒", adult = false, honor = false),
 )
 
-fun partner(key: String) = PARTNERS.firstOrNull { it.key == key } ?: PARTNERS.first()
+private val SOLO_PARTNER = Partner("solo", "혼자", "", "⭐", adult = false, honor = false)
+private val UNKNOWN_PARTNER = Partner("unknown", "확인하지 않음", "", "⭐", adult = false, honor = false)
+fun partner(key: String) = PARTNERS.firstOrNull { it.key == key }
+    ?: if (key == "solo") SOLO_PARTNER else UNKNOWN_PARTNER
 
 /**
  * 진짜 마이크로 들은 말에서 호칭을 찾는다 (09-29 S25+).
@@ -155,6 +158,12 @@ private val NOT_A_NAME = setOf("몰라", "없어", "아무도", "혼자", "나",
  * 친구 이름은 이름 가리기 목록에 들어간다([DemoState.nameMask]) — 규칙 6.
  */
 fun partnerIn(text: String): Pair<String, String>? {
+    val compact = text.filter { it in '가'..'힣' }
+    val deniesSolo = Regex("혼자(?:가)?(?:아니|아닌|말고)").containsMatchIn(compact)
+    if (!deniesSolo && ("혼자" in compact || "아무도없" in compact ||
+            compact in setOf("나만", "나만있어", "나만할래", "나만왔어", "저만", "저혼자요"))) {
+        return "solo" to "혼자"
+    }
     PARTNER_WORDS.firstOrNull { (word, _) -> word in text }?.let { (word, key) ->
         return key to (if (key == "friend") "친구" else word)
     }
@@ -941,6 +950,8 @@ class DemoState {
     var partnerCall by mutableStateOf<String?>(null)
     val partner: Partner get() = partner(partnerKey).let { p -> partnerCall?.let { p.copy(name = it) } ?: p }
     val pn: String get() = partner.name
+    /** A real session partner is separate from fictional companions in the story. */
+    val hasPartner: Boolean get() = PARTNERS.any { it.key == partnerKey }
 
     // ── 이야기 칸 6개 (진행 막대는 칸이 찼나 하는 표시일 뿐, 점수가 아님)
     var place by mutableStateOf<String?>(null)

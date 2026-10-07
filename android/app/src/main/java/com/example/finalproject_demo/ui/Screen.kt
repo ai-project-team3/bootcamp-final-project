@@ -486,6 +486,8 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                             Box(Modifier.fillMaxSize().dashedBorder(Sun, 75.dp).alpha(a), contentAlignment = Alignment.Center) {
                                 Text("?", fontSize = 64.sp, color = Sun, fontWeight = FontWeight.Bold)
                             }
+                        } else if (picked.key == "solo" || picked.key == "unknown") {
+                            Text(if (picked.key == "solo") "혼자 만들기" else "이야기 시작", fontSize = 24.sp, color = Ink)
                         } else {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.scale(pop)) {
                                 ArtView(Art.Img(picked.img, Art.Emoji(picked.emoji)), Modifier.size(120.dp))
