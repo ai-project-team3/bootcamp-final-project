@@ -115,4 +115,25 @@ class WorldStyleTest {
             server.close()
         }
     }
+
+    /**
+     * The crayon world pictures from #291 · #307 (`res/drawable-nodpi/<name>_crayon.webp`) resolve through the real
+     * resource lookup: each has a felt original, is a world picture, and every scene kit is complete in crayon
+     */
+    @Test
+    fun theBundledCrayonPicturesResolve() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        @Suppress("DiscouragedApi")
+        val has: (String) -> Boolean = { n -> ctx.resources.getIdentifier(n, "drawable", ctx.packageName) != 0 }
+        val crayon = R.drawable::class.java.fields.map { it.name }.filter { it.endsWith("_crayon") } - setOf("gift_crayon", "style_crayon")
+        assertTrue("${crayon.size} crayon pictures", crayon.size >= 202)
+        crayon.forEach { c ->
+            val felt = c.removeSuffix("_crayon")
+            assertTrue("$felt has a felt original", has(felt))
+            assertTrue("$felt is a world picture", WorldStyle.isWorld(felt))
+            assertEquals(c, WorldStyle.resolve(felt, "crayon", has))
+            assertEquals(felt, WorldStyle.resolve(felt, "felt", has))
+        }
+        SceneKits.all.values.forEach { assertTrue("${it.key} ready in crayon", WorldStyle.kitReady(it, "crayon", has)) }
+    }
 }
