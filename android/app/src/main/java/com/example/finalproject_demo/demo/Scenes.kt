@@ -563,9 +563,11 @@ private suspend fun Director.sceneMakeHero() {
             while (true) {
                 // No half-made preview: it was the grey mannequin, far from the finished doll (10-05 device · 3-1)
                 s.stage = Stage.HeroShow(null, "주인공 만드는 중 — 마이크로 말해 줘")
-                val r = ask(Question(text = q.text, kind = Kind.EASY, spoken = q.spoken, easierText = q.easier, easierAsk = "골라 볼래?", choices = q.cards))
-                if (r is Reply.Spoke && heroFromWords() &&
-                    !confirmHeroDescription(r.text)) continue
+                var r = ask(Question(text = q.text, kind = Kind.EASY, spoken = q.spoken, easierText = q.easier, easierAsk = "골라 볼래?", choices = q.cards))
+                if (r is Reply.Spoke && heroFromWords()) {
+                    val confirmed = confirmHeroDescription(r.text) ?: continue
+                    if (confirmed != r.text) r = Reply.Spoke(confirmed)
+                }
                 when (r) {
                     is Reply.Spoke -> applySpoken(q.key, r)
                     is Reply.Tapped -> apply(q.key, r.value)
@@ -579,7 +581,7 @@ private suspend fun Director.sceneMakeHero() {
     suspend fun fixFlow() {
         while (true) {
             s.stage = Stage.HeroShow(attr, "어디를 바꿀까 — 마이크로 말해 줘")
-            val r = ask(
+            var r = ask(
                 Question(
                     text = "어디를 바꾸면 더 마음에 들까?",
                     kind = Kind.EASY,
@@ -592,8 +594,10 @@ private suspend fun Director.sceneMakeHero() {
                 )
             )
             // A correction is still speech recognition, not consent to regenerate the hero.
-            if (r is Reply.Spoke && s.mode == StoryMode.STORY && heroFromWords() &&
-                !confirmHeroDescription(r.text)) continue
+            if (r is Reply.Spoke && s.mode == StoryMode.STORY && heroFromWords()) {
+                val confirmed = confirmHeroDescription(r.text) ?: continue
+                if (confirmed != r.text) r = Reply.Spoke(confirmed)
+            }
             when (r) {
                 is Reply.Spoke -> applySpoken(null, r)          // 한 번에 한 가지만
                 is Reply.Tapped -> {
