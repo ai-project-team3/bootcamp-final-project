@@ -55,6 +55,14 @@ const val CRAYON_PAUSE = "크레용"
 /** 이만큼 떨어져 있으면 다른 조각이다 (화이트보드 폭 · 높이의 비율) */
 internal const val PIECE_GAP = 0.06f
 
+/**
+ * 새 획이 이 조각에 이어 그린 것으로 보이는 **선과 선 사이** 거리 (화이트보드 높이의 비율 · 폭은 [DiaryDay.boardAspect] 로 맞춘다).
+ * 조각을 감싼 네모가 아니라 실제 선으로 잰다 — 둥근 해 · 구름의 네모는 모서리가 비어 있어, 그 옆에 그린 사람이 해가 됐다(#263 · 10-05).
+ * 값은 개발자 그림 여섯 장(`src/test/resources/diary_strokes`)으로 잡았다: 한 물건 안에서 떼어 그린 선은 0.076 까지,
+ * 따로 그린 물건은 0.09(게 ↔ 모래성) · 0.116(사람 ↔ 해)
+ */
+internal const val PIECE_NEAR = 0.08f
+
 /** 비율 좌표의 네모 */
 data class BoardBox(val left: Float, val top: Float, val right: Float, val bottom: Float) {
     val width get() = right - left
@@ -89,7 +97,7 @@ fun DiaryDay.addStroke(stroke: Stroke): Int {
     val b = boxOf(listOf(stroke)) ?: return -1
     val at = pieces.sumOf { it.strokes.size }            // 이 획이 판에서 몇 번째인가 — catchUp 이 차례대로 붙인다
     fun touchesIt(p: DiaryPiece) = boxOf(p.strokes)?.grow(PIECE_GAP)?.touches(b) == true
-    fun near(p: DiaryPiece) = touchesIt(p) && openFor(p.id, at)
+    fun near(p: DiaryPiece) = reaches(p, stroke, b) && openFor(p.id, at)
     fun put(target: DiaryPiece): Int {
         val i = pieces.indexOfFirst { it.id == target.id }
         pieces[i] = target.copy(strokes = target.strokes + stroke)
@@ -142,6 +150,26 @@ fun DiaryDay.addStroke(stroke: Stroke): Int {
     val i = pieces.indexOfFirst { it.id == target.id }
     pieces[i] = target.copy(strokes = target.strokes + stroke)
     return target.id
+}
+
+/**
+ * 새 획이 [p] 에 이어 그린 것인가 — 조각의 네모 **안에** 그렸거나(문 · 창문 · 눈), 조각의 선에서 [PIECE_NEAR] 안에 그었다.
+ * 네모에 닿기만 한 것은 아니다: 둥근 것의 네모 모서리는 비어 있다
+ */
+private fun DiaryDay.reaches(p: DiaryPiece, stroke: Stroke, b: BoardBox): Boolean {
+    val box = boxOf(p.strokes) ?: return false
+    if (!box.grow(PIECE_NEAR).touches(b)) return false
+    val cx = (b.left + b.right) / 2
+    val cy = (b.top + b.bottom) / 2
+    if (box.contains(BoardBox(cx, cy, cx, cy))) return true
+    val aspect = boardAspect()
+    val reach = b.grow(PIECE_NEAR)
+    return p.strokes.any { s ->
+        s.pts.any { q ->
+            q.x in reach.left..reach.right && q.y in reach.top..reach.bottom &&
+                stroke.pts.any { o -> kotlin.math.hypot((q.x - o.x) * aspect, q.y - o.y) <= PIECE_NEAR }
+        }
+    }
 }
 
 /** 이름 붙은 조각 중 [piece] 에 닿은 것 — 「○○에 더 그린 거야, 새로 그린 거야?」를 물을 상대 */
