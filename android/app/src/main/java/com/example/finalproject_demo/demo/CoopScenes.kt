@@ -251,7 +251,21 @@ private val LLM_QUESTION_STEPS = setOf("place", "problem", "cause", "solution", 
 private fun DemoState.llmQuestionFor(q: Question, next: Pair<String, String>?): String? {
     if (next == null || !Server.liveFor(mode)) return null
     val key = q.id.removePrefix("diary_")
-    return next.second.takeIf { key in LLM_QUESTION_STEPS && next.first == key && it.isNotBlank() }
+    return next.second.takeIf {
+        key in LLM_QUESTION_STEPS && next.first == key && it.isNotBlank() && !(key == "cause" && causeAsksOtherEvent(it, problem, solution))
+    }
+}
+
+/**
+ * cause 자리 서버 질문이 문제 대신 다른 일(해결 · 같이 간 사람이 한 일)의 까닭을 묻나 (#304 1).
+ * 꼬리 답 하나가 해결을 먼저 채우면 대사 모델이 「방금 일」의 까닭을 물었다 — 「아빠는 왜 풍선을 잡아줬을까?」.
+ * **해결에만 있는 줄기**(낱말 앞 두 글자 · 해결 − 문제)가 질문에 하나라도 있으면 참. 해결이 비었으면 거르지 않는다
+ */
+internal fun causeAsksOtherEvent(question: String, problem: String?, solution: String?): Boolean {
+    if (solution.isNullOrBlank()) return false
+    fun stems(t: String) = Regex("[가-힣A-Za-z0-9]{2,}").findAll(t).map { it.value.take(2) }.toSet()
+    val onlySolution = stems(solution) - stems(problem.orEmpty())
+    return stems(question).any { it in onlySolution }
 }
 
 /**
@@ -358,6 +372,8 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
 
     // 서버 LLM 질문은 처음 묻는 자리에서만 · 갈무리를 통과했을 때만 (부모 질문 자리면 묻지 않는다)
     val llmText = if (firstAsk && scripted !is CoopLine.Parent) s.llmQuestionFor(q, llm)?.let { guarded(it, CoopSource.LLM) } else null
+    if (firstAsk && key == "cause" && llm?.first == "cause" && causeAsksOtherEvent(llm.second, s.problem, s.solution))
+        log("[cause] 서버 질문이 해결의 까닭을 물어 버림 — \"${llm.second}\"")
     // 엉뚱한 답(다녀왔어요 · 곧 해요의 상상 낱말) 뒤 한 번 — 같은 자리를 「진짜로는」으로
     val redirect = !firstAsk && track.wildFor == key && track.wildAsked != key
 
@@ -413,6 +429,8 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         // 아이 말에서 뗀 이름 하나. 「몰라」 · 「응」은 되비추지 않는다. 다음 질문과 합쳐 두 문장
         val server = if (live == null || wild) null else coopServerReaction(track.liveTurn?.result?.line)
         if (server != null) log("[$key] 받아주기 — 서버 대사 「$server」")
+        // 못 썼으면 까닭을 남긴다 — 서버가 대사를 안 줬나(거절 · 실패), 앱이 버렸나를 다음 실기기에서 가른다 (#304 2)
+        else if (live != null && !wild) log("[$key] 받아주기 — 서버 대사 못 씀: ${coopServerDropped(track.liveTurn?.result?.line).joinToString(" · ")}")
         (server ?: coopAck(r.text, roleOf(key)?.second, reason, wild, track.lastAck))?.let { track.lastAck = it; say(it); pause(700) }
         if (live != null) return r.copy(answer = live)
     }
