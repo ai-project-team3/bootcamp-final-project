@@ -1581,7 +1581,7 @@ private suspend fun Director.sceneBook() {
                     ?: if (s.isDiary) "${i}쪽 미션 1 (쉬움 · 문지르기) — 뼈대는 그대로, 소품만 하루에서 나온 것으로 (${m1.blobName} · 도구 ${m1.toolName} · §7-1 ②)"
                 else "${i}쪽 미션 1 (쉬움 · 문지르기) — 장면 4의 \"${s.newcomerKind}\"에서 나온 ${m1.blobName} · 도구 ${m1.toolName}"
             )
-            i == dragPage && s.m2Result == null -> log(s.slot2Prop()?.let { "${i}쪽 미션 2 (${it.mission.name}) — 아이 말에서 고른 미션 · 「${it.ask}」" } ?: "${i}쪽 미션 2 (${if (s.m1Result == "helped") "쉬움 · 탭" else "보통 · 끌어다 놓기"}) — ${if (s.isDiary) "4턴째에 말한" else "장면 10에서 말한"} ${m2.itemName}${eul(m2.itemName)} ${s.friendCallName}에게")
+            i == dragPage && s.m2Result == null -> log(s.slot2Prop()?.let { "${i}쪽 미션 2 (${it.mission.name}) — 아이 말에서 고른 미션 · 「${it.ask}」" } ?: s.m2Log(i))
             i == last && s.isDiary -> log("${i}쪽(마지막): 일기 모드도 미션 난이도 신호가 그대로 나온다 (§7-1 ②) · 공룡 소리 칸은 묻지 않았다 (§2-2)")
             i == last -> log("${i}쪽(마지막): ${if (s.hasPartner && s.partnerHelpLine != null) "${s.pn} 참여 한 줄 들어감" else "동행자 참여 문장 없음"} · 소리 대상 ${soundHolder?.name ?: "없음"}")
             else -> log("${i}쪽 [${s.pageKind(i)}] — 템플릿 ${s.template?.code} 칸으로 만든 자막")
