@@ -1505,6 +1505,8 @@ private suspend fun Director.writeDiaryBook(day: DiaryDay) {
  */
 private suspend fun Director.giveDiaryBook() {
     s.stage = DiaryGift
+    // 다 읽은 뒤는 동화의 끝 화면처럼 밤 곡 — 책장으로 가면 끈다(sceneMusic)
+    com.example.finalproject_demo.net.Bgm.play(trackOf(BgmMood.NIGHT, diaryBookKey(buildDiaryBook(s.diaryBookInput()))))
     say("오늘 그림일기가 완성됐어! 책장에 꽂아 줄래?")
     buttons(DemoBtn("📚 책장에 꽂기") { send(Reply.Tapped("shelf", "책장")) })
     awaitValue("shelf")
@@ -1557,6 +1559,7 @@ suspend fun Director.openSavedDiary(shelfId: String): Boolean {
     val book = DiaryShelf.book(s, shelfId) ?: return false
     log("책장 → 그림일기 『${book.title}』 다시 읽기 (${book.madeAt})")
     s.withSavedDiary(book) { day -> readPictureDiary(day, reread = true, bookId = book.id) }
+    com.example.finalproject_demo.net.Bgm.stop()       // 책장에서는 음악이 없다
     say("우리가 만든 책들이야!")                        // 책장으로 돌아온다 — 마지막 쪽 문장을 말풍선에 남기지 않는다
     return true
 }
@@ -1589,6 +1592,8 @@ private suspend fun Director.readPictureDiary(day: DiaryDay, reread: Boolean = f
         val last = i == pages.lastIndex
         val caption = diaryPageCaption(p)
         s.stage = DiaryPaper(i)
+        // 쪽마다 그 분위기의 곡 — 동화책과 같은 곡들 (#221 · BookMood.kt)
+        com.example.finalproject_demo.net.Bgm.play(trackOf(diaryMoodOf(p.kind, troubled(s.diaryBookInput().lines)), diaryBookKey(pages)))
         if (bookId != null) DiaryShelf.voice(s, bookId, caption)?.let { offerVoice(caption, it) } ?: missing.add(caption)
         say(caption)
         val b = mutableListOf<DemoBtn>()

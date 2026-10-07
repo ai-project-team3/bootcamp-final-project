@@ -38,12 +38,30 @@ fun trackOf(mood: BgmMood, bookKey: Int): String = mood.tracks[Math.floorMod(boo
  */
 fun DemoState.storyBookKey(): Int = bgmBookKey(title ?: autoTitleFor(), bookCaption(1))
 
-/** 동화책 장면(`sceneBook`)에서 음악을 트는 책 — 동화와 같이 만들기. 그림일기는 자기 책 화면이라 여기서 틀지 않는다 */
+/**
+ * 그림일기 쪽 → 분위기 (#221 확장 · 진웅 10-07). 하루 이야기라 동화보다 순하게 —
+ * 어긋난 일이 있던 날([troubled])의 일 · 마음 쪽만 긴장, 그 밖의 일은 신나는 곡
+ */
+fun diaryMoodOf(kind: DiaryPageKind, troubled: Boolean): BgmMood = when (kind) {
+    DiaryPageKind.DRAWING -> BgmMood.DISCOVERY
+    DiaryPageKind.PLACE -> BgmMood.ADVENTURE
+    DiaryPageKind.PROBLEM, DiaryPageKind.REACTION -> if (troubled) BgmMood.TENSE else BgmMood.PLAYFUL
+    DiaryPageKind.SOLUTION, DiaryPageKind.KEEP -> BgmMood.ENDING
+    DiaryPageKind.PUZZLE -> BgmMood.PLAYFUL
+}
+
+/**
+ * 그림일기는 제목을 다 읽은 뒤에 붙이기도 해서(`askTitle`) 제목으로 키를 만들면 첫 읽기와 다시 읽기의 곡이 갈린다 —
+ * 첫 쪽 본문(기분 맺음 줄은 빼고)으로 정한다
+ */
+fun diaryBookKey(pages: List<DiaryPage>): Int = bgmBookKey("diary", pages.firstOrNull()?.text.orEmpty())
+
+/** 동화책 장면(`sceneBook`)에서 음악을 트는 책 — 동화와 같이 만들기. 그림일기는 자기 책 화면(`readPictureDiary`)에서 튼다 */
 val DemoState.bookMusic: Boolean get() = mode != StoryMode.DIARY
 
 /**
  * 장면이 바뀔 때 — 책(쪽마다는 `sceneBook`)과 동화의 끝 화면 밖으로 나가면 음악을 끈다.
- * 끝 화면(친구 · 끝)은 [BgmMood.NIGHT]. 그림일기는 음악이 없다
+ * 끝 화면(친구 · 끝)은 [BgmMood.NIGHT]. 그림일기는 `PictureDiary.kt` 에서 쪽마다 튼다
  */
 fun Director.sceneMusic(scene: Scene) {
     when {
