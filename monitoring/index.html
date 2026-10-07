@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>오또 백엔드 — 엔드포인트 모니터</title>
 <style>
   :root {
@@ -68,7 +69,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>오또 백엔드 — 엔드포인트 모니터</h1>
+  <h1>오또 백엔드 — 엔드포인트 모니터 <button id="logout" type="button" style="float:right;font:inherit;font-size:13px;font-weight:400;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer">로그아웃</button></h1>
   <div class="sub">2초마다 갱신 · 컨테이너를 다시 띄우면 0부터 다시 셉니다</div>
 
   <div class="cards">
@@ -205,6 +206,8 @@ async function tick() {
   const foot = document.getElementById("foot");
   try {
     const r = await fetch("/stats", { cache: "no-store" });
+    // the session ran out (12 h) or the password changed — back to the sign-in page (10-07)
+    if (r.status === 401) { location.replace("/login.html"); return; }
     if (!r.ok) throw new Error("HTTP " + r.status);
     render(await r.json());
     foot.textContent = "마지막 갱신 " + new Date().toLocaleTimeString("ko-KR");
@@ -212,6 +215,10 @@ async function tick() {
     foot.textContent = "백엔드에 연결할 수 없습니다 (" + e.message + ") — 다시 시도 중";
   }
 }
+
+document.getElementById("logout").addEventListener("click", async () => {
+  try { await fetch("/admin/logout", { method: "POST" }); } finally { location.replace("/login.html"); }
+});
 
 tick();
 setInterval(tick, 2000);
