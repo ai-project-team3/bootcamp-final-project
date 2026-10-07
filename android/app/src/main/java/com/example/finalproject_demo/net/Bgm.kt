@@ -36,6 +36,12 @@ object Bgm {
     fun setEnabled(on: Boolean) = onMain { mixer.setEnabled(on, clock()) }
     fun release() = onMain { mixer.release() }
 
+    /** After [release] (activity teardown): drop the ticker and the context so a destroyed activity is not kept alive */
+    fun detach() {
+        if (ctx != null) main.removeCallbacks(ticker)
+        ctx = null
+    }
+
     private val ticker = object : Runnable {
         override fun run() {
             mixer.tick(clock())

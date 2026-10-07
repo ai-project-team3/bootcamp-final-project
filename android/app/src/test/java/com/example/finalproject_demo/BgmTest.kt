@@ -63,4 +63,15 @@ class BgmTest {
         Bgm.resume("pause"); looper.idleFor(Duration.ofMillis(200))
         assertTrue("ticking returns after resume", reads > before)
     }
+
+    /** a destroyed activity must not stay reachable through the singleton (#221) */
+    @Test fun detachDropsTheContext() {
+        val path = java.io.File(RuntimeEnvironment.getApplication().cacheDir, "bgm/adventure_1.webm").absolutePath
+        org.robolectric.shadows.ShadowMediaPlayer.addMediaInfo(
+            org.robolectric.shadows.util.DataSource.toDataSource(path), org.robolectric.shadows.ShadowMediaPlayer.MediaInfo(1000, 0))
+        Bgm.attach(RuntimeEnvironment.getApplication())
+        assertNotNull(Bgm.open("adventure_1.webm"))
+        Bgm.release(); Bgm.detach()
+        assertNull("no context left to open a track with", Bgm.open("adventure_1.webm"))
+    }
 }

@@ -121,6 +121,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         com.example.finalproject_demo.net.Bgm.release()
+        com.example.finalproject_demo.net.Bgm.detach()    // the singleton must not keep this activity's context
         super.onDestroy()
     }
 
