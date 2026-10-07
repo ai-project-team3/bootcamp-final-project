@@ -11,6 +11,7 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.Stroke
+import com.example.finalproject_demo.demo.alsoThereIn
 import com.example.finalproject_demo.demo.catchUp
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.drawRequestName
@@ -30,7 +31,7 @@ import org.robolectric.annotation.Config
 
 /**
  * #281 — A 를 그리고 쉬지 않고 B 를 그리면 오또는 B 만 묻고 A 는 D3 에서야 이름이 붙어 「오또가 그려 줘」를 고를 기회가 없었다.
- * 판에 없는 이름으로 「○○ 그려줘」 하면 방금 그리던 다른 조각을 그렸다
+ * 판에 없는 이름으로 「○○ 그려줘」 하면 방금 그리던 다른 조각을 그렸다 · D3 에 새로 나온 물건은 글로만 남았다
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -177,5 +178,53 @@ class DiaryLatePieceTest {
         }
         assertTrue(d.s.diaryDay.lateArt.isEmpty())
         assertEquals(PieceLook.ORIGINAL, d.s.diaryDay.pieces.single().look)
+    }
+
+    /** 3 — D3 에 판에 없는 물건이 나오면 오또가 그리지 않고 아이에게 그려 보자고 한다. 새로 그린 조각에 그 이름이 붙는다 */
+    @Test
+    fun somethingNewInTheStoryIsDrawnByTheChild() = run { d ->
+        d.board()
+        d.draw(.1f)
+        d.s.diaryDay.pieces[0] = d.s.diaryDay.pieces[0].copy(name = "나무")
+        d.finish()
+        d.talkD3({ d.s.stage is DiaryBoard }) { line ->
+            when (line) { "강아지도 있었구나! 그려 볼래?" -> "응"; else -> "강아지도 있었어" }
+        }
+        assertEquals("다시 올린 그림판에 앞서 그린 그림이 없다", 1, d.s.drawing.size)
+        val before = d.s.diaryDay.pieces.size
+        d.draw(.8f)
+        assertTrue(await { d.pause(); d.s.line == "다 그렸어? 더 그릴 거 있어?" } != null)
+        // 묻기가 듣기 시작하기 전에 보낸 답은 비워진다 — 질문이 바뀔 때까지 보낸다(그림판은 「응」을 그냥 넘긴다)
+        assertTrue(await { if (d.s.line == "다 그렸어? 더 그릴 거 있어?") d.send(Reply.Spoke("응")); d.s.line != "다 그렸어? 더 그릴 거 있어?" } != null)
+        val offered = await { "그려볼까" in d.s.line } != null
+        assertTrue("새로 그린 조각에 「나도 그려볼까?」를 묻지 않았다 — 말=${d.s.line} · ${d.s.log.take(10).reversed()}", offered)
+        assertEquals(before + 1, d.s.diaryDay.pieces.size)
+        assertEquals("강아지", d.s.diaryDay.pieces.last().name)
+        assertEquals("오또는 판에 없는 것을 그리지 않았다 — 아이가 그린 조각에만 제안", "나도 강아지를 그려볼까?", d.s.line)
+    }
+
+    /** 3 — 「아니」면 그림판을 올리지 않고 글로만 */
+    @Test
+    fun noToDrawingTheNewThingKeepsItInWordsOnly() = run { d ->
+        d.board()
+        d.draw(.1f)
+        d.s.diaryDay.pieces[0] = d.s.diaryDay.pieces[0].copy(name = "나무")
+        d.finish()
+        var asked = false
+        d.talkD3({ asked && d.s.line != "강아지도 있었구나! 그려 볼래?" }) { line ->
+            if (line == "강아지도 있었구나! 그려 볼래?") { asked = true; "아니" } else "강아지도 있었어"
+        }
+        assertTrue(d.s.stage !is DiaryBoard)
+        assertEquals(0, d.s.diaryDay.boardAgain)
+    }
+
+    @Test
+    fun whatCountsAsSomethingNew() {
+        assertEquals("강아지", alsoThereIn("강아지도 있었어"))
+        assertEquals("할머니", alsoThereIn("공원에 할머니도 왔어"))
+        assertEquals("고양이", alsoThereIn("고양이도 봤어요"))
+        assertNull(alsoThereIn("나도 봤어"))
+        assertNull(alsoThereIn("강아지랑 놀았어"))
+        assertNull(alsoThereIn("모래성 만들고 집에 왔어"))
     }
 }

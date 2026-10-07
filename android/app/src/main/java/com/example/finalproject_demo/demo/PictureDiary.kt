@@ -576,6 +576,7 @@ private suspend fun Director.askPieceStory(day: DiaryDay, clue: DrawnClue, text:
         else -> { say("그랬구나!"); pause(600) }
     }
     log("「${clue.name}」 이야기 = 「$said」 (child · extra 에 쌓음${if (v != null) " · 판정 ${v.fills.joinToString { it.first }}" else ""} · #220)")
+    if (!drawing) drawNewThing(day, said)
     return "ok"
 }
 
@@ -1149,7 +1150,7 @@ private suspend fun Director.askEmptySlots() {
         if (!pq.askIf(s)) continue
         asked++
         s.stepsDone++
-        askPictureSlot(pq)
+        askPictureSlot(pq)?.let { drawNewThing(s.diaryDay, it) }
         if (s.endReason == null && PICTURE_REQUIRED.all { !s.slots[it].isNullOrBlank() }) {
             s.endReason = "story_ready"
             log("필수 두 칸(place · problem)이 찼다 → story_ready. 남은 칸(결말 · 내일)도 묻는다")
@@ -1162,7 +1163,7 @@ private suspend fun Director.askEmptySlots() {
  * 한 칸 묻기. 「몰라」면 한 번만 쉽게 바꿔 묻고, 또 모르면 비워 두고 넘어간다.
  * 무응답은 [Director.ask] 가 쉬운 질문 한 번 → 「괜찮아」로 넘긴다 (카드 · 마스코트 채움 없음).
  */
-private suspend fun Director.askPictureSlot(pq: PictureQuestion) {
+private suspend fun Director.askPictureSlot(pq: PictureQuestion): String? {
     val step = DIARY_STEPS.first { it.bookKey == pq.key }
     var text = pq.ask(s)
     for (tries in 0..1) {
@@ -1180,7 +1181,7 @@ private suspend fun Director.askPictureSlot(pq: PictureQuestion) {
         )
         val r = ask(q)
         judge(step.variant, r, q.text)
-        if (r !is Reply.Spoke) return
+        if (r !is Reply.Spoke) return null
         // 대본 답은 값이 붙어 온다(빈 값 = 「몰라」 · 「그냥」). 서버 모드의 답에는 값이 없다 — 글자를 읽는다
         val raw = r.answer?.value?.takeIf { it.isNotBlank() }
         val said = if (r.answer != null) raw.orEmpty() else r.text.trim().takeUnless { dontKnow(it) }.orEmpty()
@@ -1189,14 +1190,14 @@ private suspend fun Director.askPictureSlot(pq: PictureQuestion) {
             log("[keep] 「${r.text.trim()}」 — 하고 싶은 게 없다 → 비워 둔다. 다시 묻지 않는다")
             say("그렇구나!")
             pause(700)
-            return
+            return null
         }
         if (said.isEmpty()) {
             if (tries == 0) { log("「몰라」 → 한 번만 쉽게 바꿔 묻는다"); text = pq.easy; continue }
             log("[${pq.key}] 또 모른다 → 비워 둔다. 마스코트가 대신 채우지 않는다")
             say("괜찮아, 생각 안 나도 돼.")
             pause(700)
-            return
+            return null
         }
         val value = if (raw != null) diarySlotOf(raw) else said
         val line = if (raw != null) diaryLineOf(raw) ?: said else said
@@ -1204,8 +1205,9 @@ private suspend fun Director.askPictureSlot(pq: PictureQuestion) {
         quote(r.text)
         s.mascotPicks = 0
         sayAck(r.text, step.slot)
-        return
+        return r.text
     }
+    return null
 }
 
 // ── D3 · 서버 판정 (#39 ① · #34) ────────────────────────────────
@@ -1433,6 +1435,7 @@ private suspend fun Director.askEmptySlotsLive() {
             log("판정 story_ready — 남은 물음은 판정이 고른 칸과 「내일」만")
         }
         sayReaction(result, r, key)
+        drawNewThing(day, r.text)
         next = (serverNext(result) ?: if (v.storyReady) tomorrowQuestion(gaveUp) else firstEmptyQuestion(gaveUp))?.let { withClue(day, it) }
     }
     if (s.endReason == null && PICTURE_REQUIRED.all { !s.slots[it].isNullOrBlank() }) s.endReason = "story_ready"
@@ -1522,6 +1525,73 @@ private fun Director.boardBack() {
     if (s.drawing.isEmpty()) s.drawing.addAll(s.sceneDrawing)
 }
 
+/** D3 에서 새로 나온 물건을 그리러 그림판을 다시 올리는 수 — 그 뒤로는 지금처럼 글로만 (#281 · 10-07 진웅) */
+internal const val BOARD_AGAIN_MAX = 2
+
+/** 판에 없는 사람 · 물건을 말했다 — 「강아지도 있었어」 · 「할머니도 왔어」. 좁게 — 「○○도 + 있었 · 봤 · 왔 · 만났」만 (#281) */
+private val ALSO_THERE = Regex("(?:^|\\s)([가-힣]{1,8}?)도\\s+(있었|봤|왔|만났)")
+private val NOT_A_THING = setOf("나", "너", "우리", "저", "제", "걔", "얘", "쟤", "그거", "이거", "저거", "그것", "이것", "거기", "여기", "저기", "또", "다", "그때")
+
+/** 「강아지도 있었어」 → 「강아지」 · 「나도 봤어」 → null */
+internal fun alsoThereIn(text: String): String? =
+    ALSO_THERE.find(text.trim())?.groupValues?.get(1)?.takeIf { it !in NOT_A_THING }
+
+/**
+ * D3 이야기에 판에 없는 물건이 나왔다 — 오또가 대신 그리지 않는다(차별점 1). 「강아지도 있었구나! 그려 볼래?」 → 응이면 그림판을 다시 올리고
+ * 새로 그린 조각에 그 이름을 붙인다. 아니면 지금처럼 글로만 — 그 말은 이미 칸 · `extra` 에 들어갔다 (#281)
+ */
+private suspend fun Director.drawNewThing(day: DiaryDay, said: String) {
+    if (day.boardAgain >= BOARD_AGAIN_MAX) return
+    val thing = alsoThereIn(said)?.takeIf { it !in day.pieceNames && day.namedIn(it, except = -1) == null } ?: return
+    if (askYesNoAfterDrawing("${you(thing)}도 있었구나! 그려 볼래?", "diary_draw_new") != "yes") {
+        log("D3 에 새로 나온 「$thing」 — 그리지 않는다 → 글로만 (child)")
+        return
+    }
+    day.boardAgain++
+    boardBack()
+    val before = s.drawing.size
+    s.stage = DiaryBoard()
+    day.drawingTalk = true
+    say("좋아! 다 그리면 알려 줘.")
+    log("D3 에 새로 나온 「$thing」 → 그림판을 다시 올린다 (${day.boardAgain}/$BOARD_AGAIN_MAX)")
+    try {
+        while (true) {
+            inputs(mic = true, next = false)
+            day.watching = true
+            val r = try { awaitReply() } finally { day.watching = false }
+            when {
+                r is Reply.Tapped && (r.value == "done" || r.value == "skip") -> break
+                r is Reply.Spoke && yesNoOf(r.text) == "done" -> break
+                // 그린 뒤 붓이 멈췄다 — 다 그렸는지 묻는다. 더 그린다면 그대로 둔다
+                r is Reply.Tapped && r.value == "pause" && s.drawing.size > before -> if (askDoneDrawing()) break
+            }
+        }
+    } finally { day.drawingTalk = false; day.pendingTap = null; day.pendingPause = null }
+    inputs(false, false)
+    day.catchUp(s.drawing)
+    val added = s.drawing.drop(before).toSet()
+    val piece = day.pieces.filter { p -> p.name == null && p.strokes.any { it in added } }
+        .maxByOrNull { p -> p.strokes.count { it in added } }
+    when {
+        added.isEmpty() -> { say("괜찮아, 이야기로 남겨 둘게!"); log("「$thing」 — 그리지 않고 닫았다 → 글로만") }
+        piece != null -> {
+            setPieceName(day, piece.id, thing, said, speak = false)
+            say(praiseFor(listOf(thing)))
+            log("D3 에 새로 그린 조각 → 이름 「$thing」 (아이 말 · child)")
+        }
+        else -> {                                               // 이름 붙은 조각에 이어 그렸다 — 그린 것에 더한다
+            day.alsoDrawn += thing
+            s.slots["whiteboard"] = day.pieceNames.joinToString(", ")
+            s.slotBy["whiteboard"] = "child"
+            say(praiseFor(listOf(thing)))
+            log("D3 에 이름 붙은 조각에 이어 그렸다 → 그린 것에 「$thing」 (child)")
+        }
+    }
+    pause(700)
+    keepBoard()
+    s.stage = DiaryAsk
+    piece?.let { p -> day.pieces.firstOrNull { it.id == p.id } }?.let { offerLate(day, it) }
+}
 
 /**
  * 오또가 아이 말을 「너」로 되받아 준다 — 「나는 놀이터 갔어」 → 「너는 놀이터 갔구나!」 (프로토타입 echoBack).

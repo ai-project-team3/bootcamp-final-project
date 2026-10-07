@@ -198,6 +198,8 @@ class DiaryDay {
     var ottoOffers = 0
     /** 다 그린 뒤 이름이 붙어 주문한 오또 그림 — 조각 id → 그림(대본이면 null). D3 가 끝나면 고르게 한다 (#281) */
     val lateArt = mutableMapOf<Int, kotlinx.coroutines.Deferred<ByteArray?>?>()
+    /** D3 에서 새로 나온 물건을 그리러 그림판을 다시 올린 수 — [BOARD_AGAIN_MAX] 까지 (#281) */
+    var boardAgain = 0
 
     /** 이름 붙은 조각의 이름 — 그린 차례대로, 뒤에 [alsoDrawn]. 같은 이름은 한 번만 */
     val pieceNames: List<String> get() = (pieces.mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) } + alsoDrawn).distinct()
