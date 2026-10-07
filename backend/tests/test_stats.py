@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app import admin                    # noqa: E402
 from app.config import settings          # noqa: E402
 from main import app                     # noqa: E402
 
@@ -18,7 +19,14 @@ from main import app                     # noqa: E402
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setattr(settings, "mock", True)
-    return TestClient(app)
+    # /stats is admin only since 10-07 (app/admin.py) — sign in first
+    monkeypatch.setattr(settings, "admin_user", "otto-admin")
+    monkeypatch.setattr(settings, "admin_password_hash", admin.hash_password("test-password-123", rounds=1000))
+    monkeypatch.setattr(settings, "admin_cookie_secure", False)
+    admin._fails.clear()
+    c = TestClient(app)
+    assert c.post("/admin/login", data={"user": "otto-admin", "password": "test-password-123"}).status_code == 204
+    return c
 
 
 def row(stats: dict, method: str, path: str) -> dict | None:
