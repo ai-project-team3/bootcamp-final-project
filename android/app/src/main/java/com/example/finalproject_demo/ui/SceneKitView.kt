@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -119,7 +120,7 @@ private const val KIT_NEAREST_FAR = 0.35f
 /**
  * The stage frame for a kit. The kit starts at the actors' depth KIT_NEAREST_FAR, not 0: with the horizon at the depth-0
  * feet line (0.62 H) the ground took ~38 % of the screen — 「바닥 너무 비율이 커」 (10-05 device). Same perspective line,
- * its far end cut, so pieces and actors still match in size where they stand.
+ * its far end cut, so pieces and actors still match in size where they stand. In px, so the book's kit picture can use it.
  */
 internal fun kitFrame(wPx: Float, hPx: Float, bottomInsetPx: Float, topInsetPx: Float, tabWPx: Float, tabHPx: Float): SceneFrame {
     val near = minOf(hPx * FEET_NEAR, hPx - bottomInsetPx)
@@ -133,6 +134,10 @@ internal fun kitFrame(wPx: Float, hPx: Float, bottomInsetPx: Float, topInsetPx: 
         tabW = tabWPx, tabH = tabHPx,
     )
 }
+
+/** The stage geometry the kit and the plain felt floor share (#242) — the same frame as [kitFrame] */
+private fun androidx.compose.ui.unit.Density.stageFrame(wPx: Float, hPx: Float, bottomInset: Dp, topInset: Dp): SceneFrame =
+    kitFrame(wPx, hPx, bottomInset.toPx(), topInset.toPx(), TAB_W.toPx(), TAB_H.toPx())
 
 /**
  * The frame the stage last drew a kit in (px) — the book's kit picture uses it so the same seed lays the pieces out the
@@ -151,10 +156,30 @@ internal object KitStageFrame {
 private fun rememberKitScene(kit: SceneKitDef, seedBase: Long, actors: Int, wPx: Float, hPx: Float, bottomInset: Dp, topInset: Dp): Pair<KitScene, SceneFrame> {
     val density = LocalDensity.current
     return remember(kit, seedBase, actors, wPx, hPx, bottomInset, topInset) {
-        with(density) {
-            val f = kitFrame(wPx, hPx, bottomInset.toPx(), topInset.toPx(), TAB_W.toPx(), TAB_H.toPx())
-            if (bottomInset > 0.dp) KitStageFrame.last = f      // the landscape stage, not the portrait tablet's inner frame
-            bestScene(kit, actors, f, seedBase = seedBase) to f
+        val f = with(density) { stageFrame(wPx, hPx, bottomInset, topInset) }
+        if (bottomInset > 0.dp) KitStageFrame.last = f      // the landscape stage, not the portrait tablet's inner frame
+        bestScene(kit, actors, f, seedBase = seedBase) to f
+    }
+}
+
+/**
+ * The kit's felt ground alone, over a background picture that has none (10-06 lead · 「바닥이 됐다 안 됐다」).
+ * Only a kit stage had a floor: a generated background, the space and sea pictures and co-op once its picture
+ * arrived left the actors standing on 84 % of the screen in mid-air. Same horizon, wave and stitches as the
+ * kit's ground, in the colour of the kit the place belongs to — draw it behind the hotspots and the actors.
+ */
+@Composable
+fun FeltFloor(ground: Color, bottomInset: Dp, modifier: Modifier = Modifier) {
+    val grain = remember { ShaderBrush(ImageShader(FeltNoise.grain, TileMode.Repeated, TileMode.Repeated)) }
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val density = LocalDensity.current
+        val wPx = with(density) { maxWidth.toPx() }
+        val hPx = with(density) { maxHeight.toPx() }
+        val f = remember(wPx, hPx, bottomInset) { with(density) { stageFrame(wPx, hPx, bottomInset, 0.dp) } }
+        val shape = remember(f) { hillShape(f, 4f, f.horizon, 5f, 140f) }
+        Canvas(Modifier.fillMaxSize()) {
+            hill(f, shape, ground)
+            clipPath(shape.fill) { drawRect(grain, alpha = 0.07f, blendMode = BlendMode.Overlay) }
         }
     }
 }

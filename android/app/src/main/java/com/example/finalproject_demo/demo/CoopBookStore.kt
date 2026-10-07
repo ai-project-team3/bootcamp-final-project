@@ -336,6 +336,7 @@ object CoopShelf {
         books[s]?.removeAll { it.book.id == id }
         snapshots.remove(id)
         s.shelf.removeAll { it.savedStoryId == COOP_SHELF_ID + id }
+        SessionReports.forget(COOP_SHELF_ID + id)
         return true
     }
 
@@ -350,6 +351,7 @@ object CoopShelf {
             book.snapshot?.let { snapshots[book.book.id] = it }
             s.shelf.add(0, book.book.onCoopShelf(fresh = true))
             lastShelved[s] = book.book.id
+            SessionReports.keep(s, COOP_SHELF_ID + book.book.id)
             afterShelved(s, book)
             CoopShelved.SAVED
         } catch (_: Exception) { CoopShelved.FAILED }

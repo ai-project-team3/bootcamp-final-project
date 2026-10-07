@@ -26,7 +26,7 @@ fun StoryPreparationTrack(progress: StoryPreparationProgress, modifier: Modifier
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         // Keep the common felt track; only a live story labels its preparation milestones.
-        ProgressTrack(progress.filled, progress.total)
+        ProgressTrack(progress.filled, progress.total, beads = StoryPreparationProgress.BEADS)
         Text(
             progress.phase.label,
             color = InkSoft,

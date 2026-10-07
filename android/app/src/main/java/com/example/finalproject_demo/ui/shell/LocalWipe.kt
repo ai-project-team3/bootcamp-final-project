@@ -22,6 +22,8 @@ object LocalWipe {
         "diary_books",   // 그림일기 (demo/DiaryBookStore.kt)
         "coop_plan",     // 부모가 준비한 같이 만들기 질문 (demo/CoopPlanStore.kt)
         "child_call",    // 오또가 부르는 아이 이름 (net/ChildCall.kt)
+        "rewards",       // 업적 보상 · 그림판 도구 (demo/Rewards.kt)
+        "session_reports", // 부모 리포트 · 아이가 한 말 그대로 (demo/SessionReport.kt)
     )
 
     /** filesDir 아래 폴더 — 그림 */
@@ -43,6 +45,8 @@ object LocalWipe {
             ok = app.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit() && ok
             runCatching { app.deleteSharedPreferences(name) }
         }
+        com.example.finalproject_demo.demo.SessionReports.reload()   // the copy in memory goes with the file
+        com.example.finalproject_demo.demo.Rewards.reload()   // the copy in memory goes with the file
         FILES.forEach { ok = deleteTree(File(app.filesDir, it)) && ok }
         NO_BACKUP.forEach { ok = deleteTree(File(app.noBackupFilesDir, it)) && ok }
         // 오또 목소리를 틀려고 잠깐 둔 파일 (net/Voice.kt) — 대사에 아이 말이 들어갈 수 있다

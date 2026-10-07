@@ -138,6 +138,9 @@ class DiaryDay {
     /** 그린 조각마다 들은 이야기 — 조각 id → 아이 말(#220 ②). 책 재료(`extra`)에는 「이름: 말」로 쌓는다 */
     val pieceStories = mutableStateMapOf<Int, String>()
 
+    /** [written] 을 받을 때 보낸 쪽 구성 (#220 ③) */
+    var writtenPlan by mutableStateOf<List<DiaryPlanPage>?>(null)
+
     /** 이야기를 물은 조각 — 답이 없었어도 다시 묻지 않는다 */
     val pieceStoryAsked = mutableSetOf<Int>()
 

@@ -42,6 +42,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         imagePlace = place
         imageJob?.cancel()
         if (s.sceneKit != null) {
+            log("background route=kit place=$place kit=${s.sceneKit}")
             // 10-05 scene kit: the place is drawn from pre-made felt pieces at once — no /image request, nothing
             // to wait for. The generated background below stays as the documented alternative
             // (`docs/배경_조각_목록.md` §1 (가)); `SceneKits.liveStory = false` brings it back.
@@ -61,6 +62,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             }
             return
         }
+        log("background route=generated place=$place")
         backgroundPending = true
         s.storyBackground = null
         if (s.stage is Stage.World || s.stage === waitingConversation) showConversation()
@@ -78,6 +80,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 if (s.place == place && imagePlace == place) {
                     s.storyBackground = saved
                     backgroundPending = false
+                    log("background result=${if (saved == null) "preset" else "generated"} place=$place")
                     // Only refresh our waiting conversation, never a drawing/card/retry stage.
                     if (waitingConversation != null && s.stage === waitingConversation) {
                         waitingConversation = null
@@ -135,6 +138,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                     log(if (undo) "↩ 직전 차례를 되돌림 — 같은 질문을 다시" else "↪ 되돌린 차례를 다시 적용")
                     say(if (undo) "그럼 다시 말해 줄래?" else "좋아, 아까 그 이야기로 갈게!")
                     updateBackground()
+                    s.holdStoryGauge()
                 }
                 continue
             }
@@ -145,6 +149,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 continue
             }
             deferredSlot = null
+            s.storyAnswers++
             val by = when {
                 reply is Reply.Spoke -> "child"
                 reply is Reply.Tapped && !reply.byMascot -> "card"
@@ -177,6 +182,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             // still needs a page plan, but does not force extra questions just to reach turn 3.
             if (s.templateKey == null && (s.turn >= 3 || s.storyReady)) decideTemplate("서버 대화")
             mark("live:${prompt.slot ?: "extra"}")
+            s.holdStoryGauge()
             history.done()
         }
         true

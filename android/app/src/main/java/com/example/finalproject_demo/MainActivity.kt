@@ -96,6 +96,8 @@ class MainActivity : ComponentActivity() {
         // 어느 모드를 서버로 돌릴지 — `-e live story,diary,coop` 또는 `all`. 기본 주소로 켰으면 전부
         (extra("live") ?: "all".takeIf { byDefault && Server.base == DEFAULT_SERVER })
             ?.let { Server.liveModes = Server.parseLive(it) }
+        com.example.finalproject_demo.demo.SessionReports.attach(this)   // 부모 리포트 — 책마다 폰 안에만 (10-06)
+        com.example.finalproject_demo.demo.Rewards.attach(this)   // 업적 보상 — 폰 안에만 (10-06 · #223)
         com.example.finalproject_demo.net.CallLimits.attach(this)   // 서버 연결판 하루 한도 — 폰에만 (10-06)
         com.example.finalproject_demo.net.CallLimits.enabled = !debuggable   // 스토어 빌드만 — 팀 개발 앱 · 검사는 막지 않는다
         Voice.attach(this)        // 진짜 마이크 · 마스코트 목소리 — 서버 모드에서만 쓴다 (net/Voice.kt)
@@ -249,6 +251,9 @@ fun DemoApp() {
         // 예전 「스플래시 → 보호자 동의」 자리를 이 틀이 맡는다. 동의 화면은 전처럼 **자기 창**이라 뒤로 터치가 새지 않는다.
         // 흐름(Director)은 그대로이고, 틀은 기존 신호(start · diary · coop · shelf · parent)만 보낸다 — ui/shell/Shell.kt
         com.example.finalproject_demo.ui.shell.OttoShell(d)
+
+        // 모드를 시작하면 방의 별 하나가 날아가 별 막대 끝에 앉는다 — 누름을 받지 않는 장식 층 (10-06 종훈)
+        com.example.finalproject_demo.ui.StarFlightOverlay(s.starFlights, Modifier.zIndex(13f))
 
         // 시연 서랍은 틀보다 **위에** — 오또의 방 위에서도 열려야 한다
         if (drawerOpen) DemoDrawer(d) { drawerOpen = false }

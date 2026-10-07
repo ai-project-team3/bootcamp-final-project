@@ -12,6 +12,11 @@ if ($LASTEXITCODE -ne 0) { throw "docker build failed (exit $LASTEXITCODE) - old
 $hfCache = Join-Path $env:USERPROFILE ".cache\huggingface"
 New-Item -ItemType Directory -Force -Path $hfCache | Out-Null
 
+# The daily spend cap (backend/app/limits.py) keeps the day's total in a file. Inside the container
+# that file died with every deploy, so a redeploy reset the day to 0 won (10-06). Keep it on the host.
+$stateDir = "C:\otto\state"
+New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
+
 # Shared network so the monitor on port 80 can reach this container by name
 # (monitoring/nginx.conf proxies /stats to http://otto-backend:8010). Checked rather than
 # created-and-ignored: `docker network create` on an existing network writes to stderr, which
@@ -37,6 +42,8 @@ docker run -d --name otto-backend --gpus all `
     --network otto `
     --env-file C:\otto\.env `
     -v "${hfCache}:/root/.cache/huggingface" `
+    -v "${stateDir}:/state" `
+    -e DAILY_CAP_STATE=/state/daily_cap.json `
     -p 8000:8010 `
     otto-backend
 if ($LASTEXITCODE -ne 0) { throw "docker run failed (exit $LASTEXITCODE)" }

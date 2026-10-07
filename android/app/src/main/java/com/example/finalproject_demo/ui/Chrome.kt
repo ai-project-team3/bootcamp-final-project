@@ -31,7 +31,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -93,7 +96,7 @@ fun TitleChip(text: String, modifier: Modifier = Modifier, dark: Boolean = false
 }
 
 /** 별 모양 경로 (다섯 꼭지) */
-private fun starPath(cx: Float, cy: Float, r: Float): Path = Path().apply {
+internal fun starPath(cx: Float, cy: Float, r: Float): Path = Path().apply {
     for (i in 0 until 10) {
         val rr = if (i % 2 == 0) r else r * 0.46f
         val a = Math.toRadians((-90 + i * 36).toDouble())
@@ -114,9 +117,17 @@ private fun starPath(cx: Float, cy: Float, r: Float): Path = Path().apply {
  * 글자 없이 몇 쪽째인지 센다. 끝의 **리본 달린 메달**은 안쪽부터 차오르고, 다 차면 금빛 · 빛 원과 함께 숨 쉰다.
  */
 @Composable
-fun ProgressTrack(filled: Int, total: Int, modifier: Modifier = Modifier) {
+fun ProgressTrack(filled: Int, total: Int, modifier: Modifier = Modifier, beads: Int = total) {
     val frac by animateFloatAsState((filled.toFloat() / total).coerceIn(0f, 1f), tween(700), label = "prog")
     val done = filled >= total
+    // the star that flew from the wallet lands here — the medal bumps once (ui/StarFlight.kt)
+    val landed = remember { Animatable(1f) }
+    LaunchedEffect(StarFlight.landings) {
+        if (StarFlight.landings == 0) return@LaunchedEffect
+        landed.snapTo(1.35f)
+        landed.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 500f))
+    }
+    DisposableEffect(Unit) { onDispose { StarFlight.medal = null } }
     val inf = rememberInfiniteTransition(label = "prog")
     val glow by inf.animateFloat(0.9f, 1.1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "glow")
     val shimmer by inf.animateFloat(-0.3f, 1.3f, infiniteRepeatable(tween(1600)), label = "shimmer")
@@ -150,8 +161,8 @@ fun ProgressTrack(filled: Int, total: Int, modifier: Modifier = Modifier) {
                 // 쪽마다 별 구슬 — 차오르는 선이 별에 닿는 순간 별도 코랄 펠트로 채워진다(흰 바느질 테두리).
                 // 아직 닿지 않은 별은 흐린 별 (10-01 사용자 요청: 선만 차고 별은 비어 보였다)
                 val reached = if (frac > 0f) (size.width * frac).coerceAtLeast(h) else 0f
-                for (i in 1 until total) {
-                    val cx = size.width * i / total
+                for (i in 1 until beads) {
+                    val cx = size.width * i / beads
                     val star = starPath(cx, y, 7.5f.dp.toPx())
                     if (cx <= reached) {
                         drawPath(star, FeltCoral)
@@ -167,7 +178,8 @@ fun ProgressTrack(filled: Int, total: Int, modifier: Modifier = Modifier) {
             Modifier
                 .align(Alignment.CenterEnd)
                 .size(50.dp)
-                .scale(if (done) glow else 1f)
+                .onGloballyPositioned { StarFlight.medal = it.boundsInRoot() }
+                .scale((if (done) glow else 1f) * landed.value)
         ) {
             val c = center
             val rr = size.minDimension * 0.36f
@@ -197,8 +209,13 @@ fun ProgressTrack(filled: Int, total: Int, modifier: Modifier = Modifier) {
  * 한도가 꺼져 있으면 ∞.
  */
 @Composable
-fun StarWallet(count: Int, unlimited: Boolean, modifier: Modifier = Modifier) {
+fun StarWallet(count: Int, unlimited: Boolean, modifier: Modifier = Modifier, flightSource: Boolean = false) {
     Box(modifier.height(48.dp), contentAlignment = Alignment.CenterStart) {
+        // the coin glows while a star leaves it for the mode (ui/StarFlight.kt)
+        if (flightSource && StarFlight.leaving > 0f) Box(
+            Modifier.size(48.dp).scale(1f + 0.55f * StarFlight.leaving)
+                .background(FeltMustard.copy(alpha = 0.45f * StarFlight.leaving), CircleShape)
+        )
         Box(
             Modifier
                 .padding(start = 24.dp)
@@ -213,7 +230,12 @@ fun StarWallet(count: Int, unlimited: Boolean, modifier: Modifier = Modifier) {
             )
         }
         // 코랄 책 동전
-        Box(Modifier.size(48.dp).felt(FeltCoral, CircleShape, lift = 3.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.size(48.dp)
+                .then(if (flightSource) Modifier.onGloballyPositioned { StarFlight.wallet = it.boundsInRoot() } else Modifier)
+                .felt(FeltCoral, CircleShape, lift = 3.dp),
+            contentAlignment = Alignment.Center,
+        ) {
             Canvas(Modifier.size(24.dp)) {
                 val w = size.width; val h = size.height
                 // 펼친 책 — 두 쪽

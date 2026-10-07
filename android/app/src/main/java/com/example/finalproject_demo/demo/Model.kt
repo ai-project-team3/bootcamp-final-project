@@ -904,6 +904,15 @@ class DemoState {
     /** 마스코트가 대신 채운 것이 **연속으로** 몇 번인가. 2회 연속이 끝나는 조건이다 (§3) */
     var mascotPicks by mutableStateOf(0)
 
+    /** Bumped when a mode starts — the overlay flies one star from the wallet to the track (ui/StarFlight.kt). Not reset */
+    var starFlights by mutableStateOf(0)
+
+    /** Live story: answers actually given (speech, card or mascot pick) — moves the star track every turn ([liveStoryProgress]) */
+    var storyAnswers by mutableStateOf(0)
+
+    /** Live story: highest track position shown so far — undo never moves the track back */
+    var storyGaugeHigh by mutableStateOf(0)
+
     /** 무엇으로 끝났나 — story_ready · mascot_pick · timeout (§3) */
     var endReason by mutableStateOf<String?>(null)
 
@@ -1289,6 +1298,8 @@ class DemoState {
     )
 
     val achievements = mutableStateListOf<String>()
+    /** Rewards earned this session, told on the shelf (demo/Rewards.kt) */
+    val rewardNews = mutableStateListOf<Reward>()
     var reactions by mutableStateOf(0)
 
     // ── 화면
@@ -1385,6 +1396,12 @@ class DemoState {
     /** 리포트 6축의 재료 — 남겨야 할 이벤트 (구현대본 §0-5) */
     val events = mutableStateListOf<String>()
 
+    /** Report transcript: Otto's questions and every answer with its source (demo/SessionReport.kt) */
+    val talk = mutableStateListOf<TalkLine>()
+    var talkStartedAtMs = 0L
+    /** The last shelved book's report — the parent screen shows it once the session is reset */
+    var lastReport by mutableStateOf<SessionReport?>(null)
+
     /** 말한 방식 — 부모 리포트의 원그래프 재료 (많고 적음을 평가하지 않는다) */
     var modeVoice by mutableStateOf(0)
     var modeCard by mutableStateOf(0)
@@ -1409,7 +1426,7 @@ class DemoState {
         partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY
-        diaryStart = 0L; diaryTimeUp = false; mascotPicks = 0; endReason = null
+        diaryStart = 0L; diaryTimeUp = false; mascotPicks = 0; storyAnswers = 0; storyGaugeHigh = 0; endReason = null
         companionKind = ""
         parentCard = null; parentAsk = null; parentRung = 0; parentHasMore = false; adultLine = null
         stepsDone = 0; hotspotIntroShown = false
@@ -1434,8 +1451,8 @@ class DemoState {
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
         generatedFriend = null; friendRequested = null
-        achievements.clear(); reactions = 0
-        log.clear(); done.clear(); events.clear()
+        achievements.clear(); rewardNews.clear(); reactions = 0
+        log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
         heroTries.clear()
         modeVoice = 0; modeCard = 0; modeDraw = 0; modeSilent = 0
         shelf.replaceAll { it.copy(fresh = false) }

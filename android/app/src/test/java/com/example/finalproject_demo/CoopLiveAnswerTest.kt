@@ -8,6 +8,7 @@ import com.example.finalproject_demo.demo.scene.HERO_SPOT
 import com.example.finalproject_demo.demo.COOP_STEPS
 import com.example.finalproject_demo.demo.coopPartPack
 import com.example.finalproject_demo.demo.heardPlace
+import com.example.finalproject_demo.demo.sameSyllables
 import com.example.finalproject_demo.demo.eul
 import com.example.finalproject_demo.demo.ga
 import com.example.finalproject_demo.demo.wa
@@ -476,6 +477,37 @@ class CoopLiveAnswerTest {
             val placeTurns = server.requests.count { it.first == "/turn" && it.second.optString("asked_slot") == "place" }
             assertEquals("다시 묻는 건 한 번까지인데 더 물었다", 2, placeTurns)
         } finally { server.close() }
+    }
+
+    /**
+     * 10-06 조장 — 한 번 거절된 말을 아이가 🎤 를 다시 눌러 **같은 음절로** 또 했으면 아이가 넣고 싶은 말이다.
+     * 두 번째 거절을 기다리지 않고, 판정도 다시 부르지 않고 그대로 받는다(#100 · 「딴 얘기」 필드 대신)
+     */
+    @Test
+    fun theSameWordsAgainAfterOneRejectionAreTakenWithoutAskingTheJudgeAgain() = run { d ->
+        val server = StoryTestServer { path, _ ->
+            if (path != "/turn") JSONObject() else JSONObject().put("judge", JSONObject().put("reason", "장소가 아니라 딴 얘기"))
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("place", "학교", "done"))
+            d.answer("쉬 마려")                                         // 한 번 거절 → 다시 묻는다
+            assertNull("한 번 거절됐는데 벌써 칸을 채웠다", d.s.place)
+            d.speakUntil("쉬마려!") { d.s.place != null }               // 띄어쓰기 · 부호만 다른 같은 말
+            assertEquals("쉬마려!", d.s.place)
+            assertEquals("아이 말인데 출처가 바뀌었다", "child", d.s.slotBy["place"])
+            val placeTurns = server.requests.count { it.first == "/turn" && it.second.optString("asked_slot") == "place" }
+            assertEquals("같은 말인데 판정을 다시 불렀다", 1, placeTurns)
+        } finally { server.close() }
+    }
+
+    @Test
+    fun sameSyllablesIgnoresSpacingAndMarksButNotWords() {
+        assertTrue(sameSyllables("쉬 마려", "쉬마려!"))
+        assertTrue(sameSyllables("불 끄기~", "불끄기"))
+        assertFalse(sameSyllables("쉬 마려", "배고파"))
+        assertFalse(sameSyllables("", ""))
     }
 
     /**

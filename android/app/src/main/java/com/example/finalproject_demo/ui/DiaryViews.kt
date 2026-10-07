@@ -112,6 +112,8 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.boxOf
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.cropFor
+import com.example.finalproject_demo.demo.focusCrop
+import com.example.finalproject_demo.demo.pageFocus
 import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.diaryPlaceBg
 import com.example.finalproject_demo.demo.diaryCovers
@@ -694,23 +696,13 @@ private fun DiaryAskView(d: Director, cq: Dp) {
     }
 }
 
-/** 별 둘 — 필수 두 칸(place · problem)이 찰 때마다 하나씩 켜진다. 털실 막대가 그만큼 찬다 */
+/**
+ * 별 둘 — 필수 두 칸(place · problem)이 찰 때마다 하나씩 켜진다.
+ * 10-06 (종훈): 세 모드가 같은 별 막대를 쓴다 — 가운데 별 구슬 하나 + 끝 메달 하나가 곧 별 둘이다 (ui/Chrome.kt ProgressTrack)
+ */
 @Composable
-private fun TwoStars(filled: Int, cq: Dp, modifier: Modifier) {
-    Row(
-        modifier.shadow(cq * 1.2f, RoundedCornerShape(cq * 4)).background(Color.White, RoundedCornerShape(cq * 4))
-            .padding(horizontal = cq * 2.2f, vertical = cq)
-            .testTag("d3-stars"),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(cq * 1.2f),
-    ) {
-        Box(Modifier.size(cq * 20, cq * 1.2f).background(WoolCream, RoundedCornerShape(cq))) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(filled / 2f).background(FeltMustard, RoundedCornerShape(cq)))
-        }
-        repeat(2) { i ->
-            Text("⭐", fontSize = (cq.value * 2.6f).sp, modifier = Modifier.alpha(if (i < filled) 1f else 0.35f))
-        }
-    }
+private fun TwoStars(filled: Int, @Suppress("UNUSED_PARAMETER") cq: Dp, modifier: Modifier) {
+    ProgressTrack(filled, PICTURE_REQUIRED.size, modifier.testTag("d3-stars"))
 }
 
 /** 책에 들어갈 조각 — 묶인 조각이 없으면 화이트보드 그림 한 덩어리 */
@@ -925,7 +917,14 @@ private fun PicturePanel(
             AssetImage(diaryPlaceBg(s.diaryBookInput().lines["place"]), Modifier.fillMaxSize().testTag("d5-place"), contentScale = ContentScale.Crop)
             return@BoxWithConstraints
         }
-        val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f)
+        // 쪽이 열리면 그림 전체에서 그 쪽의 자리(조각 이야기면 그 조각 · 아니면 문장에 나온 조각)로 천천히 다가간다 (#220 ④)
+        val aspect = s.drawingAspect.takeIf { it > 0f } ?: 1f
+        val whole = cropFor(pieces.flatMap { it.strokes }, aspect)
+        val focus = pageFocus(page, pieces)
+        val target = focusCrop(focus, pieces, aspect)
+        val near = remember(page) { Animatable(if (motionFrozen) 1f else 0f) }
+        LaunchedEffect(page) { if (!motionFrozen) near.animateTo(1f, tween(900)) }
+        val crop = between(whole, target, near.value)
         val everyone = page.kind == DiaryPageKind.DRAWING || page.kind == DiaryPageKind.PLACE || page.kind == DiaryPageKind.PUZZLE
         val wDp = maxWidth.value
         val hDp = maxHeight.value
@@ -960,7 +959,8 @@ private fun PicturePanel(
         ) {
             pieces.forEach { p ->
                 val backdrop = p.role == PieceRole.BACKGROUND             // 배경은 흐리지도 움직이지도 않고 뒤에 있다
-                val front = backdrop || everyone || (p.name != null && p.name in page.cast) || p.id in moved || p.id == glow?.first
+                // 다가간 조각은 늘 앞에 — 「양동이로 …」처럼 문장이 이름에 토씨를 붙여 cast 에 없어도 (#220 ④)
+                val front = backdrop || everyone || (p.name != null && p.name in page.cast) || p in focus || p.id in moved || p.id == glow?.first
                 val moves = front && !backdrop && !everyone && p.name !in page.still
                 val a = if (front) 1f else 0.25f
                 val mine = poke?.takeIf { it.first == p.id }?.second ?: 0
@@ -972,7 +972,9 @@ private fun PicturePanel(
                 }
                 PieceLayer(
                     p, crop, if (!moves) null else if (p.name in page.with) PieceMove.HOP else page.move, a, wDp, hDp, rxTool, nonce,
-                    shift = moved[p.id] ?: Offset.Zero, glowing = p.id == glow?.first,
+                    shift = moved[p.id] ?: Offset.Zero,
+                    // 맺음(내일) 쪽은 앞에 나온 조각이 반짝인다 — 쪽마다 다른 움직임 (#220 ④)
+                    glowing = p.id == glow?.first || (page.kind == DiaryPageKind.KEEP && moves),
                 )
             }
             said?.let { (id, word) ->
@@ -992,6 +994,11 @@ private fun PicturePanel(
         }
     }
 }
+
+/** 두 그림 칸 사이 — [t] 0 이면 [a], 1 이면 [b] */
+private fun between(a: BoardBox, b: BoardBox, t: Float) = BoardBox(
+    a.left + (b.left - a.left) * t, a.top + (b.top - a.top) * t, a.right + (b.right - a.right) * t, a.bottom + (b.bottom - a.bottom) * t,
+)
 
 /** 도구로 조각을 누를 때 조각이 하는 한마디 (프로토타입 react) */
 private fun reactionWord(tool: Tool, p: DiaryPiece): String = when (tool) {

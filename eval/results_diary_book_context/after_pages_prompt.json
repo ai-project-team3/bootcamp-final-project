@@ -1,0 +1,470 @@
+[
+ {
+  "id": "D1_감따기",
+  "s": 18.1,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 우리 집에서 할아버지와 감을 처음 따 봐서 재밌었어요.",
+   "그러고 나서 할아버지와 같이 감을 먹었어요.",
+   "내일은 자전거 탈 거예요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {
+   "할아버지": true,
+   "감": true
+  },
+  "keep_time": true
+ },
+ {
+  "id": "D1_감따기",
+  "s": 13.9,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 우리 집에 있었어요.",
+   "나는 할아버지와 감을 땄어요. 처음 해 보는 거라 재밌었어요.",
+   "할아버지와 같이 감을 먹었어요.",
+   "내일은 자전거 탈 거예요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {
+   "할아버지": true,
+   "감": true
+  },
+  "keep_time": true
+ },
+ {
+  "id": "D1_감따기",
+  "s": 9.4,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 우리 집에 있었어요.",
+   "할아버지와 감을 땄어요. 처음 해 보는 거라서 재밌었어요.",
+   "할아버지와 같이 감을 먹었어요.",
+   "내일은 자전거 탈 거예요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {
+   "할아버지": true,
+   "감": true
+  },
+  "keep_time": true
+ },
+ {
+  "id": "D2_식물원",
+  "s": 12.1,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 식물원에 갔어요.",
+   "식물원에서 구경했는데, 걸어 다니기만 해서 지루했어요.",
+   "그러고 나서 밥을 먹고 집에 갔어요.",
+   "내일은 맛있는 거 먹고 싶어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {},
+  "keep_time": true
+ },
+ {
+  "id": "D2_식물원",
+  "s": 11.3,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 식물원에 갔어요.",
+   "식물원에서 구경했어요.",
+   "걸어 다니기만 해서 지루했어요.",
+   "밥을 먹고 집에 갔어요.",
+   "내일은 맛있는 거 먹고 싶어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {},
+  "keep_time": true
+ },
+ {
+  "id": "D2_식물원",
+  "s": 10.7,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 식물원에 갔어요.",
+   "식물원에서 구경했는데, 걸어 다니기만 해서 지루했어요.",
+   "밥 먹고 집에 갔어요.",
+   "내일은 맛있는 거 먹고 싶어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {},
+  "keep_time": true
+ },
+ {
+  "id": "D3_누구랑칸",
+  "s": 9.2,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 놀이터에서 아빠와 있었어요.",
+   "공을 차며 신났어요.",
+   "그러고 나서 공을 또 찼어요.",
+   "내일도 공 찰 거예요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {
+   "아빠": false,
+   "공": true
+  },
+  "keep_time": null
+ },
+ {
+  "id": "D3_누구랑칸",
+  "s": 11.3,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 놀이터에 아빠와 있었어요.",
+   "공을 찼어요. 신났어요.",
+   "그러고 나서 공을 또 찼어요.",
+   "내일도 공 찰 거예요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {
+   "아빠": false,
+   "공": true
+  },
+  "keep_time": null
+ },
+ {
+  "id": "D3_누구랑칸",
+  "s": 10.2,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 놀이터에서 아빠와 함께 있었어요.",
+   "나는 공을 찼어요. 신났어요.",
+   "그러고 나서 공을 또 찼어요.",
+   "내일도 공 찰 거예요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {
+   "아빠": false,
+   "공": true
+  },
+  "keep_time": null
+ },
+ {
+  "id": "D4_지어내기함정",
+  "s": 10.3,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 우리 집에서 엄마와 함께 있었어요.",
+   "엄마랑 놀았어요. 좋았어요.",
+   "엄마와 같이 먹었어요.",
+   "다음에 또 놀고 싶어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {
+   "엄마": true
+  },
+  "keep_time": null
+ },
+ {
+  "id": "D4_지어내기함정",
+  "s": 8.6,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 엄마와 우리 집에 있었어요.",
+   "엄마와 놀았어요. 좋았어요.",
+   "엄마와 같이 먹었어요.",
+   "다음에 또 놀고 싶어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {
+   "엄마": true
+  },
+  "keep_time": null
+ },
+ {
+  "id": "D4_지어내기함정",
+  "s": 11.8,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 우리 집에서 엄마와 함께 있었어요.",
+   "엄마와 놀았어요. 좋았어요.",
+   "그러고 나서 엄마와 같이 먹었어요.",
+   "다음에 또 놀고 싶어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {
+   "엄마": true
+  },
+  "keep_time": null
+ },
+ {
+  "id": "R1_많이말한날",
+  "s": 7.6,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 엄마와 놀이터에 갔어요.",
+   "미끄럼틀을 탔어요. 신났어요.",
+   "그네도 타고 집에 왔어요.",
+   "다음에 또 가고 싶어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {},
+  "keep_time": null
+ },
+ {
+  "id": "R1_많이말한날",
+  "s": 6.5,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 놀이터에 엄마와 갔어요.",
+   "미끄럼틀을 탔어요. 신났어요.",
+   "그네도 타고 집에 왔어요.",
+   "다음에 또 가고 싶어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {},
+  "keep_time": null
+ },
+ {
+  "id": "R1_많이말한날",
+  "s": 7.4,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 엄마와 놀이터에 있었어요.",
+   "미끄럼틀을 탔고 신났어요.",
+   "그네도 타고 집에 왔어요.",
+   "다음에 또 가고 싶어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {},
+  "keep_time": null
+ },
+ {
+  "id": "R2_조금말한날",
+  "s": 7.5,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 유치원에 있었어요.",
+   "블록 놀이를 했어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 1,
+  "invented": [],
+  "carry": {},
+  "keep_time": null
+ },
+ {
+  "id": "R2_조금말한날",
+  "s": 7.4,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 유치원에 있었어요.",
+   "블록 놀이를 했어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 1,
+  "invented": [],
+  "carry": {},
+  "keep_time": null
+ },
+ {
+  "id": "R2_조금말한날",
+  "s": 6.5,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 유치원에 있었어요.",
+   "블록 놀이를 했어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 1,
+  "invented": [],
+  "carry": {},
+  "keep_time": null
+ },
+ {
+  "id": "R3_문제있던날",
+  "s": 7.2,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 우리 집에 있었어요.",
+   "블록 탑이 무너져서 속상했어요.",
+   "내일은 안 무너지게 쌓을 거예요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {},
+  "keep_time": null
+ },
+ {
+  "id": "R3_문제있던날",
+  "s": 11.7,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 우리 집에 있었어요.",
+   "블록 탑이 무너져서 속상했어요.",
+   "그 뒤에 어떻게 되었는지는 아직 듣지 못했어요. 내일은 안 무너지게 쌓을 거예요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {},
+  "keep_time": null
+ },
+ {
+  "id": "R3_문제있던날",
+  "s": 5.9,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 우리 집에 있었어요.",
+   "블록 탑이 무너져 속상했어요.",
+   "내일은 안 무너지게 쌓을 거예요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {},
+  "keep_time": null
+ },
+ {
+  "id": "R4_마스코트결말",
+  "s": 8.9,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 공원에서 {친구1}와 함께 있었어요.",
+   "나는 {친구1}와 싸웠어요. 화가 났어요.",
+   "우리는 화해했어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {},
+  "keep_time": null
+ },
+ {
+  "id": "R4_마스코트결말",
+  "s": 7.4,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 공원에서 {친구1}와 함께했어요.",
+   "나는 {친구1}와 싸웠고, 화가 났어요.",
+   "그러고 나서 {친구1}와 화해했어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {},
+  "keep_time": null
+ },
+ {
+  "id": "R4_마스코트결말",
+  "s": 6.8,
+  "rejected": null,
+  "captions": [
+   "나는 오늘 공원에 있었어요. {친구1}와 함께였어요.",
+   "나는 {친구1}와 싸워서 화가 났어요.",
+   "화해했어요."
+  ],
+  "long": 0,
+  "not_yo": 0,
+  "wish_past": 0,
+  "drama": 0,
+  "empty_end_missing": 0,
+  "invented": [],
+  "carry": {},
+  "keep_time": null
+ }
+]

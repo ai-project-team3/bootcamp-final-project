@@ -144,6 +144,7 @@ suspend fun Director.recordStorySound() {
                         s.soundLine = "내가 만든 소리"
                         s.reactions++
                         event("make", "kind" to "sound", "source" to "child")
+                        if (Rewards.grant(Reward.BIG)) s.rewardNews += Reward.BIG
                         event("slot_filled", "slot" to "sound", "value" to s.sound, "source" to "child")
                         mark("sound")
                         log("창작 소리 원본을 기기에만 보관 · 받아쓰기 및 수준 판정 없음")
