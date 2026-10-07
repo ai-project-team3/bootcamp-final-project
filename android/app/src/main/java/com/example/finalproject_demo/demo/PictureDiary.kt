@@ -212,7 +212,10 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
         }
 
         day.catchUp(s.drawing)
-        val piece = pieceBeingDrawn(day)?.takeIf { it.id !in askedPieces }
+        val current = pieceBeingDrawn(day)?.takeIf { it.id !in askedPieces }
+        // 방금 조각을 다 물은 조용한 멈춤 — 앞서 그리고 넘어가 이름 없이 남은 물체를 짚어 묻는다. 묻지 않으면 D3 에서야 이름이 붙어
+        // 「나도 그려볼까?」 · [그려 줘]를 못 골랐다 (#281 · 10-07 실기기). 색을 고른 뒤 · 미뤄 둔 제안이 있으면 그것이 먼저다
+        val piece = current ?: if (afterCrayon || held.isNotEmpty()) null else leftUnnamed(day, askedPieces)
         // 그린 조각마다 묻는다 — 몇 번까지라는 상한은 없다. 빈도는 붓 멈춤 · 손 움직임이 정한다 (10-02 진웅 · 흐름 「간격으로만」)
         if (piece != null) {
             askedPieces += piece.id
@@ -224,7 +227,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
                 continue
             }
             val linesBefore = s.drawing.size
-            val answer = askPieceName(day, piece)
+            val answer = askPieceName(day, piece, earlier = current == null)
             if (answer.finished) break
             // 다른 조각을 그리러 갔다 — 이 조각은 안 물은 것으로 두고(나중에 · D3), 다음 멈춤에 지금 그리는 조각을 먼저 묻는다
             if (answer.movedOn) { askedPieces -= piece.id; continue }
@@ -448,6 +451,10 @@ private fun Director.pieceBeingDrawn(day: DiaryDay): DiaryPiece? {
     return day.pieces.firstOrNull { lastStroke in it.strokes }?.takeIf { it.name == null }
 }
 
+/** 앞서 그리고 넘어가 이름 없이 남은 물체 — 한 번도 묻지 않은 것 중 먼저 그린 것. 배경은 「여기는 어디야?」로 따로 묻는다 (#281) */
+private fun leftUnnamed(day: DiaryDay, asked: Set<Int>): DiaryPiece? =
+    day.pieces.firstOrNull { it.name == null && it.strokes.isNotEmpty() && it.role != PieceRole.BACKGROUND && it.id !in asked }
+
 /** 그린 사람 · 물건 이야기를 묻는 수 — 그리는 중 · 다 그린 뒤(못 물은 것) (#220 ②) */
 internal const val PIECE_STORY_D1 = 3
 internal const val PIECE_STORY_D3 = 2
@@ -599,11 +606,12 @@ private data class PieceAnswer(val name: String?, val finished: Boolean = false,
  * 「지금 그리는 건 뭐야?」 — 아이가 붙인 이름만 조각 이름이 된다.
  * [PieceAnswer.finished] 면 묻는 사이에 아이가 [다 그렸어]를 눌렀다 — 그리기를 끝낸다.
  */
-private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece): PieceAnswer {
+private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece, earlier: Boolean = false): PieceAnswer {
     // 이름 붙은 조각에 닿게 그렸으면 — 거기에 더 그린 건지, 새로 그린 건지를 먼저 묻는다(프로토타입 규칙)
     val neighbor = day.namedNeighborOf(piece)
     val r = if (neighbor != null) askMoreOrNew(day, piece, neighbor) else {
-        val q = Question(text = "우와, 지금 그리는 건 뭐야?", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_piece", waitSec = D1_WAIT_SEC)
+        // 앞서 그린 조각은 「지금 그리는」이 아니다 — 판에 그 조각을 짚어 두고 「이건」으로 묻는다 (#281)
+        val q = Question(text = if (earlier) "이건 뭐 그린 거야?" else "우와, 지금 그리는 건 뭐야?", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_piece", waitSec = D1_WAIT_SEC)
         day.askingPiece = piece.id
         try { askWhileDrawing(q, day, about = piece.id) } finally { day.askingPiece = null }
     }
