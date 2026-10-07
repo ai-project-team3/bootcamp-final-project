@@ -346,6 +346,13 @@ object Server {
     }
 
     /** Is the server there, and is it the mock? Null = unreachable. */
+    /**
+     * A problem report from the parent area (#283 · guidelines/3 §3-6 · net/ReportUpload.kt). The report number, or null
+     * when the server could not be reached or refused it (429 · 413 · 503 …) — the app then offers mail instead.
+     */
+    suspend fun report(body: JSONObject): String? =
+        postJson("/report", body, readMs = 10_000)?.let { str(it, "id") }
+
     suspend fun health(): Boolean? = withContext(Dispatchers.IO) {
         val b = base ?: return@withContext null
         try {
