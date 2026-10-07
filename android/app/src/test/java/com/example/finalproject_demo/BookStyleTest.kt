@@ -94,6 +94,17 @@ class BookStyleTest {
         assertEquals("outside a saved book: the book being made", id("kit_forest_bird_fly"), outside)
     }
 
+    /** The kit's baked ground (#265): in another style only that style's ground, else none — never the felt one (치영 #265 review 3) */
+    @Test fun theGroundPictureIsNeverFeltUnderAnotherStyle() {
+        val bundled = setOf("kit_park_ground", "kit_snow_ground_crayon")
+        assertEquals("kit_park_ground", WorldStyle.resolveOrNone("kit_park_ground", "felt") { it in bundled })
+        assertNull("a crayon book with no crayon ground draws colour + fibre only",
+            WorldStyle.resolveOrNone("kit_park_ground", "crayon") { it in bundled })
+        assertEquals("kit_snow_ground_crayon", WorldStyle.resolveOrNone("kit_snow_ground", "crayon") { it in bundled })
+        assertNull("not baked yet in felt either", WorldStyle.resolveOrNone("kit_snow_ground", "felt") { it in bundled })
+        assertEquals("the ground is a world picture", true, WorldStyle.isWorld("kit_park_ground"))
+    }
+
     @Test fun aDiaryRereadUsesItsStyleAndPutsTheCurrentOneBack() = runBlocking {
         val s = DemoState()
         WorldStyle.current = "crayon"

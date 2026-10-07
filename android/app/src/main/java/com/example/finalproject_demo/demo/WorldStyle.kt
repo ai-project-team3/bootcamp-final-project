@@ -53,6 +53,16 @@ object WorldStyle {
         return if (exists(styled)) styled else name
     }
 
+    /**
+     * Like [resolve], but with no felt fallback: the picture in [style], or null when that style has none.
+     * For a picture that may simply be left out — the kit's baked ground (#265): under a crayon book a felt ground
+     * picture would put two styles on one stage, so without a crayon one the ground is colour + fibre only (치영 #265 review)
+     */
+    fun resolveOrNone(name: String, style: String = active, exists: (String) -> Boolean = has): String? {
+        if (style == "felt") return name.takeIf(exists)
+        return "${name}_$style".takeIf(exists)
+    }
+
     /** Can this kit be drawn in this style — not if any piece exists only in felt */
     fun kitReady(kit: SceneKitDef, style: String = active, exists: (String) -> Boolean = has): Boolean =
         style == "felt" || kit.pieces.map { it.res }.distinct().all { exists("${it}_$style") }

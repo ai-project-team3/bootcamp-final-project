@@ -190,7 +190,14 @@ private fun kitBitmaps(kit: SceneKitDef): Map<String, ImageBitmap> {
     val out = HashMap<String, ImageBitmap>()
     // a fixed list per kit, so the composable calls below keep their order
     for (res in kit.pieces.map { it.res }.distinct()) assetBitmap(res)?.let { out[res] = it }
-    groundRes(kit).let { r -> assetBitmap(r)?.let { out[r] = it } }
+    // the baked ground in this book's style only — never the felt one under another style (demo/WorldStyle.kt)
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val style = com.example.finalproject_demo.demo.LocalWorldStyle.current ?: com.example.finalproject_demo.demo.WorldStyle.active
+    @Suppress("DiscouragedApi")
+    val ground = androidx.compose.runtime.remember(kit.key, style) {
+        com.example.finalproject_demo.demo.WorldStyle.resolveOrNone(groundRes(kit), style) { ctx.resources.getIdentifier(it, "drawable", ctx.packageName) != 0 }
+    }
+    ground?.let { r -> assetBitmap(r)?.let { out[groundRes(kit)] = it } }
     // the pictures of who comes by (the bird) — not in the layout, so not among the pieces
     for (res in VISITORS_BY_KIT[kit.key].orEmpty().flatMap { listOf(it.sit, it.fly) }) assetBitmap(res)?.let { out[res] = it }
     return out
@@ -247,7 +254,12 @@ fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBas
     fun load(name: String) = res.getIdentifier(com.example.finalproject_demo.demo.WorldStyle.resolve(name) { res.getIdentifier(it, "drawable", context.packageName) != 0 },
         "drawable", context.packageName).takeIf { it != 0 }
         ?.let { android.graphics.BitmapFactory.decodeResource(res, it, opt)?.asImageBitmap() }
-    val imgs = (kit.pieces.map { it.res } + groundRes(kit)).distinct().mapNotNull { r -> load(r)?.let { r to it } }.toMap()
+    @Suppress("DiscouragedApi")
+    val ground = com.example.finalproject_demo.demo.WorldStyle.resolveOrNone(groundRes(kit)) { res.getIdentifier(it, "drawable", context.packageName) != 0 }
+        ?.let { n -> res.getIdentifier(n, "drawable", context.packageName).takeIf { it != 0 } }
+        ?.let { android.graphics.BitmapFactory.decodeResource(res, it, opt)?.asImageBitmap() }
+    val imgs = kit.pieces.map { it.res }.distinct().mapNotNull { r -> load(r)?.let { r to it } }.toMap() +
+        listOfNotNull(ground?.let { groundRes(kit) to it })
     val dm = res.displayMetrics
     val density = dm.density
     // size 0 = the frame the stage itself last drew in; before any stage, this screen with the stage's chrome
