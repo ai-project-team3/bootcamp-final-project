@@ -29,13 +29,15 @@ API = "https://api.typesafe.ai/v1/systemone"
 FLOOR = 0.6
 
 SLOT_CRITERIA = {
-    "place": "어디로 가나 — 장소",
+    # the child's word is the answer even when it is a brand, a food or a real name (#250 · 10-07):
+    # 「맥도날드」 went to extra 3/3 and 「손흥민이랑」 sat under the floor
+    "place": "어디로 가나 — 장소 (가게 · 놀이공원 이름도 장소다)",
     "problem": "무슨 일이 생겼나 — 사건",
     "reaction": "그래서 어떻게 됐나",
     "cause": "왜 그랬나 — 까닭",
     "newcomer": "새로 나온 친구",
-    "name": "그 친구의 이름",
-    "companion": "같이 간 친구",
+    "name": "그 친구의 이름 — 아이가 지어 준 말이면 상표 · 음식 · 캐릭터 · 사람 이름도 이름이다",
+    "companion": "같이 간 친구 — 캐릭터 · 실존 인물이어도 친구다",
     "sound": "우는 소리",
     "adult": "옆에 있는 어른의 한마디",
     "solution": "어떻게 풀었나",
