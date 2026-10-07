@@ -7,11 +7,13 @@
     python tools/crayon_manual.py            # 18장 모두 후보 2장씩 (이미 res/drawable 에 있는 것은 건너뜀)
     python tools/crayon_manual.py --only bg_  # 배경만
     python tools/otto_art.py pick <이름>_crayon <시드>   # 고른 한 장 → res/drawable
+    python tools/rebake_style.py crayon refit            # 그 뒤 펠트판에 맞춘 webp 로 옮기기 (drawable-nodpi)
 """
 import os, subprocess, sys
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
-DRAWABLE = os.path.join(TOOLS, "..", "app", "src", "main", "res", "drawable")
+RES = os.path.join(TOOLS, "..", "app", "src", "main", "res")
+DRAWABLES = [os.path.join(RES, d) for d in ("drawable", "drawable-nodpi")]
 
 # 배경 — 1344×768 가로 판 (펠트판과 같은 장소 · 같은 구도)
 BG = {
@@ -47,7 +49,7 @@ def main():
         for name, text in table.items():
             if only and not any(name.startswith(o) for o in only):
                 continue
-            if any(os.path.exists(os.path.join(DRAWABLE, f"{name}_crayon.{e}")) for e in ("png", "webp")):
+            if any(os.path.exists(os.path.join(d, f"{name}_crayon.{e}")) for d in DRAWABLES for e in ("png", "webp")):
                 continue
             cmd = [sys.executable, os.path.join(TOOLS, "otto_art.py"), kind, f"{name}_crayon", text, "--count", "2", "--style", "crayon"]
             if size:
