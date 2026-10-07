@@ -28,6 +28,6 @@ fun moodOf(kind: PageKind): BgmMood = when (kind) {
  * 책마다 같은 곡 — 책 id 는 책장에 꽂을 때 생겨 첫 읽기에는 없다. 제목 · 첫 본문 쪽 문장은
  * 첫 읽기와 다시 읽기에 같으므로 그것으로 정한다
  */
-fun bookKeyOf(title: String, firstCaption: String): Int = "$title\n$firstCaption".hashCode()
+fun bgmBookKey(title: String, firstCaption: String): Int = java.util.zip.CRC32().apply { update("$title\n$firstCaption".toByteArray(Charsets.UTF_8)) }.value.toInt()
 
 fun trackOf(mood: BgmMood, bookKey: Int): String = mood.tracks[Math.floorMod(bookKey, mood.tracks.size)]

@@ -379,7 +379,7 @@ private suspend fun Director.keepUntoldStory(day: DiaryDay, r: Reply.Spoke) {
         if (fills.isNotEmpty()) {
             quote(said)
             fills.forEachIndexed { i, (slot, value) ->
-                val key = slotKeyOf(slot, "")
+                val key = bookKeyOf(slot, "")
                 addToDiarySlot(slot, key, value.trim(), if (i == 0) said else value.trim())
                 if (i > 0) day.sameSaying += key
             }
@@ -1164,7 +1164,7 @@ private fun Director.fillFromVerdict(day: DiaryDay, v: Server.Verdict, r: Reply.
     v.fills.forEachIndexed { i, (fillSlot, value) ->
         if (fillSlot !in Server.SLOTS || value.isBlank()) return@forEachIndexed
         val line = if (i == 0) r.text.trim() else value.trim()
-        val bookKey = slotKeyOf(fillSlot, askedKey)
+        val bookKey = bookKeyOf(fillSlot, askedKey)
         setDiarySlot(fillSlot, bookKey, value.trim(), line, "child")
         if (i > 0) day.sameSaying += bookKey else day.sameSaying -= bookKey
     }
@@ -1217,7 +1217,7 @@ private fun Director.withClue(day: DiaryDay, q: Triple<String, String, String>):
         Triple(q.first, text, q.third)
     } ?: q
 
-private fun slotKeyOf(slot: String, askedKey: String): String = when (slot) {
+private fun bookKeyOf(slot: String, askedKey: String): String = when (slot) {
     "extra" -> if (askedKey == "keep") "keep" else "extra"
     else -> slot
 }

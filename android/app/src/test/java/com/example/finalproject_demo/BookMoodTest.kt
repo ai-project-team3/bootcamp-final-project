@@ -2,7 +2,7 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.BgmMood
 import com.example.finalproject_demo.demo.PageKind
-import com.example.finalproject_demo.demo.bookKeyOf
+import com.example.finalproject_demo.demo.bgmBookKey
 import com.example.finalproject_demo.demo.moodOf
 import com.example.finalproject_demo.demo.trackOf
 import org.junit.Assert.assertEquals
@@ -25,12 +25,12 @@ class BookMoodTest {
     }
 
     @Test fun oneBookAlwaysGetsTheSameTrack() {
-        val key = bookKeyOf("용감한 공룡", "공룡 나라에 갔어요.")
-        assertEquals(trackOf(BgmMood.TENSE, key), trackOf(BgmMood.TENSE, bookKeyOf("용감한 공룡", "공룡 나라에 갔어요.")))
+        val key = bgmBookKey("용감한 공룡", "공룡 나라에 갔어요.")
+        assertEquals(trackOf(BgmMood.TENSE, key), trackOf(BgmMood.TENSE, bgmBookKey("용감한 공룡", "공룡 나라에 갔어요.")))
     }
 
     @Test fun booksSpreadOverBothTracksOfAMood() {
-        val used = (1..40).map { trackOf(BgmMood.NIGHT, bookKeyOf("책 $it", "첫 문장 $it")) }.toSet()
+        val used = (1..40).map { trackOf(BgmMood.NIGHT, bgmBookKey("책 $it", "첫 문장 $it")) }.toSet()
         assertEquals(BgmMood.NIGHT.tracks.toSet(), used)
     }
 
