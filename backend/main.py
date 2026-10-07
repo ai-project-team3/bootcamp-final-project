@@ -14,14 +14,14 @@ import time
 from collections import Counter
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 # Starlette's, not FastAPI's: it also catches the framework's own 400 ("error
 # parsing the body") and 404, which FastAPI's subclass handler would miss.
 from starlette.exceptions import HTTPException
 
-from app import limits
+from app import admin, limits
 from app.config import settings
 from app.image import comfy
 
@@ -50,6 +50,7 @@ app.include_router(stt.router)
 app.include_router(tts.router)
 app.include_router(turn.router)
 app.include_router(image.router)
+app.include_router(admin.router)
 
 
 # Spec §3-0: every error has one shape. The app reads `error`, never the status text.
@@ -72,6 +73,8 @@ def health() -> dict:
 
 
 # ── /stats — what the monitor on port 80 reads (monitoring/, scripts/deploy/start_monitor.ps1) ──
+#
+# Admin only since 10-07 (app/admin.py): the monitor is on the public domain.
 #
 # In memory on purpose: a restart is a reset. Nothing a child said is kept — only the route
 # template, the status code and how long it took, never a path argument or a body.
@@ -99,7 +102,7 @@ async def _count(request: Request, call_next):
     # public tunnel) must not grow a new counter every time.
     route = request.scope.get("route")
     path = getattr(route, "path", None) or "(unmatched)"
-    if path != "/stats":                         # the observer does not count itself
+    if path != "/stats" and not path.startswith("/admin"):   # the observer and its sign-in do not count
         key = (request.method, path)
         _HITS[key] += 1
         _MS[key] += ms
@@ -108,7 +111,7 @@ async def _count(request: Request, call_next):
     return response
 
 
-@app.get("/stats")
+@app.get("/stats", dependencies=[Depends(admin.require_admin)])
 def stats() -> dict:
     total = sum(_HITS.values())
     return {
