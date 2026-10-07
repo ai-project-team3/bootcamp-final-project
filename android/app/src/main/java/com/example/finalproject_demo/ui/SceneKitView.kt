@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
@@ -169,14 +170,16 @@ private fun rememberKitScene(kit: SceneKitDef, seedBase: Long, actors: Int, wPx:
  * kit's ground, in the colour of the kit the place belongs to — draw it behind the hotspots and the actors.
  */
 @Composable
-fun FeltFloor(ground: Color, bottomInset: Dp, modifier: Modifier = Modifier) {
+fun FeltFloor(ground: Color, bottomInset: Dp, modifier: Modifier = Modifier, thin: Boolean = false) {
     val grain = remember { ShaderBrush(ImageShader(FeltNoise.grain, TileMode.Repeated, TileMode.Repeated)) }
-    BoxWithConstraints(modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier.fillMaxSize().then(if (thin) Modifier.alpha(0.85f) else Modifier)) {
         val density = LocalDensity.current
         val wPx = with(density) { maxWidth.toPx() }
         val hPx = with(density) { maxHeight.toPx() }
         val f = remember(wPx, hPx, bottomInset) { with(density) { stageFrame(wPx, hPx, bottomInset, 0.dp) } }
-        val shape = remember(f) { hillShape(f, 4f, f.horizon, 5f, 140f) }
+        // over a picture that paints its own ground (#257): 60 % as tall, see-through — just under the actors' feet
+        val top = if (thin) f.h - (f.h - f.horizon) * 0.6f else f.horizon
+        val shape = remember(f, thin) { hillShape(f, 4f, top, 5f, 140f) }
         Canvas(Modifier.fillMaxSize()) {
             hill(f, shape, ground)
             clipPath(shape.fill) { drawRect(grain, alpha = 0.07f, blendMode = BlendMode.Overlay) }
