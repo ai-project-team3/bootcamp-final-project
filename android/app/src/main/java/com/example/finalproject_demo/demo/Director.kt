@@ -787,7 +787,7 @@ class Director(
      * 다시 같은 모드로 들어오면 「이어서 할까?」 → `resume` 신호로 이 장면부터 이어 간다 (`Scenes.sceneAdult`)
      */
     fun leaveToRoom() {
-        if (s.holding) { s.holding = false; Bgm.resume("pause") }
+        if (s.holding) { s.holding = false; Bgm.stop(); Bgm.resume("pause") }   // stop first: resume would fade the paused track back in for a blink
         pauseStory()
         goHome()
     }

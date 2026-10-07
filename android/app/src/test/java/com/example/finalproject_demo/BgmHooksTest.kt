@@ -102,6 +102,17 @@ class BgmHooksTest {
         }
     }
 
+    /** the paused track must not fade back in for a blink before the room's scene stops it */
+    @Test fun leavingToTheRoomDoesNotRestartThePausedTrack() {
+        val d = Director(CoroutineScope(SupervisorJob()))
+        startMusic()
+        val starts = channel.starts
+        d.holdSession()
+        d.leaveToRoom()
+        assertEquals("the paused track must not start again", starts, channel.starts)
+        assertFalse(channel.running)
+    }
+
     @Test fun leavingToTheRoomFromPauseReleasesTheHold() {
         val d = Director(CoroutineScope(SupervisorJob()))
         d.holdSession()
