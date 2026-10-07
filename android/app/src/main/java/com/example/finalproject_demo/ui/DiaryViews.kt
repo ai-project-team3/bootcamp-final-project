@@ -112,7 +112,7 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.boxOf
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.cropFor
-import com.example.finalproject_demo.demo.focusCrop
+import com.example.finalproject_demo.demo.pictureCrop
 import com.example.finalproject_demo.demo.pageFocus
 import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.diaryPlaceBg
@@ -687,7 +687,7 @@ private fun DiaryAskView(d: Director, cq: Dp) {
                         .testTag("d3-card")
                 ) {
                     // 그린 부분만 카드 비율로 잘라 꽉 채운다 — 화이트보드의 빈 곳은 버린다
-                    val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)
+                    val crop = pictureCrop(pieces, s.drawingAspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)   // 오또 배경이 있으면 판 전체 (10-07)
                     pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
                 }
                 Box(Modifier.align(Alignment.TopCenter).size(cq * 2.4f).shadow(2.dp, CircleShape).background(FeltCoral, CircleShape))
@@ -917,14 +917,13 @@ private fun PicturePanel(
             AssetImage(diaryPlaceBg(s.diaryBookInput().lines["place"]), Modifier.fillMaxSize().testTag("d5-place"), contentScale = ContentScale.Crop)
             return@BoxWithConstraints
         }
-        // 쪽이 열리면 그림 전체에서 그 쪽의 자리(조각 이야기면 그 조각 · 아니면 문장에 나온 조각)로 천천히 다가간다 (#220 ④)
+        // 쪽이 열리면 그 쪽의 물건(조각 이야기면 그 조각 · 아니면 문장에 나온 조각)이 가운데로 나오며 커진다 — 배경과 그림 칸은 그대로 (#220 ④).
+        // 전에는 그림 칸 전체를 그 자리로 당겨 배경까지 같이 움직였다 (10-07 실기기)
         val aspect = s.drawingAspect.takeIf { it > 0f } ?: 1f
-        val whole = cropFor(pieces.flatMap { it.strokes }, aspect)
+        val crop = pictureCrop(pieces, aspect)
         val focus = pageFocus(page, pieces)
-        val target = focusCrop(focus, pieces, aspect)
         val near = remember(page) { Animatable(if (motionFrozen) 1f else 0f) }
         LaunchedEffect(page) { if (!motionFrozen) near.animateTo(1f, tween(900)) }
-        val crop = between(whole, target, near.value)
         val everyone = page.kind == DiaryPageKind.DRAWING || page.kind == DiaryPageKind.PLACE || page.kind == DiaryPageKind.PUZZLE
         val wDp = maxWidth.value
         val hDp = maxHeight.value
@@ -972,7 +971,7 @@ private fun PicturePanel(
                 }
                 PieceLayer(
                     p, crop, if (!moves) null else if (p.name in page.with) PieceMove.HOP else page.move, a, wDp, hDp, rxTool, nonce,
-                    shift = moved[p.id] ?: Offset.Zero,
+                    shift = moved[p.id] ?: Offset.Zero, toCenter = if (p in focus) near.value else 0f,
                     // 맺음(내일) 쪽은 앞에 나온 조각이 반짝인다 — 쪽마다 다른 움직임 (#220 ④)
                     glowing = p.id == glow?.first || (page.kind == DiaryPageKind.KEEP && moves),
                 )
@@ -995,10 +994,9 @@ private fun PicturePanel(
     }
 }
 
-/** 두 그림 칸 사이 — [t] 0 이면 [a], 1 이면 [b] */
-private fun between(a: BoardBox, b: BoardBox, t: Float) = BoardBox(
-    a.left + (b.left - a.left) * t, a.top + (b.top - a.top) * t, a.right + (b.right - a.right) * t, a.bottom + (b.bottom - a.bottom) * t,
-)
+/** 그 쪽의 물건이 가운데로 나오는 몫 · 커지는 몫 — 그림 칸 밖으로 나가지 않을 만큼 (#220 ④) */
+private const val SPOT_MOVE = 0.35f
+private const val SPOT_GROW = 0.3f
 
 /** 도구로 조각을 누를 때 조각이 하는 한마디 (프로토타입 react) */
 private fun reactionWord(tool: Tool, p: DiaryPiece): String = when (tool) {
@@ -1013,6 +1011,8 @@ private fun reactionWord(tool: Tool, p: DiaryPiece): String = when (tool) {
 private fun PieceLayer(
     p: DiaryPiece, crop: BoardBox, move: PieceMove?, alpha: Float, wDp: Float, hDp: Float,
     tool: Tool? = null, poked: Int = 0, shift: Offset = Offset.Zero, glowing: Boolean = false,
+    /** 0 → 1 동안 조각이 가운데 쪽으로 [SPOT_MOVE] 만큼 나오며 [SPOT_GROW] 만큼 커진다 — 그 쪽의 물건 (#220 ④) */
+    toCenter: Float = 0f,
 ) {
     val b = boxOf(p.strokes) ?: return
     val t = rememberInfiniteTransition(label = "piece${p.id}")
@@ -1028,13 +1028,15 @@ private fun PieceLayer(
     val cy = ((b.top + b.bottom) / 2f - crop.top) / crop.height
     val layer = Modifier.fillMaxSize().alpha(alpha).graphicsLayer {
         transformOrigin = TransformOrigin(cx.coerceIn(0f, 1f), cy.coerceIn(0f, 1f))
-        translationX = shift.x
-        translationY = shift.y
+        translationX = shift.x + (0.5f - cx) * size.width * SPOT_MOVE * toCenter
+        translationY = shift.y + (0.5f - cy) * size.height * SPOT_MOVE * toCenter
+        scaleX = 1f + SPOT_GROW * toCenter
+        scaleY = 1f + SPOT_GROW * toCenter
         when (move) {
             PieceMove.HOP -> translationY += -k * size.height * 0.08f
             PieceMove.TOPPLE -> rotationZ = k * 22f
-            PieceMove.DROOP -> { translationY += k * size.height * 0.03f; scaleY = 1f - k * 0.06f }
-            PieceMove.BUILD -> { scaleX = 1f + k * 0.06f; scaleY = 1f + k * 0.06f }
+            PieceMove.DROOP -> { translationY += k * size.height * 0.03f; scaleY *= 1f - k * 0.06f }
+            PieceMove.BUILD -> { scaleX *= 1f + k * 0.06f; scaleY *= 1f + k * 0.06f }
             PieceMove.WALK -> translationX += (k - 0.5f) * size.width * 0.04f
             PieceMove.BOB -> translationY += -k * size.height * 0.02f
             null -> {}
@@ -1154,7 +1156,7 @@ private fun DiaryGiftView(d: Director, cq: Dp) {
         ) {
             BoxWithConstraints(Modifier.fillMaxWidth().height(cq * 9).background(Color.White)) {
                 if (pieces.isNotEmpty()) {
-                    val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)
+                    val crop = pictureCrop(pieces, s.drawingAspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)   // 오또 배경이 있으면 판 전체 (10-07)
                     pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
                 // 그림 없이 만든 일기 — 책장 표지와 같은 그림(아이가 말한 곳). 전에는 📔 하나였다 (#98)
                 } else AssetImage(diaryPlaceBg(s.diaryBookInput().lines["place"]), Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
