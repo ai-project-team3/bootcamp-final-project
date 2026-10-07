@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -32,6 +33,8 @@ import androidx.compose.ui.unit.dp
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.ui.ArtView
+import com.example.finalproject_demo.ui.AssetImage
+import com.example.finalproject_demo.ui.motionFrozen
 import com.example.finalproject_demo.ui.FeltWhite
 import com.example.finalproject_demo.ui.Sfx
 import com.example.finalproject_demo.ui.Sound
@@ -63,6 +66,12 @@ internal fun StackMission(d: Director, done: Boolean, heroArt: Art) {
     val idle = rememberIdleHint(level.count { it >= 0 }.toFloat(), stacked)
     val hint = rememberMissionHint(d, level.count { it >= 0 }.toFloat(), stacked, "A5")
     MissionDoneSignal(d, stacked, done, "미션2")
+    // 다 쌓으면 탑이 살짝 흔들리다 멈춘다 — 높이 쌓은 결과가 장면에 보이게 (#260 §6-3)
+    val sway = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(stacked) {
+        if (!stacked || done || motionFrozen) return@LaunchedEffect
+        for (v in listOf(1f, -0.7f, 0.4f, -0.15f, 0f)) sway.animateTo(v, tween(160))
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
@@ -73,7 +82,8 @@ internal fun StackMission(d: Director, done: Boolean, heroArt: Art) {
         Stand(0.14f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
 
         fun slot(n: Int) = Offset(base.x, base.y - n * b * 0.88f)      // 위 블록 돌기가 아래 블록에 살짝 묻힌다
-        fun pos(i: Int) = if (level[i] >= 0) slot(level[i]) else at[i] ?: starts[i]
+        // 쌓인 블록은 위로 갈수록 더 흔들린다
+        fun pos(i: Int) = if (level[i] >= 0) slot(level[i]) + Offset(sway.value * level[i] * b * 0.10f, 0f) else at[i] ?: starts[i]
         fun stack(i: Int) {
             if (level[i] >= 0) return
             level[i] = level.count { it >= 0 }
@@ -138,9 +148,16 @@ internal fun StackMission(d: Director, done: Boolean, heroArt: Art) {
                 ArtView(Art.Img("ic_hand", Art.Emoji("👆")), Modifier.fillMaxSize())
             }
         }
-        // 반짝이는 탑 꼭대기 오른쪽 옆 — 위에 두면 책 도구 줄에 걸쳤다(10-05 실기기)
-        if (stacked) Box(Modifier.offset { IntOffset((base.x + b * 0.7f).roundToInt(), (slot(2).y - b).roundToInt()) }.size((wpx * 0.06f / density).dp)) {
-            ArtView(Art.Img("prop_sparkle", Art.Emoji("✨")), Modifier.fillMaxSize())
+        // 다 쌓으면 꼭대기에 작은 깃발 — 「다 쌓았다」 표시 (그림이 없으면 반짝이를 탑 오른쪽 옆에 · 10-05 실기기 자리)
+        if (stacked) {
+            val top = slot(2) + Offset(sway.value * 2 * b * 0.10f, 0f)
+            Box(Modifier.offset { IntOffset((top.x - b * 0.2f).roundToInt(), (top.y - b * 1.35f).roundToInt()) }.size((b * 0.9f / density).dp)) {
+                AssetImage("prop_flag_small", Modifier.fillMaxSize()) {
+                    Box(Modifier.offset { IntOffset((b * 0.9f).roundToInt(), (b * 0.35f).roundToInt()) }.size((wpx * 0.06f / density).dp)) {
+                        ArtView(Art.Img("prop_sparkle", Art.Emoji("✨")), Modifier.fillMaxSize())
+                    }
+                }
+            }
         }
     }
 }
