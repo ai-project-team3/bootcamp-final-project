@@ -196,7 +196,8 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         s.stage = Stage.Show(s.storyHeroArt, "이야기 그림을 마무리하는 중…")
     }
     imageJob?.join()
-    log("동화 대화 종료: ${s.endReason} · ${s.turn}턴 · 실제 판정으로 채운 칸 ${s.slots.keys}")
+    val filledSlots = s.slots.filterValues { it.isNotBlank() }.keys.joinToString(" · ")
+    log("Story conversation finished: ${s.endReason} · ${s.turn} turns · verdict-filled slots: $filledSlots")
     go(Scene.MAKING)
 }
 
