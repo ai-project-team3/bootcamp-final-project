@@ -239,12 +239,42 @@ fun layoutScene(kit: SceneKitDef, seed: Long, actors: Int, f: SceneFrame): List<
         }
     }
 
+    // near ground — a few small tufts between the actors' feet and the bottom edge (10-07 종훈: the front of the
+    // park was a bare green sheet). Own random stream, so every scene above keeps the layout it had
+    out += nearTufts(kit, seed, f, keep)
+
     // foreground — one big piece cut by a bottom corner (the cheapest depth there is), drawn over the actors
     val fronts = kit.byRole(PieceRole.FOREGROUND)
     if (fronts.isNotEmpty()) {
         val p = fronts[rng.nextInt(fronts.size)]
         val left = rng.nextBoolean()
         out += PlacedPiece(p, W * (if (left) 0.03f else 0.97f), f.bottom + 0.04f * H, p.size * f.heroH(1.15f), !left && p.flip)
+    }
+    return out
+}
+
+/** Pieces small enough to scatter in the near ground — grass, flowers, stones; not a bench or a sandcastle */
+private const val TUFT_MAX_SIZE = 0.32f
+
+/**
+ * Small cover pieces sprinkled below the actors' feet line ([SceneFrame.feetNear] … [SceneFrame.bottom]), each alone,
+ * never on an actor or a tab. Sized as at the front row but smaller — they are the nearest felt, not a second row.
+ */
+fun nearTufts(kit: SceneKitDef, seed: Long, f: SceneFrame, keep: List<Box>): List<PlacedPiece> {
+    val pool = kit.byRole(PieceRole.COVER).filter { it.copies == 0 && it.size <= TUFT_MAX_SIZE }
+    if (pool.isEmpty() || f.bottom - f.feetNear < 0.04f * f.h) return emptyList()
+    val rng = Random(seed xor 0x5EED_6A0DL)
+    val out = mutableListOf<PlacedPiece>()
+    val want = 4 + rng.nextInt(3)
+    var tries = 0
+    while (out.size < want && tries++ < want * 20) {
+        val p = pool[rng.nextInt(pool.size)]
+        val y = rng.range(f.feetNear + 0.03f * f.h, f.bottom - 0.005f * f.h)
+        val h = p.size * f.heroH(1f) * rng.range(0.55f, 0.8f)
+        val c = PlacedPiece(p, rng.range(0.04f, 0.96f) * f.w, y, h, p.flip && rng.nextBoolean())
+        if (keep.any { it.inter(c.box) > 0f }) continue
+        if (out.any { abs(it.x - c.x) < 0.09f * f.w }) continue
+        out += c
     }
     return out
 }
