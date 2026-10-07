@@ -31,3 +31,10 @@ def test_an_invalid_page_count_is_not_a_success_even_if_names_are_present():
     assert result["missing"] == []
     assert result["rejection"] == "2 scenes (want 1 pages)"
     assert result["kept"] is False
+
+
+def test_name_retention_does_not_hide_a_missing_protagonist():
+    absent = StoryResult(scenes=[Scene(index=1, caption="맥도날드를 만났어요.", keywords="clown")])
+    present = StoryResult(scenes=[Scene(index=1, caption="{주인공}은 맥도날드를 만났어요.", keywords="clown")])
+    assert score(absent, request(), ["맥도날드"])["protagonist_present"] is False
+    assert score(present, request(), ["맥도날드"])["protagonist_present"] is True

@@ -32,7 +32,8 @@ def score(book: StoryResult, req: StoryRequest, names: list[str]) -> dict:
     captions = "\n".join(scene.caption for scene in book.scenes)
     missing = [name for name in names if name not in captions]
     rejection = story.check(book, "story", req.pages)
-    return {"missing": missing, "rejection": rejection, "kept": not missing and rejection is None}
+    return {"missing": missing, "rejection": rejection, "kept": not missing and rejection is None,
+            "protagonist_present": "{주인공}" in captions}
 
 
 async def main() -> int:
@@ -86,9 +87,10 @@ async def main() -> int:
         selected = [row for row in rows if row["group"] == group]
         print(f"{group}: {sum(row['kept'] for row in selected)}/{len(selected)} books kept")
     times = [row["seconds"] for row in rows]
-    print(f"errors={sum('error' in row for row in rows)} rejected={sum(bool(row.get('rejection')) for row in rows)} "
+    print(f"protagonist={sum(row.get('protagonist_present', False) for row in rows)}/{len(rows)} "
+          f"errors={sum('error' in row for row in rows)} rejected={sum(bool(row.get('rejection')) for row in rows)} "
           f"p50={statistics.median(times):.2f}s max={max(times):.2f}s")
-    return 0 if all(row["kept"] for row in rows) else 1
+    return 0 if all(row["kept"] and row.get("protagonist_present", False) for row in rows) else 1
 
 
 if __name__ == "__main__":
