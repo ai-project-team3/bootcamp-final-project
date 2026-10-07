@@ -51,6 +51,12 @@ enum class Sound {
 
     /** 툭 — 물건이 놓였다 */
     THUD,
+
+    /** Ding-dong — the app has opened (splash · #306) */
+    CHIME,
+
+    /** Whoosh — the stage curtains part (title screen · #306) */
+    SWISH,
 }
 
 /**
@@ -142,7 +148,7 @@ object Sfx {
         Sound.THUD -> HapticFeedbackConstants.CONTEXT_CLICK       // 툭 — 조금 무겁게
         Sound.SPARKLE ->                                          // 반짝 — 해냈다
             if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.LONG_PRESS
-        Sound.HISS -> null
+        Sound.HISS, Sound.CHIME, Sound.SWISH -> null
     }
 
     private fun render(kind: Sound): ShortArray = when (kind) {
@@ -162,6 +168,22 @@ object Sfx {
             val f = floatArrayOf(784f, 988f, 1319f)[step]   // 솔 · 시 · 미
             val local = (t - step * n / 3f) / (n / 3f)
             (sin(2.0 * PI * f * t / RATE) * exp(-5.0 * local)).toFloat() * 0.28f
+        }
+        // Ding-dong — two rising notes (C · G), each with a soft attack so it never stabs the ear
+        Sound.CHIME -> tone(0.3f) { t, n ->
+            val second = t >= n / 2f
+            val f = if (second) 784f else 523f
+            val local = if (second) (t - n / 2f) / (n / 2f) else t / (n / 2f)
+            val attack = (local * 12f).coerceAtMost(1f)
+            (sin(2.0 * PI * f * t / RATE) * exp(-3.5 * local)).toFloat() * attack * 0.26f
+        }
+        // Whoosh — noise that swells and fades; a one-pole low-pass dulls the hiss toward cloth sweeping
+        Sound.SWISH -> {
+            var last = 0f
+            tone(0.3f) { t, n ->
+                last = last * 0.82f + (Random.nextFloat() * 2f - 1f) * 0.18f
+                last * sin(PI * t / n).toFloat() * 0.5f
+            }
         }
         // 툭 — 낮은 음 한 번
         Sound.THUD -> tone(0.12f) { t, n ->

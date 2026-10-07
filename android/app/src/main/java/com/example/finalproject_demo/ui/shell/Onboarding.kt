@@ -1,6 +1,31 @@
 package com.example.finalproject_demo.ui.shell
 
 import android.content.Intent
+import android.provider.Settings
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.shape.GenericShape
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import com.example.finalproject_demo.ui.OttoMove
+import com.example.finalproject_demo.ui.OttoPuppet
+import com.example.finalproject_demo.ui.Sfx
+import com.example.finalproject_demo.ui.Sound
+import com.example.finalproject_demo.ui.motionFrozen
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlin.math.PI
+import kotlin.math.sin
 import android.net.Uri
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -93,6 +118,24 @@ import kotlinx.coroutines.launch
 
 // ── ① 타이틀 — 인형극 무대 · 커튼 · 로고 · 「눌러서 시작」 ─────────────────────
 
+/** How far along the start animation is — every value 0 → 1 (#306) */
+private class TitleRun {
+    /** puppet strings falling from above the screen onto the logo */
+    val drop = Animatable(0f)
+    /** the small tug when the strings catch */
+    val tug = Animatable(0f)
+    /** the logo lifted away and the curtains parted */
+    val lift = Animatable(0f)
+    /** Otto rising onto the stage of the revealed room */
+    val otto = Animatable(0f)
+}
+
+/**
+ * The title screen (#306 · 10-07 종훈 draft). Waiting, it shows the stage and the logo only — no Otto.
+ * A tap drops two puppet strings quickly from the top, they catch the logo and lift it away like a marionette
+ * while the curtains part on the room, where Otto pops up large and waves. About 1.8 s; a second tap skips.
+ * Tests ([motionFrozen]) and phones with animations off go straight on.
+ */
 @Composable
 fun TitleScreen(onStart: () -> Unit) {
     // 한참 아무도 안 만지면 「눌러서 시작」 두근거림을 쉬게 한다 — 이 하나로 CPU 87% 였다 (#40)
@@ -101,21 +144,122 @@ fun TitleScreen(onStart: () -> Unit) {
         val t = rememberInfiniteTransition(label = "title")
         t.animateFloat(0.94f, 1.06f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pulse").value
     }
-    Box(Modifier.fillMaxSize().background(CurtainDeep).wakeOnTouch(quiet).noRippleClickable { onStart() }) {
-        // 무대 그림 — ComfyUI(title_bg · tools/gen_room.py). 없으면 아래 펠트 도형으로 그린다
-        AssetImage("title_bg", Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop) { TitleFallback() }
+    val context = LocalContext.current
+    val view = LocalView.current
+    val scope = rememberCoroutineScope()
+    val run = remember { TitleRun() }
+    var playing by remember { mutableStateOf(false) }
+    var left by remember { mutableStateOf(false) }
+    // where the logo rests, in this screen's coordinates — measured before anything moves it
+    var logo by remember { mutableStateOf(Rect.Zero) }
+    var origin by remember { mutableStateOf(Offset.Zero) }
+
+    fun leave() { if (!left) { left = true; onStart() } }
+    fun tap() {
+        if (playing) { leave(); return }                 // second tap — skip the rest
+        val off = motionFrozen || runCatching {
+            Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+        }.getOrDefault(false)
+        if (off || logo == Rect.Zero) { leave(); return }
+        playing = true
+        scope.launch {
+            // 1 · strings fall fast and settle — no bounce, they are thread
+            run.drop.animateTo(1f, tween(360, easing = LinearOutSlowInEasing))
+            // 2 · caught — a little tug on the logo
+            Sfx.play(Sound.POP, view = view)
+            run.tug.animateTo(1f, tween(160))
+            // 3 · lift the logo up and away while the curtains part; Otto comes up a beat later
+            Sfx.play(Sound.SWISH)
+            coroutineScope {
+                launch { run.lift.animateTo(1f, tween(820, easing = FastOutSlowInEasing)) }
+                launch { delay(280); run.otto.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 240f)) }
+            }
+            delay(200)
+            leave()
+        }
+    }
+
+    Box(
+        Modifier.fillMaxSize().background(CurtainDeep).wakeOnTouch(quiet).noRippleClickable { tap() }
+            .onGloballyPositioned { origin = it.boundsInRoot().topLeft },
+    ) {
+        val lift = run.lift.value
+        // Behind the curtains — the room, and Otto big in the middle of it
+        if (playing) {
+            AssetImage("room_bg", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            val o = run.otto.value
+            OttoPuppet(
+                OttoMove.WAVE,
+                Modifier.align(Alignment.BottomCenter).fillMaxHeight(0.78f).aspectRatio(1f)
+                    .graphicsLayer {
+                        translationY = (1f - o) * size.height * 0.7f
+                        transformOrigin = TransformOrigin(0.5f, 1f)
+                        scaleX = 0.85f + 0.15f * o; scaleY = 0.85f + 0.15f * o
+                    },
+            )
+        }
+        // The stage itself is the curtain — split down the middle, each half slides out and bunches a little
+        listOf(true, false).forEach { isLeft ->
+            Box(
+                Modifier.fillMaxSize().graphicsLayer {
+                    clip = true
+                    shape = if (isLeft) LeftHalf else RightHalf
+                    transformOrigin = TransformOrigin(if (isLeft) 0f else 1f, 0.5f)
+                    translationX = (if (isLeft) -1f else 1f) * size.width * 0.5f * lift
+                    scaleX = 1f - 0.18f * lift
+                },
+            ) {
+                // 무대 그림 — ComfyUI(title_bg · tools/gen_room.py). 없으면 아래 펠트 도형으로 그린다
+                AssetImage("title_bg", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { TitleFallback() }
+            }
+        }
+        val px = LocalDensity.current.density
+        val tugY = -sin(PI.toFloat() * run.tug.value) * 7f * px
+        // the logo leaves through the top of the screen, a little past its own height
+        val liftY = -(logo.bottom + 40f * px) * lift
         Column(Modifier.align(Alignment.Center).padding(top = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            AssetImage("logo_otto_v2", Modifier.width(420.dp))
+            AssetImage(
+                "logo_title",
+                Modifier.width(360.dp)
+                    .onGloballyPositioned { if (!playing) logo = it.boundsInRoot().translate(-origin) }
+                    .graphicsLayer {
+                        translationY = tugY + liftY
+                        // swings a touch on the strings while it rises
+                        rotationZ = sin(lift * PI.toFloat() * 2f) * 2.5f * (1f - lift)
+                    },
+            )
             Spacer(Modifier.height(10.dp))
             Row(
-                Modifier.scale(pulse).felt(Wool, RoundedCornerShape(20.dp), lift = 4.dp, stitch = false).padding(horizontal = 20.dp, vertical = 9.dp),
+                Modifier.scale(pulse).graphicsLayer { alpha = 1f - run.drop.value }
+                    .felt(Wool, RoundedCornerShape(20.dp), lift = 4.dp, stitch = false).padding(horizontal = 20.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("👆", fontSize = 16.sp); Spacer(Modifier.width(6.dp)); Text("눌러서 시작", fontSize = 16.sp, color = InkBrown)
             }
         }
+        // Puppet strings — two threads from above the screen to knots on the logo's top edge
+        if (playing) Canvas(Modifier.fillMaxSize()) {
+            val d = run.drop.value
+            val top = -12f * px
+            listOf(0.27f, 0.73f).forEachIndexed { i, at ->
+                val knot = Offset(logo.left + logo.width * at, logo.top + logo.height * 0.14f + tugY + liftY)
+                // swaying while they fall, still once they hold the logo
+                val sway = sin(d * PI.toFloat() * 3f + i) * 14f * px * (1f - d)
+                val tip = Offset(knot.x + sway, top + (knot.y - top) * d)
+                // a dark edge under a light thread, so it reads on the bright backdrop and on the red curtain alike
+                drawLine(StringShade, Offset(knot.x, top), tip, strokeWidth = 3.6f * px, cap = StrokeCap.Round)
+                drawLine(StringColor, Offset(knot.x, top), tip, strokeWidth = 1.8f * px, cap = StrokeCap.Round)
+                drawCircle(StringShade, 6f * px, tip)
+                drawCircle(StringColor, 4.5f * px, tip)
+            }
+        }
     }
 }
+
+private val StringColor = Color(0xFFF4EBDD)
+private val StringShade = Color(0x995A3E2B)
+private val LeftHalf = GenericShape { size, _ -> addRect(Rect(0f, 0f, size.width / 2f, size.height)) }
+private val RightHalf = GenericShape { size, _ -> addRect(Rect(size.width / 2f, 0f, size.width, size.height)) }
 
 @Composable
 private fun TitleFallback() {

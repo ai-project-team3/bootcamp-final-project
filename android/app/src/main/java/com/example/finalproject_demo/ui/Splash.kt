@@ -38,6 +38,8 @@ fun SplashScreen(onDone: () -> Unit) {
     val fade = remember { Animatable(1f) }
 
     LaunchedEffect(Unit) {
+        // One soft chime as the last letter lands (#306) — Sfx stays quiet when the parent turned sounds off
+        launch { delay(150L + word.length * 110L); Sfx.play(Sound.CHIME, minGapMs = 1_000L) }
         letters.forEachIndexed { i, a ->
             launch {
                 delay(150L + i * 110L)
