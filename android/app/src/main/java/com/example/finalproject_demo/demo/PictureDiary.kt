@@ -1637,14 +1637,19 @@ private fun Director.keepPageVoices(book: SavedDiaryBook) {
 private suspend fun Director.readPictureDiary(day: DiaryDay, reread: Boolean = false, bookId: String? = null) {
     var i = 0
     val missing = mutableSetOf<String>()
+    // 책을 펼칠 때 모든 쪽 목소리를 미리 받는다 — 전에는 쪽을 넘길 때마다 그제야 /tts 를 불러 쪽마다 1.8~3.5초 기다렸다 (#262 · 10-07 실기기).
+    // 책 옆에 남긴 목소리가 있으면 그것을 넘긴다(#179)
+    buildDiaryBook(s.diaryBookInput()).map(::diaryPageCaption).distinct().forEach { line ->
+        bookId?.let { DiaryShelf.voice(s, it, line) }?.let { offerVoice(line, it) } ?: prefetchSpeech(line)
+    }
     while (true) {
         val pages = buildDiaryBook(s.diaryBookInput())
         val p = pages[i]
         val last = i == pages.lastIndex
         val caption = diaryPageCaption(p)
-        s.stage = DiaryPaper(i)
         if (bookId != null) DiaryShelf.voice(s, bookId, caption)?.let { offerVoice(caption, it) } ?: missing.add(caption)
         say(caption)
+        s.stage = DiaryPaper(i)                      // 말한 뒤에 쪽을 연다 — 쪽의 글자가 이 문장의 목소리를 기다린다(#262)
         val b = mutableListOf<DemoBtn>()
         if (i == 0 && day.weather == null) DiaryWeather.entries.forEach { w ->
             b += DemoBtn("${w.emoji} 날씨 ${w.label}") { send(Reply.Tapped("wx:${w.name}", w.label)) }
