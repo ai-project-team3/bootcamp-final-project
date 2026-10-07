@@ -81,7 +81,18 @@ internal fun HoseMission(d: Director, done: Boolean, heroArt: Art) {
             life[i] = minOf(HOSE_FULL, life[i] + amount)
             if (before < HOSE_FULL && life[i] >= HOSE_FULL) {
                 puffs.steam(fires[i].x, fires[i].y, wpx * 0.075f, 10)
-                Sfx.play(Sound.SPARKLE, 0L, view = view)
+                // 불 하나가 꺼질 때는 치익 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
+                Sfx.play(Sound.HISS, 0L, view = view)
+            }
+        }
+
+        // 15초 그대로면 오또가 반쯤 꺼 준다 — 앞에서부터 불 하나 반 (#260)
+        MissionHelp(d, life.sum(), allOut) {
+            val want = HOSE_FULL * life.size / 2f
+            for (i in life.indices) {
+                val left = want - life.sum()
+                if (left <= 0f) break
+                douse(i, minOf(HOSE_FULL - life[i], left))
             }
         }
 

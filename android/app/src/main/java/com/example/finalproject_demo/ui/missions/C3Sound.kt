@@ -109,6 +109,8 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
     val idle = rememberIdleHint(fill, finished)
+    // 15초 그대로면 오또가 반을 채워 준다(같이 「삐-뽀」) — 나머지 반은 아이가 (#260)
+    MissionHelp(d, fill, finished) { if (fill < 0.5f) { fill = 0.5f; pops++ } }
     MissionDoneSignal(d, finished, done, "미션1")
     val bounce = remember { Animatable(1f) }
     fun nudge() { scope.launch { bounce.snapTo(1.12f); bounce.animateTo(1f, spring(dampingRatio = 0.35f)) } }
@@ -152,7 +154,8 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
                     if (finished) return@pointerInput
                     detectTapGestures {
                         fill = minOf(1f, fill + SOUND_TAP); pops++; nudge()
-                        Sfx.play(Sound.SPARKLE, minGapMs = 120L, view = view)
+                        // 누를 때마다 톡 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
+                        Sfx.play(Sound.POP, minGapMs = 120L, view = view)
                     }
                 },
         ) {

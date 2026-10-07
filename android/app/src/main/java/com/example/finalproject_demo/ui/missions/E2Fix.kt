@@ -79,7 +79,13 @@ internal fun FixMission(d: Director, done: Boolean, heroArt: Art) {
         fun snap(i: Int) {
             if (snapped[i]) return
             snapped[i] = true
-            Sfx.play(Sound.SPARKLE, minGapMs = 0L, view = view)
+            // 조각마다 톡 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
+            Sfx.play(Sound.POP, minGapMs = 0L, view = view)
+        }
+
+        // 15초 그대로면 오또가 조각 하나를 붙여 준다 — 나머지 하나는 아이가 (#260)
+        MissionHelp(d, snapped.count { it }.toFloat(), fixed) {
+            if (snapped.none { it }) snap(0)
         }
 
         // 원판 — 붙어 있는 조각과 빈자리(점선)

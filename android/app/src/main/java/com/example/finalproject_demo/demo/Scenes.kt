@@ -1621,7 +1621,7 @@ private suspend fun Director.sceneBook() {
                 s.achievements += fix?.badge ?: "${m2.itemName} 건넨 손"
                 show(); announce(); refreshButtons()
                 event("mission", "id" to 2, "motion" to "drag", "result" to s.m2Result)
-                log(fix?.let { "미션 2 완료 — ${it.mission.name} · 「${it.cheer}」" } ?: "미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (연출은 공통)")
+                log(fix?.let { "미션 2 완료 — ${it.mission.name} · 「${it.cheer}」" } ?: "미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (건네주기 연출 — 미션마다 따로 · #260)")
                 mark("book")
             }
             vv == "dino" || vv == "sound" -> {

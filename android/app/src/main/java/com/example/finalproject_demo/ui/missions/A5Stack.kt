@@ -76,7 +76,13 @@ internal fun StackMission(d: Director, done: Boolean, heroArt: Art) {
         fun stack(i: Int) {
             if (level[i] >= 0) return
             level[i] = level.count { it >= 0 }
-            Sfx.play(Sound.SPARKLE, minGapMs = 0L, view = view)
+            // 블록마다 톡 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙 · 마지막 블록에 두 번 울렸다)
+            Sfx.play(Sound.POP, minGapMs = 0L, view = view)
+        }
+
+        // 15초 그대로면 오또가 첫 블록을 올려 준다 — 나머지 둘은 아이가 (#260)
+        MissionHelp(d, level.count { it >= 0 }.toFloat(), stacked) {
+            if (level.count { it >= 0 } == 0) level.indexOfFirst { it < 0 }.takeIf { it >= 0 }?.let { stack(it) }
         }
 
         // 탑 자리 — 아직 빈 칸을 점선으로(다음 칸이 어디인지 보이게)
