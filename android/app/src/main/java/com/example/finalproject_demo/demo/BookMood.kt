@@ -38,14 +38,17 @@ fun trackOf(mood: BgmMood, bookKey: Int): String = mood.tracks[Math.floorMod(boo
  */
 fun DemoState.storyBookKey(): Int = bgmBookKey(title ?: autoTitleFor(), bookCaption(1))
 
+/** 동화책 장면(`sceneBook`)에서 음악을 트는 책 — 동화와 같이 만들기. 그림일기는 자기 책 화면이라 여기서 틀지 않는다 */
+val DemoState.bookMusic: Boolean get() = mode != StoryMode.DIARY
+
 /**
  * 장면이 바뀔 때 — 책(쪽마다는 `sceneBook`)과 동화의 끝 화면 밖으로 나가면 음악을 끈다.
- * 끝 화면(친구 · 끝)은 [BgmMood.NIGHT]. 그림일기 · 협업은 음악이 없다(#221 범위)
+ * 끝 화면(친구 · 끝)은 [BgmMood.NIGHT]. 그림일기는 음악이 없다
  */
 fun Director.sceneMusic(scene: Scene) {
     when {
-        scene == Scene.BOOK && s.mode == StoryMode.STORY -> {}
-        (scene == Scene.FRIENDS || scene == Scene.END) && s.mode == StoryMode.STORY ->
+        scene == Scene.BOOK && s.bookMusic -> {}
+        (scene == Scene.FRIENDS || scene == Scene.END) && s.bookMusic ->
             com.example.finalproject_demo.net.Bgm.play(trackOf(BgmMood.NIGHT, s.storyBookKey()))
         else -> com.example.finalproject_demo.net.Bgm.stop()
     }

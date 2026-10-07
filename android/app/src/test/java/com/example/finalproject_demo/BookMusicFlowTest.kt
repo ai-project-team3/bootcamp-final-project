@@ -2,12 +2,7 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.BgmMood
 import com.example.finalproject_demo.demo.COOP_SHELF_ID
-import com.example.finalproject_demo.demo.CoopBookStore
-import com.example.finalproject_demo.demo.CoopShelf
-import com.example.finalproject_demo.demo.PageKind
-import com.example.finalproject_demo.demo.SavedCoopBook
 import com.example.finalproject_demo.demo.SavedStoryBook
-import com.example.finalproject_demo.demo.SavedStoryPage
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
@@ -101,14 +96,6 @@ class BookMusicFlowTest {
         assertEquals(bgmBookKey(saved!!.title, saved.pages.first().caption), d.s.storyBookKey())
     }
 
-    @Test fun aCoopBookPlaysNoMusic() = run { d ->
-        d.s.mode = StoryMode.COOP
-        d.s.storyCaptions = listOf("같이 만든 이야기예요.")
-        d.go(Scene.BOOK)
-        assertNotNull(await { d.s.stage is Stage.BookPage })
-        assertNull(Bgm.mixer.playing)
-    }
-
     // ── 책장 다시 읽기 (Scenes.kt sceneShelf) ──
 
     private suspend fun Director.shelfWith(book: SavedStoryBook? = null): String {
@@ -136,19 +123,6 @@ class BookMusicFlowTest {
         d.tapUntil("next", "다음") { (d.s.stage as? Stage.SavedStory)?.index == 1 }
         assertEquals(trackOf(moodOf(book.pages[0].kind), key), Bgm.mixer.playing)
         d.tapUntil("close", "닫기") { d.s.stage is Stage.Shelf }
-        assertNull(Bgm.mixer.playing)
-    }
-
-    @Test fun aCoopBookOnTheShelfPlaysNothing() = run { d ->
-        val coop = SavedStoryBook("c1", "같이 만든 책", "space", "bg_space",
-            listOf(SavedStoryPage(PageKind.TOGETHER, "같이 놀았어요."), SavedStoryPage(PageKind.JOURNEY, "집에 왔어요.")))
-        CoopShelf.attach(d.s, object : CoopBookStore {
-            override fun load() = listOf(SavedCoopBook(coop, null))
-            override fun save(book: SavedCoopBook) {}
-        })
-        val id = d.shelfWith(coop)
-        d.tapUntil("book", id) { d.s.stage is Stage.SavedStory }
-        d.tapUntil("next", "다음") { (d.s.stage as? Stage.SavedStory)?.index == 1 }
         assertNull(Bgm.mixer.playing)
     }
 }

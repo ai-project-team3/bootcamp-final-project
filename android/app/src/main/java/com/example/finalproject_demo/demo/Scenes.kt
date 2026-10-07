@@ -1537,7 +1537,7 @@ private suspend fun Director.sceneBook() {
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
         }
-        if (s.mode == StoryMode.STORY) Bgm.play(trackOf(moodOf(s.pageKind(i)), s.storyBookKey()))
+        if (s.bookMusic) Bgm.play(trackOf(moodOf(s.pageKind(i)), s.storyBookKey()))
         say(if (i == 0) "『${s.title}』" else s.bookCaption(i))
         when {
             i == 0 -> {}
@@ -1799,8 +1799,8 @@ private suspend fun Director.sceneShelf() {
                 buttons()
                 while (true) {
                     s.stage = Stage.SavedStory(book, page)
-                    // 동화책만 음악 — 첫 읽기와 같은 쪽 · 같은 곡 (#221)
-                    if (story != null) Bgm.play(trackOf(moodOf(if (page == 0) PageKind.COVER else book.pages[page - 1].kind), key))
+                    // 동화 · 같이 만들기 책 모두 — 첫 읽기와 같은 쪽 · 같은 곡 (#221)
+                    Bgm.play(trackOf(moodOf(if (page == 0) PageKind.COVER else book.pages[page - 1].kind), key))
                     val action = (awaitReply() as? Reply.Tapped)?.value ?: continue
                     when (action) {
                         "next" -> if (page < book.pages.size) page++
