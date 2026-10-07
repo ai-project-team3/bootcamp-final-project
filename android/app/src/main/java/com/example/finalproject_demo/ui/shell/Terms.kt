@@ -15,8 +15,38 @@ package com.example.finalproject_demo.ui.shell
  * ⚠️ 이용약관은 **법무 검토 전 초안**이다 — 출시 전 검토를 받는다.
  */
 
-/** 약관 판 — 문구를 바꾸면 날짜를 올린다 */
+/*
+ * ── 판 올리기 규칙 (10-07 조장 결정 · #256 · docs/실기기수정_설계_1007.md §2) ───────────────────────────────
+ * 올린다 — 동의 **대상**이 바뀔 때만: 수집 항목 · 목적 · 보유 기간 · 수탁사 · 제3자 제공 · 국외 이전 · 필수/선택 구분.
+ *   판이 오르면 이미 동의한 보호자도 다시 동의할 때까지 막는다(선택 항목만 늘어도).
+ * 안 올린다 — 맞춤법 · 표현 · 화면 배치 · 거절 문구만 바뀔 때.
+ * 올릴 때는 [TERMS_CHANGES] 에 그 판의 줄을 같이 적는다 — 다시 동의 화면이 「무엇이 바뀌었는지」 보여 준다(없으면 TermsTest 실패).
+ */
+
+/** 약관 판 — 위 규칙대로만 올린다 */
 const val TERMS_VERSION = "2026-10-06.3"
+
+/**
+ * 판마다 바뀐 것, 오래된 판부터 — 다시 동의 화면에 보인다. 보호자가 마지막에 동의한 판보다 새 판의 줄만 모은다.
+ * 10-06 의 세 판은 규칙 전에 올랐다(마지막은 거절 문구만 — 지금 규칙이면 올리지 않는다).
+ */
+val TERMS_CHANGES: List<Pair<String, List<String>>> = listOf(
+    "2026-10-05" to listOf("필수 · 선택 항목을 하나씩 나눠 동의하도록 바뀌었어요"),
+    "2026-10-06" to listOf("아이 답이 어느 이야기 칸에 들어갈지 판단할 때 처리 위탁사(TypeSafe)를 다시 써요"),
+    "2026-10-06.2" to listOf("오또 목소리(타입캐스트)는 선택 동의로 바뀌었어요 — 동의한 가족만 보내요"),
+    "2026-10-06.3" to listOf("타입캐스트 목소리에 동의하지 않을 때 어떻게 되는지 설명을 고쳤어요"),
+)
+
+/**
+ * [since] 다음 판부터 지금 판까지 바뀐 줄 — [since] 가 null 이거나 표에 없으면(이 표보다 오래된 동의) 표의 줄 전부,
+ * 그래도 없으면 「약관 내용이 바뀌었어요」 한 줄. 화면은 앞의 3줄 + 「외 n개」만 보인다
+ */
+fun termsChangesSince(since: String?): List<String> {
+    val i = TERMS_CHANGES.indexOfFirst { it.first == since }
+    val lines = if (i >= 0) TERMS_CHANGES.drop(i + 1).flatMap { it.second }
+        else TERMS_CHANGES.flatMap { it.second }
+    return lines.ifEmpty { listOf("약관 내용이 바뀌었어요") }
+}
 
 /** 표 한 줄 — 왼쪽 머리 · 오른쪽 내용 */
 data class DocRow(val head: String, val body: String)
