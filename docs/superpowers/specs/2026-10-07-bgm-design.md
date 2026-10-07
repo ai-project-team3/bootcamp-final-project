@@ -86,7 +86,7 @@
 - 실기기: Opus `.webm` 재생(최소 기기 S7 Android 8 · S9) · 목소리 위 크기 · 반복 이음새 · ⏸ · 화면 꺼짐 · 녹음 미션
 
 ## 그림일기 (10-07 확장)
-- 쪽 종류(`DiaryPageKind`) → 분위기: 그림 `DISCOVERY` · 장소 `ADVENTURE` · 일 · 마음 `PLAYFUL`(어긋난 일이 있던 날 `troubled` 만 `TENSE`) · 결말 · 간직 `ENDING` · 🧩 `PLAYFUL` (`diaryMoodOf`)
+- 쪽 종류(`DiaryPageKind`) → 분위기: 그림 `DISCOVERY` · 장소 `ADVENTURE` · 일 · 마음 `PLAYFUL`(그 쪽 문장에 어긋난 일 · 속상한 마음 낱말이 있을 때만 `TENSE` — 하루 단위로 정하면 「재밌었어요」 쪽까지 긴장 곡이었다 · 10-07 실기기) · 결말 · 간직 `ENDING` · 🧩 `PLAYFUL` (`diaryMoodOf`)
 - 곡 고르는 키는 첫 쪽 본문(`diaryBookKey`) — 제목은 다 읽은 뒤에 붙이기도 해서 키로 쓰면 첫 읽기와 다시 읽기의 곡이 갈린다
 - 선물 화면(`DiaryGift`)은 동화 끝 화면처럼 `NIGHT` · 책장으로 가면 끈다 · 책장 다시 읽기는 다 읽으면 끈다
 

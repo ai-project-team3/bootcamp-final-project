@@ -1593,7 +1593,7 @@ private suspend fun Director.readPictureDiary(day: DiaryDay, reread: Boolean = f
         val caption = diaryPageCaption(p)
         s.stage = DiaryPaper(i)
         // 쪽마다 그 분위기의 곡 — 동화책과 같은 곡들 (#221 · BookMood.kt)
-        com.example.finalproject_demo.net.Bgm.play(trackOf(diaryMoodOf(p.kind, troubled(s.diaryBookInput().lines)), diaryBookKey(pages)))
+        com.example.finalproject_demo.net.Bgm.play(trackOf(diaryMoodOf(p.kind, p.text), diaryBookKey(pages)))
         if (bookId != null) DiaryShelf.voice(s, bookId, caption)?.let { offerVoice(caption, it) } ?: missing.add(caption)
         say(caption)
         val b = mutableListOf<DemoBtn>()

@@ -63,22 +63,31 @@ class DiaryMusicTest {
     // ── 그림일기 쪽 → 분위기 ──
 
     @Test fun theDrawingPageIsDiscoveryAndThePlaceIsAnOuting() {
-        assertEquals(BgmMood.DISCOVERY, diaryMoodOf(DiaryPageKind.DRAWING, troubled = false))
-        assertEquals(BgmMood.ADVENTURE, diaryMoodOf(DiaryPageKind.PLACE, troubled = false))
+        assertEquals(BgmMood.DISCOVERY, diaryMoodOf(DiaryPageKind.DRAWING, "나는 오늘 바닷가를 그렸어요."))
+        assertEquals(BgmMood.ADVENTURE, diaryMoodOf(DiaryPageKind.PLACE, "나는 오늘 바닷가에 갔어요."))
     }
 
-    /** 어긋난 일이 있던 날만 긴장 — 그냥 구경한 날의 「일」 쪽은 신나는 곡이다 */
-    @Test fun whatHappenedIsTenseOnlyOnATroubledDay() {
-        assertEquals(BgmMood.PLAYFUL, diaryMoodOf(DiaryPageKind.PROBLEM, troubled = false))
-        assertEquals(BgmMood.PLAYFUL, diaryMoodOf(DiaryPageKind.REACTION, troubled = false))
-        assertEquals(BgmMood.TENSE, diaryMoodOf(DiaryPageKind.PROBLEM, troubled = true))
-        assertEquals(BgmMood.TENSE, diaryMoodOf(DiaryPageKind.REACTION, troubled = true))
+    /** 그 쪽 문장에 어긋난 일 · 속상한 마음이 있을 때만 긴장 — 그냥 구경한 일은 신나는 곡이다 */
+    @Test fun aPageIsTenseOnlyWhenItsOwnLineIsTroubled() {
+        assertEquals(BgmMood.TENSE, diaryMoodOf(DiaryPageKind.PROBLEM, "공룡이 모래성을 무너뜨렸어요."))
+        assertEquals(BgmMood.TENSE, diaryMoodOf(DiaryPageKind.REACTION, "속상했어요."))
+        assertEquals(BgmMood.PLAYFUL, diaryMoodOf(DiaryPageKind.PROBLEM, "꽃을 구경했어요."))
+        assertEquals(BgmMood.PLAYFUL, diaryMoodOf(DiaryPageKind.REACTION, "신났어요."))
+    }
+
+    /**
+     * 10-07 실기기: 모래성이 무너진 날이라 하루 전체가 「어긋난 날」이 되어 「재밌었어요」 · 「아빠가 삽으로 모래를 팠어요」
+     * 쪽까지 긴장 곡이 났다 — 쪽마다 그 문장으로 정한다
+     */
+    @Test fun aHappyPageOnATroubledDayIsNotTense() {
+        assertEquals(BgmMood.PLAYFUL, diaryMoodOf(DiaryPageKind.REACTION, "재밌었어요."))
+        assertEquals(BgmMood.PLAYFUL, diaryMoodOf(DiaryPageKind.PROBLEM, "아빠가 삽으로 모래를 팠어요."))
     }
 
     @Test fun theDayEndsWarm() {
-        assertEquals(BgmMood.ENDING, diaryMoodOf(DiaryPageKind.SOLUTION, troubled = true))
-        assertEquals(BgmMood.ENDING, diaryMoodOf(DiaryPageKind.KEEP, troubled = false))
-        assertEquals(BgmMood.PLAYFUL, diaryMoodOf(DiaryPageKind.PUZZLE, troubled = false))
+        assertEquals(BgmMood.ENDING, diaryMoodOf(DiaryPageKind.SOLUTION, "마침내 다시 만들었어요."))
+        assertEquals(BgmMood.ENDING, diaryMoodOf(DiaryPageKind.KEEP, "내일 또 가고 싶어요."))
+        assertEquals(BgmMood.PLAYFUL, diaryMoodOf(DiaryPageKind.PUZZLE, "내 그림을 맞춰 볼까?"))
     }
 
     // ── 그림일기 읽기 (PictureDiary.kt) ──

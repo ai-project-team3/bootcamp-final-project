@@ -39,16 +39,19 @@ fun trackOf(mood: BgmMood, bookKey: Int): String = mood.tracks[Math.floorMod(boo
 fun DemoState.storyBookKey(): Int = bgmBookKey(title ?: autoTitleFor(), bookCaption(1))
 
 /**
- * 그림일기 쪽 → 분위기 (#221 확장 · 진웅 10-07). 하루 이야기라 동화보다 순하게 —
- * 어긋난 일이 있던 날([troubled])의 일 · 마음 쪽만 긴장, 그 밖의 일은 신나는 곡
+ * 그림일기 쪽 → 분위기 (#221 확장 · 진웅 10-07). 하루 이야기라 동화보다 순하게 — 일 · 마음 쪽은
+ * **그 쪽 문장에** 어긋난 일 · 속상한 마음 낱말([TROUBLE_WORDS] · [TROUBLE_FEELINGS])이 있을 때만 긴장, 아니면 신나는 곡.
+ * 하루 단위([troubled])로 정했더니 모래성이 무너진 날의 「재밌었어요」 쪽까지 긴장 곡이었다(10-07 실기기)
  */
-fun diaryMoodOf(kind: DiaryPageKind, troubled: Boolean): BgmMood = when (kind) {
+fun diaryMoodOf(kind: DiaryPageKind, text: String): BgmMood = when (kind) {
     DiaryPageKind.DRAWING -> BgmMood.DISCOVERY
     DiaryPageKind.PLACE -> BgmMood.ADVENTURE
-    DiaryPageKind.PROBLEM, DiaryPageKind.REACTION -> if (troubled) BgmMood.TENSE else BgmMood.PLAYFUL
+    DiaryPageKind.PROBLEM, DiaryPageKind.REACTION -> if (troubledLine(text)) BgmMood.TENSE else BgmMood.PLAYFUL
     DiaryPageKind.SOLUTION, DiaryPageKind.KEEP -> BgmMood.ENDING
     DiaryPageKind.PUZZLE -> BgmMood.PLAYFUL
 }
+
+private fun troubledLine(text: String): Boolean = TROUBLE_WORDS.any { it in text } || TROUBLE_FEELINGS.any { it in text }
 
 /**
  * 그림일기는 제목을 다 읽은 뒤에 붙이기도 해서(`askTitle`) 제목으로 키를 만들면 첫 읽기와 다시 읽기의 곡이 갈린다 —
