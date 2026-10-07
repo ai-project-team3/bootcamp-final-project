@@ -176,6 +176,34 @@ class DiaryDevice1007Test {
         assertNull("문장 전체가 배경 이름이 됐다", d.s.diaryDay.pieces.single().name)
     }
 
+    /** 10-07 실기기 2회차 — 묻지 않았는데 배경 이름을 말해도(장소 질문이 거둬진 뒤) 장소 칸이 찬다. 다 그린 뒤 「오늘 어디 갔었어?」를 또 묻지 않는다 */
+    @Test
+    fun aBackgroundNamedUnaskedAlsoFillsThePlace() = run { d, _ ->
+        d.board()
+        d.s.drawing += (0..2).map { k -> Stroke(Color.Blue, listOf(Offset(0.02f, 0.6f + k * 0.05f), Offset(0.98f, 0.62f + k * 0.05f))) }
+        d.s.diaryDay.catchUp(d.s.drawing)
+        // 장소 질문을 했는데 10초 동안 말이 없어 거뒀다 — 그 뒤에 아이가 말한다(실기기 그대로)
+        assertTrue(await { d.pause(); d.s.line == "여기는 어디야?" } != null)
+        assertTrue("장소 질문을 거두지 않았다", await(20_000) { d.s.line != "여기는 어디야?" } != null)
+        d.tell("바닷가") { d.s.diaryDay.pieces.single().name != null }
+        assertEquals("바닷가", d.s.diaryDay.pieces.single().name)
+        assertEquals("바닷가", d.s.slots["place"])
+        assertEquals("child", d.s.slotBy["place"])
+    }
+
+    /** 10-07 실기기 2회차 — 그린 사람 이야기를 들었으면 「누구랑 같이 있었어?」는 묻지 않는다. 칸을 추측해서 채우지는 않는다 */
+    @Test
+    fun whoWasThereIsNotAskedAfterAPersonsStory() {
+        val s = DemoState()
+        val day = s.newDiaryDay()
+        day.pieces += DiaryPiece(0, listOf(Stroke(Color.Red, listOf(Offset(.4f, .3f), Offset(.42f, .6f)))), "할아버지")
+        val who = PICTURE_QUESTIONS.first { it.key == "companion" }
+        assertTrue("사람 이야기를 듣기 전에는 묻는다", who.askIf(s))
+        day.pieceStories[0] = "할아버지랑 같이 모래성 만들었어"
+        assertTrue("사람 이야기를 들었는데 또 묻는다", !who.askIf(s))
+        assertNull("누구랑 칸을 추측해서 채웠다", s.slots["companion"])
+    }
+
     /** 리뷰(조장 nit) — 「나 … 싶어」를 되받을 때 「나」를 떼고 */
     @Test
     fun aWishInTheFirstPersonIsEchoedWithoutIt() {

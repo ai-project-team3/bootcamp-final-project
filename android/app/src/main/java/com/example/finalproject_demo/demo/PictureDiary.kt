@@ -893,6 +893,12 @@ private suspend fun Director.setPieceName(day: DiaryDay, pieceId: Int, name: Str
     s.slotBy["whiteboard"] = "child"
     event("slot_filled", "slot" to "extra", "of" to "whiteboard", "value" to name, "source" to "child")
     DiaryTrace.name(pieceId, name)
+    // 배경의 이름은 곧 장소다 — 장소 칸이 비었으면 같이 넣는다(아이 말 그대로). 장소 질문이 거둬진 뒤 아이가 「바닷가」라고 하면
+    // 배경 이름만 붙고 다 그린 뒤 「오늘 어디 갔었어?」를 또 물었다 (10-07 실기기 2회차)
+    if (day.pieces[i].role == PieceRole.BACKGROUND && s.slots["place"].isNullOrBlank()) {
+        setDiarySlot("place", "place", name, name, "child")
+        log("배경 이름 「$name」 → 장소 칸에도 (child)")
+    }
     if (!speak) return true                                     // 여럿을 한 번에 — 받아 주기는 부른 쪽에서 한 번
     quote(said)
     if (old == null) {
@@ -1474,7 +1480,9 @@ internal val PICTURE_REQUIRED = listOf("place", "problem")
 internal val PICTURE_QUESTIONS = listOf(
     PictureQuestion("place", { "오늘 어디 갔었어?" }, "아침 먹고 어디 갔어?"),
     // 누구랑 — 그리는 중 사람 조각 이야기나 다른 답에서 이미 나왔으면 찬 칸이라 묻지 않는다 (#220 ③)
-    PictureQuestion("companion", { "누구랑 같이 있었어?" }, "혼자 있었어, 아니면 같이 있었어?"),
+    // 그린 사람 이야기를 이미 들었으면 묻지 않는다 — 칸은 추측해서 채우지 않는다(「~랑」 · 「~하고」는 사람이 아닐 때도 있다 · 10-07 실기기 2회차)
+    PictureQuestion("companion", { "누구랑 같이 있었어?" }, "혼자 있었어, 아니면 같이 있었어?",
+        askIf = { s -> s.diaryDay.pieces.none { it.id in s.diaryDay.pieceStories && clueKindOf(it) == ClueKind.PERSON } }),
     PictureQuestion("problem", { if (it.slots["place"].isNullOrBlank()) "오늘 무슨 일이 있었어?" else atPlace(it, "무슨 일이 있었어?") }, "거기서 뭐 했어?"),
     // 그때 마음 — 일어난 일을 들었을 때만. 기분 + 왜 쪽(FAIL)을 아이 말로 채운다 (#220 · 10-07 실기기: 모래성이 무너졌는데 기분을 안 물었다)
     PictureQuestion("reaction", { "그때 기분이 어땠어?" }, "그때 마음이 어땠어?", askIf = { !it.slots["problem"].isNullOrBlank() }),
