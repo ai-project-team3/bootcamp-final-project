@@ -80,7 +80,10 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
     val idle = rememberIdleHint(life.sum(), allOut)
+    val hint = rememberMissionHint(d, life.sum(), allOut, "C1")
     MissionDoneSignal(d, allOut, done, "미션1")
+    // 촛불이 꺼질 때 연기 한 줄기(prop_smoke_curl)가 오른다 (#260)
+    val curls = rememberBursts(3)
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
@@ -95,9 +98,9 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
             life[i] = minOf(BLOW_FULL, life[i] + amount)
             val b = spots[i]
             if (before < BLOW_FULL && life[i] >= BLOW_FULL) {
-                if (prop.flame) puffs.smoke(b.x, b.y - size * 0.6f, wpx * 0.05f) else puffs.steam(b.x, b.y, wpx * 0.06f, 8)
-                // 마지막 하나는 MissionDoneSignal 이 반짝인다 — 두 번 울리지 않게 (#105 리뷰)
-                if (life.any { it < BLOW_FULL }) Sfx.play(Sound.SPARKLE, 0L, view = view)
+                if (prop.flame) curls.fire(i) else puffs.steam(b.x, b.y, wpx * 0.06f, 8)
+                // 하나씩 끝날 때는 톡 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
+                if (life.any { it < BLOW_FULL }) Sfx.play(Sound.POP, 0L, view = view)
             }
         }
 
@@ -141,24 +144,31 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
             Canvas(Modifier.fillMaxSize()) { puffs.tick; puffs.draw(this, setOf(Puff.FIRE, Puff.SMOKE)) }
             spots.forEachIndexed { i, b ->
                 val t = if (done) 1f else (life[i] / BLOW_FULL).coerceIn(0f, 1f)
-                // 날아가는 것은 오른쪽 위로 밀리며 옅어진다. 촛불은 제자리 — 불만 꺼진다
-                val drift = if (prop.flame) 0f else t * size * 1.4f
-                val fade = if (prop.flame) 1f else 1f - t
+                // 날아가는 것은 오른쪽 위로 밀리며 옅어진다. 다 분 그림이 있는 것(촛불 · 민들레)은 제자리 — 불 · 씨앗만 사라진다
+                val stays = prop.gone != null
+                val drift = if (stays) 0f else t * size * 1.4f
+                val fade = if (stays) 1f else 1f - t
                 if (fade > 0.02f) Box(
                     Modifier
                         .offset { IntOffset((b.x - size / 2 + drift).roundToInt(), (b.y - size / 2 - drift * 0.6f).roundToInt()) }
                         .size((size / density).dp)
                         .alpha(fade),
                 ) {
-                    // 촛불은 그림에 불꽃이 있다 — 다 불면 불꽃을 지운 그림으로
+                    // 촛불은 꺼진 초로 · 민들레는 씨앗이 날아간 줄기로
                     val art = if (t >= 1f && prop.gone != null) Art.Img(prop.gone, Art.Emoji("💨")) else Art.Img(prop.art, Art.Emoji(prop.emoji))
                     Box(Modifier.fillMaxSize().touchOutline(t < 1f)) { ArtView(art, Modifier.fillMaxSize()) }
                 }
             }
             Canvas(Modifier.fillMaxSize()) { puffs.tick; puffs.draw(this, setOf(Puff.WATER, Puff.STEAM, Puff.SPARK)) }
+            spots.forEachIndexed { i, b -> curls.Draw(i, Art.Img("prop_smoke_curl", Art.Emoji("💨")), Offset(b.x, b.y - size * 0.7f), size * 0.8f, size * 0.9f) }
 
-            // 8초 힌트 — 남은 첫 소품 위를 손이 쓸어 보인다(탭 길이 있다는 것을 말 없이)
-            if (idle && !allOut) {
+            // 15초 흐릿한 예시 — 손이 남은 첫 소품 위를 한 번 쓸어 보인다(소품은 그대로 · 끄는 것은 아이)
+            if (hint != null && !allOut) {
+                val b0 = spots.firstOrNull { life[spots.indexOf(it)] < BLOW_FULL } ?: spots[0]
+                val w = size * 0.6f
+                GhostHand(ghostAlong(listOf(b0 - Offset(w, 0f), b0 + Offset(w, 0f), b0 - Offset(w, 0f), b0 + Offset(w, 0f)), hint), wpx * 0.06f, hint)
+            } else if (idle && !allOut) {
+                // 8초 힌트 — 남은 첫 소품 위를 손이 쓸어 보인다(탭 길이 있다는 것을 말 없이)
                 val sweep by rememberInfiniteTransition(label = "c1hint").animateFloat(
                     -1f, 1f, infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "sweep",
                 )

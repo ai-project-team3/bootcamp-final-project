@@ -113,7 +113,6 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
     var finger by remember { mutableStateOf<Offset?>(null) }
     // 손가락을 대고 있는 동안은 **가만히 있어도** 물이 나온다 — 소방 호스는 그래야 한다 (9/23)
     var spraying by remember { mutableStateOf(false) }
-    var fired by remember { mutableStateOf(done) }
     var gag by remember { mutableStateOf<String?>(null) }
     val allOut = done || rub.all { it >= 3f }
     // 8초 동안 아무 진전이 없으면 **마스코트가 첫 걸음을 보여 준다** (미션 구상 §5).
@@ -136,7 +135,11 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
         showHint = true
     }
     val lift by animateFloatAsState(if (allOut) -30f else 0f, tween(900), label = "lift")
-    LaunchedEffect(allOut) { if (allOut && !fired) { fired = true; Sfx.play(Sound.SPARKLE, 0L, view = view); d.send(Reply.Tapped("mission", "미션1")) } }
+    // 완료 반짝 · 신호는 공통 틀 한 곳에서 (#260 효과음 규칙 · #293)
+    MissionDoneSignal(d, allOut, done, "미션1")
+    val hint = rememberMissionHint(d, progress, allOut, "A6")
+    // 불이 꺼진 자리에 연기 한 줄기(prop_smoke_curl) (#260)
+    val curls = rememberBursts(3)
     LaunchedEffect(gag) { if (gag != null) { delay(1400); gag = null } }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -199,7 +202,8 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
                         // 날아가는 것이 보이게 — 바람을 타고 옆으로 흩어진다
                         val s = blow.level
                         puffs.water(b.x, b.y, s * wpx * 0.02f, -s * wpx * 0.004f, wpx * 0.03f)
-                        if (before < 3f && rub[i] >= 3f) Sfx.play(Sound.SPARKLE, 0L, view = view)
+                        // 하나씩 끝날 때는 톡 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
+                        if (before < 3f && rub[i] >= 3f && rub.any { it < 3f }) Sfx.play(Sound.POP, 0L, view = view)
                     }
                 }
 
@@ -229,8 +233,9 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
                         if (spraying && fp != null &&
                             abs(fp.x - b.x) < wpx * 0.07f && abs(fp.y - b.y) < hpx * 0.14f
                         ) {
+                            val before = rub[i]
                             rub[i] = minOf(3f, rub[i] + 0.05f)
-                            if (rub[i] >= 3f) puffs.steam(b.x, b.y, wpx * 0.075f, 8)
+                            if (before < 3f && rub[i] >= 3f) { puffs.steam(b.x, b.y, wpx * 0.075f, 8); if (burns) curls.fire(i) }
                         }
                     } else if (Math.random() < 0.04) {
                         puffs.smoke(b.x, b.y - wpx * 0.01f, wpx * 0.05f)   // 다 끈 자리에서 잔연기
@@ -259,7 +264,9 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
                                 // 마지막 한 방울이 꺼진 순간 — 김이 확 피어오른다
                                 if (before < 3f && rub[i] >= 3f) {
                                     puffs.steam(b.x, b.y, wpx * 0.075f, 10)
-                                    Sfx.play(Sound.SPARKLE, minGapMs = 0L, view = view)
+                                    if (burns) curls.fire(i)
+                                    // 하나씩 끝날 때는 톡 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
+                                    if (rub.any { it < 3f }) Sfx.play(Sound.POP, minGapMs = 0L, view = view)
                                 }
                             }
                         }
@@ -298,8 +305,14 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
             // 화면 아래에 둔다 — 위쪽은 책 안내 말풍선 자리라 겹쳤다(#154 · C1 과 같은 `MicListeningTag`)
             MicListeningTag(blowable && !allOut && !speaking, blow.blowing, "🎤 후~ 불어 봐! (손으로 쓸어도 돼)", "후~~~ 잘한다!")
 
-            // 8초 힌트 — 첫 흔적 위를 손이 슥 지나간다
-            if (showHint && !allOut) {
+            blobs.forEachIndexed { i, b -> curls.Draw(i, Art.Img("prop_smoke_curl", Art.Emoji("💨")), b, wpx * 0.06f, wpx * 0.07f) }
+            // 15초 흐릿한 예시 — 손이 첫 흔적 위를 두 번 문질러 보인다(흔적은 그대로 · 지우는 것은 아이)
+            if (hint != null && !allOut) {
+                val b0 = blobs.firstOrNull { rub[blobs.indexOf(it)] < 3f } ?: blobs[0]
+                val w = wpx * 0.04f
+                GhostHand(ghostAlong(listOf(b0 - Offset(w, 0f), b0 + Offset(w, 0f), b0 - Offset(w, 0f), b0 + Offset(w, 0f)), hint), wpx * 0.06f, hint)
+            } else if (showHint && !allOut) {
+                // 8초 힌트 — 첫 흔적 위를 손이 슥 지나간다
                 val hintT = rememberInfiniteTransition(label = "hint1")
                 val sweep by hintT.animateFloat(
                     -1f, 1f,

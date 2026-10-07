@@ -151,7 +151,7 @@ class MissionShellTest {
         val dir = listOf("src/main/java/com/example/finalproject_demo/ui/missions", "app/src/main/java/com/example/finalproject_demo/ui/missions")
             .map(::File).first { it.isDirectory }
         // C1 · A6 은 #282(불기 판정)와 같은 줄이라 그 PR 뒤에
-        val later = setOf("C1Blow.kt", "A6Rub.kt")
+        val later = emptySet<String>()
         val offenders = dir.listFiles()!!.filter { it.name != "MissionShell.kt" && it.name !in later }
             .filter { it.readText().contains("Sound.SPARKLE") }.map { it.name }
         assertEquals("완료 반짝을 따로 내는 미션", emptyList<String>(), offenders)
