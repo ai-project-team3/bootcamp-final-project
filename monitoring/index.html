@@ -66,6 +66,25 @@
   tr.hasErr td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
   footer { margin-top: 16px; font-size: 12px; color: var(--muted); }
   h2 { font-size: 15px; margin: 26px 0 4px; }
+  /* Phones (10-07 종훈): the tables were wider than the screen, so the page opened zoomed in and needed a pinch.
+     A table scrolls sideways inside its own box; the page itself never does. */
+  html, body { max-width: 100%; overflow-x: hidden; }
+  .tbl { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; }
+  .tbl table { min-width: 0; }
+  td.dev { overflow-wrap: anywhere; word-break: break-all; max-width: 220px; font-size: 12px; }
+  th { white-space: nowrap; }
+  @media (max-width: 600px) {
+    body { padding: 14px 10px 32px; font-size: 14px; }
+    h1 { font-size: 17px; }
+    #logout { float: none !important; display: block; margin: 8px 0 0; }
+    .card { min-width: 0; flex: 1 1 calc(50% - 10px); padding: 10px 12px; }
+    .card .v { font-size: 19px; }
+    .search { min-width: 0; flex: 1 1 100%; }
+    th, td { padding: 7px 8px; }
+    .barcell, td.barcell { display: none; }
+    .ep { font-size: 12px; overflow-wrap: anywhere; }
+    td.dev { max-width: 140px; }
+  }
 </style>
 </head>
 <body>
@@ -88,7 +107,7 @@
     <input class="search" id="q" type="search" placeholder="엔드포인트 검색 (예: story)" autocomplete="off">
   </div>
 
-  <table>
+  <div class="tbl"><table>
     <thead>
       <tr>
         <th>엔드포인트</th>
@@ -99,11 +118,11 @@
       </tr>
     </thead>
     <tbody id="rows"><tr><td colspan="5" class="muted">불러오는 중…</td></tr></tbody>
-  </table>
+  </table></div>
 
   <h2 id="cliTitle">접속한 기기</h2>
   <div class="sub" id="cliNote"></div>
-  <table>
+  <div class="tbl"><table>
     <thead>
       <tr>
         <th>기기</th>
@@ -114,7 +133,7 @@
       </tr>
     </thead>
     <tbody id="cliRows"><tr><td colspan="5" class="muted">—</td></tr></tbody>
-  </table>
+  </table></div>
 
   <footer id="foot"></footer>
 </div>
@@ -195,7 +214,7 @@ function render(d) {
       `<span class="pill ${statusClass(c)}${c === filter ? " hit" : ""}">${c}·${n}</span>`).join(" ");
     const failRate = e.count ? (e.errors / e.count * 100).toFixed(0) : 0;
     return `<tr${e.errors ? ' class="hasErr"' : ""}>
-      <td class="ep">${e.method} ${e.path}${isApp ? "" : ' <span class="muted">(앱 외)</span>'}</td>
+      <td class="ep">${esc(e.method)} ${esc(e.path)}${isApp ? "" : ' <span class="muted">(앱 외)</span>'}</td>
       <td class="n">${matched(e).toLocaleString()}${
         filter !== "" ? ` <span class="muted">/ ${e.count.toLocaleString()}</span>` : ""}</td>
       <td class="barcell">${isApp
@@ -228,6 +247,10 @@ function device(ua) {
   return { name: ua.slice(0, 28), detail: ua.slice(0, 60) };
 }
 
+// Anything a client sent (User-Agent, forwarded IP) is text, never markup: any caller of the public backend
+// can choose its User-Agent, and the admin's page must not run it (10-07)
+const esc = v => String(v ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
+
 const ago = s => s < 60 ? s + "초 전" : s < 3600 ? Math.floor(s / 60) + "분 전"
   : Math.floor(s / 3600) + "시간 전";
 
@@ -253,10 +276,10 @@ function renderClients(d) {
   const rows = (d.clients || []).map(c => {
     const dev = device(c.user_agent);
     return `<tr>
-      <td><span class="ep">${dev.name}</span><br><span class="muted" style="font-size:12px">${dev.detail}</span></td>
-      <td class="ep">${c.ip}</td>
-      <td class="n">${c.count.toLocaleString()}</td>
-      <td class="ep" style="font-size:12px">${(c.top_paths || []).join(" ")}</td>
+      <td class="dev"><span class="ep">${esc(dev.name)}</span><br><span class="muted" style="font-size:12px">${esc(dev.detail)}</span></td>
+      <td class="ep">${esc(c.ip)}</td>
+      <td class="n">${Number(c.count || 0).toLocaleString()}</td>
+      <td class="ep" style="font-size:12px">${esc((c.top_paths || []).join(" "))}</td>
       <td class="n muted">${ago(c.last_seen_s)}</td>
     </tr>`;
   });
