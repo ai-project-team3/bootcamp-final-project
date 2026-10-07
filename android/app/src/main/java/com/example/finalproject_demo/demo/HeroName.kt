@@ -27,8 +27,9 @@ suspend fun Director.askHeroName(attr: HeroAttr, image: String?): String? {
 
         // 말로 들은 이름은 맞는지 묻는다 — 10-02 실기기: 「삐죽이」가 「비주기」로 적혔다.
         // 화면에 들은 이름이 글 칸에 미리 들어가 있어서, 틀렸으면 고쳐 적어도 된다
-        when (confirmHeroName(attr, image, heard)) {
-            NAME_OK -> { log("주인공 이름: 「$heard」 (말로 · 확인)"); return heard }
+        val confirmation = confirmHeroName(attr, image, heard)
+        when (confirmation.action) {
+            NAME_OK -> { log("주인공 이름: 「${confirmation.heard}」 (말로 · 확인)"); return confirmation.heard }
             NAME_AGAIN -> {
                 tries++
                 log("주인공 이름 「$heard」 아님 → 다시 듣기 ($tries)")
@@ -39,24 +40,40 @@ suspend fun Director.askHeroName(attr: HeroAttr, image: String?): String? {
     }
 }
 
+private data class HeroNameConfirmation(val action: String, val heard: String)
+
 /** 들은 이름 확인 — [맞아] · [아니야] · 글 칸에서 고쳐 [이 이름으로]. 고쳐 적은 것은 [DemoState.typedName] 으로 */
-private suspend fun Director.confirmHeroName(attr: HeroAttr, image: String?, heard: String): String {
+private suspend fun Director.confirmHeroName(attr: HeroAttr, image: String?, heard: String): HeroNameConfirmation {
     // The mic stays on: 10-05 device, the child answered 「응」 out loud and nothing moved — only the buttons worked
     inputs(mic = true, next = false)
-    say("「$heard」 맞아?")
+    var candidate = heard
     var shown = false
     while (true) {
-        when (val r = awaitReplyShowing { if (!shown) { s.stage = Stage.NameEntry(attr, image, heard = heard); shown = true } }) {
+        when (val r = awaitReplyShowing {
+            if (!shown) {
+                s.stage = Stage.NameEntry(attr, image, heard = candidate)
+                say("「$candidate」 맞아?")
+                shown = true
+            }
+        }) {
             is Reply.Tapped -> when (r.value) {
-                NAME_OK, NAME_AGAIN -> return r.value
-                NAME_TYPED -> { s.typedName = r.label; return NAME_TYPED }
+                NAME_OK, NAME_AGAIN -> return HeroNameConfirmation(r.value, candidate)
+                NAME_TYPED -> { s.typedName = r.label; return HeroNameConfirmation(NAME_TYPED, candidate) }
             }
             is Reply.Spoke -> {
                 when (spokenYesNo(r.text)) {
-                    true -> return NAME_OK
-                    false -> return NAME_AGAIN
-                    // said a name again — take that one, as if it had been typed
-                    null -> heroNameFrom(r.text)?.let { s.typedName = it; return NAME_TYPED }
+                    true -> return HeroNameConfirmation(NAME_OK, candidate)
+                    false -> return HeroNameConfirmation(NAME_AGAIN, candidate)
+                    null -> heroNameFrom(r.text)?.let {
+                        if (s.mode == StoryMode.STORY) {
+                            // Another spoken name needs its own confirmation; it is not typed consent.
+                            candidate = it
+                            shown = false
+                        } else {
+                            s.typedName = it
+                            return HeroNameConfirmation(NAME_TYPED, candidate)
+                        }
+                    }
                 }
             }
             else -> {}
