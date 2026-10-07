@@ -65,6 +65,7 @@
   .muted { color: var(--muted); }
   tr.hasErr td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
   footer { margin-top: 16px; font-size: 12px; color: var(--muted); }
+  h2 { font-size: 15px; margin: 26px 0 4px; }
 </style>
 </head>
 <body>
@@ -98,6 +99,21 @@
       </tr>
     </thead>
     <tbody id="rows"><tr><td colspan="5" class="muted">불러오는 중…</td></tr></tbody>
+  </table>
+
+  <h2 id="cliTitle">접속한 기기</h2>
+  <div class="sub" id="cliNote"></div>
+  <table>
+    <thead>
+      <tr>
+        <th>기기</th>
+        <th>IP</th>
+        <th class="n">요청</th>
+        <th>주로 쓴 경로</th>
+        <th class="n">마지막</th>
+      </tr>
+    </thead>
+    <tbody id="cliRows"><tr><td colspan="5" class="muted">—</td></tr></tbody>
   </table>
 
   <footer id="foot"></footer>
@@ -193,6 +209,59 @@ function render(d) {
   const empty = filter === "" && !query ? "아직 요청이 없습니다" : "조건에 맞는 엔드포인트가 없습니다";
   document.getElementById("rows").innerHTML =
     rows.length ? rows.join("") : `<tr><td colspan="5" class="muted">${empty}</td></tr>`;
+
+  renderClients(d);
+}
+
+// Reads the device out of the User-Agent. The app sets none, so Android sends Dalvik's default,
+// which carries the version and the model — the one thing that tells two test phones apart,
+// since Docker's NAT makes every LAN client look like the same gateway IP.
+function device(ua) {
+  if (!ua) return { name: "(알 수 없음)", detail: "User-Agent 없음" };
+  let m = ua.match(/Android (\d+(?:\.\d+)?)[^)]*?;\s*([^;)]+?)\s*(?:Build|\))/i);
+  if (m) return { name: m[2].trim(), detail: "Android " + m[1] };
+  if (/^Dalvik/i.test(ua)) return { name: "Android 기기", detail: ua.slice(0, 60) };
+  if (/curl/i.test(ua)) return { name: "curl", detail: ua.slice(0, 60) };
+  if (/^python|httpx|requests/i.test(ua)) return { name: "스크립트", detail: ua.slice(0, 60) };
+  m = ua.match(/(Edg|Chrome|Firefox|Safari)\/[\d.]+/);
+  if (m) return { name: m[1] === "Edg" ? "Edge" : m[1], detail: "브라우저" };
+  return { name: ua.slice(0, 28), detail: ua.slice(0, 60) };
+}
+
+const ago = s => s < 60 ? s + "초 전" : s < 3600 ? Math.floor(s / 60) + "분 전"
+  : Math.floor(s / 3600) + "시간 전";
+
+function renderClients(d) {
+  const note = document.getElementById("cliNote");
+  const body = document.getElementById("cliRows");
+
+  // Three different states, and saying "hidden" for all of them sends you looking in the wrong
+  // place: a deploy can replace this backend with a build that has no /stats client tracking.
+  if (!("clients_shown" in d)) {
+    note.textContent = "이 백엔드는 접속 기기 집계를 제공하지 않습니다 — 기능이 들어간 버전으로 배포되어야 보입니다";
+    body.innerHTML = '<tr><td colspan="5" class="muted">지원 안 함</td></tr>';
+    return;
+  }
+  if (!d.clients_shown) {
+    note.textContent = "공개 도메인으로 읽는 중이라 접속 기기는 숨깁니다 — 이 PC(또는 같은 와이파이)에서 보세요";
+    body.innerHTML = '<tr><td colspan="5" class="muted">숨김</td></tr>';
+    return;
+  }
+  note.textContent = "IP는 프록시가 알려줄 때만 실제 주소입니다. 같은 와이파이에서 직접 붙은 기기는 Docker 게이트웨이로 보여, 기기 구분은 User-Agent로 합니다"
+    + (d.clients_dropped ? ` · 상한(50) 초과로 ${d.clients_dropped}건 누락` : "");
+
+  const rows = (d.clients || []).map(c => {
+    const dev = device(c.user_agent);
+    return `<tr>
+      <td><span class="ep">${dev.name}</span><br><span class="muted" style="font-size:12px">${dev.detail}</span></td>
+      <td class="ep">${c.ip}</td>
+      <td class="n">${c.count.toLocaleString()}</td>
+      <td class="ep" style="font-size:12px">${(c.top_paths || []).join(" ")}</td>
+      <td class="n muted">${ago(c.last_seen_s)}</td>
+    </tr>`;
+  });
+  body.innerHTML = rows.length ? rows.join("")
+    : '<tr><td colspan="5" class="muted">아직 접속한 기기가 없습니다</td></tr>';
 }
 
 document.getElementById("chipAll").addEventListener("click", () => setFilter(""));
