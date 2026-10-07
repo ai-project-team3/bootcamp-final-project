@@ -159,6 +159,30 @@ class BgmMixerTest {
         assertFalse(mixer.active); assertNull(mixer.playing)
     }
 
+    @Test fun releaseKeepsMusicEnabled() {
+        mixer.play("a", now); at(2000)
+        mixer.release()
+        mixer.play("b", now)
+        assertEquals("b", mixer.playing); assertTrue(opened.last().started)
+    }
+
+    @Test fun releaseClearsEveryHold() {
+        mixer.play("a", now); at(2000)
+        mixer.hold("pause")
+        mixer.release()
+        mixer.play("b", now)
+        assertTrue("a hold must not outlive release", opened.last().started)
+        assertFalse(mixer.held)
+    }
+
+    @Test fun releaseResetsTheDuck() {
+        mixer.play("a", now); at(2000)
+        mixer.duck(true, now); at(2400)
+        mixer.release()
+        mixer.play("b", now); at(4000); at(6000)
+        near(BGM_BASE, opened.last().volume)
+    }
+
     @Test fun heldIsTrueWhileAnyHoldIsOpen() {
         mixer.play("a", now); at(2000)
         assertFalse(mixer.held)
