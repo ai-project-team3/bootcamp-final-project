@@ -177,7 +177,11 @@ fun FeltFloor(ground: Color, bottomInset: Dp, modifier: Modifier = Modifier) {
         val hPx = with(density) { maxHeight.toPx() }
         val f = remember(wPx, hPx, bottomInset) { with(density) { stageFrame(wPx, hPx, bottomInset, 0.dp) } }
         val shape = remember(f) { hillShape(f, 4f, f.horizon, 5f, 140f) }
-        Canvas(Modifier.fillMaxSize()) { feltGround(f, shape, ground, null, grain) }
+        Canvas(Modifier.fillMaxSize()) {
+            feltGround(f, shape, ground, null)
+            // over a picture only the floor gets the grain — the picture above has its own texture
+            clipPath(shape.fill) { drawRect(grain, alpha = 0.07f, blendMode = BlendMode.Overlay) }
+        }
     }
 }
 
@@ -214,7 +218,9 @@ private fun DrawScope.drawKitBack(
     }
     scene.pieces.filter { it.fade > 0f }.forEach { drawPiece(it) }
     // ground — from the actors' depth-0 feet line down, soft wavy stitched edge
-    feltGround(f, hills[2], Color(kit.ground), imgs[groundRes(kit)], grain)
+    feltGround(f, hills[2], Color(kit.ground), imgs[groundRes(kit)])
+    // felt grain over the whole stage — sky, hills and far pieces as before (#265 review 1)
+    drawRect(grain, alpha = 0.07f, blendMode = BlendMode.Overlay)
     // ground pieces: flat first, then by feet (far → near), then what floats
     val ground = scene.pieces.filter { it.piece.base == PieceBase.FEET && it.fade == 0f && !it.front }
     ground.filter { it.piece.role == PieceRole.FLAT }.forEach { drawPiece(it) }
@@ -396,7 +402,7 @@ private fun groundRes(kit: SceneKitDef) = "kit_${kit.key}_ground"
  *  - fibre: a coarser grain, stronger, only on the ground
  * Then the running stitches again on top, so the edge stays felt.
  */
-private fun DrawScope.feltGround(f: SceneFrame, shape: HillShape, color: Color, texture: ImageBitmap?, grain: ShaderBrush) {
+private fun DrawScope.feltGround(f: SceneFrame, shape: HillShape, color: Color, texture: ImageBitmap?) {
     hill(f, shape, color)
     clipPath(shape.fill) {
         if (texture != null) {
@@ -413,7 +419,6 @@ private fun DrawScope.feltGround(f: SceneFrame, shape: HillShape, color: Color, 
             startY = shape.y0, endY = f.h,
         ))
         drawRect(FeltNoise.fibreBrush, alpha = if (texture != null) 0.06f else 0.16f, blendMode = BlendMode.Overlay)
-        drawRect(grain, alpha = 0.07f, blendMode = BlendMode.Overlay)
     }
     val sx = f.w / 1344f
     val sy = f.h / 768f
