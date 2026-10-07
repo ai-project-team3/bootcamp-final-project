@@ -3476,3 +3476,11 @@ PR #26 의 일기 규칙 「바람·계획은 `solution` 이 아니다」가 **�
 - 그림 장면 글(`image_prompt.md` · `character_prompt.md`) 1회씩: 롯데월드 → 「amusement park with … a castle」, 맥도날드 → 「fast-food restaurant interior」, 「맥도날드라는 광대」 → 「cheerful clown with a red nose」, 뽀로로 → 「little penguin with blue aviator goggles」(이름은 지웠지만 생김새가 그 캐릭터다). 글자 · 상표는 그림에 넣지 않는다
 
 **확인되지 않은 것** — 일기 · 협업 모드는 재지 않았다(Jev 칸 설명 · 공통 프롬프트는 세 모드가 같이 쓴다) · 실기기(배포 뒤 `OttoTrace` `story_verdict`) · 오또 대사가 상표 이름을 되풀이하는 것(「맥도날드라고 했구나」)은 대사 프롬프트 쪽이라 보지 않았다 · 책에서 상표 이름을 어떻게 할지는 위 「같이 본 것」대로 남는다.
+
+## 10-07 동화 8쪽 확장 — 생성 시간 측정 보류 (#261)
+
+- 앱은 3턴째 선택한 틀과 미션 쪽 번호를 유지한다. 제작 시작 시 제목·녹음 완료 메모를 뺀 채워진 서버 내용 칸 수가 기본 쪽 수보다 많으면, 마지막 미션 뒤·결말 앞에 여정/대화 쪽을 추가한다. 상한은 8쪽이며 턴 상한·종료 판정은 바꾸지 않는다.
+- 재현용 합성 입력과 실행기: `eval/bench_story_eight_pages.py`. E 틀의 6쪽에 JOURNEY/TALK를 추가한 8쪽, 바닷가·무너진 모래성·물고기·엄마 등 11개 내용 칸을 사용한다. 실제 아이의 대화나 녹음은 사용하지 않았다.
+- 로컬 설정을 통한 실제 API 측정 1회는 HTTP 429로 생성되지 않았다. 공개 팀 서버의 `/health`는 `status=ok, mock=false`였으나 같은 8쪽 요청은 두 번 모두 HTTP 502였다. 마지막 실패 응답은 **1.314초**이며, 이는 생성 성공 시간이 아니다. 서버 실패의 내부 원인은 확인하지 못했다.
+- **8쪽 생성 시간과 55초 예산 충족 여부는 아직 미확인**이다. 서버 복구 후 `py eval/bench_story_eight_pages.py --server https://otto-back.shelldocs.cloud`로 재측정해야 한다. 원시 합성 결과는 제외 경로 `eval/raw/story_eight_pages_server_1007.json`에 남겼다.
+- 자동 검사: 동화 관련 21개 통과·debug 빌드 성공. 6→8쪽 회귀와 저장 후 추가 쪽이 TOGETHER로 바뀌는 회귀를 각각 수정 전 실패로 확인했다. 짧은 대화·7쪽·8쪽 상한·모든 틀의 미션 번호·초기화·다른 모드·저장 후 자막 보존을 포함한다. 실제 기기와 생성 문장 품질 검증은 별도다.
