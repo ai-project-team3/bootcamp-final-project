@@ -7,3 +7,4 @@ accelerate
 soundfile
 faster-whisper==1.2.1
 ctranslate2==4.8.2
+av<14  # faster-whisper 1.2.1 이 av.open(metadata_errors=...) 를 쓰는데 av>=14 에서 그 인자가 없어졌다(10-06 확인)
