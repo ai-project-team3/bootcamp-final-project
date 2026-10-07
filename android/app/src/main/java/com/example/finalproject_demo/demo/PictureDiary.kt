@@ -649,7 +649,20 @@ private suspend fun Director.askPieceName(day: DiaryDay, piece: DiaryPiece, earl
 private suspend fun Director.drawMe(scope: CoroutineScope, day: DiaryDay, waiting: MutableList<OttoOrder>, said: String?): Boolean {
     day.catchUp(s.drawing)
     val tapped = day.focus?.takeIf { it.second == s.drawing.size }?.let { (id, _) -> day.pieces.firstOrNull { it.id == id } }
-    val target = said?.let { day.namedIn(it, except = -1) } ?: tapped
+    val called = said?.let { day.namedIn(it, except = -1) }
+    // 판에 없는 이름으로 「강아지 그려줘」 — 다른 조각을 대신 그리지 않는다. 오또는 판에 없는 것을 새로 그리지 않는다 (#281 · 차별점 1).
+    // 방금 그리던 조각에 이름이 없으면 그 조각을 부른 것이다 — 그 이름을 붙여 그린다
+    val asked = said?.let(::drawRequestName)?.takeIf { called == null && it !in day.pieceNames }
+    if (asked != null) {
+        val drawing = pieceBeingDrawn(day)
+        if (drawing == null || !setPieceName(day, drawing.id, asked, said.orEmpty())) {
+            log("「$said」 — 판에 「$asked」 조각이 없다 → 먼저 그려 달라고 한다")
+            say("${you(asked)}${eul(you(asked))} 먼저 그려 줄래? 그다음에 나도 그려 볼게.")
+            pause(600)
+            return false
+        }
+    }
+    val target = called ?: asked?.let { pieceBeingDrawn(day) } ?: tapped
         ?: day.pieces.lastOrNull { s.drawing.lastOrNull() in it.strokes } ?: day.pieces.lastOrNull()
     // The lines carry no piece name, so they play baked from the app instead of /tts (10-06 lead: 3 of the
     // 4-5 server lines per Otto drawing were these). The board already marks the piece; the log names it
@@ -680,6 +693,18 @@ private suspend fun Director.drawMe(scope: CoroutineScope, day: DiaryDay, waitin
     }
     return false
 }
+
+/** 「강아지 그려줘」 → 「강아지」 · 「너도 그려줘」 · 「이거 그려줘」 → null (누구를 그릴지 말하지 않았다) */
+internal fun drawRequestName(text: String): String? {
+    val m = DRAW_ME.find(text) ?: return null
+    var t = text.substring(0, m.range.first).trim().trimEnd(',', '!', '.', ' ')
+    t = t.replace(Regex("^(오또야|오또|너도|너|나도|우리)\\s*"), "").removeSuffix(" 좀").trim()
+    // 「강아지도」 · 「바다를」 — 조사를 뗀다. 남는 것이 한 글자면 이름의 일부다(「포도」 · 「사랑」)
+    PARTICLE_END.find(t)?.let { m -> t.substring(0, m.range.first).trim().takeIf { it.length >= 2 }?.let { t = it } }
+    return t.takeIf { it.isNotEmpty() && it.length <= 12 && !DEICTIC.matches(it) }
+}
+private val DEICTIC = Regex("이거|이것|저거|저것|그거|그것|여기|이|저|그|다")
+private val PARTICLE_END = Regex("(이랑|랑|도|를|을)$")
 
 /**
  * [그려 줘]를 누른 조각에 이름이 없다 — 무엇인지 물어 이름을 붙이고 그 이름을 돌려준다. 못 들었으면 null(주문하지 않는다).
