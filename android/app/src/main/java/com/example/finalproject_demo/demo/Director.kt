@@ -128,7 +128,7 @@ class Director(
         return try {
             if (storyBookStore != null && !storyBookStore.delete(id)) return false
             savedStories.removeAll { it.id == id }
-            SessionReports.forget(id)
+            SessionReports.forget(id, s)
             s.shelf.removeAll { it.savedStoryId == id }
             runCatching { com.example.finalproject_demo.sound.ChildSound.deleteBook(id) }
             recoverStoryImages()
