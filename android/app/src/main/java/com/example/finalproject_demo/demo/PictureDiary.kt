@@ -523,7 +523,8 @@ private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: Triple<S
 
 /**
  * 그린 사람 · 물건 하나의 이야기를 묻는다(#220 ②) — 답은 조각과 짝지어 두고 책 재료 `extra` 에 「이름: 말」로 쌓는다(아이 출처).
- * 서버 판정에는 보내지 않는다(호출이 늘지 않는다) — 어느 쪽에 쓸지는 책 쓰는 쪽이 정한다.
+ * 서버 모드면 판정(`/turn`)에도 보내 누구랑 · 결말 같은 칸을 채우고(10-07 실기기), 다 그린 뒤에는 판정이 쓴 받아 주기로 대답한다.
+ * 그리는 중에는 구운 짧은 말로만 받는다(목소리 호출 없음).
  * 돌려주는 값: done(그리기를 끝냈다) · ok · skip
  */
 private suspend fun Director.askPieceStory(day: DiaryDay, clue: DrawnClue, text: String, drawing: Boolean): String {
@@ -584,7 +585,9 @@ private suspend fun Director.askPieceStoriesAfterDrawing(day: DiaryDay) {
 private suspend fun Director.nameBackdrop(day: DiaryDay, ring: Int?, key: String, said: String) {
     if (ring == null || key != "place") return
     val piece = day.pieces.firstOrNull { it.id == ring }?.takeIf { it.name == null } ?: return
-    val name = diaryPlaceWord(said) ?: said.trim().trimEnd('.', '!', '?', '~').trim().takeIf(String::isNotEmpty) ?: return
+    // 장소 낱말을 못 뽑으면 짧은 답(두 어절 · 10자 이내)만 이름으로 — 긴 문장이 통째로 조각 이름이 되지 않게 (#269 리뷰)
+    val name = diaryPlaceWord(said) ?: said.trim().trimEnd('.', '!', '?', '~').trim()
+        .takeIf { it.isNotEmpty() && it.length <= 10 && it.split(Regex("\\s+")).size <= 2 } ?: return
     setPieceName(day, piece.id, name, said, speak = false)
     log("배경 조각 이름 「$name」 — 장소 답 그대로 (child)")
 }
@@ -1221,7 +1224,8 @@ private suspend fun Director.sayReaction(result: Server.TurnResult, r: Reply.Spo
 
 /** 바람을 그 말로 되받는다 — 「탕수육 먹고 싶어」 → 「탕수육 먹고 싶구나!」. 모양을 모르면 null(되받지 않는다) */
 internal fun wishEcho(text: String): String? {
-    val t = text.trim().trimEnd('.', '!', '?', '~').trim()
+    // 「나 탕수육 먹고 싶어」를 그대로 되받으면 「나 … 싶구나」 — 오또가 하는 말이라 「나」를 뗀다 (#269 리뷰)
+    val t = text.trim().trimEnd('.', '!', '?', '~').trim().replace(Regex("^(나는|나도|내가|나|저는|제가)\\s+"), "")
     return when {
         t.endsWith("싶어") -> t.removeSuffix("어") + "구나!"
         t.endsWith("거야") -> t.removeSuffix("야") + "구나!"

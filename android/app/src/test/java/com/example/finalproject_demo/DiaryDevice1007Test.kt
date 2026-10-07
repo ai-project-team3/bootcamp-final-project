@@ -19,6 +19,8 @@ import com.example.finalproject_demo.demo.cropFor
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.pictureCrop
 import com.example.finalproject_demo.demo.wishEcho
+import com.example.finalproject_demo.demo.DemoState
+import com.example.finalproject_demo.demo.newDiaryDay
 import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -161,5 +163,23 @@ class DiaryDevice1007Test {
         assertEquals("오또 배경이 없으면 그린 부분만", cropFor((bg.strokes + dad.strokes), 1.7f, 3f), pictureCrop(listOf(bg, dad), 1.7f, 3f))
         val crop = pictureCrop(listOf(bg.copy(look = PieceLook.OTTO), dad), 1.7f, 3f)
         assertTrue("판 전체가 안 들어간다: $crop", crop.left <= 0f && crop.right >= 1f && crop.top <= 0f && crop.bottom >= 1f)
+    }
+
+    /** 리뷰(조장) — 장소 낱말을 못 뽑은 긴 문장은 배경 이름이 되지 않는다 */
+    @Test
+    fun aLongAnswerWithNoPlaceWordDoesNotNameTheBackground() = run { d, _ ->
+        d.board()
+        d.s.drawing += (0..2).map { k -> Stroke(Color.Blue, listOf(Offset(0.02f, 0.6f + k * 0.05f), Offset(0.98f, 0.62f + k * 0.05f))) }
+        d.s.diaryDay.catchUp(d.s.drawing)
+        assertTrue(await { d.pause(); d.s.line == "여기는 어디야?" } != null)
+        d.tell("모래 놀이 하고 수영도 했어") { d.s.slots["place"] != null }
+        assertNull("문장 전체가 배경 이름이 됐다", d.s.diaryDay.pieces.single().name)
+    }
+
+    /** 리뷰(조장 nit) — 「나 … 싶어」를 되받을 때 「나」를 떼고 */
+    @Test
+    fun aWishInTheFirstPersonIsEchoedWithoutIt() {
+        assertEquals("탕수육 먹고 싶구나!", wishEcho("나 탕수육 먹고 싶어"))
+        assertEquals("또 바다 갈 거구나!", wishEcho("나는 또 바다 갈 거야"))
     }
 }
