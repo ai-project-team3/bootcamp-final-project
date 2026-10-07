@@ -16,6 +16,8 @@ import com.konovalov.vad.silero.config.FrameSize
 import com.konovalov.vad.silero.config.Mode
 import com.konovalov.vad.silero.config.SampleRate
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -189,7 +191,14 @@ object Voice {
     // ── out ────────────────────────────────────────────────────────
 
     private var player: MediaPlayer? = null
-    private var playing: File? = null
+    private var lineFile: File? = null
+    private val speaking = MutableStateFlow(false)
+
+    /**
+     * The mascot's voice is going out of the speaker now (#258 · 10-07 device). The blow and sound missions leave these
+     * frames out — Otto reading the page aloud into the same phone's mic finished C1 without a breath.
+     */
+    val playing: StateFlow<Boolean> = speaking
     @Volatile private var recording = false
     private var done: (() -> Unit)? = null
 
@@ -210,13 +219,14 @@ object Voice {
                 runCatching {
                     stopPlaying()
                     val f = File(c.cacheDir, "mascot_line_${System.nanoTime()}").apply { writeBytes(audio) }
-                    playing = f
+                    lineFile = f
                     player = MediaPlayer().apply {
                         setDataSource(f.absolutePath)
-                        setOnCompletionListener { it.release(); f.delete(); if (player === it) player = null; finish() }
-                        setOnErrorListener { mp, _, _ -> mp.release(); f.delete(); if (player === mp) player = null; finish(); true }
+                        setOnCompletionListener { it.release(); f.delete(); if (player === it) { player = null; speaking.value = false }; finish() }
+                        setOnErrorListener { mp, _, _ -> mp.release(); f.delete(); if (player === mp) { player = null; speaking.value = false }; finish(); true }
                         prepare(); start()
                     }
+                    speaking.value = true
                     done = finish
                 }.onFailure { Log.w(TAG, "play failed: ${it.message}"); stopPlaying(); finish() }
                 // cancelled from any thread (a tap · 🎤): the player lives on Main
@@ -238,9 +248,10 @@ object Voice {
     fun stopPlaying() {
         player?.let { runCatching { it.stop() }; it.release() }
         player = null
+        speaking.value = false
         // a cut line never reaches its completion listener, so its temp file is removed here (10-02)
-        playing?.delete()
-        playing = null
+        lineFile?.delete()
+        lineFile = null
         done?.invoke()
         done = null
     }
