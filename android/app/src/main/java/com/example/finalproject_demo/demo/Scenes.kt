@@ -903,7 +903,7 @@ private suspend fun Director.sceneEvent() {
     // 창문에 새 친구가 나타난다
     val shown = base.map { it.copy(shake = false) } + WorldItem(s.newcomerArt, 0.82f, 0.18f, 0.12f, depth = 0.85f, enter = Enter.DROP)
     s.stage = world(shown)
-    if (r is Reply.Spoke) log("LLM 판정: 이름을 가린 문장({주인공}: ${r.text}) → Anthropic → S1 · S2 표시 JSON → 수준은 규칙이 계산")
+    if (r is Reply.Spoke) log("LLM 판정: 아이가 말한 문장(${r.text}) → 서버 LLM → S1 · S2 표시 JSON → 수준은 규칙이 계산")
 
     // 질문 은행 — 그다음 (결과 · 대응 · 누가 놀랐나 중 하나)
     val (v2, r2) = askSlot("reaction")
@@ -1450,7 +1450,7 @@ private suspend fun Director.sceneMaking() {
     val bookWord = if (s.isCoop) "이야기책" else "동화책"
     say("${bookWord}을 만들고 있어! 조금만 기다려 줘.")
     log(
-        "템플릿 ${t.code} ${t.name}(${t.pages.size}쪽) + 모은 칸들(이름은 가림) → Anthropic → 쪽마다 자막(−어요체) · 제목 JSON → " +
+        "템플릿 ${t.code} ${t.name}(${t.pages.size}쪽) + 모은 칸들 → 서버 LLM → 쪽마다 자막(−어요체) · 제목 JSON → " +
             "폰에서 {주인공} → ${s.childName}, {친구1} → ${s.friendName} 복원 · 확정 그림은 다시 그리지 않음 (⭐26)"
     )
     if (s.isDiary) {
