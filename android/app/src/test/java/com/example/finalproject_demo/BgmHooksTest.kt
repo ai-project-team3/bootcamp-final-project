@@ -85,13 +85,29 @@ class BgmHooksTest {
     @Test fun aCancelledLineStillUnducks() {
         Voice.attach(RuntimeEnvironment.getApplication())
         startMusic()
-        // a player that never completes: the data source is registered, so prepare() works and nothing ends it
-        val job = CoroutineScope(Dispatchers.Default).launch { Voice.playAndWait(ByteArray(64)) }
-        job.cancel()
-        val end = System.currentTimeMillis() + 5000
-        while (!job.isCompleted && System.currentTimeMillis() < end) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(5) }
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(duckCalls.count { it }, duckCalls.count { !it })
+        // every data source opens, and a 60 s clip never completes on its own: the line stays inside the player
+        org.robolectric.shadows.ShadowMediaPlayer.setMediaInfoProvider { org.robolectric.shadows.ShadowMediaPlayer.MediaInfo(60_000, 0) }
+        try {
+            val job = CoroutineScope(Dispatchers.Default).launch { Voice.playAndWait(ByteArray(64)) }
+            val end = System.currentTimeMillis() + 5000
+            while (duckCalls != listOf(true) && System.currentTimeMillis() < end) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(5) }
+            assertEquals(listOf(true), duckCalls)
+            assertFalse("the line is still playing", job.isCompleted)
+            job.cancel()
+            while (!job.isCompleted && System.currentTimeMillis() < end) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(5) }
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(listOf(true, false), duckCalls)
+        } finally {
+            org.robolectric.shadows.ShadowMediaPlayer.resetStaticState()
+        }
+    }
+
+    @Test fun leavingToTheRoomFromPauseReleasesTheHold() {
+        val d = Director(CoroutineScope(SupervisorJob()))
+        d.holdSession()
+        d.leaveToRoom()
+        Bgm.play("night_1.webm")
+        assertTrue("later music must start", channels.last().running)
     }
 
     @Test fun pauseHoldsAndResumeReturnsTheMusic() {
