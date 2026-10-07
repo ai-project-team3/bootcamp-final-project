@@ -97,6 +97,25 @@ internal fun TurnMission(d: Director, done: Boolean, heroArt: Art) {
 
         fun add(a: Float) { if (!closed) turned = minOf(TURN_FULL, turned + a) }
 
+        // 고였던 물웅덩이 — 열려 있는 만큼 크고, 잠그면 마지막 한 방울이 「똑」 떨어진 뒤 줄어들어 사라진다 (#260 §6-3)
+        val puddle = remember { androidx.compose.animation.core.Animatable(if (done) 0f else 1f) }
+        LaunchedEffect(closed) {
+            if (!closed || done) return@LaunchedEffect
+            puffs.water(spout.x, spout.y, 0f, wpx * 0.006f, wpx * 0.02f)
+            if (motionFrozen) puddle.snapTo(0f)
+            else puddle.animateTo(0f, androidx.compose.animation.core.tween(DONE_SCENE_MS.toInt(), easing = FastOutSlowInEasing))
+        }
+        val pool = if (closed) puddle.value else (0.55f + 0.45f * (1f - turned / TURN_FULL))
+        if (pool > 0.02f) {
+            val pw = faucet * 0.95f * pool
+            Box(
+                Modifier
+                    .offset { IntOffset((spout.x - pw / 2).roundToInt(), (spout.y + hpx * 0.17f - pw * 0.25f).roundToInt()) }
+                    .size((pw / density).dp, (pw * 0.5f / density).dp)
+                    .alpha(0.9f),
+            ) { ArtView(Art.Img("prop_puddle", Art.Emoji("💧")), Modifier.fillMaxSize()) }
+        }
+
         Box(Modifier.offset { IntOffset((tap.x - faucet / 2).roundToInt(), (tap.y - faucet / 2).roundToInt()) }.size((faucet / density).dp)) {
             ArtView(Art.Img("prop_faucet", Art.Emoji("🚰")), Modifier.fillMaxSize())
         }
