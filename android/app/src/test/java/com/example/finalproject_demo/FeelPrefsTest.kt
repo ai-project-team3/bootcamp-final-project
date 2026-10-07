@@ -49,7 +49,7 @@ class FeelPrefsTest {
     }
 
     @After
-    fun release() = FeelPrefs.unload()
+    fun release() { FeelPrefs.unload(); com.example.finalproject_demo.net.Bgm.resetForTest() }
 
     @Test
     fun soundAndBuzzAreOnAtFirst() {

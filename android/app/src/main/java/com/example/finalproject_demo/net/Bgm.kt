@@ -48,30 +48,52 @@ object Bgm {
         if (Looper.myLooper() == Looper.getMainLooper()) run() else main.post(run)
     }
 
-    /** A packed asset cannot be opened by fd, so the track is copied to the cache once */
-    private fun open(track: String): BgmChannel? {
+    /** A packed asset cannot be opened by fd, so the track is copied to the cache once (via a temp file, so a partial copy heals) */
+    internal fun open(track: String): BgmChannel? {
         val c = ctx ?: return null
         return runCatching {
             val f = File(c.cacheDir, "bgm/$track")
-            if (!f.isFile) { f.parentFile?.mkdirs(); c.assets.open("bgm/$track").use { i -> f.outputStream().use { i.copyTo(it) } } }
-            val mp = MediaPlayer().apply { setDataSource(f.absolutePath); isLooping = true; prepare() }
-            object : BgmChannel {
-                // <= 0 means unknown → 0: the mixer never runs its loop seam and the player loops by itself
-                override val durationMs get() = mp.duration.toLong().coerceAtLeast(0)
-                override val positionMs get() = mp.currentPosition.toLong()
-                override fun start() = mp.start()
-                override fun pause() { if (mp.isPlaying) mp.pause() }
-                override fun setVolume(v: Float) = mp.setVolume(v, v)
-                override fun release() = mp.release()
+            if (!f.isFile) {
+                f.parentFile?.mkdirs()
+                val tmp = File(f.parentFile, "$track.tmp")
+                try {
+                    c.assets.open("bgm/$track").use { i -> tmp.outputStream().use { i.copyTo(it) } }
+                    if (!tmp.renameTo(f)) throw java.io.IOException("cannot move $track into place")
+                } catch (e: Throwable) { tmp.delete(); throw e }
             }
+            val mp = MediaPlayer()
+            try { mp.setDataSource(f.absolutePath); mp.isLooping = true; mp.prepare() } catch (e: Throwable) { mp.release(); throw e }
+            safeChannel(track, mp)
         }.onFailure { Log.w(TAG, "cannot play $track: ${it.javaClass.simpleName} ${it.message}") }.getOrNull()
+    }
+
+    /** Every call is guarded: a player in the Error state throws, and playback trouble must stay silent */
+    private fun safeChannel(track: String, mp: MediaPlayer): BgmChannel = object : BgmChannel {
+        @Volatile private var dead = false
+        private var logged = false
+        init { mp.setOnErrorListener { _, what, extra -> dead = true; Log.w(TAG, "player error on $track: $what/$extra"); true } }
+        private fun <T> guard(fallback: T, f: () -> T): T {
+            if (dead) return fallback
+            return runCatching(f).getOrElse {
+                dead = true
+                if (!logged) { logged = true; log("channel $track failed: ${it.javaClass.simpleName}") }
+                fallback
+            }
+        }
+        // <= 0 means unknown → 0: the mixer never runs its loop seam and the player loops by itself
+        override val durationMs get() = guard(0L) { mp.duration.toLong().coerceAtLeast(0) }
+        override val positionMs get() = guard(0L) { mp.currentPosition.toLong() }
+        override fun start() = guard(Unit) { mp.start() }
+        override fun pause() = guard(Unit) { if (mp.isPlaying) mp.pause() }
+        override fun setVolume(v: Float) = guard(Unit) { mp.setVolume(v, v) }
+        override fun release() { runCatching { mp.release() }; dead = true }
     }
 
     private fun log(s: String) { runCatching { Log.i(TAG, s) } }
 
     internal fun resetForTest() {
-        mixer.release()
         if (ctx != null) main.removeCallbacks(ticker)
+        mixer.release()
         ctx = null
         output = BgmOutput { track -> open(track) }
         mixer = BgmMixer { output.open(it) }
