@@ -51,6 +51,13 @@ class SceneKitRoutingTest {
         assertEquals("a walk (산책) is the park", "park", SceneKits.matching("산책길")?.key)
     }
 
+    /** 「방」 as a word only — 10-07 device: 「소방서 차고」 drew the indoor kit (bed, bookshelf) */
+    @Test
+    fun roomIsAWordNotASyllable() {
+        listOf("내 방", "방에서 놀았어", "공부방", "놀이방 안", "우리 방").forEach { assertEquals(it, "indoor", SceneKits.matching(it)?.key) }
+        listOf("소방서 차고에 갔어", "방송국", "방학 캠프").forEach { assertNull(it, SceneKits.matching(it)) }
+    }
+
     /** Indoors the sky is a wall — no hills there; every other kit keeps them */
     @Test
     fun onlyIndoorDropsTheHills() {

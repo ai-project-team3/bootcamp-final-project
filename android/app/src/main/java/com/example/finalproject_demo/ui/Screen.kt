@@ -352,6 +352,31 @@ internal fun com.example.finalproject_demo.demo.DemoState.plainFloor(): Color? {
     return kit?.let { Color(it.ground) }
 }
 
+/**
+ * The floor colour of a picture the server drew (#257) — read once per picture off the main thread and kept, so a page turn
+ * or a reread from the shelf does not read it again. null while it is read, and for anything but a generated picture
+ */
+@Composable
+private fun rememberGround(name: String): com.example.finalproject_demo.demo.scene.Ground? {
+    if (!name.startsWith("local:")) return null
+    return androidx.compose.runtime.produceState(GroundCache.peek(name), name) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { GroundCache.of(name) }
+    }.value
+}
+
+internal object GroundCache {
+    private val made = java.util.concurrent.ConcurrentHashMap<String, com.example.finalproject_demo.demo.scene.Ground>()
+    fun peek(name: String) = made[name]
+
+    fun of(name: String): com.example.finalproject_demo.demo.scene.Ground? = made[name] ?: runCatching {
+        // a small copy is enough for a median — 1 / 8 of the picture each way
+        val bmp = android.graphics.BitmapFactory.decodeFile(name.removePrefix("local:"),
+            android.graphics.BitmapFactory.Options().apply { inSampleSize = 8 }) ?: return null
+        val px = IntArray(bmp.width * bmp.height).also { bmp.getPixels(it, 0, bmp.width, 0, 0, bmp.width, bmp.height) }
+        com.example.finalproject_demo.demo.scene.groundOf(px, bmp.width, bmp.height).also { made[name] = it }
+    }.getOrNull()
+}
+
 /** 무대 가운데 — 위 제목 · 아래 말풍선에 가리지 않게 안쪽 여백을 둔다 */
 @Composable
 private fun Centered(content: @Composable () -> Unit) {
@@ -593,7 +618,16 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                 } else 0f
                 val hot = rememberHotspotState(s.bgName)
                 // ① 배경 층 — 바닥이 없는 그림(생성 배경 · 우주 · 바닷속)에는 키트와 같은 펠트 바닥을 먼저 깐다 (10-06)
-                if (kit == null) s.plainFloor()?.let { FeltFloor(it, LocalStageBottomInset.current) }
+                if (kit == null) s.plainFloor()?.let { kitColor ->
+                    // a generated picture gives its own floor colour, read from its bottom band (#257) — kit colour until it is read
+                    val g = rememberGround(s.bgName)
+                    val colour = g?.let { Color(it.color) } ?: kitColor
+                    // over a picture that paints its own ground: the floor ~40 % lower (about 60 % as tall) and see-through —
+                    // just under the actors' feet, never gone (#223). Done here so FeltFloor's drawing (#265 feltGround) is untouched
+                    if (g?.hasGround == true) Box(Modifier.fillMaxSize().graphicsLayer { translationY = size.height * 0.12f; alpha = 0.85f }) {
+                        FeltFloor(colour, LocalStageBottomInset.current)
+                    } else FeltFloor(colour, LocalStageBottomInset.current)
+                }
                 if (kit == null) HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake, state = hot, part = HotspotPart.Pieces)
                 // ② 인물 층
                 Box(Modifier.fillMaxSize().offset { IntOffset(0, quake.roundToInt()) }) {

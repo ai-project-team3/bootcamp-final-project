@@ -360,6 +360,9 @@ val SNOW_KIT = SceneKitDef(
 /** 「산」 as a word — 「산에 갔어」 · 「뒷산」 · 「등산」, not 「우산」 · 「산타」 · 「산책」(park) (10-06 · d3) */
 private val MOUNTAIN_WORD = Regex("(^|\\s|뒷|앞|등)산($|\\s|에|으로|속|길|꼭대기|위|이|을)")
 
+/** 「방」 as a word — 「내 방」 · 「방에서」 · 「공부방」, not 「소방서」 · 「방송국」 · 「방학」 (10-07 device: 소방서 차고 went indoors) */
+private val ROOM_WORD = Regex("(^|\\s|내|우리|아이|놀이|공부|장난감)방($|\\s|에|에서|으로|안|이|을)")
+
 object SceneKits {
     /**
      * **The one switch** (10-05). On: a live story whose place is not one of the three app themes is drawn
@@ -395,7 +398,7 @@ object SceneKits {
         listOf("바닷가", "해변", "바다", "모래사장", "해수욕").any { it in place } -> BEACH_KIT
         // 할머니 집 · 농장 is the countryside (doc §1), checked before the plain 「집」 of indoor
         listOf("숲", "할머니", "농장", "시골", "밭", "목장").any { it in place } || MOUNTAIN_WORD.containsMatchIn(place) -> FOREST_KIT
-        listOf("집", "방", "어린이집", "유치원", "교실", "거실", "학교").any { it in place } -> INDOOR_KIT
+        listOf("집", "어린이집", "유치원", "교실", "거실", "학교").any { it in place } || ROOM_WORD.containsMatchIn(place) -> INDOOR_KIT
         else -> null
     }
 }

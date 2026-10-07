@@ -7,6 +7,7 @@ import com.example.finalproject_demo.demo.scene.SceneFrame
 import com.example.finalproject_demo.demo.scene.bestScene
 import com.example.finalproject_demo.demo.scene.keepOut
 import com.example.finalproject_demo.demo.scene.layoutScene
+import com.example.finalproject_demo.demo.scene.nearTufts
 import com.example.finalproject_demo.demo.scene.score
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -43,7 +44,9 @@ class SceneLayoutTest {
 
     @Test fun piecesStayInsideTheStage() {
         for (f in listOf(phone, tabletFrame)) for (seed in 0L until 50L) {
+            val tufts = nearTufts(PARK_KIT, seed, f, keepOut(f, 2)).toSet()
             for (p in layoutScene(PARK_KIT, seed, 2, f)) {
+                if (p in tufts) continue
                 val b = p.box
                 if (p.front) {
                     // cut by a bottom corner on purpose — but its centre stays on the stage edge
@@ -65,6 +68,22 @@ class SceneLayoutTest {
                 }
             }
         }
+    }
+
+    /** The near tufts (10-07 · #265): below the feet line, above the stage bottom, off the actors and the tabs, small */
+    @Test fun nearTuftsStayInTheNearGround() {
+        val tall = frame(800f, 800f * 768f / 1344f, bottomInset = 0f, top = 0f)
+        var seen = 0
+        for (f in listOf(phone, tall)) for (seed in 0L until 50L) {
+            val keep = keepOut(f, 2)
+            for (p in nearTufts(PARK_KIT, seed, f, keep)) {
+                seen++
+                assertTrue("${p.piece.name} feet ${p.y} not in the near band", p.y > f.feetNear && p.y <= f.bottom)
+                assertTrue("${p.piece.name} on an actor or a tab", keep.none { it.inter(p.box) > 0f })
+                assertTrue("${p.piece.name} is not a small piece", p.piece.size <= 0.32f)
+            }
+        }
+        assertTrue("the tall stage should get some tufts", seen > 0)
     }
 
     /**

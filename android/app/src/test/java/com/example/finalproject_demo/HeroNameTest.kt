@@ -19,10 +19,35 @@ import kotlinx.coroutines.withTimeout
 import com.example.finalproject_demo.net.nameMask
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 /** 10-02 (#87): the child names the doll by voice or text, and that name is the story's hero. */
 class HeroNameTest {
+    @Test
+    fun aNameSaidOnTheConfirmationScreenMustBeConfirmedAgain() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope).apply { s.speed = 0.01; s.timerOn = false }
+        val name = async { d.askHeroName(HeroAttr(), null) }
+        suspend fun waitFor(heard: String) {
+            withTimeout(3_000) {
+                while ((d.s.stage as? Stage.NameEntry)?.heard != heard) delay(5)
+            }
+        }
+        try {
+            withTimeout(3_000) { while (!d.s.micEnabled) delay(5) }
+            delay(30)
+            d.send(Reply.Spoke("비주기"))
+            waitFor("비주기")
+            d.send(Reply.Spoke("삐죽이라고 할래"))
+            delay(200)
+            assertFalse("a new spoken name is not an explicit confirmation", name.isCompleted)
+            assertEquals("삐죽이", (d.s.stage as? Stage.NameEntry)?.heard)
+            assertEquals("「삐죽이」 맞아?", d.s.line)
+            d.send(Reply.Tapped(NAME_OK, "이 이름이야"))
+            assertEquals("삐죽이", withTimeout(3_000) { name.await() })
+        } finally { name.cancel(); scope.coroutineContext[kotlinx.coroutines.Job]?.cancel() }
+    }
     @Test
     fun whatAChildSaysBecomesTheName() {
         assertEquals("콩이", heroNameFrom("콩이"))

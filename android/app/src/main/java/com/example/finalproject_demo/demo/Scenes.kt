@@ -577,26 +577,32 @@ private suspend fun Director.sceneMakeHero() {
     }
 
     suspend fun fixFlow() {
-        s.stage = Stage.HeroShow(attr, "어디를 바꿀까 — 마이크로 말해 줘")
-        val r = ask(
-            Question(
-                text = "어디를 바꾸면 더 마음에 들까?",
-                kind = Kind.EASY,
-                spoken = listOf(
-                    Answer("옷! 빨간 거!", "shirt:F25C4C"), Answer("머리 길게!", "hair:long"), Answer("노란 옷!", "shirt:F9B233"),
-                    Answer("머리 묶어 줘!", "hair:tied"), Answer("네모 안경 씌워 줘!", "glasses:square"),
-                ),
-                easierText = "주인공을 잘 봐. 어디가 마음에 안 들어?", easierAsk = "뭘 바꿀까?",
-                choices = listOf(Card("머리", Art.Img("ic_hair_short", Art.Emoji("💇")), "hair"), Card("옷", Art.Img("ic_shirt_blue", Art.Emoji("👕")), "shirt"), Card("안경", Art.Img("ic_glasses_round", Art.Emoji("👓")), "glasses")),
+        while (true) {
+            s.stage = Stage.HeroShow(attr, "어디를 바꿀까 — 마이크로 말해 줘")
+            val r = ask(
+                Question(
+                    text = "어디를 바꾸면 더 마음에 들까?",
+                    kind = Kind.EASY,
+                    spoken = listOf(
+                        Answer("옷! 빨간 거!", "shirt:F25C4C"), Answer("머리 길게!", "hair:long"), Answer("노란 옷!", "shirt:F9B233"),
+                        Answer("머리 묶어 줘!", "hair:tied"), Answer("네모 안경 씌워 줘!", "glasses:square"),
+                    ),
+                    easierText = "주인공을 잘 봐. 어디가 마음에 안 들어?", easierAsk = "뭘 바꿀까?",
+                    choices = listOf(Card("머리", Art.Img("ic_hair_short", Art.Emoji("💇")), "hair"), Card("옷", Art.Img("ic_shirt_blue", Art.Emoji("👕")), "shirt"), Card("안경", Art.Img("ic_glasses_round", Art.Emoji("👓")), "glasses")),
+                )
             )
-        )
-        when (r) {
-            is Reply.Spoke -> applySpoken(null, r)          // 한 번에 한 가지만
-            is Reply.Tapped -> {
-                val idx = questions.indexOfFirst { it.key == r.value }
-                if (idx >= 0) voiceStep(idx)
+            // A correction is still speech recognition, not consent to regenerate the hero.
+            if (r is Reply.Spoke && s.mode == StoryMode.STORY && heroFromWords() &&
+                !confirmHeroDescription(r.text)) continue
+            when (r) {
+                is Reply.Spoke -> applySpoken(null, r)          // 한 번에 한 가지만
+                is Reply.Tapped -> {
+                    val idx = questions.indexOfFirst { it.key == r.value }
+                    if (idx >= 0) voiceStep(idx)
+                }
+                else -> {}
             }
-            else -> {}
+            return
         }
     }
 
