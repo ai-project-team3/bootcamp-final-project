@@ -26,7 +26,7 @@ internal suspend fun Director.confirmHeroDescription(heard: String): String? {
                 is Reply.Spoke -> {
                     val raw = reply.text.trim().trimEnd('.', '!', '?', '~', ' ')
                     val yesNo = if (s.mode == StoryMode.STORY && spokenYesNo(raw) == true &&
-                        !Regex("^(응|웅|어|네|넹|예|맞아|맞아요|맞|그래|좋아|ㅇㅇ)([,\\s]+(맞아|맞아요|그래|좋아))?$").matches(raw)) null
+                        !Regex("^(응+|웅+|어|네+|넹|예+|맞아(요)?|맞|그래(요)?|좋아(요)?|ㅇㅇ)([,\\s]+(맞아(요)?|그래(요)?|좋아(요)?))?$").matches(raw)) null
                         else spokenYesNo(raw)
                     if (s.mode != StoryMode.STORY) {
                         yesNo?.let { return if (it) candidate else null }

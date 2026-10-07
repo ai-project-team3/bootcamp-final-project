@@ -19,6 +19,20 @@ class HeroDescriptionFlowTest {
     fun aSquareHairDescriptionIsNotMistakenForYes() = replacementDescription("네모 머리", "네모 머리")
 
     @Test
+    fun naturalAffirmationsKeepTheCurrentDescription() = runBlocking {
+        for (yes in listOf("응응", "그래요", "좋아요", "네네")) {
+            val scope = CoroutineScope(coroutineContext + SupervisorJob())
+            val d = Director(scope).apply { s.speed = 0.01; s.timerOn = false }
+            val confirmation = async { d.confirmHeroDescription("긴 머리") }
+            try {
+                waitFor(d) { d.s.stage is Stage.HeroAnswer }
+                d.send(Reply.Spoke(yes))
+                assertEquals(yes, "긴 머리", withTimeout(500) { confirmation.await() })
+            } finally { confirmation.cancel(); scope.cancel() }
+        }
+    }
+
+    @Test
     fun aRejectionWithOnlyARetryPromiseStillReasksTheAttribute() = runBlocking {
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
         val d = Director(scope).apply { s.speed = 0.01; s.timerOn = false }
