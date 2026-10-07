@@ -621,7 +621,12 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                 if (kit == null) s.plainFloor()?.let { kitColor ->
                     // a generated picture gives its own floor colour, read from its bottom band (#257) — kit colour until it is read
                     val g = rememberGround(s.bgName)
-                    FeltFloor(g?.let { Color(it.color) } ?: kitColor, LocalStageBottomInset.current, thin = g?.hasGround == true)
+                    val colour = g?.let { Color(it.color) } ?: kitColor
+                    // over a picture that paints its own ground: the floor ~40 % lower (about 60 % as tall) and see-through —
+                    // just under the actors' feet, never gone (#223). Done here so FeltFloor's drawing (#265 feltGround) is untouched
+                    if (g?.hasGround == true) Box(Modifier.fillMaxSize().graphicsLayer { translationY = size.height * 0.12f; alpha = 0.85f }) {
+                        FeltFloor(colour, LocalStageBottomInset.current)
+                    } else FeltFloor(colour, LocalStageBottomInset.current)
                 }
                 if (kit == null) HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake, state = hot, part = HotspotPart.Pieces)
                 // ② 인물 층
