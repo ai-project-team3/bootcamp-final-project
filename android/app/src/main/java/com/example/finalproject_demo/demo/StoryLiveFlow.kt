@@ -197,7 +197,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     }
     imageJob?.join()
     val filledSlots = s.slots.filterValues { it.isNotBlank() }.keys.joinToString(" · ")
-    log("동화 대화 종료: ${s.endReason} · ${s.turn}턴 · 실제 판정으로 채운 칸 $filledSlots")
+    log("Story conversation finished: ${s.endReason} · ${s.turn} turns · verdict-filled slots: $filledSlots")
     go(Scene.MAKING)
 }
 

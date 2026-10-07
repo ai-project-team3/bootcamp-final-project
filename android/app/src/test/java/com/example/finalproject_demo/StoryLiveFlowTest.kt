@@ -83,7 +83,7 @@ class StoryLiveFlowTest {
             assertEquals("엄마와 집에 돌아왔어", d.s.slots["extra"])
             assertEquals("child", d.s.slotBy["extra"])
             assertEquals("story_ready", d.s.endReason)
-            val finishLog = d.s.log.single { it.startsWith("동화 대화 종료:") }
+            val finishLog = d.s.log.single { it.startsWith("Story conversation finished:") }
             assertTrue("The finish trace must identify filled story slots", finishLog.contains("place"))
             assertTrue("The finish trace must identify the accepted follow-up", finishLog.contains("extra"))
             assertFalse("A collection identity cannot diagnose the child's story", finishLog.contains("SnapshotMapKeySet"))
