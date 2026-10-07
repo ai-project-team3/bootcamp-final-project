@@ -1510,6 +1510,8 @@ private suspend fun Director.sceneBook() {
     val last = s.pageCount
     s.bookPage = 0
     s.m1Result = null; s.m2Result = null
+    // 책을 펼칠 때 모든 쪽 목소리를 미리 받는다 — 쪽을 넘길 때마다 /tts 를 기다리지 않게 (#262 · 동화 · 같이 만들기 책)
+    (0..last).forEach { i -> prefetchSpeech(if (i == 0) "『${s.title}』" else s.bookCaption(i)) }
     val rubPage = (1..last).firstOrNull { s.pageKind(it) == PageKind.RUB } ?: -1
     val dragPage = (1..last).firstOrNull { s.pageKind(it) == PageKind.DRAG } ?: -1
 
