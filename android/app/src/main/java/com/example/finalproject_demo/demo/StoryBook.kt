@@ -29,7 +29,7 @@ fun DemoState.missionFor(kind: PageKind): MissionId? = when (kind) {
 /** 현재 동화 템플릿의 쪽 순서를 그대로 서버에 보낸다. 다른 모드의 책 구성은 각 담당자가 정한다. */
 fun DemoState.storyPagePlan(): List<Server.Page> {
     if (mode != StoryMode.STORY) return emptyList()
-    val pages = template?.pages ?: return emptyList()
+    val pages = bookPages
     return pages.map { page ->
         // the object the mission uses, so the page sets up the same thing the child then hands over (10-05:
         // the page said a balloon, the mission handed a shiny stone)
@@ -50,7 +50,7 @@ fun DemoState.storyPagePlan(): List<Server.Page> {
 
 /** 한 쪽이라도 빠지거나 비었으면 템플릿 책을 사용한다. 이름 복원은 호출 전에 공통 경로가 담당한다. */
 fun DemoState.useGeneratedStory(captions: List<String>?): Boolean {
-    val expected = if (mode == StoryMode.STORY) template?.pages?.size else null
+    val expected = if (mode == StoryMode.STORY && template != null) bookPages.size else null
     val valid = expected != null && captions != null && captions.size == expected && captions.all { it.isNotBlank() }
     storyCaptions = if (valid) captions!!.toList() else null
     return valid

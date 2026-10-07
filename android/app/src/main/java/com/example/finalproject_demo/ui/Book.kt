@@ -602,7 +602,7 @@ private fun Cover(d: Director, heroArt: Art, liveStory: Boolean) {
         // 전에는 "· 함께 {어른}" 이 늘 붙었다. 어른이 지은 자리가 하나도 없는 날에도 붙어서
         // 아이가 혼자 지은 책에 어른 이름이 올라갔다. 이 책의 지은이는 아이다.
         Text("글 · 그림 ${s.childName}", fontSize = 13.sp, color = Color.White)
-        s.template?.let { t -> Text("${t.pages.size}쪽", fontSize = 11.sp, color = Color.White.copy(alpha = 0.75f)) }
+        s.template?.let { Text("${s.pageCount}쪽", fontSize = 11.sp, color = Color.White.copy(alpha = 0.75f)) }
     }
 }
 
