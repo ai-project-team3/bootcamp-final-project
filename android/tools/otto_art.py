@@ -34,6 +34,11 @@ STYLES = {
     "room": ("soft wool felt and fabric craft 3D children's picture book illustration, visible felt fibers and stitched edges, "
              "cute rounded shapes, warm pastel colors (cream, mustard yellow, coral, teal, sky blue), gentle soft lighting, "
              "cozy, no text, no letters, no numbers, high quality"),
+    # 크레용 그림체 (10-07 종훈) — 세계 그림만 이 그림체로 한 벌 더 굽는다(`rebake_style.py` · ART.md 「그림체 다시 굽기」).
+    # 도감 인형 · 오또 · 방 · 아이콘은 펠트 그대로(결정 27). 앱은 `이름_crayon` 이 있으면 그것을, 없으면 펠트를 쓴다
+    "crayon": ("cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, "
+               "waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, "
+               "friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality"),
 }
 # 앞머리도 gen_assets.py 그대로. 흰 배경 문장이 앞에 있어야 배경 제거가 잘 된다 (assets/README.md 「cutout 의 성패는 생성 단계에서 갈린다」)
 BG_HEAD = "wide landscape, no characters, no people, no animals, "
