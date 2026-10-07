@@ -150,8 +150,8 @@ class MissionShellTest {
     fun theDoneSparkleLivesInTheShellOnly() {
         val dir = listOf("src/main/java/com/example/finalproject_demo/ui/missions", "app/src/main/java/com/example/finalproject_demo/ui/missions")
             .map(::File).first { it.isDirectory }
-        // C1 · A6 은 #282(불기 판정)와 같은 줄이라 그 PR 뒤에 · E1 은 건네주기 장면 PR(#260 ④)에서
-        val later = setOf("C1Blow.kt", "A6Rub.kt", "E1Give.kt")
+        // C1 · A6 은 #282(불기 판정)와 같은 줄이라 그 PR 뒤에
+        val later = setOf("C1Blow.kt", "A6Rub.kt")
         val offenders = dir.listFiles()!!.filter { it.name != "MissionShell.kt" && it.name !in later }
             .filter { it.readText().contains("Sound.SPARKLE") }.map { it.name }
         assertEquals("완료 반짝을 따로 내는 미션", emptyList<String>(), offenders)
