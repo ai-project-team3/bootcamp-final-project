@@ -60,8 +60,8 @@ class SceneLayoutTest {
                 } else if (p.piece.role == PieceRole.FLOAT) {
                     assertTrue("${p.piece.name} floats in the air", p.y < f.horizon)
                 } else {
-                    // ground pieces stand between the horizon and the actors' front feet line
-                    assertTrue("${p.piece.name} feet ${p.y}", p.y >= f.feetY(0f) - 0.01f * f.h && p.y <= f.feetNear + 0.5f)
+                    // ground pieces stand between the horizon and the actors' front feet line — the near tufts (10-07) below it, above the stage bottom
+                    assertTrue("${p.piece.name} feet ${p.y}", p.y >= f.feetY(0f) - 0.01f * f.h && p.y <= maxOf(f.feetNear, f.bottom) + 0.5f)
                 }
             }
         }

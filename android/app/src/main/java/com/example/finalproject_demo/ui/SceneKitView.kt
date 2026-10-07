@@ -177,10 +177,7 @@ fun FeltFloor(ground: Color, bottomInset: Dp, modifier: Modifier = Modifier) {
         val hPx = with(density) { maxHeight.toPx() }
         val f = remember(wPx, hPx, bottomInset) { with(density) { stageFrame(wPx, hPx, bottomInset, 0.dp) } }
         val shape = remember(f) { hillShape(f, 4f, f.horizon, 5f, 140f) }
-        Canvas(Modifier.fillMaxSize()) {
-            hill(f, shape, ground)
-            clipPath(shape.fill) { drawRect(grain, alpha = 0.07f, blendMode = BlendMode.Overlay) }
-        }
+        Canvas(Modifier.fillMaxSize()) { feltGround(f, shape, ground, null, grain) }
     }
 }
 
@@ -189,6 +186,7 @@ private fun kitBitmaps(kit: SceneKitDef): Map<String, ImageBitmap> {
     val out = HashMap<String, ImageBitmap>()
     // a fixed list per kit, so the composable calls below keep their order
     for (res in kit.pieces.map { it.res }.distinct()) assetBitmap(res)?.let { out[res] = it }
+    groundRes(kit).let { r -> assetBitmap(r)?.let { out[r] = it } }
     // the pictures of who comes by (the bird) — not in the layout, so not among the pieces
     for (res in VISITORS_BY_KIT[kit.key].orEmpty().flatMap { listOf(it.sit, it.fly) }) assetBitmap(res)?.let { out[res] = it }
     return out
@@ -216,8 +214,7 @@ private fun DrawScope.drawKitBack(
     }
     scene.pieces.filter { it.fade > 0f }.forEach { drawPiece(it) }
     // ground — from the actors' depth-0 feet line down, soft wavy stitched edge
-    hill(f, hills[2], Color(kit.ground))
-    drawRect(grain, alpha = 0.07f, blendMode = BlendMode.Overlay)
+    feltGround(f, hills[2], Color(kit.ground), imgs[groundRes(kit)], grain)
     // ground pieces: flat first, then by feet (far → near), then what floats
     val ground = scene.pieces.filter { it.piece.base == PieceBase.FEET && it.fade == 0f && !it.front }
     ground.filter { it.piece.role == PieceRole.FLAT }.forEach { drawPiece(it) }
@@ -243,7 +240,7 @@ fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBas
     @Suppress("DiscouragedApi")
     fun load(name: String) = res.getIdentifier(name, "drawable", context.packageName).takeIf { it != 0 }
         ?.let { android.graphics.BitmapFactory.decodeResource(res, it, opt)?.asImageBitmap() }
-    val imgs = kit.pieces.map { it.res }.distinct().mapNotNull { r -> load(r)?.let { r to it } }.toMap()
+    val imgs = (kit.pieces.map { it.res } + groundRes(kit)).distinct().mapNotNull { r -> load(r)?.let { r to it } }.toMap()
     val dm = res.displayMetrics
     val density = dm.density
     // size 0 = the frame the stage itself last drew in; before any stage, this screen with the stage's chrome
@@ -272,6 +269,27 @@ fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBas
 /** Felt grain — a small noise tile, repeated; plus a coarse blotch map stretched over the stage. Made once. */
 private object FeltNoise {
     val grain: ImageBitmap by lazy { noise(96, 96, 20, seed = 11) }
+    /** Felt fibre for the ground — short streaks, larger than [grain], so it still reads on a 3× screen */
+    val fibreBrush: ShaderBrush by lazy { ShaderBrush(ImageShader(fibre(256, 256, seed = 23), TileMode.Repeated, TileMode.Repeated)) }
+
+    private fun fibre(w: Int, h: Int, seed: Int): ImageBitmap {
+        val rnd = java.util.Random(seed.toLong())
+        val v = IntArray(w * h) { 128 }
+        // short random strokes, light and dark — the look of matted wool fibres
+        repeat(w * h / 10) {
+            val x0 = rnd.nextInt(w); val y0 = rnd.nextInt(h)
+            val a = rnd.nextDouble() * Math.PI
+            val len = 3 + rnd.nextInt(9)
+            val d = if (rnd.nextBoolean()) 38 else -38
+            for (k in 0 until len) {
+                val x = Math.floorMod(x0 + (k * kotlin.math.cos(a)).toInt(), w)
+                val y = Math.floorMod(y0 + (k * kotlin.math.sin(a)).toInt(), h)
+                v[y * w + x] = (v[y * w + x] + d).coerceIn(0, 255)
+            }
+        }
+        val px = IntArray(w * h) { (0xFF shl 24) or (v[it] shl 16) or (v[it] shl 8) or v[it] }
+        return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888).asImageBitmap()
+    }
     val blotch: ImageBitmap by lazy { noise(40, 24, 36, seed = 5) }
 
     private fun noise(w: Int, h: Int, spread: Int, seed: Int): ImageBitmap {
@@ -363,6 +381,42 @@ private fun DrawScope.hill(f: SceneFrame, shape: HillShape, color: Color) {
         max(0f, color.red - 18f / 255f), max(0f, color.green - 18f / 255f), max(0f, color.blue - 18f / 255f),
     )
     drawPath(shape.fill, Brush.verticalGradient(listOf(color, dark), startY = shape.y0, endY = f.h))
+    drawPath(shape.stitch, Color(0xFFFFFAEE).copy(alpha = 0.6f), style = Stroke(width = 2f * sy,
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f * sx, 8f * sx))))
+}
+
+/** A kit's baked felt ground picture (`kit_<key>_ground`, 치영's bake) — while it is not bundled the ground is the felt colour */
+private fun groundRes(kit: SceneKitDef) = "kit_${kit.key}_ground"
+
+/**
+ * The ground felt (10-07 종훈: 「공원 바닥 퀄리티가 너무 낮다」). It was one flat colour with a 7 % noise tile, under pieces
+ * that are baked 3D felt — the bottom of the stage read as a plastic sheet. Now:
+ *  - the baked ground picture of the kit, when bundled, fills the ground (cover-scaled from the horizon down)
+ *  - depth: a light band at the horizon and a darker front, so the floor lies back instead of standing up
+ *  - fibre: a coarser grain, stronger, only on the ground
+ * Then the running stitches again on top, so the edge stays felt.
+ */
+private fun DrawScope.feltGround(f: SceneFrame, shape: HillShape, color: Color, texture: ImageBitmap?, grain: ShaderBrush) {
+    hill(f, shape, color)
+    clipPath(shape.fill) {
+        if (texture != null) {
+            val top = shape.y0 - 0.02f * f.h
+            val hh = f.h - top
+            val scale = max(f.w / texture.width, hh / texture.height)
+            val dw = (texture.width * scale).roundToInt()
+            val dh = (texture.height * scale).roundToInt()
+            drawImage(texture, dstOffset = IntOffset(((f.w - dw) / 2).roundToInt(), top.roundToInt()), dstSize = IntSize(dw, dh),
+                filterQuality = FilterQuality.Medium)
+        }
+        drawRect(Brush.verticalGradient(
+            0f to Color.White.copy(alpha = 0.10f), 0.22f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.16f),
+            startY = shape.y0, endY = f.h,
+        ))
+        drawRect(FeltNoise.fibreBrush, alpha = if (texture != null) 0.06f else 0.16f, blendMode = BlendMode.Overlay)
+        drawRect(grain, alpha = 0.07f, blendMode = BlendMode.Overlay)
+    }
+    val sx = f.w / 1344f
+    val sy = f.h / 768f
     drawPath(shape.stitch, Color(0xFFFFFAEE).copy(alpha = 0.6f), style = Stroke(width = 2f * sy,
         pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f * sx, 8f * sx))))
 }

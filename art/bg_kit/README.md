@@ -77,3 +77,24 @@
 
 - 앱 공통 그림체 문구(`gen_room.STYLE`)의 색 목록(크림 · 머스터드 · 코랄 · 청록 · 하늘) 때문에 **물체에 그 색 조각 · 점이 들어간다** — 돌의 점, 「빨강 · 하양 공」이 파스텔 여러 색, 풀이 여러 색. 앱 다른 그림과 맞추려고 그대로 두었다
 - 장당 약 52초(그리기 48초 + 배경 빼기 4초 · RTX 4060 노트북). 배경 빼기 실패 0장 / 57장. 문구가 엉뚱하게 나온 것 3종(9장)은 다시 구웠다
+
+## 바닥 그림 (10-07 종훈 · 「공원 바닥 퀄리티가 너무 낮다」)
+
+바닥은 지금 **코드가 칠한 단색 면**이다. 조각은 구운 3D 펠트인데 바닥만 평면이라 무대 아래쪽이 비닐처럼 보였다.
+앱은 이제 키트마다 `kit_<키트>_ground` 그림이 있으면 그것을 바닥에 깐다(지평선부터 아래까지 꽉 채움 · 가장자리 바늘땀은 앱이 그 위에 다시 그린다).
+없으면 전처럼 단색 + 앱이 넣은 결 · 원근 음영이다 — 그래서 구운 순서대로 하나씩 넣어도 된다.
+
+뽑기 — `bg` 크기(1344×768) · 펠트 그림체 그대로. **하늘 · 지평선 · 물건이 없어야 한다**(앱이 지평선 위를 잘라 쓰지 않는다 — 그림 전체가 땅이다).
+
+```powershell
+python tools\otto_art.py bg kit_park_ground   "soft green wool felt meadow ground filling the whole frame, low camera angle, felt fibers, a few tiny stitched grass tufts and tiny felt clover, no sky, no horizon, no objects, no path"
+python tools\otto_art.py bg kit_dino_ground   "warm olive green and sandy wool felt jungle ground filling the whole frame, low camera angle, felt fibers, a few tiny stitched fern sprouts and pebbles, no sky, no horizon, no objects"
+python tools\otto_art.py bg kit_space_ground  "pale lilac grey wool felt moon ground filling the whole frame, low camera angle, felt fibers, a few tiny stitched dimples, no sky, no horizon, no objects, no stars"
+python tools\otto_art.py bg kit_sea_ground    "soft sandy beige wool felt sea floor filling the whole frame, low camera angle, felt fibers, a few tiny stitched ripples and pebbles, no water surface, no horizon, no objects"
+python tools\otto_art.py bg kit_indoor_ground "warm honey wooden floor made of felt planks filling the whole frame, low camera angle, felt fibers, visible stitched plank lines, no walls, no horizon, no objects, no rug"
+python tools\otto_art.py bg kit_forest_ground "soft moss green wool felt forest ground filling the whole frame, low camera angle, felt fibers, a few tiny stitched leaves and grass tufts, no sky, no horizon, no objects"
+python tools\otto_art.py bg kit_beach_ground  "soft warm sand colored wool felt beach ground filling the whole frame, low camera angle, felt fibers, a few tiny stitched sand ripples, no water, no horizon, no objects, no shells"
+python tools\otto_art.py bg kit_snow_ground   "soft white wool felt snow ground filling the whole frame, low camera angle, felt fibers, gentle stitched snow drifts, no sky, no horizon, no objects"
+```
+
+고를 때 — 색이 키트의 `ground` 색(`demo/scene/SceneKit.kt`)과 가까운가 · 물건 · 글자 · 지평선이 없는가 · 아래쪽이 위쪽보다 결이 크게 보이나(원근). 고른 것은 `pick` 뒤 webp 로 `res/drawable-nodpi/kit_<키트>_ground.webp` (다른 키트 조각과 같은 자리). 8장 × 3후보 ≈ 20분.
