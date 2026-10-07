@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -71,6 +72,7 @@ suspend fun Director.pictureDiary() {
         askPieceStoriesAfterDrawing(day)
     } else log("그림 없이 말로 — D3 로 바로 간다")
     askEmptySlots()
+    pickLateDrawings(day)
     finishPictureDiary(day)
 }
 
@@ -281,6 +283,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
         quiet = 0
         if (askDoneDrawing()) break
     }
+    day.ottoOffers = offers                      // 다 그린 뒤 제안도 같은 상한 안에서 센다 (#281)
     if (waiting.isNotEmpty()) {
         waiting.forEach { it.art?.cancel() }
         log("아직 그리는 중인 오또 그림 ${waiting.size}장은 버린다 — 다 그렸으니 기다리게 하지 않는다")
@@ -1448,10 +1451,77 @@ private suspend fun Director.askPieceOnD3(piece: DiaryPiece) {
         val r = ask(Question(text = "이건 뭐 그린 거야?", kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_piece_after"))
         val name = (r as? Reply.Spoke)?.let { nameThePiece(day, piece, it) }
         if (name == null) log("다 그린 뒤 조각 이름을 못 들었다 → 이름 없이 책에 싣는다")
+        else day.pieces.firstOrNull { it.id == piece.id }?.let { offerLate(day, it) }
     } finally {
         day.focusPiece = null
     }
 }
+
+/**
+ * 다 그린 뒤 이름이 붙은 조각 — 그리는 중처럼 「나도 ○○ 그려볼까?」를 한 번 묻는다(#281). 응이면 뒤에서 그리고 D3 를 이어 간다.
+ * 고르기는 D3 가 끝난 뒤([pickLateDrawings]) — 그림판이 내려가 있어 그사이에 고를 자리가 없다. 배경은 먼저 묻지 않는다(#168)
+ */
+private suspend fun Director.offerLate(day: DiaryDay, piece: DiaryPiece) {
+    val name = piece.name ?: return
+    if (piece.role == PieceRole.BACKGROUND || day.ottoOffers >= OTTO_OFFERS || piece.ottoPng != null || piece.id in day.lateArt) return
+    when (askYesNoAfterDrawing("나도 ${you(name)}${eul(you(name))} 그려볼까?", "diary_offer")) {
+        "yes" -> {
+            day.ottoOffers++
+            // 이 일기 흐름의 자식으로 — D3 질문이 이어지는 동안 뒤에서 그리고, 일기가 끝나면 같이 거둔다
+            day.lateArt[piece.id] = orderOttoDrawing(CoroutineScope(currentCoroutineContext()), piece, name).art
+            say("좋아! 이야기하는 동안 그려 둘게.")
+            log("다 그린 뒤 이름이 붙은 「$name」 → 오또 그림 주문 · 고르기는 D3 가 끝난 뒤 (#281)")
+            pause(600)
+        }
+        "no" -> { say("좋아, 네 그림이 최고야!"); pause(600) }
+        else -> log("다 그린 뒤 「나도 $name 그려볼까?」 — 답이 없다 → 원본 그대로")
+    }
+}
+
+/** 다 그린 뒤의 예/아니 — 그림판이 없으니 붓 멈춤으로 거두지 않는다. yes · no · null(못 들었다) */
+private suspend fun Director.askYesNoAfterDrawing(text: String, id: String): String? {
+    val r = ask(Question(text = text, kind = Kind.EASY, noCards = true, id = id,
+        spoken = listOf(Answer("응!", "yes", lv = 1), Answer("아니", "no", lv = 1))))
+    return (r as? Reply.Spoke)?.let { it.answer?.value?.takeIf(String::isNotBlank) ?: yesNoOf(it.text) }?.takeIf { it == "yes" || it == "no" }
+}
+
+/** D3 가 끝난 뒤 오또 그림이 이만큼 더 안 오면 기다리지 않는다 — 원본 그대로 (규칙 8 · D3 질문 동안 이미 기다렸다) */
+internal const val LATE_PICK_WAIT_MS = 3_000L
+
+/**
+ * 다 그린 뒤 주문한 오또 그림을 고르게 한다 — 책을 만들기 전에 그림판을 잠깐 올려, 그리는 중과 같은 화면에서. 원본이 기본값이다(차별점 1).
+ * 아직 안 왔으면 [LATE_PICK_WAIT_MS] 만 기다리고 원본으로 둔다 (#281)
+ */
+private suspend fun Director.pickLateDrawings(day: DiaryDay) {
+    if (day.lateArt.isEmpty()) return
+    boardBack()
+    for ((id, art) in day.lateArt.toList()) {
+        val i = day.pieces.indexOfFirst { it.id == id }
+        if (i < 0) { art?.cancel(); continue }
+        if (art == null) { showOttoDrawing(day, day.pieces[i]); continue }       // 대본 — 그림 글자로 고른다
+        val png = withTimeoutOrNull(LATE_PICK_WAIT_MS) { art.await() }
+        event("image_request", "type" to "redraw", "result" to if (png != null) "generated" else "original")
+        if (png == null) {
+            art.cancel()
+            log("다 그린 뒤 주문한 「${day.pieces[i].name}」 오또 그림이 안 왔다(검사 · 늦음 · 실패) → 아이 원본 그대로")
+            say("앗, 이번엔 내가 잘 못 그렸어. 네 그림이 최고야!")
+            pause(700)
+            continue
+        }
+        day.pieces[i] = day.pieces[i].copy(ottoPng = png)
+        s.images++
+        showOttoDrawing(day, day.pieces[i])
+    }
+    day.lateArt.clear()
+    keepBoard()
+    s.stage = DiaryAsk
+}
+
+/** 다 그린 뒤 그림판을 다시 올린다 — 다 그렸을 때 획을 책 그림으로 옮겨([keepBoard]) 판이 비었다. 그 획을 판에 되돌린다 (#281) */
+private fun Director.boardBack() {
+    if (s.drawing.isEmpty()) s.drawing.addAll(s.sceneDrawing)
+}
+
 
 /**
  * 오또가 아이 말을 「너」로 되받아 준다 — 「나는 놀이터 갔어」 → 「너는 놀이터 갔구나!」 (프로토타입 echoBack).

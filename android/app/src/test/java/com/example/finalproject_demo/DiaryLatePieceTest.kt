@@ -2,9 +2,11 @@ package com.example.finalproject_demo
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import com.example.finalproject_demo.demo.DiaryAsk
 import com.example.finalproject_demo.demo.DiaryBoard
 import com.example.finalproject_demo.demo.DiaryStart
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.PieceLook
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
@@ -126,5 +128,54 @@ class DiaryLatePieceTest {
         assertNull(drawRequestName("이거 그려줘"))
         assertNull(drawRequestName("이거도 그려줘"))
         assertNull(drawRequestName("그려줘"))
+    }
+
+    /** 다 그린다 — 붓 멈춤 없이 바로(조각은 이름 없이 남는다) */
+    private suspend fun Director.finish() {
+        assertTrue(await { if (s.diaryDay.watching) send(Reply.Tapped("done", "완료")); s.stage is DiaryAsk } != null)
+    }
+
+    /** D3 질문에 답한다 — [answer] 가 정한 말, 없으면 「몰라」. [until] 이 될 때까지 */
+    private suspend fun Director.talkD3(until: () -> Boolean, answer: (String) -> String?) {
+        var last = -1
+        assertTrue("D3 가 거기까지 가지 않았다 — 말=${s.line}", await(20_000) {
+            if (!until() && s.micEnabled && s.lineId != last) { last = s.lineId; send(Reply.Spoke(answer(s.line) ?: "몰라")) }
+            until()
+        } != null)
+    }
+
+    /** 2 — 다 그린 뒤 이름이 붙은 조각도 「나도 그려볼까?」 — 응이면 D3 가 끝난 뒤 그림판에서 고른다 */
+    @Test
+    fun aPieceNamedAfterDrawingIsOfferedAndPickedBeforeTheBook() = run { d ->
+        d.board()
+        d.draw(.3f)
+        d.finish()
+        val id = d.s.diaryDay.pieces.single().id
+        var offered = false
+        d.talkD3({ (d.s.stage as? DiaryBoard)?.pick == id }) { line ->
+            when (line) {
+                "이건 뭐 그린 거야?" -> "강아지야"
+                "나도 강아지를 그려볼까?" -> { offered = true; "응" }
+                else -> null
+            }
+        }
+        assertTrue("다 그린 뒤 이름이 붙은 조각에 「나도 그려볼까?」를 묻지 않았다", offered)
+        assertEquals("짠! 나도 그려 봤어! 어떤 게 좋아?", d.s.line)
+        assertEquals("고르는 그림판에 아이 원본이 없다", 1, d.s.drawing.size)
+        d.send(Reply.Tapped("otto", "오또 그림"))
+        assertTrue(await { d.s.diaryDay.pieces.single().look == PieceLook.OTTO } != null)
+    }
+
+    /** 2 — 「아니」면 원본 그대로 — 고르기 화면이 뜨지 않는다 */
+    @Test
+    fun noToTheLateOfferKeepsTheOriginal() = run { d ->
+        d.board()
+        d.draw(.3f)
+        d.finish()
+        d.talkD3({ d.s.line == "좋아, 네 그림이 최고야!" }) { line ->
+            when (line) { "이건 뭐 그린 거야?" -> "강아지야"; "나도 강아지를 그려볼까?" -> "아니"; else -> null }
+        }
+        assertTrue(d.s.diaryDay.lateArt.isEmpty())
+        assertEquals(PieceLook.ORIGINAL, d.s.diaryDay.pieces.single().look)
     }
 }
