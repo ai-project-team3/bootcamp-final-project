@@ -457,7 +457,9 @@ class Director(
         val wait = LINE_GAP_MS - (System.currentTimeMillis() - lastVoiceEnd)
         if (wait > 0) delay(wait)
         onStart()                                         // after the gap — the real start of the sound (#276 review)
-        try { Voice.playAndWait(audio) } finally { lastVoiceEnd = System.currentTimeMillis() }
+        // canSpeak, not just an attached context: a screen test attaches Voice to its activity and the context
+        // outlives it, so a later Robolectric test would wait forever on a MediaPlayer that never completes
+        try { if (Voice.canSpeak) Voice.playAndWait(audio) } finally { lastVoiceEnd = System.currentTimeMillis() }
     }
 
     /**
