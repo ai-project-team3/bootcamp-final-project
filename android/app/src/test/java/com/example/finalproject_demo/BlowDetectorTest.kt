@@ -136,6 +136,30 @@ class BlowDetectorTest {
                 firstOn <= lastBusy + BlowDetector.TAIL_MS + BlowDetector.HOLD_MS + 3 * frameMs)
     }
 
+    /**
+     * C3 소리 흉내 — 오또가 「삐-뽀-삐-뽀」를 읽는 동안 들어온 음절은 세지 않는다(#293 리뷰 ③). 스피커가 멈추고
+     * 꼬리가 지나면 아이의 같은 소리는 센다
+     */
+    @Test
+    fun ottosOwnSyllablesAreNotCounted() {
+        val onsets = com.example.finalproject_demo.ui.VoiceOnsets()
+        val d = BlowDetector(rate)
+        fun beats(pcm: ShortArray, start: Long, busy: Boolean): Pair<Int, Long> {
+            var t = start; var n = 0; var i = 0
+            while (i + frame <= pcm.size) {
+                if (onsets.feed(d.feed(pcm.copyOfRange(i, i + frame), frame, t, busy).beatLoud)) n++
+                t += frameMs; i += frame
+            }
+            return n to t
+        }
+        val syllables = vowel(300) + ShortArray(rate * 300 / 1000) + vowel(300) + ShortArray(rate * 300 / 1000) +
+            vowel(300) + ShortArray(rate * 300 / 1000) + vowel(300) + ShortArray(rate * 300 / 1000)
+        val (otto, end) = beats(syllables, 0L, busy = true)
+        assertEquals("오또 목소리는 0", 0, otto)
+        val (child, _) = beats(syllables, end + BlowDetector.TAIL_MS + frameMs, busy = false)
+        assertTrue("아이 소리는 센다 ($child)", child >= 3)
+    }
+
     @Test
     fun aShortPuffIsNotEnough() {
         assertFalse(blowingMs(BlowDetector(rate), breath(250)) > 0)

@@ -118,7 +118,7 @@ fun rememberBlow(active: Boolean, beats: androidx.compose.runtime.MutableIntStat
                     reading.level = f.level
                     reading.blowing = f.blowing
                     // 음절 세기는 다듬지 않은 크기로 — 다듬으면 음절 사이 끊김이 메워진다. 스피커가 울리는 동안은 0
-                    if (beats != null && onsets.feed(if (f.gated) 0f else f.loud)) beats.intValue += 1
+                    if (beats != null && onsets.feed(f.beatLoud)) beats.intValue += 1
                     frames++; if (f.blowing) blowFrames++; peak = maxOf(peak, f.level)
                     // 실기기에서 문턱을 고치는 줄 — 1초에 한 줄 (설계 §3-3)
                     if (now - traceAt >= 1000L) {
