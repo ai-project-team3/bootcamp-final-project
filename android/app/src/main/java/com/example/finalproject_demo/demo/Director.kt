@@ -348,8 +348,14 @@ class Director(
     /** Voices kept ahead of time at most — a diary book is up to 8 text pages plus the drawing and puzzle pages (#262; was 4) */
     private val PREFETCH_MAX = 12
 
-    /** Voices asked for ahead of time, by the exact spoken text ([prefetchSpeech]) */
-    private val prefetched = java.util.concurrent.ConcurrentHashMap<String, Deferred<ByteArray?>>()
+    /**
+     * Voices asked for ahead of time, by the exact spoken text ([prefetchSpeech] · [offerVoice]). Past [PREFETCH_MAX]
+     * the oldest goes first — clearing the whole map dropped a new book's first pages while it was still prefetching
+     * (#276 review). Guard with `synchronized(prefetched)`.
+     */
+    private val prefetched = object : LinkedHashMap<String, Deferred<ByteArray?>>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Deferred<ByteArray?>>) = size > PREFETCH_MAX
+    }
 
     /**
      * Start making a line's voice now, before it is said (10-05 trace). The question used to be voiced only
@@ -359,8 +365,7 @@ class Director(
     fun prefetchSpeech(text: String) {
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)
-        if (prefetched.size > PREFETCH_MAX) prefetched.clear()
-        prefetched.getOrPut(line) { scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } } }
+        synchronized(prefetched) { prefetched.getOrPut(line) { scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } } } }
     }
 
     /**
@@ -381,33 +386,37 @@ class Director(
     /** Use [mp3] the next time [text] is said instead of asking /tts — a voice kept on the phone (#179) */
     fun offerVoice(text: String, mp3: ByteArray) {
         if (!Server.liveFor(s.mode) || text.isBlank()) return
-        if (prefetched.size > PREFETCH_MAX) prefetched.clear()
-        prefetched[s.nameMask().speakable(text)] = kotlinx.coroutines.CompletableDeferred(mp3)
+        synchronized(prefetched) { prefetched[s.nameMask().speakable(text)] = kotlinx.coroutines.CompletableDeferred(mp3) }
     }
 
-    internal fun voiceReady(text: String) = prefetched.containsKey(s.nameMask().speakable(text))
+    internal fun voiceReady(text: String) = synchronized(prefetched) { prefetched.containsKey(s.nameMask().speakable(text)) }
 
     /**
-     * 목소리를 기다리는 줄([DemoState.lineId]) — 그 줄의 목소리가 나오기 시작하면 null (#262).
-     * 화면이 글자를 목소리 시작에 맞춰 쓴다 — 전에는 글이 다 써진 뒤에야 소리가 나서 아이가 한 쪽에 오래 머물렀다(10-07 실기기)
+     * The line ([DemoState.lineId]) whose voice has not started playing yet; null once it plays (#262).
+     * The screen types the text when the voice starts — the text used to finish seconds before the sound (10-07 device).
      */
     var voicePending by mutableStateOf<Int?>(null)
         internal set
 
-    private fun speakLive(text: String) {
+    private fun speakLive(text: String, waitForVoice: Boolean = true) {
         // 소리를 낼 수 없으면(단위 테스트 — Voice 가 붙지 않았다) 목소리를 청하지도 않는다.
         // 들리지 않을 목소리 때문에 가짜 서버 주소로 대사마다 연결을 시도할 까닭이 없다
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)          // names read as they are (10-02 · ChildCall)
         // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
-        val audio = (prefetched.remove(line) ?: scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }).also { queueVoice(it) }
-        val id = s.lineId
-        voicePending = id
-        enqueue(onStart = { if (voicePending == id) voicePending = null }) { audio.await() }
+        val ready = synchronized(prefetched) { prefetched.remove(line) }
+        val audio = (ready ?: scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }).also { queueVoice(it) }
+        queueSpoken(if (waitForVoice) s.lineId else null) { audio.await() }
+    }
+
+    /** Queue a line's sound; [id] (a lineId) stays in [voicePending] until that sound really starts playing (#262) */
+    internal fun queueSpoken(id: Int?, sound: suspend () -> ByteArray?) {
+        if (id != null) voicePending = id
+        enqueue(onStart = { if (id != null && voicePending == id) voicePending = null }, sound = sound)
     }
 
     /** 방금 한 말을 다시 들려준다 — 아이가 오또 얼굴을 눌렀을 때(#56). 서버 모드가 아니면 아무것도 안 한다 */
-    fun replayLine() = speakLive(s.line)
+    fun replayLine() = speakLive(s.line, waitForVoice = false)     // the text is already on screen — do not blank it (#276 review)
 
     /** 앞 대사가 끝난 뒤 [sound] 를 튼다 — 대사 줄의 맨 끝에 선다. null 이면 조용히 지나간다 */
     private fun enqueue(onStart: () -> Unit = {}, sound: suspend () -> ByteArray?) {
@@ -416,9 +425,13 @@ class Director(
             before?.join()
             while (s.holding) delay(100)              // ⏸ 동안 받아 둔 대사는 [이어 하기] 뒤에 (#125)
             // 녹음 중에 온 목소리는 틀지 않는다 — 녹음에 들어가면 VAD 가 오또 말을 아이 말로 듣는다 (#178 · 글자는 화면에 있다)
-            val audio = sound()
-            onStart()                                 // 소리가 없어도 — 글자를 붙잡아 두지 않는다
-            audio?.let { if (!s.micOn) play(it) }
+            try {
+                val audio = sound()
+                // no sound (or the mic is open) still releases the text; with sound, release it when playback starts
+                if (audio != null && !s.micOn) play(audio, onStart) else onStart()
+            } finally {
+                onStart()                                 // cancelled or failed — never hold the text
+            }
         })
     }
 
@@ -440,9 +453,10 @@ class Director(
 
     @Volatile private var lastVoiceEnd = 0L
 
-    private suspend fun play(audio: ByteArray) {
+    private suspend fun play(audio: ByteArray, onStart: () -> Unit = {}) {
         val wait = LINE_GAP_MS - (System.currentTimeMillis() - lastVoiceEnd)
         if (wait > 0) delay(wait)
+        onStart()                                         // after the gap — the real start of the sound (#276 review)
         try { Voice.playAndWait(audio) } finally { lastVoiceEnd = System.currentTimeMillis() }
     }
 

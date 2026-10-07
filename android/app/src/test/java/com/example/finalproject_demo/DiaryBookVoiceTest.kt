@@ -122,4 +122,32 @@ class DiaryBookVoiceTest {
         compose.mainClock.advanceTimeBy(2_500)
         assertTrue("목소리가 나왔는데 글자를 쓰지 않았다", compose.onAllNodesWithText("닷").fetchSemanticsNodes().isNotEmpty())
     }
+
+    /** #276 리뷰 — 앞 책의 목소리가 남아 있어도 새 책을 펼치면 새 책 목소리가 지워지지 않는다(가장 오래된 것부터 버린다) */
+    @Test
+    fun openingASecondBookKeepsItsOwnVoices() {
+        val d = Director(CoroutineScope(SupervisorJob()))
+        d.s.mode = StoryMode.DIARY
+        Server.base = "http://127.0.0.1:9"; Server.liveModes = setOf(StoryMode.DIARY)
+        val first = (1..8).map { "첫 책 $it 쪽이에요." }
+        val second = (1..8).map { "둘째 책 $it 쪽이에요." }
+        first.forEach { d.offerVoice(it, byteArrayOf(1)) }               // 앞 책은 제목만 읽고 나갔다 — 쪽 목소리가 남았다
+        second.forEach { d.offerVoice(it, byteArrayOf(2)) }
+        assertEquals("새 책 목소리가 지워졌다", second.size, second.count { d.voiceReady(it) })
+    }
+
+    /** #276 리뷰 — 이어지는 두 줄에서 둘째 줄의 글자는 그 소리가 실제로 나올 때(대사 사이 쉼 뒤) 풀린다 */
+    @Test
+    fun theSecondOfTwoLinesIsHeldUntilItReallyPlays() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope)
+        try {
+            d.queueSpoken(1) { byteArrayOf(1) }
+            d.queueSpoken(2) { byteArrayOf(2) }                           // 둘 다 미리 받아 바로 소리가 있다
+            val t0 = System.currentTimeMillis()
+            assertTrue(await { d.voicePending == null } != null)
+            val held = System.currentTimeMillis() - t0
+            assertTrue("둘째 줄 글자가 소리보다 먼저 풀렸다 — ${held}ms", held >= 300)
+        } finally { scope.cancel() }
+    }
 }
