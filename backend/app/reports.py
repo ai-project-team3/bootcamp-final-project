@@ -49,6 +49,7 @@ admin_router = APIRouter(prefix="/admin/reports", dependencies=[Depends(admin.re
 
 KST = timezone(timedelta(hours=9))
 KEEP_DAYS_AFTER_DONE = 30
+ORPHAN_GRACE_S = 3600           # a picture or .tmp with no report is left this long — a report may be mid-write
 # ⚖️ §8-④ attachment size · format — the app sends 1024 px JPEG 85 (usually under 300 KB)
 BODY_MAX = int(2.5 * 1024 * 1024)
 PICTURE_MAX = int(1.5 * 1024 * 1024)
@@ -141,7 +142,7 @@ def _new_id(now: datetime) -> str:
 
 
 def _load(rid: str) -> dict:
-    if not ID_RE.match(rid):         # checked before it ever becomes a path
+    if not ID_RE.fullmatch(rid):         # checked before it ever becomes a path
         raise HTTPException(422, "id: not a report number")
     p = folder() / f"{rid}.json"
     if not p.exists():
@@ -221,6 +222,8 @@ def _check_limits(ip: str, now: datetime) -> None:
     t = now.timestamp()
     while q and t - q[0] > PER_IP_WINDOW_S:
         q.popleft()
+    for k in [k for k, v in _per_ip.items() if not v and k != ip]:
+        del _per_ip[k]               # addresses that went quiet are not kept around
     if len(q) >= PER_IP:
         raise HTTPException(429, "too many reports from here — try again later")
     today = now.astimezone(KST).strftime("%Y-%m-%d")
@@ -247,7 +250,7 @@ def reset_limits() -> None:
 # ── 30 days after done ────────────────────────────────────────────────────
 
 def purge(now: datetime | None = None) -> int:
-    """Delete reports done more than 30 days ago, their pictures, orphaned pictures and leftover .tmp files."""
+    """Delete reports done more than 30 days ago, their pictures, and orphaned pictures · leftover .tmp files once an hour old."""
     now = now or _now()
     gone = 0
     keep: set[str] = set()
@@ -264,11 +267,17 @@ def purge(now: datetime | None = None) -> int:
             gone += 1
         else:
             keep.add(p.stem)
-    for p in d.glob("*.jpg"):
-        if p.stem not in keep:
+    # a report writes its picture (via .tmp) before its JSON — a sweep that lands in between must not take
+    # the picture or the half-written file, so leftovers go only once they are an hour old
+    for p in [*d.glob("*.jpg"), *d.glob("*.tmp")]:
+        if p.suffix == ".jpg" and p.stem in keep:
+            continue
+        try:
+            old = now.timestamp() - p.stat().st_mtime > ORPHAN_GRACE_S
+        except OSError:
+            continue
+        if old:
             p.unlink(missing_ok=True)
-    for p in d.glob("*.tmp"):
-        p.unlink(missing_ok=True)
     if gone:
         log.info("reports: purged %d", gone)      # how many only — never what they said
     return gone
@@ -302,12 +311,13 @@ async def take_report(request: Request) -> dict:
         first = e.errors()[0] if e.errors() else {}
         where = ".".join(str(p) for p in first.get("loc", ()))
         raise HTTPException(422, f"{where}: {first.get('msg', 'invalid')}")
+    now = _now()
+    ip = _client(request)
+    if not settings.mock:
+        _check_limits(ip, now)           # before the picture — a refused request does not decode 4096² first
     picture = _picture(r.attachment.data_base64) if r.attachment and r.attachment.kind == "image" else None
     if settings.mock:
         return {"id": "R-0000-MOCK", "keep_days_after_done": KEEP_DAYS_AFTER_DONE}
-    now = _now()
-    ip = _client(request)
-    _check_limits(ip, now)
     rid = _new_id(now)
     att = None
     if r.attachment:

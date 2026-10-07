@@ -220,6 +220,35 @@ def test_purge_keeps_unhandled_and_recent(folder):
     assert files(folder) == ["R-1001-0002.json", "R-1001-0003.json", "R-1001-0004.json"]
 
 
+def test_a_sweep_mid_report_keeps_the_picture(signed_in, folder, monkeypatch):
+    """the admin page sweeps every 30 s — one landing between the picture and the JSON must not take either"""
+    real_write = reports._write
+
+    def write_then_sweep(path, data):
+        if path.suffix == ".jpg":
+            (folder / "mid.jpg.tmp").write_bytes(b"half")      # another report still writing
+            reports.purge()                                       # ← the sweep lands here
+        real_write(path, data)
+        if path.suffix == ".jpg":
+            assert signed_in.get("/admin/reports").status_code == 200   # and again via the listing
+            assert path.exists() and (folder / "mid.jpg.tmp").exists()
+
+    monkeypatch.setattr(reports, "_write", write_then_sweep)
+    r = send(signed_in, attachment={"kind": "image", "source": "background", "data_base64": picture()})
+    assert r.status_code == 200
+    rid = r.json()["id"]
+    assert signed_in.get(f"/admin/reports/{rid}/attachment").status_code == 200
+
+
+def test_fresh_leftovers_wait_an_hour(folder):
+    (folder / "R-0909-DEAD.jpg").write_bytes(b"orphan")
+    (folder / "R-1001-0009.json.tmp").write_bytes(b"half")
+    reports.purge()
+    assert files(folder) == ["R-0909-DEAD.jpg", "R-1001-0009.json.tmp"]
+    reports.purge(reports._now() + timedelta(seconds=reports.ORPHAN_GRACE_S + 60))
+    assert files(folder) == []
+
+
 def test_old_unhandled_reports_are_flagged_not_deleted(signed_in, folder):
     old = (datetime.now(timezone.utc) - timedelta(days=reports.STALE_DAYS + 1))
     rid = "R-0101-AAAA"
