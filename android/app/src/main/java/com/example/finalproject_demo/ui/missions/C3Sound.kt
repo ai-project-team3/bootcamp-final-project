@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -44,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -101,11 +103,14 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
     val finished = done || fill >= 1f
     // 크기만 보면 「아아아아」도 찼다(10-05 실기기) — 끊어 말한 소리 덩어리 수로 채운다(사용자 결정)
     val beats = remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    // 스피커가 울리는 동안(오또 낭독 · 효과음)은 크기 0 · 덩어리도 세지 않는다 — 낭독 음절을 박자로 셌다(#258)
     val voice = rememberBlowLevel(!finished, beats)
+    val speaking by com.example.finalproject_demo.net.Voice.playing.collectAsState()
     val micOn = remember {
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
     val idle = rememberIdleHint(fill, finished)
+    val hint = rememberMissionHint(d, fill, finished, "C3")
     MissionDoneSignal(d, finished, done, "미션1")
     val bounce = remember { Animatable(1f) }
     fun nudge() { scope.launch { bounce.snapTo(1.12f); bounce.animateTo(1f, spring(dampingRatio = 0.35f)) } }
@@ -149,7 +154,8 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
                     if (finished) return@pointerInput
                     detectTapGestures {
                         fill = minOf(1f, fill + SOUND_TAP); pops++; nudge()
-                        Sfx.play(Sound.SPARKLE, minGapMs = 120L, view = view)
+                        // 누를 때마다 톡 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
+                        Sfx.play(Sound.POP, minGapMs = 120L, view = view)
                     }
                 },
         ) {
@@ -180,7 +186,11 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
             Box(Modifier.fillMaxHeight().fillMaxWidth(fill.coerceIn(0f, 1f)).clip(RoundedCornerShape(Radius.Round)).background(Coral))
         }
 
-        if (idle && !finished) {
+        // 15초 흐릿한 예시 — 손이 소품을 톡 톡 두 번 누른다(채움은 그대로 · 아이가 누르거나 소리 낸다)
+        if (hint != null && !finished) {
+            val up = Offset(cx, cy + size * 0.35f); val on = Offset(cx, cy)
+            GhostHand(ghostAlong(listOf(up, on, up, on), hint), wpx * 0.06f, hint)
+        } else if (idle && !finished) {
             val press by rememberInfiniteTransition(label = "c3hint").animateFloat(
                 0f, 1f, infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "press",
             )
@@ -191,7 +201,7 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
                     .alpha(0.8f),
             ) { ArtView(Art.Img("ic_hand", Art.Emoji("👆")), Modifier.fillMaxSize()) }
         }
-        MicListeningTag(micOn && !finished, voice > VOICE_ON, "🎤 「${prop.sound}!」 크게 말해 봐! (눌러도 돼)", "${prop.sound}~! 잘한다!")
+        MicListeningTag(micOn && !finished && !speaking, voice > VOICE_ON, "🎤 「${prop.sound}!」 크게 말해 봐! (눌러도 돼)", "${prop.sound}~! 잘한다!")
         if (!micOn && !finished) Text(
             "눌러서 「${prop.sound}!」 해 볼까?", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 92.dp)

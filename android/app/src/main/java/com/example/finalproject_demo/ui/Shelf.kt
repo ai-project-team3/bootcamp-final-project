@@ -71,8 +71,21 @@ import com.example.finalproject_demo.demo.playStorySound
 import kotlinx.coroutines.isActive
 import kotlin.math.roundToInt
 
-/** 선반 윗면의 높이(화면 비율) — bg_shelf 그림의 선반 두 칸에 맞춘다 */
-private val SHELF_Y = listOf(0.645f, 0.985f)   // bg_shelf를 가로 화면에 Crop했을 때 가운데 · 아래 선반 윗면
+/*
+ * bg_shelf (1344 × 768) 속 책장 칸 — 그림의 픽셀로 잰 값이다(10-07). 화면 비율로 박아 두었을 때는 화면이 바뀌면
+ * 책이 칸에서 어긋났다: 폰에서 가운데보다 왼쪽으로 쏠리고 맨 위 칸이 비어 좁아 보였다 · 태블릿에서는 더 작고 더 왼쪽(10-07 종훈).
+ * 이제 그림을 Crop 한 그대로 화면에 옮겨, 책이 그림의 칸 안에 선다.
+ */
+private const val SHELF_ART_W = 1344f
+private const val SHELF_ART_H = 768f
+/** 칸 안쪽 벽의 왼쪽 · 오른쪽 */
+private const val SHELF_IN_L = 318f
+private const val SHELF_IN_R = 1028f
+/** 칸마다 (천장, 책이 서는 선반 윗면) — 위 · 가운데 · 아래 */
+private val SHELF_ROWS = listOf(55f to 240f, 282f to 476f, 515f to 700f)
+/** 한 칸에 몇 권 — 세 칸 × 4 = 12, 모드마다 책장 상한(SHELF_CAPACITY)과 같아 한 화면에 다 선다 */
+private const val PER_ROW = 4
+private const val PER_PAGE = PER_ROW * 3
 
 /**
  * 책장 — 만든 책이 표지를 보이며 선반에 선다. 방금 만든 책은 위에서 내려와 꽂히고 "새 책!"이 붙는다.
@@ -85,21 +98,31 @@ fun ShelfView(d: Director, stage: Stage.Shelf) {
     var mode by remember { mutableStateOf(openShelfMode(s.shelf, s.mode)) }
     val shown = s.shelf.filter { it.shelfMode(s.mode) == mode }
     var shelfPage by remember(mode) { mutableIntStateOf(0) }
-    val lastShelfPage = ((shown.size - 1).coerceAtLeast(0)) / 8
+    val lastShelfPage = ((shown.size - 1).coerceAtLeast(0)) / PER_PAGE
     if (shelfPage > lastShelfPage) shelfPage = lastShelfPage
     Box(Modifier.fillMaxSize().background(Color(0xFF6B4A33))) {
         AssetImage("bg_shelf", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF8A6246), Color(0xFF5E4030)))))
         }
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val bookW = 72.dp
-            val bookH = 98.dp
-            val books = shown.drop(shelfPage * 8).take(8)
+            // the picture as ContentScale.Crop lays it out: scaled to cover, centred
+            val scale = maxOf(maxWidth.value / SHELF_ART_W, maxHeight.value / SHELF_ART_H)
+            val ox = (maxWidth.value - SHELF_ART_W * scale) / 2
+            val oy = (maxHeight.value - SHELF_ART_H * scale) / 2
+            fun ax(px: Float) = (ox + px * scale).dp
+            fun ay(px: Float) = (oy + px * scale).dp
+            // one size for every row: 80 % of the lowest compartment, a book's 72:98 shape
+            val bookH = (SHELF_ROWS.minOf { it.second - it.first } * 0.8f * scale).dp
+            val bookW = bookH * (72f / 98f)
+            // spread evenly inside the compartment walls — the same gap at both ends and between books
+            val inner = ax(SHELF_IN_R) - ax(SHELF_IN_L)
+            val gap = (inner - bookW * PER_ROW) / (PER_ROW + 1)
+            val books = shown.drop(shelfPage * PER_PAGE).take(PER_PAGE)
             books.forEachIndexed { i, b ->
-                val row = if (i < 4) 0 else 1
-                val col = if (i < 4) i else i - 4
-                val x = maxWidth * 0.262f + (bookW + 22.dp) * col
-                val y = maxHeight * SHELF_Y[row] - bookH
+                val row = i / PER_ROW
+                val col = i % PER_ROW
+                val x = ax(SHELF_IN_L) + gap + (bookW + gap) * col
+                val y = ay(SHELF_ROWS[row].second) - bookH
                 // 탭을 바꾸면 다른 책이 같은 자리에 온다 — 내려오는 움직임 · 「새 책!」이 그 책을 따라가게
                 key(b.savedStoryId ?: b.title) {
                     Box(Modifier.offset(x, y).size(bookW, bookH)) {

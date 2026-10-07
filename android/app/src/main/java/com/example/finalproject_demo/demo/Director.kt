@@ -128,7 +128,7 @@ class Director(
         return try {
             if (storyBookStore != null && !storyBookStore.delete(id)) return false
             savedStories.removeAll { it.id == id }
-            SessionReports.forget(id)
+            SessionReports.forget(id, s)
             s.shelf.removeAll { it.savedStoryId == id }
             runCatching { com.example.finalproject_demo.sound.ChildSound.deleteBook(id) }
             recoverStoryImages()
@@ -524,7 +524,7 @@ class Director(
     }
 
     fun childSays(text: String) = say(text, s.childName)
-    fun partnerSays(text: String) = say(text, s.pn)
+    fun partnerSays(text: String) { if (s.hasPartner) say(text, s.pn) }
 
     fun log(t: String) {
         com.example.finalproject_demo.net.Trace.line("log", t)
@@ -928,7 +928,7 @@ class Director(
         inputs(mic = true, next = true, draw = q.drawAnswer != null)
 
         val scripted = scriptButtons(q)
-        q.partnerLine?.let {
+        q.partnerLine?.takeIf { s.hasPartner }?.let {
             scripted += DemoBtn("${s.partner.emoji} ${s.pn}만 말함 — \"$it\"") { send(Reply.PartnerOnly) }
         }
         scripted += DemoBtn("🤐 대답 없음 (➡️와 같음)") { send(Reply.Silent) }
@@ -981,6 +981,7 @@ class Director(
      * 마이크는 그 사람이 쓴다. 답이 없으면(➡️) **아무것도 대신 고르지 않고** 넘어간다.
      */
     suspend fun askPartner(text: String, spoken: List<Answer>): Answer? {
+        if (!s.hasPartner) return null
         val q = Question(text = text, kind = Kind.EASY, spoken = spoken)
         currentQ = q
         say(text)
@@ -1058,6 +1059,7 @@ class Director(
 
     /** 함께 하는 사람만 말한 갈래 — 2~3초 기다렸다가 "○○는 어떻게 생각해?" 한 번 (⭐5 · 구현대본 §0-2) */
     private suspend fun partnerBranch(q: Question): Reply {
+        if (!s.hasPartner) return Reply.Silent
         val line = q.partnerLine ?: return Reply.Silent
         partnerSays(line)
         s.partnerTurns++

@@ -1,0 +1,14 @@
+{
+  "name": "kit_space_ground",
+  "kind": "bg",
+  "text": "pale lilac grey wool felt moon ground filling the whole frame, low camera angle, felt fibers, a few tiny stitched dimples, no sky, no horizon, no objects, no stars",
+  "style": "felt",
+  "size": [
+    1344,
+    768
+  ],
+  "seed": 1884912101,
+  "prompt": "pale lilac grey wool felt moon ground filling the whole frame, low camera angle, felt fibers, a few tiny stitched dimples, no sky, no horizon, no objects, no stars, wide landscape, no characters, no people, no animals, soft felt fabric and paper-craft 3D children's picture book illustration, cute, rounded shapes, warm pastel colors, clean, gentle lighting, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-07"
+}

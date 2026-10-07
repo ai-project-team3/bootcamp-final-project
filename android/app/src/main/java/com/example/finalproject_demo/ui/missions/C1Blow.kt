@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -41,14 +42,11 @@ import com.example.finalproject_demo.ui.Sfx
 import com.example.finalproject_demo.ui.Sound
 import com.example.finalproject_demo.ui.Stand
 import com.example.finalproject_demo.ui.motionFrozen
-import com.example.finalproject_demo.ui.rememberBlowLevel
+import com.example.finalproject_demo.ui.rememberBlow
 import com.example.finalproject_demo.ui.rememberParticleField
 import com.example.finalproject_demo.ui.touchOutline
 import kotlin.math.abs
 import kotlin.math.roundToInt
-
-/** 후~ 세기가 이만큼 넘으면 「분다」로 친다 (A6 의 덤 불기와 같은 문턱 · 실기기로 다시 정한다 — 설계 §10) */
-internal const val BLOW_ON = 0.22f
 
 /** 소품 하나를 다 날리는 데 드는 양 — A6 의 「문지르기 3」과 같은 눈금 */
 internal const val BLOW_FULL = 3f
@@ -63,7 +61,8 @@ internal const val BLOW_FULL = 3f
  * - **탭 길(원칙 6)** — 손가락으로 쓸어도 똑같이 날아간다. 마이크가 없거나 권한이 없어도 이 길로 끝난다.
  *   8초 진전이 없으면 손이 소품 위를 쓸어 보인다
  * - 마이크는 **이미 받은 권한만** 쓴다(`Blow.kt` — 미션 한가운데서 권한 창을 띄우지 않는다). 듣고 있으면 화면 아래에 표시
- * - 소리는 크기 한 숫자로만 읽고 버린다(`rememberBlowLevel`)
+ * - 소리는 숫자 몇 개로만 읽고 버린다(`rememberBlow` · 판정은 [BlowDetector] — 오또가 말하는 동안은 듣지 않고, 「후~」만 센다 · #258)
+ * - 소품은 **하나씩** 날아간다 — 「부는 중」이 [BlowDetector.PER_PROP_MS] 쌓이면 하나
  */
 @Composable
 internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowProp) {
@@ -73,9 +72,10 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
     val life = remember { mutableStateListOf(0f, 0f, 0f) }
     val allOut = done || life.all { it >= BLOW_FULL }
     val puffs = rememberParticleField()
-    val blow = rememberBlowLevel(!allOut)
-    // 반복문 안에서는 늘 지금 세기를 읽는다 — 그냥 blow 를 쓰면 처음 값(0)에 묶여 아무리 불어도 약하다고 봤다(10-05 실기기)
-    val blowNow by androidx.compose.runtime.rememberUpdatedState(blow)
+    // 반복문 안에서도 늘 지금 값을 읽는다 — 같은 객체의 상태라 처음 값에 묶이지 않는다(10-05 실기기)
+    val blow = rememberBlow(!allOut)
+    // 오또가 말하는 동안은 「불어 봐」를 띄우지 않는다 — 이야기가 끝나면 듣는다(#258)
+    val speaking by com.example.finalproject_demo.net.Voice.playing.collectAsState()
     val micOn = remember {
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
@@ -101,21 +101,22 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
             }
         }
 
-        // 후~ — 세기만큼 셋이 함께 날아간다. 촛불은 불꽃이 흔들리다 꺼진다
+        // 후~ — 부는 동안 남은 첫 소품이 날아간다(셋 동시 X · #258). 촛불은 불꽃이 흔들리다 꺼진다
         LaunchedEffect(done, wpx, hpx) {
             if (done || motionFrozen) return@LaunchedEffect
+            var last = 0L
             while (life.any { it < BLOW_FULL }) {        // 다 끝나면 멈춘다 (#105 리뷰)
-                withFrameNanos { }
-                val strong = blowNow > BLOW_ON
-                spots.forEachIndexed { i, b ->
-                    val left = (1f - life[i] / BLOW_FULL).coerceIn(0f, 1f)
-                    if (left <= 0f) return@forEachIndexed
-                    if (strong) {
-                        push(i, blowNow * 0.09f)
-                        // 바람을 타고 오른쪽 위로 흩어진다
-                        if (!prop.flame) puffs.water(b.x, b.y, blowNow * wpx * 0.02f, -blowNow * wpx * 0.006f, wpx * 0.03f)
-                    }
-                }
+                val now = withFrameNanos { it }
+                val dt = if (last == 0L) 0L else ((now - last) / 1_000_000).coerceAtMost(100L)
+                last = now
+                if (!blow.blowing) continue
+                val i = life.indexOfFirst { it < BLOW_FULL }
+                if (i < 0) continue
+                push(i, dt.toFloat() / BlowDetector.PER_PROP_MS * BLOW_FULL)
+                // 바람을 타고 오른쪽 위로 흩어진다
+                val b = spots[i]
+                val s = blow.level
+                if (!prop.flame) puffs.water(b.x, b.y, s * wpx * 0.02f, -s * wpx * 0.006f, wpx * 0.03f)
             }
         }
 
@@ -169,7 +170,7 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
                         .alpha(0.75f),
                 ) { ArtView(Art.Img("ic_hand", Art.Emoji("👆")), Modifier.fillMaxSize()) }
             }
-            MicListeningTag(micOn && !allOut, blow > BLOW_ON, "🎤 후~ 불어 봐! (손으로 쓸어도 돼)", "후~~~ 잘한다!")
+            MicListeningTag(micOn && !allOut && !speaking, blow.blowing, "🎤 후~ 불어 봐! (손으로 쓸어도 돼)", "후~~~ 잘한다!")
         }
     }
 }

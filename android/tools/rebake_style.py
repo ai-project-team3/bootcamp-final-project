@@ -11,7 +11,8 @@
 
     python tools/rebake_style.py crayon --dry-run              # 무엇을 굽나 · 대상 문장을 못 찾은 그림
     python tools/rebake_style.py crayon [--only kit_,bg_park] [--seeds 2]
-    python tools/rebake_style.py crayon pick kit_park_slide 12345   # 고른 한 장 → res/drawable/kit_park_slide_crayon.png
+    python tools/rebake_style.py crayon pick kit_park_slide 12345   # 고른 한 장 → res/drawable-nodpi/kit_park_slide_crayon.webp
+    python tools/rebake_style.py crayon refit                  # res/drawable/*_crayon.png 를 펠트판에 맞춰 webp 로 옮기기
 
 - 후보는 tools/art_out/<그림체>/이름_<그림체>_<시드>.png (깃에 안 올라감). 이미 고른 그림은 건너뛴다 — 끊겨도 다시 돌리면 이어서
 - 그림 서버 · 모델은 otto_art.py 와 같다(krea2 turbo · BiRefNet). 쓰는 법은 tools/ART.md 「그림체 다시 굽기」
@@ -152,16 +153,74 @@ def picked(name, style):
     return any(os.path.exists(os.path.join(d, f"{name}_{style}.{e}")) for d in DRAWABLES for e in ("png", "webp"))
 
 
-def shrink(src, dst, kind):
-    """shrink_assets.py 와 같은 크기 — 오려 낸 것 긴 변 640 · 배경 1344×768"""
+OUT_DIR = os.path.join(RES, "drawable-nodpi")
+WEBP_Q = 85
+
+
+def felt_of(name):
+    """같은 이름의 펠트판 그림 (크레용판이 크기 · 자리를 맞출 기준)"""
+    for d in DRAWABLES:
+        for e in ("webp", "png"):
+            p = os.path.join(d, f"{name}.{e}")
+            if os.path.exists(p):
+                return p
+    return None
+
+
+def _box(im):
+    return im.getchannel("A").point(lambda a: 255 if a > 8 else 0).getbbox() or (0, 0, im.width, im.height)
+
+
+def shrink(src, dst, kind, felt=None):
+    """펠트판과 같은 판 — 앱은 그림체만 바꿔 같은 자리 · 같은 비율로 그린다 (10-07 조장 리뷰 #291)
+
+    - 배경: 펠트 배경과 같은 크기(없으면 1344×768) · 불투명 webp
+    - 오려 낸 것: 펠트판과 같은 캔버스. 크레용 물체를 여백 없이 잘라, 펠트 물체가 차지한 상자 안에 맞춰
+      가로 가운데 · 밑동 맞춤으로 놓는다 — 펠트판이 물체에 딱 맞게 잘려 있으면 크레용판도 그렇다
+    - 투명도 유지 webp q85, drawable-nodpi (펠트 키트 조각과 같은 방식). getIdentifier 로 부르므로 PNG 는 앱 용량을 그대로 늘린다
+    """
     from PIL import Image
     im = Image.open(src)
+    fe = Image.open(felt) if felt else None
     if kind == "bg":
-        im = im.convert("RGB").resize((1344, 768), Image.LANCZOS)
-    elif max(im.size) > 640:
-        k = 640 / max(im.size)
-        im = im.resize((round(im.width * k), round(im.height * k)), Image.LANCZOS)
-    im.save(dst, optimize=True)
+        size = fe.size if fe else (1344, 768)
+        im.convert("RGB").resize(size, Image.LANCZOS).save(dst, "WEBP", quality=WEBP_Q, method=6)
+        return
+    im = im.convert("RGBA")
+    im = im.crop(_box(im))
+    if fe is None:
+        k = 512 / max(im.size)
+        im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))), Image.LANCZOS).save(dst, "WEBP", quality=WEBP_Q, method=6)
+        return
+    fe = fe.convert("RGBA")
+    x0, y0, x1, y1 = _box(fe)
+    k = min((x1 - x0) / im.width, (y1 - y0) / im.height)
+    im = im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))), Image.LANCZOS)
+    out = Image.new("RGBA", fe.size, (0, 0, 0, 0))
+    out.alpha_composite(im, (round((x0 + x1 - im.width) / 2), y1 - im.height))
+    out.save(dst, "WEBP", quality=WEBP_Q, method=6)
+
+
+def refit(style):
+    """예전 방식(res/drawable/*_<그림체>.png · 긴 변 640)으로 넣은 그림을 새 방식으로 옮긴다"""
+    old = os.path.join(RES, "drawable")
+    n = before = after = 0
+    for fn in sorted(os.listdir(old)):
+        m = re.match(rf"^(.+)_{style}\.png$", fn)
+        if not m:
+            continue
+        name = m.group(1)
+        felt = felt_of(name)
+        if not felt:
+            continue  # 펠트판이 없는 그림(gift · style 같은 화면 그림)은 세계 그림이 아니다
+        rp = os.path.join(RECIPES, f"{name}_{style}.json")
+        kind = json.load(open(rp, encoding="utf-8"))["kind"] if os.path.exists(rp) else ("bg" if name.startswith("bg_") else "cut")
+        src, dst = os.path.join(old, fn), os.path.join(OUT_DIR, f"{name}_{style}.webp")
+        shrink(src, dst, kind, felt)
+        before += os.path.getsize(src); after += os.path.getsize(dst); n += 1
+        os.remove(src)
+    print(f"{n}장 · {before / 2**20:.1f}MB → {after / 2**20:.1f}MB (res/drawable-nodpi/*_{style}.webp)")
+    return 0
 
 
 def bake(jobs, style, seeds):
@@ -200,13 +259,13 @@ def pick(style, name, seed, replace):
     if not os.path.exists(src + ".json"):
         sys.exit(f"{src}.json 이 없다 — art_out/{style}/ 에 있는 시드를 고른다")
     r = json.load(open(src + ".json", encoding="utf-8"))
-    dst = os.path.join(DRAWABLES[0], f"{name}_{style}.png")
+    dst = os.path.join(OUT_DIR, f"{name}_{style}.webp")
     if os.path.exists(dst) and not replace:
-        sys.exit(f"res/drawable/{name}_{style}.png 이 이미 있다 — 바꾸려면 --replace")
-    shrink(src + ".png", dst, r["kind"])
+        sys.exit(f"res/drawable-nodpi/{name}_{style}.webp 이 이미 있다 — 바꾸려면 --replace")
+    shrink(src + ".png", dst, r["kind"], felt_of(name))
     os.makedirs(RECIPES, exist_ok=True)
     shutil.copyfile(src + ".json", os.path.join(RECIPES, f"{name}_{style}.json"))
-    print(f"res/drawable/{name}_{style}.png ← {os.path.basename(src)}.png (줄임)")
+    print(f"res/drawable-nodpi/{name}_{style}.webp ← {os.path.basename(src)}.png (펠트판에 맞춤)")
     print(f"레시피 tools/art_recipes/{name}_{style}.json")
     return 0
 
@@ -214,7 +273,7 @@ def pick(style, name, seed, replace):
 def main():
     p = argparse.ArgumentParser(description="세계 그림을 다른 그림체로 한 벌 더 굽기 (tools/ART.md 「그림체 다시 굽기」)")
     p.add_argument("style", choices=sorted(s for s in otto_art.STYLES if s not in ("felt", "room")))
-    p.add_argument("cmd", nargs="?", default="bake", choices=["bake", "pick"])
+    p.add_argument("cmd", nargs="?", default="bake", choices=["bake", "pick", "refit"])
     p.add_argument("name", nargs="?")
     p.add_argument("seed", nargs="?", type=int)
     p.add_argument("--only", help="이 이름 · 앞머리만 (쉼표로) — 예: kit_park_,bg_park")
@@ -222,6 +281,8 @@ def main():
     p.add_argument("--dry-run", action="store_true", help="굽지 않고 목록만")
     p.add_argument("--replace", action="store_true")
     a = p.parse_args()
+    if a.cmd == "refit":
+        return refit(a.style)
     if a.cmd == "pick":
         if not a.name or a.seed is None:
             sys.exit("pick 이름 시드")

@@ -14,6 +14,7 @@ New-Item -ItemType Directory -Force -Path $hfCache | Out-Null
 
 # The daily spend cap (backend/app/limits.py) keeps the day's total in a file. Inside the container
 # that file died with every deploy, so a redeploy reset the day to 0 won (10-06). Keep it on the host.
+# Problem reports (#283) live there too (/state/reports), so a deploy never loses an unhandled one.
 $stateDir = "C:\otto\state"
 New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
 
@@ -44,6 +45,7 @@ docker run -d --name otto-backend --gpus all `
     -v "${hfCache}:/root/.cache/huggingface" `
     -v "${stateDir}:/state" `
     -e DAILY_CAP_STATE=/state/daily_cap.json `
+    -e REPORT_DIR=/state/reports `
     -p 8000:8010 `
     otto-backend
 if ($LASTEXITCODE -ne 0) { throw "docker run failed (exit $LASTEXITCODE)" }

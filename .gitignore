@@ -68,3 +68,5 @@ eval/image_out/
 # 그림 공방 — 고르기 전 후보 그림 (android/tools/ART.md). 고른 것만 res/drawable + art_recipes 로 올린다
 android/tools/art_out/
 backend/daily_cap.json
+# problem reports (#283) — local runs; on PC1 they live in C:\otto\state\reports
+backend/reports/
