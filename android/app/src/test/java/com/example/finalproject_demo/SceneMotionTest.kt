@@ -9,6 +9,7 @@ import com.example.finalproject_demo.demo.scene.MotionKind
 import com.example.finalproject_demo.demo.scene.PARK_KIT
 import com.example.finalproject_demo.demo.scene.PERCHES_BY_RES
 import com.example.finalproject_demo.demo.scene.SEA_KIT
+import com.example.finalproject_demo.demo.scene.SNOW_KIT
 import com.example.finalproject_demo.demo.scene.PieceMotion
 import com.example.finalproject_demo.demo.scene.SceneFrame
 import com.example.finalproject_demo.demo.scene.SceneMotions
@@ -271,5 +272,32 @@ class SceneMotionTest {
         }
         assertTrue("no bubbles in eight sea scenes", bubbles > 0)
         assertTrue("no bubble ever reached the top", wraps > 0)
+    }
+
+    /**
+     * #222 (10-06 · d3) — a flake back at the top and a bubble back on the floor popped into view. Around the wrap the
+     * piece is (almost) invisible, and in the middle of its run fully there
+     */
+    @Test fun flakesAndBubblesFadeAtTheWrap() {
+        for ((kit, kind) in listOf(SNOW_KIT to MotionKind.FALL, SEA_KIT to MotionKind.RISE)) {
+            var seen = 0
+            for (seed in 0L until 8L) {
+                val scene = bestScene(kit, 2, f, seedBase = seed * 100)
+                val m = SceneMotions(scene, f)
+                for (p in scene.pieces.filter { kindOf(it.piece.res) == kind }) {
+                    var ly = p.y + m.of(p, 0.0).dy
+                    var la = m.of(p, 0.0).alpha
+                    for (t in times.drop(1)) {
+                        val now = m.of(p, t)
+                        val y = p.y + now.dy
+                        val wrapped = if (kind == MotionKind.FALL) y < ly - 1f else y > ly + 1f
+                        if (wrapped) { seen++; assertTrue("${kind} pops in: alpha ${now.alpha} after ${la}", now.alpha <= 0.35f && la <= 0.35f) }
+                        ly = y; la = now.alpha
+                    }
+                    assertTrue("$kind never fully shows", (0 until 40).any { m.of(p, it * 0.7).alpha >= 0.99f })
+                }
+            }
+            assertTrue("no ${kind} wrap seen", seen > 0)
+        }
     }
 }

@@ -68,6 +68,8 @@ data class SceneKitDef(
     val pieces: List<KitPiece>,
     /** How many landmarks one scene picks (out of the LANDMARK rows) */
     val landmarks: Int = 2,
+    /** Two felt hills above the horizon. Off indoors — the sky there is a wall, and hills made it read as outside (10-06 device · #222) */
+    val hills: Boolean = true,
 ) {
     fun byRole(role: PieceRole) = pieces.filter { it.role == role }
 }
@@ -123,7 +125,8 @@ val PARK_KIT = SceneKitDef(
 
 // ── §3-3 공룡 나라 — 12 pieces (#97 2순위 첫째 · 10-06), plus the common sun · cloud · butterfly in the sky ──────
 // aspects measured from the trimmed webps (`SceneKitShotTest.aspectsInTheTableMatchThePictures`)
-private val VOLCANO = KitPiece("volcano", "kit_dino_volcano", PieceRole.FAR, 2.5f, 0.872f, words = listOf("화산"))
+// 2.5 covered most of the stage from the far band on some seeds (d3 · #173) — 1.7 keeps it a far landmark
+private val VOLCANO = KitPiece("volcano", "kit_dino_volcano", PieceRole.FAR, 1.7f, 0.872f, words = listOf("화산"))
 private val PALM = KitPiece("palm_tree", "kit_dino_palm_tree", PieceRole.LANDMARK, 1.9f, 0.813f, words = listOf("야자나무", "나무"))
 private val WATERFALL = KitPiece("waterfall", "kit_dino_waterfall", PieceRole.LANDMARK, 1.8f, 1.111f, words = listOf("폭포"))
 private val JUNGLE = KitPiece("jungle", "kit_dino_jungle", PieceRole.FAR, 1.4f, 1.002f, words = listOf("숲", "정글"))
@@ -252,6 +255,7 @@ val INDOOR_KIT = SceneKitDef(
     skyTop = 0xFFF1E0C0, skyBottom = 0xFFF8EEDB,
     ground = 0xFFC6935E,
     hillFar = 0xFFE9D3AC, hillNear = 0xFFDFC496,
+    hills = false,
     pieces = listOf(
         WINDOW, FRAME, CLOCK,
         SOFA, BED, BOOKSHELF, TABLE,
@@ -340,7 +344,8 @@ private val CABIN = KitPiece("cabin", "kit_snow_cabin", PieceRole.LANDMARK, 1.5f
 /** 눈 나라 — 연회색 하늘 · 눈밭 (doc §1 table) */
 val SNOW_KIT = SceneKitDef(
     key = "snow",
-    skyTop = 0xFFB8C4D4, skyBottom = 0xFFE4EAF2,
+    // blue-grey, not grey — white flakes and snow pieces were lost on a grey sky (10-06 device · #222)
+    skyTop = 0xFF93ABC8, skyBottom = 0xFFCCD9E8,
     ground = 0xFFF4F6FA,
     hillFar = 0xFFCBD6E4, hillNear = 0xFFDDE5EF,
     pieces = listOf(
@@ -351,6 +356,9 @@ val SNOW_KIT = SceneKitDef(
         SNOW_BUSH_FRONT,
     ),
 )
+
+/** 「산」 as a word — 「산에 갔어」 · 「뒷산」 · 「등산」, not 「우산」 · 「산타」 · 「산책」(park) (10-06 · d3) */
+private val MOUNTAIN_WORD = Regex("(^|\\s|뒷|앞|등)산($|\\s|에|으로|속|길|꼭대기|위|이|을)")
 
 object SceneKits {
     /**
@@ -386,7 +394,7 @@ object SceneKits {
         listOf("눈 나라", "눈나라", "겨울", "북극", "눈사람", "이글루", "남극").any { it in place } -> SNOW_KIT
         listOf("바닷가", "해변", "바다", "모래사장", "해수욕").any { it in place } -> BEACH_KIT
         // 할머니 집 · 농장 is the countryside (doc §1), checked before the plain 「집」 of indoor
-        listOf("숲", "할머니", "농장", "시골", "밭", "목장", "산").any { it in place } -> FOREST_KIT
+        listOf("숲", "할머니", "농장", "시골", "밭", "목장").any { it in place } || MOUNTAIN_WORD.containsMatchIn(place) -> FOREST_KIT
         listOf("집", "방", "어린이집", "유치원", "교실", "거실", "학교").any { it in place } -> INDOOR_KIT
         else -> null
     }

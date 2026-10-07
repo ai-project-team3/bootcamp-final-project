@@ -117,21 +117,39 @@ private val TAB_H = 92.dp
 /** How far into the actors' depth range the kit's horizon sits — 0.35 puts it near 0.70 H on a phone (10-05) */
 private const val KIT_NEAREST_FAR = 0.35f
 
-/** The stage geometry the kit and the plain felt floor share */
-private fun androidx.compose.ui.unit.Density.stageFrame(wPx: Float, hPx: Float, bottomInset: Dp, topInset: Dp): SceneFrame {
-    // The kit starts at the actors' depth KIT_NEAREST_FAR, not 0: with the horizon at the depth-0 feet line
-    // (0.62 H) the ground took ~38 % of the screen — 「바닥 너무 비율이 커」 (10-05 device). Same perspective
-    // line, its far end cut, so pieces and actors still match in size where they stand.
-    val near = minOf(hPx * FEET_NEAR, hPx - bottomInset.toPx())
+/**
+ * The stage frame for a kit. The kit starts at the actors' depth KIT_NEAREST_FAR, not 0: with the horizon at the depth-0
+ * feet line (0.62 H) the ground took ~38 % of the screen — 「바닥 너무 비율이 커」 (10-05 device). Same perspective line,
+ * its far end cut, so pieces and actors still match in size where they stand. In px, so the book's kit picture can use it.
+ */
+internal fun kitFrame(wPx: Float, hPx: Float, bottomInsetPx: Float, topInsetPx: Float, tabWPx: Float, tabHPx: Float): SceneFrame {
+    val near = minOf(hPx * FEET_NEAR, hPx - bottomInsetPx)
     val far = hPx * FEET_FAR + (near - hPx * FEET_FAR) * KIT_NEAREST_FAR
     return SceneFrame(
         w = wPx, h = hPx,
         feetFar = far,
         feetNear = near,
         tallFar = hPx * (TALL_FAR + (TALL_NEAR - TALL_FAR) * KIT_NEAREST_FAR), tallNear = hPx * TALL_NEAR,
-        top = topInset.toPx(), bottom = hPx - bottomInset.toPx(),
-        tabW = TAB_W.toPx(), tabH = TAB_H.toPx(),
+        top = topInsetPx, bottom = hPx - bottomInsetPx,
+        tabW = tabWPx, tabH = tabHPx,
     )
+}
+
+/** The stage geometry the kit and the plain felt floor share (#242) — the same frame as [kitFrame] */
+private fun androidx.compose.ui.unit.Density.stageFrame(wPx: Float, hPx: Float, bottomInset: Dp, topInset: Dp): SceneFrame =
+    kitFrame(wPx, hPx, bottomInset.toPx(), topInset.toPx(), TAB_W.toPx(), TAB_H.toPx())
+
+/**
+ * The frame the stage last drew a kit in (px) — the book's kit picture uses it so the same seed lays the pieces out the
+ * same. The screen size the system reports leaves out the navigation bar (2050 vs 2280 on the S10), which moved pieces.
+ */
+internal object KitStageFrame {
+    @Volatile var last: SceneFrame? = null
+
+    /** The landscape stage's size, noted by every world stage — so even the first kit has the stage's frame */
+    fun note(wPx: Float, hPx: Float, density: Float) {
+        last = kitFrame(wPx, hPx, BottomChrome.value * density, TopChrome.value * density, TAB_W.value * density, TAB_H.value * density)
+    }
 }
 
 @Composable
@@ -139,6 +157,7 @@ private fun rememberKitScene(kit: SceneKitDef, seedBase: Long, actors: Int, wPx:
     val density = LocalDensity.current
     return remember(kit, seedBase, actors, wPx, hPx, bottomInset, topInset) {
         val f = with(density) { stageFrame(wPx, hPx, bottomInset, topInset) }
+        if (bottomInset > 0.dp) KitStageFrame.last = f      // the landscape stage, not the portrait tablet's inner frame
         bestScene(kit, actors, f, seedBase = seedBase) to f
     }
 }
@@ -175,6 +194,81 @@ private fun kitBitmaps(kit: SceneKitDef): Map<String, ImageBitmap> {
     return out
 }
 
+/** The back layer — sky · sky pieces · hills · far band · ground · ground pieces · visitors. [t] null = still */
+private fun DrawScope.drawKitBack(
+    kit: SceneKitDef, scene: KitScene, f: SceneFrame, imgs: Map<String, ImageBitmap>, hills: List<HillShape>,
+    grain: ShaderBrush, motions: SceneMotions?, t: Double?,
+) {
+    val skyTop = Color(kit.skyTop)
+    val skyBottom = Color(kit.skyBottom)
+    fun drawPiece(p: PlacedPiece) = drawPiece(imgs, p, skyBottom, if (t == null || motions == null) PieceMotion.NONE else motions.of(p, t))
+    // sky — two-colour felt gradient with soft blotches
+    drawRect(Brush.verticalGradient(listOf(skyTop, skyBottom), endY = f.horizon))
+    drawImage(FeltNoise.blotch, srcSize = IntSize(FeltNoise.blotch.width, FeltNoise.blotch.height),
+        dstSize = IntSize(size.width.roundToInt(), f.horizon.roundToInt()), alpha = 0.10f,
+        blendMode = BlendMode.Overlay, filterQuality = FilterQuality.Low)
+    scene.pieces.filter { it.piece.base == PieceBase.CENTER && it.piece.role != PieceRole.FLOAT }
+        .sortedBy { it.h }.forEach { drawPiece(it) }
+    // hills — two felt layers above the horizon, then the hazy far band
+    if (kit.hills) {
+        hill(f, hills[0], Color(kit.hillFar))
+        hill(f, hills[1], Color(kit.hillNear))
+    }
+    scene.pieces.filter { it.fade > 0f }.forEach { drawPiece(it) }
+    // ground — from the actors' depth-0 feet line down, soft wavy stitched edge
+    hill(f, hills[2], Color(kit.ground))
+    drawRect(grain, alpha = 0.07f, blendMode = BlendMode.Overlay)
+    // ground pieces: flat first, then by feet (far → near), then what floats
+    val ground = scene.pieces.filter { it.piece.base == PieceBase.FEET && it.fade == 0f && !it.front }
+    ground.filter { it.piece.role == PieceRole.FLAT }.forEach { drawPiece(it) }
+    ground.filter { it.piece.role != PieceRole.FLAT }.sortedBy { it.y }.forEach {
+        shadow(it)          // the feet never move (a tree bends, it does not slide), so the shadow stays
+        drawPiece(it)
+    }
+    scene.pieces.filter { it.piece.role == PieceRole.FLOAT }.forEach { drawPiece(it) }
+    // who comes by — only while the scene is alive; behind the actors, like everything in this layer
+    if (t != null && motions != null) motions.visitors(t).forEach { drawVisitor(imgs, it) }
+}
+
+/**
+ * The kit as **one still picture** — no actors, nothing moving (#222 · 10-06). The stage draws a kit from pieces, but the
+ * book, the shelf thumbnail and the puzzle draw one picture (`bgName`): without it a 바닷가 · 실내 · 숲 story's book fell back
+ * to the snow picture. Saved like a generated background, so every later screen just reads a file.
+ * Laid out **in the stage's own frame** — the landscape screen, the same top · bottom chrome and ↶ ↪ buttons — so the same
+ * seed puts every piece where the stage had it: the book page shows the place the child just saw (10-06 · #222).
+ */
+fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBase: Long, wPx: Int = 0, hPx: Int = 0): Bitmap {
+    val res = context.resources
+    val opt = android.graphics.BitmapFactory.Options().apply { inScaled = false; inPreferredConfig = Bitmap.Config.ARGB_8888 }
+    @Suppress("DiscouragedApi")
+    fun load(name: String) = res.getIdentifier(name, "drawable", context.packageName).takeIf { it != 0 }
+        ?.let { android.graphics.BitmapFactory.decodeResource(res, it, opt)?.asImageBitmap() }
+    val imgs = kit.pieces.map { it.res }.distinct().mapNotNull { r -> load(r)?.let { r to it } }.toMap()
+    val dm = res.displayMetrics
+    val density = dm.density
+    // size 0 = the frame the stage itself last drew in; before any stage, this screen with the stage's chrome
+    val stage = KitStageFrame.last.takeIf { wPx <= 0 }
+    val f = stage ?: run {
+        val w0 = if (wPx > 0) wPx else max(dm.widthPixels, dm.heightPixels)
+        val h0 = if (hPx > 0) hPx else minOf(dm.widthPixels, dm.heightPixels)
+        kitFrame(w0.toFloat(), h0.toFloat(), BottomChrome.value * density, TopChrome.value * density, TAB_W.value * density, TAB_H.value * density)
+    }
+    val w = f.w.roundToInt()
+    val h = f.h.roundToInt()
+    val scene = bestScene(kit, 2, f, seedBase = seedBase)
+    val hills = kitHills(f, scene)
+    val grain = ShaderBrush(ImageShader(FeltNoise.grain, TileMode.Repeated, TileMode.Repeated))
+    val out = androidx.compose.ui.graphics.ImageBitmap(w, h)
+    androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
+        androidx.compose.ui.unit.Density(density), androidx.compose.ui.unit.LayoutDirection.Ltr,
+        androidx.compose.ui.graphics.Canvas(out), Size(w.toFloat(), h.toFloat()),
+    ) {
+        drawKitBack(kit, scene, f, imgs, hills, grain, null, null)
+        scene.pieces.filter { it.front }.forEach { drawPiece(imgs, it, Color(kit.skyBottom)) }
+    }
+    return out.asAndroidBitmap()
+}
+
 /** Felt grain — a small noise tile, repeated; plus a coarse blotch map stretched over the stage. Made once. */
 private object FeltNoise {
     val grain: ImageBitmap by lazy { noise(96, 96, 20, seed = 11) }
@@ -197,48 +291,12 @@ fun SceneBack(kit: SceneKitDef, seedBase: Long, actors: Int, bottomInset: Dp, to
         val density = LocalDensity.current
         val (scene, f) = rememberKitScene(kit, seedBase, actors,
             with(density) { maxWidth.toPx() }, with(density) { maxHeight.toPx() }, bottomInset, topInset)
-        val skyTop = Color(kit.skyTop)
-        val skyBottom = Color(kit.skyBottom)
         val grain = remember { ShaderBrush(ImageShader(FeltNoise.grain, TileMode.Repeated, TileMode.Repeated)) }
         val motions = remember(scene, f, actors) { SceneMotions(scene, f, VISITORS_BY_KIT[kit.key].orEmpty(), actors) }
         // the hills never move — their paths are made once, not every living frame
-        val hills = remember(scene, f) {
-            val seed = scene.seed.toFloat()
-            listOf(
-                hillShape(f, seed, f.horizon - 0.13f * f.h, 16f, 120f),
-                hillShape(f, seed + 2, f.horizon - 0.07f * f.h, 12f, 90f),
-                hillShape(f, seed + 4, f.horizon, 5f, 140f),
-            )
-        }
+        val hills = remember(scene, f) { kitHills(f, scene) }
         val clock = sceneClock()
-        Canvas(Modifier.fillMaxSize()) {
-            val t = clock?.value
-            fun drawPiece(p: PlacedPiece) = drawPiece(imgs, p, skyBottom, if (t == null) PieceMotion.NONE else motions.of(p, t))
-            // sky — two-colour felt gradient with soft blotches
-            drawRect(Brush.verticalGradient(listOf(skyTop, skyBottom), endY = f.horizon))
-            drawImage(FeltNoise.blotch, srcSize = IntSize(FeltNoise.blotch.width, FeltNoise.blotch.height),
-                dstSize = IntSize(size.width.roundToInt(), f.horizon.roundToInt()), alpha = 0.10f,
-                blendMode = BlendMode.Overlay, filterQuality = FilterQuality.Low)
-            scene.pieces.filter { it.piece.base == PieceBase.CENTER && it.piece.role != PieceRole.FLOAT }
-                .sortedBy { it.h }.forEach { drawPiece(it) }
-            // hills — two felt layers above the horizon, then the hazy far band
-            hill(f, hills[0], Color(kit.hillFar))
-            hill(f, hills[1], Color(kit.hillNear))
-            scene.pieces.filter { it.fade > 0f }.forEach { drawPiece(it) }
-            // ground — from the actors' depth-0 feet line down, soft wavy stitched edge
-            hill(f, hills[2], Color(kit.ground))
-            drawRect(grain, alpha = 0.07f, blendMode = BlendMode.Overlay)
-            // ground pieces: flat first, then by feet (far → near), then what floats
-            val ground = scene.pieces.filter { it.piece.base == PieceBase.FEET && it.fade == 0f && !it.front }
-            ground.filter { it.piece.role == PieceRole.FLAT }.forEach { drawPiece(it) }
-            ground.filter { it.piece.role != PieceRole.FLAT }.sortedBy { it.y }.forEach {
-                shadow(it)          // the feet never move (a tree bends, it does not slide), so the shadow stays
-                drawPiece(it)
-            }
-            scene.pieces.filter { it.piece.role == PieceRole.FLOAT }.forEach { drawPiece(it) }
-            // who comes by — only while the scene is alive; behind the actors, like everything in this layer
-            if (t != null) motions.visitors(t).forEach { drawVisitor(imgs, it) }
-        }
+        Canvas(Modifier.fillMaxSize()) { drawKitBack(kit, scene, f, imgs, hills, grain, motions, clock?.value) }
     }
 }
 
@@ -260,6 +318,16 @@ fun SceneFront(kit: SceneKitDef, seedBase: Long, actors: Int, bottomInset: Dp, t
             }
         }
     }
+}
+
+/** The two hills and the ground edge of a scene — one recipe for the stage and the book picture, so they stay alike */
+private fun kitHills(f: SceneFrame, scene: KitScene): List<HillShape> {
+    val seed = scene.seed.toFloat()
+    return listOf(
+        hillShape(f, seed, f.horizon - 0.13f * f.h, 16f, 120f),
+        hillShape(f, seed + 2, f.horizon - 0.07f * f.h, 12f, 90f),
+        hillShape(f, seed + 4, f.horizon, 5f, 140f),
+    )
 }
 
 /** The three paths of one felt layer: the wavy top edge, the fill down to the bottom, the running stitches under the edge */
@@ -349,7 +417,7 @@ private fun DrawScope.drawPiece(imgs: Map<String, ImageBitmap>, p: PlacedPiece, 
                     drawImage(img, srcSize = src, dstOffset = at, dstSize = dst, alpha = p.fade * 0.55f,
                         colorFilter = ColorFilter.tint(haze, BlendMode.SrcIn), filterQuality = FilterQuality.Medium)
                 } else {
-                    drawImage(img, srcSize = src, dstOffset = at, dstSize = dst, filterQuality = FilterQuality.Medium)
+                    drawImage(img, srcSize = src, dstOffset = at, dstSize = dst, alpha = m.alpha, filterQuality = FilterQuality.Medium)
                 }
             }
         }

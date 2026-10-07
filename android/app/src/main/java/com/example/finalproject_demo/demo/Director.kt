@@ -157,6 +157,22 @@ class Director(
         return true
     }
     fun saveStoryImage(png: ByteArray): String? = storyImageStore?.save(png)
+
+    /**
+     * The kit drawn as one still picture and saved like a generated background (#222 · 10-06) — the stage draws the kit
+     * live, the book · shelf · puzzle read this file. Off the main thread; null without a store (tests) or on failure
+     */
+    suspend fun saveKitPicture(kit: com.example.finalproject_demo.demo.scene.SceneKitDef, seed: Long): String? {
+        val store = storyImageStore ?: return null
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            runCatching {
+                val bmp = com.example.finalproject_demo.ui.renderKitPicture(store.appContext, kit, seed)
+                val out = java.io.ByteArrayOutputStream()
+                bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+                store.save(out.toByteArray())
+            }.getOrNull()
+        }
+    }
     private var job: Job? = null
     private val input = Channel<Reply>(Channel.BUFFERED)
 

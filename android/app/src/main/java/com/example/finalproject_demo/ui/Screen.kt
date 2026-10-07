@@ -43,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -253,6 +254,9 @@ private fun WorldBackground(
         // 틀 안에서는 인물 · 핫스팟 · 앞 레이어가 가로 화면과 **똑같은 비율**로 놓인다 — 규칙을 둘로 나누지 않는다.
         val portrait = framed && maxWidth < maxHeight
         if (!portrait) {
+            // the book's kit picture is laid out in this same frame (SceneKitView `KitStageFrame` · #222)
+            val dens = LocalDensity.current
+            with(dens) { KitStageFrame.note(maxWidth.toPx(), maxHeight.toPx(), density) }
             picture(BottomChrome)
             CompositionLocalProvider(LocalStageBottomInset provides BottomChrome) { content() }
         } else {
@@ -358,7 +362,8 @@ private fun Centered(content: @Composable () -> Unit) {
 fun StageView(d: Director, modifier: Modifier = Modifier) {
     val s = d.s
     val stage = s.stage
-    val kit = s.sceneKit?.takeIf { s.mode == StoryMode.STORY }?.let { SceneKits.all[it] }
+    // story and co-op (#222 · 10-06) — the diary's stage is the child's own drawing
+    val kit = s.sceneKit?.takeIf { s.mode == StoryMode.STORY || s.isCoop }?.let { SceneKits.all[it] }
     // 주인공 · 공룡이 정해지는 순간 **뒤에서 뼈대를 붙여 둔다** (09-28) — 대화가 끝나 책이 열릴 때는 이미 끝나 있다
     val ctx = LocalContext.current
     val heroName = s.heroAttr?.let { heroImageName(it) }

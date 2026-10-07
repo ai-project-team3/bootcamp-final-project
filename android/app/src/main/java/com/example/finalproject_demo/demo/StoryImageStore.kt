@@ -7,6 +7,8 @@ import java.util.UUID
 
 /** 서버 PNG를 앱 전용 파일에 남겨 책을 다시 열 때 같은 배경을 쓴다. */
 class StoryImageStore(context: Context) {
+    /** for drawing a kit picture before saving it (`Director.saveKitPicture` · #222) */
+    val appContext: Context = context.applicationContext
     private val directory = File(context.applicationContext.filesDir, "story_images")
 
     @Synchronized

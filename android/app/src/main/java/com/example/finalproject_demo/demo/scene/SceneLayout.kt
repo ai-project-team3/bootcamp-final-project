@@ -112,6 +112,9 @@ fun layoutScene(kit: SceneKitDef, seed: Long, actors: Int, f: SceneFrame): List<
     val out = mutableListOf<PlacedPiece>()
     val heroes = stageActors(actors).map { actorBox(f, it) }
     val keep = keepOut(f, actors)
+    // the ↶ ↪ buttons — keep-out ends with them (see [keepOut]). Big pieces may stand behind an actor, never under a button:
+    // on the phone the lamp, the bed, the lighthouse and the moon sat behind ↶ (10-06 · #222)
+    val tabs = keep.drop(heroes.size)
     val W = f.w
     val H = f.h
     fun clear(b: Box, others: List<Box> = keep) = others.none { it.inter(b) > 0f }
@@ -125,9 +128,14 @@ fun layoutScene(kit: SceneKitDef, seed: Long, actors: Int, f: SceneFrame): List<
         // not above the gap: the landmarks stand there and hid the sun (10-05 screenshot) — keep the corners,
         // pulled out past the actors' heads
         val spots = listOf(0.09f * W, 0.91f * W)
-        val cx = if (i == 0) spots[rng.nextInt(spots.size)] else W - (out.firstOrNull()?.x ?: 0f)
+        var cx = if (i == 0) spots[rng.nextInt(spots.size)] else W - (out.firstOrNull()?.x ?: 0f)
         val cy = f.top + h * 0.6f + rng.range(0f, 0.04f) * H
-        val placed = PlacedPiece(p, cx, cy, h, tilt = rng.range(-p.tilt, p.tilt))
+        // a tall anchor reaching down to a button moves in from the edge until it clears it (at most a fifth of the width)
+        val tilt = rng.range(-p.tilt, p.tilt)
+        val inward = if (cx < W / 2) 1f else -1f
+        var steps = 0
+        while (steps < 10 && tabs.any { it.inter(PlacedPiece(p, cx, cy, h, tilt = tilt).box) > 0f }) { cx += inward * 0.02f * W; steps++ }
+        val placed = PlacedPiece(p, cx, cy, h, tilt = tilt)
         out += placed
         val b = placed.box
         taken += Box(b.l - h * 0.2f, b.t - h * 0.2f, b.r + h * 0.2f, b.b + h * 0.2f)
@@ -193,7 +201,8 @@ fun layoutScene(kit: SceneKitDef, seed: Long, actors: Int, f: SceneFrame): List<
             val x = rng.range(w / 2, max(w / 2, W - w / 2))
             val c = PlacedPiece(p, x, feet, h, p.flip && rng.nextBoolean())
             val b = c.box
-            val cost = (heroes.sumOf { it.inter(b).toDouble() } + 3 * markBoxes.sumOf { it.inter(b).toDouble() }).toFloat() / b.area
+            val cost = (heroes.sumOf { it.inter(b).toDouble() } + 3 * markBoxes.sumOf { it.inter(b).toDouble() } +
+                10 * tabs.sumOf { it.inter(b).toDouble() }).toFloat() / b.area
             if (cost < bestCost) { bestCost = cost; best = c }
         }
         best?.let { out += it; markBoxes += it.box }

@@ -50,6 +50,16 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             s.storyBackground = null
             if (s.stage is Stage.World || s.stage === waitingConversation) showConversation()
             log("scene kit ${s.sceneKit} draws the place · no /image request")
+            // the book draws one picture, not pieces — save the kit as that picture (#222: a 바닷가 book fell back to snow)
+            val kit = SceneKits.all[s.sceneKit] ?: return
+            val seed = s.sceneSeed
+            imageJob = launch {
+                val saved = saveKitPicture(kit, seed)
+                if (saved != null && s.slots["place"] == place && s.sceneKit == kit.key) {
+                    s.storyBackground = saved
+                    log("scene kit ${kit.key} saved as the book's picture")
+                }
+            }
             return
         }
         log("background route=generated place=$place")
@@ -225,7 +235,9 @@ internal fun DemoState.syncStoryPresentation() {
         s.generatedBg = theme == null
         // a new place gets a new kit layout seed; the same place keeps its scene (turn after turn, undo/redo)
         if (s.place != place) s.sceneSeed = kotlin.random.Random.nextLong()
-        s.sceneKit = if (theme == null && SceneKits.liveStory) SceneKits.matching(place)?.key else null
+        // the three app themes (공룡 나라 · 우주 · 바다) go to their kits too — the kit has a floor and lives (birds, bubbles);
+        // the theme picture is only for a place no kit matches (10-06 lead decision on #222 · device-checked all eight kits)
+        s.sceneKit = if (SceneKits.liveStory) SceneKits.matching(place)?.key else null
         s.place = place
     }
     s.problem = s.slots["problem"]

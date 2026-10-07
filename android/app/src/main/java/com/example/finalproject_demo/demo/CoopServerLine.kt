@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.scene.SceneKits
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.coopItem
@@ -78,6 +79,20 @@ internal suspend fun Director.drawCoopBackground() {
     if (!s.isCoop || !Server.liveFor(s.mode)) return
     val place = s.placeLabel?.trim()?.takeIf(String::isNotEmpty) ?: return
     if (s.slotBy["place"] == "mascot" || !s.coopClaimBackground(place)) return
+    // a place a kit draws (「우리 집」 · 「바닷가」 · 「운동장」) — the same felt pieces as a story, a floor, and no /image (#222 · 10-06).
+    // The stage draws the kit live; the book reads it as one saved picture, like a generated background
+    val kit = SceneKits.matching(place)
+    s.sceneKit = kit?.key
+    if (kit != null) {
+        s.sceneSeed = kotlin.random.Random.nextLong()
+        val seed = s.sceneSeed
+        log("[background] 「$place」 drawn from kit ${kit.key} · no /image")
+        CoroutineScope(currentCoroutineContext()).launch {
+            val saved = saveKitPicture(kit, seed)
+            if (saved != null && s.coopUseGeneratedBackground(saved, place)) log("[background] kit picture saved as the book background")
+        }
+        return
+    }
     val words = s.bookPick?.name?.takeIf { it !in place }?.let { "$place ($it 이야기)" } ?: place
     val mask = s.nameMask()
     CoroutineScope(currentCoroutineContext()).launch {

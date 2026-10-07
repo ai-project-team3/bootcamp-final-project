@@ -3,6 +3,8 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.CoopLab
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.companionName
+import com.example.finalproject_demo.demo.scene.FRIEND_SPOT
+import com.example.finalproject_demo.demo.scene.HERO_SPOT
 import com.example.finalproject_demo.demo.COOP_STEPS
 import com.example.finalproject_demo.demo.coopPartPack
 import com.example.finalproject_demo.demo.heardPlace
@@ -77,6 +79,51 @@ class CoopLiveAnswerTest {
         val d = Director(CoroutineScope(coroutineContext + sup))
         d.s.speed = 0.01
         try { block(d) } finally { sup.cancel(); Server.liveModes = emptySet(); Server.base = null }
+    }
+
+    /** A director that saves pictures — for checks that keep a kit picture or a generated background as a file */
+    private fun runWithStore(block: suspend CoroutineScope.(Director) -> Unit) = runBlocking {
+        val sup = SupervisorJob()
+        val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val d = Director(CoroutineScope(coroutineContext + sup), com.example.finalproject_demo.demo.LocalStoryBookStore(ctx),
+            com.example.finalproject_demo.demo.StoryImageStore(ctx))
+        d.s.speed = 0.01
+        try { block(d) } finally { sup.cancel(); Server.liveModes = emptySet(); Server.base = null }
+    }
+
+    /**
+     * #222 (10-06) — in co-op too, a place a kit draws is drawn from the same felt kit as a story: the stage is the kit, the
+     * book is the kit saved as one picture, and no `/image` is asked for. A place with no kit (동물원) is generated as before
+     */
+    @Test
+    fun aCoopPlaceAKitDrawsUsesTheKitAndAsksForNoPicture() = runWithStore { d ->
+        val server = llmServer(emptyMap())
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("place", "우리집", "done"))
+            d.answer("우리 집 거실")
+            assertNotNull("no kit was chosen", await(8_000) { d.s.sceneKit == "indoor" })
+            // on a kit the co-op actors stand on the spots the kit layout keeps clear, like a story (#222 · review P2)
+            d.answer("엄마랑")
+            val items = (d.s.stage as com.example.finalproject_demo.demo.Stage.World).items.sortedBy { it.xf }
+            assertEquals(listOf(HERO_SPOT.x to HERO_SPOT.depth, FRIEND_SPOT.x to FRIEND_SPOT.depth), items.map { it.xf to it.depth })
+            assertNotNull("the kit picture was not saved as the book background: ${d.s.bgName}", await(10_000) { d.s.bgName.startsWith("local:") })
+            assertTrue("a kit place asked for a picture", server.requests.none { it.first == "/image" })
+        } finally { server.close() }
+    }
+
+    @Test
+    fun aCoopPlaceWithNoKitStillAsksForAPicture() = runWithStore { d ->
+        val server = llmServer(emptyMap())
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestionWith(CoopPick("place", "동물원", "done"))
+            d.answer("기린 마당")
+            assertNotNull("a place with no kit did not ask for a picture", await(8_000) { server.requests.any { it.first == "/image" } })
+            assertNull(d.s.sceneKit)
+        } finally { server.close() }
     }
 
     /** 같이 만들기 → 주인공 → 첫 질문(어디)을 기다리는 데까지 */
