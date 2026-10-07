@@ -125,7 +125,7 @@ fun behindText(scene: Scene): String = when (scene) {
     """.trimIndent()
 
     Scene.MAKING -> """
-        • 템플릿(6~8쪽) + 모은 이야기 조각 → 쪽마다 자막 · 제목 (실제 앱: 이름을 가려 서버 LLM → JSON → 폰에서 이름 복원)
+        • 템플릿(6~8쪽) + 모은 이야기 조각 → 쪽마다 자막 · 제목 (실제 앱: 서버 LLM → JSON → 폰에서 자리표시자 복원)
         • 제목은 묻지 않는다 — 템플릿과 대화로 지어 준다. 책장에서 바꿀 수 있게 할 자리
         • 확정된 그림만 다시 쓴다 [⭐26]
     """.trimIndent()

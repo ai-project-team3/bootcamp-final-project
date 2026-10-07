@@ -39,6 +39,10 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null, deferredSlot: Stri
     val slot = probe ?: server
     if (slot != null) return StoryPrompt(slot, serverQuestion?.takeIf { slot == server && it.isNotBlank() } ?: CORE_QUESTIONS.getValue(slot))
 
+    // An accepted free follow-up is still the server's next question. Unasked template
+    // slots must not replace it; rejected named-slot questions are cleared by StoryTurn.
+    if (storyNextSlot == null && !serverQuestion.isNullOrBlank()) return StoryPrompt(null, serverQuestion)
+
     // 템플릿 고유 질문은 12개 공통 칸이 아니다. 답을 앱 책의 해당 칸에만 둔다.
     val local = template?.let { (it.plot + it.ending).firstOrNull(::open) }
     if (local != null) return StoryPrompt(local, "그다음에는 무슨 일이 있었어?", templateOnly = true)

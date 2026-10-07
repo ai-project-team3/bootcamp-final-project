@@ -578,26 +578,32 @@ private suspend fun Director.sceneMakeHero() {
     }
 
     suspend fun fixFlow() {
-        s.stage = Stage.HeroShow(attr, "어디를 바꿀까 — 마이크로 말해 줘")
-        val r = ask(
-            Question(
-                text = "어디를 바꾸면 더 마음에 들까?",
-                kind = Kind.EASY,
-                spoken = listOf(
-                    Answer("옷! 빨간 거!", "shirt:F25C4C"), Answer("머리 길게!", "hair:long"), Answer("노란 옷!", "shirt:F9B233"),
-                    Answer("머리 묶어 줘!", "hair:tied"), Answer("네모 안경 씌워 줘!", "glasses:square"),
-                ),
-                easierText = "주인공을 잘 봐. 어디가 마음에 안 들어?", easierAsk = "뭘 바꿀까?",
-                choices = listOf(Card("머리", Art.Img("ic_hair_short", Art.Emoji("💇")), "hair"), Card("옷", Art.Img("ic_shirt_blue", Art.Emoji("👕")), "shirt"), Card("안경", Art.Img("ic_glasses_round", Art.Emoji("👓")), "glasses")),
+        while (true) {
+            s.stage = Stage.HeroShow(attr, "어디를 바꿀까 — 마이크로 말해 줘")
+            val r = ask(
+                Question(
+                    text = "어디를 바꾸면 더 마음에 들까?",
+                    kind = Kind.EASY,
+                    spoken = listOf(
+                        Answer("옷! 빨간 거!", "shirt:F25C4C"), Answer("머리 길게!", "hair:long"), Answer("노란 옷!", "shirt:F9B233"),
+                        Answer("머리 묶어 줘!", "hair:tied"), Answer("네모 안경 씌워 줘!", "glasses:square"),
+                    ),
+                    easierText = "주인공을 잘 봐. 어디가 마음에 안 들어?", easierAsk = "뭘 바꿀까?",
+                    choices = listOf(Card("머리", Art.Img("ic_hair_short", Art.Emoji("💇")), "hair"), Card("옷", Art.Img("ic_shirt_blue", Art.Emoji("👕")), "shirt"), Card("안경", Art.Img("ic_glasses_round", Art.Emoji("👓")), "glasses")),
+                )
             )
-        )
-        when (r) {
-            is Reply.Spoke -> applySpoken(null, r)          // 한 번에 한 가지만
-            is Reply.Tapped -> {
-                val idx = questions.indexOfFirst { it.key == r.value }
-                if (idx >= 0) voiceStep(idx)
+            // A correction is still speech recognition, not consent to regenerate the hero.
+            if (r is Reply.Spoke && s.mode == StoryMode.STORY && heroFromWords() &&
+                !confirmHeroDescription(r.text)) continue
+            when (r) {
+                is Reply.Spoke -> applySpoken(null, r)          // 한 번에 한 가지만
+                is Reply.Tapped -> {
+                    val idx = questions.indexOfFirst { it.key == r.value }
+                    if (idx >= 0) voiceStep(idx)
+                }
+                else -> {}
             }
-            else -> {}
+            return
         }
     }
 
@@ -904,7 +910,7 @@ private suspend fun Director.sceneEvent() {
     // 창문에 새 친구가 나타난다
     val shown = base.map { it.copy(shake = false) } + WorldItem(s.newcomerArt, 0.82f, 0.18f, 0.12f, depth = 0.85f, enter = Enter.DROP)
     s.stage = world(shown)
-    if (r is Reply.Spoke) log("LLM 판정: 이름을 가린 문장({주인공}: ${r.text}) → Anthropic → S1 · S2 표시 JSON → 수준은 규칙이 계산")
+    if (r is Reply.Spoke) log("LLM verdict: child's utterance (${r.text}) → server LLM → S1/S2 JSON → rule-based level")
 
     // 질문 은행 — 그다음 (결과 · 대응 · 누가 놀랐나 중 하나)
     val (v2, r2) = askSlot("reaction")
@@ -1451,8 +1457,8 @@ private suspend fun Director.sceneMaking() {
     val bookWord = if (s.isCoop) "이야기책" else "동화책"
     say("${bookWord}을 만들고 있어! 조금만 기다려 줘.")
     log(
-        "템플릿 ${t.code} ${t.name}(${t.pages.size}쪽) + 모은 칸들(이름은 가림) → Anthropic → 쪽마다 자막(−어요체) · 제목 JSON → " +
-            "폰에서 {주인공} → ${s.childName}, {친구1} → ${s.friendName} 복원 · 확정 그림은 다시 그리지 않음 (⭐26)"
+        "Template ${t.code} ${t.name} (${t.pages.size} pages) + collected slots → server LLM → captions/title JSON → " +
+            "restore placeholders on device: {주인공} → ${s.childName}, {친구1} → ${s.friendName}; keep confirmed pictures (⭐26)"
     )
     if (s.isDiary) {
         val mascot = listOf("place", "problem", "cause", "solution").filter { s.slotBy[it] == "mascot" }

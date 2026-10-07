@@ -232,6 +232,15 @@ object Voice {
     }
 
     /** Stop the voice now — 🎤 (the mascot must not be recorded) or a tap that cuts the line. */
+    /**
+     * The line playing now starts again from its beginning (10-07 · a tap on a character in the book).
+     * False when nothing is playing — the caller then says the last line again.
+     */
+    fun restartPlaying(): Boolean {
+        val p = player ?: return false
+        return runCatching { p.seekTo(0); if (!p.isPlaying) p.start(); true }.getOrDefault(false)
+    }
+
     fun stopPlaying() {
         player?.let { runCatching { it.stop() }; it.release() }
         player = null

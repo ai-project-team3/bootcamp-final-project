@@ -189,8 +189,18 @@ class Director(
         // 마스코트가 말하는 중에 아이가 화면을 눌렀다 — 말을 끊고 그 입력으로 바로 넘어간다(10-02 조장).
         // 전에는 목소리가 끝날 때까지 기다린 뒤 [drain] 이 그 탭을 버려서 「눌러도 안 넘어간다」였다.
         // 「붓 멈춤」(DiaryViews)은 누른 게 아니라 그리기가 보낸 신호라 끊지 않는다
-        if (r is Reply.Tapped && !r.byMascot && r.value != "pause") cutVoiceFor(r)
+        if (r is Reply.Tapped && r.value.startsWith("tool:")) touchedInBook()
+        else if (r is Reply.Tapped && !r.byMascot && r.value != "pause") cutVoiceFor(r)
         input.trySend(r)
+    }
+
+    /**
+     * 만드는 중인 책에서 캐릭터 · 물건을 만졌다(`tool:` · 10-07 종훈 · #250). 화면을 넘기는 선택이 아니라 반응이라 목소리를 끊지 않고,
+     * **하던 말을 처음부터 다시** 읽는다 — 말하는 중이 아니면 방금 한 말을 다시. 완성된 책(책장에서 읽기)은 이 탭이 여기로 오지 않는다
+     */
+    private fun touchedInBook() {
+        // 줄 선 목소리가 있으면 지금 소리만 처음으로(받아 오는 중이면 어차피 처음부터 나온다 — 겹쳐 넣지 않는다). 조용하면 다시 말하기
+        if (synchronized(voiceLines) { voiceLines.isEmpty() }) replayLine() else Voice.restartPlaying()
     }
 
     // 말 끊고 들어온 입력 — 곧바로 오는 [drain] 한 번은 이것을 버리지 않는다.
@@ -337,7 +347,8 @@ class Director(
     // 10-01 #50: 전에는 맨 끝 대사만 취소해서, 앞에 줄 서 있던 대사가 다음 화면에서 늦게 나왔다
     private val voiceLines = mutableSetOf<Job>()
 
-    private fun queueVoice(j: Job): Job {
+    // internal for tests: a pending line stands in for a voice (BookTouchVoiceTest)
+    internal fun queueVoice(j: Job): Job {
         synchronized(voiceLines) { voiceLines += j }
         j.invokeOnCompletion { synchronized(voiceLines) { voiceLines -= j } }
         return j

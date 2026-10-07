@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app import admin                    # noqa: E402
 from app.config import settings          # noqa: E402
 from main import app                     # noqa: E402
 
@@ -18,7 +19,14 @@ from main import app                     # noqa: E402
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setattr(settings, "mock", True)
-    return TestClient(app)
+    # /stats is admin only since 10-07 (app/admin.py) — sign in first
+    monkeypatch.setattr(settings, "admin_user", "otto-admin")
+    monkeypatch.setattr(settings, "admin_password_hash", admin.hash_password("test-password-123", rounds=1000))
+    monkeypatch.setattr(settings, "admin_cookie_secure", False)
+    admin._fails.clear()
+    c = TestClient(app)
+    assert c.post("/admin/login", data={"user": "otto-admin", "password": "test-password-123"}).status_code == 204
+    return c
 
 
 def row(stats: dict, method: str, path: str) -> dict | None:
@@ -54,6 +62,32 @@ def test_a_failure_is_counted_against_the_endpoint_that_failed(client):
     client.post("/judge", json={"not": "a judge request"})
     r = row(client.get("/stats").json(), "POST", "/judge")
     assert r["status"]["422"] >= 1 and r["errors"] >= 1
+
+
+def test_a_caller_shows_up_with_its_device_and_count(client):
+    client.get("/health", headers={"User-Agent": "Dalvik/2.1.0 (Linux; U; Android 16; SM-S938N Build/X)"})
+    me = next((c for c in client.get("/stats").json()["clients"]
+               if "SM-S938N" in c["user_agent"]), None)
+    assert me and me["count"] >= 1 and "/health" in me["top_paths"]
+
+
+def test_a_signed_in_admin_sees_the_visitor_list_on_the_public_domain_too(client):
+    """10-07: /stats is admin-only (#271), so the reader on the tunnel is the signed-in admin — the device list
+    (in memory only, capped) is no longer a public visitor log and is shown there as well."""
+    client.get("/health")
+    public = client.get("/stats", headers={"CF-Connecting-IP": "203.0.113.7"}).json()
+    assert public["clients_shown"] is True and public["clients"]
+
+
+def test_without_a_session_there_is_no_visitor_list_at_all():
+    assert TestClient(app).get("/stats").status_code == 401
+
+
+def test_a_forwarded_ip_wins_over_the_socket_peer(client):
+    """Docker's NAT rewrites the peer to one gateway address, so only the header can tell phones apart."""
+    client.get("/health", headers={"CF-Connecting-IP": "198.51.100.22", "User-Agent": "probe/1"})
+    ips = [c["ip"] for c in client.get("/stats").json()["clients"] if c["user_agent"] == "probe/1"]
+    assert ips == ["198.51.100.22"]
 
 
 def test_shares_add_up_and_averages_are_reported(client):
