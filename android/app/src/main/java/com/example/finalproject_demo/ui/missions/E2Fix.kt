@@ -62,6 +62,7 @@ internal fun FixMission(d: Director, done: Boolean, heroArt: Art) {
     val snapped = remember { mutableStateListOf(done, done) }
     val fixed = done || snapped.all { it }
     val idle = rememberIdleHint(snapped.count { it }.toFloat(), fixed)
+    val hint = rememberMissionHint(d, snapped.count { it }.toFloat(), fixed, "E2")
     MissionDoneSignal(d, fixed, done, "미션2")
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -81,11 +82,6 @@ internal fun FixMission(d: Director, done: Boolean, heroArt: Art) {
             snapped[i] = true
             // 조각마다 톡 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
             Sfx.play(Sound.POP, minGapMs = 0L, view = view)
-        }
-
-        // 15초 그대로면 오또가 조각 하나를 붙여 준다 — 나머지 하나는 아이가 (#260)
-        MissionHelp(d, snapped.count { it }.toFloat(), fixed) {
-            if (snapped.none { it }) snap(0)
         }
 
         // 원판 — 붙어 있는 조각과 빈자리(점선)
@@ -128,7 +124,14 @@ internal fun FixMission(d: Director, done: Boolean, heroArt: Art) {
             }
         }
 
-        if (idle && !fixed) {
+        // 15초 흐릿한 예시 — 떨어진 조각 하나가 반투명으로 빈자리까지 미끄러졌다 사라진다(진짜 조각은 그대로)
+        if (hint != null && !fixed) {
+            val i = snapped.indexOfFirst { !it }.coerceAtLeast(0)
+            val k = i + 1
+            val g = ghostAlong(listOf(pos(i), homes[i]), hint)
+            Ghost(g, radius * 2, hint) { Canvas(Modifier.fillMaxSize()) { drawArc(PIECE_COLORS[k], -90f + k * sweep, sweep, true, Offset.Zero, this.size) } }
+            GhostHand(g, wpx * 0.06f, hint)
+        } else if (idle && !fixed) {
             val slide by rememberInfiniteTransition(label = "e2hint").animateFloat(
                 0f, 1f, infiniteRepeatable(tween(1300, easing = FastOutSlowInEasing), RepeatMode.Restart), label = "slide",
             )

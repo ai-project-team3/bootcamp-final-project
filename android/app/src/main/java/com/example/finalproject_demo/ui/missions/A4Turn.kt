@@ -72,8 +72,7 @@ internal fun TurnMission(d: Director, done: Boolean, heroArt: Art) {
     val idle = rememberIdleHint((turned / 0.5f).roundToInt().toFloat(), closed)
     // 완료 반짝은 MissionDoneSignal 이 한 번 낸다 — 여기서 또 내서 두 번 울렸다 (#260 효과음 규칙)
     MissionDoneSignal(d, closed, done, "미션2")
-    // 15초 그대로면 오또가 한 바퀴(반)를 돌려 준다 (#260)
-    MissionHelp(d, (turned / 0.5f).roundToInt().toFloat(), closed) { if (turned < TURN_FULL / 2f) turned = TURN_FULL / 2f }
+    val hint = rememberMissionHint(d, (turned / 0.5f).roundToInt().toFloat(), closed, "A4")
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
@@ -152,8 +151,15 @@ internal fun TurnMission(d: Director, done: Boolean, heroArt: Art) {
             }
         }
 
-        // 8초 힌트 — 손이 손잡이 둘레를 한 바퀴 돈다
-        if (idle && !closed) {
+        // 15초 흐릿한 예시 — 손이 손잡이 둘레를 천천히 한 바퀴 반(손잡이는 그대로 · 아이가 돌린다)
+        if (hint != null && !closed) {
+            val ring = (0..18).map { k ->
+                val a = (k * 3 * PI / 18).toFloat()
+                Offset(knob.x + knobR * 1.1f * cos(a), knob.y + knobR * 1.1f * sin(a))
+            }
+            GhostHand(ghostAlong(ring, hint), wpx * 0.06f, hint)
+        } else if (idle && !closed) {
+            // 8초 힌트 — 손이 손잡이 둘레를 한 바퀴 돈다
             val spin by rememberInfiniteTransition(label = "a4hint").animateFloat(
                 0f, (2 * PI).toFloat(), infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Restart), label = "spin",
             )

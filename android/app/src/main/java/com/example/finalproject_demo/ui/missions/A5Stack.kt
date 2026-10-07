@@ -61,6 +61,7 @@ internal fun StackMission(d: Director, done: Boolean, heroArt: Art) {
     val level = remember { mutableStateListOf(if (done) 0 else -1, if (done) 1 else -1, if (done) 2 else -1) }
     val stacked = done || level.all { it >= 0 }
     val idle = rememberIdleHint(level.count { it >= 0 }.toFloat(), stacked)
+    val hint = rememberMissionHint(d, level.count { it >= 0 }.toFloat(), stacked, "A5")
     MissionDoneSignal(d, stacked, done, "미션2")
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -78,11 +79,6 @@ internal fun StackMission(d: Director, done: Boolean, heroArt: Art) {
             level[i] = level.count { it >= 0 }
             // 블록마다 톡 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙 · 마지막 블록에 두 번 울렸다)
             Sfx.play(Sound.POP, minGapMs = 0L, view = view)
-        }
-
-        // 15초 그대로면 오또가 첫 블록을 올려 준다 — 나머지 둘은 아이가 (#260)
-        MissionHelp(d, level.count { it >= 0 }.toFloat(), stacked) {
-            if (level.count { it >= 0 } == 0) level.indexOfFirst { it < 0 }.takeIf { it >= 0 }?.let { stack(it) }
         }
 
         // 탑 자리 — 아직 빈 칸을 점선으로(다음 칸이 어디인지 보이게)
@@ -120,20 +116,18 @@ internal fun StackMission(d: Director, done: Boolean, heroArt: Art) {
             ) {
                 // 펠트 블록 — 그림(prop_block)은 선물 상자처럼 보이고 여백이 커서 탑이 떠 보였다. 빈틈없이 쌓이게 직접 그린다
                 Box(Modifier.fillMaxSize().touchOutline(level[i] < 0)) {
-                    Canvas(Modifier.fillMaxSize()) {
-                        val c = BLOCK_COLORS[i]
-                        val stud = size.width * 0.13f
-                        drawRoundRect(c, Offset(0f, stud * 0.7f), Size(size.width, size.height - stud * 0.7f), androidx.compose.ui.geometry.CornerRadius(size.width * 0.12f))
-                        listOf(0.3f, 0.7f).forEach { x -> drawCircle(c, stud, Offset(size.width * x, stud * 0.9f)) }
-                        drawRoundRect(FeltWhite.copy(alpha = 0.6f), Offset(size.width * 0.07f, stud * 0.7f + size.width * 0.07f),
-                            Size(size.width * 0.86f, size.height - stud * 0.7f - size.width * 0.14f), androidx.compose.ui.geometry.CornerRadius(size.width * 0.08f),
-                            style = Stroke(size.width * 0.03f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))))
-                    }
+                    Canvas(Modifier.fillMaxSize()) { drawBlock(BLOCK_COLORS[i]) }
                 }
             }
         }
 
-        if (idle && !stacked) {
+        // 15초 흐릿한 예시 — 바닥 블록 하나가 반투명으로 탑 빈칸까지 미끄러졌다 사라진다(진짜 블록은 그대로)
+        if (hint != null && !stacked) {
+            val i = (0 until 3).first { level[it] < 0 }
+            val g = ghostAlong(listOf(pos(i), slot(level.count { it >= 0 })), hint)
+            Ghost(g, b, hint) { Canvas(Modifier.fillMaxSize()) { drawBlock(BLOCK_COLORS[i]) } }
+            GhostHand(g, wpx * 0.06f, hint)
+        } else if (idle && !stacked) {
             val slide by rememberInfiniteTransition(label = "a5hint").animateFloat(
                 0f, 1f, infiniteRepeatable(tween(1300, easing = FastOutSlowInEasing), RepeatMode.Restart), label = "slide",
             )
@@ -149,4 +143,14 @@ internal fun StackMission(d: Director, done: Boolean, heroArt: Art) {
             ArtView(Art.Img("prop_sparkle", Art.Emoji("✨")), Modifier.fillMaxSize())
         }
     }
+}
+
+/** 펠트 블록 하나 — 위 돌기 둘 · 바느질 테 */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBlock(c: androidx.compose.ui.graphics.Color) {
+    val stud = size.width * 0.13f
+    drawRoundRect(c, Offset(0f, stud * 0.7f), Size(size.width, size.height - stud * 0.7f), androidx.compose.ui.geometry.CornerRadius(size.width * 0.12f))
+    listOf(0.3f, 0.7f).forEach { x -> drawCircle(c, stud, Offset(size.width * x, stud * 0.9f)) }
+    drawRoundRect(FeltWhite.copy(alpha = 0.6f), Offset(size.width * 0.07f, stud * 0.7f + size.width * 0.07f),
+        Size(size.width * 0.86f, size.height - stud * 0.7f - size.width * 0.14f), androidx.compose.ui.geometry.CornerRadius(size.width * 0.08f),
+        style = Stroke(size.width * 0.03f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))))
 }

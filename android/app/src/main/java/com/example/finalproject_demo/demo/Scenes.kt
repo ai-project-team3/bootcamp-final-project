@@ -7,8 +7,15 @@ import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Trace
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
+import com.example.finalproject_demo.ui.missions.DONE_SCENE_MS
+import com.example.finalproject_demo.ui.motionFrozen
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 // 장면별 대본. 기준: 구현대본.md(9/16) + v0.8 요청 + v0.9 요청(9/17).
@@ -1525,6 +1532,12 @@ private suspend fun Director.sceneMaking() {
 
 // ── 장면 12 · 책 6~8쪽 · 전체 화면 · 도구 4종 · 대화로 만든 미션 2개 (⭐7) ──
 
+/** 미션 결과 장면을 [DONE_SCENE_MS] 보여 준 뒤 [announce] — 검사는 움직임을 멈춰 두므로 기다리지 않는다 */
+private suspend fun announceAfterScene(announce: () -> Unit) {
+    if (!motionFrozen) delay(DONE_SCENE_MS)
+    announce()
+}
+
 private suspend fun Director.sceneBook() {
     inputs(false, false)
     val d = s.dino.name
@@ -1536,6 +1549,10 @@ private suspend fun Director.sceneBook() {
     s.m1Result = null; s.m2Result = null
     val rubPage = (1..last).firstOrNull { s.pageKind(it) == PageKind.RUB } ?: -1
     val dragPage = (1..last).firstOrNull { s.pageKind(it) == PageKind.DRAG } ?: -1
+    // 미션 완료 신호는 바로 받아 완료를 먼저 남기고, 쪽 문장만 결과 장면(DONE_SCENE_MS) 뒤에 읽는다 —
+    // 화면이 신호를 늦추면 그 사이 ▶ 로 넘긴 아이의 완료가 사라졌다(#293 리뷰). 넘기면 늦춘 낭독은 버린다
+    val sceneScope = CoroutineScope(currentCoroutineContext())
+    var lateAnnounce: Job? = null
 
     fun show() {
         s.stage = Stage.BookPage(s.bookPage, m1Done = s.m1Result != null, m2Done = s.m2Result != null)
@@ -1591,17 +1608,18 @@ private suspend fun Director.sceneBook() {
         val vv = r.value
         when {
             vv == "next" -> {
+                lateAnnounce?.cancel()
                 if (s.bookPage < last) { s.bookPage++; show(); announce(); refreshButtons() }
                 else { go(Scene.FRIENDS); return }
             }
-            vv == "prev" -> { if (s.bookPage > 0) { s.bookPage--; show(); announce(); refreshButtons() } }
+            vv == "prev" -> { lateAnnounce?.cancel(); if (s.bookPage > 0) { s.bookPage--; show(); announce(); refreshButtons() } }
             vv == "speak" -> log("🔊 자막 낭독 (CLOVA Voice, 이름 없는 문장)")
             vv == "mission" && s.bookPage == rubPage && s.m1Result == null -> {
                 s.m1Result = "solo"; s.reactions++; feel(Mood.CHEER)
                 // C1 · C3 면 그 미션의 선물 · 동작 이름 — 촛불을 불었는데 「먼지 치운 손」이 나오지 않게 (#105 리뷰)
                 val p1 = s.slot1Prop()
                 s.achievements += p1?.badge ?: "${m1.blobName} 치운 손"
-                show(); announce(); refreshButtons()
+                show(); refreshButtons(); lateAnnounce = sceneScope.launch { announceAfterScene { announce() } }
                 event("mission", "id" to 1, "motion" to (p1?.motion ?: "rub"), "result" to "solo")
                 log("미션 1 완료 → mission_result: solo → 다음 미션 보통 (안치영 §7 · ⭐7) · 걸린 시간 · 시도 횟수 저장 안 함")
                 mark("book")
@@ -1619,7 +1637,7 @@ private suspend fun Director.sceneBook() {
                 // 아이 말에서 고른 미션(불 끄기 · 잠그기 …)이면 그 미션으로 남긴다 — 「별 건넨 손」 · 「별 · 하트가 퐁」은 건네주기 때만(10-06 실기기)
                 val fix = s.slot2Prop()
                 s.achievements += fix?.badge ?: "${m2.itemName} 건넨 손"
-                show(); announce(); refreshButtons()
+                show(); refreshButtons(); lateAnnounce = sceneScope.launch { announceAfterScene { announce() } }
                 event("mission", "id" to 2, "motion" to "drag", "result" to s.m2Result)
                 log(fix?.let { "미션 2 완료 — ${it.mission.name} · 「${it.cheer}」" } ?: "미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (건네주기 연출 — 미션마다 따로 · #260)")
                 mark("book")

@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -109,8 +110,7 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
     val idle = rememberIdleHint(fill, finished)
-    // 15초 그대로면 오또가 반을 채워 준다(같이 「삐-뽀」) — 나머지 반은 아이가 (#260)
-    MissionHelp(d, fill, finished) { if (fill < 0.5f) { fill = 0.5f; pops++ } }
+    val hint = rememberMissionHint(d, fill, finished, "C3")
     MissionDoneSignal(d, finished, done, "미션1")
     val bounce = remember { Animatable(1f) }
     fun nudge() { scope.launch { bounce.snapTo(1.12f); bounce.animateTo(1f, spring(dampingRatio = 0.35f)) } }
@@ -186,7 +186,11 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
             Box(Modifier.fillMaxHeight().fillMaxWidth(fill.coerceIn(0f, 1f)).clip(RoundedCornerShape(Radius.Round)).background(Coral))
         }
 
-        if (idle && !finished) {
+        // 15초 흐릿한 예시 — 손이 소품을 톡 톡 두 번 누른다(채움은 그대로 · 아이가 누르거나 소리 낸다)
+        if (hint != null && !finished) {
+            val up = Offset(cx, cy + size * 0.35f); val on = Offset(cx, cy)
+            GhostHand(ghostAlong(listOf(up, on, up, on), hint), wpx * 0.06f, hint)
+        } else if (idle && !finished) {
             val press by rememberInfiniteTransition(label = "c3hint").animateFloat(
                 0f, 1f, infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "press",
             )
