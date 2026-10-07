@@ -48,6 +48,8 @@ class WorldStyleTest {
         assertEquals("Otto stays felt", "otto_pose_think", WorldStyle.resolve("otto_pose_think", "crayon") { true })
         assertEquals("the room stays felt", "room_bg", WorldStyle.resolve("room_bg", "crayon") { true })
         assertEquals("a styled name is not styled twice", "bg_snow_crayon", WorldStyle.resolve("bg_snow_crayon", "crayon", has))
+        assertEquals("the same world list as tools/rebake_style.py", "rocket_crayon", WorldStyle.resolve("rocket", "crayon") { true })
+        assertEquals("the shelf picture is not the world", "bg_shelf", WorldStyle.resolve("bg_shelf", "crayon") { true })
     }
 
     @Test fun aKitIsUsedInAStyleOnlyWhenEveryPieceIsBaked() {

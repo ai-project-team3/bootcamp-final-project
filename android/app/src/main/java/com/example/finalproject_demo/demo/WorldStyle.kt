@@ -24,10 +24,15 @@ object WorldStyle {
     /** 앱에 그 이름의 그림이 있나 — MainActivity 가 붙인다. 붙이기 전(테스트)에는 없다고 본다 */
     @Volatile var has: (String) -> Boolean = { false }
 
-    /** 그림체를 따르는 세계 그림의 앞머리. 도감(body_ · hair_ …) · 오또 · 방(room_) · 아이콘(ic_ · pi_)은 없다 */
-    val WORLD = listOf("kit_", "bg_", "prop_", "coop_el_", "obj_", "nc_", "bud_", "dino_")
+    /**
+     * 그림체를 따르는 세계 그림 — 굽는 도구(`android/tools/rebake_style.py` WORLD_PREFIX · WORLD_NAMES · NOT_WORLD)와 같은 목록.
+     * 도감(body_ · hair_ …) · 오또 · 방(room_) · 아이콘(ic_ · pi_)은 없다
+     */
+    val WORLD = listOf("kit_", "bg_", "prop_", "obj_", "coop_el_", "bud_", "nc_", "dino_", "dp_")
+    private val WORLD_NAMES = setOf("rocket", "train", "turtle")
+    private val NOT_WORLD = setOf("bg_shelf")
 
-    fun isWorld(name: String) = WORLD.any { name.startsWith(it) }
+    fun isWorld(name: String) = name !in NOT_WORLD && (name in WORLD_NAMES || WORLD.any { name.startsWith(it) })
 
     /** 이 책에서 [name] 대신 그릴 그림 이름 — 그림체판이 없으면 그대로 */
     fun resolve(name: String, style: String = current, exists: (String) -> Boolean = has): String {
