@@ -83,7 +83,8 @@ class LiveMicTest {
         repeat(3) {
             yield()
             d.toggleMic()
-            withTimeout(2_000) { while (d.s.micOn || tries <= it) delay(5) }
+            // a press while the transcript is pending is ignored (#232) — wait until it has landed
+            withTimeout(2_000) { while (d.s.micOn || d.s.transcribing || tries <= it) delay(5) }
             if (it < 2) {
                 delay(50)
                 assertFalse("a miss is not an answer yet", reply.isCompleted)
@@ -102,7 +103,9 @@ class LiveMicTest {
         Voice.transcribe = { tries++; if (tries == 1) "" else "바닷속" }
         val reply = async { withTimeout(5_000) { d.awaitReply() } }
         yield(); d.toggleMic()
-        withTimeout(2_000) { while (d.s.micOn || tries < 1) delay(5) }
+        // wait for the miss to land: a press while the transcript is pending is ignored (#232), and the CI runner
+        // sometimes pressed in that window — the repeat was dropped and the reply timed out (10-07 #265 CI)
+        withTimeout(2_000) { while (d.s.micOn || d.s.transcribing || tries < 1) delay(5) }
         d.toggleMic()
         assertEquals(Reply.Spoke("바닷속"), reply.await())
     }
