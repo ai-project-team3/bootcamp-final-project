@@ -186,7 +186,11 @@ fun DemoApp() {
         val inSession by rememberUpdatedState(kidScreen)
         DisposableEffect(owner) {
             val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
-                if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP && inSession) d.holdSession()
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                    com.example.finalproject_demo.net.Bgm.hold("screen")   // 책장 다시 읽기처럼 세션 밖 화면도 (#221)
+                    if (inSession) d.holdSession()
+                }
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_START) com.example.finalproject_demo.net.Bgm.resume("screen")
             }
             owner.lifecycle.addObserver(obs)
             onDispose { owner.lifecycle.removeObserver(obs) }

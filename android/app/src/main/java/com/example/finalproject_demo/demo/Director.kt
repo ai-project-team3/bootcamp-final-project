@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Voice
 import com.example.finalproject_demo.net.nameMask
 import kotlinx.coroutines.CoroutineScope
@@ -789,6 +790,7 @@ class Director(
         if (s.holding) return
         s.holding = true
         hushVoice()
+        Bgm.hold("pause")
         if (s.micOn) { stopMic = true; micJob?.cancel(); s.micOn = false }
         log("⏸ 일시정지 — 목소리 · 녹음을 멈추고 흐름을 세운다")
     }
@@ -797,6 +799,7 @@ class Director(
     fun resumeSession() {
         if (!s.holding) return
         s.holding = false
+        Bgm.resume("pause")
         log("▶ 이어 하기")
         replayLine()
     }
