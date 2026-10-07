@@ -1577,7 +1577,10 @@ private suspend fun Director.sceneBook() {
                 else { go(Scene.FRIENDS); return }
             }
             vv == "prev" -> { if (s.bookPage > 0) { s.bookPage--; show(); announce(); refreshButtons() } }
-            vv == "speak" -> log("🔊 자막 낭독 (CLOVA Voice, 이름 없는 문장)")
+            vv == "speak" -> {
+                if (s.mode == StoryMode.STORY) say(if (s.bookPage == 0) "『${s.title}』" else s.bookCaption(s.bookPage))
+                else log("Book narration replay requested")
+            }
             vv == "mission" && s.bookPage == rubPage && s.m1Result == null -> {
                 s.m1Result = "solo"; s.reactions++; feel(Mood.CHEER)
                 // C1 · C3 면 그 미션의 선물 · 동작 이름 — 촛불을 불었는데 「먼지 치운 손」이 나오지 않게 (#105 리뷰)
@@ -1789,7 +1792,14 @@ private suspend fun Director.sceneShelf() {
             }
             "book" -> {
                 if (openSavedDiary(tapped.label)) { s.stage = Stage.Shelf(fromEnd); continue }   // 그림일기 다시 읽기(#37)
-                val book = savedStory(tapped.label) ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
+                val story = savedStory(tapped.label)
+                if (story != null) {
+                    readSavedStory(story)
+                    s.stage = Stage.Shelf(fromEnd)
+                    say("우리가 만든 책들이야!")
+                    continue
+                }
+                val book = CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
                 var page = 0
                 s.line = ""
                 buttons()

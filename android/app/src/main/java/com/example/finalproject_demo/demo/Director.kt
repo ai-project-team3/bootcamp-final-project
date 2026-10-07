@@ -472,6 +472,9 @@ class Director(
         Voice.stopPlaying()
     }
 
+    /** End the scoped saved-story narration, including pending server audio. */
+    internal fun stopSpeech() = hushVoice()
+
     // ── 선택 구간 (10-01 #50 · 민우 S25) ─────────────────────────────────
     //
     // 「안녕」 · 「또 만날래」처럼 아이가 고르는 구간은 마스코트가 말하는 중에도 바로 받는다.
