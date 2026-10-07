@@ -1,0 +1,16 @@
+{
+  "name": "coop_el_baseball_crayon",
+  "of": "coop_el_baseball",
+  "kind": "cut",
+  "text": "a cute white baseball with red stitches leaning on a small brown glove",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 1855737597,
+  "prompt": "a cute white baseball with red stitches leaning on a small brown glove, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "gen_coop.py",
+  "made": "2026-10-07"
+}
