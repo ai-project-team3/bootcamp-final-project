@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -41,14 +42,11 @@ import com.example.finalproject_demo.ui.Sfx
 import com.example.finalproject_demo.ui.Sound
 import com.example.finalproject_demo.ui.Stand
 import com.example.finalproject_demo.ui.motionFrozen
-import com.example.finalproject_demo.ui.rememberBlowLevel
+import com.example.finalproject_demo.ui.rememberBlow
 import com.example.finalproject_demo.ui.rememberParticleField
 import com.example.finalproject_demo.ui.touchOutline
 import kotlin.math.abs
 import kotlin.math.roundToInt
-
-/** 후~ 세기가 이만큼 넘으면 「분다」로 친다 (A6 의 덤 불기와 같은 문턱 · 실기기로 다시 정한다 — 설계 §10) */
-internal const val BLOW_ON = 0.22f
 
 /** 소품 하나를 다 날리는 데 드는 양 — A6 의 「문지르기 3」과 같은 눈금 */
 internal const val BLOW_FULL = 3f
@@ -63,7 +61,8 @@ internal const val BLOW_FULL = 3f
  * - **탭 길(원칙 6)** — 손가락으로 쓸어도 똑같이 날아간다. 마이크가 없거나 권한이 없어도 이 길로 끝난다.
  *   8초 진전이 없으면 손이 소품 위를 쓸어 보인다
  * - 마이크는 **이미 받은 권한만** 쓴다(`Blow.kt` — 미션 한가운데서 권한 창을 띄우지 않는다). 듣고 있으면 화면 아래에 표시
- * - 소리는 크기 한 숫자로만 읽고 버린다(`rememberBlowLevel`)
+ * - 소리는 숫자 몇 개로만 읽고 버린다(`rememberBlow` · 판정은 [BlowDetector] — 오또가 말하는 동안은 듣지 않고, 「후~」만 센다 · #258)
+ * - 소품은 **하나씩** 날아간다 — 「부는 중」이 [BlowDetector.PER_PROP_MS] 쌓이면 하나
  */
 @Composable
 internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowProp) {
@@ -73,14 +72,18 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
     val life = remember { mutableStateListOf(0f, 0f, 0f) }
     val allOut = done || life.all { it >= BLOW_FULL }
     val puffs = rememberParticleField()
-    val blow = rememberBlowLevel(!allOut)
-    // 반복문 안에서는 늘 지금 세기를 읽는다 — 그냥 blow 를 쓰면 처음 값(0)에 묶여 아무리 불어도 약하다고 봤다(10-05 실기기)
-    val blowNow by androidx.compose.runtime.rememberUpdatedState(blow)
+    // 반복문 안에서도 늘 지금 값을 읽는다 — 같은 객체의 상태라 처음 값에 묶이지 않는다(10-05 실기기)
+    val blow = rememberBlow(!allOut)
+    // 오또가 말하는 동안은 「불어 봐」를 띄우지 않는다 — 이야기가 끝나면 듣는다(#258)
+    val speaking by com.example.finalproject_demo.net.Voice.playing.collectAsState()
     val micOn = remember {
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
     val idle = rememberIdleHint(life.sum(), allOut)
+    val hint = rememberMissionHint(d, life.sum(), allOut, "C1")
     MissionDoneSignal(d, allOut, done, "미션1")
+    // 촛불이 꺼질 때 연기 한 줄기(prop_smoke_curl)가 오른다 (#260)
+    val curls = rememberBursts(3)
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
@@ -95,27 +98,28 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
             life[i] = minOf(BLOW_FULL, life[i] + amount)
             val b = spots[i]
             if (before < BLOW_FULL && life[i] >= BLOW_FULL) {
-                if (prop.flame) puffs.smoke(b.x, b.y - size * 0.6f, wpx * 0.05f) else puffs.steam(b.x, b.y, wpx * 0.06f, 8)
-                // 마지막 하나는 MissionDoneSignal 이 반짝인다 — 두 번 울리지 않게 (#105 리뷰)
-                if (life.any { it < BLOW_FULL }) Sfx.play(Sound.SPARKLE, 0L, view = view)
+                if (prop.flame) curls.fire(i) else puffs.steam(b.x, b.y, wpx * 0.06f, 8)
+                // 하나씩 끝날 때는 톡 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
+                if (life.any { it < BLOW_FULL }) Sfx.play(Sound.POP, 0L, view = view)
             }
         }
 
-        // 후~ — 세기만큼 셋이 함께 날아간다. 촛불은 불꽃이 흔들리다 꺼진다
+        // 후~ — 부는 동안 남은 첫 소품이 날아간다(셋 동시 X · #258). 촛불은 불꽃이 흔들리다 꺼진다
         LaunchedEffect(done, wpx, hpx) {
             if (done || motionFrozen) return@LaunchedEffect
+            var last = 0L
             while (life.any { it < BLOW_FULL }) {        // 다 끝나면 멈춘다 (#105 리뷰)
-                withFrameNanos { }
-                val strong = blowNow > BLOW_ON
-                spots.forEachIndexed { i, b ->
-                    val left = (1f - life[i] / BLOW_FULL).coerceIn(0f, 1f)
-                    if (left <= 0f) return@forEachIndexed
-                    if (strong) {
-                        push(i, blowNow * 0.09f)
-                        // 바람을 타고 오른쪽 위로 흩어진다
-                        if (!prop.flame) puffs.water(b.x, b.y, blowNow * wpx * 0.02f, -blowNow * wpx * 0.006f, wpx * 0.03f)
-                    }
-                }
+                val now = withFrameNanos { it }
+                val dt = if (last == 0L) 0L else ((now - last) / 1_000_000).coerceAtMost(100L)
+                last = now
+                if (!blow.blowing) continue
+                val i = life.indexOfFirst { it < BLOW_FULL }
+                if (i < 0) continue
+                push(i, dt.toFloat() / BlowDetector.PER_PROP_MS * BLOW_FULL)
+                // 바람을 타고 오른쪽 위로 흩어진다
+                val b = spots[i]
+                val s = blow.level
+                if (!prop.flame) puffs.water(b.x, b.y, s * wpx * 0.02f, -s * wpx * 0.006f, wpx * 0.03f)
             }
         }
 
@@ -140,24 +144,31 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
             Canvas(Modifier.fillMaxSize()) { puffs.tick; puffs.draw(this, setOf(Puff.FIRE, Puff.SMOKE)) }
             spots.forEachIndexed { i, b ->
                 val t = if (done) 1f else (life[i] / BLOW_FULL).coerceIn(0f, 1f)
-                // 날아가는 것은 오른쪽 위로 밀리며 옅어진다. 촛불은 제자리 — 불만 꺼진다
-                val drift = if (prop.flame) 0f else t * size * 1.4f
-                val fade = if (prop.flame) 1f else 1f - t
+                // 날아가는 것은 오른쪽 위로 밀리며 옅어진다. 다 분 그림이 있는 것(촛불 · 민들레)은 제자리 — 불 · 씨앗만 사라진다
+                val stays = prop.gone != null
+                val drift = if (stays) 0f else t * size * 1.4f
+                val fade = if (stays) 1f else 1f - t
                 if (fade > 0.02f) Box(
                     Modifier
                         .offset { IntOffset((b.x - size / 2 + drift).roundToInt(), (b.y - size / 2 - drift * 0.6f).roundToInt()) }
                         .size((size / density).dp)
                         .alpha(fade),
                 ) {
-                    // 촛불은 그림에 불꽃이 있다 — 다 불면 불꽃을 지운 그림으로
+                    // 촛불은 꺼진 초로 · 민들레는 씨앗이 날아간 줄기로
                     val art = if (t >= 1f && prop.gone != null) Art.Img(prop.gone, Art.Emoji("💨")) else Art.Img(prop.art, Art.Emoji(prop.emoji))
                     Box(Modifier.fillMaxSize().touchOutline(t < 1f)) { ArtView(art, Modifier.fillMaxSize()) }
                 }
             }
             Canvas(Modifier.fillMaxSize()) { puffs.tick; puffs.draw(this, setOf(Puff.WATER, Puff.STEAM, Puff.SPARK)) }
+            spots.forEachIndexed { i, b -> curls.Draw(i, Art.Img("prop_smoke_curl", Art.Emoji("💨")), Offset(b.x, b.y - size * 0.7f), size * 0.8f, size * 0.9f) }
 
-            // 8초 힌트 — 남은 첫 소품 위를 손이 쓸어 보인다(탭 길이 있다는 것을 말 없이)
-            if (idle && !allOut) {
+            // 15초 흐릿한 예시 — 손이 남은 첫 소품 위를 한 번 쓸어 보인다(소품은 그대로 · 끄는 것은 아이)
+            if (hint != null && !allOut) {
+                val b0 = spots.firstOrNull { life[spots.indexOf(it)] < BLOW_FULL } ?: spots[0]
+                val w = size * 0.6f
+                GhostHand(ghostAlong(listOf(b0 - Offset(w, 0f), b0 + Offset(w, 0f), b0 - Offset(w, 0f), b0 + Offset(w, 0f)), hint), wpx * 0.06f, hint)
+            } else if (idle && !allOut) {
+                // 8초 힌트 — 남은 첫 소품 위를 손이 쓸어 보인다(탭 길이 있다는 것을 말 없이)
                 val sweep by rememberInfiniteTransition(label = "c1hint").animateFloat(
                     -1f, 1f, infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "sweep",
                 )
@@ -169,7 +180,7 @@ internal fun BlowMission(d: Director, done: Boolean, heroArt: Art, prop: BlowPro
                         .alpha(0.75f),
                 ) { ArtView(Art.Img("ic_hand", Art.Emoji("👆")), Modifier.fillMaxSize()) }
             }
-            MicListeningTag(micOn && !allOut, blow > BLOW_ON, "🎤 후~ 불어 봐! (손으로 쓸어도 돼)", "후~~~ 잘한다!")
+            MicListeningTag(micOn && !allOut && !speaking, blow.blowing, "🎤 후~ 불어 봐! (손으로 쓸어도 돼)", "후~~~ 잘한다!")
         }
     }
 }

@@ -341,15 +341,46 @@ private fun FrontGround(bgName: String) {
 }
 
 /**
- * 키트 없는 무대에 깔 펠트 바닥의 색 — 그림에 땅이 없을 때만, 아니면 null (10-06 조장 · 「바닥이 됐다 안 됐다」).
- * 서버가 그린 배경(`local:`)과 우주 · 바닷속 그림은 땅이 없어 인물이 공중에 떠 있었다. 색은 그 곳이 속하는 키트의 땅
+ * Fallback floor for a kit-free stage. Preserve a generated picture's own ground (#337); do not cover it with a temporary
+ * park floor while its pixels are being read. Sky-only generated pictures and the bundled space/sea keep their floor.
  */
-internal fun com.example.finalproject_demo.demo.DemoState.plainFloor(): Color? {
+internal fun com.example.finalproject_demo.demo.DemoState.plainFloor(
+    ground: com.example.finalproject_demo.demo.scene.Ground? = null,
+): Color? {
     val bg = bgName
     if (!(bg.startsWith("local:") || bg == "bg_space" || bg == "bg_sea")) return null
+    if (bg.startsWith("local:") && ground?.hasGround != false) return null
     val kit = SceneKits.matching(placeLabel.orEmpty())
         ?: SceneKits.all[when (bg) { "bg_space" -> "space"; "bg_sea" -> "sea"; else -> "park" }]
     return kit?.let { Color(it.ground) }
+}
+
+/**
+ * The floor colour of a picture the server drew (#257) — read once per picture off the main thread and kept, so a page turn
+ * or a reread from the shelf does not read it again. null while it is read, and for anything but a generated picture
+ */
+@Composable
+internal fun rememberGround(name: String): com.example.finalproject_demo.demo.scene.Ground? {
+    if (!name.startsWith("local:")) return null
+    // produceState's key restarts its producer but retains the previous value. A new picture must not inherit that floor.
+    return androidx.compose.runtime.key(name) {
+        androidx.compose.runtime.produceState(GroundCache.peek(name), name) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { GroundCache.of(name) }
+        }.value
+    }
+}
+
+internal object GroundCache {
+    private val made = java.util.concurrent.ConcurrentHashMap<String, com.example.finalproject_demo.demo.scene.Ground>()
+    fun peek(name: String) = made[name]
+
+    fun of(name: String): com.example.finalproject_demo.demo.scene.Ground? = made[name] ?: runCatching {
+        // a small copy is enough for a median — 1 / 8 of the picture each way
+        val bmp = android.graphics.BitmapFactory.decodeFile(name.removePrefix("local:"),
+            android.graphics.BitmapFactory.Options().apply { inSampleSize = 8 }) ?: return null
+        val px = IntArray(bmp.width * bmp.height).also { bmp.getPixels(it, 0, bmp.width, 0, 0, bmp.width, bmp.height) }
+        com.example.finalproject_demo.demo.scene.groundOf(px, bmp.width, bmp.height).also { made[name] = it }
+    }.getOrNull()
 }
 
 /** 무대 가운데 — 위 제목 · 아래 말풍선에 가리지 않게 안쪽 여백을 둔다 */
@@ -461,6 +492,8 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                             Box(Modifier.fillMaxSize().dashedBorder(Sun, 75.dp).alpha(a), contentAlignment = Alignment.Center) {
                                 Text("?", fontSize = 64.sp, color = Sun, fontWeight = FontWeight.Bold)
                             }
+                        } else if (picked.key == "solo" || picked.key == "unknown") {
+                            Text(if (picked.key == "solo") "혼자 만들기" else "이야기 시작", fontSize = 24.sp, color = Ink)
                         } else {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.scale(pop)) {
                                 ArtView(Art.Img(picked.img, Art.Emoji(picked.emoji)), Modifier.size(120.dp))
@@ -592,8 +625,13 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                     dy
                 } else 0f
                 val hot = rememberHotspotState(s.bgName)
-                // ① 배경 층 — 바닥이 없는 그림(생성 배경 · 우주 · 바닷속)에는 키트와 같은 펠트 바닥을 먼저 깐다 (10-06)
-                if (kit == null) s.plainFloor()?.let { FeltFloor(it, LocalStageBottomInset.current) }
+                // Add a floor only when the picture needs one; actor positions and contact shadows are independent.
+                if (kit == null) {
+                    val g = rememberGround(s.bgName)
+                    s.plainFloor(g)?.let { kitColor ->
+                        FeltFloor(g?.let { Color(it.color) } ?: kitColor, LocalStageBottomInset.current)
+                    }
+                }
                 if (kit == null) HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake, state = hot, part = HotspotPart.Pieces)
                 // ② 인물 층
                 Box(Modifier.fillMaxSize().offset { IntOffset(0, quake.roundToInt()) }) {

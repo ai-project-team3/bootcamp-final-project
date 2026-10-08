@@ -130,7 +130,7 @@ class PictureDiaryFlowTest {
             if (await(2_000) { s.buttons.any { "🎬 오늘 이야기 시연 답" in it.label } } == null) break
             d.push("🎬 오늘 이야기 시연 답")
         }
-        assertEquals("다 그린 뒤 빈 칸 다섯(어디 · 누구랑 · 무슨 일 · 결말 · 내일)을 다 묻는다 — 전체 상한 없음 (#89 · #220)", 5, s.stepsDone)
+        assertEquals("다 그린 뒤 빈 칸 여섯(어디 · 누구랑 · 무슨 일 · 기분 · 결말 · 내일)을 다 묻는다 — 전체 상한 없음 (#89 · #220)", 6, s.stepsDone)
         assertEquals("story_ready", s.endReason)
         assertEquals(listOf("child", "child", "child"), listOf("place", "problem", "solution").map { s.slotBy[it] })
         assertTrue("빈 칸을 마스코트가 메웠다: ${s.slotBy}", s.slotBy.values.none { it == "mascot" })
@@ -139,18 +139,18 @@ class PictureDiaryFlowTest {
         assertTrue("그림일기로 안 왔다", await { s.stage is DiaryPaper && "나는 오늘" in s.line } != null)
         val book = buildDiaryBook(s.diaryBookInput())
         assertEquals(
-            listOf("나는 오늘 어린이집에 갔어요.", "높이 쌓은 블록이 와르르 무너졌어요.", "마침내 다시 쌓은 블록은 이번엔 무너지지 않았어요.",
+            listOf("나는 오늘 어린이집에 갔어요.", "높이 쌓은 블록이 와르르 무너졌어요.", "그때 마음이 속상했어요.", "마침내 다시 쌓은 블록은 이번엔 무너지지 않았어요.",
                 "내일은 아래를 튼튼하게 해서 쌓기로 마음먹었어요."),
             book.map { it.text },
         )
-        assertTrue("오늘 기분을 묻지 않았다", book.last().asksFeel)
+        // 기분은 이미 물어 들었다(10-07 · 「그때 기분이 어땠어?」) — 마지막 쪽에서 얼굴로 또 묻지 않는다(`closeWithFeel`)
+        assertTrue("들은 기분을 얼굴로 또 물었다", book.none { it.asksFeel })
 
         d.readToTheEnd()
         assertTrue("그림일기 책 선물(D6)로 안 갔다 (장면=${s.scene} · ${s.stage})", await { s.stage is DiaryGift } != null)
-        assertEquals("얼굴로 고른 기분", "오늘은 참 신났어요.", s.diaryDay.feel?.line)
         assertTrue(d.push("책장에 꽂기"))
         assertTrue("책장으로 안 갔다", await { s.scene == Scene.SHELF } != null)
-        assertEquals("오늘 그림일기가 책장 맨 앞에 꽂히지 않았다", 4, s.shelf.first().pages)
+        assertEquals("오늘 그림일기가 책장 맨 앞에 꽂히지 않았다", 5, s.shelf.first().pages)
     }
 
     @Test
@@ -905,6 +905,8 @@ class PictureDiaryFlowTest {
         d.speak("친구랑")
         assertTrue(await { s.line == "놀이터에서 무슨 일이 있었어?" } != null)
         d.speak("그네 탔어")
+        assertTrue("일어난 일 다음에 기분을 묻지 않았다 (10-07)", await { s.line == "그때 기분이 어땠어?" } != null)
+        d.speak("신났어")
         assertTrue(await { s.line == "그래서 어떻게 됐어?" } != null)
         d.speak("집에 왔어")
         assertTrue(await { s.line == "내일 또 하고 싶은 거 있어?" } != null)
@@ -1027,9 +1029,12 @@ class PictureDiaryFlowTest {
         assertTrue("카드가 그 조각만 꽂지 않았다", s.diaryDay.focusPiece != null)
         assertTrue(d.push("우리 집이야"))
         assertTrue(await { s.diaryDay.pieces.single().name == "우리 집" } != null)
+        // 다 그린 뒤 이름이 붙은 조각에도 「나도 그려볼까?」를 한 번 묻는다 (#281)
+        assertTrue(await { s.line == "나도 우리 집을 그려볼까?" } != null)
+        assertTrue(d.push("아니"))
         assertTrue(await { s.diaryDay.focusPiece == null } != null)
-        // 그림 질문은 칸 채우기 질문 수를 깎지 않는다 — 세 번째 칸 질문이 그대로 온다 (10-02)
-        assertTrue("조각 질문이 칸 질문 한 번을 썼다 — 말=${s.line}", await { s.line == "그래서 어떻게 됐어?" } != null)
+        // 그림 질문은 칸 채우기 질문 수를 깎지 않는다 — 다음 칸 질문(일어난 일 뒤의 기분 · 10-07)이 그대로 온다 (10-02)
+        assertTrue("조각 질문이 칸 질문 한 번을 썼다 — 말=${s.line}", await { s.line == "그때 기분이 어땠어?" } != null)
     }
 
     @Test

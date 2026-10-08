@@ -9,7 +9,9 @@ import kotlinx.coroutines.*
 
 /** The live conversation enters here once; script scenes remain available with the switch off. */
 suspend fun Director.liveStoryConversation() = coroutineScope {
-    var imagePlace: String? = null
+    // Home can cancel an acknowledgement after its verdict changed slots but before presentation.
+    s.syncStoryPresentation()
+    var imagePlace = s.storyBackgroundPlace
     var imageJob: Job? = null
     var backgroundPending = false
     var waitingConversation: Stage.Show? = null
@@ -41,6 +43,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         if (imagePlace == place) return
         imagePlace = place
         imageJob?.cancel()
+        s.storyBackgroundPlace = null
         if (s.sceneKit != null) {
             log("background route=kit place=$place kit=${s.sceneKit}")
             // 10-05 scene kit: the place is drawn from pre-made felt pieces at once — no /image request, nothing
@@ -57,6 +60,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 val saved = saveKitPicture(kit, seed)
                 if (saved != null && s.slots["place"] == place && s.sceneKit == kit.key) {
                     s.storyBackground = saved
+                    s.storyBackgroundPlace = place
                     log("scene kit ${kit.key} saved as the book's picture")
                 }
             }
@@ -74,11 +78,12 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 if (s.place == place) log("배경 생성 8초 경과 · 대화는 계속 진행")
             }
             try {
-                val png = withTimeoutOrNull(15_000) { Server.image(mask.mask(place), "story") }
+                val png = withTimeoutOrNull(15_000) { Server.image(mask.mask(place), "story", s.bookStyle) }
                 val saved = png?.let { withContext(Dispatchers.IO) { saveStoryImage(it) } }
                 currentCoroutineContext().ensureActive()
                 if (s.place == place && imagePlace == place) {
                     s.storyBackground = saved
+                    s.storyBackgroundPlace = place
                     backgroundPending = false
                     log("background result=${if (saved == null) "preset" else "generated"} place=$place")
                     // Only refresh our waiting conversation, never a drawing/card/retry stage.
@@ -91,6 +96,9 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             } finally { reminder.cancel() }
         }
     }
+    // Restart only an unfinished request. Mark it pending before rendering any question,
+    // otherwise an interrupted generation can flash the unrelated snow preset on resume.
+    updateBackground()
     if (s.storyStartedAtMs == 0L) s.storyStartedAtMs = System.currentTimeMillis()
     // 되돌리기 · 앞으로 가기 — 잘못 알아들은 답을 직전 차례째로 무른다 (10-02 · demo/TurnHistory)
     val history = TurnHistory(s)
@@ -196,7 +204,8 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         s.stage = Stage.Show(s.storyHeroArt, "이야기 그림을 마무리하는 중…")
     }
     imageJob?.join()
-    log("동화 대화 종료: ${s.endReason} · ${s.turn}턴 · 실제 판정으로 채운 칸 ${s.slots.keys}")
+    val filledSlots = s.slots.filterValues { it.isNotBlank() }.keys.joinToString(" · ")
+    log("Story conversation finished: ${s.endReason} · ${s.turn} turns · verdict-filled slots: $filledSlots")
     go(Scene.MAKING)
 }
 
@@ -208,7 +217,7 @@ internal suspend fun Director.completeStoryBackgroundFromBook() {
     s.stage = Stage.Show(s.storyHeroArt, "이야기 그림을 마무리하는 중…")
     inputs(false, false)
     buttons()
-    val png = withTimeoutOrNull(15_000) { Server.image(s.nameMask().mask(scene), "story") }
+    val png = withTimeoutOrNull(15_000) { Server.image(s.nameMask().mask(scene), "story", s.bookStyle) }
     val saved = png?.let { withContext(Dispatchers.IO) { saveStoryImage(it) } }
     currentCoroutineContext().ensureActive()
     s.storyBackground = saved
@@ -237,7 +246,8 @@ internal fun DemoState.syncStoryPresentation() {
         if (s.place != place) s.sceneSeed = kotlin.random.Random.nextLong()
         // the three app themes (공룡 나라 · 우주 · 바다) go to their kits too — the kit has a floor and lives (birds, bubbles);
         // the theme picture is only for a place no kit matches (10-06 lead decision on #222 · device-checked all eight kits)
-        s.sceneKit = if (SceneKits.liveStory) SceneKits.matching(place)?.key else null
+        // a kit in this book's style only — felt pieces under a crayon book would put two styles on one stage (WorldStyle)
+        s.sceneKit = if (SceneKits.liveStory) SceneKits.matching(place)?.takeIf { WorldStyle.kitReady(it, s.bookStyle) }?.key else null
         s.place = place
     }
     s.problem = s.slots["problem"]

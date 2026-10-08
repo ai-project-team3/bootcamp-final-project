@@ -25,7 +25,8 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null, deferredSlot: Stri
     //    asked 「사육사 아저씨는 어떤 소리를 낼까?」 four turns in a row
     //  - companion — the session already asked who is here (할아버지); 「또치와 누가 함께할까?」 came out of nowhere.
     //    It still fills when the child brings someone in on their own
-    fun skipped(slot: String) = (slot == "sound" && storySoundAttempted) || slot == "companion"
+    fun skipped(slot: String) = (slot == "sound" && storySoundAttempted) || slot == "companion" ||
+        (slot == "adult" && !hasPartner)
 
     // 첫 두 턴은 장소와 사건을 확인한다. 한 답이 둘 다 채웠으면 같은 질문을 되묻지 않는다.
     val probe = when {
@@ -39,6 +40,10 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null, deferredSlot: Stri
     val slot = probe ?: server
     if (slot != null) return StoryPrompt(slot, serverQuestion?.takeIf { slot == server && it.isNotBlank() } ?: CORE_QUESTIONS.getValue(slot))
 
+    // An accepted free follow-up is still the server's next question. Unasked template
+    // slots must not replace it; rejected named-slot questions are cleared by StoryTurn.
+    if (storyNextSlot == null && !serverQuestion.isNullOrBlank()) return StoryPrompt(null, serverQuestion)
+
     // 템플릿 고유 질문은 12개 공통 칸이 아니다. 답을 앱 책의 해당 칸에만 둔다.
     val local = template?.let { (it.plot + it.ending).firstOrNull(::open) }
     if (local != null) return StoryPrompt(local, "그다음에는 무슨 일이 있었어?", templateOnly = true)
@@ -46,7 +51,8 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null, deferredSlot: Stri
     // 응답이 불완전할 때의 최소 복구. 12칸의 순서를 정상 흐름에 강요하지 않는다.
     val missing = listOf("place", "problem", "reaction", "cause", "solution").firstOrNull(::open)
     if (missing != null) return StoryPrompt(missing, CORE_QUESTIONS.getValue(missing))
-    return StoryPrompt(null, serverQuestion?.takeIf(String::isNotBlank) ?: "이야기를 조금 더 들려줄래?")
+    return StoryPrompt(null, serverQuestion?.takeIf { it.isNotBlank() && storyNextSlot?.let(::skipped) != true }
+        ?: "이야기를 조금 더 들려줄래?")
 }
 
 /** 시간과 대리 선택 횟수로 끝내지 않는다. story_ready만 책 제작을 시작한다. */

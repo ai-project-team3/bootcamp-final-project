@@ -1,0 +1,16 @@
+{
+  "name": "rocket_crayon",
+  "of": "rocket",
+  "kind": "cut",
+  "text": "cute red and cream toy rocket ship with yellow fins and a round window, upright",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 228180270,
+  "prompt": "cute red and cream toy rocket ship with yellow fins and a round window, upright, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "gen_assets.py",
+  "made": "2026-10-07"
+}

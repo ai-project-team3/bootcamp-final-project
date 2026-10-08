@@ -164,7 +164,8 @@ val COOP_STEPS: List<DiaryStep> = listOf(
             // 일이 어긋났을 때만 "왜 그랬을까?" — 그냥 즐거웠던 날에 물으면 물을 데가 없다
             if (it.hadTrouble()) listOf(
                 "왜 그렇게 됐을까?",
-                if (it.companionKind.isNotBlank() && "혼자" !in it.companionKind)
+                // 협업은 「$w는 왜 …」가 같이 간 사람의 행동을 묻는 꼴이 된다 — 문제의 까닭을 묻는다 (#304 1-3 · 일기 사다리는 그대로)
+                if (!it.isCoop && it.companionKind.isNotBlank() && "혼자" !in it.companionKind)
                     "$w${eun(w)} 왜 그랬을 것 같아?"
                 else "무엇 때문에 그런 일이 생겼을까?",
                 "그 일이 생기기 전에 무슨 일이 있었어?",

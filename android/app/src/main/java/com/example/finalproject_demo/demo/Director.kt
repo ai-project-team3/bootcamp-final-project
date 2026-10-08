@@ -1,8 +1,13 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.missions
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Voice
 import com.example.finalproject_demo.net.nameMask
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
@@ -93,7 +98,7 @@ class Director(
     }
 
     private fun SavedStoryBook.onShelf(fresh: Boolean = false) =
-        ShelfBook(title, themeKey, bgName, pages.size, fresh, id)
+        ShelfBook(title, themeKey, bgName, pages.size, fresh, id, artStyle)
 
     /** 실패한 저장은 책장에 성공한 것처럼 표시하지 않는다. */
     fun saveFinishedStory(): Boolean {
@@ -102,6 +107,8 @@ class Director(
             if (book.soundClipId != null && storyBookStore == null) return false
             if (!s.keepStorySound(book)) return false
             storyBookStore?.save(book)
+            // the next books avoid this one's missions (#259)
+            com.example.finalproject_demo.demo.missions.MissionHistory.record(s.mode, book.id, s.missions())
             s.commitStorySound()
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))
@@ -128,7 +135,7 @@ class Director(
         return try {
             if (storyBookStore != null && !storyBookStore.delete(id)) return false
             savedStories.removeAll { it.id == id }
-            SessionReports.forget(id)
+            SessionReports.forget(id, s)
             s.shelf.removeAll { it.savedStoryId == id }
             runCatching { com.example.finalproject_demo.sound.ChildSound.deleteBook(id) }
             recoverStoryImages()
@@ -147,7 +154,8 @@ class Director(
             ?: savedStories.flatMap { listOfNotNull(it.bgName) + it.visuals?.images.orEmpty() }.toSet()
         val coop = CoopShelf.imageReferences(s) ?: return
         val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground, s.generatedFriend?.image) +
-            s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName }
+            s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName } +
+            s.heroCreationDraft?.imageReferences().orEmpty()
         store.recover(saved + coop + active)
     }
 
@@ -304,6 +312,17 @@ class Director(
         if ('?' in text) pendingQuestion = text.trim()
     }
 
+    /**
+     * Otto's own line in the report transcript, written now — his answer to a child's question has no 「?」, so
+     * [heardQuestion] never keeps it (#327 §4-3). It follows the child's question, which [talk] already wrote
+     * together with the question it answered, so nothing is pending here
+     */
+    fun talkOtto(text: String) {
+        if (text.isBlank()) return
+        if (s.talkStartedAtMs == 0L) s.talkStartedAtMs = System.currentTimeMillis()
+        s.talk += TalkLine("otto", text.trim())
+    }
+
     /** One answer in the report transcript, after the question it answers (demo/SessionReport.kt · rule 5) */
     fun talk(who: String, text: String) {
         if (text.isBlank()) return
@@ -353,8 +372,17 @@ class Director(
         return j
     }
 
-    /** Voices asked for ahead of time, by the exact spoken text ([prefetchSpeech]) */
-    private val prefetched = java.util.concurrent.ConcurrentHashMap<String, Deferred<ByteArray?>>()
+    /** Voices kept ahead of time at most — a diary book is up to 8 text pages plus the drawing and puzzle pages (#262; was 4) */
+    private val PREFETCH_MAX = 12
+
+    /**
+     * Voices asked for ahead of time, by the exact spoken text ([prefetchSpeech] · [offerVoice]). Past [PREFETCH_MAX]
+     * the oldest goes first — clearing the whole map dropped a new book's first pages while it was still prefetching
+     * (#276 review). Guard with `synchronized(prefetched)`.
+     */
+    private val prefetched = object : LinkedHashMap<String, Deferred<ByteArray?>>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Deferred<ByteArray?>>) = size > PREFETCH_MAX
+    }
 
     /**
      * Start making a line's voice now, before it is said (10-05 trace). The question used to be voiced only
@@ -364,8 +392,7 @@ class Director(
     fun prefetchSpeech(text: String) {
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)
-        if (prefetched.size > 4) prefetched.clear()
-        prefetched.getOrPut(line) { scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } } }
+        synchronized(prefetched) { prefetched.getOrPut(line) { scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } } } }
     }
 
     /**
@@ -386,33 +413,52 @@ class Director(
     /** Use [mp3] the next time [text] is said instead of asking /tts — a voice kept on the phone (#179) */
     fun offerVoice(text: String, mp3: ByteArray) {
         if (!Server.liveFor(s.mode) || text.isBlank()) return
-        if (prefetched.size > 4) prefetched.clear()
-        prefetched[s.nameMask().speakable(text)] = kotlinx.coroutines.CompletableDeferred(mp3)
+        synchronized(prefetched) { prefetched[s.nameMask().speakable(text)] = kotlinx.coroutines.CompletableDeferred(mp3) }
     }
 
-    internal fun voiceReady(text: String) = prefetched.containsKey(s.nameMask().speakable(text))
+    internal fun voiceReady(text: String) = synchronized(prefetched) { prefetched.containsKey(s.nameMask().speakable(text)) }
 
-    private fun speakLive(text: String) {
+    /**
+     * The line ([DemoState.lineId]) whose voice has not started playing yet; null once it plays (#262).
+     * The screen types the text when the voice starts — the text used to finish seconds before the sound (10-07 device).
+     */
+    var voicePending by mutableStateOf<Int?>(null)
+        internal set
+
+    private fun speakLive(text: String, waitForVoice: Boolean = true) {
         // 소리를 낼 수 없으면(단위 테스트 — Voice 가 붙지 않았다) 목소리를 청하지도 않는다.
         // 들리지 않을 목소리 때문에 가짜 서버 주소로 대사마다 연결을 시도할 까닭이 없다
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)          // names read as they are (10-02 · ChildCall)
         // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
-        val audio = (prefetched.remove(line) ?: scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }).also { queueVoice(it) }
-        enqueue { audio.await() }
+        val ready = synchronized(prefetched) { prefetched.remove(line) }
+        val audio = (ready ?: scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }).also { queueVoice(it) }
+        queueSpoken(if (waitForVoice) s.lineId else null) { audio.await() }
+    }
+
+    /** Queue a line's sound; [id] (a lineId) stays in [voicePending] until that sound really starts playing (#262) */
+    internal fun queueSpoken(id: Int?, sound: suspend () -> ByteArray?) {
+        if (id != null) voicePending = id
+        enqueue(onStart = { if (id != null && voicePending == id) voicePending = null }, sound = sound)
     }
 
     /** 방금 한 말을 다시 들려준다 — 아이가 오또 얼굴을 눌렀을 때(#56). 서버 모드가 아니면 아무것도 안 한다 */
-    fun replayLine() = speakLive(s.line)
+    fun replayLine() = speakLive(s.line, waitForVoice = false)     // the text is already on screen — do not blank it (#276 review)
 
     /** 앞 대사가 끝난 뒤 [sound] 를 튼다 — 대사 줄의 맨 끝에 선다. null 이면 조용히 지나간다 */
-    private fun enqueue(sound: suspend () -> ByteArray?) {
+    private fun enqueue(onStart: () -> Unit = {}, sound: suspend () -> ByteArray?) {
         val before = voiceJob
         voiceJob = queueVoice(scope.launch {
             before?.join()
             while (s.holding) delay(100)              // ⏸ 동안 받아 둔 대사는 [이어 하기] 뒤에 (#125)
             // 녹음 중에 온 목소리는 틀지 않는다 — 녹음에 들어가면 VAD 가 오또 말을 아이 말로 듣는다 (#178 · 글자는 화면에 있다)
-            sound()?.let { if (!s.micOn) play(it) }
+            try {
+                val audio = sound()
+                // no sound (or the mic is open) still releases the text; with sound, release it when playback starts
+                if (audio != null && !s.micOn) play(audio, onStart) else onStart()
+            } finally {
+                onStart()                                 // cancelled or failed — never hold the text
+            }
         })
     }
 
@@ -434,10 +480,13 @@ class Director(
 
     @Volatile private var lastVoiceEnd = 0L
 
-    private suspend fun play(audio: ByteArray) {
+    private suspend fun play(audio: ByteArray, onStart: () -> Unit = {}) {
         val wait = LINE_GAP_MS - (System.currentTimeMillis() - lastVoiceEnd)
         if (wait > 0) delay(wait)
-        try { Voice.playAndWait(audio) } finally { lastVoiceEnd = System.currentTimeMillis() }
+        onStart()                                         // after the gap — the real start of the sound (#276 review)
+        // canSpeak, not just an attached context: a screen test attaches Voice to its activity and the context
+        // outlives it, so a later Robolectric test would wait forever on a MediaPlayer that never completes
+        try { if (Voice.canSpeak) Voice.playAndWait(audio) } finally { lastVoiceEnd = System.currentTimeMillis() }
     }
 
     /**
@@ -469,6 +518,7 @@ class Director(
     private fun hushVoice() {
         synchronized(voiceLines) { voiceLines.toList() }.forEach { it.cancel() }
         voiceJob = null
+        voicePending = null
         Voice.stopPlaying()
     }
 
@@ -524,7 +574,7 @@ class Director(
     }
 
     fun childSays(text: String) = say(text, s.childName)
-    fun partnerSays(text: String) = say(text, s.pn)
+    fun partnerSays(text: String) { if (s.hasPartner) say(text, s.pn) }
 
     fun log(t: String) {
         com.example.finalproject_demo.net.Trace.line("log", t)
@@ -719,6 +769,7 @@ class Director(
             drain()
             currentQ = null
             s.scene = scene
+            sceneMusic(scene)
             s.buttons.clear()
             s.countdown = null
             s.stage = Stage.Empty
@@ -785,7 +836,7 @@ class Director(
      * 다시 같은 모드로 들어오면 「이어서 할까?」 → `resume` 신호로 이 장면부터 이어 간다 (`Scenes.sceneAdult`)
      */
     fun leaveToRoom() {
-        s.holding = false
+        if (s.holding) { s.holding = false; Bgm.stop(); Bgm.resume("pause") }   // stop first: resume would fade the paused track back in for a blink
         pauseStory()
         goHome()
     }
@@ -799,6 +850,7 @@ class Director(
         if (s.holding) return
         s.holding = true
         hushVoice()
+        Bgm.hold("pause")
         if (s.micOn) { stopMic = true; micJob?.cancel(); s.micOn = false }
         log("⏸ 일시정지 — 목소리 · 녹음을 멈추고 흐름을 세운다")
     }
@@ -807,6 +859,7 @@ class Director(
     fun resumeSession() {
         if (!s.holding) return
         s.holding = false
+        Bgm.resume("pause")
         log("▶ 이어 하기")
         replayLine()
     }
@@ -928,7 +981,7 @@ class Director(
         inputs(mic = true, next = true, draw = q.drawAnswer != null)
 
         val scripted = scriptButtons(q)
-        q.partnerLine?.let {
+        q.partnerLine?.takeIf { s.hasPartner }?.let {
             scripted += DemoBtn("${s.partner.emoji} ${s.pn}만 말함 — \"$it\"") { send(Reply.PartnerOnly) }
         }
         scripted += DemoBtn("🤐 대답 없음 (➡️와 같음)") { send(Reply.Silent) }
@@ -981,6 +1034,7 @@ class Director(
      * 마이크는 그 사람이 쓴다. 답이 없으면(➡️) **아무것도 대신 고르지 않고** 넘어간다.
      */
     suspend fun askPartner(text: String, spoken: List<Answer>): Answer? {
+        if (!s.hasPartner) return null
         val q = Question(text = text, kind = Kind.EASY, spoken = spoken)
         currentQ = q
         say(text)
@@ -1058,6 +1112,7 @@ class Director(
 
     /** 함께 하는 사람만 말한 갈래 — 2~3초 기다렸다가 "○○는 어떻게 생각해?" 한 번 (⭐5 · 구현대본 §0-2) */
     private suspend fun partnerBranch(q: Question): Reply {
+        if (!s.hasPartner) return Reply.Silent
         val line = q.partnerLine ?: return Reply.Silent
         partnerSays(line)
         s.partnerTurns++

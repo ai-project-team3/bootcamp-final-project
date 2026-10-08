@@ -275,3 +275,11 @@ def test_the_diary_redraw_sends_the_filled_drawing(live):
 def test_a_story_redraw_is_not_filled(live):
     post(mode="story")
     assert _sent(live).getpixel((512, 600)) == (255, 255, 255)
+
+
+def test_a_crayon_book_redraws_in_crayon_but_the_diary_keeps_colored_pencil():
+    """10-07 종훈: the book's style changes the world; the diary's redraw stays colored pencil (결정 27)."""
+    story = comfy.redraw_workflow("house", 1, "AAAA", mode="story", style="crayon")
+    assert "crayon" in story["2"]["inputs"]["text"] and "wool felt" not in story["2"]["inputs"]["text"]
+    diary = comfy.redraw_workflow("house", 1, "AAAA", mode="diary", style="crayon")
+    assert "colored pencil" in diary["2"]["inputs"]["text"] and "crayon" not in diary["2"]["inputs"]["text"]

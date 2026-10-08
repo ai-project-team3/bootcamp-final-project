@@ -1,15 +1,16 @@
 package com.example.finalproject_demo.demo
 
 /** A live story description is kept only after the child confirms what was heard. */
-internal suspend fun Director.confirmHeroDescription(heard: String): Boolean {
+internal suspend fun Director.confirmHeroDescription(heard: String): String? {
+    var candidate = heard
     var shown = false
     try {
         while (true) {
             val reply = awaitReplyShowing {
                 if (!shown) {
-                    s.stage = Stage.HeroAnswer(heard)
+                    s.stage = Stage.HeroAnswer(candidate)
                     inputs(mic = true, next = false)
-                    say("「$heard」, 맞아?")
+                    say("「$candidate」, 맞아?")
                     buttons(
                         DemoBtn("🖐 맞아") { send(Reply.Tapped("ok", "맞아")) },
                         DemoBtn("🖐 다시 말할래") { send(Reply.Tapped("no", "다시 말할래")) },
@@ -19,10 +20,30 @@ internal suspend fun Director.confirmHeroDescription(heard: String): Boolean {
             }
             when (reply) {
                 is Reply.Tapped -> when (reply.value) {
-                    "ok" -> return true
-                    "no" -> return false
+                    "ok" -> return candidate
+                    "no" -> return null
                 }
-                is Reply.Spoke -> spokenYesNo(reply.text)?.let { return it }
+                is Reply.Spoke -> {
+                    val raw = reply.text.trim().trimEnd('.', '!', '?', '~', ' ')
+                    val yesNo = if (s.mode == StoryMode.STORY && spokenYesNo(raw) == true &&
+                        !Regex("^(응+|웅+|어|네+|넹|예+|맞아(요)?|맞|그래(요)?|좋아(요)?|ㅇㅇ)([,\\s]+(맞아(요)?|그래(요)?|좋아(요)?))?$").matches(raw)) null
+                        else spokenYesNo(raw)
+                    if (s.mode != StoryMode.STORY) {
+                        yesNo?.let { return if (it) candidate else null }
+                        continue
+                    }
+                    // A rejection may include the replacement in the same breath.
+                    val replacement = raw
+                        .replace(Regex("^((아니(야|요|에요|오)?|아냐|아닌데(요)?|틀려(요)?)[,，.!?\\s]*)+"), "")
+                        .trim().trimEnd('.', '!', '?', '~', ' ')
+                    when {
+                        yesNo == true -> return candidate
+                        yesNo == false && (replacement.length < 2 || replacement in setOf("에요", "요", "야")) -> return null
+                        yesNo == false && replacement == raw -> return null
+                        yesNo == false && Regex("^다시(\\s*(말할래|말할게|할래|할게|말하고 싶어|말할 거야))?$").matches(replacement) -> return null
+                        replacement.isNotBlank() -> { candidate = replacement; shown = false }
+                    }
+                }
                 else -> Unit
             }
         }

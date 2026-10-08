@@ -50,6 +50,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.graphics.asImageBitmap
+import com.example.finalproject_demo.net.AiPicture
+import com.example.finalproject_demo.net.NOTE_MAX
+import com.example.finalproject_demo.net.ReportAttachment
+import com.example.finalproject_demo.net.ReportCategory
+import com.example.finalproject_demo.net.ReportPayload
+import com.example.finalproject_demo.net.ReportResult
+import com.example.finalproject_demo.net.ReportUpload
+import kotlinx.coroutines.launch
 
 /*
  * 고지 · 동의 · 신고 — **정책이 요구하는 화면 넷** (2026-09-23)
@@ -78,7 +88,7 @@ import androidx.compose.ui.window.DialogProperties
  * ## 동의는 기기에 남는다 (09-25)
  *
  * 처음에는 메모리뿐이라 **껐다 켤 때마다 동의 화면이 다시 떴다.** 지금은 [ConsentStore.attach] 가
- * 기기(SharedPreferences)에서 읽고 쓴다. 신고는 메일 앱으로 넘긴다(`ReportSection`).
+ * 기기(SharedPreferences)에서 읽고 쓴다. 신고는 서버로 보내고, 닿지 못하면 보호자가 메일을 연다(`ReportSheet` · #283).
  */
 
 /**
@@ -125,9 +135,6 @@ object ConsentStore {
     var typecastVoiceAgreed by mutableStateOf(false)
         private set
 
-    /** 이 기기에서 신고 화면을 연 기록 — 실제 전달은 메일 앱이 한다(`ReportSection`) */
-    val reports = mutableStateListOf<Report>()
-
     // ⚠️ **기기에 저장한다 (09-25).** 전에는 메모리뿐이라 앱을 켤 때마다 동의 화면이 다시 떴다.
     //    `SharedPreferences` 를 쓴다 — 값 둘(참/거짓)이라 DataStore 의존성을 들일 까닭이 없다.
     //    `allowBackup="false"` 라 이 파일은 구글 드라이브로 나가지 않는다(AndroidManifest).
@@ -148,6 +155,7 @@ object ConsentStore {
         nameVoiceAgreed = p.getBoolean(KEY_NAME_VOICE, false)
         typecastVoiceAgreed = p.getBoolean(KEY_TYPECAST_VOICE, false)
         com.example.finalproject_demo.net.Server.typecastVoiceAgreed = typecastVoiceAgreed
+        SentReports.attach(context)
     }
 
     /** 타입캐스트 목소리 선택 동의를 켜고 끈다 — 부모 영역 → 계정에서 언제든 바꿀 수 있다 */
@@ -190,163 +198,331 @@ object ConsentStore {
         prefs?.edit()?.putBoolean(KEY_MIC, false)?.apply()
     }
 
-    fun report(reason: String, note: String) {
-        reports.add(0, Report(reason, note))
+}
+
+/** 신고를 받는 메일 — 처리방침 · 스토어 등록정보의 연락처와 같다(서버에 닿지 못했을 때만 쓴다) */
+const val REPORT_TO = com.example.finalproject_demo.net.ReportUpload.MAIL_TO
+
+/**
+ * 보낸 신고의 접수 번호 — 최근 10개 `{번호 · 날짜 · 분류}` 만 (#283 · 설계 §2-4).
+ * 보호자가 삭제를 요청하려면 번호가 필요하다. 탈퇴 · 기기 비우기(`LocalWipe`)가 지운다
+ */
+object SentReports {
+    data class Sent(val id: String, val date: String, val category: String)
+
+    const val PREFS = "sent_reports"
+    private const val KEY = "list"
+    private const val KEEP = 10
+    val list = mutableStateListOf<Sent>()
+    private var prefs: SharedPreferences? = null
+
+    fun attach(context: Context) {
+        prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        reload()
+    }
+
+    /** 저장된 것을 다시 읽는다 — 기기를 비운 뒤에도 부른다 */
+    fun reload() {
+        list.clear()
+        val raw = prefs?.getString(KEY, null) ?: return
+        runCatching {
+            val a = org.json.JSONArray(raw)
+            (0 until a.length()).forEach { i ->
+                val o = a.getJSONObject(i)
+                list += Sent(o.getString("id"), o.optString("date"), o.optString("category"))
+            }
+        }
+    }
+
+    fun add(s: Sent) {
+        list.add(0, s)
+        while (list.size > KEEP) list.removeAt(list.lastIndex)
+        val a = org.json.JSONArray()
+        list.forEach { a.put(org.json.JSONObject().put("id", it.id).put("date", it.date).put("category", it.category)) }
+        prefs?.edit()?.putString(KEY, a.toString())?.apply()
     }
 }
 
-/** 신고 한 건. 언제인지는 더미라 순번으로만 둔다 */
-data class Report(val reason: String, val note: String)
-
-/**
- * 신고를 받는 주소. **처리방침·스토어 등록정보와 같은 주소여야 한다** —
- * `docs/공개용_개인정보처리방침.md` · `docs/스토어_등록정보.md` 가 이 주소를 연락처로 적었다.
- */
-const val REPORT_TO = "ljh11442@gmail.com"
-
-/** 부모가 적는 칸의 길이 상한 — 메일 한 통에 들어갈 만큼 */
-private const val REPORT_NOTE_MAX = 1000
-
-/**
- * 신고를 **메일 앱으로 넘긴다** (09-25). 열었으면 true.
- *
- * ## 왜 메일인가
- * 전에는 메모리 리스트에 쌓기만 했다 — Play 가 요구하는 「앱 내 신고」가 **아무 데도 안 갔다.**
- * 서버(`/report`)가 아직 없으므로 지금 쓸 수 있는 실제 전달 경로는 메일뿐이다.
- * 부모가 보내기를 눌러야 가므로 **보냈는지는 앱이 모른다** — 화면도 그렇게 말한다.
- *
- * ## 무엇을 싣나 — 최소한만
- * 사유 · 부모가 적은 글 · 앱 버전. **아이가 한 말 · 그림 · 기기 식별키는 싣지 않는다.**
- * 싣고 싶어지는 날이 오면 그건 새 수집 항목이라 처리방침부터 고친다.
- *
- * ## 서버가 생기면
- * 이 함수만 바꾼다. 화면(`ReportSection`)은 그대로 둔다.
- */
-private fun sendReportMail(ctx: Context, reason: String, note: String): Boolean {
-    val version = runCatching {
-        ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName
-    }.getOrNull() ?: "?"
-    val subject = "[오또 신고] $reason"
-    val body = buildString {
-        appendLine("사유: $reason")
-        appendLine()
-        appendLine(note.ifBlank { "(적은 내용 없음)" })
-        appendLine()
-        append("앱 버전: $version")
-    }
-    val intent = Intent(Intent.ACTION_SENDTO).apply {
-        // 일부 메일 앱은 EXTRA_* 를 무시하고 mailto 주소의 질의만 읽는다 — 둘 다 싣는다
-        data = Uri.parse(
-            "mailto:$REPORT_TO?subject=${Uri.encode(subject)}&body=${Uri.encode(body)}",
-        )
-        putExtra(Intent.EXTRA_EMAIL, arrayOf(REPORT_TO))
-        putExtra(Intent.EXTRA_SUBJECT, subject)
-        putExtra(Intent.EXTRA_TEXT, body)
-    }
-    return try {
-        ctx.startActivity(intent)
-        true
-    } catch (_: ActivityNotFoundException) {
-        false
-    }
-}
-
-/** 신고 사유 — 아이용 앱에서 부모가 고를 만한 것들 (초안) */
-private val REPORT_REASONS = listOf(
-    "부적절한 그림",
-    "부적절한 말",
-    "오류",
-    "기타",
-)
+/** 앱 버전 — 신고에 싣는다 */
+private fun appVersion(ctx: Context): String = runCatching {
+    ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName
+}.getOrNull() ?: "?"
 
 // ── 1. 앱 내 신고 ──────────────────────────────────────────────
 
 /**
- * 부모 모드 설정에 들어가는 **신고** 자리.
- *
- * 누르면 사유를 고르고 한 줄 적는다. **저장만 하고 아무 데도 보내지 않는다** — 더미다.
+ * 부모 모드 설정의 **신고** 자리 — 책 맥락이 없어 분류 · 설명만 받고 첨부 칸은 없다 (#283 · 설계 §2-1).
+ * 책 속 그림 · 문장이면 책장 정리에서 그 책의 [신고]로 — 그 길이 주 입구다.
  */
 @Composable
 fun ReportSection(onLog: (String) -> Unit = {}) {
     var open by remember { mutableStateOf(false) }
-    var picked by remember { mutableStateOf<String?>(null) }
-    var note by remember { mutableStateOf("") }
-    var done by remember { mutableStateOf(false) }
-    var mailOpened by remember { mutableStateOf(false) }
-    val ctx = LocalContext.current
-
     NoticeCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Label("문제가 있었나요?")
                 Body("이야기나 그림에 이상한 점이 있으면 알려 주세요.")
             }
-            Pill(if (open) "닫기" else "신고하기", Coral) { open = !open; done = false }
+            Pill(if (open) "닫기" else "신고하기", Coral) { open = !open }
         }
-
         if (open) {
             Spacer(Modifier.height(12.dp))
-            if (done) {
-                // 메일 앱을 열었을 뿐 **보냈는지는 모른다** — 그래서 「접수했어요」라고 하지 않는다
-                if (mailOpened) {
-                    Body("메일 앱이 열렸어요. 거기서 보내기를 누르시면 저희에게 전달돼요.")
-                } else {
-                    Body("메일 앱을 찾지 못했어요. $REPORT_TO 로 직접 보내 주시면 확인할게요.")
+            ReportSheet(book = null, onLog = onLog, onClose = { open = false })
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("책 속 그림 · 문장이라면 「책장 정리」에서 그 책의 [신고]를 눌러 주세요 — 그 그림이나 문장을 같이 보낼 수 있어요.",
+            fontSize = 12.sp, color = Ink.copy(alpha = 0.6f), lineHeight = 17.sp)
+        if (SentReports.list.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Text("보낸 신고 ${SentReports.list.size}건 · " + SentReports.list.take(3).joinToString(" · ") { it.id } +
+                (if (SentReports.list.size > 3) " …" else ""), fontSize = 12.sp, color = Ink.copy(alpha = 0.6f))
+        }
+    }
+}
+
+/**
+ * 신고 한 장 — 쪽(책에서 왔을 때) → 분류 → 설명 → ☐ 그림 / 문장 같이 보내기 → **미리 보기 안에서만** 보내기 (설계 §2-2 · §2-3).
+ *
+ * 서버가 받으면 접수 번호, 닿지 못하면 「서버에 닿지 못했어요」 + [메일로 보내기](보호자가 누를 때만 · 첨부 없이).
+ * 아이가 그린 그림 · 녹음 · 목소리는 이 화면 어디에서도 고를 수 없다 — 후보는 [ReportBook] 의 AI 그림 · 쪽 문장뿐이다
+ *
+ * @param book 책장 정리의 책에서 왔으면 그 책, 설정에서 왔으면 null(첨부 칸 없음)
+ */
+@Composable
+fun ReportSheet(
+    book: com.example.finalproject_demo.demo.ReportBook?,
+    onLog: (String) -> Unit = {},
+    onClose: () -> Unit = {},
+) {
+    val ctx = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var page by remember(book) { mutableStateOf(if (book != null && book.pages.isNotEmpty()) 1 else null) }
+    var category by remember { mutableStateOf<ReportCategory?>(null) }
+    var note by remember { mutableStateOf("") }
+    var attach by remember { mutableStateOf(false) }
+    var kind by remember { mutableStateOf<String?>(null) }           // "picture" · "preset" · "sentence"
+    var picture by remember(book) { mutableStateOf(book?.pictures?.firstOrNull()) }
+    var preview by remember { mutableStateOf(false) }
+    var sending by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<ReportResult?>(null) }
+    var sent by remember { mutableStateOf<ReportPayload?>(null) }
+    var mailOpened by remember { mutableStateOf<Boolean?>(null) }
+
+    val sentence = book?.let { b -> page?.let { b.pages.getOrNull(it - 1) } }?.takeIf { it.isNotBlank() }
+        ?.let { ReportAttachment.Sentence.of(it, book.names) }
+    val hasPicture = book?.pictures?.isNotEmpty() == true
+    val hasPreset = book?.presetBackground != null
+
+    fun payload(att: ReportAttachment?) = ReportPayload(
+        category = category ?: ReportCategory.OTHER, mode = book?.mode, page = page, note = note.trim(),
+        appVersion = appVersion(ctx), attachment = att,
+    )
+
+    // ── 결과 ──
+    when (val r = result) {
+        is ReportResult.Accepted -> {
+            Body("접수됐어요 · 접수 번호 ${r.id}")
+            Body("처리가 끝나면 30일 뒤 지워져요. 지워 달라고 하시려면 이 번호를 $REPORT_TO 으로 보내 주세요.")
+            Spacer(Modifier.height(10.dp))
+            Pill("닫기", Sun) { onClose() }
+            return
+        }
+        ReportResult.Unreached -> {
+            Body("서버에 닿지 못했어요.")
+            Body("메일로 보내실 수 있어요. 메일로는 그림 · 문장이 가지 않아요.")
+            mailOpened?.let { opened ->
+                Body(if (opened) "메일 앱이 열렸어요. 거기서 보내기를 누르시면 저희에게 전달돼요."
+                    else "메일 앱을 찾지 못했어요. $REPORT_TO 로 직접 보내 주시면 확인할게요.")
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("메일로 보내기", Sun) {
+                    val p = sent ?: return@Pill
+                    val opened = try { ctx.startActivity(ReportUpload.mailIntent(p)); true } catch (_: ActivityNotFoundException) { false }
+                    mailOpened = opened
+                    onLog("신고 — 서버 실패 → 메일 ${if (opened) "앱으로 넘김" else "앱 없음"}")
                 }
-            } else {
-                REPORT_REASONS.forEach { r ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 3.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (picked == r) Sun.copy(alpha = 0.35f) else Color(0x11000000))
-                            .clickable { picked = r }
-                            .padding(horizontal = 12.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(if (picked == r) "●" else "○", fontSize = 14.sp, color = Ink)
-                        Spacer(Modifier.width(9.dp))
-                        Text(r, fontSize = 14.sp, color = Ink)
+                Pill("닫기", Color(0x22000000)) { onClose() }
+            }
+            return
+        }
+        null -> {}
+    }
+
+    // ── 미리 보기 — 보내기는 여기에만 ──
+    if (preview) {
+        val att: ReportAttachment? = if (!attach) null else when (kind) {
+            "sentence" -> sentence
+            "preset" -> book?.presetBackground?.let { ReportAttachment.Preset(it) }
+            else -> null
+        }
+        Label("보낼 내용")
+        Spacer(Modifier.height(6.dp))
+        listOfNotNull(
+            "분류" to (category ?: ReportCategory.OTHER).label,
+            book?.let { "어디서" to ReportUpload.modeLabel(it.mode) + (page?.let { p -> " · ${p}쪽" } ?: "") },
+            "앱 버전" to appVersion(ctx),
+            "설명" to note.trim().ifBlank { "(없음)" },
+            "첨부" to when {
+                !attach -> "없음"
+                kind == "picture" -> picture?.source?.label ?: "없음"
+                kind == "preset" -> "앱에 든 배경 그림 이름 「${book?.presetBackground}」"
+                kind == "sentence" -> "오또가 쓴 문장(이름은 가려서)"
+                else -> "없음"
+            },
+        ).forEach { (k, v) ->
+            Row(Modifier.padding(vertical = 2.dp)) {
+                Text(k, fontSize = 13.sp, color = Ink.copy(alpha = 0.6f), modifier = Modifier.width(64.dp))
+                Text(v, fontSize = 13.sp, color = Ink, lineHeight = 18.sp)
+            }
+        }
+        if (attach && kind == "picture") picture?.let { ReportThumb(it, selected = true) {} }
+        if (attach && kind == "sentence" && sentence != null) {
+            Spacer(Modifier.height(4.dp))
+            Text("“${sentence.masked}”", fontSize = 13.sp, color = Ink, lineHeight = 18.sp)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("아이가 그린 그림 · 녹음 · 목소리는 보내지 않아요 · 처리가 끝나면 30일 뒤 지워요",
+            fontSize = 12.sp, color = Coral, lineHeight = 17.sp)
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Pill("고치기", Color(0x22000000)) { if (!sending) preview = false }
+            Pill(if (sending) "보내는 중…" else "보내기", if (sending) Color(0x22000000) else Sun) {
+                if (sending) return@Pill
+                sending = true
+                scope.launch {
+                    val finalAtt = if (attach && kind == "picture") {
+                        picture?.let { p -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { p.toAttachment() } }
+                    } else att
+                    val p = payload(finalAtt)
+                    val r = ReportUpload.send(p)
+                    sent = p
+                    if (r is ReportResult.Accepted) {
+                        SentReports.add(SentReports.Sent(r.id, java.time.LocalDate.now().toString(), p.category.wire))
                     }
-                }
-                Spacer(Modifier.height(8.dp))
-                // 진짜 입력칸이다 (09-25). 전에는 누르면 「(부모가 적은 내용)」이 박히는 가짜였다
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0x0D000000))
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
-                ) {
-                    if (note.isEmpty()) {
-                        Text("더 적어 주실 내용 (선택)", fontSize = 14.sp, color = Ink.copy(alpha = 0.45f))
-                    }
-                    BasicTextField(
-                        value = note,
-                        onValueChange = { note = it.take(REPORT_NOTE_MAX) },
-                        textStyle = TextStyle(fontSize = 14.sp, color = Ink),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Pill("보내기", if (picked == null) Color(0x22000000) else Sun) {
-                        picked?.let {
-                            ConsentStore.report(it, note)
-                            val opened = sendReportMail(ctx, it, note)
-                            // 시연 서랍 「기록」에 한 줄. **새 이벤트 종류는 만들지 않는다** (문서 §4 「하지 말 것」)
-                            onLog("신고 — 사유 \"$it\"${if (note.isBlank()) "" else " · 적은 내용 있음"} · " +
-                                if (opened) "메일 앱으로 넘김" else "메일 앱 없음")
-                            mailOpened = opened
-                            done = true
-                            picked = null
-                            note = ""
-                        }
-                    }
+                    // 시연 서랍 「기록」에 한 줄 — 새 이벤트 종류는 만들지 않는다
+                    onLog("신고 — 분류 \"${p.category.wire}\"" + (p.page?.let { " · ${it}쪽" } ?: "") +
+                        " · 첨부 " + when (finalAtt) { is ReportAttachment.Picture -> "그림"; is ReportAttachment.Preset -> "프리셋 이름"
+                            is ReportAttachment.Sentence -> "문장"; null -> "없음" } +
+                        " · " + if (r is ReportResult.Accepted) "서버 접수 ${r.id}" else "서버 실패")
+                    result = r
+                    sending = false
                 }
             }
         }
+        return
+    }
+
+    // ── 고르기 ──
+    if (book != null && book.pages.isNotEmpty()) {
+        Label("몇 쪽인가요?")
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            book.pages.forEachIndexed { i, text ->
+                val n = i + 1
+                Column(
+                    Modifier
+                        .width(96.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (page == n) Sun.copy(alpha = 0.35f) else Color(0x11000000))
+                        .clickable { page = n }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                ) {
+                    Text("${n}쪽", fontSize = 13.sp, color = Ink, fontWeight = FontWeight.Bold)
+                    // 폰 안에서만 보이는 원문 앞 12자 — 보낼 때는 이름을 가린다
+                    Text(text.take(12), fontSize = 11.sp, color = Ink.copy(alpha = 0.6f), maxLines = 1)
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+    }
+    ReportCategory.entries.forEach { c ->
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 3.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (category == c) Sun.copy(alpha = 0.35f) else Color(0x11000000))
+                .clickable { category = c }
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(if (category == c) "●" else "○", fontSize = 14.sp, color = Ink)
+            Spacer(Modifier.width(9.dp))
+            Text(c.label, fontSize = 14.sp, color = Ink)
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0x0D000000))
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+    ) {
+        if (note.isEmpty()) Text("더 적어 주실 내용 (선택)", fontSize = 14.sp, color = Ink.copy(alpha = 0.45f))
+        BasicTextField(
+            value = note,
+            onValueChange = { note = it.take(NOTE_MAX) },
+            textStyle = TextStyle(fontSize = 14.sp, color = Ink),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    if (book != null) {
+        Spacer(Modifier.height(8.dp))
+        CheckLine(attach, "문제 된 그림 / 문장 같이 보내기") {
+            attach = !attach
+            if (attach && kind == null) kind = when { hasPicture -> "picture"; hasPreset -> "preset"; sentence != null -> "sentence"; else -> null }
+        }
+        if (attach) {
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (hasPicture || hasPreset) Pill("그림", if (kind == "picture" || kind == "preset") Sun else Color(0x11000000)) {
+                    kind = if (hasPicture) "picture" else "preset"
+                    if (category == null) category = ReportCategory.IMAGE
+                }
+                if (sentence != null) Pill("문장", if (kind == "sentence") Sun else Color(0x11000000)) {
+                    kind = "sentence"
+                    if (category == null) category = ReportCategory.TEXT
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            when {
+                kind == "picture" -> Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    book.pictures.forEach { p -> ReportThumb(p, selected = picture == p) { picture = p } }
+                }
+                kind == "preset" -> Body("앱에 든 배경 그림이라 이름(「${book.presetBackground}」)만 보내요.")
+                kind == "sentence" && sentence != null -> Body("“${sentence.masked}”")
+                else -> Body("이 쪽에는 오또가 만든 그림이나 문장이 없어요.")
+            }
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Pill("보낼 내용 미리 보기", if (category == null) Color(0x22000000) else Sun) {
+            if (category == null) return@Pill
+            if (attach && kind == "picture" && picture == null) attach = false
+            preview = true
+        }
+        Pill("닫기", Color(0x11000000)) { onClose() }
+    }
+}
+
+/** 첨부 후보 그림 한 장 — 저장된 AI 그림 파일에서 읽는다 */
+@Composable
+private fun ReportThumb(p: AiPicture, selected: Boolean, onPick: () -> Unit) {
+    val bmp = remember(p) { runCatching { p.bitmap()?.asImageBitmap() }.getOrNull() }
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) Sun.copy(alpha = 0.35f) else Color(0x11000000))
+            .clickable { onPick() }
+            .padding(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        if (bmp != null) androidx.compose.foundation.Image(bmp, contentDescription = p.source.label, modifier = Modifier.size(84.dp))
+        else Box(Modifier.size(84.dp).background(Color(0x11000000)))
+        Text(p.source.label, fontSize = 11.sp, color = Ink)
     }
 }
 
@@ -576,6 +752,10 @@ fun SoundSettingsSection() {
         CheckLine(FeelPrefs.soundOn, "효과음") { FeelPrefs.setSound(!FeelPrefs.soundOn) }
         Spacer(Modifier.height(6.dp))
         CheckLine(FeelPrefs.buzzOn, "진동 — 누르거나 해냈을 때 살짝 떨려요") { FeelPrefs.setBuzz(!FeelPrefs.buzzOn) }
+        Spacer(Modifier.height(6.dp))
+        CheckLine(FeelPrefs.musicOn, "배경음악 — 동화책을 읽을 때 장면에 맞는 음악") { FeelPrefs.setMusic(!FeelPrefs.musicOn) }
+        Spacer(Modifier.height(6.dp))
+        Body("배경음악은 ACE-Step 1.5(MIT)로 만들었어요.")
     }
 }
 

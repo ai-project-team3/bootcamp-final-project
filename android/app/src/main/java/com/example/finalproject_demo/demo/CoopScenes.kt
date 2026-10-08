@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.soundProp
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
 import com.example.finalproject_demo.demo.missions.BlowProp
@@ -170,6 +171,15 @@ private class CoopTrack {
     var liveTurn: LiveTurn? = null
     /** 지금 방식 · 바뀐 방식을 견주는 이야기 하나의 수치 (§11) — 끝날 때 `coop_session` 으로 남긴다 */
     val stats = CoopSessionStats()
+    /** What the child asked Otto — never into a slot or the rejected list (#327 §1, the two bugs) */
+    val childAsked = mutableSetOf<String>()
+    /** Ladder rungs already previewed for 「뭐를 넣어?」 — when really stepping down, start from the one after (#327 §4-2) */
+    val previewedRungs = mutableSetOf<String>()
+    /** The last 「궁금하다」 · 「떠올려 봐」 reply — so the same line does not repeat */
+    var lastWorldReply: String? = null
+    var lastRecallReply: String? = null
+    /** Child questions per step — up to [CHILD_QUESTIONS_PER_STEP] per step even across rungs (#332 review P3) */
+    val questionsAt = mutableMapOf<String, Int>()
     /** 부모가 적은 질문으로 물은 걸음 — 판정이 거절한 답을 그 칸에 넣지 않는다(부모 질문은 칸과 안 맞을 수 있다) */
     val parentSteps = mutableSetOf<String>()
     /** 부모 질문으로 물은 걸음 → 그 답을 담을 책 칸(`parent1` …). 첫 답에 한 번 쓰고 지운다 (10-05) */
@@ -195,6 +205,8 @@ internal class CoopSessionStats(val startedAt: Long = System.currentTimeMillis()
     var dontKnows = 0
     val answerChars = mutableListOf<Int>()
     val guardHits = sortedMapOf<String, Int>()
+    /** Child questions by kind (about · recall · world). Not counted as 「몰라」 or in answer length (#327 §7) */
+    val childQuestions = sortedMapOf<String, Int>()
 
     fun count(r: Reply) {
         if (r !is Reply.Spoke) return
@@ -251,7 +263,21 @@ private val LLM_QUESTION_STEPS = setOf("place", "problem", "cause", "solution", 
 private fun DemoState.llmQuestionFor(q: Question, next: Pair<String, String>?): String? {
     if (next == null || !Server.liveFor(mode)) return null
     val key = q.id.removePrefix("diary_")
-    return next.second.takeIf { key in LLM_QUESTION_STEPS && next.first == key && it.isNotBlank() }
+    return next.second.takeIf {
+        key in LLM_QUESTION_STEPS && next.first == key && it.isNotBlank() && !(key == "cause" && causeAsksOtherEvent(it, problem, solution))
+    }
+}
+
+/**
+ * cause 자리 서버 질문이 문제 대신 다른 일(해결 · 같이 간 사람이 한 일)의 까닭을 묻나 (#304 1).
+ * 꼬리 답 하나가 해결을 먼저 채우면 대사 모델이 「방금 일」의 까닭을 물었다 — 「아빠는 왜 풍선을 잡아줬을까?」.
+ * **해결에만 있는 줄기**(낱말 앞 두 글자 · 해결 − 문제)가 질문에 하나라도 있으면 참. 해결이 비었으면 거르지 않는다
+ */
+internal fun causeAsksOtherEvent(question: String, problem: String?, solution: String?): Boolean {
+    if (solution.isNullOrBlank()) return false
+    fun stems(t: String) = Regex("[가-힣A-Za-z0-9]{2,}").findAll(t).map { it.value.take(2) }.toSet()
+    val onlySolution = stems(solution) - stems(problem.orEmpty())
+    return stems(question).any { it in onlySolution }
 }
 
 /**
@@ -358,11 +384,13 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
 
     // 서버 LLM 질문은 처음 묻는 자리에서만 · 갈무리를 통과했을 때만 (부모 질문 자리면 묻지 않는다)
     val llmText = if (firstAsk && scripted !is CoopLine.Parent) s.llmQuestionFor(q, llm)?.let { guarded(it, CoopSource.LLM) } else null
+    if (firstAsk && key == "cause" && llm?.first == "cause" && causeAsksOtherEvent(llm.second, s.problem, s.solution))
+        log("[cause] 서버 질문이 해결의 까닭을 물어 버림 — \"${llm.second}\"")
     // 엉뚱한 답(다녀왔어요 · 곧 해요의 상상 낱말) 뒤 한 번 — 같은 자리를 「진짜로는」으로
     val redirect = !firstAsk && track.wildFor == key && track.wildAsked != key
 
     // 부모 질문이 먼저 — 몰래 바꾸지 않는다(질문 하나만 남긴다). 그다음 서버 LLM 질문, 그다음 이어 받기 · 템플릿, 그다음 사다리
-    val (text, src) = when {
+    val (picked, src) = when {
         scripted is CoopLine.Parent -> (guarded(scripted.text, CoopSource.PARENT) ?: scripted.text) to CoopSource.PARENT
         llmText != null -> llmText to CoopSource.LLM
         redirect -> {
@@ -379,11 +407,21 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         scripted is CoopLine.Template -> (guarded(scripted.text, CoopSource.TEMPLATE) ?: q.text) to CoopSource.TEMPLATE
         else -> (guarded(q.text, CoopSource.LADDER) ?: q.text) to CoopSource.LADDER
     }
-    log("[$key] ${src.label} 질문 → \"$text\" · 수준 ${s.level.label}" + (if (src == CoopSource.HEARD) " · 들은 이름 ${track.heard}" else ""))
-    if ("왜" in text) track.whyAsked++
-    if (idx != null && firstAsk) track.partQuestions[idx] = text
-    val r = ask(q.copy(text = text, silent = false))
+    // If the child's 「뭐를 넣어?」 already previewed this rung, start from the one after (#327 §4-2)
+    val shown = if (src == CoopSource.LADDER && picked in track.previewedRungs && q.ladder.isNotEmpty()) q.ladder.first() else picked
+    if (shown != picked) log("[$key] rung already previewed, the next one → \"$shown\"")
+    log("[$key] ${src.label} 질문 → \"$shown\" · 수준 ${s.level.label}" + (if (src == CoopSource.HEARD) " · 들은 이름 ${track.heard}" else ""))
+    if ("왜" in shown) track.whyAsked++
+    if (idx != null && firstAsk) track.partQuestions[idx] = shown
+    val (r, askedLast, stillAsking) = askAnsweringChildQuestions(q, key, shown)
+    if (stillAsking) {
+        // A third question in one step — the current flow (an easier question). Not into a slot or the rejected list (coopLiveValueAsSaid) · no ack
+        log("[$key] third child question → no answer, the easier question as now (#327 ⚖️5)")
+        // Returned as is, with no signals or quote — with an answer attached, judge() kept it as a report quote (#332 review P2)
+        return r
+    }
     track.stats.count(r)
+    val text = askedLast
     // 꼬리 질문은 무엇을 물었는지 같이 책에 보낸다 — 「엄마가 뭐라고 할까?」의 답인지 몰라 서버가 「엄마에게 재밌냐고 물어볼 것 같아요」로
     // 말한 사람을 바꿨고, 「제일 먼저 뭐 할 거야?」의 답을 「“물로 끌 거야.”라고 말할 거예요」로 썼다(10-06 실기기 · 촬영 세션)
     if (key in COOP_TAIL_KEYS) track.tailQuestion[key] = text
@@ -413,10 +451,86 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         // 아이 말에서 뗀 이름 하나. 「몰라」 · 「응」은 되비추지 않는다. 다음 질문과 합쳐 두 문장
         val server = if (live == null || wild) null else coopServerReaction(track.liveTurn?.result?.line)
         if (server != null) log("[$key] 받아주기 — 서버 대사 「$server」")
+        // 못 썼으면 까닭을 남긴다 — 서버가 대사를 안 줬나(거절 · 실패), 앱이 버렸나를 다음 실기기에서 가른다 (#304 2)
+        else if (live != null && !wild) log("[$key] 받아주기 — 서버 대사 못 씀: ${coopServerDropped(track.liveTurn?.result?.line).joinToString(" · ")}")
         (server ?: coopAck(r.text, roleOf(key)?.second, reason, wild, track.lastAck))?.let { track.lastAck = it; say(it); pause(700) }
         if (live != null) return r.copy(answer = live)
     }
     return r
+}
+
+/** Did the child ask Otto this — not into a slot, a parent question slot, or a quote (#332) */
+internal fun DemoState.coopChildAsked(text: String): Boolean = trackByState[this]?.childAsked?.contains(text.trim()) == true
+
+/** 「Nobody was there」 for 「누구랑 갔어?」 */
+private val NOBODY = setOf("없어", "없었어", "없어요", "아무도", "아무도 없어", "아무도 없었어")
+
+/** Child questions taken per step — from the third on, the current flow (an easier question) (#327 ⚖️5 · user decision 10-08) */
+internal const val CHILD_QUESTIONS_PER_STEP = 2
+
+/**
+ * Asks, and when the child **asks Otto back**, answers briefly and asks the same question again (#327 §4). No ladder step down and no
+ * `/turn` — it is not a slot answer. Live speech only (card and scripted answers pass through).
+ * Returns: the last reply · the last thing asked · whether it is a third question passed on without an answer
+ */
+private suspend fun Director.askAnsweringChildQuestions(q: Question, key: String, first: String): Triple<Reply, String, Boolean> {
+    val track = s.coopTrack
+    var asked = first
+    var r = ask(q.copy(text = asked, silent = false))
+    while (r is Reply.Spoke && r.isLiveSpeech()) {
+        val kind = classifyCoopReply(r.text, asked)
+        // Found the answer while recalling (「엄마 우리 누구랑 갔지? 아 할머니!」) — only the latter part is the answer, also for the judge (#341)
+        if (kind is CoopReply.AnswerAfterRecall) {
+            log("[$key] answer after recalling: only 「${kind.answer}」 ← 「${r.text.trim()}」")
+            r = r.copy(text = kind.answer)
+            break
+        }
+        if (!kind.isQuestion) break
+        val said = r.text.trim()
+        track.childAsked += said
+        val label = when (kind) { is CoopReply.AboutQuestion -> "about"; is CoopReply.Recall -> "recall"; else -> "world" }
+        track.stats.childQuestions.merge(label, 1, Int::plus)
+        log("[$key] reply kind — $label · 「$said」 ← 「$asked」" + ((kind as? CoopReply.Recall)?.who?.let { " · 부른 사람 $it" } ?: ""))
+        event("coop_reply_kind", "kind" to label, "text" to said)
+        val n = track.questionsAt[key] ?: 0
+        if (n >= CHILD_QUESTIONS_PER_STEP) return Triple(r, asked, true)
+        track.questionsAt[key] = n + 1
+        val (reply, again) = coopAnswerChildQuestion(kind, asked, q.ladder, track)
+        say(reply)
+        talkOtto(reply)                                   // keep Otto's answer in the transcript — without 「?」 it is not kept by itself
+        pause(700)                                        // no waiting for the adult — ask the child again right away (#341)
+        log("[$key] answered the child's question → asking again \"$again\" (${n + 1}/$CHILD_QUESTIONS_PER_STEP)")
+        asked = again
+        r = ask(q.copy(text = asked, silent = false))
+    }
+    return Triple(r, asked, false)
+}
+
+/**
+ * What Otto says to a child's question and what it asks again (#327 §4-2 · stage 1 · app sentences). No 「?」 in Otto's line —
+ * with one it would show as an Otto question in the report transcript. Answering world questions (a server line) is stage 2 · the lead's (⚖️2)
+ */
+private fun coopAnswerChildQuestion(kind: CoopReply, asked: String, ladder: List<String>, track: CoopTrack): Pair<String, String> = when (kind) {
+    // Asked what Otto's question means — preview the next rung of the step's ladder (easier words). If none, the same question again
+    is CoopReply.AboutQuestion -> {
+        val easier = ladder.firstOrNull { it != asked && it !in track.previewedRungs }
+        if (easier != null) track.previewedRungs += easier
+        "쉽게 다시 물어볼게!" to (easier ?: asked)
+    }
+    // Recalling something shared (「엄마, 우리 뭐 먹었지?」) — give it back to the child without calling the adult. An adult filling in
+    // the answer means more parent involvement (user decision 10-08 · #341). No 「몰라도 괜찮아」 · no adult names. Ask again with the easier rung
+    is CoopReply.Recall -> {
+        val reply = listOf("생각나는 만큼만 말해 줘!", "천천히 떠올려 봐도 돼!").first { it != track.lastRecallReply }
+        track.lastRecallReply = reply
+        val easier = ladder.firstOrNull { it != asked && it !in track.previewedRungs }
+        if (easier != null) track.previewedRungs += easier
+        reply to (easier ?: asked)
+    }
+    else -> {
+        val reply = listOf("오또도 궁금하다! 이따 같이 알아보자.", "좋은 질문이야!").first { it != track.lastWorldReply }
+        track.lastWorldReply = reply
+        "$reply 다시 물어볼게." to asked
+    }
 }
 
 /**
@@ -566,10 +680,13 @@ private fun Director.coopSessionLog() {
     val secs = (System.currentTimeMillis() - st.startedAt) / 1000
     val avg = "%.1f".format(st.averageChars)
     val end = s.endReason ?: "done"
-    log("협업 수치($way) — 「몰라」 ${st.dontKnows}번 · 답 평균 ${avg}자(공백 뺌, ${st.answerChars.size}개) · 끝 $end · ${secs}초 · 갈무리 ${st.guardHits.ifEmpty { mapOf("없음" to 0) }}")
+    log("협업 수치($way) — 「몰라」 ${st.dontKnows}번 · 답 평균 ${avg}자(공백 뺌, ${st.answerChars.size}개) · 끝 $end · ${secs}초 · 갈무리 ${st.guardHits.ifEmpty { mapOf("없음" to 0) }}" +
+        " · 아이 질문 ${st.childQuestions.ifEmpty { mapOf("없음" to 0) }}")
     event("coop_session", "way" to if (CoopLab.followUps) "new" else "before", "dont_know" to st.dontKnows,
         "avg_chars" to avg, "answers" to st.answerChars.size, "end" to end, "secs" to secs,
-        "guard" to st.guardHits.entries.joinToString("|") { "${it.key}:${it.value}" })
+        "guard" to st.guardHits.entries.joinToString("|") { "${it.key}:${it.value}" },
+        "questions" to st.childQuestions.values.sum(), "about_question" to (st.childQuestions["about"] ?: 0),
+        "recall" to (st.childQuestions["recall"] ?: 0), "world" to (st.childQuestions["world"] ?: 0))
 }
 
 /**
@@ -656,7 +773,19 @@ internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r
 
 private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: String, r: Reply.Spoke): String? {
     val text = r.text.trim()
+    // 「없어」 · 「아무도」 to 「누구랑 갔어?」 is an answer — the child went alone (#327 §3-4). Co-op ignores the judge's no_longer_needed,
+    // so sending it to the judge never closed the slot (device 10-08) — the companion slot gets 「혼자」 directly
+    if (step.slot == "companion" && text.trimEnd('.', '!', '~', ' ') in NOBODY && classifyCoopReply(text, question) == CoopReply.Answer) {
+        log("[${step.bookKey}] 「$text」 — nobody was there → companion 「혼자」")
+        return "혼자"
+    }
     if (isNonAnswer(text)) return null
+    // What the child asked Otto — not into a slot, nor the rejected list (which becomes the slot value at the ladder's end). Asked twice,
+    // it is still not taken as 「same syllables = what the child wants to say」 (#327 §1, the two bugs)
+    if (s.coopChildAsked(text) || classifyCoopReply(text, question).isQuestion) {
+        log("[${step.bookKey}] child question 「$text」 — not into the slot or the rejected list → the easier question as now")
+        return null
+    }
     // 다녀왔어요 · 곧 해요의 엉뚱한 답 — 처음 한 번은 칸에 넣지 않고 「진짜로는」으로 다시 묻는다 (바뀐 방식 · 10-02)
     if (CoopLab.followUps && s.coopTrack.wildFor == step.bookKey && s.coopTrack.wildAsked != step.bookKey) {
         log("[${step.bookKey}] 상상 낱말이라 이번엔 칸에 넣지 않는다 → 「진짜로는」으로 한 번 더")
@@ -805,7 +934,7 @@ suspend fun Director.coopWriteBook() {
         level = s.level.name.lowercase(),
         // 미션 쪽에 미션 ID 를 단다 — 서버가 그 쪽을 미션 직전 상황으로 끝맺는다 (#52 3번 · 동화 `storyPagePlan` 과 같은 표)
         // 물건은 아이 말에서 나온 것만 — 없으면 서버가 미션 상황 없이 쓴다(실제 하루에 없던 먼지 · 별 · 10-05)
-        pages = pages.map { Server.Page(it.kind.name, s.coopPageMission(it.kind), s.coopMissionProp(it.kind)) },
+        pages = pages.map { Server.Page(it.kind.name, s.coopPageMission(it.kind), s.coopMissionProp(it.kind), s.missionSource(it.kind)) },
         // 고른 이야기와 이유 — 이유에 따라 책 시제가 갈린다(곧 해요 = 앞으로 할 일 · 좋아해요 = 상상) (#52 1번 · 서버 `77a9d5c`)
         template = s.coopTurnContext()?.let(mask::mask),
         reason = s.coopStoryReason(),
@@ -822,8 +951,37 @@ suspend fun Director.coopWriteBook() {
  * 아직 안 끝냈거나 미션 쪽이 아니면 null
  */
 internal fun DemoState.coopMissionResult(kind: PageKind): String? =
-    // 곧 해요 책은 「-ㄹ 거예요」 — 「물을 뿌릴 거예요」 뒤에 「불이 다 꺼졌어요」가 붙었다(10-06 실기기 · CoopTense.kt)
-    coopMissionResultAsDone(kind)?.let { if (coopServerTense() == CoopReason.SOON) soonTense(it) else it }
+    coopImaginedResult(kind)
+        // A 곧 해요 book is in the future tense — 「불이 다 꺼졌어요」 followed 「물을 뿌릴 거예요」 (device 10-06 · CoopTense.kt)
+        ?: coopMissionResultAsDone(kind)?.let { if (coopServerTense() == CoopReason.SOON) soonTense(it) else it }
+
+/** Missions played on the board — nothing to imagine, so the server does not write them as imagined either (#340) */
+private val ON_BOARD = setOf(MissionId.A3)
+
+/**
+ * On a real day (다녀왔어요 · 곧 해요) a mission page the child did not talk about is written by the server as imagined
+ * (「오또가 상상해 봤어! … 네가 …줄래?」 · #340 · lead 10-08). Its result closes as imagined too — closing it as a fact
+ * (「불이 다 꺼졌어요」) would make the imagined thing part of that day. Null for 좋아해요 (the whole book is imagined),
+ * for a page whose prop came from the child's words, and for board missions (the current sentence stays)
+ */
+internal fun DemoState.coopImaginedResult(kind: PageKind): String? {
+    if (coopServerTense() == CoopReason.DREAM || coopMissionInBook(kind)) return null
+    val m = missionFor(kind)?.takeIf { it !in ON_BOARD } ?: return null
+    val done = when (kind) { PageKind.RUB -> m1Result != null; PageKind.DRAG -> m2Result != null; else -> false }
+    if (!done) return null
+    return "상상 속에서 " + when (m) {
+        MissionId.A6 -> "반짝반짝 깨끗해졌어!"
+        MissionId.C1 -> "후~ 다 날아갔어!"
+        MissionId.C3 -> soundProp()?.let { "「${it.sound}!」 소리가 울렸어!" } ?: "큰 소리가 울렸어!"
+        MissionId.A1 -> "불이 꺼졌어!"
+        MissionId.A4 -> "물이 딱 멈췄어!"
+        MissionId.D4 -> "공이 골대에 쏙 들어갔어!"
+        MissionId.E2 -> "부서진 곳이 고쳐졌어!"
+        MissionId.A5 -> "블록 탑이 높이 섰어!"
+        MissionId.E1 -> "선물을 건넸어!"
+        else -> "해냈어!"
+    }
+}
 
 private fun DemoState.coopMissionResultAsDone(kind: PageKind): String? = if (!coopMissionInBook(kind)) null else when (kind) {
     PageKind.RUB -> if (m1Result != null) slot1Prop()?.result ?: mission1().blobName.let { "${it}${ga(it)} 사라졌어요." } else null

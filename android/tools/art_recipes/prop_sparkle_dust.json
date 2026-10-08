@@ -1,0 +1,14 @@
+{
+  "name": "prop_sparkle_dust",
+  "kind": "cut",
+  "text": "a small cloud of twinkling golden glitter dust with tiny sparkle stars scattered in it, just sparkles, no character, no body, no face, no figure",
+  "style": "felt",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 1089437958,
+  "prompt": "a small cloud of twinkling golden glitter dust with tiny sparkle stars scattered in it, just sparkles, no character, no body, no face, no figure, single subject centered, full body, front view, isolated on plain pure white background, no shadow, soft felt fabric and paper-craft 3D children's picture book illustration, cute, rounded shapes, warm pastel colors, clean, gentle lighting, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-07"
+}

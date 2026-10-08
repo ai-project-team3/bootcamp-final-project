@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.reportBook
 import com.example.finalproject_demo.demo.Reward
 import com.example.finalproject_demo.demo.Rewards
 import com.example.finalproject_demo.demo.SessionReport
@@ -473,6 +474,9 @@ private fun CoopQuestionsTab(c: CoopDraft) {
             Text(if (c.hasSaved) "저장된 이야기를 고치는 중이에요" else "오늘 아이와 만들 이야기를 골라 두세요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
             Text("이야기를 고르거나 질문을 적은 뒤 아래 [저장하기]를 눌러야 확정돼요. 아이가 오또의 방에서 소파(같이 만들기)를 누르면 오또가 평소처럼 물어보되, 고른 이야기에 맞춰 묻고 적어 둔 질문도 중간에 끼워 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
         }
+        // When a child recalling asks 「엄마, 뭐였지?」, Otto gives it back to the child (#341) — one line so the adult nearby does not answer for them (⚖️7 · #347).
+        // 「옆에 계시다면」 — wording that assumed a parent nearby was once removed from the report (fdfa6d71), so it only speaks for when one is there
+        Text("ⓘ 옆에 계시다면, 아이가 \"엄마, 뭐였지?\" 하고 물어도 대신 답하지 말고 아이가 떠올려 말하도록 기다려 주세요.", fontSize = 11.sp, color = PSub)
     }
 
     CoopTemplateCards(c)
@@ -1218,6 +1222,8 @@ private fun ShelfTidyTab(d: Director) {
     val shelfSize = s.shelf.size
     val books = remember(mode, shelfSize) { d.shelfEntries(mode) }
     var asking by remember(mode) { mutableStateOf<ShelfEntry?>(null) }
+    // 신고 — 「이 그림이 이상해요」가 대부분이라 주 입구는 여기다(설정의 신고는 책 맥락이 없다 · #283 설계 §2-1)
+    var reporting by remember(mode) { mutableStateOf<ShelfEntry?>(null) }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SHELF_MODES.forEach { (m, name) ->
             val n = remember(m, shelfSize) { d.shelfCount(m) }?.toString() ?: "?"
@@ -1243,7 +1249,16 @@ private fun ShelfTidyTab(d: Director) {
                     Text(b.title, fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold, maxLines = 1)
                     Text(listOfNotNull(b.madeAt.takeIf(String::isNotBlank), "${b.pages}쪽").joinToString(" · "), fontSize = 12.sp, color = PSub)
                 }
-                if (asking != b) PButton("빼기", PAccent, Modifier.width(96.dp), outline = true) { asking = b }
+                if (asking != b && reporting != b) {
+                    PButton("신고", PSub, Modifier.width(84.dp), outline = true) { reporting = b; asking = null }
+                    Spacer(Modifier.width(8.dp))
+                    PButton("빼기", PAccent, Modifier.width(96.dp), outline = true) { asking = b }
+                }
+            }
+            if (reporting == b) {
+                Spacer(Modifier.height(10.dp))
+                val ctx = remember(b) { d.reportBook(b) }
+                ReportSheet(book = ctx, onLog = { d.log(it) }, onClose = { reporting = null })
             }
             // 「정말 뺄까요?」는 누른 책 카드 안에서 — 목록 맨 아래에 두면 12권 아래로 밀려 보이지 않는다
             if (asking == b) {

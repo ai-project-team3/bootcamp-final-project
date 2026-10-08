@@ -64,7 +64,10 @@ internal fun HoseMission(d: Director, done: Boolean, heroArt: Art) {
     val allOut = done || life.all { it >= HOSE_FULL }
     val puffs = rememberParticleField()
     var finger by remember { mutableStateOf<Offset?>(null) }
+    // 불이 꺼진 자리에 김이 한 번 피어오른다 — 「불을 껐다」가 장면에 남는다 (#260 §6-3)
+    val steam = rememberBursts(3)
     val idle = rememberIdleHint(life.sum(), allOut)
+    val hint = rememberMissionHint(d, life.sum(), allOut, "A1")
     MissionDoneSignal(d, allOut, done, "미션2")
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -81,7 +84,9 @@ internal fun HoseMission(d: Director, done: Boolean, heroArt: Art) {
             life[i] = minOf(HOSE_FULL, life[i] + amount)
             if (before < HOSE_FULL && life[i] >= HOSE_FULL) {
                 puffs.steam(fires[i].x, fires[i].y, wpx * 0.075f, 10)
-                Sfx.play(Sound.SPARKLE, 0L, view = view)
+                steam.fire(i)
+                // 불 하나가 꺼질 때는 치익 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
+                Sfx.play(Sound.HISS, 0L, view = view)
             }
         }
 
@@ -132,10 +137,18 @@ internal fun HoseMission(d: Director, done: Boolean, heroArt: Art) {
                     Modifier
                         .offset { IntOffset((f.x - size / 2).roundToInt(), (f.y - size / 2).roundToInt()) }
                         .size((size / density).dp)
-                        .alpha(0.35f + 0.65f * left),
+                        .alpha(0.6f + 0.4f * left),
                 ) {
-                    Box(Modifier.fillMaxSize().touchOutline()) { ArtView(Art.Img("prop_fire", Art.Emoji("🔥")), Modifier.fillMaxSize()) }
+                    // 남은 양이 곧 진행 — 큰 불 → 작은 불 → 꺼질 듯한 불 세 단계(같은 씨앗으로 구운 그림 · 없으면 큰 불 그림)
+                    val fire = Art.Img("prop_fire", Art.Emoji("🔥"))
+                    val art = when {
+                        left > 2f / 3f -> fire
+                        left > 1f / 3f -> Art.Img("prop_fire_small", fire)
+                        else -> Art.Img("prop_fire_tiny", Art.Img("prop_fire_small", fire))
+                    }
+                    Box(Modifier.fillMaxSize().touchOutline()) { ArtView(art, Modifier.fillMaxSize()) }
                 }
+                steam.Draw(i, Art.Img("prop_steam_puff", Art.Emoji("💨")), f, size * 0.9f, size * 0.9f)
             }
             Canvas(Modifier.fillMaxSize()) { puffs.tick; puffs.draw(this, setOf(Puff.WATER, Puff.STEAM, Puff.SPARK)) }
             // 호스는 제자리에 — 물줄기는 여기서 손가락까지 날아간다
@@ -143,7 +156,11 @@ internal fun HoseMission(d: Director, done: Boolean, heroArt: Art) {
                 Modifier.offset { IntOffset((nozzle.x - 38 * density).roundToInt(), (nozzle.y - 38 * density).roundToInt()) }.size(76.dp),
             ) { ArtView(Art.Img("prop_hose", Art.Emoji("🚿")), Modifier.fillMaxSize()) }
 
-            if (idle && !allOut) {
+            // 15초 흐릿한 예시 — 손이 호스 옆에서 아직 타는 불로 가서 꾹 누른다(불은 그대로 · 아이가 끈다)
+            if (hint != null && !allOut) {
+                val f0 = fires.firstOrNull { life[fires.indexOf(it)] < HOSE_FULL } ?: fires[0]
+                GhostHand(ghostAlong(listOf(nozzle, f0), hint), wpx * 0.06f, hint)
+            } else if (idle && !allOut) {
                 val press by rememberInfiniteTransition(label = "a1hint").animateFloat(
                     0f, 1f, infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "press",
                 )

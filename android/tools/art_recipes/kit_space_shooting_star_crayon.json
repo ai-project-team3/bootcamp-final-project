@@ -1,0 +1,16 @@
+{
+  "name": "kit_space_shooting_star_crayon",
+  "of": "kit_space_shooting_star",
+  "kind": "cut",
+  "text": "shooting star with a tail",
+  "style": "crayon",
+  "size": [
+    1344,
+    768
+  ],
+  "seed": 1144029816,
+  "prompt": "shooting star with a tail, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "gen_kit.py",
+  "made": "2026-10-07"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "kit_forest_ground",
+  "kind": "bg",
+  "text": "soft moss green wool felt forest ground filling the whole frame, low camera angle, felt fibers, a few tiny stitched leaves and grass tufts, no sky, no horizon, no objects",
+  "style": "felt",
+  "size": [
+    1344,
+    768
+  ],
+  "seed": 2116371033,
+  "prompt": "soft moss green wool felt forest ground filling the whole frame, low camera angle, felt fibers, a few tiny stitched leaves and grass tufts, no sky, no horizon, no objects, wide landscape, no characters, no people, no animals, soft felt fabric and paper-craft 3D children's picture book illustration, cute, rounded shapes, warm pastel colors, clean, gentle lighting, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-07"
+}

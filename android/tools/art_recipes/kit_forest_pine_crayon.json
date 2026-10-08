@@ -1,0 +1,16 @@
+{
+  "name": "kit_forest_pine_crayon",
+  "of": "kit_forest_pine",
+  "kind": "cut",
+  "text": "green pine tree",
+  "style": "crayon",
+  "size": [
+    768,
+    1344
+  ],
+  "seed": 468247607,
+  "prompt": "green pine tree, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "gen_kit.py",
+  "made": "2026-10-07"
+}

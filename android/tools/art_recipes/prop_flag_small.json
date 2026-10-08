@@ -1,0 +1,14 @@
+{
+  "name": "prop_flag_small",
+  "kind": "cut",
+  "text": "a small triangular pennant flag on a thin wooden pole",
+  "style": "felt",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 534541499,
+  "prompt": "a small triangular pennant flag on a thin wooden pole, single subject centered, full body, front view, isolated on plain pure white background, no shadow, soft felt fabric and paper-craft 3D children's picture book illustration, cute, rounded shapes, warm pastel colors, clean, gentle lighting, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-07"
+}
