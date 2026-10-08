@@ -39,6 +39,29 @@ class ForbiddenPolicyTest(unittest.TestCase):
         hits = find_forbidden_hits("디즈니 성에 갔어요.", self.policy)
         self.assertTrue(any(hit.term == "디즈니" for hit in hits))
 
+    def test_child_given_names_do_not_disable_other_safety_rules(self) -> None:
+        hits = find_forbidden_hits(
+            "디즈니 성에 갔어요. 씨발! 하고 말했어요. 포켓몬이 나타났어요.",
+            self.policy, given_names=["디즈니 성", "씨발"],
+        )
+        self.assertFalse(any(hit.term == "디즈니" for hit in hits))
+        self.assertTrue(any(hit.term == "씨발" for hit in hits))
+        self.assertTrue(any(hit.term == "포켓몬" for hit in hits))
+
+    def test_story_scoring_exempts_only_that_books_given_name_slots(self) -> None:
+        stories = [
+            {"id": "named", "slots": {"name": "뽀로로", "place": "디즈니 성"},
+             "scenes": [{"caption": "뽀로로는 디즈니 성에 갔어요."}]},
+            {"id": "invented", "slots": {"extra": "포켓몬이 좋아"},
+             "scenes": [{"caption": "뽀로로와 포켓몬이 나타났어요."}]},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            fixtures = Path(tmp) / "stories.jsonl"
+            fixtures.write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in stories), encoding="utf-8")
+            result = score_stories(fixtures=fixtures, forbidden_words_path=GUIDELINE)
+        self.assertEqual(result["forbidden_count"], 2)
+        self.assertTrue(all(hit["story"] == "invented" for hit in result["forbidden_hits"]))
+
     def test_story_schema_caption_is_scored(self) -> None:
         scenes = [
             {"index": 1, "caption": "{주인공}과 {친구1}가 공룡을 만났어요.", "keywords": "dinosaur"},
