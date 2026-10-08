@@ -152,7 +152,8 @@ class Director(
             ?: savedStories.flatMap { listOfNotNull(it.bgName) + it.visuals?.images.orEmpty() }.toSet()
         val coop = CoopShelf.imageReferences(s) ?: return
         val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground, s.generatedFriend?.image) +
-            s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName }
+            s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName } +
+            s.heroCreationDraft?.imageReferences().orEmpty()
         // a draft on the phone still owns its pictures, even before (or without) being put back into the state (#336)
         val draft = draftStore?.let { runCatching { it.load() }.getOrElse { return } }?.imageReferences().orEmpty()
         store.recover(saved + coop + active + draft)
