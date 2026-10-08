@@ -60,20 +60,44 @@ private fun Director.diaryRanLong(): Boolean =
     s.diaryTimeUp || (s.diaryStart > 0L && System.currentTimeMillis() - s.diaryStart >= WRAP_UP_MS)
 
 suspend fun Director.pictureDiary() {
-    val day = s.newDiaryDay()
-    s.diaryStart = System.currentTimeMillis()
-    s.diaryTimeUp = false
-    log("그림일기 — 그리는 동안 짧게 묻고, 다 그리면 빈 칸을 칸마다 ${SLOT_TRIES}번까지 묻는다. 빈 칸은 메우지 않는다 (흐름 HTML · #89)")
+    // 🏠 → 「이어서 하기」면 하다 만 일기를 그 단계부터 — 그림 · 조각 · 이름 · 칸은 그대로다 (#335)
+    val resumed = s.unfinishedDiaryDay()
+    val day = resumed ?: s.newDiaryDay()
+    if (resumed == null) {
+        s.diaryStart = System.currentTimeMillis()
+        s.diaryTimeUp = false
+        log("그림일기 — 그리는 동안 짧게 묻고, 다 그리면 빈 칸을 칸마다 ${SLOT_TRIES}번까지 묻는다. 빈 칸은 메우지 않는다 (흐름 HTML · #89)")
+    } else {
+        // 나간 사이 끊긴 오또 그림(그 장면과 같이 거둬졌다)은 고를 것이 없다 — 「잘 못 그렸어」 없이 원본으로 둔다
+        day.lateArt.entries.removeAll { (_, art) -> art?.isCancelled == true }
+        log("그림일기 이어서 — 「${day.phase}」 단계부터 (그림 · 조각 · 칸은 그대로 · #335)")
+    }
 
     s.progressVisible = false        // 위쪽 별 막대는 일기 화면이 따로 그린다 (D3 별 두 개)
-    if (startDrawing() == "draw") {
+    if (day.phase == DiaryPhase.NEW) {
+        day.phase = if (startDrawing() == "draw") DiaryPhase.DRAWING else DiaryPhase.ASKING
+        if (day.phase == DiaryPhase.ASKING) log("그림 없이 말로 — D3 로 바로 간다")
+    }
+    if (day.phase == DiaryPhase.DRAWING) {
+        if (resumed != null) s.stage = DiaryBoard()
         day.drawingTalk = true
         try { drawWhileTalking(day) } finally { day.drawingTalk = false; day.pendingTap = null }
+        day.phase = DiaryPhase.PIECE_STORIES
+    }
+    if (day.phase == DiaryPhase.PIECE_STORIES) {
         askPieceStoriesAfterDrawing(day)
-    } else log("그림 없이 말로 — D3 로 바로 간다")
-    askEmptySlots()
-    pickLateDrawings(day)
+        day.phase = DiaryPhase.ASKING
+    }
+    if (day.phase == DiaryPhase.ASKING) {
+        askEmptySlots()
+        day.phase = DiaryPhase.PICKING
+    }
+    if (day.phase == DiaryPhase.PICKING) {
+        pickLateDrawings(day)
+        day.phase = DiaryPhase.FINISHING
+    }
     finishPictureDiary(day)
+    day.phase = DiaryPhase.DONE
 }
 
 // ── D0 ─────────────────────────────────────────────────────────
@@ -1679,6 +1703,7 @@ private suspend fun Director.finishPictureDiary(day: DiaryDay) {
         say("오늘은 여기까지 하고, 내일 또 하자.")
         log("그림도 말도 없다 → 책 없이 끝낸다. 벌점 · 아쉬움 표현 없음 · 동화 모드로 넘기지 않는다 (D6)")
         pause(1500)
+        day.phase = DiaryPhase.DONE
         goHome()
         return
     }
@@ -1792,6 +1817,7 @@ private suspend fun Director.giveDiaryBook() {
         com.example.finalproject_demo.net.Trace.line("calls", "diary finished · $it")
         com.example.finalproject_demo.net.Server.resetCalls()
     }
+    s.diaryDay.phase = DiaryPhase.DONE          // 책장에 꽂았다 — 이어 할 일기가 아니다 (#335)
     go(Scene.SHELF)
 }
 
