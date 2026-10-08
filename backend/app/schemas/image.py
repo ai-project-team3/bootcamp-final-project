@@ -18,6 +18,9 @@ class ImageRequest(BaseModel):
     # redraw only (#168 · 10-06): "background" = the diary's ground · sky · sea lines, sent as the whole board.
     # Drawn as a wide colored-pencil scene and not cut out. None = a piece, as before
     role: Optional[Literal["object", "background"]] = None
+    # The book's art style (10-07 종훈 · #223 그림체). felt = the app's own wool felt; crayon = a child's crayon
+    # drawing. Only the world changes (결정 27) — the diary's colored-pencil redraw keeps its own style
+    style: Literal["felt", "crayon"] = "felt"
 
     @model_validator(mode="after")
     def _has_words(self):
@@ -32,7 +35,7 @@ class ImageRequest(BaseModel):
         return self
 
     def __repr__(self) -> str:          # keep the drawing out of any log line or traceback
-        return f"ImageRequest(kind={self.kind!r}, mode={self.mode!r})"
+        return f"ImageRequest(kind={self.kind!r}, mode={self.mode!r}, style={self.style!r})"
 
     __str__ = __repr__
 

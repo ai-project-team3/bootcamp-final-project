@@ -12,7 +12,7 @@ import kotlin.math.sqrt
  *
  * @param color ARGB of the floor
  * @param hasGround the picture already paints a ground there (one even colour across the bottom band, different from the
- *   band above it) — the floor is then laid thin and see-through, just enough under the actors' feet
+ *   band above it) — the stage preserves that painted ground instead of covering it with another floor
  */
 data class Ground(val color: Int, val hasGround: Boolean)
 

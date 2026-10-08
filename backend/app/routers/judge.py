@@ -5,12 +5,13 @@ The model reads the whole slot state and decides what to ask next; the rules
 here keep the story from wandering. Spec: guidelines/7_프롬프트.md §2.
 """
 from fastapi import APIRouter, HTTPException
+from pydantic import ValidationError
 
 from ..config import settings
 from ..filters.blocklist import is_blocked
 import logging
 
-from ..llm import jev, judge_prompt
+from ..llm import jev, judge_prompt, laya
 from ..llm.client import LLMError, complete
 from ..schemas.judge import JudgeRequest, JudgeResult, SLOT_NAMES
 
@@ -70,13 +71,29 @@ def mock(req: JudgeRequest) -> JudgeResult:
     )
 
 
+def _modes(setting: str) -> set[str]:
+    return {m.strip() for m in setting.split(",") if m.strip()}
+
+
 async def run(req: JudgeRequest) -> JudgeResult:
     """The verdict with its guardrails. Raises LLMError; /judge and /turn both call this."""
     if is_blocked(req.utterance):
         return blocked()
     if settings.mock:
         return enforce(mock(req), req)
-    if req.mode in {m.strip() for m in settings.judge_jev_modes.split(",") if m.strip()}:
+    if req.mode in _modes(settings.judge_laya_modes):
+        try:
+            # our own model on our own machine — nothing leaves it (10-08 · app/llm/laya.py)
+            raw = await laya.judge(req)
+            log.info("judge laya %.2fs", raw.pop("_seconds", 0.0))
+            result = enforce(JudgeResult.model_validate(raw), req)
+            if req.mode != "story" or result.story_ready or result.next_slot is not None:
+                return result
+            log.warning("story judge laya has no ending or next slot; next judge instead")
+        except (laya.LayaError, ValidationError) as e:
+            # ValidationError: an answer JudgeResult won't take — still the next judge's turn, never a 500
+            log.warning("judge laya failed, next judge instead: %s", e)
+    if req.mode in _modes(settings.judge_jev_modes):
         try:
             # names stay with us — TypeSafe gets placeholders (10-06); the app unmasks value_1
             raw = await jev.judge(judge_prompt.system(), jev.mask_names(judge_prompt.user(req), req.names),

@@ -165,7 +165,7 @@ def test_a_stage_too_long_or_too_many_is_refused(client):
 def test_the_mission_prop_reaches_the_plan():
     req = StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1", prop="맛있는 간식")])
     assert "「맛있는 간식」" in story_route.plan(req)
-    assert "「" not in story_route.plan(StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1")]))
+    assert "이 쪽에 나오는 물건" not in story_route.plan(StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="E1")]))
 
 
 
@@ -187,18 +187,94 @@ def test_a_day_book_keeps_the_empty_place_line_to_the_last_page():
 
 
 def test_every_day_meaning_is_a_kind_the_app_knows():
-    assert set(story_route.DAY_KIND_MEANING) <= set(story_route.KIND_MEANING)
+    assert set(story_route.COOP_KIND_MEANING) <= set(story_route.KIND_MEANING)
+    assert set(story_route.DIARY_KIND_MEANING) <= set(story_route.KIND_MEANING)
+
+
+# #272 (10-08 lead): the diary and co-op tables split. Co-op keeps its measured wording byte for byte —
+# its prompt input must not move. The diary table follows story_prompt_diary.md rules 10 · 11.
+COOP_BEFORE_272 = {
+    "DEPART": "시작 — 어디에(place) 누구랑(companion) 갔는지",
+    "MEET": "만남 — 함께한 사람 · 거기서 만난 것(companion)",
+    "SHAKE": "그때 한 일과 일어난 일 — extra 의 그때 한 일 → problem",
+    "FAIL": "그때 마음 — reaction 을 아이가 말한 그대로",
+    "TALK": "왜 그랬는지(cause) · 누가 무슨 말을 했는지(extra 의 누가 한 말)",
+    "RUB": "그래서 해 본 것 — extra 의 해 본 것",
+    "DRAG": "어떻게 됐는지 — solution",
+    "TOGETHER": "맺음 — extra 의 그 뒤 · 맺음(keep)",
+}
+
+
+def test_the_coop_table_is_unchanged():
+    assert story_route.COOP_KIND_MEANING == COOP_BEFORE_272
+    for kind, line in COOP_BEFORE_272.items():
+        assert story_route.meaning("coop", kind) == line
+
+
+def test_the_diary_feeling_page_holds_the_feeling_and_its_cause():
+    fail = story_route.meaning("diary", "FAIL")
+    assert "reaction" in fail and "cause" in fail
+    assert "cause" not in story_route.meaning("diary", "TALK")      # rule 11: the why is not a page of its own
+
+
+def test_a_diary_extra_saying_belongs_to_the_rub_page_only():
+    assert "extra" in story_route.meaning("diary", "RUB")
+    for kind in ("DEPART", "MEET", "SHAKE", "FAIL", "TALK", "DRAG", "TOGETHER"):
+        assert "extra" not in story_route.meaning("diary", kind), kind     # rule 10: not pulled onto another page
+
+
+def test_a_story_book_keeps_the_story_meanings():
+    assert story_route.meaning("story", "FAIL") == story_route.KIND_MEANING["FAIL"]
 
 
 # 10-05 device round: a real-day co-op book got a mission situation the child never told —
-# 「무언가 묻거나 가려진 일은 아직 듣지 못했어요」 — the app now sends a prop only from the child's words
-def test_a_real_day_mission_page_without_a_prop_sets_up_nothing():
+# 「무언가 묻거나 가려진 일은 아직 듣지 못했어요」. #259 (10-08 lead): without the child's prop the page now
+# sets the mission up as Otto's imagination, marked, never as the day; with the prop it stays the day's event
+def test_a_real_day_mission_page_without_a_prop_is_otto_imagining():
     pages = [Page(kind="RUB", mission="A6"), Page(kind="DRAG", mission="E1", prop="블록")]
-    done = story_route.plan(StoryRequest(mode="coop", slots={}, reason="done", pages=pages))
-    rub, drag = done.splitlines()[1:3]
-    assert "만들지 않고" in rub and "묻거나 덮여" not in rub
-    assert "「블록」" in drag and "건네주기" in drag
-    assert "만들지 않고" in story_route.plan(StoryRequest(mode="coop", slots={}, reason="soon", pages=pages)).splitlines()[1]
+    for reason in ("done", "soon", None):
+        done = story_route.plan(StoryRequest(mode="coop", slots={}, reason=reason, pages=pages))
+        rub, drag = done.splitlines()[1:3]
+        assert f"「{story_route.IMAGINE}」로 시작" in rub and "묻거나 덮여" in rub and "만약" in rub
+        assert "단정하지 않고" in rub and "도구 이름은 쓰지 않는다" in rub
+        assert "「블록」" in drag and "건네주기" in drag and "상상" not in drag
+        assert "상상만 예외" in done
+    diary = story_route.plan(StoryRequest(mode="diary", slots={}, pages=[Page(kind="RUB", mission="A1")]))
+    assert story_route.IMAGINE in diary.splitlines()[1] and "불이나 연기" in diary.splitlines()[1]
+
+
+def test_a_second_imagined_page_says_so():
+    pages = [Page(kind="RUB", mission="A6"), Page(kind="DRAG", mission="E1")]
+    rub, drag = story_route.plan(StoryRequest(mode="diary", slots={}, pages=pages)).splitlines()[1:3]
+    assert f"「{story_route.IMAGINE}」" in rub and f"「{story_route.IMAGINE_AGAIN}」" in drag
+
+
+def test_a_real_day_without_imagined_pages_keeps_the_plain_tail():
+    pages = [Page(kind="RUB", mission="A6", prop="모래")]
+    done = story_route.plan(StoryRequest(mode="diary", slots={}, pages=pages))
+    assert "상상" not in done and "미션 쪽도 칸에 있는 일로만" in done
+
+
+# a puzzle · order · beat mission is played on the page itself — nothing to imagine on a real day either
+def test_a_real_day_page_mission_is_not_imagined():
+    for m in sorted(story_route.NO_SITUATION):
+        line = story_route.plan(StoryRequest(mode="diary", slots={}, pages=[Page(kind="DRAG", mission=m)])).splitlines()[1]
+        assert "상상" not in line and "만들지 않고" in line
+
+
+# #259 (10-08 lead): in a story or an imagined co-op book the mission page is a scene of the child's own cast,
+# may be an event the child never said, and ends on a call to the child's hand
+def test_a_story_mission_page_calls_the_child_in():
+    pages = [Page(kind="RUB", mission="A1")]
+    for req in (StoryRequest(slots={}, pages=pages), StoryRequest(mode="coop", reason="dream", slots={}, pages=pages)):
+        line = story_route.plan(req).splitlines()[1]
+        assert "주인공이나 친구가 이 쪽에 나오고" in line and "네가 도와줄래?" in line
+        assert "말하지 않은 일이어도 이 쪽만은" in line and "풀지 않는다" in line and "상상" not in line
+    dream = story_route.plan(StoryRequest(mode="coop", reason="dream", slots={}, pages=pages))
+    assert "미션이 적힌 쪽 말고는 칸에 있는 일로만" in dream and "미션 쪽도 칸에 있는 일로만" not in dream
+    # a page-played mission stays an ordinary page with no call
+    a3 = story_route.plan(StoryRequest(slots={}, pages=[Page(kind="DRAG", mission="A3")])).splitlines()[1]
+    assert "도와줄래" not in a3
 
 
 def test_an_imagined_or_story_book_still_sets_the_mission_up():

@@ -31,6 +31,8 @@ data class SavedDiaryBook(
     val weather: DiaryWeather? = null,
     val weatherBy: String? = null,
     val aspect: Float = 1f,
+    /** The art style the diary was made in — its place picture is read in it (demo/WorldStyle.kt). Before 10-07: felt */
+    val artStyle: String = "felt",
 ) {
     val mode: String get() = "diary"
 }
@@ -59,7 +61,7 @@ fun DemoState.completedDiaryBook(title: String, today: LocalDate = LocalDate.now
     return SavedDiaryBook(
         UUID.randomUUID().toString(), title, today.toString(), pages, input,
         pieces.map { it.copy(strokes = it.strokes.map { s -> s.copy(pts = s.pts.toList()) }) },
-        day.weather, day.weatherBy, drawingAspect.takeIf { it > 0f } ?: 1f,
+        day.weather, day.weatherBy, drawingAspect.takeIf { it > 0f } ?: 1f, bookStyle,
     )
 }
 
@@ -186,7 +188,7 @@ object DiaryShelf {
 }
 
 /** 표지 — 그림이 있으면 아이 그림(`diaryCovers`), 없으면 아이가 말한 곳의 펠트 그림. 전에는 빈 노란 표지였다 (#98) */
-fun SavedDiaryBook.onShelf(fresh: Boolean = false) = ShelfBook(title, "diary", diaryPlaceBg(input.lines["place"]), pages, fresh, DIARY_SHELF_ID + id)
+fun SavedDiaryBook.onShelf(fresh: Boolean = false) = ShelfBook(title, "diary", diaryPlaceBg(input.lines["place"]), pages, fresh, DIARY_SHELF_ID + id, artStyle)
 
 // ── JSON ──────────────────────────────────────────────────────────
 
@@ -208,7 +210,7 @@ internal fun SavedDiaryBook.toJson(): JSONObject {
             }
         })
     return JSONObject().put("id", id).put("title", title).put("madeAt", madeAt).put("pages", pages)
-        .put("mode", mode).put("diary", diary)
+        .put("mode", mode).put("diary", diary).put("artStyle", artStyle)
 }
 
 internal fun diaryBookFromJson(obj: JSONObject, png: (String, Int) -> ByteArray?): SavedDiaryBook {
@@ -251,6 +253,7 @@ internal fun diaryBookFromJson(obj: JSONObject, png: (String, Int) -> ByteArray?
         if (d.isNull("weather")) null else DiaryWeather.valueOf(d.getString("weather")),
         if (d.isNull("weatherBy")) null else d.getString("weatherBy"),
         d.getDouble("aspect").toFloat(),
+        obj.optString("artStyle", "felt"),
     )
 }
 

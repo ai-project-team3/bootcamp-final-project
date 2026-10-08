@@ -1,0 +1,86 @@
+[
+ {
+  "file": "discovery_1.webm",
+  "mood": "discovery",
+  "source": "happy_discovery_0",
+  "seed": 1000,
+  "seconds": 57.7
+ },
+ {
+  "file": "discovery_2.webm",
+  "mood": "discovery",
+  "source": "happy_discovery_2",
+  "seed": 1002,
+  "seconds": 59.9
+ },
+ {
+  "file": "playful_1.webm",
+  "mood": "playful",
+  "source": "playful_comic_2",
+  "seed": 1002,
+  "seconds": 58.1
+ },
+ {
+  "file": "playful_2.webm",
+  "mood": "playful",
+  "source": "playful_comic_0",
+  "seed": 1000,
+  "seconds": 59.8
+ },
+ {
+  "file": "adventure_1.webm",
+  "mood": "adventure",
+  "source": "forest_adventure_2",
+  "seed": 1002,
+  "seconds": 58.1
+ },
+ {
+  "file": "adventure_2.webm",
+  "mood": "adventure",
+  "source": "forest_adventure_1",
+  "seed": 1001,
+  "seconds": 59.9
+ },
+ {
+  "file": "tense_1.webm",
+  "mood": "tense",
+  "source": "tense_moment_0",
+  "seed": 1000,
+  "seconds": 60.0
+ },
+ {
+  "file": "tense_2.webm",
+  "mood": "tense",
+  "source": "tense_moment_2",
+  "seed": 1002,
+  "seconds": 57.8
+ },
+ {
+  "file": "night_1.webm",
+  "mood": "night",
+  "source": "night_dream_0",
+  "seed": 1000,
+  "seconds": 58.8
+ },
+ {
+  "file": "night_2.webm",
+  "mood": "night",
+  "source": "night_dream_2",
+  "seed": 1002,
+  "seconds": 60.0
+ },
+ {
+  "file": "ending_1.webm",
+  "mood": "ending",
+  "source": "happy_ending_0",
+  "seed": 1000,
+  "seconds": 58.3
+ },
+ {
+  "file": "ending_2.webm",
+  "mood": "ending",
+  "source": "happy_ending_2",
+  "seed": 1002,
+  "seconds": 59.9
+ }
+]

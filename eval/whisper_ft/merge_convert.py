@@ -36,6 +36,8 @@ def main() -> None:
     src.add_argument("--model", help="이미 미세조정된 whisper(Hugging Face 이름) — 합치지 않고 바꾸기만 한다")
     ap.add_argument("--out", required=True)
     ap.add_argument("--base", default=BASE, help="시험용으로 작은 모델(openai/whisper-tiny)을 줄 때만")
+    ap.add_argument("--scale", type=float, default=1.0,
+                    help="LoRA 반영 강도 — 합칠 때 B 가중치에 곱한다(1.0=학습 그대로, 0.5=절반만 반영). 재학습 없이 alpha 를 낮추는 효과")
     a = ap.parse_args()
     out = Path(a.out)
     merged = out.with_name(out.name + "_hf")
@@ -48,7 +50,17 @@ def main() -> None:
             assert getattr(model.config, k) == getattr(ref, k), f"{a.model} 의 {k} 가 {a.base} 와 다르다"
     else:
         model = WhisperForConditionalGeneration.from_pretrained(a.base, torch_dtype=torch.float16)
-        model = PeftModel.from_pretrained(model, a.adapter).merge_and_unload()
+        model = PeftModel.from_pretrained(model, a.adapter)
+        if a.scale != 1.0:
+            # LoRA 의 합쳐지는 몫은 (alpha/rank) * B@A — B 에 스케일을 곱하면 재학습 없이 alpha 만 낮춘 것과 같다
+            n = 0
+            for module in model.modules():
+                if hasattr(module, "lora_B"):
+                    for key in module.lora_B:
+                        module.lora_B[key].weight.data *= a.scale
+                        n += 1
+            print(f"LoRA 반영 강도 {a.scale} 로 낮춤 — B 가중치 {n}개에 적용")
+        model = model.merge_and_unload()
     model.generation_config.forced_decoder_ids = None
     model.save_pretrained(str(merged))
     WhisperProcessor.from_pretrained(a.base).save_pretrained(str(merged))

@@ -151,8 +151,8 @@ async def main() -> None:
     ap.add_argument("--concurrency", type=int, default=1)
     ap.add_argument("--only", help="comma-separated fixture ids")
     a = ap.parse_args()
-    if a.story_meanings and hasattr(story_route, "DAY_KIND_MEANING"):
-        story_route.DAY_KIND_MEANING = {}
+    if a.story_meanings and hasattr(story_route, "COOP_KIND_MEANING"):
+        story_route.COOP_KIND_MEANING = {}
     system = system_block(Path(a.prompt)) if a.prompt else story_route.system("coop")
     cases = [json.loads(l) for l in Path(a.fixtures).read_text(encoding="utf-8").splitlines() if l.strip()]
     if a.only:

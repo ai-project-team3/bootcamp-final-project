@@ -63,6 +63,9 @@ EXACT, PREFIX = _load("stt_hallucination.txt")
 class Verdict:
     keep: bool
     reason: str | None = None     # "empty" | "no_hangul" | "hallucination" | None
+    # Which list line dropped it ("자막을키고*" · "repeat" for one word looped) — our own words, safe to log
+    # and count. Never the transcript itself: that is the child's (#331).
+    rule: str | None = None
 
 
 _HANGUL = re.compile(r"[가-힣]")
@@ -90,10 +93,13 @@ def check_transcript(text: str) -> Verdict:
     # A Korean child's answer with no Hangul at all is not an answer we can use.
     if not _HANGUL.search(text):
         return Verdict(False, "no_hangul")
-    if t in EXACT or any(t.startswith(p) for p in PREFIX):
-        return Verdict(False, "hallucination")
+    if t in EXACT:
+        return Verdict(False, "hallucination", t)
+    hit = next((p for p in PREFIX if t.startswith(p)), None)
+    if hit is not None:
+        return Verdict(False, "hallucination", hit + "*")
     if _one_word_repeated(text):
-        return Verdict(False, "hallucination")
+        return Verdict(False, "hallucination", "repeat")
     return Verdict(True)
 
 
