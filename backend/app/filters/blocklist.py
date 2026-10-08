@@ -35,10 +35,9 @@ def eojeol(text: str) -> list[str]:
 
 
 def is_blocked(utterance: str) -> bool:
-    words = eojeol(utterance)
-    if any(w in ALLOW for w in words):
-        return False
-    return any(w in BLOCK for w in words)
+    # The allow-list protects its own words, not the whole utterance: 「괴물」 next to a swear word
+    # must not carry the swear word through (#361 review · 10-08)
+    return any(w in BLOCK and w not in ALLOW for w in eojeol(utterance))
 
 
 # names reach the model only as {주인공} · {친구n}; any other {…} means the model made one up
