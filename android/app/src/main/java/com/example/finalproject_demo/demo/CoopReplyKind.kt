@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.ui.CoopReason
+
 /*
  * ── Co-op — is the child's reply an answer, a question or a negation (#327 design · docs/같이만들기_질문답_부정답_설계.md §3) ──────────
  *
@@ -182,4 +184,40 @@ private fun premiseDenied(core: String, question: String): CoopReply.PremiseDeni
     val verbInQuestion = !stem.startsWith("없") && eojeolsOf(question).any { verbStem(it) == stem }
     if (noun == null && !verbInQuestion) return null
     return CoopReply.PremiseDenied(verbStem(word), noun)
+}
+
+// ── Negation (#327 ② · design §5) ─────────────────────────────────────────────
+
+private val NO_HEAD_ONLY = Regex("^아니(?:야|요|에요)?[,\\s]+")
+private val LINKING = listOf("서", "고", "니까", "는데", "면")
+
+/**
+ * The ack for an answer that denies the premise of Otto's question — 「구나」 on the negated last eojeol (「아니, 안 줬어」 → 「안 줬구나!」 ·
+ * 「기린 없었어」 → 「기린 없었구나!」). The same safety rules as `pastEcho` (five eojeols or fewer · no linking ending · no rough word).
+ * Null when it cannot be made — the caller says 「그랬구나!」. Never 「우와!」 · 「응응!」 (§5-1)
+ */
+internal fun negationAck(said: String): String? {
+    val t = said.trim().replace(NO_HEAD_ONLY, "").trimEnd('.', '!', '~', ' ', '?')
+    val words = t.split(Regex("\\s+")).filter(String::isNotEmpty)
+    if (words.isEmpty() || words.size > 5 || hasRoughWord(t)) return null
+    if (words.dropLast(1).any { w -> LINKING.any { w.endsWith(it) } }) return null
+    val last = words.last()
+    if (!last.endsWith("어") || last.startsWith("아니")) return null
+    return t.dropLast(1) + "구나!"
+}
+
+/**
+ * A premise-free question — open, with no name slot and no choices (§5-2). Asked once after the child denied the premise of Otto's question.
+ * Null for the cause of 곧 해요 (the template question stays) and for steps other than the four skeleton steps
+ */
+internal fun coopPremiseFree(key: String, reason: CoopReason): String? {
+    val soon = reason == CoopReason.SOON
+    val dream = reason == CoopReason.DREAM
+    return when (key) {
+        "place" -> if (soon) "그럼 어디 갈 거야?" else if (dream) "그럼 어디로 가 볼까?" else "그럼 어디 갔었어?"
+        "problem" -> if (soon) "그럼 거기서 뭘 할 거야?" else if (dream) "그럼 무슨 일이 생겼을까?" else "그럼 거기서 무슨 일이 있었어?"
+        "cause" -> if (soon) null else if (dream) "그럼 무엇 때문에 그랬을까?" else "그럼 무엇 때문에 그런 일이 생겼을까?"
+        "solution" -> if (soon) "그럼 그다음엔 어떻게 할 거야?" else if (dream) "그럼 그다음엔 어떻게 됐을까?" else "그럼 그다음엔 어떻게 됐어?"
+        else -> null
+    }
 }
