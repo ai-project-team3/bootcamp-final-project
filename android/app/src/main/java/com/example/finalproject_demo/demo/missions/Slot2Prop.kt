@@ -53,6 +53,8 @@ enum class FixProp(
         "블록을 하나씩 끌어 올려서 탑을 쌓아 볼래?", "우와, 높은 탑이 됐어!"),
     ;
 
+    companion object
+
     /** 부모 화면 「받은 선물」 — 건네주기의 「○○ 건넨 손」 자리. 물대포로 불을 껐는데 「별 건넨 손」이 남았다(10-06 실기기) */
     val badge: String get() = when (this) {
         FIRE -> "불 끈 물대포"
@@ -68,22 +70,37 @@ enum class FixProp(
  * **해결 동사가 먼저**(설계 §6-1 「껐어」가 「불」보다 세다) — 해결 · 먼저 한 일에서 동사를 찾고, 없을 때 문제 칸의 사물을 본다
  */
 fun fixPropIn(solution: String, problem: String): FixProp? = when {
-    // 「끄」 하나만 보면 「미끄럼틀」이 걸린다 — 「불을 끄 · 꺼 줬」처럼 불과 함께 쓴 말이나 「껐」만
-    listOf("껐", "불을 끄", "불 끄", "불을 꺼", "물을 뿌", "물 뿌", "물대포", "소방").any { it in solution } -> FixProp.FIRE
-    listOf("잠갔", "잠궜", "잠가", "잠그", "잠궈", "수도꼭지", "꼭지").any { it in solution } -> FixProp.FAUCET
-    listOf("굴렸", "굴려", "데굴", "골인", "공을 넣", "공 넣", "골을 넣").any { it in solution } -> FixProp.BALL
-    listOf("고쳤", "고쳐", "붙였", "테이프", "맞췄").any { it in solution } -> FixProp.PIECES
-    listOf("쌓았", "쌓아", "다시 쌓", "탑을").any { it in solution } -> FixProp.BLOCKS
-    listOf("불이 났", "불났", "불이 붙", "연기", "불이 나").any { it in problem } -> FixProp.FIRE
-    listOf("샜", "새서", "새고", "물이 새", "넘쳤", "물이 넘", "수도꼭지").any { it in problem } -> FixProp.FAUCET
-    listOf("공이 굴러", "공이 데굴", "공을 놓쳤", "공이 멀리").any { it in problem } -> FixProp.BALL
-    listOf("무너", "와르르").any { it in problem } -> FixProp.BLOCKS
-    listOf("부서", "망가", "깨졌", "고장", "찢어").any { it in problem } -> FixProp.PIECES
+    // 낱말은 어절 처음에서만(#259 · MissionWords.kt) — 「미끄럼틀」의 「끄」는 이제 걸리지 않지만, 「끄」 하나는 여전히
+    // 「끄덕였어」가 걸리니 「불을 끄 · 꺼 줬」처럼 불과 함께 쓴 말이나 「껐」만
+    saysAny(solution, listOf("껐", "불을 끄", "불 끄", "불을 꺼", "물을 뿌", "물 뿌", "물대포", "소방")) -> FixProp.FIRE
+    saysAny(solution, listOf("잠갔", "잠궜", "잠가", "잠그", "잠궈", "수도꼭지", "꼭지")) -> FixProp.FAUCET
+    saysAny(solution, listOf("굴렸", "굴려", "데굴", "골인", "공을 넣", "공 넣", "골을 넣", "공을 찼", "공 찼", "공놀이", "축구")) -> FixProp.BALL
+    saysAny(solution, listOf("고쳤", "고쳐", "붙였", "테이프", "맞췄", "꿰맸")) -> FixProp.PIECES
+    saysAny(solution, listOf("쌓았", "쌓아", "다시 쌓", "탑을")) -> FixProp.BLOCKS
+    // 「연기를 했어」(연극)는 불이 아니다 — 연기가 난 것만(#259 설계 §4-1 오탐)
+    saysAny(problem, listOf("불이 났", "불났", "불이 붙", "연기가", "연기 나", "불이 나")) -> FixProp.FIRE
+    // 「기쁨이 넘쳤어」는 물이 아니다 — 물이 넘친 것만(#259 설계 §4-1 오탐)
+    saysAny(problem, listOf("샜", "새서", "새고", "물이 새", "물이 넘", "물이 졸졸", "물이 콸콸", "수도꼭지")) -> FixProp.FAUCET
+    saysAny(problem, listOf("공이 굴러", "공이 데굴", "공을 놓쳤", "공이 멀리", "공이 날아")) -> FixProp.BALL
+    saysAny(problem, listOf("무너", "와르르", "넘어뜨")) -> FixProp.BLOCKS
+    saysAny(problem, listOf("부서", "망가", "깨졌", "깨져", "고장", "찢어", "부러")) -> FixProp.PIECES
     else -> null
 }
 
-/** 이 책 자리 2 의 소품 — A1 · A4 일 때만 */
+/** 그 미션의 소품 — 돌려 쓰기로 고른 자리 2 의 화면 · 안내가 쓴다(#259). 건네주기 · 퍼즐은 소품이 없다 */
+fun FixProp.Companion.forMission(m: MissionId): FixProp? = FixProp.entries.firstOrNull { it.mission == m }
+
+/**
+ * 이 책 자리 2 의 소품 — **책 문장이 쓰는 것**. 아이 말에서 고른 것, 또는 상상 이야기에서 돌려 쓰기로 빌린 것(#259 ·
+ * 상상 이야기는 빌려 와도 된다 · 맞춤미션 설계 §7-2). 실제 하루에 돌려 쓴 미션은 null — 아이가 말하지 않은 물건을
+ * 책에 적지 않는다(§3-8). 화면 · 안내는 [slot2PlayProp]
+ */
 fun DemoState.slot2Prop(): FixProp? {
     val f = storyFacts()
-    return fixPropIn(f.slot2Words, f.slot1Words)?.takeIf { it.mission == missions().slot2 }
+    val m = missions()
+    return fixPropIn(f.slot2Words, f.slot1Words)?.takeIf { it.mission == m.slot2 }
+        ?: if (!f.realDay && !m.slot2FromChild) FixProp.forMission(m.slot2) else null
 }
+
+/** 자리 2 화면 · 마스코트 안내 · 배지가 쓰는 소품 — 실제 하루에 돌려 쓴 미션도(그 화면에 블록 · 공이 있으니) */
+fun DemoState.slot2PlayProp(): FixProp? = slot2Prop() ?: FixProp.forMission(missions().slot2)

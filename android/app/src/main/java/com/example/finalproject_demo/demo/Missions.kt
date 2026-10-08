@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.slot2PlayProp
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
 
@@ -160,6 +161,18 @@ fun DemoState.m2Log(page: Int): String {
     return "${page}쪽 미션 2 ($how) — $what ${friendCallName}에게"
 }
 
+/**
+ * 부모 화면 「받은 선물」 · 로그의 미션 1 이름 — 기본값 먼지는 아이가 말한 것이 아니라 「먼지 치운 손」이라 적지 않는다(#259 §4-3 4)
+ */
+fun DemoState.m1Badge(): String = slot1Prop()?.badge ?: mission1().blobName.let { b ->
+    if (b == "먼지" && !mission1FromChildWords()) "깨끗하게 치운 손" else "$b 치운 손"
+}
+
+/** 미션 2 의 「받은 선물」 — 화면의 미션 그대로, 건네주기면 건넨 것. 기본값 별은 이름 없이(#259 §4-3 4) */
+fun DemoState.m2Badge(): String = slot2PlayProp()?.badge ?: mission2().let { m ->
+    if (m.fromChild) "${m.itemName} 건넨 손" else "마음을 건넨 손"
+}
+
 /** "심심했어" → "심심했대" (남의 말을 전할 때) */
 fun reported(line: String): String {
     val t = line.trim().trimEnd('.', '!', '?', '~')
@@ -251,7 +264,8 @@ fun DemoState.m1Done(): String =
     else "${mission1().done} $storyActor 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
 
 fun DemoState.m2Line(easy: Boolean): String {
-    slot2Prop()?.let { return it.ask }                   // A1 물대포 · A4 돌려 잠그기 (Slot2Prop.kt)
+    // 화면의 미션 그대로 — 돌려 쓰기로 고른 쌓기 · 고치기 · 굴리기도(#259). 건네주기 · 퍼즐만 아래로
+    slot2PlayProp()?.let { return it.ask }               // A1 물대포 · A4 돌려 잠그기 … (Slot2Prop.kt)
     val m = mission2()
     // 9/22 — 아무도 없었던 날에는 "그 친구" 를 지어내지 않는다. 마스코트가 받는다 (그림도 이미 마스코트다)
     val f = giveTargetName
@@ -261,4 +275,4 @@ fun DemoState.m2Line(easy: Boolean): String {
     return "${f}${ga(f)} ${reported(causeLine)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
 }
 
-fun DemoState.m2Done(): String = slot2Prop()?.cheer ?: "${giveTargetName}${ga(giveTargetName)} ${mission2().done}"
+fun DemoState.m2Done(): String = slot2PlayProp()?.cheer ?: "${giveTargetName}${ga(giveTargetName)} ${mission2().done}"

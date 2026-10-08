@@ -38,10 +38,12 @@ fun DemoState.storyPagePlan(): List<Server.Page> {
             PageKind.RUB -> when (val p = slot1Prop()) {
                 is BlowProp -> p.word
                 is SoundProp -> SOUND_THING[p]
-                else -> mission1().blobName
+                // 기본값 먼지는 보내지 않는다 — 책 문장에 아이가 말하지 않은 먼지가 섰다(#259 §4-3 4 · 그림책 M8)
+                else -> mission1().blobName.takeIf { it != "먼지" }
             }
             PageKind.DRAG -> slot2Prop()?.let { FIX_THING[it] }
-                ?: if (missions().slot2 == MissionId.E1) mission2().itemName else null
+                // 기본값 별도 보내지 않는다(#309 Mission2.fromChild)
+                ?: if (missions().slot2 == MissionId.E1 && mission2().fromChild) mission2().itemName else null
             else -> null
         }
         Server.Page(page.kind.name, missionFor(page.kind)?.name, prop)
@@ -65,8 +67,11 @@ fun DemoState.storyMissionResult(i: Int): String? {
             slot1Prop()?.result ?: mission1().blobName.let { "${it}${ga(it)} 사라졌어요." }
         } else null
         PageKind.DRAG -> if (m2Result != null) {
-            slot2Prop()?.result ?: if (missions().slot2 == MissionId.A3) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
-            else "${storyActor}${eun(storyActor)} ${friendCallName}에게 ${mission2().give}."
+            slot2Prop()?.result ?: when (missions().slot2) {
+                MissionId.A3 -> "그림 조각을 모두 맞춰 한 장면을 완성했어요."
+                MissionId.E1 -> "${storyActor}${eun(storyActor)} ${friendCallName}에게 ${mission2().give}."
+                else -> null     // 책 문장이 세우지 않은 미션(#259 돌려 쓰기)은 결과도 적지 않는다
+            }
         } else null
         else -> null
     }

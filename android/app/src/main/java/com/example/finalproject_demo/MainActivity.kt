@@ -98,6 +98,9 @@ class MainActivity : ComponentActivity() {
             ?.let { Server.liveModes = Server.parseLive(it) }
         com.example.finalproject_demo.demo.SessionReports.attach(this)   // 부모 리포트 — 책마다 폰 안에만 (10-06)
         com.example.finalproject_demo.demo.Rewards.attach(this)   // 업적 보상 — 폰 안에만 (10-06 · #223)
+        // 지난 책들의 미션 조합 — 폰 안에만 (#259). 화면 검사(Robolectric)에서는 붙이지 않는다 — 한 검사가 꽂은 책의 기록이
+        // 메모리에 남아 다음 검사의 미션을 돌려 버렸다. 기록 자체는 MissionRotationTest 가 직접 붙여서 본다
+        if (android.os.Build.FINGERPRINT != "robolectric") com.example.finalproject_demo.demo.missions.MissionHistory.attach(this)
         com.example.finalproject_demo.net.CallLimits.attach(this)   // 서버 연결판 하루 한도 — 폰에만 (10-06)
         // which bundled pictures exist — a world picture in the book's art style is used only when it is bundled (10-07)
         com.example.finalproject_demo.demo.WorldStyle.has = { n -> @Suppress("DiscouragedApi") resources.getIdentifier(n, "drawable", packageName) != 0 }

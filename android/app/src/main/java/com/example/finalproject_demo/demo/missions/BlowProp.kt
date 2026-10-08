@@ -53,17 +53,23 @@ enum class BlowProp(
  * 「불다」는 바람 · 후~ 와 묶일 때만 — 풍선 · 비눗방울 · 나팔을 분 것은 날려 보낼 것이 아니다
  */
 fun blowPropIn(said: String, realDay: Boolean): BlowProp? = when {
-    listOf("촛불", "양초").any { it in said } -> BlowProp.CANDLE
-    "민들레" in said -> BlowProp.DANDELION
-    "먼지" in said -> BlowProp.DUST
-    listOf("바람", "후~", "후우", "후 불").any { it in said } -> if (realDay) BlowProp.DUST else BlowProp.LEAF
+    // 낱말은 어절 처음에서만(#259 · MissionWords.kt) — 「식초를」의 「초를」 · 「흙먼지」가 걸리지 않는다
+    saysAny(said, listOf("촛불", "양초")) -> BlowProp.CANDLE
+    saysAny(said, listOf("민들레", "홀씨", "꽃씨")) -> BlowProp.DANDELION
+    saysAny(said, listOf("먼지")) -> BlowProp.DUST
+    // 「넘어지는 바람에」는 까닭이지 바람이 아니다(#259 설계 §4-1 오탐)
+    saysAny(said, listOf("바람", "후~", "후우", "후 불"), ::dropCauseBaram) -> if (realDay) BlowProp.DUST else BlowProp.LEAF
     else -> null
 }
 
-/** 이 책의 C1 소품 — 자리 1 이 C1 일 때만 */
+/**
+ * 이 책의 C1 소품 — 자리 1 이 C1 일 때만. 아이 말에 불 것이 없는데 돌려 쓰기로 C1 이 됐으면(#259 · 상상 이야기만)
+ * 나뭇잎을 빌려 온다 — 상상 이야기는 소품을 빌려 와도 된다(맞춤미션 설계 §7-2)
+ */
 fun DemoState.blowProp(): BlowProp? {
     val f = storyFacts()
-    return if (missions().slot1 == MissionId.C1) blowPropIn(f.slot1Words, f.realDay) else null
+    if (missions().slot1 != MissionId.C1) return null
+    return blowPropIn(f.slot1Words, f.realDay) ?: if (!f.realDay) BlowProp.LEAF else null
 }
 
 /** 「촛불을」 · 「먼지를」 */
