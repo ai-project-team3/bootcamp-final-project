@@ -1516,7 +1516,7 @@ private suspend fun Director.pickLateDrawings(day: DiaryDay) {
         showOttoDrawing(day, day.pieces[i])
     }
     day.lateArt.clear()
-    keepBoard()
+    s.keepSceneDrawing()                                       // 고르기만 했다 — 새 획이 없으니 주고받기 · 그리기 이벤트를 쌓지 않는다
     s.stage = DiaryAsk
 }
 
@@ -1588,7 +1588,7 @@ private suspend fun Director.drawNewThing(day: DiaryDay, said: String) {
         }
     }
     pause(700)
-    keepBoard()
+    if (added.isNotEmpty()) keepBoard() else s.keepSceneDrawing()   // 안 그리고 닫았으면 주고받기 · 그리기 이벤트를 쌓지 않는다
     s.stage = DiaryAsk
     piece?.let { p -> day.pieces.firstOrNull { it.id == p.id } }?.let { offerLate(day, it) }
 }

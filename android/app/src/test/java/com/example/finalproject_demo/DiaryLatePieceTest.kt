@@ -163,8 +163,13 @@ class DiaryLatePieceTest {
         assertTrue("다 그린 뒤 이름이 붙은 조각에 「나도 그려볼까?」를 묻지 않았다", offered)
         assertEquals("짠! 나도 그려 봤어! 어떤 게 좋아?", d.s.line)
         assertEquals("고르는 그림판에 아이 원본이 없다", 1, d.s.drawing.size)
+        val reactions = d.s.reactions
+        val makes = d.s.events.count { it.startsWith("make") }
         d.send(Reply.Tapped("otto", "오또 그림"))
         assertTrue(await { d.s.diaryDay.pieces.single().look == PieceLook.OTTO } != null)
+        assertTrue(await { d.s.stage !is DiaryBoard } != null)
+        assertEquals("고르기는 탭 한 번 — 그 뒤 그림판을 거둘 때 또 셌다", reactions + 1, d.s.reactions)
+        assertEquals("고르기만 했는데 그리기 이벤트가 또 쌓였다", makes, d.s.events.count { it.startsWith("make") })
     }
 
     /** 2 — 「아니」면 원본 그대로 — 고르기 화면이 뜨지 않는다 */
