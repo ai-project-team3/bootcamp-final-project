@@ -1,5 +1,6 @@
 """POST /image: every way out that is not "drawn and checked in time" is a preset (rule 8)."""
 import asyncio
+import io
 import sys
 from pathlib import Path
 
@@ -198,25 +199,63 @@ def test_a_diary_background_is_asked_in_the_diary_style(live):
     assert got == ["story", "diary"]
 
 
+def _png(color=(40, 90, 200), size=(64, 40)) -> bytes:
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", size, color).save(buf, "PNG")
+    return buf.getvalue()
+
+
 def test_a_diary_background_is_colored_pencil_not_felt():
     wf = comfy.workflow("a beach", seed=1, mode="diary")
-    assert wf["2"]["inputs"]["text"] == "a beach" + comfy.DIARY_BG_STYLE
-    assert wf["3"]["inputs"]["text"] == comfy.DIARY_BG_NEG
+    assert wf["2"]["inputs"]["text"] == "a beach" + comfy.DIARY_SCENE_STYLE
     assert "felt" not in wf["2"]["inputs"]["text"]
     # whatever the book's style — the diary keeps colored pencil, as its redraws do
-    assert comfy.workflow("a beach", seed=1, style="crayon", mode="diary")["2"]["inputs"]["text"] == "a beach" + comfy.DIARY_BG_STYLE
+    assert comfy.workflow("a beach", seed=1, style="crayon", mode="diary")["2"]["inputs"]["text"] == "a beach" + comfy.DIARY_SCENE_STYLE
     assert comfy.workflow("a beach", seed=1)["2"]["inputs"]["text"] == "a beach" + comfy.BG_STYLE
 
 
-def test_a_diary_background_reaches_the_workflow(monkeypatch):
+def test_a_diary_background_does_not_name_people():
+    """cfg 1.0 (Lightning) all but ignores the negative prompt, and naming "people" in the positive one calls them in (10-08)"""
+    text = comfy.workflow("a snowy hill", seed=1, mode="diary")["2"]["inputs"]["text"]
+    for word in ("people", "person", "character", "animal"):
+        assert word not in text
+
+
+def test_the_measured_diary_redraw_backdrop_keeps_its_words():
+    """the 10-06 measured board redraw (eval/results.md) is not this change's to move"""
+    wf = comfy.redraw_workflow("a beach", seed=1, drawing_b64="", mode="diary", role="background")
+    assert wf["2"]["inputs"]["text"] == "a beach" + comfy.DIARY_BG_STYLE
+
+
+def test_a_diary_background_reaches_the_workflow_and_comes_back_washed(monkeypatch):
     seen = {}
 
     async def run(wf, front=False):
         seen["text"] = wf["2"]["inputs"]["text"]
-        return PNG
+        return _png()
     monkeypatch.setattr(comfy, "run", run)
-    asyncio.run(comfy.background("a sunny park", mode="diary"))
-    assert seen["text"].endswith(comfy.DIARY_BG_STYLE)
+    out = asyncio.run(comfy.background("a sunny park", mode="diary"))
+    assert seen["text"].endswith(comfy.DIARY_SCENE_STYLE)
+    from PIL import Image
+    r, g, b = Image.open(io.BytesIO(out)).convert("RGB").getpixel((5, 5))
+    assert r > 40 and g > 90 and b > 200          # lighter: the child's lines stay on top
+
+
+def test_a_story_background_is_not_washed(monkeypatch):
+    raw = _png()
+
+    async def run(wf, front=False):
+        return raw
+    monkeypatch.setattr(comfy, "run", run)
+    assert asyncio.run(comfy.background("a sunny park")) == raw
+
+
+def test_wash_keeps_white_white_and_lifts_colour():
+    from PIL import Image
+    out = Image.open(io.BytesIO(comfy.wash(_png((0, 0, 0)), 0.4))).convert("RGB").getpixel((0, 0))
+    assert out == (102, 102, 102)
+    assert Image.open(io.BytesIO(comfy.wash(_png((255, 255, 255)), 0.4))).convert("RGB").getpixel((0, 0)) == (255, 255, 255)
 
 
 def test_an_unknown_style_is_refused():
