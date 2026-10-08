@@ -7,6 +7,90 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class HeroDescriptionFlowTest {
+    @Test
+    fun politeRejectionsWithoutADescriptionRepeatTheAttribute() = runBlocking {
+        for (reply in listOf("아니에요", "아닌데요", "아니 아니", "틀려요")) {
+            val scope = CoroutineScope(coroutineContext + SupervisorJob())
+            val d = Director(scope).apply { s.speed = 0.01; s.timerOn = false }
+            val confirmation = async { d.confirmHeroDescription("긴 머리") }
+            try {
+                waitFor(d) { d.s.stage is Stage.HeroAnswer }
+                d.send(Reply.Spoke(reply))
+                assertNull(reply, withTimeout(500) { confirmation.await() })
+            } finally { confirmation.cancel(); scope.cancel() }
+        }
+    }
+
+    @Test
+    fun aPoliteRejectionKeepsTheNewDescription() =
+        replacementDescription("아니에요 짧은 머리", "짧은 머리", exact = true)
+
+    @Test
+    fun repeatedRejectionsAreNotPartOfTheNewDescription() =
+        replacementDescription("아니 아니 짧은 머리", "짧은 머리", exact = true)
+
+    @Test
+    fun aReplacementDescriptionOnTheConfirmationScreenIsConfirmedAndKept() =
+        replacementDescription("둥글둥글 머리")
+
+    @Test
+    fun aRejectionWithAReplacementKeepsTheReplacementInsteadOfReasking() =
+        replacementDescription("아니야 둥글둥글 머리야!")
+
+    @Test
+    fun aSquareHairDescriptionIsNotMistakenForYes() = replacementDescription("네모 머리", "네모 머리")
+
+    @Test
+    fun naturalAffirmationsKeepTheCurrentDescription() = runBlocking {
+        for (yes in listOf("응응", "그래요", "좋아요", "네네")) {
+            val scope = CoroutineScope(coroutineContext + SupervisorJob())
+            val d = Director(scope).apply { s.speed = 0.01; s.timerOn = false }
+            val confirmation = async { d.confirmHeroDescription("긴 머리") }
+            try {
+                waitFor(d) { d.s.stage is Stage.HeroAnswer }
+                d.send(Reply.Spoke(yes))
+                assertEquals(yes, "긴 머리", withTimeout(500) { confirmation.await() })
+            } finally { confirmation.cancel(); scope.cancel() }
+        }
+    }
+
+    @Test
+    fun aRejectionWithOnlyARetryPromiseStillReasksTheAttribute() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope).apply { s.speed = 0.01; s.timerOn = false }
+        val confirmation = async { d.confirmHeroDescription("긴 머리") }
+        try {
+            waitFor(d) { d.s.stage is Stage.HeroAnswer }
+            d.send(Reply.Spoke("아니야 다시 말할게"))
+            assertNull(withTimeout(500) { confirmation.await() })
+        } finally { confirmation.cancel(); scope.cancel() }
+    }
+
+    private fun replacementDescription(replacement: String, expected: String = "둥글둥글 머리", exact: Boolean = false) = runBlocking {
+        val beforeBase = Server.base
+        val beforeModes = Server.liveModes
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope).apply { s.speed = 0.01; s.timerOn = false }
+        Server.base = "http://127.0.0.1:1"
+        Server.liveModes = setOf(StoryMode.STORY)
+        try {
+            enterVoice(d)
+            d.send(Reply.Spoke("뾰족뾰족 머리"))
+            waitFor(d) { d.s.stage is Stage.HeroAnswer }
+            d.send(Reply.Spoke(replacement))
+            delay(200)
+            assertTrue("a correction must be shown for confirmation", d.s.stage is Stage.HeroAnswer)
+            if (exact) assertEquals(expected, (d.s.stage as Stage.HeroAnswer).heard)
+            assertTrue("the new description must replace the old one", expected in d.s.line)
+            assertFalse("the rejected candidate must not remain", "뾰족뾰족" in d.s.line)
+            assertTrue("a replacement is not consent to advance", "맞아" in d.s.line)
+            d.send(Reply.Tapped("ok", "맞아"))
+            waitFor(d) { "어떤 옷" in d.s.line }
+            assertTrue("the accepted replacement must reach the real attribute handler",
+                d.s.log.any { expected in it })
+        } finally { scope.cancel(); Server.base = beforeBase; Server.liveModes = beforeModes }
+    }
+
     private suspend fun waitFor(d: Director, predicate: () -> Boolean) {
         withTimeout(3_000) { while (!predicate()) delay(5) }
     }
