@@ -1531,12 +1531,12 @@ fun ya(w: String) = if (bat(w)) "아" else "야"
 fun rang(w: String) = if (bat(w)) "이랑" else "랑"
 
 /** 아이가 말한 사람에 맞는 프리셋 그림 — 없으면 null (일기 · 같이 만들기 공통) */
-/** 끝 조사 — 「엄마랑」 · 「할머니하고」 · 「동생도」 */
+/** Endings to drop — 「엄마랑」 · 「할머니하고」 · 「동생도」 */
 private val COOP_NAME_ENDS = listOf("이랑", "하고", "한테", "에게", "랑", "와", "과", "도")
 
 /**
- * 같이 만들기 — 이름의 **끝 낱말**이 그 인물이다(#339 설계 §3). 「엄마 친구 강아지」는 강아지라 기본 그림이 없고(서버 인형),
- * 「유치원 선생님」 · 「친구 엄마」(⚖️3 사용자 10-08) · 「엄마랑 아빠」는 끝 낱말의 기본 그림. 그림일기는 [companionPreset] 그대로(⚖️4 · 진웅)
+ * Co-op — the **last word** of the name is who it is (#339 design §3). 「엄마 친구 강아지」 is a dog with no preset (a server doll);
+ * 「유치원 선생님」 · 「친구 엄마」 (⚖️3 user 10-08) · 「엄마랑 아빠」 take the last word's preset. The diary keeps [companionPreset] (⚖️4 · Jinwoong)
  */
 internal fun coopCompanionPreset(kind: String): Art? {
     val head = kind.trim().split(Regex("\\s+")).lastOrNull { it.isNotEmpty() } ?: return null
@@ -1545,7 +1545,7 @@ internal fun coopCompanionPreset(kind: String): Art? {
     return if (word == "선생" || word == "선생님") companionPreset("선생님") else companionPreset(word).takeIf { word in PRESET_PEOPLE }
 }
 
-/** 기본 그림이 있는 사람 — 끝 낱말이 이 말과 **같을 때만**(「할머니 고양이」는 고양이) */
+/** People with a preset — only when the last word **is** one of these (「할머니 고양이」 is a cat) */
 private val PRESET_PEOPLE = setOf("할머니", "할아버지", "엄마", "아빠", "언니", "누나", "동생")
 
 internal fun companionPreset(kind: String): Art? = when {

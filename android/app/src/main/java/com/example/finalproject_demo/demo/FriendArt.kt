@@ -29,7 +29,7 @@ internal fun DemoState.friendToDraw(): String? = when {
     mode == StoryMode.STORY ->
         slots["newcomer"]?.trim()?.takeIf { it.isNotEmpty() && storyPresetMatch(it) == null }
     // Co-op waits until the child chose whether to draw the companion (the drawing step comes last) — a doll asked for
-    // earlier was thrown away when the child drew, and still cost a request (#339 · 설계 §5 · ⚖️5)
+    // earlier was thrown away when the child drew, and still cost a request (#339 · design §5 · ⚖️5)
     isCoop -> companionKind.trim().takeIf {
         it.isNotEmpty() && COOP_DRAW_DECIDED in done && coopCompanionPreset(it) == null && it !in GENERIC_FRIEND && "혼자" !in it
     }

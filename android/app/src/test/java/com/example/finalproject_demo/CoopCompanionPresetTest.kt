@@ -29,8 +29,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * #339 같이 만들기 ① — 이름의 끝 낱말이 그 인물이고(「엄마 친구 강아지」는 강아지), 같이 간 사람 인형은 아이가 그릴지 정한
- * 뒤에만 맡긴다(아이가 그린 인물은 서버 요청 0회 · 설계 §3 · §5).
+ * #339 co-op ① — the last word of the name is who it is (「엄마 친구 강아지」 is a dog), and the companion doll is asked for only
+ * after the child chose whether to draw (a drawn companion: zero server requests · design §3 · §5).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -55,7 +55,7 @@ class CoopCompanionPresetTest {
         assertNull(coopCompanionPreset(""))
     }
 
-    /** 그림일기는 바꾸지 않는다(⚖️4 · 진웅) — 들어 있으면 기본 그림 그대로 */
+    /** The diary is unchanged (⚖️4 · Jinwoong) — a name containing a preset word keeps that preset */
     @Test
     fun theDiaryKeepsItsPresets() {
         assertEquals("ic_p_mom", name(companionPreset("엄마 친구 강아지")))
@@ -74,7 +74,7 @@ class CoopCompanionPresetTest {
         assertNull("「혼자」는 인형이 없다", s.friendToDraw())
     }
 
-    // ── 그리기 전에 맡기지 않기 (§5) ──────────────────────────────────
+    // ── No request before the drawing choice (§5) ──────────────────────────────────
 
     private fun run(block: suspend CoroutineScope.(Director, StoryTestServer) -> Unit) = runBlocking {
         val sup = SupervisorJob()
@@ -98,7 +98,7 @@ class CoopCompanionPresetTest {
         s.companionKind = companion; s.friend = companion.takeIf { it.isNotEmpty() }
     }
 
-    /** 책 만들기까지 가게 두고, 인형 요청이 나갈 시간을 준다 */
+    /** Let it run to making the book, and give the doll request time to go out */
     private suspend fun CoroutineScope.finish(d: Director) {
         launch { d.finishDiary() }
         delay(1_500)

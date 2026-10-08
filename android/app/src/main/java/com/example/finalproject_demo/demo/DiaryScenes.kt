@@ -141,7 +141,7 @@ suspend fun Director.sceneDiary() {
             s.coopCoverPart(step.variant.id)
         } else askDiaryStep(step)
         drawCoopBackground()                    // 장소 칸이 찼으면 그곳으로 배경을 그린다 — 기다리지 않는다 (10-05 · CoopServerLine.kt)
-        drawFriend()                            // 같이 간 사람에 맞는 그림이 없으면 인형을 만든다 — 협업은 그리기를 정한 뒤에만 (FriendArt.kt · #339)
+        drawFriend()                            // a doll for a companion with no picture — in co-op only after the drawing choice (FriendArt.kt · #339)
         // 진행 막대는 **지나온 걸음 수**로 찬다 (9/22). 칸이 찼는지로 세면, 아이가 답하지 않은
         // 선택 질문이 하나라도 있으면 마지막 질문까지 가도 막대가 끝까지 가지 않는다
         s.stepsDone++
@@ -361,8 +361,8 @@ internal suspend fun Director.finishDiary() {
         return
     }
 
-    // 책을 만든다 · 같이 만들기 — 같이 간 사람을 그릴지 정해졌다(그렸거나 · 안 그렸거나 · 묻지 않았거나). 이제야 인형을 맡긴다 —
-    // 그리기 전에 맡기면 아이가 그렸을 때 받은 인형을 버리고 비용만 들었다 (#339 설계 §5). 기다리지 않는다(규칙 8)
+    // Making the book · co-op — whether the child draws the companion is settled (drew · did not · was not asked). Only now
+    // is the doll asked for — asked before, it was thrown away when the child drew and only cost a request (#339 design §5). No waiting (rule 8)
     if (s.isCoop) {
         mark(COOP_DRAW_DECIDED)
         drawFriend()
