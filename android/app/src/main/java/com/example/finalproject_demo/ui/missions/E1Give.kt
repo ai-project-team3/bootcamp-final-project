@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
@@ -86,6 +87,7 @@ import com.example.finalproject_demo.demo.mission2
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.roundToInt
 import com.example.finalproject_demo.demo.*
 import com.example.finalproject_demo.ui.*
@@ -105,7 +107,6 @@ internal fun GiveMission(d: Director, done: Boolean, heroArt: Art, tool: String)
     val ox = remember { Animatable(0f) }
     val oy = remember { Animatable(0f) }
     var given by remember { mutableStateOf(done) }
-    var sent by remember { mutableStateOf(done) }
     var gag by remember { mutableStateOf<String?>(null) }
     // 손가락이 마지막으로 움직인 속도 — 손을 뗄 때 물건이 그 기세로 계속 간다 (9/23)
     var fling by remember { mutableStateOf(Offset.Zero) }
@@ -117,7 +118,8 @@ internal fun GiveMission(d: Director, done: Boolean, heroArt: Art, tool: String)
     val inf = rememberInfiniteTransition(label = "give")
     val beat by inf.animateFloat(0.94f, 1.06f, infiniteRepeatable(tween(420), RepeatMode.Reverse), label = "beat")
     val rise by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(1400)), label = "rise")
-    LaunchedEffect(given) { if (given && !sent) { sent = true; delay(1200); d.send(Reply.Tapped("mission", "미션2")) } }
+    // 다른 미션과 같은 신호 — 반짝 한 번 · 받는 장면(폴짝 · 하트)을 보인 뒤 보낸다 (#260 · 전에는 여기서 따로 1.2초)
+    MissionDoneSignal(d, given, done, "미션2")
     LaunchedEffect(given) {
         showHint = false
         if (given || motionFrozen) return@LaunchedEffect
@@ -146,10 +148,15 @@ internal fun GiveMission(d: Director, done: Boolean, heroArt: Art, tool: String)
         // 일기·협업에서 받는 쪽은 **또래 아이**다. 동화 모드의 공룡·외계인과 같은 크기로 그리면
         // 주인공보다 두 배 커서 어른처럼 보였다 (9/22). 가운데를 축으로 줄이므로 놓는 자리는 그대로다
         val targetScale = if (s.isDiary) 0.62f else 1f
+        // 물건이 가까워질수록 받는 쪽이 그쪽으로 몸을 기울인다 — 「받고 싶어」가 보이게 (#260 §6-3 · 그림 없이 기울기로)
+        val itemCx = startX + ox.value + itemPx / 2; val itemCy = startY + oy.value + itemPx / 2
+        val reach = if (given) 0f else (1f - hypot(fCx - itemCx, fCy - itemCy) / hypot(fCx - startX - itemPx / 2, fCy - startY - itemPx / 2)).coerceIn(0f, 1f)
+        val hint = rememberMissionHint(d, (reach * 10).roundToInt().toFloat(), given, "E1")
         Layer(
             fx, fy, fw, 1f,
             Modifier
-                .offset { IntOffset(0, (-hop.value * hpx * 0.045f).roundToInt()) }
+                .offset { IntOffset((-reach * fS * 0.08f).roundToInt(), (-hop.value * hpx * 0.045f).roundToInt()) }
+                .rotate(-8f * reach)
                 .scale((if (given) beat else 1f) * targetScale),
         ) {
             Box(Modifier.fillMaxSize()) {
@@ -176,9 +183,9 @@ internal fun GiveMission(d: Director, done: Boolean, heroArt: Art, tool: String)
         LaunchedEffect(given) {
             // 검사에서는 멈춘다 — 안 그러면 찍는 순간 친구가 뛰어오른 중이라 기준 그림이 매번 달라진다
             if (!given || motionFrozen) return@LaunchedEffect
+            // 받을 때 툭 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
             Sfx.play(Sound.THUD, 0L, view = view)
             puffs.burst(fCx, fCy, wpx * 0.03f, 22)
-            Sfx.play(Sound.SPARKLE, 0L, view = view)
             hop.snapTo(0f)
             hop.animateTo(1f, spring(dampingRatio = 0.32f, stiffness = 420f), initialVelocity = 7f)
         }
@@ -234,7 +241,12 @@ internal fun GiveMission(d: Director, done: Boolean, heroArt: Art, tool: String)
             Box(Modifier.fillMaxSize().touchOutline(!given)) { ArtView(Art.Img(m.item, Art.Emoji(m.itemEmoji)), Modifier.fillMaxSize()) }
             if (easy && !given) Text("톡!", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.BottomCenter))
         }
-        if (showHint && !given) {
+        // 15초 흐릿한 예시 — 물건이 반투명으로 친구에게 미끄러졌다 사라진다(진짜 물건은 그대로 · 건네는 것은 아이)
+        if (hint != null && !given) {
+            val g = ghostAlong(listOf(Offset(startX + itemPx / 2, startY + itemPx / 2), Offset(fCx, fCy)), hint)
+            Ghost(g, itemPx, hint) { ArtView(Art.Img(m.item, Art.Emoji(m.itemEmoji)), Modifier.fillMaxSize()) }
+            GhostHand(g, wpx * 0.06f, hint)
+        } else if (showHint && !given) {
             val hintT = rememberInfiniteTransition(label = "hint2")
             val go by hintT.animateFloat(
                 0f, 1f,

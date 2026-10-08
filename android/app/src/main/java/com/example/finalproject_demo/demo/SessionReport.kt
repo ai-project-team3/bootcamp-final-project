@@ -217,7 +217,14 @@ object SessionReports {
         return r
     }
 
-    @Synchronized fun forget(bookId: String) { if (reports.removeAll { it.bookId == bookId }) save() }
+    /**
+     * The book was removed from the shelf — its report goes too. When it is the book just made, the parent
+     * screen's copy and this session's transcript go with it, so 「오늘의 기록」 does not keep showing a removed book (#223)
+     */
+    @Synchronized fun forget(bookId: String, s: DemoState? = null) {
+        if (reports.removeAll { it.bookId == bookId }) save()
+        if (s != null && s.lastReport?.bookId == bookId) { s.lastReport = null; s.talk.clear() }
+    }
 
     /** 테스트 · 탈퇴 뒤 — 메모리에 든 것도 비운다 */
     @Synchronized fun clear() { reports.clear(); prefs?.edit()?.clear()?.apply() }

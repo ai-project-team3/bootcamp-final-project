@@ -113,8 +113,13 @@ python tools\otto_art.py check
 python tools\rebake_style.py crayon --dry-run              # 무엇을 굽나 · 몇 장 · 대상 문장을 못 찾은 그림
 python tools\rebake_style.py crayon --only kit_park_       # 묶음 하나씩 — 공원 키트만
 python tools\rebake_style.py crayon                        # 전부 (그림마다 후보 2장 · --seeds 로 바꾼다)
-python tools\rebake_style.py crayon pick kit_park_slide 12345   # 고른 한 장 → res/drawable/kit_park_slide_crayon.png (줄여서) + 레시피
+python tools\rebake_style.py crayon pick kit_park_slide 12345   # 고른 한 장 → res/drawable-nodpi/kit_park_slide_crayon.webp + 레시피
+python tools\rebake_style.py crayon refit                  # 예전 방식 res/drawable/*_crayon.png 를 아래 방식으로 옮기기
 ```
+
+**넣는 방식 (10-07 조장 리뷰 #291)** — `pick` 이 알아서 한다. `otto_art.py pick` 으로 직접 고른 것은 뒤에 `refit` 을 돌린다.
+- `res/drawable-nodpi/<이름>_crayon.webp` · 투명도 유지 webp q85. 앱이 이름을 조합해 부르므로(getIdentifier) shrinkResources 가 못 빼고 다 실린다 — PNG 로 넣지 않는다
+- **펠트판과 같은 판**: 오려 낸 것은 펠트판과 같은 캔버스 크기, 크레용 물체를 여백 없이 잘라 펠트 물체 상자 안에 가로 가운데 · 밑동 맞춤. 배경은 펠트 배경과 같은 크기(1344×768)
 
 - 대상 문장은 그 그림을 처음 만든 `gen_*.py` 에서 읽고, 「felt」 같은 그림체 말은 빼고 `otto_art.py` 의 `STYLES["crayon"]` 을 붙인다
 - 후보는 `tools\art_out\crayon\` 에 쌓인다. **이미 고른 그림은 건너뛴다** — 끊겨도 다시 돌리면 이어서 한다
@@ -127,7 +132,7 @@ python tools\rebake_style.py crayon pick kit_park_slide 12345   # 고른 한 장
 - 글자 · 숫자가 없나, 무섭거나 어두운 것이 없나 (자체 모델에는 안전 필터가 없다)
 - 펠트판과 **같은 대상 · 같은 방향 · 같은 비율**인가 — 키트는 앱이 같은 자리에 얹는다
 
-다 고르면 `res/drawable/*_crayon.png` 와 `tools/art_recipes/*_crayon.json` 을 같이 PR 로 올린다.
+다 고르면 `res/drawable-nodpi/*_crayon.webp` 와 `tools/art_recipes/*_crayon.json` 을 같이 PR 로 올린다.
 
 ## 8. 막힐 때
 

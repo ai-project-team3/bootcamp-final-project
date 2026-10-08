@@ -1,0 +1,14 @@
+{
+  "name": "coop_el_astronaut_crayon",
+  "kind": "cut",
+  "text": "a round astronaut space helmet with a big glass visor and small star stickers, only the helmet, no person, no body",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 798393607,
+  "prompt": "a round astronaut space helmet with a big glass visor and small star stickers, only the helmet, no person, no body, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-07"
+}

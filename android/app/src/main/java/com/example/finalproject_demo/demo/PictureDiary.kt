@@ -504,6 +504,7 @@ private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: Triple<S
         val v = result?.verdict
         if (v != null && v.reason != "blocked_by_filter") {
             fillFromVerdict(day, v, r, key)
+            nameBackdrop(day, ring, key, said)
             sayReaction(result, r)
             day.nextStory = serverNext(result)
             log("그리는 중 이야기 [$key] — 판정이 칸을 채웠다 · 다음 이야기 ${day.nextStory?.second ?: "없음(D3)"}")
@@ -514,6 +515,7 @@ private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: Triple<S
     }
     val scripted = r.answer?.value?.takeIf(String::isNotBlank)          // 시연 대본 답이면 값이 붙어 온다
     setDiarySlot(slot, key, scripted?.let(::diarySlotOf) ?: said, scripted?.let(::diaryLineOf) ?: said, "child")
+    nameBackdrop(day, ring, key, said)
     sayAck(said, slot)
     log("그리는 중 이야기 [$key] = 「$said」 (child) — 다 그린 뒤에는 묻지 않는다")
     return "ok"
@@ -521,7 +523,8 @@ private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: Triple<S
 
 /**
  * 그린 사람 · 물건 하나의 이야기를 묻는다(#220 ②) — 답은 조각과 짝지어 두고 책 재료 `extra` 에 「이름: 말」로 쌓는다(아이 출처).
- * 서버 판정에는 보내지 않는다(호출이 늘지 않는다) — 어느 쪽에 쓸지는 책 쓰는 쪽이 정한다.
+ * 서버 모드면 판정(`/turn`)에도 보내 누구랑 · 결말 같은 칸을 채우고(10-07 실기기), 다 그린 뒤에는 판정이 쓴 받아 주기로 대답한다.
+ * 그리는 중에는 구운 짧은 말로만 받는다(목소리 호출 없음).
  * 돌려주는 값: done(그리기를 끝냈다) · ok · skip
  */
 private suspend fun Director.askPieceStory(day: DiaryDay, clue: DrawnClue, text: String, drawing: Boolean): String {
@@ -542,12 +545,27 @@ private suspend fun Director.askPieceStory(day: DiaryDay, clue: DrawnClue, text:
         log("「${clue.name}」 이야기 — 못 들었다 → 비워 둔다")
         return "skip"
     }
+    // 판정에도 보낸다 — 누구랑 · 결말 같은 칸이 차서 다 그린 뒤 같은 것을 또 묻지 않는다 (10-07 실기기: 「아빠는 오늘 뭐 했어?」에
+    // 「모래성이 무너져서 아빠랑 같이 다시 만들었어」라고 했는데 「누구랑 같이 있었어?」 · 「그래서 어떻게 됐어?」를 또 물었다)
+    val result = if (Server.liveFor(s.mode)) { day.turnCalls++; s.exchangeTurn("diary", null, text, said) } else null
+    val v = result?.verdict
+    if (v?.reason == "blocked_by_filter") { log("서버 안전 판정 — 「${clue.name}」 이야기를 책 재료에서 뺀다"); return "skip" }
     day.pieceStories[clue.pieceId] = said
     quote(said)
+    // 판정이 고른 칸에 덧붙인다 — 첫 칸은 아이 말 그대로, 둘째부터는 판정 값(한 말의 둘째 칸 · `fillFromVerdict` 와 같은 약속)
+    v?.fills.orEmpty().filter { (slot, value) -> slot in Server.SLOTS && slot != "extra" && value.isNotBlank() }
+        .forEachIndexed { i, (slot, value) ->
+            val key = bookKeyOf(slot, "")
+            addToDiarySlot(slot, key, value.trim(), if (i == 0) said else value.trim())
+            if (i > 0) day.sameSaying += key
+        }
     addToDiarySlot("extra", "extra", "${clue.name}: $said", "${clue.name}: $said")
-    say(if (drawing) "그렇구나! 계속 그려 봐." else "그랬구나!")
-    pause(600)
-    log("「${clue.name}」 이야기 = 「$said」 (child · extra 에 쌓음 · #220)")
+    when {
+        drawing -> { say("그렇구나! 계속 그려 봐."); pause(600) }
+        result != null -> sayReaction(result, r as Reply.Spoke)          // 판정이 쓴 받아 주기 — 아이 말에 대한 대답
+        else -> { say("그랬구나!"); pause(600) }
+    }
+    log("「${clue.name}」 이야기 = 「$said」 (child · extra 에 쌓음${if (v != null) " · 판정 ${v.fills.joinToString { it.first }}" else ""} · #220)")
     return "ok"
 }
 
@@ -558,6 +576,20 @@ private suspend fun Director.askPieceStoriesAfterDrawing(day: DiaryDay) {
         val (clue, text) = s.pieceStoryQuestion(day) ?: return
         askPieceStory(day, clue, text, drawing = false)
     }
+}
+
+/**
+ * 배경을 보고 물은 「여기는 어디야?」의 답은 그 배경 조각의 이름이기도 하다(「바닷가 갔어」 → 「바닷가」).
+ * 전에는 장소 칸에만 들어가, 다 그린 뒤 이름 없는 조각으로 「이건 뭐 그린 거야?」를 또 물었다 (10-07 실기기)
+ */
+private suspend fun Director.nameBackdrop(day: DiaryDay, ring: Int?, key: String, said: String) {
+    if (ring == null || key != "place") return
+    val piece = day.pieces.firstOrNull { it.id == ring }?.takeIf { it.name == null } ?: return
+    // 장소 낱말을 못 뽑으면 짧은 답(두 어절 · 10자 이내)만 이름으로 — 긴 문장이 통째로 조각 이름이 되지 않게 (#269 리뷰)
+    val name = diaryPlaceWord(said) ?: said.trim().trimEnd('.', '!', '?', '~').trim()
+        .takeIf { it.isNotEmpty() && it.length <= 10 && it.split(Regex("\\s+")).size <= 2 } ?: return
+    setPieceName(day, piece.id, name, said, speak = false)
+    log("배경 조각 이름 「$name」 — 장소 답 그대로 (child)")
 }
 
 /** 조각을 물은 결과 — 붙은 이름 · 그리기를 끝냈나 · 다른 조각으로 넘어가 거뒀나(그 조각은 나중에 다시 물을 수 있다) */
@@ -861,6 +893,12 @@ private suspend fun Director.setPieceName(day: DiaryDay, pieceId: Int, name: Str
     s.slotBy["whiteboard"] = "child"
     event("slot_filled", "slot" to "extra", "of" to "whiteboard", "value" to name, "source" to "child")
     DiaryTrace.name(pieceId, name)
+    // 배경의 이름은 곧 장소다 — 장소 칸이 비었으면 같이 넣는다(아이 말 그대로). 장소 질문이 거둬진 뒤 아이가 「바닷가」라고 하면
+    // 배경 이름만 붙고 다 그린 뒤 「오늘 어디 갔었어?」를 또 물었다 (10-07 실기기 2회차)
+    if (day.pieces[i].role == PieceRole.BACKGROUND && s.slots["place"].isNullOrBlank()) {
+        setDiarySlot("place", "place", name, name, "child")
+        log("배경 이름 「$name」 → 장소 칸에도 (child)")
+    }
     if (!speak) return true                                     // 여럿을 한 번에 — 받아 주기는 부른 쪽에서 한 번
     quote(said)
     if (old == null) {
@@ -1011,7 +1049,16 @@ private suspend fun Director.showOttoDrawing(day: DiaryDay, piece: DiaryPiece) {
         DemoBtn("🖍 내 그림으로") { send(Reply.Tapped("orig", "내 그림")) },
         DemoBtn("✨ 오또 그림으로 ${ottoEmoji(name)}") { send(Reply.Tapped("otto", "오또 그림")) },
     )
-    val pick = awaitValue("orig", "otto")
+    // 고르는 사이 아이가 한 이야기는 고르기 답이 아니다 — 묻지 않은 이야기로 받고 계속 기다린다
+    // (10-07 실기기: 「아빠가 모래성 만드는 거 도와줬어」가 고르는 중에 들어와 사라졌다)
+    var pick: String? = null
+    while (pick == null) {
+        when (val r = awaitReply()) {
+            is Reply.Tapped -> if (r.value == "orig" || r.value == "otto") pick = r.value
+            is Reply.Spoke -> if (isStoryTalk(r.text)) keepUntoldStory(day, r)
+            else -> {}
+        }
+    }
     s.stage = DiaryBoard()
     val i = day.pieces.indexOfFirst { it.id == piece.id }
     val look = if (pick == "otto") PieceLook.OTTO else PieceLook.ORIGINAL
@@ -1063,6 +1110,7 @@ private suspend fun Director.askEmptySlots() {
             if (unnamed != null) { askPieceOnD3(unnamed); continue }
         }
         val pq = queue.removeAt(0)
+        if (!pq.askIf(s)) continue
         asked++
         s.stepsDone++
         askPictureSlot(pq)
@@ -1132,7 +1180,7 @@ private fun judgeSlotOf(key: String) = if (key == "keep") "extra" else key
 
 /** 아직 빈 첫 질문 (판정 슬롯 · 질문 · 책 키) — 서버가 다음 질문을 못 줄 때의 차례 */
 private fun Director.firstEmptyQuestion(skip: Set<String> = emptySet()): Triple<String, String, String>? =
-    PICTURE_QUESTIONS.firstOrNull { s.slots[it.key].isNullOrBlank() && it.key !in skip }
+    PICTURE_QUESTIONS.firstOrNull { s.slots[it.key].isNullOrBlank() && it.key !in skip && it.askIf(s) }
         ?.let { Triple(judgeSlotOf(it.key), it.ask(s), it.key) }
 
 /**
@@ -1171,10 +1219,24 @@ private fun Director.fillFromVerdict(day: DiaryDay, v: Server.Verdict, r: Reply.
 }
 
 /** 오또의 받아 주기 — 서버 대사(받아주기 + 되돌려주기)가 있으면 그것, 없고 칸이 찼으면 아이 말을 되받는다 */
-private suspend fun Director.sayReaction(result: Server.TurnResult, r: Reply.Spoke) {
+private suspend fun Director.sayReaction(result: Server.TurnResult, r: Reply.Spoke, askedKey: String? = null) {
     val reaction = listOfNotNull(result.line?.ack?.takeIf(String::isNotBlank), result.line?.expand?.takeIf(String::isNotBlank)).joinToString(" ")
-    if (reaction.isNotBlank()) { say(reaction); pause(600) }
-    else if (result.verdict?.fills?.isNotEmpty() == true) sayAck(r.text, result.verdict!!.fills.first().first)
+    if (reaction.isNotBlank()) { say(reaction); pause(600); return }
+    log("서버 받아 주기가 없다 → 앱이 아이 말로 받는다")
+    // 「내일」의 바람은 그 말로(「탕수육 먹고 싶구나!」) — 중립 소리(「응, 그랬구나.」) 뒤에 또 「그랬구나!」만 나와 끊긴 것처럼 들렸다 (10-07 실기기)
+    if (askedKey == "keep") wishEcho(r.text)?.let { say(it); pause(600); return }
+    if (result.verdict?.fills?.isNotEmpty() == true) sayAck(r.text, result.verdict!!.fills.first().first)
+}
+
+/** 바람을 그 말로 되받는다 — 「탕수육 먹고 싶어」 → 「탕수육 먹고 싶구나!」. 모양을 모르면 null(되받지 않는다) */
+internal fun wishEcho(text: String): String? {
+    // 「나 탕수육 먹고 싶어」를 그대로 되받으면 「나 … 싶구나」 — 오또가 하는 말이라 「나」를 뗀다 (#269 리뷰)
+    val t = text.trim().trimEnd('.', '!', '?', '~').trim().replace(Regex("^(나는|나도|내가|나|저는|제가)\\s+"), "")
+    return when {
+        t.endsWith("싶어") -> t.removeSuffix("어") + "구나!"
+        t.endsWith("거야") -> t.removeSuffix("야") + "구나!"
+        else -> null
+    }
 }
 
 /**
@@ -1334,7 +1396,7 @@ private suspend fun Director.askEmptySlotsLive() {
             s.endReason = "story_ready"
             log("판정 story_ready — 남은 물음은 판정이 고른 칸과 「내일」만")
         }
-        sayReaction(result, r)
+        sayReaction(result, r, key)
         next = (serverNext(result) ?: if (v.storyReady) tomorrowQuestion(gaveUp) else firstEmptyQuestion(gaveUp))?.let { withClue(day, it) }
     }
     if (s.endReason == null && PICTURE_REQUIRED.all { !s.slots[it].isNullOrBlank() }) s.endReason = "story_ready"
@@ -1388,7 +1450,7 @@ private suspend fun Director.offerWrapUp(): Boolean {
     return wrap
 }
 
-internal class PictureQuestion(val key: String, val ask: (DemoState) -> String, val easy: String)
+internal class PictureQuestion(val key: String, val ask: (DemoState) -> String, val easy: String, val askIf: (DemoState) -> Boolean = { true })
 
 /**
  * 아이가 말한 곳의 낱말 — 「놀이터 갔어」 · 「할머니 집에 다녀왔어」 → 놀이터 · 할머니 집. 못 떼면 null.
@@ -1418,8 +1480,12 @@ internal val PICTURE_REQUIRED = listOf("place", "problem")
 internal val PICTURE_QUESTIONS = listOf(
     PictureQuestion("place", { "오늘 어디 갔었어?" }, "아침 먹고 어디 갔어?"),
     // 누구랑 — 그리는 중 사람 조각 이야기나 다른 답에서 이미 나왔으면 찬 칸이라 묻지 않는다 (#220 ③)
-    PictureQuestion("companion", { "누구랑 같이 있었어?" }, "혼자 있었어, 아니면 같이 있었어?"),
+    // 그린 사람 이야기를 이미 들었으면 묻지 않는다 — 칸은 추측해서 채우지 않는다(「~랑」 · 「~하고」는 사람이 아닐 때도 있다 · 10-07 실기기 2회차)
+    PictureQuestion("companion", { "누구랑 같이 있었어?" }, "혼자 있었어, 아니면 같이 있었어?",
+        askIf = { s -> s.diaryDay.pieces.none { it.id in s.diaryDay.pieceStories && clueKindOf(it) == ClueKind.PERSON } }),
     PictureQuestion("problem", { if (it.slots["place"].isNullOrBlank()) "오늘 무슨 일이 있었어?" else atPlace(it, "무슨 일이 있었어?") }, "거기서 뭐 했어?"),
+    // 그때 마음 — 일어난 일을 들었을 때만. 기분 + 왜 쪽(FAIL)을 아이 말로 채운다 (#220 · 10-07 실기기: 모래성이 무너졌는데 기분을 안 물었다)
+    PictureQuestion("reaction", { "그때 기분이 어땠어?" }, "그때 마음이 어땠어?", askIf = { !it.slots["problem"].isNullOrBlank() }),
     PictureQuestion("solution", { "그래서 어떻게 됐어?" }, "그다음엔 뭐 했어?"),
     PictureQuestion("keep", { "내일 또 하고 싶은 거 있어?" }, "내일은 뭐 하고 싶어?"),
 )
@@ -1586,16 +1652,25 @@ private fun Director.keepPageVoices(book: SavedDiaryBook) {
 private suspend fun Director.readPictureDiary(day: DiaryDay, reread: Boolean = false, bookId: String? = null) {
     var i = 0
     val missing = mutableSetOf<String>()
+    // 쪽 목소리를 미리 받는다 — 전에는 쪽을 넘길 때마다 그제야 /tts 를 불러 쪽마다 1.8~3.5초 기다렸다 (#262 · 10-07 실기기).
+    // 책 옆에 남긴 목소리(#179)는 값이 없으니 펼칠 때 다 넘기고, 새로 받는 것은 지금 쪽과 그다음 [BOOK_PREFETCH_AHEAD] 쪽만 —
+    // 중간에 나가는 아이에게 책 한 권 값을 다 쓰지 않는다 (#276 리뷰)
+    if (bookId != null) buildDiaryBook(s.diaryBookInput()).map(::diaryPageCaption).distinct().forEach { line ->
+        DiaryShelf.voice(s, bookId, line)?.let { offerVoice(line, it) }
+    }
     while (true) {
         val pages = buildDiaryBook(s.diaryBookInput())
         val p = pages[i]
         val last = i == pages.lastIndex
         val caption = diaryPageCaption(p)
-        s.stage = DiaryPaper(i)
         // 쪽마다 그 분위기의 곡 — 동화책과 같은 곡들 (#221 · BookMood.kt)
         com.example.finalproject_demo.net.Bgm.play(trackOf(diaryMoodOf(p.kind, p.text), diaryBookKey(pages)))
+        pages.drop(i).take(BOOK_PREFETCH_AHEAD + 1).map(::diaryPageCaption)
+            .filter { line -> bookId?.let { DiaryShelf.voice(s, it, line) } == null }
+            .forEach(::prefetchSpeech)
         if (bookId != null) DiaryShelf.voice(s, bookId, caption)?.let { offerVoice(caption, it) } ?: missing.add(caption)
         say(caption)
+        s.stage = DiaryPaper(i)                      // 말한 뒤에 쪽을 연다 — 쪽의 글자가 이 문장의 목소리를 기다린다(#262)
         val b = mutableListOf<DemoBtn>()
         if (i == 0 && day.weather == null) DiaryWeather.entries.forEach { w ->
             b += DemoBtn("${w.emoji} 날씨 ${w.label}") { send(Reply.Tapped("wx:${w.name}", w.label)) }

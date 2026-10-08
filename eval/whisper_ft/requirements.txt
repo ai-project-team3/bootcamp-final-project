@@ -1,0 +1,10 @@
+# 받아쓰기 미세조정 (eval/whisper_ft) — 남는 PC 의 새 가상환경에서. 파이썬 3.12
+# torch 는 CUDA 판을 먼저 따로 깐다:
+#   py -3.12 -m pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cu126
+transformers>=5.18
+peft>=0.21
+accelerate
+soundfile
+faster-whisper==1.2.1
+ctranslate2==4.8.2
+av<14  # faster-whisper 1.2.1 이 av.open(metadata_errors=...) 를 쓰는데 av>=14 에서 그 인자가 없어졌다(10-06 확인)

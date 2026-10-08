@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -245,7 +246,10 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     // 그림일기는 아이 그림이 표지다 (ui/DiaryViews.kt · #46 과 같은 한 줄 요청)
                     if (d.s.hasDiaryCover(b.coverKey())) DiaryShelfCover(d.s, b.coverKey(), Modifier.fillMaxSize())
-                    else AssetImage(b.bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { Box(Modifier.fillMaxSize().background(Sun2)) }
+                    // each cover in the style its book was made in (demo/WorldStyle.kt · #253 review)
+                    else CompositionLocalProvider(com.example.finalproject_demo.demo.LocalWorldStyle provides b.artStyle) {
+                        AssetImage(b.bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { Box(Modifier.fillMaxSize().background(Sun2)) }
+                    }
                     // 책등 그림자
                     Box(Modifier.width(7.dp).fillMaxHeight().background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent))))
                 }
@@ -275,6 +279,12 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
 /** 저장 당시의 자막을 그대로 보여 주는 읽기 전용 책. 미션 결과도 이미 자막에 포함되어 있다. */
 @Composable
 fun SavedStoryView(d: Director, stage: Stage.SavedStory) {
+    // a saved book is read in the art style it was made in, not the style of the book being made now (#253 review)
+    CompositionLocalProvider(com.example.finalproject_demo.demo.LocalWorldStyle provides stage.book.artStyle) { SavedStoryBody(d, stage) }
+}
+
+@Composable
+private fun SavedStoryBody(d: Director, stage: Stage.SavedStory) {
     val book = stage.book
     val page = stage.index
     if (book.visuals != null) {

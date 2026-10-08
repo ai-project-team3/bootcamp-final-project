@@ -82,6 +82,8 @@ object Server {
         val reason: String? = null,
         /** [hero, friend 1, …] (NameMask.names) — the server hides these from Jev only (10-06) */
         val names: List<String> = emptyList(),
+        /** who sits with the child — "adult" · "peer" · "none" (#303). "none": the server never asks the adult slot. Null = not sent */
+        val partner: String? = null,
     )
 
     /** The verdict fields the app reads (guidelines/2 §2). Slot names are already checked against the 12 by the server. */
@@ -110,6 +112,7 @@ object Server {
             .put("question", t.question)
             .put("utterance", t.utterance)
             .put("names", JSONArray(t.names))
+        t.partner?.let { body.put("partner", it) }
         val j = postJson("/judge", body) ?: return null
         return try { parseVerdict(j) } catch (e: Exception) { warn("/judge parse", e); null }
     }
@@ -154,6 +157,7 @@ object Server {
             .put("names", JSONArray(t.names))
             .put("reason", t.reason ?: JSONObject.NULL)
             .put("ask", ask)
+        t.partner?.let { body.put("partner", it) }
         val j = postJson("/turn", body, readMs = 30_000) ?: return null   // server answers within 25 s (turn_deadline_s)
         return try {
             TurnResult(
@@ -164,6 +168,18 @@ object Server {
                 },
             )
         } catch (e: Exception) { warn("/turn parse", e); null }
+    }
+
+    // ── /partner ───────────────────────────────────────────────────
+
+    /**
+     * Who sits with the child, from the answer to 「누구랑?」(#303): a PARTNERS key, "solo" or "unknown".
+     * Null when the server is away, Jev failed or was unsure — read the word list (`partnerIn`) then.
+     * Measured 10-07: Jev 153/153 against the word list's 48/51 (`eval/results.md`).
+     */
+    suspend fun partner(utterance: String): String? {
+        val j = postJson("/partner", JSONObject().put("utterance", utterance), readMs = 6_000) ?: return null
+        return str(j, "kind")
     }
 
     // ── /story ─────────────────────────────────────────────────────
@@ -231,8 +247,8 @@ object Server {
      * flagged), or the call failed. Call it the moment the place slot fills, in the background;
      * what to show while waiting and the 15 s preset line stay the caller's. [place] must be name-masked.
      */
-    suspend fun image(place: String, mode: String = "story"): ByteArray? {
-        val body = JSONObject().put("kind", "background").put("place", place).put("mode", mode)
+    suspend fun image(place: String, mode: String = "story", style: String = "felt"): ByteArray? {
+        val body = JSONObject().put("kind", "background").put("place", place).put("mode", mode).put("style", style)
         return postImage(body, "background") { png, _ -> png }
     }
 
@@ -259,8 +275,8 @@ object Server {
      * About 7-8 s warm — start it the moment the description is known, not when it is needed.
      * [description] must be name-masked.
      */
-    suspend fun character(description: String, mode: String = "story"): Character? {
-        val body = JSONObject().put("kind", "character").put("description", description).put("mode", mode)
+    suspend fun character(description: String, mode: String = "story", style: String = "felt"): Character? {
+        val body = JSONObject().put("kind", "character").put("description", description).put("mode", mode).put("style", style)
         return postImage(body, "character") { png, j -> Character(png, j.getString("rig")) }
     }
 
@@ -273,8 +289,8 @@ object Server {
      * [role] "background" (#168 · 10-06): [png] is the whole board with a background piece's lines where they
      * were, and the answer is a scene in the board's shape, not cut out. Null = a piece, as above.
      */
-    suspend fun redraw(png: ByteArray, description: String, mode: String = "diary", role: String? = null): ByteArray? {
-        val body = JSONObject().put("kind", "redraw").put("description", description).put("mode", mode)
+    suspend fun redraw(png: ByteArray, description: String, mode: String = "diary", role: String? = null, style: String = "felt"): ByteArray? {
+        val body = JSONObject().put("kind", "redraw").put("description", description).put("mode", mode).put("style", style)
             .put("png_base64", android.util.Base64.encodeToString(png, android.util.Base64.NO_WRAP))
         if (role != null) body.put("role", role)
         // nobody waits on it — the diary shows it at the next brush pause — so it can queue behind story pictures
@@ -330,6 +346,13 @@ object Server {
     }
 
     /** Is the server there, and is it the mock? Null = unreachable. */
+    /**
+     * A problem report from the parent area (#283 · guidelines/3 §3-6 · net/ReportUpload.kt). The report number, or null
+     * when the server could not be reached or refused it (429 · 413 · 503 …) — the app then offers mail instead.
+     */
+    suspend fun report(body: JSONObject): String? =
+        postJson("/report", body, readMs = 10_000)?.let { str(it, "id") }
+
     suspend fun health(): Boolean? = withContext(Dispatchers.IO) {
         val b = base ?: return@withContext null
         try {

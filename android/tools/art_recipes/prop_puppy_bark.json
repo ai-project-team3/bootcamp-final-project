@@ -1,0 +1,14 @@
+{
+  "name": "prop_puppy_bark",
+  "kind": "cut",
+  "text": "a cute small friendly puppy sitting, head raised, mouth open barking happily, floppy ears, a little tail",
+  "style": "felt",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 1671220452,
+  "prompt": "a cute small friendly puppy sitting, head raised, mouth open barking happily, floppy ears, a little tail, single subject centered, full body, front view, isolated on plain pure white background, no shadow, soft felt fabric and paper-craft 3D children's picture book illustration, cute, rounded shapes, warm pastel colors, clean, gentle lighting, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-07"
+}

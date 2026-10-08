@@ -45,7 +45,10 @@ class BlowDetector(private val rate: Int = 16000) {
     }
 
     /** 한 프레임을 읽은 것 — [level] 은 다듬은 크기(듣지 않는 동안 0) */
-    data class Frame(val level: Float, val loud: Float, val zcr: Float, val high: Float, val gated: Boolean, val blowing: Boolean)
+    data class Frame(val level: Float, val loud: Float, val zcr: Float, val high: Float, val gated: Boolean, val blowing: Boolean) {
+        /** 음절(C3 소리 흉내)을 셀 크기 — 다듬지 않은 크기, 스피커 · 꼬리 동안은 0: 오또 목소리가 미션을 채우지 않게 (#293 리뷰) */
+        val beatLoud: Float get() = if (gated) 0f else loud
+    }
 
     private var level = 0f
     private var since = -1L

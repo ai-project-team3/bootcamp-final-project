@@ -1,0 +1,16 @@
+{
+  "name": "kit_park_kite_crayon",
+  "of": "kit_park_kite",
+  "kind": "cut",
+  "text": "diamond kite",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 1708644072,
+  "prompt": "diamond kite, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "gen_kit.py",
+  "made": "2026-10-07"
+}
