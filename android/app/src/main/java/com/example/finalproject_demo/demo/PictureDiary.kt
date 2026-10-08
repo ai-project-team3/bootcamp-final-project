@@ -1314,7 +1314,8 @@ private suspend fun Director.askEmptySlotsLive() {
             wrapOffered = true
             if (offerWrapUp()) break
         }
-        offerPlaceBackground(day)                    // 장소를 들었고 배경을 안 그렸으면 — 남은 질문 동안 뒤에서 그린다 (#264)
+        // 장소를 들었고 배경을 안 그렸으면 — 남은 질문 동안 뒤에서 그린다 (#264). 첫 질문은 그리는 중에 이어 온 이야기라 그 뒤에
+        if (asked > 0) offerPlaceBackground(day)
         val (slot, text, key) = next
         // 필수 칸 질문이 아닌 차례가 오면 — 이름 없는 조각 하나를 먼저 묻는다(10-02)
         if (!pieceAsked && key !in PICTURE_REQUIRED) {
