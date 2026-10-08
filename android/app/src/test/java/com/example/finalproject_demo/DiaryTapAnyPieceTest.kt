@@ -7,6 +7,9 @@ import com.example.finalproject_demo.demo.DiaryAsk
 import com.example.finalproject_demo.demo.DiaryBoard
 import com.example.finalproject_demo.demo.DiaryStart
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.OTTO_ORDERS_MAX
+import com.example.finalproject_demo.demo.OTTO_REDRAW_LINE
+import com.example.finalproject_demo.demo.OTTO_TOO_MANY_LINE
 import com.example.finalproject_demo.demo.PieceLook
 import com.example.finalproject_demo.demo.PieceRole
 import com.example.finalproject_demo.demo.Reply
@@ -120,5 +123,28 @@ class DiaryTapAnyPieceTest {
         d.tool("drawme")
         assertTrue("Otto did not ask what it is — 말=${d.s.line}", await { d.s.line == "우와, 지금 그리는 건 뭐야?" } != null)
         assertEquals("Otto asked about another piece than the one touched", first, d.s.diaryDay.askingPiece)
+    }
+
+    // ── 3 · the same piece again ───────────────────────────────────
+
+    @Test
+    fun theSamePieceIsDrawnAgainOnceThenOttoSaysEnough() = run { d ->
+        d.board()
+        d.draw(.3f)
+        d.s.diaryDay.pieces[0] = d.s.diaryDay.pieces[0].copy(name = "강아지")
+        val id = d.s.diaryDay.pieces[0].id
+        repeat(OTTO_ORDERS_MAX) { round ->
+            d.tool("name:$id")
+            d.tool("drawme")
+            val said = if (round == 0) "나도 그려 볼게! 더 그리고 있어!" else OTTO_REDRAW_LINE
+            assertTrue("round ${round + 1} — 말=${d.s.line}", await { d.s.line == said } != null)
+            assertTrue(await { d.send(Reply.Tapped("pause", "붓 멈춤")); (d.s.stage as? DiaryBoard)?.pick == id } != null)
+            // Otto speaks before he listens — tap until the pick closes
+            assertTrue(await { d.send(Reply.Tapped("otto", "오또 그림")); Thread.sleep(20); (d.s.stage as? DiaryBoard)?.pick == null } != null)
+        }
+        d.tool("name:$id")
+        d.tool("drawme")
+        assertTrue("a third drawing of the same piece — 말=${d.s.line}", await { d.s.line == OTTO_TOO_MANY_LINE } != null)
+        assertEquals(OTTO_ORDERS_MAX, d.s.diaryDay.ottoOrders[id])
     }
 }

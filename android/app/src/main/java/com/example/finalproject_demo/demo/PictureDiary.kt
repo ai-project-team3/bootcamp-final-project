@@ -40,6 +40,11 @@ import kotlinx.coroutines.withTimeoutOrNull
  */
 internal const val OTTO_OFFERS = 4
 
+/** 한 조각을 오또가 그리는 수 — 처음 한 번 · 다시 한 번. 한 장마다 우리 GPU 수 초라 끝없이 누르는 것을 막는다 (#302 · 종훈) */
+internal const val OTTO_ORDERS_MAX = 2
+internal const val OTTO_REDRAW_LINE = "한 번 더 그려 볼게! 더 그리고 있어!"
+internal const val OTTO_TOO_MANY_LINE = "이 그림은 벌써 두 번 그렸어! 이번엔 여기까지야."
+
 /**
  * 그리면서 듣는 D1 질문의 첫 답 기다림(초). 기본 5초는 손을 멈추고 답하기엔 짧다(10-01 진웅 · 프로토타입 15초 · 흐름 10초).
  * 말이 끊기지 않게 언제 거둘지(오래 그리는 중 · 손을 놓고 멈춤)는 따로 정한다
@@ -411,6 +416,7 @@ private fun Director.addToDiarySlot(slot: String, bookKey: String, value: String
  * 조각 이름은 가려서 보낸다(규칙 6).
  */
 private fun Director.orderOttoDrawing(scope: CoroutineScope, piece: DiaryPiece, name: String): OttoOrder {
+    s.diaryDay.ottoOrders.merge(piece.id, 1, Int::plus)
     if (!Server.liveFor(s.mode)) return OttoOrder(piece.id, null)
     // 배경은 판 전체를 보낸다 — 땅 · 하늘은 그은 자리가 뜻이다(#168). 무리는 가장 큰 덩어리 하나만 보낸다 —
     // 받은 그림을 덩어리 자리마다 찍는다(서버는 여럿을 보내면 자리를 바꿔 다시 짠다 · 10-02 측정)
@@ -677,9 +683,9 @@ private suspend fun Director.drawMe(scope: CoroutineScope, day: DiaryDay, waitin
             log("오또 그림 — 「$label」 그리는 중")
             say("나도 지금 그리고 있어! 조금만 기다려 줘.")
         }
-        target.ottoPng != null -> {
-            log("오또 그림 — 「$label」 벌써 그렸다")
-            say("벌써 그렸어! 반짝이는 이름표를 눌러 봐.")
+        (day.ottoOrders[target.id] ?: 0) >= OTTO_ORDERS_MAX -> {
+            log("오또 그림 — 「$label」 벌써 ${OTTO_ORDERS_MAX}번 그렸다 → 더 그리지 않는다 (#302)")
+            say(OTTO_TOO_MANY_LINE)
         }
         else -> {
             // 이름 없는 배경은 아이가 말한 장소로 주문한다 — 배경을 그리면 「여기는 어디야?」를 물었다 (#168).
@@ -688,8 +694,9 @@ private suspend fun Director.drawMe(scope: CoroutineScope, day: DiaryDay, waitin
                 ?: s.slots["place"]?.takeIf { target.role == PieceRole.BACKGROUND && it.isNotBlank() }
                 ?: askNameToDraw(day, target)
                 ?: return false
-            log("오또 그림 — 「$words」 그린다")
-            say("나도 그려 볼게! 더 그리고 있어!")
+            val again = (day.ottoOrders[target.id] ?: 0) > 0
+            log("오또 그림 — 「$words」 ${if (again) "다시 " else ""}그린다")
+            say(if (again) OTTO_REDRAW_LINE else "나도 그려 볼게! 더 그리고 있어!")
             waiting += orderOttoDrawing(scope, target, words)
             pause(600)
             return true
