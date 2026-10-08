@@ -35,7 +35,7 @@ def body(**over):
 def test_turn_gives_verdict_and_line(client):
     out = client.post("/turn", json=body()).json()
     assert out["judge"]["slot_1"] == "place"
-    assert set(out["line"]) == {"ack", "expand", "question", "options"}
+    assert set(out["line"]) == {"ack", "expand", "question", "options", "act"}
     assert out["line"]["ack"] and out["line"]["question"]
 
 

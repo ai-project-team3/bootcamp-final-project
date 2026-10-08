@@ -7,7 +7,45 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel
 
-from .judge import JudgeRequest, JudgeResult
+from .judge import JudgeRequest, JudgeResult, SlotName
+
+# What the mascot does with a reply that is not a plain answer (#323). None = a plain turn.
+#   repair      — the child said Otto got it wrong: take the slot back, ask it again
+#   answer_back — the child asked Otto something: answer briefly, ask the same question again
+#   rephrase    — the child did not catch the question: ask the same slot in easier words
+#   aside       — talk off the question: take it in (extra), ask the same question again
+#   continue    — the child is still telling: invite the rest instead of a new slot
+Act = Literal["repair", "answer_back", "rephrase", "aside", "continue"]
+
+
+class OttoSaid(BaseModel):
+    ack: Optional[str] = None
+    expand: Optional[str] = None
+    question: Optional[str] = None
+
+
+class ChildSaid(BaseModel):
+    text: str
+    by: Literal["child", "card"]         # rule 5 — the mascot's words live in `otto`, never here
+
+
+class Fill(BaseModel):
+    slot: SlotName                       # rule 1: off-list names are refused, not stored
+    value: str
+    prev: Optional[str] = None           # the value it replaced — what a repair puts back
+
+
+class HistoryTurn(BaseModel):
+    """One finished turn, kept by the app and sent back whole each turn (#323).
+
+    The server keeps nothing between turns; it picks what to use from this list.
+    """
+    turn: int
+    asked_slot: Optional[str] = None
+    otto: OttoSaid = OttoSaid()
+    child: ChildSaid
+    fills: list[Fill] = []
+    act: Optional[Act] = None
 
 
 class TurnRequest(JudgeRequest):
@@ -17,6 +55,8 @@ class TurnRequest(JudgeRequest):
     # coop only: why the parent picked the story (CoopTemplates.kt CoopReason) — sets the tense of
     # the question, as /story does for the book (#52 · #53 C). done · soon · dream; None = done
     reason: Optional[Literal["done", "soon", "dream"]] = None
+    # the session so far, oldest first (#323). Empty = no dialogue repair: the turn runs as before
+    history: list[HistoryTurn] = []
 
 
 class Line(BaseModel):
@@ -27,9 +67,13 @@ class Line(BaseModel):
     # the app shows them as cards, then the mascot takes the first (#79 · guidelines/2 §1-1).
     # Null with no question, and in diary (what really happened today is not picked for the child).
     options: Optional[list[str]] = None
+    # what this line does with the child's reply (#323); None = a plain turn
+    act: Optional[Act] = None
 
 
 class TurnResult(BaseModel):
     # Either may be null; the app fills the gap from its script (spec §3-0).
     judge: Optional[JudgeResult] = None
     line: Optional[Line] = None
+    # slots the child said were wrong (#323): the app puts back each one's `prev` from its history
+    retract: list[SlotName] = []
