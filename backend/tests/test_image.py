@@ -219,6 +219,14 @@ def test_a_diary_background_reaches_the_workflow(monkeypatch):
     assert seen["text"].endswith(comfy.DIARY_BG_STYLE)
 
 
+def test_the_diary_scene_prompt_is_its_own():
+    """story and co-op keep the measured prompt word for word; the diary adds one rule — nothing people ride or hold"""
+    diary = image_route.system("background", "diary")
+    assert diary != image_route.system("background")
+    assert image_route.system("background", "story") == image_route.system("background")
+    assert "썰매" in diary and "a slide, swings" in diary          # place props stay
+
+
 def test_an_unknown_style_is_refused():
     r = TestClient(app).post("/image", json={"place": "공룡나라", "style": "oil"})
     assert r.status_code == 422
