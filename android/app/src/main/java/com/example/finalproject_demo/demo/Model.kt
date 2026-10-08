@@ -1099,6 +1099,8 @@ class DemoState {
     var generatedBg by mutableStateOf(false)
     /** 서버 PNG를 앱 전용 파일에 보관한 뒤 이 책이 끝날 때까지 사용한다. */
     var storyBackground by mutableStateOf<String?>(null)
+    /** Place whose background request completed, including a completed preset fallback. */
+    var storyBackgroundPlace: String? = null
     /**
      * Felt scene kit drawing this place on the stage (`demo/scene/SceneKit.kt` key, e.g. "park"), or null for the
      * background picture. Set only by the live story for a place outside the three themes (10-05).
@@ -1410,6 +1412,7 @@ class DemoState {
 
     /** 말로 만든 주인공 후보들 — 다시 만들기를 다 쓰면 이 중에서 고른다 (결정 29) */
     val heroTries = mutableStateListOf<HeroAttr>()
+    var heroCreationDraft: HeroCreationDraft? = null
 
     // ── 시연 패널
     val log = mutableStateListOf<String>()
@@ -1461,6 +1464,7 @@ class DemoState {
         templateKey = null; attribute = null; causeKind = "lonely"; notes.clear(); levelWhy = ""
         askedThisStory.clear()
         themeKey = "space"; placeLabel = null; generatedBg = false; storyBackground = null; sceneKit = null
+        storyBackgroundPlace = null
         mentioned.clear()
         newcomerKind = "외계인"; newcomerEmoji = "👽"
         dinoKey = "horn"; solutionKey = "play"; solutionItem = "star"
@@ -1478,6 +1482,7 @@ class DemoState {
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
         heroTries.clear()
+        heroCreationDraft = null
         modeVoice = 0; modeCard = 0; modeDraw = 0; modeSilent = 0
         shelf.replaceAll { it.copy(fresh = false) }
         // a new book takes the parent's art style now; a change made during this book waits for the next one (결정 27)

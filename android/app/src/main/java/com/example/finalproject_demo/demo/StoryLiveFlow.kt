@@ -9,7 +9,9 @@ import kotlinx.coroutines.*
 
 /** The live conversation enters here once; script scenes remain available with the switch off. */
 suspend fun Director.liveStoryConversation() = coroutineScope {
-    var imagePlace: String? = null
+    // Home can cancel an acknowledgement after its verdict changed slots but before presentation.
+    s.syncStoryPresentation()
+    var imagePlace = s.storyBackgroundPlace
     var imageJob: Job? = null
     var backgroundPending = false
     var waitingConversation: Stage.Show? = null
@@ -41,6 +43,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         if (imagePlace == place) return
         imagePlace = place
         imageJob?.cancel()
+        s.storyBackgroundPlace = null
         if (s.sceneKit != null) {
             log("background route=kit place=$place kit=${s.sceneKit}")
             // 10-05 scene kit: the place is drawn from pre-made felt pieces at once — no /image request, nothing
@@ -57,6 +60,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 val saved = saveKitPicture(kit, seed)
                 if (saved != null && s.slots["place"] == place && s.sceneKit == kit.key) {
                     s.storyBackground = saved
+                    s.storyBackgroundPlace = place
                     log("scene kit ${kit.key} saved as the book's picture")
                 }
             }
@@ -79,6 +83,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 currentCoroutineContext().ensureActive()
                 if (s.place == place && imagePlace == place) {
                     s.storyBackground = saved
+                    s.storyBackgroundPlace = place
                     backgroundPending = false
                     log("background result=${if (saved == null) "preset" else "generated"} place=$place")
                     // Only refresh our waiting conversation, never a drawing/card/retry stage.
@@ -91,6 +96,9 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             } finally { reminder.cancel() }
         }
     }
+    // Restart only an unfinished request. Mark it pending before rendering any question,
+    // otherwise an interrupted generation can flash the unrelated snow preset on resume.
+    updateBackground()
     if (s.storyStartedAtMs == 0L) s.storyStartedAtMs = System.currentTimeMillis()
     // 되돌리기 · 앞으로 가기 — 잘못 알아들은 답을 직전 차례째로 무른다 (10-02 · demo/TurnHistory)
     val history = TurnHistory(s)

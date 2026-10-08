@@ -147,4 +147,31 @@ class StoryHeroReuseTest {
             waitFor { (d.s.stage as? Stage.CardsRow)?.cards?.none { it.value == "new" } != false }
         } finally { scope.cancel() }
     }
+
+    @Test fun resumingNewCreationDoesNotAskForAPreviousHeroAgain() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope, object : StoryBookStore {
+            override fun load() = listOf(book())
+            override fun save(book: SavedStoryBook) = Unit
+        }).apply { s.speed = 0.01; s.timerOn = false }
+        try {
+            d.go(Scene.MAKEHERO)
+            waitFor { d.s.stage is Stage.CardsRow && d.s.micEnabled }
+            d.send(Reply.Spoke("새로"))
+            waitFor { (d.s.stage as? Stage.CardsRow)?.cards?.any { it.value == "preset" } == true }
+            delay(30)
+            d.send(Reply.Tapped("preset", "골라서 만들기"))
+            waitFor { d.s.stage is Stage.HeroBuilder }
+            delay(30)
+            d.send(Reply.Tapped("set:hair:long", "긴 머리"))
+            waitFor { (d.s.stage as? Stage.HeroBuilder)?.attr?.hair == "long" }
+            d.leaveToRoom()
+            waitFor { d.s.scene == Scene.ADULT && d.s.stage == Stage.Adult }
+            delay(30)
+            d.send(Reply.Tapped("resume", "이어서 하기"))
+            waitFor { d.s.scene == Scene.MAKEHERO && d.s.stage is Stage.HeroBuilder }
+            assertEquals("long", (d.s.stage as Stage.HeroBuilder).attr.hair)
+            assertEquals(1, d.s.log.count { "hero_choice choice=new eligible=true" in it })
+        } finally { scope.cancel() }
+    }
 }
