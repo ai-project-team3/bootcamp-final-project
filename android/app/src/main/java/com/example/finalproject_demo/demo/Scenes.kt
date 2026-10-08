@@ -1,12 +1,17 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.missions
+import com.example.finalproject_demo.demo.missions.slot2PlayProp
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
+import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Trace
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
+import com.example.finalproject_demo.ui.Sfx
+import com.example.finalproject_demo.ui.Sound
 import com.example.finalproject_demo.ui.missions.DONE_SCENE_MS
 import com.example.finalproject_demo.ui.motionFrozen
 import kotlinx.coroutines.CoroutineScope
@@ -483,7 +488,9 @@ private suspend fun Director.sceneMakeHero() {
                 if (confirmedChoices.isNotEmpty()) "\nLatest confirmed choices override earlier descriptions: " +
                     confirmedChoices.entries.joinToString("; ") { "${it.key}=${it.value}" } else ""
             val mask = s.nameMask()
-            val character = withTimeoutOrNull(15_000) { Server.character(mask.mask(description), mode = "story") }
+            // felt on purpose, not the book's style: this doll goes into the 도감 and walks into later books of any style
+            // (결정 27 — the 도감 stays felt). Said out loud so the #331 audit of every picture call can see it
+            val character = withTimeoutOrNull(15_000) { Server.character(mask.mask(description), mode = "story", style = "felt") }
             if (character != null) {
                 generatedImage = saveStoryImage(character.png)
                 generatedRig = character.rig.takeIf { generatedImage != null }
@@ -1619,17 +1626,19 @@ private suspend fun Director.sceneBook() {
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
         }
+        if (s.bookMusic) Bgm.play(trackOf(moodOf(s.pageKind(i)), s.storyBookKey()))
         say(caption(i))
         prefetchAhead(i + 1)
         when {
             i == 0 -> {}
             i == rubPage && s.m1Result == null -> log(
-                // 아이 말에서 고른 미션(불기 · 소리 흉내)이면 그것을 적는다 — 화면은 「삐뽀삐뽀」인데 로그는 「문지르기 · 먼지」였다(10-06 실기기)
-                s.slot1Prop()?.let { "${i}쪽 미션 1 (쉬움 · ${it.badge}) — 아이 말에서 고른 미션 · 「${it.ask}」" }
+                // A mission picked from the child's words (blowing · sound) logs as itself — the screen said 「삐뽀삐뽀」 while
+                // the log said rub · dust (device 10-06)
+                s.slot1Prop()?.let { "page $i mission 1 (easy · ${it.badge}) — ${if (s.missions().slot1FromChild) "picked from the child's words" else "rotated (nothing in the child's words fits · #259)"} · 「${it.ask}」" }
                     ?: if (s.isDiary) "${i}쪽 미션 1 (쉬움 · 문지르기) — 뼈대는 그대로, 소품만 하루에서 나온 것으로 (${m1.blobName} · 도구 ${m1.toolName} · §7-1 ②)"
                 else "${i}쪽 미션 1 (쉬움 · 문지르기) — 장면 4의 \"${s.newcomerKind}\"에서 나온 ${m1.blobName} · 도구 ${m1.toolName}"
             )
-            i == dragPage && s.m2Result == null -> log(s.slot2Prop()?.let { "${i}쪽 미션 2 (${it.mission.name}) — 아이 말에서 고른 미션 · 「${it.ask}」" } ?: s.m2Log(i))
+            i == dragPage && s.m2Result == null -> log(s.slot2PlayProp()?.let { "page $i mission 2 (${it.mission.name}) — ${if (s.missions().slot2FromChild) "picked from the child's words" else "rotated (nothing in the child's words fits · #259)"} · 「${it.ask}」" } ?: s.m2Log(i))
             i == last && s.isDiary -> log("${i}쪽(마지막): 일기 모드도 미션 난이도 신호가 그대로 나온다 (§7-1 ②) · 공룡 소리 칸은 묻지 않았다 (§2-2)")
             i == last -> log("${i}쪽(마지막): ${if (s.hasPartner && s.partnerHelpLine != null) "${s.pn} 참여 한 줄 들어감" else "동행자 참여 문장 없음"} · 소리 대상 ${soundHolder?.name ?: "없음"}")
             else -> log("${i}쪽 [${s.pageKind(i)}] — 템플릿 ${s.template?.code} 칸으로 만든 자막")
@@ -1667,14 +1676,14 @@ private suspend fun Director.sceneBook() {
                 s.m1Result = "solo"; s.reactions++; feel(Mood.CHEER)
                 // C1 · C3 면 그 미션의 선물 · 동작 이름 — 촛불을 불었는데 「먼지 치운 손」이 나오지 않게 (#105 리뷰)
                 val p1 = s.slot1Prop()
-                s.achievements += p1?.badge ?: "${m1.blobName} 치운 손"
+                s.achievements += s.m1Badge()
                 show(); refreshButtons(); lateAnnounce = sceneScope.launch { announceAfterScene { announce() } }
                 event("mission", "id" to 1, "motion" to (p1?.motion ?: "rub"), "result" to "solo")
                 log("미션 1 완료 → mission_result: solo → 다음 미션 보통 (안치영 §7 · ⭐7) · 걸린 시간 · 시도 횟수 저장 안 함")
                 mark("book")
             }
             vv == "helped" && s.bookPage == rubPage && s.m1Result == null -> {
-                s.m1Result = "helped"; s.achievements += s.slot1Prop()?.badge ?: "${m1.blobName} 치운 손"; feel(Mood.CHEER)
+                s.m1Result = "helped"; s.achievements += s.m1Badge(); feel(Mood.CHEER)
                 show(); refreshButtons()
                 s.bookNote = "같이 하자! 슥슥~ 퐁! 다 됐어!"
                 event("mission", "id" to 1, "motion" to (s.slot1Prop()?.motion ?: "rub"), "result" to "helped")
@@ -1684,8 +1693,8 @@ private suspend fun Director.sceneBook() {
             vv == "mission" && s.bookPage == dragPage && s.m2Result == null -> {
                 s.m2Result = if (s.m1Result == "helped") "easy" else "solo"; s.reactions++; feel(Mood.CHEER)
                 // 아이 말에서 고른 미션(불 끄기 · 잠그기 …)이면 그 미션으로 남긴다 — 「별 건넨 손」 · 「별 · 하트가 퐁」은 건네주기 때만(10-06 실기기)
-                val fix = s.slot2Prop()
-                s.achievements += fix?.badge ?: "${m2.itemName} 건넨 손"
+                val fix = s.slot2PlayProp()
+                s.achievements += s.m2Badge()
                 show(); refreshButtons(); lateAnnounce = sceneScope.launch { announceAfterScene { announce() } }
                 event("mission", "id" to 2, "motion" to "drag", "result" to s.m2Result)
                 log(fix?.let { "미션 2 완료 — ${it.mission.name} · 「${it.cheer}」" } ?: "미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (건네주기 연출 — 미션마다 따로 · #260)")
@@ -1850,6 +1859,7 @@ private suspend fun Director.sceneShelf() {
         if (news.isNotEmpty()) {
             s.rewardNews.clear()
             pause(2400)
+            Sfx.play(Sound.FANFARE, minGapMs = 0L)            // 업적이 열렸다 — 빠밤 한 번 (#295 리뷰)
             val names = news.joinToString(", ") { it.title }
             say("그리고 $names${if (bat(names)) "이" else "가"} 생겼어! 다음에 그릴 때 써 보자!")
             log("보상 — $names (${news.joinToString(" · ") { it.how }}) · 폰에 남고 다음 그림판에 도구로 나온다")
@@ -1874,12 +1884,16 @@ private suspend fun Director.sceneShelf() {
             }
             "book" -> {
                 if (openSavedDiary(tapped.label)) { s.stage = Stage.Shelf(fromEnd); continue }   // 그림일기 다시 읽기(#37)
-                val book = savedStory(tapped.label) ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
+                val story = savedStory(tapped.label)
+                val book = story ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
+                val key = bgmBookKey(book.title, book.pages.firstOrNull()?.caption.orEmpty())
                 var page = 0
                 s.line = ""
                 buttons()
                 while (true) {
                     s.stage = Stage.SavedStory(book, page)
+                    // 동화 · 같이 만들기 책 모두 — 첫 읽기와 같은 쪽 · 같은 곡 (#221)
+                    Bgm.play(trackOf(moodOf(if (page == 0) PageKind.COVER else book.pages[page - 1].kind), key))
                     val action = (awaitReply() as? Reply.Tapped)?.value ?: continue
                     when (action) {
                         "next" -> if (page < book.pages.size) page++
@@ -1887,6 +1901,7 @@ private suspend fun Director.sceneShelf() {
                         "close" -> break
                     }
                 }
+                Bgm.stop()
                 s.stage = Stage.Shelf(fromEnd)
                 say("우리가 만든 책들이야!")
             }

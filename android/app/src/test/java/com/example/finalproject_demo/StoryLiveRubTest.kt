@@ -31,7 +31,9 @@ class StoryLiveRubTest {
             assertFalse("hidden ride in live mission: $line", s.rideName in line)
             assertFalse("invented shaking in live mission: $line", "흔들" in line)
         }
-        assertTrue(s.m1Line().contains(s.mission1().blobName))
+        // An unknown guest (a cat) gives the nameless sparkle dust — the action only, no saying what was on it (#259 · was 「먼지」)
+        assertFalse(s.mission1().named)
+        assertTrue(s.m1Line(), "문질러" in s.m1Line() && "먼지" !in s.m1Line())
     }
 
     @Test fun fallbackRubCaptionMatchesTheVisibleMissionBeforeAndAfterPlaying() {
@@ -39,7 +41,7 @@ class StoryLiveRubTest {
             val s = story().apply { templateKey = template.key }
             val page = (1..s.pageCount).first { s.pageKind(it) == PageKind.RUB }
             assertFalse("${template.key}: ${s.bookCaption(page)}", s.rideName in s.bookCaption(page))
-            assertTrue(s.bookCaption(page).contains(s.mission1().blobName))
+            assertTrue(s.bookCaption(page), "먼지" !in s.bookCaption(page) && "닦아 줄 자리" in s.bookCaption(page))
             s.m1Result = "done"
             assertFalse(s.rideName in s.bookCaption(page))
             assertTrue(s.bookCaption(page).contains(s.mission1().done))
