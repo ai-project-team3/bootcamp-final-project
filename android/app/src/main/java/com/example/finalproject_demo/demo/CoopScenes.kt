@@ -842,16 +842,17 @@ suspend fun Director.coopWriteBook() {
  */
 internal fun DemoState.coopMissionResult(kind: PageKind): String? =
     coopImaginedResult(kind)
-        // 곧 해요 책은 「-ㄹ 거예요」 — 「물을 뿌릴 거예요」 뒤에 「불이 다 꺼졌어요」가 붙었다(10-06 실기기 · CoopTense.kt)
+        // A 곧 해요 book is in the future tense — 「불이 다 꺼졌어요」 followed 「물을 뿌릴 거예요」 (device 10-06 · CoopTense.kt)
         ?: coopMissionResultAsDone(kind)?.let { if (coopServerTense() == CoopReason.SOON) soonTense(it) else it }
 
-/** 판 위에서 하는 미션 — 상상할 상황이 없어 서버도 상상 쪽으로 쓰지 않는다(#340) */
+/** Missions played on the board — nothing to imagine, so the server does not write them as imagined either (#340) */
 private val ON_BOARD = setOf(MissionId.A3)
 
 /**
- * 실제 하루(다녀왔어요 · 곧 해요)에 아이가 말하지 않은 미션 쪽 — 서버가 「오또가 상상해 봤어! … 네가 …줄래?」로 쓴다(#340 ·
- * 조장 10-08). 아이가 미션을 끝내면 결과도 **상상 말투**로 닫는다 — 「불이 다 꺼졌어요」처럼 사실로 닫으면 상상이 그날
- * 있었던 일이 된다. 좋아해요(상상 책 전체) · 아이 말에서 나온 소품의 쪽 · 판 위 미션은 null(지금 문장 그대로)
+ * On a real day (다녀왔어요 · 곧 해요) a mission page the child did not talk about is written by the server as imagined
+ * (「오또가 상상해 봤어! … 네가 …줄래?」 · #340 · lead 10-08). Its result closes as imagined too — closing it as a fact
+ * (「불이 다 꺼졌어요」) would make the imagined thing part of that day. Null for 좋아해요 (the whole book is imagined),
+ * for a page whose prop came from the child's words, and for board missions (the current sentence stays)
  */
 internal fun DemoState.coopImaginedResult(kind: PageKind): String? {
     if (coopServerTense() == CoopReason.DREAM || coopMissionInBook(kind)) return null

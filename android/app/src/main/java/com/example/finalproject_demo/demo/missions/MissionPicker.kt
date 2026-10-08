@@ -48,7 +48,7 @@ private fun DemoState.coopImagined(): Boolean =
     bookPick?.let { (it.reasonOrNull() ?: CoopReason.DREAM) == CoopReason.DREAM } ?: false
 
 /**
- * A book's two missions (#259 · docs/실기기수정_설계_1007.md §4-3 · 조장 10-07: 앱만).
+ * A book's two missions (#259 · docs/실기기수정_설계_1007.md §4-3 · lead 10-07: app only).
  *
  * 1. **The child's words first** — slot 2 the solution verb (껐어 · 잠갔어 · 쌓았어 …) before the things in the trouble,
  *    slot 1 something to blow (C1) or a sound to make (C3). Words match at the start of an eojeol (MissionWords.kt).

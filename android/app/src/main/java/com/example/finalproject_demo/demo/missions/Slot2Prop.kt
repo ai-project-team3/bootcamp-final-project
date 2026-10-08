@@ -70,16 +70,16 @@ enum class FixProp(
  * **해결 동사가 먼저**(설계 §6-1 「껐어」가 「불」보다 세다) — 해결 · 먼저 한 일에서 동사를 찾고, 없을 때 문제 칸의 사물을 본다
  */
 fun fixPropIn(solution: String, problem: String): FixProp? = when {
-    // 낱말은 어절 처음에서만(#259 · MissionWords.kt) — 「미끄럼틀」의 「끄」는 이제 걸리지 않지만, 「끄」 하나는 여전히
-    // 「끄덕였어」가 걸리니 「불을 끄 · 꺼 줬」처럼 불과 함께 쓴 말이나 「껐」만
+    // Words match only at the start of an eojeol (#259 · MissionWords.kt) — 「미끄럼틀」's 「끄」 no longer matches, but 「끄」
+    // alone would still match 「끄덕였어」, so only with fire (「불을 끄 · 꺼 줬」) or 「껐」
     saysAny(solution, listOf("껐", "불을 끄", "불 끄", "불을 꺼", "물을 뿌", "물 뿌", "물대포", "소방")) -> FixProp.FIRE
     saysAny(solution, listOf("잠갔", "잠궜", "잠가", "잠그", "잠궈", "수도꼭지", "꼭지")) -> FixProp.FAUCET
     saysAny(solution, listOf("굴렸", "굴려", "데굴", "골인", "공을 넣", "공 넣", "골을 넣", "공을 찼", "공 찼", "공놀이", "축구")) -> FixProp.BALL
     saysAny(solution, listOf("고쳤", "고쳐", "붙였", "테이프", "맞췄", "꿰맸")) -> FixProp.PIECES
     saysAny(solution, listOf("쌓았", "쌓아", "다시 쌓", "탑을")) -> FixProp.BLOCKS
-    // 「연기를 했어」(연극)는 불이 아니다 — 연기가 난 것만(#259 설계 §4-1 오탐)
+    // 「연기를 했어」 (acting) is not fire — only smoke that rose (#259 design §4-1 false positive)
     saysAny(problem, listOf("불이 났", "불났", "불이 붙", "연기가", "연기 나", "불이 나")) -> FixProp.FIRE
-    // 「기쁨이 넘쳤어」는 물이 아니다 — 물이 넘친 것만(#259 설계 §4-1 오탐)
+    // 「기쁨이 넘쳤어」 is not water — only water that overflowed (#259 design §4-1 false positive)
     saysAny(problem, listOf("샜", "새서", "새고", "물이 새", "물이 넘", "물이 졸졸", "물이 콸콸", "수도꼭지")) -> FixProp.FAUCET
     saysAny(problem, listOf("공이 굴러", "공이 데굴", "공을 놓쳤", "공이 멀리", "공이 날아")) -> FixProp.BALL
     saysAny(problem, listOf("무너", "와르르", "넘어뜨")) -> FixProp.BLOCKS
@@ -87,13 +87,13 @@ fun fixPropIn(solution: String, problem: String): FixProp? = when {
     else -> null
 }
 
-/** 그 미션의 소품 — 돌려 쓰기로 고른 자리 2 의 화면 · 안내가 쓴다(#259). 건네주기 · 퍼즐은 소품이 없다 */
+/** That mission's prop — the screen and ask of a rotated slot 2 use it (#259). Giving · puzzle have no prop */
 fun FixProp.Companion.forMission(m: MissionId): FixProp? = FixProp.entries.firstOrNull { it.mission == m }
 
 /**
- * 이 책 자리 2 의 소품 — **책 문장이 쓰는 것**. 아이 말에서 고른 것, 또는 상상 이야기에서 돌려 쓰기로 빌린 것(#259 ·
- * 상상 이야기는 빌려 와도 된다 · 맞춤미션 설계 §7-2). 실제 하루에 돌려 쓴 미션은 null — 아이가 말하지 않은 물건을
- * 책에 적지 않는다(§3-8). 화면 · 안내는 [slot2PlayProp]
+ * This book's slot 2 prop — **what the book's sentences use**. Picked from the child's words, or borrowed by rotation in
+ * an imagined story (#259 · an imagined story may borrow · mission design §7-2). Null for a rotated mission on a real day —
+ * no thing the child did not say goes into the book (§3-8). The screen and ask use [slot2PlayProp]
  */
 fun DemoState.slot2Prop(): FixProp? {
     pinnedMissions()?.let { return it.fix.takeIf { _ -> it.fixInBook } }     // a re-read book (#321 review)
@@ -103,5 +103,5 @@ fun DemoState.slot2Prop(): FixProp? {
         ?: if (!f.realDay && !m.slot2FromChild) FixProp.forMission(m.slot2) else null
 }
 
-/** 자리 2 화면 · 마스코트 안내 · 배지가 쓰는 소품 — 실제 하루에 돌려 쓴 미션도(그 화면에 블록 · 공이 있으니) */
+/** The prop for slot 2's screen · Otto's ask · the badge — a rotated mission on a real day too (the screen has the blocks · ball) */
 fun DemoState.slot2PlayProp(): FixProp? = pinnedMissions()?.fix ?: slot2Prop() ?: FixProp.forMission(missions().slot2)

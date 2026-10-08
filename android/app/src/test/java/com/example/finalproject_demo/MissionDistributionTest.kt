@@ -15,9 +15,9 @@ import org.robolectric.annotation.Config
 import java.io.File
 
 /**
- * #321 조장 결정(10-08) — 「현실적인 입력 분포로 재측정」. 레포의 아이 말 문항(판정 100 · 같이 만들기 책 15 · 일기 책 8)으로
- * 미션이 무엇으로 · 어떤 낱말 때문에 골라지는지 센다. 낱말로 골라진 문장은 모두 `build/reports/mission_distribution.md`
- * 에 적는다 — 오탐은 사람이 읽고 본다. 검사는 알려진 오탐이 없는 것과, 차례로 만든 책이 앞 두 권과 겹치지 않는 것만.
+ * #321 lead decision (10-08) — "re-measure on a realistic input distribution". Over the repo's child-speech fixtures
+ * (judge 100 · co-op books 15 · diary books 8) it counts which missions are picked and by which word. Every sentence picked
+ * by a word is written to `build/reports/mission_distribution.md` for a person to read for false positives. The checks are only: no known false positive, and books made in turn do not repeat the previous two.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -26,7 +26,7 @@ class MissionDistributionTest {
 
     private fun lines(name: String) = File(eval, name).readLines().filter(String::isNotBlank).map(::JSONObject)
 
-    /** 판정 문항 — 아이 말을 물은 칸에 넣은 사실 하나씩 */
+    /** Judge fixtures — one fact each, in the slot that was asked */
     private fun judgeFacts(): List<Pair<String, StoryFacts>> = lines("fixtures_judge.jsonl").mapNotNull { j ->
         val said = j.optString("utterance").takeIf(String::isNotBlank) ?: return@mapNotNull null
         val f = when (j.optString("asked")) {
@@ -38,7 +38,7 @@ class MissionDistributionTest {
         "${j.optString("id")} [${j.optString("asked")}] $said" to f
     }
 
-    /** 같이 만들기 · 일기 책 문항 — 칸 전체 */
+    /** Co-op · diary book fixtures — all slots */
     private fun bookFacts(): List<Pair<String, StoryFacts>> =
         (lines("fixtures_book_coop.jsonl") + lines("fixtures_book_diary.jsonl")).map { j ->
             val req = j.getJSONObject("req"); val slots = req.getJSONObject("slots")

@@ -46,7 +46,7 @@ class DefaultPropLogTest {
             assertTrue("$mode: $line", "기본 소품 별" in line)
             assertFalse("$mode: $line", "4턴째" in line || "말한" in line)
         }
-        // 대본 동화(서버 없음)의 별은 아이가 10장면에서 고른 「별 따기」다 — 아이 말(#321 리뷰)
+        // A scripted story's star (no server) is what the child picked in scene 10 (「별 따기」) — the child's words (#321 review)
         val scripted = state(StoryMode.STORY, "star").m2Log(5)
         assertTrue(scripted, "장면 10에서 말한 별을" in scripted)
         val coop = state(StoryMode.COOP, "block").m2Log(5)

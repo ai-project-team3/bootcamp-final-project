@@ -775,7 +775,7 @@ class CoopLiveAnswerTest {
             s.m1Result = "solo"
             s.m2Result = "solo"
             // 미션 1 — 「미끄럼틀」에서 모래를 짐작하지만 아이는 「모래」라고 하지 않았다. 실제 하루 책에는 붙이지 않는다(#134 리뷰)
-            // 서버가 그 쪽을 「오또가 상상해 봤어!」로 쓴다(#340) — 결과도 상상 말투로만, 모래를 그날 일로 적지 않는다
+            // The server writes that page as 「오또가 상상해 봤어!」 (#340) — the result is imagined too; the sand is not that day's event
             assertEquals("아이가 말하지 않은 모래의 결과가 사실로 붙었다", "서버 문장 $rub 상상 속에서 반짝반짝 깨끗해졌어!", s.bookCaption(rub))
             // 아이가 그 물건 이름을 말했으면 붙는다
             s.problem = "친구가 밀어서 옷에 모래가 묻었어"

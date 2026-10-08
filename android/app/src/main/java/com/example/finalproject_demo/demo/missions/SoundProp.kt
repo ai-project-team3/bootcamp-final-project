@@ -61,7 +61,7 @@ enum class SoundProp(
 
 /** 아이 말에서 C3 소품을 찾는다 — 없으면 null. 소리 낱말이 먼저, 그다음 그 소리를 내는 것 */
 fun soundPropIn(said: String): SoundProp? = when {
-    // 낱말은 어절 처음에서만(#259 · MissionWords.kt)
+    // Words match only at the start of an eojeol (#259 · MissionWords.kt)
     saysAny(said, listOf("삐뽀", "사이렌", "소방차", "구급차", "경찰차")) -> SoundProp.SIREN
     saysAny(said, listOf("부릉", "빵빵", "자동차", "버스", "트럭", "택시", "오토바이")) -> SoundProp.CAR
     saysAny(said, listOf("칙칙", "기차", "지하철")) -> SoundProp.TRAIN

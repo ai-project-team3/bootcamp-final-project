@@ -25,7 +25,7 @@ object LocalWipe {
         "rewards",       // 업적 보상 · 그림판 도구 (demo/Rewards.kt)
         "session_reports", // 부모 리포트 · 아이가 한 말 그대로 (demo/SessionReport.kt)
         "sent_reports",  // 보낸 문제 신고의 접수 번호 · 날짜 · 분류 (ui/Consent.kt SentReports · #283)
-        "mission_history", // 지난 책들의 미션 조합 · 책 id (demo/missions/MissionPicker.kt MissionHistory · #259)
+        "mission_history", // past books' mission combos · book ids (demo/missions/MissionPicker.kt MissionHistory · #259)
     )
 
     /** filesDir 아래 폴더 — 그림 */

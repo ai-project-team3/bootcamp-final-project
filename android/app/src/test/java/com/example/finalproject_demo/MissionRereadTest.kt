@@ -38,9 +38,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * #321 리뷰(민우 P2) — 다시 읽은 책은 만들 때와 **같은 미션 · 같은 소품**으로 그려져야 한다. 전에는 미션 ID 만 저장해
- * 소방차 책(C3)을 다시 열면 아이 말이 없어 소방차가 사라지고, 같이 만들기 좋아해요 책의 빌린 나뭇잎(C1)은 문지르기가 됐다.
- * 기본 먼지 · 별의 완료 문장도 책에 남지 않는다. 조장 결정(10-08): 「바람이 불어서」(까닭)로 불기를 고르지 않는다.
+ * #321 review (Minwoo P2) — a re-read book is drawn with **the same missions · the same props** as when it was made. Only the
+ * mission IDs were saved, so a fire-truck book (C3) lost its fire truck on reopening (no child words), and a co-op 좋아해요 book's borrowed leaves (C1) became rubbing.
+ * The default dust · star leave no completion line in the book. Lead decision (10-08): wind given as a reason (「바람이 불어서」) does not pick blowing.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -83,7 +83,7 @@ class MissionRereadTest {
         assertEquals(MissionId.C1, again.missions().slot1)
     }
 
-    /** 기본 먼지 · 별 — 완료 문장이 붙지 않고, 저장한 문장 · 다시 연 문장에도 없다 */
+    /** Default dust · star — no completion line, not in the saved sentences, not in the reopened ones */
     @Test
     fun defaultDustAndStarGetNoCompletionLine() {
         Server.base = "http://localhost:1"; Server.liveModes = setOf(StoryMode.STORY)
@@ -98,8 +98,8 @@ class MissionRereadTest {
     }
 
     /**
-     * 조장 10-08(#340) — 실제 하루에 아이가 말하지 않은 미션 쪽은 서버가 「오또가 상상해 봤어!」로 쓴다. 앱이 미션 뒤에 붙이는
-     * 결과도 상상 말투(「상상 속에서 …」). 저장한 문장 · 다시 연 문장도 같다. 좋아해요 책 · 아이가 말한 소품의 쪽은 그대로
+     * Lead 10-08 (#340) — on a real day the server writes a mission page the child did not talk about as 「오또가 상상해 봤어!」. The result
+     * the app adds after the mission is imagined too (「상상 속에서 …」), also in saved and reopened sentences. A 좋아해요 book and a page whose prop the child named stay as they are
      */
     @Test
     fun anImaginedPageOnARealDayClosesInImagination() {
@@ -115,7 +115,7 @@ class MissionRereadTest {
         s.m2Result = "solo"
         val done = s.bookCaption(drag)
         assertEquals("서버 문장 $drag 상상 속에서 블록 탑이 높이 섰어!", done)
-        // 저장한 문장으로 다시 열면 같은 문장 — 결과가 두 번 붙지 않는다
+        // Reopened from the saved sentences — the same sentence; the result is not added twice
         val saved = (1..s.pageCount).map { s.bookCaption(it) }
         s.templateKey = "N"                                   // a co-op book is saved under the diary frame 「N」 (completedCoopBook)
         val again = DemoState().apply {
@@ -123,12 +123,12 @@ class MissionRereadTest {
             mode = StoryMode.COOP
         }
         assertEquals(done, again.bookCaption(drag))
-        // 좋아해요(상상 책 전체)는 상상 표시를 붙이지 않는다
+        // 좋아해요 (the whole book is imagined) gets no imagined marker
         val dream = DemoState().apply { mode = StoryMode.COOP; coopPick = CoopPick("place", "놀이공원", "dream"); problem = "풍선을 놓쳤어" }
         dream.useCoopCaptions(dream.template!!.pages.indices.map { "서버 문장 ${it + 1}" })
         dream.m2Result = "solo"
         assertTrue(dream.bookCaption(drag), "상상 속에서" !in dream.bookCaption(drag))
-        // 아이가 말한 소품의 쪽(「불을 껐어」)은 그날의 일 그대로
+        // A page whose prop the child named (「불을 껐어」) stays that day's event
         val said = DemoState().apply {
             mode = StoryMode.COOP; coopPick = CoopPick("place", "소방서", "done"); problem = "불이 났어"; solution = "물을 뿌려서 불을 껐어"
             listOf("problem", "solution").forEach { slotBy[it] = "child" }
@@ -138,7 +138,7 @@ class MissionRereadTest {
         assertTrue(said.bookCaption(drag), "상상 속에서" !in said.bookCaption(drag))
     }
 
-    /** 조장 결정 — 까닭으로 말한 바람은 불기가 아니다. 바람에 날아간 일은 그대로 */
+    /** Lead decision — wind given as a reason is not blowing. Something the wind blew away still is */
     @Test
     fun windAsAReasonDoesNotPickBlowing() {
         assertNull(blowPropIn("바람이 세게 불어서 풍선을 놓쳤어", realDay = true))
@@ -150,7 +150,7 @@ class MissionRereadTest {
         assertEquals("10-08 실기기 책 — 까닭의 바람으로 불기를 골랐다", MissionId.A6, s.missions().slot1)
     }
 
-    /** /story 쪽마다 미션이 어디서 왔는지 — child · rotated · default (조장 결정 10-08) */
+    /** Where each /story page's mission came from — child · rotated · default (lead decision 10-08) */
     @Test
     fun pagesSayWhereTheirMissionCameFrom() {
         val plain = DemoState().apply { mode = StoryMode.STORY; templateKey = "C"; problem = "공룡이 나타났어" }
