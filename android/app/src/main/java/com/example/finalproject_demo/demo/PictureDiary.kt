@@ -1707,19 +1707,23 @@ private suspend fun Director.finishPictureDiary(day: DiaryDay) {
         goHome()
         return
     }
-    if (s.endReason == null) s.endReason = "story_ready"
-    mark("diary")
+    // 다 쓴 책을 읽다 나갔다 이어 하면 다시 쓰지 않는다 — /story 를 두 번 부르고 책 이벤트가 두 번 남는다 (#335)
+    if (day.phase != DiaryPhase.READING) {
+        if (s.endReason == null) s.endReason = "story_ready"
+        mark("diary")
 
-    // D4
-    say("오늘 이야기가 다 모였어! 이제 그림일기로 만들어 줄게.")
-    pause(900)
-    s.stage = DiaryStitch
-    say("그림일기를 만들고 있어. 조금만 기다려 줘!")
-    if (Server.liveFor(s.mode)) writeDiaryBook(day) else pause(1500)
-    day.weatherFromDrawing()
-    s.title = s.slots["title"]?.takeIf { it.isNotBlank() } ?: dateTitle()
-    event("book", "template" to "그림일기", "pages" to pages.size, "title" to s.title)
-    log("그림일기 ${pages.size}쪽 — ${pages.joinToString(" · ") { it.kind.name.lowercase() }} · 날씨 ${day.weather?.label ?: "아이가 고른다"}")
+        // D4
+        say("오늘 이야기가 다 모였어! 이제 그림일기로 만들어 줄게.")
+        pause(900)
+        s.stage = DiaryStitch
+        say("그림일기를 만들고 있어. 조금만 기다려 줘!")
+        if (Server.liveFor(s.mode)) writeDiaryBook(day) else pause(1500)
+        day.weatherFromDrawing()
+        s.title = s.slots["title"]?.takeIf { it.isNotBlank() } ?: dateTitle()
+        event("book", "template" to "그림일기", "pages" to pages.size, "title" to s.title)
+        log("그림일기 ${pages.size}쪽 — ${pages.joinToString(" · ") { it.kind.name.lowercase() }} · 날씨 ${day.weather?.label ?: "아이가 고른다"}")
+        day.phase = DiaryPhase.READING
+    }
 
     // D5
     readPictureDiary(day)

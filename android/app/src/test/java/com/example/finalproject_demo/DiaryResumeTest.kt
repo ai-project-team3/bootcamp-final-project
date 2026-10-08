@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.DiaryAsk
 import com.example.finalproject_demo.demo.DiaryBoard
+import com.example.finalproject_demo.demo.DiaryPaper
 import com.example.finalproject_demo.demo.DiaryStart
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.Reply
@@ -100,6 +101,24 @@ class DiaryResumeTest {
         assertSame(day, d.s.diaryDay)
         assertEquals("그린 선이 사라졌다", 1, d.s.drawing.size)
         assertEquals(1, d.s.diaryDay.pieces.size)
+    }
+
+    /** 책을 다 쓰고 읽다 나갔다 이어 하면 읽기로 — 책을 다시 쓰지 않는다(서버면 /story 를 두 번 부른다) */
+    @Test
+    fun resumingWhileReadingTheBookDoesNotWriteItAgain() = run { d ->
+        d.board()
+        d.draw(.3f)
+        d.finish()
+        var last = -1
+        assertNotNull("책 읽기까지 가지 않았다 — 말=${d.s.line}", await(20_000) {
+            if (d.s.stage !is DiaryPaper && d.s.micEnabled && d.s.lineId != last) { last = d.s.lineId; d.send(Reply.Spoke("몰라")) }
+            d.s.stage is DiaryPaper
+        })
+        val books = d.s.events.count { it.startsWith("book") }
+        assertEquals(1, books)
+        d.leaveAndResume()
+        assertNotNull("이어서 한 일기가 책 읽기로 가지 않았다 — 무대=${d.s.stage}", await { d.s.stage is DiaryPaper })
+        assertEquals("이어서 했는데 책을 또 썼다", books, d.s.events.count { it.startsWith("book") })
     }
 
     @Test
