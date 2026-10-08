@@ -3,10 +3,13 @@ package com.example.finalproject_demo.demo
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
+import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Trace
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
+import com.example.finalproject_demo.ui.Sfx
+import com.example.finalproject_demo.ui.Sound
 import com.example.finalproject_demo.ui.missions.DONE_SCENE_MS
 import com.example.finalproject_demo.ui.motionFrozen
 import kotlinx.coroutines.CoroutineScope
@@ -1620,6 +1623,7 @@ private suspend fun Director.sceneBook() {
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
         }
+        if (s.bookMusic) Bgm.play(trackOf(moodOf(s.pageKind(i)), s.storyBookKey()))
         say(caption(i))
         prefetchAhead(i + 1)
         when {
@@ -1851,6 +1855,7 @@ private suspend fun Director.sceneShelf() {
         if (news.isNotEmpty()) {
             s.rewardNews.clear()
             pause(2400)
+            Sfx.play(Sound.FANFARE, minGapMs = 0L)            // 업적이 열렸다 — 빠밤 한 번 (#295 리뷰)
             val names = news.joinToString(", ") { it.title }
             say("그리고 $names${if (bat(names)) "이" else "가"} 생겼어! 다음에 그릴 때 써 보자!")
             log("보상 — $names (${news.joinToString(" · ") { it.how }}) · 폰에 남고 다음 그림판에 도구로 나온다")
@@ -1875,12 +1880,16 @@ private suspend fun Director.sceneShelf() {
             }
             "book" -> {
                 if (openSavedDiary(tapped.label)) { s.stage = Stage.Shelf(fromEnd); continue }   // 그림일기 다시 읽기(#37)
-                val book = savedStory(tapped.label) ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
+                val story = savedStory(tapped.label)
+                val book = story ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
+                val key = bgmBookKey(book.title, book.pages.firstOrNull()?.caption.orEmpty())
                 var page = 0
                 s.line = ""
                 buttons()
                 while (true) {
                     s.stage = Stage.SavedStory(book, page)
+                    // 동화 · 같이 만들기 책 모두 — 첫 읽기와 같은 쪽 · 같은 곡 (#221)
+                    Bgm.play(trackOf(moodOf(if (page == 0) PageKind.COVER else book.pages[page - 1].kind), key))
                     val action = (awaitReply() as? Reply.Tapped)?.value ?: continue
                     when (action) {
                         "next" -> if (page < book.pages.size) page++
@@ -1888,6 +1897,7 @@ private suspend fun Director.sceneShelf() {
                         "close" -> break
                     }
                 }
+                Bgm.stop()
                 s.stage = Stage.Shelf(fromEnd)
                 say("우리가 만든 책들이야!")
             }

@@ -103,9 +103,10 @@ class MainActivity : ComponentActivity() {
         com.example.finalproject_demo.demo.WorldStyle.has = { n -> @Suppress("DiscouragedApi") resources.getIdentifier(n, "drawable", packageName) != 0 }
         com.example.finalproject_demo.net.CallLimits.enabled = !debuggable   // 스토어 빌드만 — 팀 개발 앱 · 검사는 막지 않는다
         Voice.attach(this)        // 진짜 마이크 · 마스코트 목소리 — 서버 모드에서만 쓴다 (net/Voice.kt)
+        com.example.finalproject_demo.net.Bgm.attach(this)    // 동화책 배경음악 (#221)
         com.example.finalproject_demo.sound.ChildSound.attach(this)   // 아이가 만든 소리 — 폰에만 (#42)
         com.example.finalproject_demo.net.ChildCall.attach(this)     // 마스코트가 아이를 부르는 말 — 부모가 정함 (10-02)
-        // 책에 안 넣은 채 앱이 꺼졌던 소리 — 이어 할 수 있는 만들던 이야기(만료 전)의 소리만 남긴다 (#336)
+        // Sounds left behind when the app died before they reached a book — keep only those of a resumable, unexpired draft (#336)
         com.example.finalproject_demo.demo.discardUnusedSessionSounds(com.example.finalproject_demo.demo.LocalSessionDraftStore(this))
         WindowCompat.setDecorFitsSystemWindows(window, false)
         // 풀스크린 — 카메라 구멍(노치) 쪽까지 그린다 (09-29). 가로 화면에서 한쪽에 검은 띠가 남지 않게
@@ -119,6 +120,12 @@ class MainActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         setContent { MaterialTheme(typography = PuppetTypography) { com.example.finalproject_demo.ui.FitScreen { DemoApp() } } }
+    }
+
+    override fun onDestroy() {
+        com.example.finalproject_demo.net.Bgm.release()
+        com.example.finalproject_demo.net.Bgm.detach()    // the singleton must not keep this activity's context
+        super.onDestroy()
     }
 
     /** 앱으로 돌아올 때 · 창(설정 · 알림)이 닫힐 때마다 다시 전체 화면으로 (09-29) */
@@ -137,9 +144,9 @@ fun DemoApp() {
         com.example.finalproject_demo.demo.DiaryShelf.attach(context, it.s)   // 그림일기 책장 저장(#37)
         com.example.finalproject_demo.demo.CoopShelf.attach(context, it.s)    // 같이 만들기 책장 저장(#83)
         com.example.finalproject_demo.demo.CoopPlan.attach(context, it.s)     // 부모가 저장한 같이 만들기 이야기 · 질문(#98)
-        // 앱이 꺼지기 전에 만들던 이야기 — 방이 「이어서 할까?」를 묻는다(#336). 그림 정리보다 먼저: 그 그림을 지우지 않게
+        // The book being made when the app died — the room offers 「이어서 할까?」 (#336). Before image cleanup, so its pictures survive
         it.restoreDraft()
-        it.recoverStoryImages()   // 세 책장을 다 붙인 뒤 — 아무 책도 · 만들던 이야기도 안 쓰는 서버 그림을 지운다(#61 · #80 · #336)
+        it.recoverStoryImages()   // after all three shelves are attached — drop server pictures no book and no draft uses (#61 · #80 · #336)
     } }
     (context as? MainActivity)?.director = d
     var drawerOpen by remember { mutableStateOf(false) }
@@ -186,7 +193,11 @@ fun DemoApp() {
         val inSession by rememberUpdatedState(kidScreen)
         DisposableEffect(owner) {
             val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
-                if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP && inSession) d.holdSession()
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                    com.example.finalproject_demo.net.Bgm.hold("screen")   // 책장 다시 읽기처럼 세션 밖 화면도 (#221)
+                    if (inSession) d.holdSession()
+                }
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_START) com.example.finalproject_demo.net.Bgm.resume("screen")
             }
             owner.lifecycle.addObserver(obs)
             onDispose { owner.lifecycle.removeObserver(obs) }

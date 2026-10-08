@@ -252,6 +252,7 @@
     <a href="#과정">과정</a>
     <a href="#결과">결과</a>
     <a href="#결론">결론</a>
+    <a href="#후속">그 다음</a>
   </div>
 </nav>
 
@@ -584,6 +585,54 @@
     <p style="font-size:14.5px; color:var(--ink-secondary)">
       다음에 해보면 좋을 것으로 적어둔 건 — 어른이 짧게 대답한 녹음을 더 많이 모아서, 이게 진짜 문제인지 확인하는 것. 아직 하기로 정한 건 아니다.
     </p>
+  </div>
+</section>
+
+<section id="후속">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-eyebrow">그 다음 — 재학습 없이 먼저 본 것</div>
+      <h2>놓친 어른 말, 실제로 뭐라고 받아 적었나</h2>
+      <p class="sec-dek">8시간짜리 재학습을 또 돌리기 전에, 이미 가진 결과 파일만 다시 열어서 확인했다.</p>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-item verdict-ref">
+        <div class="tl-rail"><div class="tl-dot">9</div></div>
+        <div>
+          <div class="tl-date">2026-10-08</div>
+          <h3 class="tl-title">5건 전부 — 빈칸이 아니라 "다른 진짜 낱말"로 바뀌었다</h3>
+          <div class="tl-body">
+            <p>
+              1차·2차에서 어른 목소리를 놓친 5번을 전부 저장된 결과 파일(CSV)에서 다시 꺼내봤다 — AI를 다시 돌리지 않고,
+              이미 돌렸을 때 나온 글자만 다시 읽은 것이다. 결과: <b>다섯 번 모두 "아무 말도 못 들었다"며 빈칸을 낸 게 아니었다.</b>
+              대신 매번 <b>비슷하게 들리는 다른 진짜 한국어 낱말</b>을 자신 있게 내놓았다.
+            </p>
+            <div class="tbl-scroll">
+              <table style="min-width:520px">
+                <thead><tr><th>언제</th><th>어른이 한 말</th><th>가르치기 전 AI</th><th>가르친 뒤 AI</th></tr></thead>
+                <tbody>
+                  <tr><td>1차</td><td>아니</td><td style="text-align:left">아니(정답)</td><td style="text-align:left; color:var(--status-critical)">하였니</td></tr>
+                  <tr><td>1차</td><td>아니</td><td style="text-align:left">아니(정답)</td><td style="text-align:left; color:var(--status-critical)">낫니</td></tr>
+                  <tr><td>2차</td><td>눈 나라</td><td style="text-align:left">눈 나라 갈리</td><td style="text-align:left; color:var(--status-critical)">눈 날아갈게</td></tr>
+                  <tr><td>2차</td><td>아니</td><td style="text-align:left">아니(정답)</td><td style="text-align:left; color:var(--status-warning)">아닌</td></tr>
+                  <tr><td>2차</td><td>아니</td><td style="text-align:left">아니(정답)</td><td style="text-align:left; color:var(--status-critical)">많이</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p style="margin-top:10px">
+              왜 이게 중요한가 — 밖에서 참고한 연구(스위스 독일어로 Whisper를 다시 가르친 사례)에서는 미세조정 뒤
+              "말이 없는 구간"을 AI가 헷갈려서 생긴 문제였다. 그런데 우리 경우는 다르다 — 어른이 분명히 짧게 말했고,
+              AI도 "뭔가 말했다"는 건 맞게 알아챘는데, <b>하필 아이들이 자주 쓰는 다른 낱말 쪽으로 쏠려서 답했다</b>
+              ("아닌", "많이", "낫니"처럼 아이 말투에 더 가까운 표현들이다). 딱 한 건("아닌")은 거의 맞은 것에 가깝지만,
+              나머지 넷은 완전히 다른 뜻이 됐다.
+            </p>
+            <span class="chip ref">참고 — 무음 처리가 무너진 게 아니라, 아이 말투 쪽으로 쏠린 것으로 보인다</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="cite">출처 — <code>eval/raw/whisper_ft_20261007_ours.csv</code>(1차) · <code>eval/raw/whisper_ft_20261007_v2.csv</code>(2차), 둘 다 재학습 없이 기존 파일만 다시 읽음</p>
   </div>
 </section>
 

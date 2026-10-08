@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Voice
 import com.example.finalproject_demo.net.nameMask
 import androidx.compose.runtime.getValue
@@ -190,7 +191,7 @@ class Director(
         return runCatching {
             s.applyDraft(draft)
             s.paused = draft.scene
-            log("앱을 다시 켬 — 만들던 이야기(「${draft.scene.label}」)를 폰에서 불러옴. 방에서 이어서 할지 묻는다 (#336)")
+            log("App relaunched — restored the unfinished book (scene ${draft.scene.name}) from the phone; the room asks whether to continue (#336)")
             true
         }.getOrElse {
             // half a book is worse than none — start clean and drop the unreadable draft
@@ -801,6 +802,7 @@ class Director(
             val finished = scene == Scene.BOOK || (scene == Scene.SHELF && s.scene == Scene.DIARY)
             s.scene = scene
             if (finished) discardDraft() else saveDraft()     // scene boundary — the scene a resume reruns
+            sceneMusic(scene)
             s.buttons.clear()
             s.countdown = null
             s.stage = Stage.Empty
@@ -867,7 +869,7 @@ class Director(
      * 다시 같은 모드로 들어오면 「이어서 할까?」 → `resume` 신호로 이 장면부터 이어 간다 (`Scenes.sceneAdult`)
      */
     fun leaveToRoom() {
-        s.holding = false
+        if (s.holding) { s.holding = false; Bgm.stop(); Bgm.resume("pause") }   // stop first: resume would fade the paused track back in for a blink
         pauseStory()
         goHome()
     }
@@ -882,6 +884,7 @@ class Director(
         s.holding = true
         saveDraft()                                   // ON_STOP comes here — the process may be killed next (#336)
         hushVoice()
+        Bgm.hold("pause")
         if (s.micOn) { stopMic = true; micJob?.cancel(); s.micOn = false }
         log("⏸ 일시정지 — 목소리 · 녹음을 멈추고 흐름을 세운다")
     }
@@ -890,6 +893,7 @@ class Director(
     fun resumeSession() {
         if (!s.holding) return
         s.holding = false
+        Bgm.resume("pause")
         log("▶ 이어 하기")
         replayLine()
     }
