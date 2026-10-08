@@ -307,6 +307,16 @@ class Director(
         if ('?' in text) pendingQuestion = text.trim()
     }
 
+    /**
+     * Otto's own line in the report transcript, written now — his answer to a child's question has no 「?」, so
+     * [heardQuestion] never keeps it (#327 §4-3). Any pending question is written first, keeping the order
+     */
+    fun talkOtto(text: String) {
+        if (text.isBlank()) return
+        if (s.talkStartedAtMs == 0L) s.talkStartedAtMs = System.currentTimeMillis()
+        s.talk += TalkLine("otto", text.trim())
+    }
+
     /** One answer in the report transcript, after the question it answers (demo/SessionReport.kt · rule 5) */
     fun talk(who: String, text: String) {
         if (text.isBlank()) return
