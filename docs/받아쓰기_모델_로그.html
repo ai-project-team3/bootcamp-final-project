@@ -598,7 +598,7 @@
 
     <div class="timeline">
       <div class="tl-item verdict-ref">
-        <div class="tl-rail"><div class="tl-dot">9</div></div>
+        <div class="tl-rail"><div class="tl-dot">9</div><div class="tl-line"></div></div>
         <div>
           <div class="tl-date">2026-10-08</div>
           <h3 class="tl-title">5건 전부 — 빈칸이 아니라 "다른 진짜 낱말"로 바뀌었다</h3>
@@ -631,8 +631,40 @@
           </div>
         </div>
       </div>
+
+      <div class="tl-item verdict-good">
+        <div class="tl-rail"><div class="tl-dot">10</div></div>
+        <div>
+          <div class="tl-date">2026-10-08</div>
+          <h3 class="tl-title">alpha 조정 — LoRA를 살짝만 반영하니 통과했다</h3>
+          <div class="tl-body">
+            <p>
+              AI를 다시 가르치지 않고, <b>"가르친 내용을 얼마나 세게 반영할지"만 1.0(원래 강도)에서 0.75로 줄여</b>
+              다시 합쳐 봤다(코드 한 줄만 바꾸면 되는 작업). 결과: <b>다섯 가지 시험을 전부 통과했다.</b>
+              아이 목소리 성적은 1.0일 때랑 거의 같은데(3~5세 틀린 글자 33.1→9.2%), 어른 목소리는
+              오히려 더 좋아졌다(40→45/57, 원래 맞히던 걸 <b>하나도 안 놓쳤다</b>).
+            </p>
+            <div class="tbl-scroll">
+              <table style="min-width:420px">
+                <thead><tr><th>세기</th><th class="num">3~5세 틀린 글자</th><th class="num">어른 목소리(57개 중)</th><th>통과?</th></tr></thead>
+                <tbody>
+                  <tr><td>1.0(원래 세기)</td><td class="num">33.2→9.1%</td><td class="num">40→44, 2건 놓침</td><td><span class="chip bad">탈락</span></td></tr>
+                  <tr><td>0.75</td><td class="num">33.1→9.2%</td><td class="num">40→45, 0건 놓침</td><td><span class="chip good">통과</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p style="margin-top:10px">
+              <b>"세기"를 어떻게 고를지는 숫자를 보기 전에 먼저 정했다</b> — 통과하는 세기가 여럿이면,
+              아이 쪽 점수가 통계적으로 "운 범위 안에서 같다"고 나오는 한 <b>더 센 쪽(1.0에 더 가까운 쪽)</b>을 쓰고,
+              점수가 확실히 차이 난다면 <b>더 높은 쪽</b>을 쓴다는 규칙이다. 시험 점수를 먼저 보고 규칙을 맞추면
+              "골라서 부풀렸다"가 되기 때문에, 순서를 거꾸로 하지 않았다.
+            </p>
+            <span class="chip good">통과 — 0.5까지 더 보고 최종 선택</span>
+          </div>
+        </div>
+      </div>
     </div>
-    <p class="cite">출처 — <code>eval/raw/whisper_ft_20261007_ours.csv</code>(1차) · <code>eval/raw/whisper_ft_20261007_v2.csv</code>(2차), 둘 다 재학습 없이 기존 파일만 다시 읽음</p>
+    <p class="cite">출처 — <code>eval/raw/whisper_ft_20261007_ours.csv</code>(1차) · <code>eval/raw/whisper_ft_20261007_v2.csv</code>(2차) · <code>eval/raw/whisper_ft_20261008_a075.csv</code> · <code>eval/results.md</code> 2026-10-07 절 「alpha 조정」</p>
   </div>
 </section>
 
