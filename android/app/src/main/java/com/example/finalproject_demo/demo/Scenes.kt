@@ -8,6 +8,8 @@ import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Trace
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
+import com.example.finalproject_demo.ui.Sfx
+import com.example.finalproject_demo.ui.Sound
 import com.example.finalproject_demo.ui.missions.DONE_SCENE_MS
 import com.example.finalproject_demo.ui.motionFrozen
 import kotlinx.coroutines.CoroutineScope
@@ -1810,6 +1812,7 @@ private suspend fun Director.sceneShelf() {
         if (news.isNotEmpty()) {
             s.rewardNews.clear()
             pause(2400)
+            Sfx.play(Sound.FANFARE, minGapMs = 0L)            // 업적이 열렸다 — 빠밤 한 번 (#295 리뷰)
             val names = news.joinToString(", ") { it.title }
             say("그리고 $names${if (bat(names)) "이" else "가"} 생겼어! 다음에 그릴 때 써 보자!")
             log("보상 — $names (${news.joinToString(" · ") { it.how }}) · 폰에 남고 다음 그림판에 도구로 나온다")

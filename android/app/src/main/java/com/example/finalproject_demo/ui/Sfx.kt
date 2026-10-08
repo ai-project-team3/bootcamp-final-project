@@ -51,6 +51,9 @@ enum class Sound {
 
     /** 툭 — 물건이 놓였다 */
     THUD,
+
+    /** 빠밤 — 업적이 새로 열렸다 (#295 리뷰). 책 한 권에 한 번뿐이라 다른 소리보다 조금 길다 */
+    FANFARE,
 }
 
 /**
@@ -118,6 +121,9 @@ object Sfx {
     @Volatile var soundingUntil = 0L
         private set
 
+    /** 검사용 — 어떤 소리를 냈는지 (검사 환경은 소리를 내지 않는다) */
+    internal var onPlay: (Sound) -> Unit = {}
+
     /** 같은 소리가 겹쳐 터지지 않게 — 문지르는 동안 초당 수십 번 불린다 */
     private val lastAt = HashMap<Sound, Long>()
 
@@ -128,6 +134,7 @@ object Sfx {
      * @param view 진동을 낼 화면 (`LocalView.current`). 없으면 소리만
      */
     fun play(kind: Sound, minGapMs: Long = 90L, view: View? = null) {
+        onPlay(kind)
         // 검사에서는 소리를 내지 않는다 — Robolectric 에는 오디오 장치가 없다
         if (motionFrozen) return
         val now = System.currentTimeMillis()
@@ -155,6 +162,7 @@ object Sfx {
         Sound.THUD -> HapticFeedbackConstants.CONTEXT_CLICK       // 툭 — 조금 무겁게
         Sound.SPARKLE ->                                          // 반짝 — 해냈다
             if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.LONG_PRESS
+        Sound.FANFARE -> if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.LONG_PRESS
         Sound.HISS -> null
     }
 
@@ -175,6 +183,19 @@ object Sfx {
             val f = floatArrayOf(784f, 988f, 1319f)[step]   // 솔 · 시 · 미
             val local = (t - step * n / 3f) / (n / 3f)
             (sin(2.0 * PI * f * t / RATE) * exp(-5.0 * local)).toFloat() * 0.28f
+        }
+        // 빠밤 — 짧은 솔 뒤에 한 옥타브 위 도를 길게, 5도를 얹어 밝게
+        Sound.FANFARE -> tone(0.42f) { t, n ->
+            val cut = n * 0.28f
+            if (t < cut) {
+                val local = t / cut
+                (sin(2.0 * PI * 784f * t / RATE) * exp(-3.0 * local)).toFloat() * 0.26f
+            } else {
+                val u = t - cut
+                val local = u / (n - cut)
+                val v = sin(2.0 * PI * 1047f * u / RATE) + 0.45 * sin(2.0 * PI * 1568f * u / RATE)
+                (v * exp(-2.6 * local)).toFloat() * 0.20f
+            }
         }
         // 툭 — 낮은 음 한 번
         Sound.THUD -> tone(0.12f) { t, n ->
