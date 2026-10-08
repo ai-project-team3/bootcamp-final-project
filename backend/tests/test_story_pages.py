@@ -187,7 +187,44 @@ def test_a_day_book_keeps_the_empty_place_line_to_the_last_page():
 
 
 def test_every_day_meaning_is_a_kind_the_app_knows():
-    assert set(story_route.DAY_KIND_MEANING) <= set(story_route.KIND_MEANING)
+    assert set(story_route.COOP_KIND_MEANING) <= set(story_route.KIND_MEANING)
+    assert set(story_route.DIARY_KIND_MEANING) <= set(story_route.KIND_MEANING)
+
+
+# #272 (10-08 lead): the diary and co-op tables split. Co-op keeps its measured wording byte for byte —
+# its prompt input must not move. The diary table follows story_prompt_diary.md rules 10 · 11.
+COOP_BEFORE_272 = {
+    "DEPART": "시작 — 어디에(place) 누구랑(companion) 갔는지",
+    "MEET": "만남 — 함께한 사람 · 거기서 만난 것(companion)",
+    "SHAKE": "그때 한 일과 일어난 일 — extra 의 그때 한 일 → problem",
+    "FAIL": "그때 마음 — reaction 을 아이가 말한 그대로",
+    "TALK": "왜 그랬는지(cause) · 누가 무슨 말을 했는지(extra 의 누가 한 말)",
+    "RUB": "그래서 해 본 것 — extra 의 해 본 것",
+    "DRAG": "어떻게 됐는지 — solution",
+    "TOGETHER": "맺음 — extra 의 그 뒤 · 맺음(keep)",
+}
+
+
+def test_the_coop_table_is_unchanged():
+    assert story_route.COOP_KIND_MEANING == COOP_BEFORE_272
+    for kind, line in COOP_BEFORE_272.items():
+        assert story_route.meaning("coop", kind) == line
+
+
+def test_the_diary_feeling_page_holds_the_feeling_and_its_cause():
+    fail = story_route.meaning("diary", "FAIL")
+    assert "reaction" in fail and "cause" in fail
+    assert "cause" not in story_route.meaning("diary", "TALK")      # rule 11: the why is not a page of its own
+
+
+def test_a_diary_extra_saying_belongs_to_the_rub_page_only():
+    assert "extra" in story_route.meaning("diary", "RUB")
+    for kind in ("DEPART", "MEET", "SHAKE", "FAIL", "TALK", "DRAG", "TOGETHER"):
+        assert "extra" not in story_route.meaning("diary", kind), kind     # rule 10: not pulled onto another page
+
+
+def test_a_story_book_keeps_the_story_meanings():
+    assert story_route.meaning("story", "FAIL") == story_route.KIND_MEANING["FAIL"]
 
 
 # 10-05 device round: a real-day co-op book got a mission situation the child never told —
