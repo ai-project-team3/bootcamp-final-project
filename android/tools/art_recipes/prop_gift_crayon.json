@@ -1,0 +1,16 @@
+{
+  "name": "prop_gift_crayon",
+  "of": "prop_gift",
+  "kind": "cut",
+  "text": "a cute gift box, a yellow square present box wrapped with a soft yellow ribbon, a pink lid on top with a big pink bow, seen slightly from the front and side",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 1676887158,
+  "prompt": "a cute gift box, a yellow square present box wrapped with a soft yellow ribbon, a pink lid on top with a big pink bow, seen slightly from the front and side, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "art_recipes",
+  "made": "2026-10-08"
+}
