@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+from .. import vendor_errors
 from ..audio_level import level
 from ..config import settings
 
@@ -104,9 +105,11 @@ async def _typecast_audio(req: TtsRequest, budget: float) -> bytes:
             r = await http.post("https://api.typecast.ai/v1/text-to-speech", json=body,
                                 headers={"X-API-KEY": settings.typecast_api_key})
     except httpx.HTTPError as e:
-        raise HTTPException(502, f"tts typecast network: {type(e).__name__}") from e
+        tag = vendor_errors.note("typecast", vendor_errors.classify(exc=e))
+        raise HTTPException(502, f"tts typecast network: {type(e).__name__} {tag}") from e
     if r.status_code != 200:
-        raise HTTPException(502, f"tts typecast HTTP {r.status_code}")
+        tag = vendor_errors.note("typecast", vendor_errors.classify(r.status_code, r))
+        raise HTTPException(502, f"tts typecast HTTP {r.status_code} {tag}")
     return r.content
 
 
@@ -122,9 +125,11 @@ async def _openai_audio(req: TtsRequest, budget: float) -> bytes:
             r = await http.post(f"{settings.openai_base_url.rstrip('/')}/audio/speech", json=body,
                                 headers={"Authorization": f"Bearer {settings.openai_api_key}"})
     except httpx.HTTPError as e:
-        raise HTTPException(502, f"tts network: {type(e).__name__}") from e
+        tag = vendor_errors.note("openai", vendor_errors.classify(exc=e))
+        raise HTTPException(502, f"tts network: {type(e).__name__} {tag}") from e
     if r.status_code != 200:
-        raise HTTPException(502, f"tts openai HTTP {r.status_code}")
+        tag = vendor_errors.note("openai", vendor_errors.classify(r.status_code, r))
+        raise HTTPException(502, f"tts openai HTTP {r.status_code} {tag}")
     return r.content
 
 
@@ -141,9 +146,11 @@ async def _elevenlabs_audio(req: TtsRequest, budget: float) -> bytes:
         async with httpx.AsyncClient(timeout=budget) as http:
             r = await http.post(url, json=body, headers={"xi-api-key": settings.elevenlabs_api_key})
     except httpx.HTTPError as e:
-        raise HTTPException(502, f"tts elevenlabs network: {type(e).__name__}") from e
+        tag = vendor_errors.note("elevenlabs", vendor_errors.classify(exc=e))
+        raise HTTPException(502, f"tts elevenlabs network: {type(e).__name__} {tag}") from e
     if r.status_code != 200:
-        raise HTTPException(502, f"tts elevenlabs HTTP {r.status_code}")
+        tag = vendor_errors.note("elevenlabs", vendor_errors.classify(r.status_code, r))
+        raise HTTPException(502, f"tts elevenlabs HTTP {r.status_code} {tag}")
     return r.content
 
 

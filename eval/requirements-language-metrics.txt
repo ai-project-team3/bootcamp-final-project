@@ -1,0 +1,3 @@
+# Offline #320 evaluation only. Do not add this to backend runtime requirements.
+kiwipiepy==0.24.0
+kiwipiepy_model==0.24.0
