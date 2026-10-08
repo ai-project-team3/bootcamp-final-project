@@ -41,12 +41,8 @@ _MOCK_PNG = base64.b64decode(
 _ORDER = {"background": "image", "character": "character", "redraw": "redraw"}
 
 
-@lru_cache(maxsize=4)
-def system(kind: str = "background", mode: str = "story") -> str:
-    # a diary place lies under the child's own lines: its own sparse prompt (#264 · 10-08);
-    # story and co-op keep the measured one word for word
-    if kind == "background" and mode == "diary":
-        return system_block(EVAL / "image_diary_prompt.md")
+@lru_cache(maxsize=3)
+def system(kind: str = "background") -> str:
     return system_block(EVAL / f"{_ORDER[kind]}_prompt.md")
 
 
@@ -105,7 +101,7 @@ async def _draw(req: ImageRequest) -> ImageResult:
     field = "place" if req.kind == "background" else "description"
     # the order LLM gets only the words — never the child's drawing
     try:
-        raw = await complete(system(req.kind, req.mode), f"mode:{req.mode}\n{field}:{req.words}", schema(req.kind),
+        raw = await complete(system(req.kind), f"mode:{req.mode}\n{field}:{req.words}", schema(req.kind),
                              name=f"image_{req.kind}", effort=settings.llm_effort_judge, max_output_tokens=200)
     except LLMError as e:
         return preset(f"scene llm: {e}")
