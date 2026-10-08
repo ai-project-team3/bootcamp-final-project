@@ -135,14 +135,13 @@ class DiaryFlowTest {
         )
     }
 
-    /**
-     * **동화 모드**로 한 권 만들고 두 번째 이야기의 도감을 지나갈 수 있는가 (9/22).
-     *
-     * 동화 모드는 도감 앞에 「함께할 사람」 화면이 하나 더 있다. 지적받은 *"동화책"* 은 이쪽이다.
-     */
+    /** A completed story supplies the hero choice on the next story (#342). */
     @Test
-    fun aSecondStoryModeRunStillGetsPastTheBestiary() = run { d ->
+    fun aSecondStoryModeRunReusesTheSavedHeroBeforeTheFirstQuestion() = run { d ->
         val s = d.s
+        s.templateKey = "A"
+        s.storyHeroCall = "콩이"
+        assertTrue("The first completed book must be on the shelf", d.saveFinishedStory())
 
         d.go(Scene.ADULT)
         assertTrue("시작 화면이 안 떴다", d.tap("이야기 만들기 탭"))
@@ -150,14 +149,15 @@ class DiaryFlowTest {
         // 함께할 사람은 **말로** 답한다 (탭 카드가 아니다)
         assertTrue("함께할 사람을 못 골랐다 (버튼=${s.buttons.map { it.label }})", d.push("🗣"))
         assertTrue(
-            "동화 모드에서 도감이 안 떴다 (장면=${s.scene})",
-            await(8_000) { s.scene == Scene.BESTIARY } != null,
+            "The next story must offer the saved hero",
+            await(8_000) { (s.stage as? com.example.finalproject_demo.demo.Stage.CardsRow)?.cards?.any { it.value == "reuse:0" } == true } != null,
         )
-        assertTrue("도감에 카드 버튼이 없다 (버튼=${s.buttons.map { it.label }})", d.tap("카드를 탭"))
+        d.send(com.example.finalproject_demo.demo.Reply.Tapped("reuse:0", "콩이"))
         assertTrue(
-            "⚠️ 동화 모드 도감에서 안 넘어간다 — 장면이 ${s.scene} 그대로다",
+            "The saved hero choice must proceed to the first story question",
             await(8_000) { s.scene == Scene.PLACE } != null,
         )
+        assertEquals("콩이", s.storyHeroCall)
     }
 
     // ── 1. 일기 모드 ─────────────────────────────────────────────
