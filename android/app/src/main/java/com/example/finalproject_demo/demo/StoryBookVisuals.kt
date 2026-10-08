@@ -35,7 +35,8 @@ data class SavedStoryVisuals(
 }
 
 fun DemoState.captureStoryVisuals() = SavedStoryVisuals(
-    templateKey!!, persona, Hero(childName, heroAttr ?: HeroAttr(), storyHeroImage, storyHeroRig),
+    templateKey!!, persona, Hero(storyActor, heroAttr ?: HeroAttr(), storyHeroImage, storyHeroRig,
+        called = storyHeroCall, description = storyHeroDescription),
     drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
     dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
     newcomerKind, soundLine, causeLine, Server.liveFor(mode), generatedFriend,
@@ -54,6 +55,8 @@ fun DemoState.restoreStoryBook(book: SavedStoryBook): Boolean {
     heroAttr = visual.hero.attr
     storyHeroImage = visual.hero.image
     storyHeroRig = visual.hero.rig
+    storyHeroCall = visual.hero.called ?: visual.hero.name
+    storyHeroDescription = visual.hero.description
     drawing.clear()
     drawing.addAll(visual.drawing.map { it.copy(pts = it.pts.toList()) })
     drawnPreset = visual.drawnPreset
@@ -85,6 +88,7 @@ internal fun SavedStoryVisuals.toJson(): JSONObject {
     val attr = hero.attr
     return JSONObject().put("version", 1).put("template", templateKey).put("persona", persona.name)
         .put("hero", JSONObject().put("name", hero.name).put("image", hero.image ?: JSONObject.NULL)
+            .put("called", hero.called ?: JSONObject.NULL).put("description", hero.description)
             .put("rig", hero.rig ?: JSONObject.NULL).put("hair", attr.hair).put("shirt", attr.shirt.toArgb())
             .put("eyes", attr.eyes).put("glasses", attr.glasses).put("likes", attr.likes).put("bottom", attr.bottom))
         .put("drawing", strokes).put("drawnPreset", drawnPreset).put("drawingAspect", drawingAspect)
@@ -107,7 +111,8 @@ internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
         Hero(hero.getString("name"), HeroAttr(
             hero.getString("hair"), Color(hero.getInt("shirt")), hero.getString("eyes"),
             hero.getString("glasses"), hero.getString("likes"), hero.getString("bottom")),
-            hero.nullableString("image"), hero.nullableString("rig")),
+            hero.nullableString("image"), hero.nullableString("rig"), hero.nullableString("called"),
+            hero.optString("description", "")),
         (0 until strokes.length()).map { index ->
             val stroke = strokes.getJSONObject(index)
             val points = stroke.getJSONArray("points")

@@ -385,6 +385,7 @@ private suspend fun Director.onHeroPicked(v: String) {
     s.storyHeroImage = s.heroes[idx].image
     s.storyHeroRig = s.heroes[idx].rig
     s.storyHeroCall = s.heroes[idx].called
+    s.storyHeroDescription = s.heroes[idx].description
     mark("bestiary")
     log("주인공 고름: ${s.heroes[idx].name} → 고정 스프라이트 그대로 씀 (⭐20 · ⭐26)")
     say("${s.heroes[idx].name}${ya(s.heroes[idx].name)}, 준비됐지?")
@@ -413,10 +414,15 @@ private suspend fun Director.sceneMakeHero() {
 
     suspend fun save() {
         val called = askHeroName(attr, generatedImage)          // 말로 · 글로 이름 짓기 (10-02 · demo/HeroName.kt)
-        s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called)
+        val description = descriptions.joinToString("; ") +
+            if (confirmedChoices.isNotEmpty()) "\nLatest confirmed choices override earlier descriptions: " +
+                confirmedChoices.entries.joinToString("; ") { "${it.key}=${it.value}" } else ""
+        s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called, description = description)
         s.heroAttr = attr
         s.storyHeroImage = generatedImage
         s.storyHeroRig = generatedRig
+        s.storyHeroCall = called
+        s.storyHeroDescription = description
         log("주인공 확정 → 고정 스프라이트로 도감에 저장. 이야기 중 다시 생성하지 않음 (⭐20 · ⭐26)")
         pause(600)
         go(Scene.BESTIARY)
