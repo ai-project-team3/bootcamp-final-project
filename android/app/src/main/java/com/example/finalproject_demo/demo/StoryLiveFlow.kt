@@ -1,7 +1,5 @@
 package com.example.finalproject_demo.demo
 
-import com.example.finalproject_demo.demo.scene.FRIEND_SPOT
-import com.example.finalproject_demo.demo.scene.HERO_SPOT
 import com.example.finalproject_demo.demo.scene.SceneKits
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
@@ -19,13 +17,11 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
 
     // 친구는 아이가 그렸을 때만 선다 — 안 그렸으면 friendArt 가 대본의 기본 낙서라
     // 배경이 생기면 오른쪽에 「이상한 애」가 늘 떠 있었다 (10-02 조장 실기기)
-    fun conversationWorld() = Stage.World(listOfNotNull(
-        // spots shared with the scene kit layout, which keeps them clear (demo/scene/SceneLayout.kt)
-        WorldItem(s.storyHeroArt, HERO_SPOT.x, 0.32f, 0.11f, depth = HERO_SPOT.depth),
-        // 오또가 만든 새 친구 인형(10-06 · FriendArt.kt)도 선다 — 대본의 기본 낙서가 아니라 아이가 말한 친구다
-        if (s.drawing.isNotEmpty() || s.storyFriendDoll != null)
-            WorldItem(s.friendArt, FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth) else null,
-    ))
+    fun conversationWorld() = s.storyConversationWorld()
+
+    fun refreshCast() {
+        if (s.stage is Stage.World) s.stage = conversationWorld()
+    }
 
     fun showConversation() {
         // World and Making both render bgName, whose unknown-place fallback is snow.
@@ -119,7 +115,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             }
             if (prompt.slot == "newcomer" && !s.slots["newcomer"].isNullOrBlank() && (looks || s.storyClarificationSlot == "newcomer")) {
                 if (!friendDrawingPrepared) { prepareStoryFriendDrawing(); friendDrawingPrepared = true }
-                drawFriend()
+                drawFriend(::refreshCast)
                 s.storyClarificationSlot = null; s.storyNextSlot = null; s.storyServerQuestion = null
                 log("새 친구 생김새 질문 → 그리기로 대신함")
                 continue
@@ -139,6 +135,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                     log(if (undo) "↩ 직전 차례를 되돌림 — 같은 질문을 다시" else "↪ 되돌린 차례를 다시 적용")
                     say(if (undo) "그럼 다시 말해 줄래?" else "좋아, 아까 그 이야기로 갈게!")
                     updateBackground()
+                    drawFriend(::refreshCast)
                     s.holdStoryGauge()
                 }
                 continue
@@ -178,7 +175,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 prepareStoryFriendDrawing()
                 friendDrawingPrepared = true
             }
-            drawFriend()
+            drawFriend(::refreshCast)
             // The third conversation turn chooses the local template. An early server finish
             // still needs a page plan, but does not force extra questions just to reach turn 3.
             if (s.templateKey == null && (s.turn >= 3 || s.storyReady)) decideTemplate("서버 대화")

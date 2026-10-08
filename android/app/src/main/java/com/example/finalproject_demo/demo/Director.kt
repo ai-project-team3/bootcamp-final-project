@@ -167,9 +167,10 @@ class Director(
      */
     suspend fun saveKitPicture(kit: com.example.finalproject_demo.demo.scene.SceneKitDef, seed: Long): String? {
         val store = storyImageStore ?: return null
+        val actors = s.sceneActorCapacity
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             runCatching {
-                val bmp = com.example.finalproject_demo.ui.renderKitPicture(store.appContext, kit, seed)
+                val bmp = com.example.finalproject_demo.ui.renderKitPicture(store.appContext, kit, seed, actors = actors)
                 val out = java.io.ByteArrayOutputStream()
                 bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
                 store.save(out.toByteArray())

@@ -67,4 +67,48 @@ class StoryProblemCharacterTest {
         s.templateKey = "A"
         assertTrue("An undone actor must not return when reopening the finished book", s.captureStoryVisuals().cast.isEmpty())
     }
+
+    @Test fun stageKeepsHeroDrawingAndProblemActorInThreeSeparatePlaces() {
+        val s = DemoState().apply {
+            mode = StoryMode.STORY
+            slots["newcomer"] = "토끼"
+            slots["problem"] = "괴물이 길을 막았어"; slotBy["problem"] = "child"
+            drawing.add(Stroke(androidx.compose.ui.graphics.Color.Red,
+                listOf(androidx.compose.ui.geometry.Offset(.2f, .2f)), 4f))
+            generatedCharacters += GeneratedFriend("괴물", "local:/monster.png", "blob", "problem")
+        }
+        val world = s.storyConversationWorld()
+        assertEquals(3, world.items.size)
+        assertEquals(3, world.items.map { it.xf }.distinct().size)
+        assertTrue(world.items[1].art is Art.ChildDrawing)
+        assertEquals("local:/monster.png", (world.items[2].art as Art.Img).name)
+        assertNotNull(s.storyProblemOnPage(PageKind.TALK, "괴물이 길을 비켜 주었어요."))
+        assertNull(s.storyProblemOnPage(PageKind.TALK, "토끼는 집에 갔어요."))
+        for (kind in listOf(PageKind.RUB, PageKind.DRAG, PageKind.COVER)) {
+            assertNull("Mission controls must remain clear", s.storyProblemOnPage(kind, "괴물이 왔어"))
+        }
+    }
+
+    @Test fun presetProblemActorSurvivesBookReopeningWithoutAnImageRequest() {
+        val s = DemoState().apply {
+            mode = StoryMode.STORY; templateKey = "A"
+            slots["problem"] = "외계인이 길을 막았어"; slotBy["problem"] = "child"
+        }
+        assertTrue(s.charactersToDraw().none { it.role == "problem" })
+        val original = s.storyProblemArt()
+        assertNotNull(original)
+        val book = SavedStoryBook("preset", "이야기", "dino", "bg_park",
+            listOf(SavedStoryPage(PageKind.TALK, "외계인이 길을 막았어")), s.captureStoryVisuals())
+        val reopened = DemoState().apply { restoreStoryBook(book.copy(visuals = storyVisualsFromJson(book.visuals!!.toJson()))) }
+        assertEquals(original, reopened.storyProblemArt())
+    }
+
+    @Test fun aNamedHeroIsNotGeneratedAgainAsAProblemActor() {
+        val s = DemoState().apply {
+            mode = StoryMode.STORY
+            storyHeroCall = "괴물"
+            slots["problem"] = "괴물이 넘어졌어"; slotBy["problem"] = "child"
+        }
+        assertNull(s.storyProblemCharacter())
+    }
 }

@@ -9,7 +9,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.CancellationException
 
 /** A felt doll the server made for a character slot — used only while that slot still says [words]. */
 data class GeneratedFriend(val words: String, val image: String, val rig: String?, val role: String = "friend")
@@ -43,29 +42,30 @@ internal suspend fun Director.drawFriend(onReady: () -> Unit = {}) {
     val mask = s.nameMask()
     for (request in s.charactersToDraw()) {
         if (s.generatedCharacters.any { it.role == request.role && it.words == request.words } ||
-            request in s.characterAttempts || s.characterRequests[request.role] == request) continue
-        s.characterRequests[request.role] = request
-        s.characterAttempts.add(request)
+            request in s.characterAttempts || request in s.characterRequests) continue
+        val token = Any()
+        s.characterRequests[request] = token
         val style = s.bookStyle
         CoroutineScope(currentCoroutineContext()).launch {
             try {
                 val made = withTimeoutOrNull(15_000) { Server.character(mask.mask(request.words), mode, style) }
                 currentCoroutineContext().ensureActive()
-                if (s.characterRequests[request.role] !== request || request !in s.charactersToDraw()) return@launch
+                if (s.characterRequests[request] !== token || request !in s.charactersToDraw()) return@launch
                 val saved = made?.let { withContext(Dispatchers.IO) { saveStoryImage(it.png) } }
                 currentCoroutineContext().ensureActive()
-                if (saved != null && s.characterRequests[request.role] === request && request in s.charactersToDraw()) {
-                    s.generatedCharacters.removeAll { it.role == request.role }
-                    s.generatedCharacters.add(GeneratedFriend(request.words, saved, made.rig, request.role))
-                    log("character ready role=${request.role} words=${request.words}")
-                    onReady()
-                } else log("character fallback role=${request.role} words=${request.words}")
-            } catch (cancelled: CancellationException) {
-                if (s.characterRequests[request.role] === request) s.characterAttempts.remove(request)
-                throw cancelled
+                if (s.characterRequests[request] === token && request in s.charactersToDraw()) {
+                    // Cache completed attempts only. A cancelled/stale request may be retried after undo/redo.
+                    // Co-op retains its existing next-turn retry behavior.
+                    if (mode == "story" && saved == null) s.characterAttempts.add(request)
+                    if (saved != null) {
+                        s.generatedCharacters.removeAll { it.role == request.role }
+                        s.generatedCharacters.add(GeneratedFriend(request.words, saved, made.rig, request.role))
+                        log("character ready role=${request.role} words=${request.words}")
+                        onReady()
+                    } else log("character fallback role=${request.role} words=${request.words}")
+                }
             } finally {
-                if (request !in s.charactersToDraw()) s.characterAttempts.remove(request)
-                if (s.characterRequests[request.role] === request) s.characterRequests.remove(request.role)
+                if (s.characterRequests[request] === token) s.characterRequests.remove(request)
             }
         }
     }

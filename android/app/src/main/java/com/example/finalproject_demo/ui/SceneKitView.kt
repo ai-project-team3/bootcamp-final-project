@@ -247,7 +247,7 @@ private fun DrawScope.drawKitBack(
  * Laid out **in the stage's own frame** — the landscape screen, the same top · bottom chrome and ↶ ↪ buttons — so the same
  * seed puts every piece where the stage had it: the book page shows the place the child just saw (10-06 · #222).
  */
-fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBase: Long, wPx: Int = 0, hPx: Int = 0): Bitmap {
+fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBase: Long, wPx: Int = 0, hPx: Int = 0, actors: Int = 2): Bitmap {
     val res = context.resources
     val opt = android.graphics.BitmapFactory.Options().apply { inScaled = false; inPreferredConfig = Bitmap.Config.ARGB_8888 }
     @Suppress("DiscouragedApi")
@@ -271,7 +271,7 @@ fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBas
     }
     val w = f.w.roundToInt()
     val h = f.h.roundToInt()
-    val scene = bestScene(kit, 2, f, seedBase = seedBase)
+    val scene = bestScene(kit, actors, f, seedBase = seedBase)
     val hills = kitHills(f, scene)
     val grain = ShaderBrush(ImageShader(FeltNoise.grain, TileMode.Repeated, TileMode.Repeated))
     val out = androidx.compose.ui.graphics.ImageBitmap(w, h)

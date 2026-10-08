@@ -128,6 +128,62 @@ class StoryCharacterRequestsTest {
         } finally { release.countDown() }
     }
 
+    @Test fun returningToTheFirstActorWhileTwoRequestsArePendingKeepsItsResult() = runBlocking {
+        val png = ByteArrayOutputStream().also {
+            Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it)
+        }.toByteArray()
+        val release = CountDownLatch(1)
+        val server = StoryTestServer { _, _ ->
+            release.await(5, TimeUnit.SECONDS)
+            JSONObject().put("preset", false).put("rig", "blob").put("png_base64", Base64.getEncoder().encodeToString(png))
+        }
+        try {
+            withServer(server) { d ->
+                d.s.slotBy["problem"] = "child"
+                coroutineScope {
+                    d.s.slots["problem"] = "괴물이 왔어"
+                    d.drawFriend()
+                    withTimeout(3_000) { while (server.requests.count { it.first == "/image" } < 1) delay(5) }
+                    d.s.slots["problem"] = "사자가 왔어"
+                    d.drawFriend()
+                    withTimeout(3_000) { while (server.requests.count { it.first == "/image" } < 2) delay(5) }
+                    d.s.slots["problem"] = "괴물이 왔어"
+                    d.drawFriend()
+                    release.countDown()
+                }
+                assertEquals("괴물", d.s.generatedCharacters.single().words)
+                assertEquals(2, server.requests.count { it.first == "/image" })
+            }
+        } finally { release.countDown() }
+    }
+
+    @Test fun coopStillRetriesAFailedCompanionRequestOnTheNextTurn() = runBlocking {
+        val server = StoryTestServer { _, _ -> JSONObject().put("preset", true) }
+        withServer(server) { d ->
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.s.mode = StoryMode.COOP; d.s.companionKind = "강아지"
+            coroutineScope { d.drawFriend() }
+            coroutineScope { d.drawFriend() }
+            assertEquals(2, server.requests.count { it.first == "/image" })
+        }
+    }
+
+    @Test fun returningToAnEarlierCompletedActorDoesNotRemainSuppressed() = runBlocking {
+        val png = ByteArrayOutputStream().also {
+            Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it)
+        }.toByteArray()
+        val server = StoryTestServer { _, _ -> JSONObject().put("preset", false).put("rig", "blob")
+            .put("png_base64", Base64.getEncoder().encodeToString(png)) }
+        withServer(server) { d ->
+            d.s.slotBy["problem"] = "child"
+            for (actor in listOf("괴물", "사자", "괴물")) {
+                d.s.slots["problem"] = "${actor}가 길을 막았어"
+                coroutineScope { d.drawFriend() }
+                assertEquals(actor, d.s.storyProblemDoll()?.words)
+            }
+        }
+    }
+
     private suspend fun withServer(server: StoryTestServer, check: suspend CoroutineScope.(Director) -> Unit) = coroutineScope {
         val base = Server.base
         val modes = Server.liveModes

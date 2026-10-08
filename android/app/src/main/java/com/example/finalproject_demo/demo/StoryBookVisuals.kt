@@ -30,6 +30,7 @@ data class SavedStoryVisuals(
     // The felt doll made for a character slot with no preset (10-06 · FriendArt.kt); older books have none.
     val friend: GeneratedFriend? = null,
     val characters: List<GeneratedFriend> = emptyList(),
+    val problemCharacter: String? = null,
 ) {
     /** Old books have only friend. New role entries take precedence over that compatibility field. */
     val cast: List<GeneratedFriend> get() = (characters + listOfNotNull(friend)).distinctBy { it.role }
@@ -43,6 +44,7 @@ fun DemoState.captureStoryVisuals() = SavedStoryVisuals(
     dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
     newcomerKind, soundLine, causeLine, Server.liveFor(mode), generatedFriend,
     generatedCharacters.filter { it.role != "problem" || readingSavedCast || it.words == storyProblemCharacter() },
+    storyProblemCharacter(),
 )
 
 /** Build a separate reading state; reopening a book must not overwrite the current conversation. */
@@ -74,6 +76,7 @@ fun DemoState.restoreStoryBook(book: SavedStoryBook): Boolean {
     generatedCharacters.clear()
     generatedCharacters.addAll(visual.cast)
     readingSavedCast = true
+    savedProblemCharacter = visual.problemCharacter ?: visual.cast.firstOrNull { it.role == "problem" }?.words
     // The stored captions already include mission results. Do not append them twice.
     m1Result = null
     m2Result = null
@@ -106,6 +109,7 @@ internal fun SavedStoryVisuals.toJson(): JSONObject {
             characters.forEach { put(JSONObject().put("role", it.role).put("words", it.words)
                 .put("image", it.image).put("rig", it.rig ?: JSONObject.NULL)) }
         })
+        .put("problemCharacter", problemCharacter ?: JSONObject.NULL)
 }
 
 internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
@@ -141,6 +145,7 @@ internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
                     item.nullableString("rig"), item.get("role") as String)
             }
         },
+        obj.nullableString("problemCharacter"),
     )
 }
 

@@ -1,5 +1,9 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.scene.HERO_SPOT
+import com.example.finalproject_demo.demo.scene.FRIEND_SPOT
+import com.example.finalproject_demo.demo.scene.PROBLEM_SPOT
+
 /** A role is an illustration binding, never a new server slot or a new story fact. */
 internal data class CharacterRequest(val role: String, val words: String)
 
@@ -40,11 +44,12 @@ private fun sameActor(a: String, b: String): Boolean {
 
 internal fun DemoState.storyProblemCharacter(): String? {
     if (mode != StoryMode.STORY) return null
+    if (readingSavedCast) return savedProblemCharacter
     return listOf("problem", "cause").asSequence()
         .filter { slotBy[it] == "child" }
         .mapNotNull { slots[it]?.let(::problemActorIn) }
         .firstOrNull { actor ->
-            listOfNotNull(slots["newcomer"], slots["name"], childName).none { sameActor(actor, it) }
+            listOfNotNull(slots["newcomer"], slots["name"], storyHeroCall, childName).none { sameActor(actor, it) }
         }
 }
 
@@ -61,4 +66,22 @@ internal fun DemoState.storyProblemDoll(): GeneratedFriend? = generatedCharacter
 internal fun DemoState.storyProblemArt(): Art? {
     val words = storyProblemCharacter() ?: storyProblemDoll()?.words ?: return null
     return storyProblemDoll()?.let { Art.Img(it.image, Art.Emoji("✨"), it.rig) } ?: storyPresetMatch(words)
+}
+
+/** Keep the kit stable as the newcomer and problem actor arrive asynchronously. */
+internal val DemoState.sceneActorCapacity: Int get() = if (mode == StoryMode.STORY) 3 else 2
+
+internal fun DemoState.storyConversationWorld() = Stage.World(buildList {
+    add(WorldItem(storyHeroArt, HERO_SPOT.x, .32f, .11f, depth = HERO_SPOT.depth))
+    if (drawing.isNotEmpty() || storyFriendDoll != null)
+        add(WorldItem(friendArt, FRIEND_SPOT.x, .32f, .13f, depth = FRIEND_SPOT.depth))
+    storyProblemArt()?.let { add(WorldItem(it, PROBLEM_SPOT.x, .32f, .11f, depth = PROBLEM_SPOT.depth)) }
+})
+
+internal fun DemoState.storyProblemOnPage(kind: PageKind, caption: String): Art? {
+    // Mission views own their touch regions. Never overlay another actor on top of their tools.
+    if (kind in setOf(PageKind.COVER, PageKind.RUB, PageKind.DRAG)) return null
+    val words = storyProblemCharacter() ?: storyProblemDoll()?.words ?: return null
+    val noun = ACTOR_NOUNS.firstOrNull { words.endsWith(it) } ?: words
+    return storyProblemArt()?.takeIf { words in caption || noun in caption }
 }
