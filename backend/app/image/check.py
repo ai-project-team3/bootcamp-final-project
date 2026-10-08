@@ -9,6 +9,7 @@ import base64
 
 import httpx
 
+from .. import vendor_errors
 from ..config import settings
 
 
@@ -25,9 +26,12 @@ async def is_safe(png: bytes) -> tuple[bool, str]:
                       "input": [{"type": "image_url", "image_url": {"url": url}}]},
             )
     except httpx.HTTPError as e:
-        return False, f"moderation network: {type(e).__name__}"
+        # still fails closed (preset) and still 200 to the app — but now the monitor sees it (#298)
+        tag = vendor_errors.note("openai", vendor_errors.classify(exc=e))
+        return False, f"moderation network: {type(e).__name__} {tag}"
     if r.status_code != 200:
-        return False, f"moderation HTTP {r.status_code}"
+        tag = vendor_errors.note("openai", vendor_errors.classify(r.status_code, r))
+        return False, f"moderation HTTP {r.status_code} {tag}"
     res = r.json()["results"][0]
     if res.get("flagged"):
         hits = [k for k, v in res.get("categories", {}).items() if v]
