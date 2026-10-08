@@ -1491,18 +1491,24 @@ private suspend fun Director.askYesNoAfterDrawing(text: String, id: String): Str
 /** D3 가 끝난 뒤 오또 그림이 이만큼 더 안 오면 기다리지 않는다 — 원본 그대로 (규칙 8 · D3 질문 동안 이미 기다렸다) */
 internal const val LATE_PICK_WAIT_MS = 3_000L
 
+/** 늦게 주문한 그림들을 모두 합쳐 [ms] 한 번만 기다린다 — 실패한 그림은 건너뛴다. 다 오면 바로 끝난다 */
+internal suspend fun awaitLateArt(arts: Collection<Deferred<ByteArray?>>, ms: Long) {
+    withTimeoutOrNull(ms) { arts.forEach { it.join() } }                 // join 은 실패한 그림에도 던지지 않는다
+}
+
 /**
  * 다 그린 뒤 주문한 오또 그림을 고르게 한다 — 책을 만들기 전에 그림판을 잠깐 올려, 그리는 중과 같은 화면에서. 원본이 기본값이다(차별점 1).
- * 아직 안 왔으면 [LATE_PICK_WAIT_MS] 만 기다리고 원본으로 둔다 (#281)
+ * 아직 안 왔으면 모두 합쳐 [LATE_PICK_WAIT_MS] 한 번만 기다리고 원본으로 둔다 — 조각마다 기다리면 책 앞에서 최악 12초 (#281 · #288 리뷰)
  */
 private suspend fun Director.pickLateDrawings(day: DiaryDay) {
     if (day.lateArt.isEmpty()) return
     boardBack()
+    awaitLateArt(day.lateArt.values.filterNotNull(), LATE_PICK_WAIT_MS)
     for ((id, art) in day.lateArt.toList()) {
         val i = day.pieces.indexOfFirst { it.id == id }
         if (i < 0) { art?.cancel(); continue }
         if (art == null) { showOttoDrawing(day, day.pieces[i]); continue }       // 대본 — 그림 글자로 고른다
-        val png = withTimeoutOrNull(LATE_PICK_WAIT_MS) { art.await() }
+        val png = if (art.isCompleted) runCatching { art.await() }.getOrNull() else null
         event("image_request", "type" to "redraw", "result" to if (png != null) "generated" else "original")
         if (png == null) {
             art.cancel()

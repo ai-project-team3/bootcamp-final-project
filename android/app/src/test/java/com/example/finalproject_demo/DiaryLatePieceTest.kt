@@ -12,13 +12,16 @@ import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.alsoThereIn
+import com.example.finalproject_demo.demo.awaitLateArt
 import com.example.finalproject_demo.demo.catchUp
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.drawRequestName
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
@@ -170,6 +173,28 @@ class DiaryLatePieceTest {
         assertTrue(await { d.s.stage !is DiaryBoard } != null)
         assertEquals("고르기는 탭 한 번 — 그 뒤 그림판을 거둘 때 또 셌다", reactions + 1, d.s.reactions)
         assertEquals("고르기만 했는데 그리기 이벤트가 또 쌓였다", makes, d.s.events.count { it.startsWith("make") })
+    }
+
+    /** 늦게 주문한 오또 그림이 여럿이어도 기다림은 한 번 — 조각마다 기다리면 책 앞에서 최악 12초 */
+    @Test
+    fun lateDrawingsAreWaitedForOnceInAll() = runBlocking {
+        val never = listOf(CompletableDeferred<ByteArray?>(), CompletableDeferred(), CompletableDeferred())
+        val ready = CompletableDeferred<ByteArray?>(byteArrayOf(1))
+        val t0 = System.nanoTime()
+        awaitLateArt(never + ready, 300)
+        val ms = (System.nanoTime() - t0) / 1_000_000
+        assertTrue("세 그림을 따로 기다렸다 — ${ms}ms", ms < 600)
+        assertTrue(ready.isCompleted)
+    }
+
+    /** 한 그림이 실패해도 나머지는 기다린다 */
+    @Test
+    fun aFailedLateDrawingDoesNotStopTheWait() = runBlocking {
+        val failed = CompletableDeferred<ByteArray?>().apply { completeExceptionally(IllegalStateException("no")) }
+        val late = CompletableDeferred<ByteArray?>()
+        launch { delay(50); late.complete(byteArrayOf(2)) }
+        awaitLateArt(listOf(failed, late), 1_000)
+        assertTrue(late.isCompleted)
     }
 
     /** 2 — 「아니」면 원본 그대로 — 고르기 화면이 뜨지 않는다 */
