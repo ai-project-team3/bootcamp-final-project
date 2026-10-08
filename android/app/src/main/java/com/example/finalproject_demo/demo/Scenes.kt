@@ -290,6 +290,7 @@ private suspend fun Director.sceneAdult() {
         return
     }
     s.paused = null          // 새 이야기 — 멈춰 둔 이야기는 버린다
+    discardDraft()           // …and its copy on the phone (#336) — the star for this new book is spent below
     s.resetStory()
     s.mode = picked
     if (Server.liveFor(picked)) com.example.finalproject_demo.net.CallLimits.bookStarted()

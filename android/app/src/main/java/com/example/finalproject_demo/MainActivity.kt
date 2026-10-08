@@ -131,11 +131,14 @@ class MainActivity : ComponentActivity() {
 fun DemoApp() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val d = remember { Director(scope, LocalStoryBookStore(context), StoryImageStore(context)).also {
+    val d = remember { Director(scope, LocalStoryBookStore(context), StoryImageStore(context),
+        com.example.finalproject_demo.demo.LocalSessionDraftStore(context)).also {
         com.example.finalproject_demo.demo.DiaryShelf.attach(context, it.s)   // 그림일기 책장 저장(#37)
         com.example.finalproject_demo.demo.CoopShelf.attach(context, it.s)    // 같이 만들기 책장 저장(#83)
-        it.recoverStoryImages()   // 세 책장을 다 붙인 뒤 — 아무 책도 안 쓰는 서버 그림을 지운다(#61 · #80)
         com.example.finalproject_demo.demo.CoopPlan.attach(context, it.s)     // 부모가 저장한 같이 만들기 이야기 · 질문(#98)
+        // 앱이 꺼지기 전에 만들던 이야기 — 방이 「이어서 할까?」를 묻는다(#336). 그림 정리보다 먼저: 그 그림을 지우지 않게
+        it.restoreDraft()
+        it.recoverStoryImages()   // 세 책장을 다 붙인 뒤 — 아무 책도 · 만들던 이야기도 안 쓰는 서버 그림을 지운다(#61 · #80 · #336)
     } }
     (context as? MainActivity)?.director = d
     var drawerOpen by remember { mutableStateOf(false) }

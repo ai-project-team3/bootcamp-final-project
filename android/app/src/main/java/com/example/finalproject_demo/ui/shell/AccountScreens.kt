@@ -173,7 +173,8 @@ fun WithdrawSheet(d: Director) {
                     ConsentStore.withdraw()
                     // 고르면 폰에 저장된 책 · 그림 · 녹음 · 아이 이름까지 파일째 지운다 (10-05 — 전엔 화면 목록만 비워 다시 켜면 돌아왔다)
                     val wiped = Shell.wipeLocal
-                    if (wiped) { LocalWipe.wipe(ctx); d.s.shelf.clear() }
+                    // the unfinished book goes too — drop it in memory first so nothing writes it back (#336)
+                    if (wiped) { d.s.paused = null; d.discardDraft(); LocalWipe.wipe(ctx); d.s.shelf.clear() }
                     d.send(Reply.Tapped("home", "처음으로"))
                     Shell.resetToFirstRun()
                     // 흐름 · 책장이 메모리에 쥐고 있던 책까지 놓도록 화면을 새로 띄운다(지운 저장소에서 다시 읽는다)
