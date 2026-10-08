@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # Runs next to the judge, only when the app sends history. "mock" = words only (tests).
     dialogue_decider: str = "jev"
     dialogue_deadline_s: float = 4.0     # past this the turn runs as before; the judge is not held up
+    # Who picks the act: "rule" (decider + rule table · served) or "llm" (the line model picks it in
+    # the same call · measurement only, eval/line_act_choose.md). #323 compares the two before deciding.
+    dialogue_policy: str = "rule"
     # medium since 10-05: 3 stories x 2 — high p50 36.9 s · medium 12.6 s · low 8.0 s, rejected 0 at all three,
     # captions read alike (low repeated a line); eval/results.md 10-05 / eval/bench_story_title.py
     llm_effort_story: str = "medium"

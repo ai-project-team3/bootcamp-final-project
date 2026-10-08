@@ -130,3 +130,31 @@ def test_a_plain_line_input_is_unchanged_by_the_feature():
     req = TurnRequest.model_validate(body(history=walked_to_park()))
     assert turn_route.user(req, None, None) == turn_route.user(req, None)
     assert "act:" not in turn_route.user(req, None)
+
+
+# --- M: the line model picks the act itself (measurement only) ---
+
+@pytest.fixture
+def llm_client(monkeypatch):
+    monkeypatch.setattr(settings, "mock", True)
+    monkeypatch.setattr(settings, "dialogue_policy", "llm")
+    return TestClient(app)
+
+
+def test_the_llm_path_applies_the_same_rules_after_its_choice(llm_client):
+    out = llm_client.post("/turn", json=body(utterance="그거 아니야", history=walked_to_park())).json()
+    assert out["line"]["act"] == "repair" and out["retract"] == ["companion"]
+    assert out["judge"]["slot_1"] is None
+
+
+def test_the_llm_path_without_history_is_a_plain_turn(llm_client):
+    out = llm_client.post("/turn", json=body()).json()
+    assert out["line"]["act"] is None and out["retract"] == []
+
+
+def test_the_choosing_schema_adds_act_target_and_new_value():
+    from app.routers import turn as turn_route
+    s = turn_route.choose_schema()
+    assert {"act", "target", "new_value"} <= set(s["required"])
+    assert None in s["properties"]["act"]["enum"] and "repair" in s["properties"]["act"]["enum"]
+    assert "act" not in turn_route.schema()["properties"]      # the served schema is untouched

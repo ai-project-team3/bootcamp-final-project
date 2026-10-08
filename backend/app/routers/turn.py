@@ -8,6 +8,7 @@ The phone fills any missing half from its script (spec §3-0).
 The prompt is read from eval/line_prompt.md, not copied (one thing in one place).
 """
 import asyncio
+import json
 import logging
 import time
 from functools import lru_cache
@@ -16,11 +17,12 @@ from fastapi import APIRouter, HTTPException
 
 from ..config import REPO, settings
 from ..dialogue import policy, recipes
-from ..dialogue.decide import decide
+from ..dialogue.decide import Decision, decide, state_text
+from ..dialogue.decide import mock as mock_decision
 from ..filters.blocklist import eojeol, has_unknown_placeholder, is_blocked
 from ..llm.client import LLMError, complete
 from ..llm.judge_prompt import load_schema, system_block
-from ..schemas.judge import JudgeResult
+from ..schemas.judge import SLOT_NAMES, JudgeResult
 from ..schemas.turn import Act, Line, TurnRequest, TurnResult
 from . import judge
 
@@ -147,25 +149,9 @@ async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30
     return shape(line, req, v)
 
 
-@router.post("/turn", response_model=TurnResult)
-async def turn(req: TurnRequest) -> TurnResult:
-    # one deadline for the whole turn, under the phone's 30 s: the judge first (≤ 18 s),
-    # the line gets what is left — a slow vendor costs the line, never the verdict
-    t0 = time.monotonic()
-    # with history (#323) the quick decider runs next to the judge, so the turn waits for the slower
-    # of the two, not both. It never raises: no opinion = the turn runs as before
-    verdict, d = await asyncio.gather(judge.run(req), decide(req), return_exceptions=True)
-    if isinstance(d, BaseException):
-        log.warning("dialogue decider raised in /turn: %s", d)
-        d = None
-    if isinstance(verdict, LLMError):
-        log.warning("judge failed in /turn: %s", verdict)
-        verdict = None
-    elif isinstance(verdict, BaseException):
-        raise verdict
-    v = verdict
-
-    act = policy.act_for(d)
+def apply_act(act: Act | None, d: Decision | None, req: TurnRequest,
+              v: JudgeResult | None) -> tuple[JudgeResult | None, list[str], recipes.Recipe | None]:
+    """The rules after an act is known — the same whether the rules (R) or the line model (M) picked it."""
     retract = policy.retract_for(act, d, req)
     recipe = recipes.build(act, req, d, retract) if act else None
     if act and v is not None and v.reason != "blocked_by_filter":
@@ -176,7 +162,89 @@ async def turn(req: TurnRequest) -> TurnResult:
             v = v.model_copy(update={"next_slot": recipe.question_slot})
     if act:
         log.info("dialogue act %s · retract %s", act, retract)
+    return v, retract, recipe
 
+
+# --- M: the line model picks the act itself (measurement only · #323 「규칙 대 LLM」) ---
+
+_INTENT_OF = {act: intent for intent, act in policy.ACTS.items() if act}
+
+
+@lru_cache(maxsize=None)
+def choose_schema() -> dict:
+    s = json.loads(json.dumps(schema()))
+    s["properties"]["act"] = {"type": ["string", "null"], "enum": [*_INTENT_OF, None]}
+    s["properties"]["target"] = {"type": ["string", "null"], "enum": [*SLOT_NAMES, None]}
+    s["properties"]["new_value"] = {"type": "boolean"}
+    s["required"] = [*s["required"], "act", "target", "new_value"]
+    return s
+
+
+@lru_cache(maxsize=None)
+def choose_system(mode: str | None) -> str:
+    return f"{system_for(mode, 'repair')}\n\n{system_block(EVAL / 'line_act_choose.md')}"
+
+
+async def run_line_choosing(req: TurnRequest, v: JudgeResult | None,
+                            budget_s: float) -> tuple[Line | None, Act | None, Decision | None]:
+    """One line call that also picks the act. Same input as a plain turn plus the decider's [대화]."""
+    if v is not None and v.reason == "blocked_by_filter":
+        return None, None, None
+    if settings.mock:
+        d = mock_decision(req)
+        act = policy.ACTS.get(d.intent)
+        line = shape(mock_line(req, v), req, v)
+        line.act = act
+        return line, act, d
+    if budget_s < LINE_MIN_S:
+        return None, None, None
+    try:
+        raw = await complete(choose_system(req.mode), f"{user(req, v)}\n{state_text(req)}", choose_schema(),
+                             name="mascot_line_choose", effort=settings.llm_effort_line, timeout_s=budget_s)
+    except LLMError as e:
+        log.warning("choosing line failed: %s", e)
+        return None, None, None
+    act = raw.pop("act", None)
+    d = Decision(_INTENT_OF.get(act, "answer"), None, raw.pop("target", None), None, bool(raw.pop("new_value", False)))
+    line = Line.model_validate(raw)
+    if check(line):
+        return None, act, d
+    line.act = act
+    return shape(line, req, v), act, d
+
+
+async def _judge(req: TurnRequest) -> JudgeResult | None:
+    try:
+        return await judge.run(req)
+    except LLMError as e:
+        log.warning("judge failed in /turn: %s", e)
+        return None
+
+
+@router.post("/turn", response_model=TurnResult)
+async def turn(req: TurnRequest) -> TurnResult:
+    # one deadline for the whole turn, under the phone's 30 s: the judge first (≤ 18 s),
+    # the line gets what is left — a slow vendor costs the line, never the verdict
+    t0 = time.monotonic()
+    if req.history and settings.dialogue_policy == "llm":
+        v = await _judge(req)
+        line, act, d = await run_line_choosing(req, v, settings.turn_deadline_s - (time.monotonic() - t0))
+        v, retract, _ = apply_act(act, d, req, v)
+        if v is None and line is None:
+            raise HTTPException(502, "judge and line both failed")
+        return TurnResult(judge=v, line=line, retract=retract)
+
+    # with history (#323) the quick decider runs next to the judge, so the turn waits for the slower
+    # of the two, not both. It never raises: no opinion = the turn runs as before
+    v, d = await asyncio.gather(_judge(req), decide(req), return_exceptions=True)
+    if isinstance(v, BaseException):
+        raise v
+    if isinstance(d, BaseException):
+        log.warning("dialogue decider raised in /turn: %s", d)
+        d = None
+
+    act = policy.act_for(d)
+    v, retract, recipe = apply_act(act, d, req, v)
     line = await run_line(req, v, settings.turn_deadline_s - (time.monotonic() - t0), recipe)
     if v is None and line is None:
         raise HTTPException(502, "judge and line both failed")
