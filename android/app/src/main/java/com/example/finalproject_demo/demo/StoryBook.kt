@@ -58,8 +58,8 @@ fun DemoState.useGeneratedStory(captions: List<String>?): Boolean {
     return valid
 }
 
-/** Slot 1 rubs the default dust — nothing the child said and no prop from the story (#321 review) */
-internal fun DemoState.defaultRub(): Boolean = slot1Prop() == null && mission1().blobName == "먼지" && !mission1FromChildWords()
+/** Slot 1 rubs the nameless default (NAMELESS_RUB · was 「먼지」) — nothing the child said (#321 review · #329) */
+internal fun DemoState.defaultRub(): Boolean = slot1Prop() == null && !mission1().named
 
 /**
  * Where a page's mission came from, sent with `/story` (`pages[].mission_source`, lead decision 10-08 #321): `child` the
