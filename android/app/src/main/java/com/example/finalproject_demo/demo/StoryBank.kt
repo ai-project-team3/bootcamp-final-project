@@ -329,9 +329,9 @@ val BANK: List<QVariant> = listOf(
                 Answer("마스코트한테 도와 달라고 해.", "마스코트", el = setOf("시도"), lv = 2),
                 Answer("${it.pn}한테! 무서울 땐 어른한테 말해야 하니까.", it.pn, el = setOf("시도"), reason = true, con = true, lv = 3),
                 Answer("${it.v} 선장님한테 알려서 고쳐 달라고 할래.", "${it.v} 선장님", el = setOf("시도", "결과"), lv = 3),
-            )
+            ).filter { answer -> it.hasPartner || answer.value != it.pn }
         },
-        fallback = { Answer(it.pn, it.pn) }),
+        fallback = { if (it.hasPartner) Answer(it.pn, it.pn) else Answer("어떻게 할지 생각해 볼래.", "스스로") }),
     QVariant("c_help_how", "helper", MID_UP, Kind.HARD, "'어떻게' 알릴지 말하나 (S1)",
         text = { "어떻게 하면 도움을 받을 수 있을까?" }, easier = { "누구한테 말하면 될까?" },
         answers = {
@@ -340,9 +340,9 @@ val BANK: List<QVariant> = listOf(
                 Answer("${it.pn}한테 달려가서 말해.", it.pn, reason = true, lv = 2),
                 Answer("큰 소리로 도와주세요! 해.", "마스코트", reason = true, lv = 2),
                 Answer("${it.pn}한테 가서 무슨 일인지 차근차근 말해. 그러면 도와줄 거야.", it.pn, reason = true, el = setOf("결과"), con = true, lv = 3),
-            )
+            ).filter { answer -> it.hasPartner || answer.value != it.pn }
         },
-        fallback = { Answer(it.pn, it.pn) }),
+        fallback = { if (it.hasPartner) Answer(it.pn, it.pn) else Answer("어떻게 할지 생각해 볼래.", "스스로") }),
     QVariant("c_resolve", "resolve", ALL, Kind.HARD, "해결 방법을 말하나 (S1 · S2)",
         text = { "어떻게 하면 ${it.f}${rang(it.f)} 사이좋게 지낼 수 있을까?" }, easier = { "${it.f}${ga(it.f)} 웃으려면 뭐가 있으면 좋을까?" },
         answers = { solutionPool(it).shuffledKeepSpread() }, cards = SOLUTION_CARDS),
@@ -720,7 +720,7 @@ class StoryTemplate(
     val shape: String,
 )
 
-private fun DemoState.partnerTail() = partnerHelpLine?.let { " $it." } ?: ""
+private fun DemoState.partnerTail() = partnerHelpLine?.takeIf { hasPartner }?.let { " $it." } ?: ""
 
 /**
  * 「사건」 장면에서 아이가 한 말(`reaction`)을 책 문장으로 짓는다 (9/22).
@@ -774,14 +774,21 @@ private fun DemoState.stuck() = mission1().stuck
 private fun DemoState.eg(w: String) = "${w}에게"
 
 private fun helperLine(s: DemoState): String {
-    val h = s.slot("helper", s.pn)
+    val h = s.slot("helper", if (s.hasPartner) s.pn else "")
     return when {
-        h == s.pn && s.partner.honor -> "${s.pSubj()} \"말해 줘서 고맙구나\" 하고 꼭 안아 주셨어요."
-        h == s.pn && !s.partner.adult -> "친구가 \"내가 같이 있을게!\" 하고 손을 잡아 주었어요."
-        h == s.pn -> "$h${ga(h)} \"말해 줘서 고마워\" 하고 꼭 안아 주었어요."
+        s.hasPartner && h == s.pn && s.partner.honor -> "${s.pSubj()} \"말해 줘서 고맙구나\" 하고 꼭 안아 주셨어요."
+        s.hasPartner && h == s.pn && !s.partner.adult -> "친구가 \"내가 같이 있을게!\" 하고 손을 잡아 주었어요."
+        s.hasPartner && h == s.pn -> "$h${ga(h)} \"말해 줘서 고마워\" 하고 꼭 안아 주었어요."
         h == "마스코트" -> "마스코트가 \"걱정 마!\" 하고 날개를 활짝 폈어요."
         else -> "$h${ga(h)} \"잘했어!\" 하고 달려와 주었어요."
     }
+}
+
+private fun helperPage(s: DemoState): String {
+    val helper = s.slot("helper", if (s.hasPartner) s.pn else "")
+    if (helper.isBlank() || helper in setOf("스스로", "혼자", "나 혼자")) return "그다음 ${s.c}${eun(s.c)} 무슨 일이 있었는지 돌아보고, 어떻게 할지 생각했어요."
+    val to = if (s.hasPartner && helper == s.pn && s.partner.honor) "${helper}께" else "${helper}에게"
+    return "그다음 ${s.c}${eun(s.c)} $to 달려가 무슨 일이 있었는지 말했어요. ${helperLine(s)}"
 }
 
 private fun ieoss(w: String) = if (bat(w)) "${w}이었어요" else "${w}였어요"
@@ -809,7 +816,7 @@ val TEMPLATES: List<StoryTemplate> = listOf(
             PageSpec(PageKind.SHAKE) { "그런데 갑자기 ${it.th.eventLine}. ${it.nk} ${it.f}${ga(it.f)} ${it.v}${eul(it.v)} 붙잡고 마구 흔들고 있었어요!${it.reactionTail()}" },
             PageSpec(PageKind.TALK) { "${it.c}${eun(it.c)} 용기를 내서 \"${it.slot("response", "그만!")}\" 하고 또박또박 말했어요." },
             PageSpec(PageKind.RUB) { "하지만 흔들린 ${it.v}에 ${it.stuck()}! ${it.c}${eun(it.c)} ${it.mission1().toolName}${ro(it.mission1().toolName)} 슥슥 치웠어요." },
-            PageSpec(PageKind.TALK) { "그다음 ${it.c}${eun(it.c)} ${it.slot("helper", it.pn).let { h -> if (h == it.pn && it.partner.honor) "${h}께" else "${h}에게" }} 달려가 무슨 일이 있었는지 말했어요. ${helperLine(it)}" },
+            PageSpec(PageKind.TALK) { helperPage(it) },
             PageSpec(PageKind.DRAG) { "그러자 ${it.f}${eun(it.f)} 고개를 숙이고 \"${it.causeLine}. 미안해\" 하고 말했어요. ${it.c}${eun(it.c)} ${it.eg(it.f)} ${it.give()}." },
             PageSpec(PageKind.TOGETHER) { "그 뒤로 ${it.c}${wa(it.c)} ${it.f}${eun(it.f)} ${it.solutionLine}.${it.partnerTail()} 둘은 다음에도 사이좋게 놀기로 했어요." },
         ),

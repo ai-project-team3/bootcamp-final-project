@@ -7,6 +7,7 @@ import com.example.finalproject_demo.demo.coopGuard
 import com.example.finalproject_demo.demo.coopRedirect
 import com.example.finalproject_demo.demo.fantasyWordIn
 import com.example.finalproject_demo.demo.isWildForReality
+import com.example.finalproject_demo.demo.pastEcho
 import com.example.finalproject_demo.ui.CoopReason
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -41,6 +42,8 @@ class CoopReactTest {
         listOf("기다렸어", "재밌었어", "놀았어요", "기다려", "같이 해 줘", "이거 봐", "좋아요").forEach { t ->
             listOf(null, CoopRole.THING, CoopRole.PLACE, CoopRole.WHO).forEach { role ->
                 val a = coopAck(t, role, done)
+                // 짧은 지난 일 말의 끝만 바꾼 되비추기(「재밌었구나!」 · #304)는 이름 되짚기가 아니다
+                if (a != null && a == pastEcho(t)) return@forEach
                 assertFalse("$t($role) → $a", a != null && a.dropLast(1).removeSuffix("이구나").removeSuffix("구나").let { it.isNotEmpty() && it in t && a !in setOf("그랬구나!", "우와!", "응응!") })
             }
         }

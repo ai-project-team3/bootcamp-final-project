@@ -10,11 +10,35 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
+import com.example.finalproject_demo.net.Server
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class StoryBookVoiceCacheTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
+
+    @Test fun aPrefetchedPageIsSavedButAnExistingLocalVoiceWins() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob())
+        val store = LocalStoryBookStore(context)
+        val d = Director(scope, store)
+        val book = SavedStoryBook("prefetch-save", "조개", "sea", "bg_sea",
+            listOf(SavedStoryPage(PageKind.TOGETHER, "집에 왔어요.")))
+        val line = book.pages.single().caption
+        val previousModes = Server.liveModes
+        val previousBase = Server.base
+        Server.base = "http://127.0.0.1:9"
+        Server.liveModes = setOf(StoryMode.STORY)
+        var calls = 0
+        try {
+            d.offerVoice(line, byteArrayOf(7))
+            assertArrayEquals(byteArrayOf(7), d.savedBookVoice(book, StoryMode.STORY, line) { calls++; byteArrayOf(1) })
+            assertEquals(0, calls)
+            assertArrayEquals(byteArrayOf(7), store.voices.read(StoryMode.STORY, book.id, line))
+            d.offerVoice(line, byteArrayOf(8))
+            assertArrayEquals(byteArrayOf(7), d.savedBookVoice(book, StoryMode.STORY, line) { calls++; byteArrayOf(1) })
+            assertEquals(0, calls)
+        } finally { Server.liveModes = previousModes; Server.base = previousBase; scope.cancel() }
+    }
 
     @Test fun secondReadAfterRestartGeneratesOnlyMissingOrChangedPagesInBothModes() = runBlocking {
         for (mode in listOf(StoryMode.STORY, StoryMode.COOP)) {

@@ -27,6 +27,8 @@ data class Mission2(
     /** "건네줄까" 뒤에 붙는 동작 — 책 5쪽 자막 */
     val give: String,
     val done: String,
+    /** 아이 말(해결 물건)에서 나왔나 — false 면 못 찾아서 쓴 기본 소품(별). 로그 · 리포트에 「말한」으로 적지 않는다 (#304) */
+    val fromChild: Boolean = true,
 )
 
 /**
@@ -140,7 +142,22 @@ fun DemoState.mission2(): Mission2 = when (solutionItem) {
     "block" -> Mission2("prop_block", "🧱", "블록", "블록 하나를 건네주었어요", "블록을 받고 같이 쌓기 시작했어!")
     "picturebook" -> Mission2("prop_picturebook", "📗", "그림책", "그림책을 건네주었어요", "그림책을 받고 눈이 반짝!")
     "bandaid" -> Mission2("prop_bandaid", "🩹", "반창고", "반창고를 붙여 주었어요", "반창고를 붙이고 씩 웃어!")
-    else -> Mission2("obj_star", "⭐", "별", "반짝이는 별을 건네주었어요", "별을 받고 활짝 웃어!")
+    else -> Mission2("obj_star", "⭐", "별", "반짝이는 별을 건네주었어요", "별을 받고 활짝 웃어!", fromChild = false)
+}
+
+/**
+ * 책 로그의 미션 2 한 줄(아이 말에서 고른 미션이 아닐 때). 기본 소품이면 「말한」이라 적지 않는다 —
+ * 협업도 일기 질문을 같이 써서 아이가 말하지 않은 별이 「4턴째에 말한 별」로 남았다(#304)
+ */
+fun DemoState.m2Log(page: Int): String {
+    val m = mission2()
+    val how = if (m1Result == "helped") "쉬움 · 탭" else "보통 · 끌어다 놓기"
+    val what = when {
+        !m.fromChild -> "기본 소품 ${m.itemName} — 아이 말에서 나온 것 아님 ·"
+        isDiary -> "해결에서 나온 ${m.itemName}${eul(m.itemName)}"
+        else -> "장면 10에서 말한 ${m.itemName}${eul(m.itemName)}"
+    }
+    return "${page}쪽 미션 2 ($how) — $what ${friendCallName}에게"
 }
 
 /** "심심했어" → "심심했대" (남의 말을 전할 때) */

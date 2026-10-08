@@ -22,7 +22,8 @@ from .config import settings
 log = logging.getLogger(__name__)
 
 # won per successful call, 10-02 measurement (USD 1 = 1,400 won)
-PRICES = {"/tts": 3.69, "/turn": 0.90, "/story": 2.49, "/judge": 0.63}
+# /partner (Jev, once a session · #303) has no measured price yet — counted at the /judge rate
+PRICES = {"/tts": 3.69, "/turn": 0.90, "/story": 2.49, "/judge": 0.63, "/partner": 0.63}
 
 _lock = threading.Lock()
 _state = {"day": "", "spent": 0.0, "warned": False}

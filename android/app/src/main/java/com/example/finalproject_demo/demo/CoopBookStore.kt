@@ -338,7 +338,8 @@ object CoopShelf {
         books[s]?.removeAll { it.book.id == id }
         snapshots.remove(id)
         s.shelf.removeAll { it.savedStoryId == COOP_SHELF_ID + id }
-        SessionReports.forget(COOP_SHELF_ID + id)
+        SessionReports.forget(COOP_SHELF_ID + id, s)
+        CoopPlan.forgetBook(s, id)   // the 「다녀온 뒤」 box must not offer a book that is gone (#223)
         return true
     }
 

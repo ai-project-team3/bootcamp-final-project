@@ -1,0 +1,16 @@
+{
+  "name": "kit_dino_volcano_crayon",
+  "of": "kit_dino_volcano",
+  "kind": "cut",
+  "text": "cone-shaped brown volcano mountain with a dark red crater and a small white puff of smoke rising from its top",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 414154881,
+  "prompt": "cone-shaped brown volcano mountain with a dark red crater and a small white puff of smoke rising from its top, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "gen_kit.py",
+  "made": "2026-10-07"
+}

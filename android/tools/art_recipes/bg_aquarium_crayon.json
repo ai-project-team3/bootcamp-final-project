@@ -1,0 +1,14 @@
+{
+  "name": "bg_aquarium_crayon",
+  "kind": "bg",
+  "text": "a big aquarium tank window seen from inside a dim aquarium hall, colourful fish, coral and seaweed behind the glass, a low wooden rail in front",
+  "style": "crayon",
+  "size": [
+    1344,
+    768
+  ],
+  "seed": 1313192219,
+  "prompt": "a big aquarium tank window seen from inside a dim aquarium hall, colourful fish, coral and seaweed behind the glass, a low wooden rail in front, wide landscape, no characters, no people, no animals, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-07"
+}

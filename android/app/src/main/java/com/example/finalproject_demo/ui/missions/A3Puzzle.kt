@@ -75,7 +75,6 @@ import com.example.finalproject_demo.demo.PageKind
 import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.demo.pageKind
 import com.example.finalproject_demo.demo.Director
-import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.demo.SavedStoryBook
 import com.example.finalproject_demo.demo.bookCaption
@@ -118,17 +117,11 @@ internal fun PuzzleMission(d: Director, done: Boolean) {
 
     val placed = remember { mutableStateListOf(*Array(count) { done }) }
     val drag = remember { List(count) { Animatable(Offset.Zero, Offset.VectorConverter) } }
-    var sent by remember { mutableStateOf(done) }
     val allIn = done || placed.all { it }
     val puffs = rememberParticleField()
     val scope = rememberCoroutineScope()
-
-    LaunchedEffect(allIn) {
-        if (!allIn || sent) return@LaunchedEffect
-        sent = true
-        Sfx.play(Sound.SPARKLE, 0L, view = view)
-        d.send(Reply.Tapped("mission", "미션2"))
-    }
+    // 다른 미션과 같은 신호 — 반짝 한 번 · 완료 장면을 보인 뒤 보낸다 (#260)
+    MissionDoneSignal(d, allIn, done, "미션2")
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat()

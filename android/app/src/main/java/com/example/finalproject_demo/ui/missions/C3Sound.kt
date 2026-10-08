@@ -11,18 +11,13 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,13 +33,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -109,6 +104,7 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
     val idle = rememberIdleHint(fill, finished)
+    val hint = rememberMissionHint(d, fill, finished, "C3")
     MissionDoneSignal(d, finished, done, "미션1")
     val bounce = remember { Animatable(1f) }
     fun nudge() { scope.launch { bounce.snapTo(1.12f); bounce.animateTo(1f, spring(dampingRatio = 0.35f)) } }
@@ -140,23 +136,35 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
         val cx = 0.56f * wpx; val cy = 0.44f * hpx
         Stand(0.18f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize()) }
 
-        val dx = if (vehicle) go * wpx * 0.5f else 0f
+        // 소리를 낼 때마다 대상이 한 칸씩 — 소방차 · 자동차는 앞으로 조금씩 나오고, 동물은 조금씩 고개를 든다(커진다).
+        // 진행 막대 대신 대상 자체가 진행이다 — 4세 미만에게는 추상적 막대가 통하지 않는다 (#260 §6-2)
+        val step by animateFloatAsState(fill.coerceIn(0f, 1f), spring(dampingRatio = 0.5f), label = "step")
+        val dx = if (vehicle) go * wpx * 0.5f + step * wpx * 0.10f else 0f
         val dy = if (vehicle) 0f else -go * hpx * 0.08f
+        val grow = if (vehicle) 1f else 1f + 0.12f * step
         Box(
             Modifier
                 .offset { IntOffset((cx - size / 2 + dx).roundToInt(), (cy - size / 2 + dy).roundToInt()) }
                 .size((size / density).dp)
-                .scale(bounce.value)
+                .scale(bounce.value * grow)
                 .alpha(if (vehicle) 1f - go * 0.6f else 1f)
                 .pointerInput(finished) {
                     if (finished) return@pointerInput
                     detectTapGestures {
                         fill = minOf(1f, fill + SOUND_TAP); pops++; nudge()
-                        Sfx.play(Sound.SPARKLE, minGapMs = 120L, view = view)
+                        // 누를 때마다 톡 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
+                        Sfx.play(Sound.POP, minGapMs = 120L, view = view)
                     }
                 },
         ) {
-            Box(Modifier.fillMaxSize().touchOutline(!finished)) { ArtView(Art.Img(prop.art, Art.Emoji(prop.emoji)), Modifier.fillMaxSize()) }
+            // 다 하면 동물이 대답하듯 입을 벌린다(사자 어흥 · 강아지 멍멍 그림 · 없으면 원래 그림)
+            val base = Art.Img(prop.art, Art.Emoji(prop.emoji))
+            val art = when {
+                finished && prop == SoundProp.LION -> Art.Img("prop_lion_roar", base)
+                finished && prop == SoundProp.DOG -> Art.Img("prop_puppy_bark", base)
+                else -> base
+            }
+            Box(Modifier.fillMaxSize().touchOutline(!finished)) { ArtView(art, Modifier.fillMaxSize()) }
         }
 
         // 따라 할 소리 — 크게 띄운다. 소리를 낼 때마다 한 번씩 톡 커진다
@@ -172,18 +180,12 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
                 .padding(horizontal = 18.dp, vertical = 6.dp),
         )
 
-        // 얼마나 찼나 — 펠트 막대(점수가 아니라 「조금만 더」를 보이는 것)
-        Box(
-            Modifier
-                .offset { IntOffset((cx - 110.dp.toPx()).roundToInt(), (cy + size / 2 + 4.dp.toPx()).roundToInt()) }
-                .width(220.dp).height(18.dp)
-                .clip(RoundedCornerShape(Radius.Round))
-                .background(FeltWhite.copy(alpha = 0.85f)),
-        ) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(fill.coerceIn(0f, 1f)).clip(RoundedCornerShape(Radius.Round)).background(Coral))
-        }
 
-        if (idle && !finished) {
+        // 15초 흐릿한 예시 — 손이 소품을 톡 톡 두 번 누른다(채움은 그대로 · 아이가 누르거나 소리 낸다)
+        if (hint != null && !finished) {
+            val up = Offset(cx, cy + size * 0.35f); val on = Offset(cx, cy)
+            GhostHand(ghostAlong(listOf(up, on, up, on), hint), wpx * 0.06f, hint)
+        } else if (idle && !finished) {
             val press by rememberInfiniteTransition(label = "c3hint").animateFloat(
                 0f, 1f, infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "press",
             )
