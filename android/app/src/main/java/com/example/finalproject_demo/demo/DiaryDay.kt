@@ -54,6 +54,9 @@ data class DiaryPiece(
     override fun hashCode() = id
 }
 
+/** 아이 획 없이 오또가 깐 배경 (#264) — 아이가 그린 것 목록 · 조각 질문 · 리포트 횟수에서 빠진다 */
+val DiaryPiece.byOtto: Boolean get() = strokes.isEmpty() && ottoPng != null
+
 /**
  * 날씨 — **지어내지 않는다.** 아이가 해 · 구름 · 비 · 눈을 그리고 그렇게 이름 붙였으면 저절로,
  * 아니면 그림일기 쪽에서 아이가 누른다.
@@ -194,8 +197,14 @@ class DiaryDay {
 
     fun canCallTurn(): Boolean = turnBudget.let { it == null || turnCalls < it }
 
-    /** 이름 붙은 조각의 이름 — 그린 차례대로, 뒤에 [alsoDrawn]. 같은 이름은 한 번만 */
-    val pieceNames: List<String> get() = (pieces.mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) } + alsoDrawn).distinct()
+    /** 이름 붙은 조각의 이름 — 그린 차례대로, 뒤에 [alsoDrawn]. 같은 이름은 한 번만. 오또가 깐 배경([byOtto])은 아이가 그린 것이 아니다(규칙 5) */
+    val pieceNames: List<String> get() = (pieces.filterNot { it.byOtto }.mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) } + alsoDrawn).distinct()
+
+    /** D3 에서 「배경으로 그려 줄까?」를 이미 물었다 — 한 일기에 한 번 (#264) */
+    var placeBgOffered = false
+
+    /** 아이가 「응」 한 장소 배경 — 뒤에서 그리는 중. 책 만들기 전에 거둔다 (#264) */
+    var placeBg: kotlinx.coroutines.Deferred<ByteArray?>? = null
 
     /**
      * 이름 붙은 조각에 이어 그리고 아이가 말한 것 — 「조개 그렸어」(바다에 붙여 그렸다). 조각은 하나로 두고 그린 것 이름에만 더한다.
