@@ -27,9 +27,11 @@ class FriendArtTest {
         newcomerKind = newcomer
     }
 
+    /** Co-op after the drawing choice — no doll is asked for before it (#339 · CoopCompanionPresetTest) */
     private fun coop(companion: String) = DemoState().apply {
         mode = StoryMode.COOP
         companionKind = companion
+        done += COOP_DRAW_DECIDED
     }
 
     @Test

@@ -344,13 +344,13 @@ class DiaryTest {
         // 미션 1 — ① 아이가 말한 일이 먼저다 (9/21: 장소만 보다가 엉뚱한 미션이 나왔다)
         assertEquals("물감", diaryState().apply { placeLabel = "놀이터"; problem = "그림 그리기" }.mission1().blobName)
         assertEquals("모래", diaryState().apply { placeLabel = "어린이집"; problem = "모래놀이" }.mission1().blobName)
-        assertEquals("블록 놀이를 물감 놀이로 바꿨다", "먼지", diaryState().apply { placeLabel = "어린이집"; problem = "블록이 무너짐" }.mission1().blobName)
+        assertFalse("블록 놀이를 물감 놀이로 바꿨다 — 이름 없는 반짝이 가루(#259)", diaryState().apply { placeLabel = "어린이집"; problem = "블록이 무너짐" }.mission1().named)
         // ② 말한 일에서 못 찾으면 장소에서
         assertEquals("모래", diaryState().apply { placeLabel = "놀이터" }.mission1().blobName)
         assertEquals("물감", diaryState().apply { placeLabel = "어린이집" }.mission1().blobName)
         assertEquals("나뭇잎", diaryState().apply { placeLabel = "공원" }.mission1().blobName)
         // ③ 둘 다 없으면 무엇이 묻었다고 지어내지 않는다 — 하루 먼지를 턴다
-        assertEquals("먼지", diaryState().apply { placeLabel = "할머니 집" }.mission1().blobName)
+        assertFalse("지어내지 않는다 — 이름 없는 반짝이 가루(#259)", diaryState().apply { placeLabel = "할머니 집" }.mission1().named)
         // 동화 모드는 그대로 — 장면 4의 "누가 흔들었나"에서 나온다
         assertEquals("불", DemoState().apply { newcomerKind = "외계인" }.mission1().blobName)
 

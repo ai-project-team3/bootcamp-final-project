@@ -21,7 +21,25 @@ data class Mission1(
     /** "불이 붙었어요" 처럼 흔적이 생긴 모양 (책 4쪽 자막) */
     val stuck: String,
     val done: String,
+    /**
+     * Whether it may be called by name — false for the **nameless sparkle dust** used when nothing was found ([NAMELESS_RUB] · #259 §4-3 4).
+     * The ask · book · badge then say only the action (「문질러서 깨끗하게」), not the name
+     */
+    val named: Boolean = true,
 )
+
+/**
+ * When nothing to rub was found in the child's words — it used to be dust. The child never said dust, yet Otto said 「먼지가 아직 잔뜩
+ * 남아 있어」 and the badge said 「먼지 치운 손」 (#259). The picture is nameless sparkle dust; the words are the action only
+ */
+internal val NAMELESS_RUB = Mission1("prop_sparkle_dust", "✨", "반짝이 가루", "prop_sparkle", "✨", "ic_hand", "✋", "손",
+    "반짝이 가루가 묻었어요", "반짝반짝 깨끗해졌어!", named = false)
+
+/**
+ * When nothing to give was found in the child's words — it used to be a star (#259 · #309). The picture is a small gift box, the name only 「선물」.
+ * The picture is `prop_gift` (#326 — felt · crayon sets, the same shape as `ic_gift`). A build without it (before #326) draws 🎁
+ */
+internal val NAMELESS_GIVE = Mission2("prop_gift", "🎁", "선물", "작은 선물을 건네주었어요", "선물을 받고 활짝 웃어!", fromChild = false)
 
 data class Mission2(
     val item: String, val itemEmoji: String, val itemName: String,
@@ -53,7 +71,8 @@ private fun diaryMission1(s: DemoState): Mission1 {
     val leaf = Mission1("prop_leaf", "🍂", "나뭇잎", "prop_sparkle", "✨", "prop_broom", "🧹", "빗자루", "나뭇잎이 잔뜩 붙었어요", "나뭇잎을 다 쓸어 냈어!")
     val water = Mission1("prop_splash", "💦", "물방울", "prop_sparkle", "✨", "prop_sponge", "🧽", "수건", "물이 잔뜩 튀었어요", "물기를 뽀송하게 다 닦았어!")
     val crumb = Mission1("prop_strawberry", "🍓", "부스러기", "prop_sparkle", "✨", "ic_hand", "✋", "손", "간식 부스러기가 묻었어요", "부스러기를 탈탈 다 털어 냈어!")
-    val dust = Mission1("prop_cloud", "🌫", "먼지", "prop_sparkle", "✨", "ic_hand", "✋", "손", "하루 먼지가 뽀얗게 앉았어요", "먼지를 탈탈 다 털어 냈어!")
+    // Nothing found in the child's words or the place — no made-up dirt; the nameless sparkle dust (#259)
+    val dust = NAMELESS_RUB
 
     return when (stainSaid(said)) {
         // ① 아이가 말한 일 — 장소보다 먼저다
@@ -126,9 +145,8 @@ fun DemoState.mission1(liveStory: Boolean = com.example.finalproject_demo.net.Se
     "원숭이" -> Mission1("prop_banana", "🍌", "바나나 껍질", "prop_sparkle", "✨", "ic_hand", "✋", "손", "바나나 껍질이 잔뜩 붙었어요", "바나나 껍질을 다 치웠어!")
     "화산" -> Mission1("prop_lava", "🔥", "용암", "prop_smoke", "💨", "prop_hose", "🚿", "물대포", "용암이 튀어 불이 붙었어요", "불이 다 꺼졌어!")
     // a live story's newcomer is the child's own words (「고슴도치처럼 생긴 바늘괴물」), not one of the script's kinds —
-    // falling to fire put 「불이 사라졌어요」 into a book with no fire (10-05). Dust fits any story
-    else -> if (liveStory)
-        Mission1("prop_cloud", "🌫", "먼지", "prop_sparkle", "✨", "ic_hand", "✋", "손", "먼지가 뽀얗게 앉았어요", "먼지를 탈탈 다 털어 냈어!")
+    // falling to fire put 「불이 사라졌어요」 into a book with no fire (10-05). Nothing named fits any story (#259 — was dust)
+    else -> if (liveStory) NAMELESS_RUB
     else Mission1("prop_fire", "🔥", "불", "prop_smoke", "💨", "prop_hose", "🚿", "물대포", "불이 붙었어요", "불이 다 꺼졌어!")
 }
 
@@ -143,11 +161,12 @@ fun DemoState.mission2(): Mission2 = when (solutionItem) {
     "block" -> Mission2("prop_block", "🧱", "블록", "블록 하나를 건네주었어요", "블록을 받고 같이 쌓기 시작했어!")
     "picturebook" -> Mission2("prop_picturebook", "📗", "그림책", "그림책을 건네주었어요", "그림책을 받고 눈이 반짝!")
     "bandaid" -> Mission2("prop_bandaid", "🩹", "반창고", "반창고를 붙여 주었어요", "반창고를 붙이고 씩 웃어!")
-    // A scripted story's star is what the child picked in scene 10 (「별 따기」) — the child's own. A live story's or
-    // a co-op book's "star" is the first value left unchanged (nothing found) — the default (#309 · #321 review)
-    "star" -> Mission2("obj_star", "⭐", "별", "반짝이는 별을 건네주었어요", "별을 받고 활짝 웃어!",
-        fromChild = mode == StoryMode.STORY && !com.example.finalproject_demo.net.Server.liveFor(mode))
-    else -> Mission2("obj_star", "⭐", "별", "반짝이는 별을 건네주었어요", "별을 받고 활짝 웃어!", fromChild = false)
+    // A scripted story's star is the child's pick in scene 10 (「별 따기」) — it stays a star. A live story's or a co-op
+    // book's "star" is the first value left unchanged (nothing found) — the nameless gift box (#259 · #321 review)
+    "star" -> if (mode == StoryMode.STORY && !com.example.finalproject_demo.net.Server.liveFor(mode))
+        Mission2("obj_star", "⭐", "별", "반짝이는 별을 건네주었어요", "별을 받고 활짝 웃어!")
+    else NAMELESS_GIVE
+    else -> NAMELESS_GIVE
 }
 
 /**
@@ -169,8 +188,8 @@ fun DemoState.m2Log(page: Int): String {
  * Mission 1's name on the parent screen (「받은 선물」) and in logs — the default dust is not something the child said,
  * so it does not say 「먼지 치운 손」 (#259 §4-3 4)
  */
-fun DemoState.m1Badge(): String = slot1Prop()?.badge ?: mission1().blobName.let { b ->
-    if (b == "먼지" && !mission1FromChildWords()) "깨끗하게 치운 손" else "$b 치운 손"
+fun DemoState.m1Badge(): String = slot1Prop()?.badge ?: mission1().let { m ->
+    if (!m.named) "깨끗하게 치운 손" else "${m.blobName} 치운 손"
 }
 
 /** Mission 2's 「받은 선물」 — the mission on screen; for giving, the thing given. The default star has no name (#259 §4-3 4) */
@@ -205,6 +224,8 @@ fun DemoState.placeWord(): String? = placeLabel?.trim()?.takeIf { p ->
 fun DemoState.m1Line(): String {
     slot1Prop()?.let { return it.ask }                   // C1 불기 · C3 소리 흉내 — 소품은 아이 말에서 (SoundProp.kt)
     val m = mission1(); val v = rideName
+    // Nameless sparkle dust — no saying what was on it, the action only (#259)
+    if (!m.named) return "손으로 슥슥 문질러서 반짝반짝 깨끗하게 해 줄래?"
     if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode))
         return "이 자리에 ${m.blobName}${ga(m.blobName)} 남아 있어. ${m.toolName}${ro(m.toolName)} 슥슥 치워 줄래?"
     if (isDiary) {
@@ -228,6 +249,11 @@ fun DemoState.m1Caption(withSubject: Boolean = true): String {
         return if (withSubject) "$childName${eun(childName)} $clause" else clause
     }
     val m = mission1(); val v = rideName; val f = friendCallName
+    if (!m.named) {
+        // Nameless sparkle dust — no made-up thing that was cleaned (#259)
+        val clause = "${placeWord()?.let { "${it}에서 " } ?: ""}손으로 슥슥 문질러 깨끗하게 치웠어요."
+        return if (withSubject) "$childName${eun(childName)} $clause" else clause
+    }
     if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode)) return m1Before()
     if (isDiary) {
         // 자막은 **아이가 한 일**로 쓴다. 미션이 이야기 옆에 붙은 딴 이야기가 아니라
@@ -245,6 +271,7 @@ fun DemoState.m1Caption(withSubject: Boolean = true): String {
 fun DemoState.m1Before(): String {
     slot1Prop()?.let { b -> return "${placeWord()?.let { "${it}에 " } ?: ""}${b.before}" }
     val m = mission1()
+    if (!m.named) return "${placeWord()?.let { "${it}에 " } ?: ""}반짝반짝 닦아 줄 자리가 남아 있어요."
     val where = placeWord()?.let { "${it}에 " } ?: ""
     return "${where}${m.blobName}${ga(m.blobName)} 잔뜩 남아 있어요."
 }
@@ -264,7 +291,7 @@ fun DemoState.m2Clause(): String = slot2Prop()?.did ?:
     else "오늘 이야기를 들어준 마스코트에게 ${mission2().give}."
 
 fun DemoState.m1Done(): String =
-    slot1Prop()?.cheer ?: if (isDiary) "${mission1().done} 자리가 다시 깨끗해졌어!"
+    slot1Prop()?.cheer ?: if (!mission1().named) mission1().done else if (isDiary) "${mission1().done} 자리가 다시 깨끗해졌어!"
     else if (com.example.finalproject_demo.net.Server.liveFor(mode)) mission1().done
     else "${mission1().done} $storyActor 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
 

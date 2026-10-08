@@ -52,12 +52,13 @@ KIND_MEANING = {
     "TOGETHER": "마무리 — 함께 안전하게 끝난다",
 }
 
-# The same kinds mean other things in a day book — diary and co-op build their pages from DiaryBank.kt
-# `diaryTemplate`, where FAIL is the feeling page and TALK the why page. Read with the story meanings, a
-# co-op book wrote 「해 보았지만 잘되지 않은 일은 아직 듣지 못했어요」 on the feeling page and 「누가 무슨 말을
-# 했는지는 아직 듣지 못했어요」 on the why page though both slots were filled — three empty pages in eight
-# (10-05 device round). Each line names the slots the page is made of, so the model finds them.
-DAY_KIND_MEANING = {
+# The same kinds mean other things in a day book. Read with the story meanings, a co-op book wrote
+# 「해 보았지만 잘되지 않은 일은 아직 듣지 못했어요」 on the feeling page and 「누가 무슨 말을 했는지는 아직
+# 듣지 못했어요」 on the why page though both slots were filled — three empty pages in eight (10-05 device
+# round). Each line names the slots the page is made of, so the model finds them.
+#
+# Co-op builds its pages from DiaryBank.kt `diaryTemplate` — FAIL the feeling page, TALK the why page.
+COOP_KIND_MEANING = {
     "DEPART": "시작 — 어디에(place) 누구랑(companion) 갔는지",
     "MEET": "만남 — 함께한 사람 · 거기서 만난 것(companion)",
     "SHAKE": "그때 한 일과 일어난 일 — extra 의 그때 한 일 → problem",
@@ -68,12 +69,25 @@ DAY_KIND_MEANING = {
     "TOGETHER": "맺음 — extra 의 그 뒤 · 맺음(keep)",
 }
 
+# The diary plans its own pages since #239 (DiaryBook.kt `diaryPagePlan`): the feeling and its cause on one
+# FAIL page, one extra saying per RUB page (story_prompt_diary.md rules 10 · 11). The co-op lines told the
+# model the why was TALK's and pulled extra onto SHAKE · TOGETHER — the opposite of those rules (#272).
+DIARY_KIND_MEANING = {
+    "DEPART": "시작 — 어디에(place) 누구랑(companion) 갔는지",
+    "MEET": "만남 — 함께한 사람 · 거기서 만난 것(companion)",
+    "SHAKE": "그때 일어난 일 — problem",
+    "FAIL": "그때 마음과 까닭 — reaction 과 cause 를 이 한 쪽에 함께, 아이가 말한 그대로",
+    "TALK": "누가 무슨 말을 했는지",
+    "RUB": "그리면서 한 말 — extra 의 말 하나(앞에서부터 차례로)",
+    "DRAG": "어떻게 됐는지 — solution",
+    "TOGETHER": "맺음 — 내일 · 바람(keep)",
+}
+
 
 def meaning(mode: str, kind: str) -> str:
     """What a page is for in this mode's book. A kind a day book never uses keeps its story meaning."""
-    if mode != "story" and kind in DAY_KIND_MEANING:
-        return DAY_KIND_MEANING[kind]
-    return KIND_MEANING[kind]
+    table = DIARY_KIND_MEANING if mode == "diary" else COOP_KIND_MEANING if mode != "story" else {}
+    return table.get(kind, KIND_MEANING[kind])
 
 # docs/미션_구상.md §3 · 맞춤미션_설계.md §4 (★ six added 10-05 for #101) — the situation the page must end on, so the child's hands can
 # solve it next. Never the result: what the page says after the mission is the app's
