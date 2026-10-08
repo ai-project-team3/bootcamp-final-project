@@ -12,8 +12,10 @@ import androidx.compose.runtime.setValue
  *
  *   켤 때마다   ⓪ CLAP → ① 타이틀 ─┬─ 처음이면  ② 로그인(1/5) → ③ 동의(2/5) → ④ 마이크(3/5) → 부모 비밀번호(4/5) → 맞춤 설정(5/5)
  *                                  │            → ⑥ 기능 안내(보호자) → ⑦ 건네기 → ⑧ 방 둘러보기(아이) → ⑨ 말해 보기 ─┐
- *                                  ├─ 로그인이 풀렸으면  예외 · 로그인이 풀렸을 때 → ② 로그인 ────────┤
+ *                                  ├─ 로그인이 풀렸거나 약관 판이 바뀌었으면  다시 로그인 → (판이 바뀌었으면) 다시 동의 ─┤
  *                                  └─ 아니면 ──────────────────────────────────────────────────→ ⑨ 오또의 방
+ *   처음 설정을 마친 폰에 **새 보호자 계정**이 들어오면 (10-08 #319): 로그인 → 동의 → 마이크 → ⑥ 기능 안내 → ⑦ ~ ⑨ 튜토리얼.
+ *   부모 비밀번호 · 맞춤 설정은 폰 단위라 물려받는다. 같은 보호자의 다시 동의는 동의만(튜토리얼 없음)
  *   ⑨ 오또의 방은 흐름의 첫 화면(`Stage.Adult`) 위에 그린다. 방의 물건은 지금 첫 화면 버튼과 **같은 신호**
  *   (`start` · `diary` · `coop` · `shelf` · `parent`)를 흐름에 보낸다 → 흐름은 그대로 돈다.
  *
@@ -104,10 +106,25 @@ object Shell {
     var newsSince by mutableStateOf<Long?>(null)
         private set
 
+    /**
+     * 마지막으로 동의한 보호자 계정 ([com.example.finalproject_demo.net.Guardian.key] · 10-08 #319).
+     * 동의 기록은 폰에 하나라, 이것이 없으면 이 폰에서 준비를 마친 **다른** 보호자가 들어왔을 때 앞 보호자의 동의를 물려받았다.
+     * null = 이 기록 전에 받은 동의 — 그대로 인정한다
+     */
+    val consentBy: String? get() = prefs?.getString("consent_by", null)
+
     fun saveConsent(version: String, news: Boolean, at: Long) {
-        prefs?.edit()?.putString("consent_version", version)?.apply()
+        prefs?.edit()?.putString("consent_version", version)
+            ?.putString("consent_by", com.example.finalproject_demo.net.Accounts.guardian?.key)?.apply()
         setNews(news, at)
     }
+
+    /** 남은 동의가 다른 보호자의 것인가 */
+    fun consentByOther(g: com.example.finalproject_demo.net.Guardian?): Boolean = consentBy.let { it != null && it != g?.key }
+
+    /** 그 보호자의 동의가 지금 판으로 남아 있나 — 아니면 로그인 → 다시 동의 (10-08 #319) */
+    fun consentOk(g: com.example.finalproject_demo.net.Guardian?): Boolean =
+        g != null && com.example.finalproject_demo.ui.ConsentStore.guardianAgreed && consentVersion == TERMS_VERSION && !consentByOther(g)
 
     fun setNews(on: Boolean, at: Long = System.currentTimeMillis()) {
         newsSince = if (on) at else null
@@ -151,15 +168,25 @@ object Shell {
     }
 
     /**
-     * 처음 설정 다시 보기 (부모 영역 · 계정 탭 · 09-29) — 스플래시 · 로그인 · 동의 · 마이크 · 맞춤 설정 · 튜토리얼을 다시 거친다.
-     * 처음 설정은 **한 번 끝내면 다시 나오지 않아**「로그인이랑 초반 설정이 사라졌다」는 말을 들었다. 책 · 동의 기록은 그대로 둔다
+     * 처음 설정 다시 하기 (부모 영역 · 계정 탭 · 09-29 · 10-08 #319) — 스플래시 · 로그인 · 동의 · 마이크 · 비밀번호 · 맞춤 설정 ·
+     * 기능 안내 · 튜토리얼을 처음부터 다시 거친다. **처음 설정의 진행 기록만** 지운다(마친 표시 · 준비된 계정 · 마이크 안내) —
+     * 책 · 그림 · 녹음 · 비밀번호 · 맞춤 설정 값 · 동의 기록은 그대로 둔다. 부모 영역에는 테스트 빌드에만 보인다([redoAvailable])
      */
     fun redoOnboarding() {
         onboarded = false
-        prefs?.edit()?.putBoolean("onboarded", false)?.apply()
+        prefs?.edit()?.putBoolean("onboarded", false)?.remove("ready_accounts")?.apply()
+        com.example.finalproject_demo.ui.ConsentStore.forgetMic()
         sheet = Sheet.NONE
         step = Step.CLAP
     }
+
+    /**
+     * 「처음 설정 다시 하기」를 부모 영역에 보이나 (10-08 #319) — 개발 앱(「오또 개발」 · 디버그 빌드)과
+     * 비공개 테스트 판(versionName 이 `-closed` 로 끝남 · `BuildConfig.TESTER_TOOLS`)만. 정식 판에서 보호자가 잘못 누르면
+     * 아이가 쓰던 폰이 처음 설정으로 돌아간다
+     */
+    val redoAvailable: Boolean
+        get() = com.example.finalproject_demo.BuildConfig.DEBUG || com.example.finalproject_demo.BuildConfig.TESTER_TOOLS
 
     /** 탈퇴 끝 — 처음 설치한 상태로 (⓪ CLAP 부터) */
     fun resetToFirstRun() {
