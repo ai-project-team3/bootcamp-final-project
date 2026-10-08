@@ -15,4 +15,8 @@ class HeroCreationDraft {
     val generatedTries = mutableListOf<Pair<String?, String?>>()
     var generatedImage: String? = null
     var generatedRig: String? = null
+
+    /** Unsaved candidates still belong to the session while parents tidy another book. */
+    fun imageReferences(): List<String> = if (phase == Phase.COMPLETE) emptyList()
+        else generatedTries.mapNotNull { it.first } + listOfNotNull(generatedImage)
 }
