@@ -9,7 +9,9 @@ import kotlinx.coroutines.*
 
 /** The live conversation enters here once; script scenes remain available with the switch off. */
 suspend fun Director.liveStoryConversation() = coroutineScope {
-    var imagePlace: String? = null
+    // A saved background belongs to the accepted place. Continuing the scene reuses it;
+    // changing that place during this conversation still starts a new background request.
+    var imagePlace = s.slots["place"]?.takeIf { it.isNotBlank() && s.storyBackground != null }
     var imageJob: Job? = null
     var backgroundPending = false
     var waitingConversation: Stage.Show? = null
@@ -91,6 +93,9 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             } finally { reminder.cancel() }
         }
     }
+    // Restart only an unfinished request. Mark it pending before rendering any question,
+    // otherwise an interrupted generation can flash the unrelated snow preset on resume.
+    updateBackground()
     if (s.storyStartedAtMs == 0L) s.storyStartedAtMs = System.currentTimeMillis()
     // 되돌리기 · 앞으로 가기 — 잘못 알아들은 답을 직전 차례째로 무른다 (10-02 · demo/TurnHistory)
     val history = TurnHistory(s)

@@ -55,6 +55,40 @@ class StoryPendingBackgroundTest {
         }
     }
 
+    @Test fun unfinishedBackgroundOnContinueIsPendingBeforeTheNextAnswer() = runBlocking {
+        withLiveStory { d, fixture ->
+            // This is the retained state when home cancelled an unfinished background request.
+            d.s.slots["place"] = "바닷속 연구소"
+            d.s.syncStoryPresentation()
+            await { fixture.imageStarted.count == 0L && d.s.micEnabled }
+            assertTrue("Continue must not expose snow while restarting the missing image", d.s.stage is Stage.Show)
+            fixture.releaseImage.countDown()
+            await { d.s.storyBackground != null }
+            assertTrue(d.s.stage is Stage.World)
+        }
+    }
+
+    @Test fun homeAndContinueKeepTheGeneratedBackgroundWithoutAnotherImageRequest() = runBlocking {
+        withLiveStory { d, fixture ->
+            answerPlace(d, fixture)
+            fixture.releaseImage.countDown()
+            await { d.s.storyBackground != null && d.s.micEnabled }
+            val picture = d.s.storyBackground
+            d.leaveToRoom()
+            await { d.s.scene == Scene.ADULT && d.s.stage == Stage.Adult }
+            delay(30)
+            d.send(Reply.Tapped("resume", "이어서 하기"))
+            await { d.s.scene == Scene.PLACE && d.s.micEnabled }
+            delay(30)
+            d.send(Reply.Spoke("물고기를 만났어"))
+            await { d.s.turn == 2 && d.s.micEnabled }
+            delay(100)
+            assertEquals("Continue must retain the chosen picture", picture, d.s.storyBackground)
+            assertEquals("The same place must not regenerate on continue", 1,
+                fixture.server.requests.count { it.first == "/image" })
+        }
+    }
+
     @Test fun finishingTheConversationStillUsesNeutralStageWhileTheImageIsPending() = runBlocking {
         withLiveStory(ready = true) { d, fixture ->
             d.s.storySoundAttempted = true
