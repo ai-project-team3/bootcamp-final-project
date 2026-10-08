@@ -14,8 +14,9 @@ from .judge import JudgeRequest, JudgeResult, SlotName
 #   answer_back — the child asked Otto something: answer briefly, ask the same question again
 #   rephrase    — the child did not catch the question: ask the same slot in easier words
 #   aside       — talk off the question: take it in (extra), ask the same question again
-#   continue    — the child is still telling: invite the rest instead of a new slot
-Act = Literal["repair", "answer_back", "rephrase", "aside", "continue"]
+# A child still telling (「근데 있잖아」) is a plain turn for now: the app should keep listening, not
+# the server answer (10-08 · out of this round)
+Act = Literal["repair", "answer_back", "rephrase", "aside"]
 
 
 class OttoSaid(BaseModel):

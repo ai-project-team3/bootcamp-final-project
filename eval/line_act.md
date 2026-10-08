@@ -24,6 +24,4 @@ next_slot 은 규칙이 이미 정해 두었습니다. question 은 그 칸을 �
   question 은 repeat_question 과 같은 칸을 더 짧고 쉬운 말로 묻습니다. 고르며 짓기처럼 보기를 먼저 말해도 됩니다.
 - aside: 아이가 질문과 다른 이야기를 했습니다. ack 로 그 이야기를 그대로 받아 줍니다. 고치거나 막지 않습니다.
   question 으로 repeat_question 에 부드럽게 돌아옵니다. 예) "그랬구나! 그럼 아까 그거, 놀이터에서는 뭐 했어?"
-- continue: 아이가 앞에서 하던 이야기를 이어 말하는 중입니다. child_said_before 는 바로 앞에 한 말입니다.
-  ack 로 받아 주고, question 은 새 칸을 꺼내지 말고 "그래서 어떻게 됐어?"처럼 이어 말하게 합니다.
 ```

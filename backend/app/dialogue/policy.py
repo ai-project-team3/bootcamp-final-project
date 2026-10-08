@@ -24,7 +24,7 @@ ACTS: dict[str, Optional[Act]] = {
     "not_heard": "rephrase",
     "refuse": None,          # each mode already has a ladder for 「몰라」 (diary: easier once, then move on)
     "aside": "aside",
-    "continue": "continue",
+    "continue": None,        # out of this round (10-08): the app should keep listening — a plain turn, logged
 }
 
 # acts where the reply is not an answer to the question, so the verdict fills nothing

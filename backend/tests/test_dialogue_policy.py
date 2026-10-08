@@ -46,11 +46,14 @@ def test_each_non_answer_has_its_act():
     assert policy.act_for(d("ask_back")) == "answer_back"
     assert policy.act_for(d("not_heard")) == "rephrase"
     assert policy.act_for(d("aside")) == "aside"
-    assert policy.act_for(d("continue")) == "continue"
 
 
 def test_refusal_is_left_to_the_modes_own_ladder():
     assert policy.act_for(d("refuse")) is None
+
+
+def test_a_child_still_telling_is_a_plain_turn_this_round():
+    assert policy.act_for(d("continue")) is None
 
 
 def test_a_costly_intent_needs_the_higher_floor():
@@ -129,4 +132,4 @@ def test_the_same_question_comes_back_after_a_question_back():
 
 
 def test_every_act_has_a_recipe():
-    assert set(recipes.RECIPES) == {"repair", "answer_back", "rephrase", "aside", "continue"}
+    assert set(recipes.RECIPES) == {"repair", "answer_back", "rephrase", "aside"}

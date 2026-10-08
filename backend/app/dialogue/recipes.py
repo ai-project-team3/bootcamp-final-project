@@ -53,18 +53,11 @@ def aside(req: TurnRequest, d: Decision, retract: list[str]) -> Recipe:
     return Recipe("aside", f"repeat_question:{req.question}", req.asked_slot)
 
 
-def continue_(req: TurnRequest, d: Decision, retract: list[str]) -> Recipe:
-    prev = req.history[-1].child.text if req.history else ""
-    # the question invites the rest (「그래서?」); the slot stays the judge's call
-    return Recipe("continue", f"child_said_before:{prev}", None)
-
-
 RECIPES: dict[str, Callable[[TurnRequest, Decision, list[str]], Recipe]] = {
     "repair": repair,
     "answer_back": answer_back,
     "rephrase": rephrase,
     "aside": aside,
-    "continue": continue_,
 }
 
 

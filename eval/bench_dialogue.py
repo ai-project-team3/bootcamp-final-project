@@ -37,7 +37,7 @@ USD_IN, USD_OUT, KRW = 0.10, 0.50, 1400      # luna per Mtok (model_catalog.json
 JEV_KRW = 0.292                              # 100 questions 29.2원 (09-22)
 DROPS_WORDS = {"repair", "answer_back", "rephrase"}   # acts that may drop the judge's fills
 NEEDS_QUESTION = {"answer_back", "rephrase", "aside"}
-ALLOWED = {None, "repair", "answer_back", "rephrase", "aside", "continue"}
+ALLOWED = {None, "repair", "answer_back", "rephrase", "aside"}
 
 
 # --- running ---
