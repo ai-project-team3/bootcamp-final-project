@@ -73,3 +73,60 @@ def test_result_defaults_take_nothing_back():
 def test_a_turn_without_history_answers_as_before(client):
     out = client.post("/turn", json=body()).json()
     assert out["retract"] == [] and out["line"]["act"] is None
+
+
+# --- /turn with history: the act, what is taken back, what the line is told ---
+
+def test_a_bare_denial_takes_back_what_otto_just_heard(client):
+    out = client.post("/turn", json=body(utterance="그거 아니야", history=walked_to_park())).json()
+    assert out["line"]["act"] == "repair"
+    assert out["retract"] == ["companion"]
+    # the denial is not an answer to the place question, nor a new companion
+    assert out["judge"]["slot_1"] is None
+    assert out["judge"]["next_slot"] == "companion"
+
+
+def test_a_correction_with_the_right_value_keeps_it(client):
+    out = client.post("/turn", json=body(utterance="아니야, 고양이야", asked_slot="companion",
+                                         history=walked_to_park())).json()
+    assert out["line"]["act"] == "repair" and out["retract"] == ["companion"]
+    assert out["judge"]["slot_1"] == "companion"
+
+
+def test_a_question_back_fills_nothing_and_asks_the_same_slot(client):
+    out = client.post("/turn", json=body(utterance="오또는 뭐 좋아해?", history=walked_to_park())).json()
+    assert out["line"]["act"] == "answer_back"
+    assert out["judge"]["slot_1"] is None and out["judge"]["next_slot"] == "place"
+    assert out["retract"] == []
+
+
+def test_a_plain_answer_with_history_is_a_plain_turn(client):
+    out = client.post("/turn", json=body(history=walked_to_park())).json()
+    assert out["line"]["act"] is None and out["retract"] == []
+    assert out["judge"]["slot_1"] == "place"
+
+
+def test_the_act_prompt_is_added_only_when_there_is_an_act():
+    from app.routers import turn as turn_route
+    plain = turn_route.system("diary")
+    assert turn_route.system_for("diary", None) == plain
+    with_act = turn_route.system_for("diary", "repair")
+    assert with_act.startswith(plain) and "repair" in with_act
+
+
+def test_the_line_is_told_the_act_and_its_context():
+    from app.dialogue import recipes
+    from app.dialogue.decide import Decision
+    from app.routers import turn as turn_route
+    req = TurnRequest.model_validate(body(utterance="그거 아니야", history=walked_to_park()))
+    d = Decision("correct", 0.9, "companion", 0.9, False)
+    r = recipes.build("repair", req, d, ["companion"])
+    text = turn_route.user(req, None, r)
+    assert "act:repair" in text and "wrong:companion=강아지" in text and "next_slot:companion" in text
+
+
+def test_a_plain_line_input_is_unchanged_by_the_feature():
+    from app.routers import turn as turn_route
+    req = TurnRequest.model_validate(body(history=walked_to_park()))
+    assert turn_route.user(req, None, None) == turn_route.user(req, None)
+    assert "act:" not in turn_route.user(req, None)

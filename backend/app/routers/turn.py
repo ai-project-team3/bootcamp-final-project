@@ -7,6 +7,7 @@ The phone fills any missing half from its script (spec §3-0).
 
 The prompt is read from eval/line_prompt.md, not copied (one thing in one place).
 """
+import asyncio
 import logging
 import time
 from functools import lru_cache
@@ -14,11 +15,13 @@ from functools import lru_cache
 from fastapi import APIRouter, HTTPException
 
 from ..config import REPO, settings
+from ..dialogue import policy, recipes
+from ..dialogue.decide import decide
 from ..filters.blocklist import eojeol, has_unknown_placeholder, is_blocked
 from ..llm.client import LLMError, complete
 from ..llm.judge_prompt import load_schema, system_block
 from ..schemas.judge import JudgeResult
-from ..schemas.turn import Line, TurnRequest, TurnResult
+from ..schemas.turn import Act, Line, TurnRequest, TurnResult
 from . import judge
 
 router = APIRouter()
@@ -36,13 +39,25 @@ def system(mode: str | None = None) -> str:
     return system_block(EVAL / "line_prompt.md", mode)
 
 
+@lru_cache(maxsize=None)
+def system_for(mode: str | None, act: Act | None) -> str:
+    """The line prompt, plus how to take in a reply that is not an answer — only on a turn with an act (#323)."""
+    if act is None:
+        return system(mode)
+    return f"{system(mode)}\n\n{system_block(EVAL / 'line_act.md')}"
+
+
 def schema() -> dict:
     return load_schema("line_schema.json")
 
 
-def user(req: TurnRequest, v: JudgeResult | None) -> str:
-    """The §3 inputs. Without a verdict, the slots are empty and the model just continues."""
+def user(req: TurnRequest, v: JudgeResult | None, recipe: recipes.Recipe | None = None) -> str:
+    """The §3 inputs. Without a verdict, the slots are empty and the model just continues.
+
+    With a [recipe] (#323) the act and its context lines are added, and the question's slot is the
+    recipe's when it names one. A plain turn's input is byte for byte what it was."""
     values = [x for x in ((v.value_1, v.value_2) if v else ()) if x]
+    next_slot = (recipe.question_slot if recipe and recipe.question_slot else None) or (v.next_slot if v else None)
     # what the child has already settled — 10-01 #50: without it the line model asked about
     # places and characters that were not in the story, and the talk drifted
     so_far = " · ".join(f"{k}={val}" for k, val in req.slots.items() if val and str(val).strip())
@@ -57,10 +72,11 @@ def user(req: TurnRequest, v: JudgeResult | None) -> str:
         + f"question_just_asked:{req.question}\n"
         f"utterance:{req.utterance}\n"
         f"value:{' / '.join(values)}\n"
-        f"next_slot:{(v.next_slot if v else None) or ''}\n"
+        f"next_slot:{next_slot or ''}\n"
         f"next_reason:{(v.next_reason if v else None) or ''}\n"
         f"unclear_of:{(v.unclear_of if v and v.unclear else None) or ''}\n"
         f"story_ready:{'true' if v and v.story_ready else 'false'}"
+        + (f"\nact:{recipe.act}\n{recipe.context}" if recipe else "")
     )
 
 
@@ -104,16 +120,20 @@ def mock_line(req: TurnRequest, v: JudgeResult | None) -> Line:
 LINE_MIN_S = 3.0      # less than this left after the judge: send the verdict alone
 
 
-async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30.0) -> Line | None:
+async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30.0,
+                   recipe: recipes.Recipe | None = None) -> Line | None:
     if v is not None and v.reason == "blocked_by_filter":
         return None          # a blocked utterance never leaves for the LLM, here either
+    act = recipe.act if recipe else None
     if settings.mock:
-        return shape(mock_line(req, v), req, v)
+        line = shape(mock_line(req, v), req, v)
+        line.act = act
+        return line
     if budget_s < LINE_MIN_S:
         log.warning("line skipped: %.1fs left of the /turn deadline", budget_s)
         return None          # the phone asks its own next question; the verdict still counts
     try:
-        raw = await complete(system(req.mode), user(req, v), schema(), name="mascot_line",
+        raw = await complete(system_for(req.mode, act), user(req, v, recipe), schema(), name="mascot_line",
                              effort=settings.llm_effort_line, timeout_s=budget_s)
     except LLMError as e:
         log.warning("line failed: %s", e)
@@ -123,6 +143,7 @@ async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30
     if why:
         log.warning("line rejected: %s", why)
         return None
+    line.act = act
     return shape(line, req, v)
 
 
@@ -131,12 +152,32 @@ async def turn(req: TurnRequest) -> TurnResult:
     # one deadline for the whole turn, under the phone's 30 s: the judge first (≤ 18 s),
     # the line gets what is left — a slow vendor costs the line, never the verdict
     t0 = time.monotonic()
-    try:
-        v = await judge.run(req)
-    except LLMError as e:
-        log.warning("judge failed in /turn: %s", e)
-        v = None
-    line = await run_line(req, v, settings.turn_deadline_s - (time.monotonic() - t0))
+    # with history (#323) the quick decider runs next to the judge, so the turn waits for the slower
+    # of the two, not both. It never raises: no opinion = the turn runs as before
+    verdict, d = await asyncio.gather(judge.run(req), decide(req), return_exceptions=True)
+    if isinstance(d, BaseException):
+        log.warning("dialogue decider raised in /turn: %s", d)
+        d = None
+    if isinstance(verdict, LLMError):
+        log.warning("judge failed in /turn: %s", verdict)
+        verdict = None
+    elif isinstance(verdict, BaseException):
+        raise verdict
+    v = verdict
+
+    act = policy.act_for(d)
+    retract = policy.retract_for(act, d, req)
+    recipe = recipes.build(act, req, d, retract) if act else None
+    if act and v is not None and v.reason != "blocked_by_filter":
+        v = policy.trim_verdict(act, d, v)
+        # the app asks what next_slot names, so the act's slot goes there (a retracted slot is empty
+        # again on the phone once it applies `retract`)
+        if recipe.question_slot:
+            v = v.model_copy(update={"next_slot": recipe.question_slot})
+    if act:
+        log.info("dialogue act %s · retract %s", act, retract)
+
+    line = await run_line(req, v, settings.turn_deadline_s - (time.monotonic() - t0), recipe)
     if v is None and line is None:
         raise HTTPException(502, "judge and line both failed")
-    return TurnResult(judge=v, line=line)
+    return TurnResult(judge=v, line=line, retract=retract)
