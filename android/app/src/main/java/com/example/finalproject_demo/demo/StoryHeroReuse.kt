@@ -8,11 +8,26 @@ internal fun recentStoryHeroes(books: List<SavedStoryBook>): List<Hero> = books
 
 /** No server lookup: these are explicit choices among the cards currently on screen. */
 internal fun previousHeroChoice(text: String, heroes: List<Hero>): String? {
-    val words = text.trim().replace(Regex("[.!?~]"), "")
-    if (Regex("^(새로|새 친구|새 주인공)").containsMatchIn(words)) return "new"
-    heroes.indexOfFirst { words == it.name || words.startsWith("${it.name}랑") || words.startsWith("${it.name}이랑") }
-        .takeIf { it >= 0 }?.let { return "reuse:$it" }
-    return if (words in setOf("또 할래", "또할래", "응", "좋아", "다시 할래")) "reuse:0" else null
+    val words = text.replace(Regex("[\\s.!?~,，。？！]"), "")
+    val prefix = Regex("^(응|웅|네|좋아요?|그래|나는|난)")
+    val answers = listOf(words, words.replaceFirst(prefix, "")).filter { it.isNotEmpty() }.distinct()
+    val accept = "(?:할래요?|하자|하고싶어요?|할거야)"
+    // Check complete names before interpreting an affirmative prefix (for example, "응원").
+    for (index in heroes.indices.sortedByDescending { heroes[it].name.length }) {
+        val name = Regex.escape(heroes[index].name.replace(Regex("\\s"), ""))
+        if (answers.any { Regex("$name(?:이?요|(?:이랑|랑|하고)(?:(?:또|다시)?$accept)?)?").matches(it) }) {
+            return "reuse:$index"
+        }
+        if (answers.any { Regex("$name(?:이랑|랑|하고)(?:안할래요?|싫어요?)").matches(it) }) return "new"
+    }
+    // Match the whole choice: a prefix alone must not turn a negated or unrelated sentence into consent.
+    if (answers.any { Regex("(?:아니(?:요|야)?|싫어요?|(?:새로|새친구|새주인공|다른(?:친구|주인공)?)(?:요|만들래요?|만들자|$accept)?)").matches(it) }) {
+        return "new"
+    }
+    if (heroes.isNotEmpty() && answers.any {
+            Regex("(?:응|웅|네|좋아요?|그래|(?:또|다시)(?:$accept)?)").matches(it)
+        }) return "reuse:0"
+    return null
 }
 
 internal class HeroSetupLog {
@@ -65,9 +80,11 @@ internal suspend fun Director.choosePreviousStoryHero(): Boolean {
                 if (!shown) {
                     s.stage = Stage.CardsRow(cards)
                     inputs(mic = true, next = false)
-                    say(question.text)
                     buttons(*cards.map { card -> DemoBtn(card.label) { send(Reply.Tapped(card.value, card.label)) } }.toTypedArray())
                     shown = true
+                    say(question.text)
+                } else {
+                    say("${heroes.first().name}${rang(heroes.first().name)} 할까, 새로 만들까?")
                 }
             }
             val choice = when (reply) {

@@ -7,6 +7,46 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class StoryHeroReuseTest {
+    @Test fun naturalSpokenChoicesKeepNamesAndNegationDistinct() {
+        val heroes = listOf("콩이", "별이", "응원", "새로").map { Hero(it, com.example.finalproject_demo.ui.HeroAttr()) }
+        val cases = mapOf(
+            "또 할래요" to "reuse:0", "응 또 할래" to "reuse:0", "웅 좋아요" to "reuse:0",
+            "콩이요" to "reuse:0", "응 별이랑 할래" to "reuse:1", "나는 별이요!" to "reuse:1",
+            "응원이랑 할래" to "reuse:2", "새로랑 할래" to "reuse:3",
+            "아니" to "new", "아니요" to "new", "새로 만들래요" to "new", "다른 친구요" to "new",
+            "응 새로 만들래" to "new", "콩이랑 안 할래" to "new",
+        )
+        cases.forEach { (spoken, expected) -> assertEquals(spoken, expected, previousHeroChoice(spoken, heroes)) }
+        listOf("새로 안 만들래", "또 하고 싶지 않아", "응가", "콩이랑 별이", "콩이랑 할까 말까", "몰라", "").forEach {
+            assertNull(it, previousHeroChoice(it, heroes))
+        }
+    }
+
+    @Test fun unclearSpeechAndSilenceAskAgainAndAllowAnotherAnswer() = runBlocking {
+        for (reply in listOf(Reply.Spoke("모르겠어"), Reply.Silent)) {
+            val scope = CoroutineScope(coroutineContext + SupervisorJob())
+            val d = Director(scope, object : StoryBookStore {
+                override fun load() = listOf(book())
+                override fun save(book: SavedStoryBook) = Unit
+            }).apply { s.speed = 0.01; s.timerOn = false }
+            try {
+                d.go(Scene.MAKEHERO)
+                waitFor { d.s.stage is Stage.CardsRow && d.s.micEnabled }
+                val firstLine = d.s.lineId
+                d.send(reply)
+                waitFor { d.s.lineId > firstLine }
+                assertEquals(Scene.MAKEHERO, d.s.scene)
+                assertTrue(d.s.line.contains("콩이"))
+                assertTrue(d.s.line.contains("새로"))
+                assertTrue(d.s.micEnabled)
+                assertTrue((d.s.stage as Stage.CardsRow).cards.any { it.value == "new" })
+                d.send(Reply.Spoke("콩이요"))
+                waitFor { d.s.scene == Scene.PLACE }
+                assertEquals("콩이", d.s.storyHeroCall)
+            } finally { scope.cancel() }
+        }
+    }
+
     private fun book(id: String = "one", name: String = "콩이", image: String = "local:hero.png") =
         DemoState().apply {
             templateKey = "A"
