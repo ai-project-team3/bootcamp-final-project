@@ -19,6 +19,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.draw.rotate
+import com.example.finalproject_demo.ui.motionFrozen
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -62,7 +65,14 @@ internal fun FixMission(d: Director, done: Boolean, heroArt: Art) {
     val snapped = remember { mutableStateListOf(done, done) }
     val fixed = done || snapped.all { it }
     val idle = rememberIdleHint(snapped.count { it }.toFloat(), fixed)
+    val hint = rememberMissionHint(d, snapped.count { it }.toFloat(), fixed, "E2")
     MissionDoneSignal(d, fixed, done, "미션2")
+    // 다 고치면 고쳐진 물건이 한 번 흔들린다 — 「다시 붙었다」가 장면에 보이게 (#260 §6-3)
+    val wobble = remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(fixed) {
+        if (!fixed || done || motionFrozen) return@LaunchedEffect
+        for (v in listOf(9f, -7f, 4f, -2f, 0f)) wobble.animateTo(v, androidx.compose.animation.core.tween(120))
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
@@ -79,11 +89,13 @@ internal fun FixMission(d: Director, done: Boolean, heroArt: Art) {
         fun snap(i: Int) {
             if (snapped[i]) return
             snapped[i] = true
-            Sfx.play(Sound.SPARKLE, minGapMs = 0L, view = view)
+            // 조각마다 톡 — 완료 반짝은 MissionDoneSignal 한 번만 (#260 효과음 규칙)
+            Sfx.play(Sound.POP, minGapMs = 0L, view = view)
         }
 
         // 원판 — 붙어 있는 조각과 빈자리(점선)
         Canvas(Modifier.fillMaxSize()) {
+          rotate(wobble.value, center) {
             val tl = Offset(center.x - radius, center.y - radius)
             val box = Size(radius * 2, radius * 2)
             drawArc(PIECE_COLORS[0], -90f, sweep, true, tl, box)
@@ -91,6 +103,7 @@ internal fun FixMission(d: Director, done: Boolean, heroArt: Art) {
                 if (!snapped[i]) drawArc(FeltWhite.copy(alpha = 0.8f), -90f + k * sweep, sweep, true, tl, box,
                     style = Stroke(radius * 0.06f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(radius * 0.12f, radius * 0.09f))))
             }
+          }
         }
         // 조각 둘 — 끌거나 톡 누른다
         listOf(1, 2).forEachIndexed { i, k ->
@@ -99,6 +112,8 @@ internal fun FixMission(d: Director, done: Boolean, heroArt: Art) {
                 Modifier
                     .offset { IntOffset((p.x - radius).roundToInt(), (p.y - radius).roundToInt()) }
                     .size((radius * 2 / density).dp)
+                    // 붙은 조각은 원판과 같이 흔들린다(상자 가운데 = 원판 가운데)
+                    .rotate(if (snapped[i]) wobble.value else 0f)
                     .pointerInput(snapped[i]) {
                         if (snapped[i]) return@pointerInput
                         detectTapGestures(onTap = { snap(i) })          // 끌지 않고 톡 — 제자리로
@@ -122,7 +137,14 @@ internal fun FixMission(d: Director, done: Boolean, heroArt: Art) {
             }
         }
 
-        if (idle && !fixed) {
+        // 15초 흐릿한 예시 — 떨어진 조각 하나가 반투명으로 빈자리까지 미끄러졌다 사라진다(진짜 조각은 그대로)
+        if (hint != null && !fixed) {
+            val i = snapped.indexOfFirst { !it }.coerceAtLeast(0)
+            val k = i + 1
+            val g = ghostAlong(listOf(pos(i), homes[i]), hint)
+            Ghost(g, radius * 2, hint) { Canvas(Modifier.fillMaxSize()) { drawArc(PIECE_COLORS[k], -90f + k * sweep, sweep, true, Offset.Zero, this.size) } }
+            GhostHand(g, wpx * 0.06f, hint)
+        } else if (idle && !fixed) {
             val slide by rememberInfiniteTransition(label = "e2hint").animateFloat(
                 0f, 1f, infiniteRepeatable(tween(1300, easing = FastOutSlowInEasing), RepeatMode.Restart), label = "slide",
             )

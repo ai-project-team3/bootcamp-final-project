@@ -27,6 +27,22 @@ internal fun coopServerReaction(line: Server.Line?): String? {
         .joinToString(" ").takeIf(String::isNotBlank)
 }
 
+/** [coopServerReaction] 이 null 일 때 그 까닭 — 로그용(#304 2). 「대사 없음」이면 서버가 대사를 주지 않은 것(거절 · 실패) */
+internal fun coopServerDropped(line: Server.Line?): List<String> {
+    if (line == null) return listOf("대사 없음")
+    return listOf("ack" to line.ack, "expand" to line.expand).mapNotNull { (k, v) ->
+        val t = v?.trim().orEmpty()
+        when {
+            t.isBlank() -> "$k 비었음"
+            t.length > REACTION_MAX -> "$k ${REACTION_MAX}자 넘음 「$t」"
+            '?' in t -> "$k 물음표 「$t」"
+            '{' in t -> "$k 자리표시 남음 「$t」"
+            hasRoughWord(t) -> "$k 거친 말"
+            else -> null
+        }
+    }
+}
+
 /** 받아주기 8어절 · 되돌려주기 한 문장 — 그보다 길면 서버가 규칙을 어긴 것이다 */
 private const val REACTION_MAX = 40
 

@@ -1,0 +1,16 @@
+{
+  "name": "coop_el_taekwondo_crayon",
+  "of": "coop_el_taekwondo",
+  "kind": "cut",
+  "text": "a cute folded white taekwondo uniform with a black belt tied on top",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 1537150707,
+  "prompt": "a cute folded white taekwondo uniform with a black belt tied on top, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "gen_coop.py",
+  "made": "2026-10-07"
+}

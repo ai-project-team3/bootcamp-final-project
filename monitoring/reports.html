@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>오또 문제 신고</title>
+<style>
+  :root {
+    --bg: #faf7f2; --card: #fff; --ink: #2b2620; --muted: #857b6e;
+    --line: #e7e0d6; --ok: #4a8f5b; --warn: #c9962c; --bad: #c0503f; --sel: #2b2620; --selInk: #faf7f2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1f1b17; --card: #2a2520; --ink: #f0e9df; --muted: #a39687;
+      --line: #3a332c; --ok: #7cc08c; --warn: #e0b253; --bad: #e2796a; --sel: #e8b84b; --selInk: #2b2620;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px 16px 40px; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  h1 a { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 8px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .filters .lbl { color: var(--muted); font-size: 12px; margin-right: 2px; }
+  .chip, .btn {
+    font: inherit; font-size: 13px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--card); color: var(--ink); cursor: pointer; font-variant-numeric: tabular-nums;
+  }
+  .chip:hover, .btn:hover { border-color: var(--muted); }
+  .chip[aria-pressed="true"] { background: var(--sel); color: var(--selInk); border-color: var(--sel); }
+  .btn.danger { color: var(--bad); border-color: var(--bad); }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .row { background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+  .row.stale { box-shadow: inset 4px 0 0 var(--bad); }
+  .head {
+    display: grid; grid-template-columns: 130px 110px 1fr auto; gap: 10px; align-items: center;
+    padding: 10px 14px; cursor: pointer; width: 100%; text-align: left; font: inherit; color: inherit;
+    background: none; border: 0;
+  }
+  .when { font-variant-numeric: tabular-nums; font-size: 13px; }
+  .cat { font-size: 13px; }
+  .note { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid currentColor; white-space: nowrap; }
+  .st-received { color: var(--bad); } .st-reviewing { color: var(--warn); } .st-done { color: var(--ok); }
+  .detail { border-top: 1px solid var(--line); padding: 12px 14px; display: none; }
+  .row.open .detail { display: block; }
+  dl { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; margin: 0 0 12px; font-size: 14px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; white-space: pre-wrap; word-break: break-word; }
+  .att img { max-width: 100%; max-height: 60vh; object-fit: contain; border-radius: 8px; border: 1px solid var(--line); display: block; }
+  .att blockquote { margin: 0; padding: 8px 12px; border-left: 3px solid var(--line); white-space: pre-wrap; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+  .muted { color: var(--muted); }
+  footer { margin-top: 16px; font-size: 12px; color: var(--muted); }
+  @media (max-width: 600px) {
+    .head { grid-template-columns: 1fr auto; }
+    .head .cat, .head .note { grid-column: 1 / -1; }
+    dl { grid-template-columns: 90px 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>문제 신고 <a href="/">← 엔드포인트 모니터</a></h1>
+  <div class="sub">처리 완료 후 30일이 지나면 자동으로 지워집니다 · 처리 전 신고는 지우지 않고, 14일 넘으면 빨간 줄로 표시합니다 · 보호자가 접수 번호로 삭제를 요청하면 「지우기」</div>
+
+  <div class="filters">
+    <span class="lbl">상태</span>
+    <button class="chip" data-status="open" aria-pressed="true">처리 전</button>
+    <button class="chip" data-status="done" aria-pressed="false">완료</button>
+    <button class="chip" data-status="all" aria-pressed="false">전체</button>
+    <span class="lbl" style="margin-left:8px">분류</span>
+    <button class="chip" data-cat="" aria-pressed="true">전체</button>
+    <button class="chip" data-cat="image" aria-pressed="false">그림</button>
+    <button class="chip" data-cat="text" aria-pressed="false">표현</button>
+    <button class="chip" data-cat="error" aria-pressed="false">오류</button>
+    <button class="chip" data-cat="other" aria-pressed="false">기타</button>
+  </div>
+
+  <div class="list" id="list"><div class="muted">불러오는 중…</div></div>
+  <footer id="foot"></footer>
+</div>
+
+<script>
+// Everything a guardian typed goes in through textContent only — a note with <script> in it must stay text (#283 §4).
+const CAT = { image: "부적절한 그림", text: "부적절한 표현", error: "오류", other: "기타" };
+const MODE = { story: "동화", diary: "그림일기", coop: "같이 만들기" };
+const ST = { received: "접수", reviewing: "확인 중", done: "완료" };
+const SOURCE = { background: "배경", hero: "주인공", friend: "친구", diary_otto: "오또가 그린 일기 그림" };
+
+let status = "open", cat = "";
+const opened = new Set();
+
+const kst = iso => new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+const kstDay = iso => new Date(iso).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
+
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v; else if (k === "text") e.textContent = v; else e.setAttribute(k, v);
+  }
+  kids.forEach(k => k && e.append(k));
+  return e;
+}
+
+async function api(path, opts) {
+  const r = await fetch(path, { cache: "no-store", ...opts });
+  if (r.status === 401) { location.replace("/login.html"); throw new Error("sign-in"); }
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.status === 204 ? null : r.json();
+}
+
+function pill(s) { return el("span", { class: "pill st-" + s, text: ST[s] || s }); }
+
+function where(r) {
+  return [MODE[r.mode], r.page ? r.page + "쪽" : null].filter(Boolean).join(" · ") || "책 밖(설정)";
+}
+
+async function fillDetail(box, id) {
+  box.replaceChildren(el("div", { class: "muted", text: "불러오는 중…" }));
+  const r = await api("/admin/reports/" + encodeURIComponent(id));
+  const dl = el("dl");
+  const add = (k, v) => { dl.append(el("dt", { text: k }), el("dd", { text: v })); };
+  add("접수 번호", r.id);
+  add("받은 시각", kst(r.received_at));
+  add("분류", CAT[r.category] || r.category);
+  add("어디서", where(r));
+  add("앱 버전", r.app_version);
+  add("보호자 설명", r.note || "(없음)");
+  add("상태", (ST[r.status] || r.status) + " · " + kst(r.status_at));
+  if (r.delete_at) add("지워지는 날", kstDay(r.delete_at));
+
+  const att = el("div", { class: "att" });
+  const a = r.attachment;
+  if (!a) att.append(el("div", { class: "muted", text: "첨부 없음" }));
+  else if (a.kind === "image") {
+    att.append(el("div", { class: "muted", text: "첨부 그림 — " + (SOURCE[a.source] || a.source) }));
+    att.append(el("img", { src: "/admin/reports/" + encodeURIComponent(r.id) + "/attachment", alt: "첨부 그림" }));
+  } else if (a.kind === "text") {
+    att.append(el("div", { class: "muted", text: "첨부 문장" }), el("blockquote", { text: a.text }));
+  } else att.append(el("div", { class: "muted", text: "앱에 든 그림(프리셋): " + a.name }));
+
+  const actions = el("div", { class: "actions" });
+  for (const s of ["received", "reviewing", "done"]) {
+    const b = el("button", { class: "chip", "aria-pressed": String(r.status === s), text: ST[s] });
+    b.addEventListener("click", async () => {
+      await api("/admin/reports/" + encodeURIComponent(r.id) + "/status", {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ status: s }) });
+      load();
+    });
+    actions.append(b);
+  }
+  const del = el("button", { class: "btn danger", text: "지우기" });
+  del.addEventListener("click", async () => {
+    if (del.dataset.armed !== "1") { del.dataset.armed = "1"; del.textContent = "정말 지울까요? 한 번 더 누르면 지워져요"; return; }
+    await api("/admin/reports/" + encodeURIComponent(r.id), { method: "DELETE" });
+    opened.delete(r.id); load();
+  });
+  actions.append(el("span", { style: "flex:1" }), del);
+  box.replaceChildren(dl, att, actions);
+}
+
+function render(d) {
+  const list = document.getElementById("list");
+  const rows = d.reports.filter(r => !cat || r.category === cat);
+  const c = d.counts;
+  document.querySelector('[data-status="open"]').textContent = "처리 전 " + c.open;
+  document.querySelector('[data-status="done"]').textContent = "완료 " + c.done;
+  document.querySelector('[data-status="all"]').textContent = "전체 " + c.all;
+  if (!rows.length) { list.replaceChildren(el("div", { class: "muted", text: "신고가 없습니다" })); return; }
+  // unhandled reports older than 14 days first (⚖️ design §8-②)
+  rows.sort((a, b) => (b.stale - a.stale) || b.received_at.localeCompare(a.received_at));
+  list.replaceChildren(...rows.map(r => {
+    const icon = { image: "🖼 ", text: "💬 ", preset: "🎨 " }[r.attachment_kind] || "";
+    const head = el("button", { class: "head", type: "button" },
+      el("span", { class: "when", text: kst(r.received_at) }),
+      el("span", { class: "cat", text: CAT[r.category] || r.category }),
+      el("span", { class: "note", text: icon + where(r) + (r.note_head ? " — " + r.note_head : "") }),
+      pill(r.status));
+    const detail = el("div", { class: "detail" });
+    const row = el("div", { class: "row" + (r.stale ? " stale" : "") + (opened.has(r.id) ? " open" : "") }, head, detail);
+    if (opened.has(r.id)) fillDetail(detail, r.id).catch(() => {});
+    head.addEventListener("click", () => {
+      if (opened.has(r.id)) { opened.delete(r.id); row.classList.remove("open"); return; }
+      opened.add(r.id); row.classList.add("open"); fillDetail(detail, r.id).catch(() => {});
+    });
+    return row;
+  }));
+}
+
+async function load() {
+  const foot = document.getElementById("foot");
+  try {
+    render(await api("/admin/reports?status=" + status));
+    foot.textContent = "마지막 갱신 " + new Date().toLocaleTimeString("ko-KR");
+  } catch (e) {
+    if (e.message !== "sign-in") foot.textContent = "백엔드에 연결할 수 없습니다 (" + e.message + ")";
+  }
+}
+
+document.querySelectorAll("[data-status]").forEach(b => b.addEventListener("click", () => {
+  status = b.dataset.status;
+  document.querySelectorAll("[data-status]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  load();
+}));
+document.querySelectorAll("[data-cat]").forEach(b => b.addEventListener("click", () => {
+  cat = b.dataset.cat;
+  document.querySelectorAll("[data-cat]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  load();
+}));
+
+load();
+setInterval(() => { if (!opened.size) load(); }, 30000);   // not while a report is open — it would reset the delete button
+</script>
+</body>
+</html>

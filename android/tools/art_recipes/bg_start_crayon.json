@@ -1,0 +1,14 @@
+{
+  "name": "bg_start_crayon",
+  "kind": "bg",
+  "text": "an empty theatre stage with red velvet curtains drawn open, a wooden stage floor, warm spotlights, soft blurred lights in the background, no people, no pictures, no text",
+  "style": "crayon",
+  "size": [
+    1344,
+    768
+  ],
+  "seed": 500331420,
+  "prompt": "an empty theatre stage with red velvet curtains drawn open, a wooden stage floor, warm spotlights, soft blurred lights in the background, no people, no pictures, no text, wide landscape, no characters, no people, no animals, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-07"
+}

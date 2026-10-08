@@ -1,0 +1,14 @@
+{
+  "name": "prop_steam_puff",
+  "kind": "cut",
+  "text": "a soft puffy white cloud of steam rising, round billowing puffs",
+  "style": "felt",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 491607188,
+  "prompt": "a soft puffy white cloud of steam rising, round billowing puffs, single subject centered, full body, front view, isolated on plain pure white background, no shadow, soft felt fabric and paper-craft 3D children's picture book illustration, cute, rounded shapes, warm pastel colors, clean, gentle lighting, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-07"
+}

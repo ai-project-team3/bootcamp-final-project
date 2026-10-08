@@ -41,6 +41,6 @@ class PartnerWordsTest {
         assertEquals("friend" to "지민", partnerIn("지민이랑"))
         assertEquals("friend" to "친구", partnerIn("옆집 친구랑"))
         assertNull("not a name", partnerIn("몰라"))
-        assertNull("a sentence is not a name", partnerIn("오늘 아무도 없고 그냥 혼자 왔어"))
+        assertEquals("solo" to "혼자", partnerIn("오늘 아무도 없고 그냥 혼자 왔어"))
     }
 }

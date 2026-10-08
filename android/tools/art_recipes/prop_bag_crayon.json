@@ -1,0 +1,16 @@
+{
+  "name": "prop_bag_crayon",
+  "of": "prop_bag",
+  "kind": "cut",
+  "text": "a cute small child's backpack, red and yellow, standing upright",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 1503616931,
+  "prompt": "a cute small child's backpack, red and yellow, standing upright, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "gen_diary_more.py",
+  "made": "2026-10-07"
+}

@@ -323,7 +323,7 @@ internal fun Field(
 // ── ③ 동의 (2/5) — 전체 동의 · [필수]/[선택] · 항목마다 앱 안에서 전문 보기 (10-05 개편 · `Terms.kt`) ─────────────
 
 @Composable
-fun ConsentStep(onBack: () -> Unit, onDone: () -> Unit, onDecline: () -> Unit = {}) {
+fun ConsentStep(onBack: () -> Unit, onDone: () -> Unit, onDecline: () -> Unit = {}, reconsent: Boolean = false) {
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     // 선택 항목도 **미리 체크하지 않는다** — 모두 꺼진 채로 시작
@@ -334,8 +334,13 @@ fun ConsentStep(onBack: () -> Unit, onDone: () -> Unit, onDecline: () -> Unit = 
     val all = TermsDoc.entries.all { on(it) }
     val left = TermsDoc.entries.count { it.required && !on(it) }
     Box(Modifier.fillMaxSize()) {
+        // 이미 동의한 보호자에게 판이 올라 다시 묻는 화면 (#256) — 처음 가입과 같은 「1/5 · 이렇게만 써요」라 왜 다시 묻는지 몰랐다
+        val changes = if (reconsent) termsChangesSince(Shell.consentVersion) else emptyList()
+        val sub = if (!reconsent) "목소리는 글자로 바꾼 뒤 바로 지우고, 책은 이 폰에 저장해요."
+            else "다시 확인하고 동의해 주세요. 바뀐 것:\n" + changes.take(3).joinToString("\n") { "· $it" } +
+                (if (changes.size > 3) "\n외 ${changes.size - 3}개" else "")
         ObFrame(
-            step = 1, title = "이렇게만 써요", sub = "목소리는 글자로 바꾼 뒤 바로 지우고, 책은 이 폰에 저장해요.", onBack = onBack,
+            step = if (reconsent) null else 1, title = if (reconsent) "약관이 바뀌었어요" else "이렇게만 써요", sub = sub, onBack = onBack,
             art = { DataPath() },
             scroll = true,
             cta = "동의하고 계속", ctaEnabled = left == 0,

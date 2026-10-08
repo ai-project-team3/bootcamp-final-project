@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.dp
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.ui.ArtView
+import com.example.finalproject_demo.ui.AssetImage
+import androidx.compose.ui.graphics.graphicsLayer
 import com.example.finalproject_demo.ui.FeltWhite
 import com.example.finalproject_demo.ui.Ink
 import com.example.finalproject_demo.ui.Stand
@@ -66,7 +68,17 @@ internal fun RollMission(d: Director, done: Boolean, heroArt: Art) {
     // 진전 — 공이 골대에 얼마나 가까워졌나(8초 힌트용 · 10칸으로 끊어 조금 움직인 것은 진전으로 치지 않는다)
     var near by remember { mutableStateOf(0f) }
     val idle = rememberIdleHint(near, inGoal)
+    val hint = rememberMissionHint(d, near, inGoal, "D4")
     MissionDoneSignal(d, inGoal, done, "미션2")
+    // 공이 지나간 자리 — 점선 궤적이 곧 진행이다(막대 대신 · #260 §6-3)
+    val trail = remember { androidx.compose.runtime.mutableStateListOf<Offset>() }
+    // 골이 들어가면 그물이 한 번 출렁
+    val net = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(inGoal) {
+        if (!inGoal || done || motionFrozen) return@LaunchedEffect
+        net.animateTo(1.14f, tween(140))
+        net.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.3f, stiffness = 300f))
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
@@ -80,6 +92,10 @@ internal fun RollMission(d: Director, done: Boolean, heroArt: Art) {
 
         fun settle(at: Offset) {
             ball = at
+            if (trail.isEmpty() || hypot(trail.last().x - at.x, trail.last().y - at.y) > r * 0.9f) {
+                trail += at
+                if (trail.size > 40) trail.removeAt(0)
+            }
             val dist = hypot(goal.x - at.x, goal.y - at.y)
             near = ((1f - dist / (goal.x - start.x)).coerceIn(0f, 1f) * 10).roundToInt().toFloat()
             if (!inGoal && kotlin.math.abs(at.x - goal.x) < goalW * 0.5f && kotlin.math.abs(at.y - goal.y) < goalH * 0.45f) inGoal = true
@@ -106,14 +122,29 @@ internal fun RollMission(d: Director, done: Boolean, heroArt: Art) {
             }
         }
 
-        // 골대 — 펠트 테두리 그물(그림 대신 그린다 · 공이 그 안에 들어간다)
+        // 지나간 자리 — 옅은 점
         Canvas(Modifier.fillMaxSize()) {
-            val tl = Offset(goal.x - goalW / 2, goal.y - goalH / 2)
-            drawRoundRect(FeltWhite.copy(alpha = 0.55f), tl, Size(goalW, goalH), androidx.compose.ui.geometry.CornerRadius(goalW * 0.15f))
-            drawRoundRect(Ink.copy(alpha = 0.55f), tl, Size(goalW, goalH), androidx.compose.ui.geometry.CornerRadius(goalW * 0.15f), style = Stroke(goalW * 0.08f))
-            val step = goalW / 4
-            for (k in 1..3) drawLine(Ink.copy(alpha = 0.25f), Offset(tl.x + k * step, tl.y), Offset(tl.x + k * step, tl.y + goalH), strokeWidth = 3f)
-            for (k in 1..5) drawLine(Ink.copy(alpha = 0.25f), Offset(tl.x, tl.y + k * goalH / 6), Offset(tl.x + goalW, tl.y + k * goalH / 6), strokeWidth = 3f)
+            trail.forEachIndexed { k, q -> drawCircle(Ink.copy(alpha = 0.10f + 0.18f * k / trail.size.coerceAtLeast(1)), r * 0.13f, q) }
+        }
+
+        // 골대 — 펠트 그물 그림(prop_goal_net). 없으면 펠트 테두리를 그린다. 공이 들어가면 출렁
+        Box(
+            Modifier
+                .offset { IntOffset((goal.x - goalW * 0.75f).roundToInt(), (goal.y - goalH * 0.6f).roundToInt()) }
+                .size((goalW * 1.5f / density).dp, (goalH * 1.2f / density).dp)
+                .graphicsLayer { scaleX = net.value; scaleY = 2f - net.value },
+        ) {
+            AssetImage("prop_goal_net", Modifier.fillMaxSize()) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val w = size.width / 1.5f; val h = size.height / 1.2f
+                    val tl = Offset((size.width - w) / 2, (size.height - h) / 2)
+                    drawRoundRect(FeltWhite.copy(alpha = 0.55f), tl, Size(w, h), androidx.compose.ui.geometry.CornerRadius(w * 0.15f))
+                    drawRoundRect(Ink.copy(alpha = 0.55f), tl, Size(w, h), androidx.compose.ui.geometry.CornerRadius(w * 0.15f), style = Stroke(w * 0.08f))
+                    val step = w / 4
+                    for (k in 1..3) drawLine(Ink.copy(alpha = 0.25f), Offset(tl.x + k * step, tl.y), Offset(tl.x + k * step, tl.y + h), strokeWidth = 3f)
+                    for (k in 1..5) drawLine(Ink.copy(alpha = 0.25f), Offset(tl.x, tl.y + k * h / 6), Offset(tl.x + w, tl.y + k * h / 6), strokeWidth = 3f)
+                }
+            }
         }
 
         // 공 — 끌어서 옮겨도 된다(탭 길)
@@ -135,7 +166,12 @@ internal fun RollMission(d: Director, done: Boolean, heroArt: Art) {
             Box(Modifier.fillMaxSize().touchOutline(!inGoal)) { ArtView(Art.Img("coop_el_soccer", Art.Emoji("⚽")), Modifier.fillMaxSize()) }
         }
 
-        if (idle && !inGoal) {
+        // 15초 흐릿한 예시 — 공이 반투명으로 골대까지 굴러갔다 사라진다(진짜 공은 그대로 · 넣는 것은 아이)
+        if (hint != null && !inGoal) {
+            val g = ghostAlong(listOf(p, goal), hint)
+            Ghost(g, 2 * r, hint) { ArtView(Art.Img("coop_el_soccer", Art.Emoji("⚽")), Modifier.fillMaxSize()) }
+            GhostHand(g, wpx * 0.06f, hint)
+        } else if (idle && !inGoal) {
             val slide by rememberInfiniteTransition(label = "d4hint").animateFloat(
                 0f, 1f, infiniteRepeatable(tween(1300, easing = FastOutSlowInEasing), RepeatMode.Restart), label = "slide",
             )

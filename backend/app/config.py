@@ -123,4 +123,9 @@ class Settings(BaseSettings):
     # The public site is https; False only for a plain-http local test
     admin_cookie_secure: bool = True
 
+    # ── problem reports from the parent area (app/reports.py · #283) ──
+    # Where reports and their pictures are kept; empty = backend/reports/ (gitignored). PC1: /state/reports,
+    # which is C:\otto\state\reports on the host, so a redeploy keeps them (#240).
+    report_dir: str = ""
+
 settings = Settings()

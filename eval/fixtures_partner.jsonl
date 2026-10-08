@@ -1,0 +1,51 @@
+{"text": "엄마랑!", "want": "mom", "kind": "plain"}
+{"text": "엄마랑 같이 할 거야.", "want": "mom", "kind": "plain"}
+{"text": "아빠!", "want": "dad", "kind": "plain"}
+{"text": "아빠랑 할래! 아빠 오늘 쉬는 날이야.", "want": "dad", "kind": "plain"}
+{"text": "할머니랑 같이!", "want": "grandma", "kind": "plain"}
+{"text": "할아버지랑 할래.", "want": "grandpa", "kind": "plain"}
+{"text": "이모랑!", "want": "aunt", "kind": "plain"}
+{"text": "삼촌", "want": "uncle", "kind": "plain"}
+{"text": "선생님이랑 해요", "want": "teacher", "kind": "plain"}
+{"text": "언니랑", "want": "sibling", "kind": "plain"}
+{"text": "친구랑 할 거야!", "want": "friend", "kind": "plain"}
+{"text": "옆집 친구랑!", "want": "friend", "kind": "plain"}
+{"text": "민수", "want": "friend", "kind": "name"}
+{"text": "지민이랑!", "want": "friend", "kind": "name"}
+{"text": "서준이하고", "want": "friend", "kind": "name"}
+{"text": "하윤이랑 같이 왔어", "want": "friend", "kind": "name"}
+{"text": "혼자", "want": "solo", "kind": "solo"}
+{"text": "혼자 할래", "want": "solo", "kind": "solo"}
+{"text": "나 혼자서 할 거야", "want": "solo", "kind": "solo"}
+{"text": "아무도 없어", "want": "solo", "kind": "solo"}
+{"text": "나만 있어", "want": "solo", "kind": "solo"}
+{"text": "저 혼자요", "want": "solo", "kind": "solo"}
+{"text": "아무랑도 안 해 나 혼자", "want": "solo", "kind": "solo"}
+{"text": "엄마는 일하러 갔어. 나 혼자야", "want": "solo", "kind": "solo"}
+{"text": "혼자 안 할래, 엄마랑", "want": "mom", "kind": "negation"}
+{"text": "혼자는 싫어 아빠랑", "want": "dad", "kind": "negation"}
+{"text": "혼자 아니야 할머니 있어", "want": "grandma", "kind": "negation"}
+{"text": "엄마랑 혼자 왔어", "want": "mom", "kind": "negation"}
+{"text": "엄마 말고 아빠랑", "want": "dad", "kind": "negation"}
+{"text": "아빠는 없고 엄마랑", "want": "mom", "kind": "negation"}
+{"text": "우리 할미!", "want": "grandma", "kind": "variant"}
+{"text": "할부지랑", "want": "grandpa", "kind": "variant"}
+{"text": "외할머니", "want": "grandma", "kind": "variant"}
+{"text": "고모랑 왔어", "want": "aunt", "kind": "variant"}
+{"text": "큰아빠", "want": "uncle", "kind": "variant"}
+{"text": "이모부랑 할래", "want": "uncle", "kind": "variant"}
+{"text": "어머니요", "want": "mom", "kind": "variant"}
+{"text": "형아랑", "want": "sibling", "kind": "variant"}
+{"text": "누나", "want": "sibling", "kind": "variant"}
+{"text": "동생이랑 같이", "want": "sibling", "kind": "variant"}
+{"text": "쌤이랑", "want": "teacher", "kind": "variant"}
+{"text": "유치원 선생님", "want": "teacher", "kind": "variant"}
+{"text": "엄마아", "want": "mom", "kind": "variant"}
+{"text": "아부지", "want": "dad", "kind": "variant"}
+{"text": "몰라", "want": "unknown", "kind": "unclear"}
+{"text": "응", "want": "unknown", "kind": "unclear"}
+{"text": "공룡 이야기 하고 싶어", "want": "unknown", "kind": "unclear"}
+{"text": "음…", "want": "unknown", "kind": "unclear"}
+{"text": "그냥", "want": "unknown", "kind": "unclear"}
+{"text": "싫어", "want": "unknown", "kind": "unclear"}
+{"text": "배고파", "want": "unknown", "kind": "unclear"}

@@ -1,0 +1,14 @@
+{
+  "name": "kit_park_ground",
+  "kind": "bg",
+  "text": "soft green wool felt meadow ground filling the whole frame, low camera angle, felt fibers, a few tiny stitched grass tufts and tiny felt clover, no sky, no horizon, no objects, no path",
+  "style": "felt",
+  "size": [
+    1344,
+    768
+  ],
+  "seed": 1612715372,
+  "prompt": "soft green wool felt meadow ground filling the whole frame, low camera angle, felt fibers, a few tiny stitched grass tufts and tiny felt clover, no sky, no horizon, no objects, no path, wide landscape, no characters, no people, no animals, soft felt fabric and paper-craft 3D children's picture book illustration, cute, rounded shapes, warm pastel colors, clean, gentle lighting, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-07"
+}
