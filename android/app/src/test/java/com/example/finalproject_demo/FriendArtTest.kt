@@ -72,6 +72,7 @@ class FriendArtTest {
             companionKind = "강아지"; friend = "강아지"; slots["companion"] = "강아지와 함께 갔어요"
             problem = "길을 잃어버렸어"; slots["problem"] = "길을 잃어버렸어요"
             generatedFriend = GeneratedFriend("강아지", "local:/x/dog.png", "quad")
+            generatedCharacters += GeneratedFriend("고양이", "local:/x/cat.png", "quad", "second")
             title = "강아지와 동물원"
         }
         made.storyCaptions = (1..made.pageCount).map { "${it}쪽 문장" }
@@ -82,6 +83,8 @@ class FriendArtTest {
         val saved = store.load().single()
         assertEquals(GeneratedFriend("강아지", "local:/x/dog.png", "quad"), saved.book.visuals?.friend)
         assertTrue("the image cleanup must keep the doll", "local:/x/dog.png" in store.imageReferences()!!)
+        assertTrue("the additional co-op character must also survive", "local:/x/cat.png" in store.imageReferences()!!)
+        assertEquals(listOf("friend", "second"), saved.book.visuals!!.cast.map { it.role })
     }
 
     @Test

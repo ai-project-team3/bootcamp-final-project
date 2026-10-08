@@ -10,7 +10,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** A felt doll the server made for a character slot — used only while that slot still says [words]. */
-data class GeneratedFriend(val words: String, val image: String, val rig: String?)
+data class GeneratedFriend(val words: String, val image: String, val rig: String?, val role: String = "friend")
 
 /** 「친구」 alone names nobody in particular — the generic friend preset already fits it. */
 private val GENERIC_FRIEND = setOf("친구", "친구들")
