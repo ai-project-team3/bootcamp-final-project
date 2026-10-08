@@ -120,3 +120,11 @@ def test_a_failed_cutout_is_a_preset(live):
 def test_a_character_needs_a_description():
     r = TestClient(app).post("/image", json={"kind": "character"})
     assert r.status_code == 422
+
+
+def test_a_crayon_character_is_a_drawing_not_a_puppet():
+    felt = comfy.character_workflow("robot", "human", 1, "otto_mannequin_human.png")
+    crayon = comfy.character_workflow("robot", "human", 1, "otto_mannequin_human.png", "crayon")
+    assert "puppet" in felt["2"]["inputs"]["text"] and "wool felt" in felt["2"]["inputs"]["text"]
+    assert "crayon" in crayon["2"]["inputs"]["text"] and "puppet" not in crayon["2"]["inputs"]["text"]
+    assert crayon["5"]["inputs"]["denoise"] == felt["5"]["inputs"]["denoise"]   # the pose keeps the rig's number

@@ -814,7 +814,7 @@ private suspend fun Director.scenePlace() {
         say("${s.placeName}? 그런 데는 처음이야. 그림을 만들어 볼게!")
         if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
             val png = coroutineScope {
-                val request = async { Server.image(s.nameMask().mask(s.placeName), mode = "story") }
+                val request = async { Server.image(s.nameMask().mask(s.placeName), mode = "story", style = s.bookStyle) }
                 val early = withTimeoutOrNull(8_000) { request.await() }
                 if (early != null || request.isCompleted) early
                 else {

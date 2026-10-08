@@ -96,7 +96,7 @@ class Director(
     }
 
     private fun SavedStoryBook.onShelf(fresh: Boolean = false) =
-        ShelfBook(title, themeKey, bgName, pages.size, fresh, id)
+        ShelfBook(title, themeKey, bgName, pages.size, fresh, id, artStyle)
 
     /** 실패한 저장은 책장에 성공한 것처럼 표시하지 않는다. */
     fun saveFinishedStory(): Boolean {
