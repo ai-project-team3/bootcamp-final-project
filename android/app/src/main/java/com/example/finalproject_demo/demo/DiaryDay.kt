@@ -167,6 +167,9 @@ class DiaryDay {
     internal var lastStroke: Stroke? = null
     internal var continuing: Int? = null
 
+    /** 화이트보드의 폭/높이 — 획 사이 거리를 화면에서 보이는 대로 재려고 [addStroke] 가 본다 ([DemoState.drawingAspect]) */
+    internal var boardAspect: () -> Float = { 1f }
+
     /**
      * 오또가 이야기를 마친 조각 → 그때 판에 있던 획 수. 그 뒤에 그은 선은 [addStroke] 가 이 조각에 몰래 붙이지 않는다 —
      * 새 조각으로 두고 「○○에 더 그린 거야, 새로 그린 거야?」 · 「뭐 그린 거야?」로 묻는다 (10-06 실기기 · 진웅).
@@ -251,7 +254,10 @@ fun DemoState.hasDiaryCover(key: String): Boolean = diaryCovers[key]?.pieces?.is
 fun ShelfBook.coverKey(): String = savedStoryId ?: title
 
 /** 그림일기를 새로 시작한다 — 지난 판의 조각 · 날씨 · 기분 · 호출 수를 버린다 */
-fun DemoState.newDiaryDay(): DiaryDay = DiaryDay().also { dayByState[this] = it }
+fun DemoState.newDiaryDay(): DiaryDay = DiaryDay().also {
+    it.boardAspect = { drawingAspect.takeIf { a -> a > 0f } ?: 1f }
+    dayByState[this] = it
+}
 
 private val readingByState = WeakHashMap<DemoState, DiaryBookInput>()
 
