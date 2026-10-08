@@ -34,11 +34,11 @@ internal suspend fun Director.confirmHeroDescription(heard: String): String? {
                     }
                     // A rejection may include the replacement in the same breath.
                     val replacement = raw
-                        .replace(Regex("^(아니야|아니요|아니|아냐|아닌데)[,，.!?\\s]*"), "")
+                        .replace(Regex("^((아니(야|요|에요|오)?|아냐|아닌데(요)?|틀려(요)?)[,，.!?\\s]*)+"), "")
                         .trim().trimEnd('.', '!', '?', '~', ' ')
                     when {
                         yesNo == true -> return candidate
-                        yesNo == false && replacement.isBlank() -> return null
+                        yesNo == false && (replacement.length < 2 || replacement in setOf("에요", "요", "야")) -> return null
                         yesNo == false && replacement == raw -> return null
                         yesNo == false && Regex("^다시(\\s*(말할래|말할게|할래|할게|말하고 싶어|말할 거야))?$").matches(replacement) -> return null
                         replacement.isNotBlank() -> { candidate = replacement; shown = false }

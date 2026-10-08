@@ -8,6 +8,28 @@ import org.junit.Test
 
 class HeroDescriptionFlowTest {
     @Test
+    fun politeRejectionsWithoutADescriptionRepeatTheAttribute() = runBlocking {
+        for (reply in listOf("아니에요", "아닌데요", "아니 아니", "틀려요")) {
+            val scope = CoroutineScope(coroutineContext + SupervisorJob())
+            val d = Director(scope).apply { s.speed = 0.01; s.timerOn = false }
+            val confirmation = async { d.confirmHeroDescription("긴 머리") }
+            try {
+                waitFor(d) { d.s.stage is Stage.HeroAnswer }
+                d.send(Reply.Spoke(reply))
+                assertNull(reply, withTimeout(500) { confirmation.await() })
+            } finally { confirmation.cancel(); scope.cancel() }
+        }
+    }
+
+    @Test
+    fun aPoliteRejectionKeepsTheNewDescription() =
+        replacementDescription("아니에요 짧은 머리", "짧은 머리", exact = true)
+
+    @Test
+    fun repeatedRejectionsAreNotPartOfTheNewDescription() =
+        replacementDescription("아니 아니 짧은 머리", "짧은 머리", exact = true)
+
+    @Test
     fun aReplacementDescriptionOnTheConfirmationScreenIsConfirmedAndKept() =
         replacementDescription("둥글둥글 머리")
 
@@ -44,7 +66,7 @@ class HeroDescriptionFlowTest {
         } finally { confirmation.cancel(); scope.cancel() }
     }
 
-    private fun replacementDescription(replacement: String, expected: String = "둥글둥글 머리") = runBlocking {
+    private fun replacementDescription(replacement: String, expected: String = "둥글둥글 머리", exact: Boolean = false) = runBlocking {
         val beforeBase = Server.base
         val beforeModes = Server.liveModes
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
@@ -58,6 +80,7 @@ class HeroDescriptionFlowTest {
             d.send(Reply.Spoke(replacement))
             delay(200)
             assertTrue("a correction must be shown for confirmation", d.s.stage is Stage.HeroAnswer)
+            if (exact) assertEquals(expected, (d.s.stage as Stage.HeroAnswer).heard)
             assertTrue("the new description must replace the old one", expected in d.s.line)
             assertFalse("the rejected candidate must not remain", "뾰족뾰족" in d.s.line)
             assertTrue("a replacement is not consent to advance", "맞아" in d.s.line)
