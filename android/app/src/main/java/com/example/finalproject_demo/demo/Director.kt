@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Voice
 import com.example.finalproject_demo.net.nameMask
 import androidx.compose.runtime.getValue
@@ -761,6 +762,7 @@ class Director(
             drain()
             currentQ = null
             s.scene = scene
+            sceneMusic(scene)
             s.buttons.clear()
             s.countdown = null
             s.stage = Stage.Empty
@@ -827,7 +829,7 @@ class Director(
      * 다시 같은 모드로 들어오면 「이어서 할까?」 → `resume` 신호로 이 장면부터 이어 간다 (`Scenes.sceneAdult`)
      */
     fun leaveToRoom() {
-        s.holding = false
+        if (s.holding) { s.holding = false; Bgm.stop(); Bgm.resume("pause") }   // stop first: resume would fade the paused track back in for a blink
         pauseStory()
         goHome()
     }
@@ -841,6 +843,7 @@ class Director(
         if (s.holding) return
         s.holding = true
         hushVoice()
+        Bgm.hold("pause")
         if (s.micOn) { stopMic = true; micJob?.cancel(); s.micOn = false }
         log("⏸ 일시정지 — 목소리 · 녹음을 멈추고 흐름을 세운다")
     }
@@ -849,6 +852,7 @@ class Director(
     fun resumeSession() {
         if (!s.holding) return
         s.holding = false
+        Bgm.resume("pause")
         log("▶ 이어 하기")
         replayLine()
     }

@@ -10,6 +10,7 @@ import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Voice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
@@ -63,7 +64,9 @@ object ChildSound {
 
     /** Listen, trim, save to the session folder. Null = nothing loud enough was heard, or no mic. */
     suspend fun record(maxMs: Long = MAX_MS): SoundClip? {
-        val pcm = capture(maxMs) ?: return null
+        // the music must not get into the child's own sound
+        Bgm.holdNow("sound-mic")
+        val pcm = try { capture(maxMs) } finally { Bgm.resume("sound-mic") } ?: return null
         val sound = trim(pcm) ?: return null
         return withContext(Dispatchers.IO) {
             val id = UUID.randomUUID().toString()
@@ -96,6 +99,9 @@ object ChildSound {
     /** Plays one clip and returns when it ends (or fails). */
     suspend fun play(clip: SoundClip) {
         if (!clip.file.exists()) return
+        // the music sinks under the child's sound like under Otto's voice — released even if playback fails or is cut
+        Bgm.duck(true)
+        try {
         withContext(Dispatchers.Main) {
             suspendCancellableCoroutine { cont ->
                 val p = MediaPlayer()
@@ -116,6 +122,7 @@ object ChildSound {
                 cont.invokeOnCancellation { runCatching { p.stop() }; runCatching { p.release() } }
             }
         }
+        } finally { Bgm.duck(false) }
     }
 
     // ── pure parts (tested without a phone) ─────────────────────────
