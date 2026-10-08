@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.MissionId
+import com.example.finalproject_demo.demo.missions.missions
 import com.example.finalproject_demo.demo.missions.slot2Prop
 
 /*
@@ -569,6 +571,10 @@ fun diaryTemplate(s: DemoState): StoryTemplate {
                 st.slot2Prop()?.let { p ->
                     return@PageSpec if (st.m2Result == null) p.before else "${st.childName}${eun(st.childName)} ${p.did} ${p.result}"
                 }
+                // A rotated mission (stacking · fixing · rolling · #259) whose thing the child never named is not written
+                // into the book — the giving sentence would tell a child who stacked blocks 「별을 건네주었어요」
+                if (st.missions().slot2 !in setOf(MissionId.E1, MissionId.A3))
+                    return@PageSpec sol?.let { sentence(it) } ?: "${st.childName}${eun(st.childName)} 끝까지 해냈어요."
                 // 같이 만들기 — 미션 전에는 아직 건네지 않았다 (#98)
                 val give = if (st.isCoop && st.m2Result == null) st.m2Before() else st.m2Clause()
                 if (sol == null) "${st.childName}${eun(st.childName)} $give"

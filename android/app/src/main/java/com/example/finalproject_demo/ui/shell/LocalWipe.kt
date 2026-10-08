@@ -25,6 +25,7 @@ object LocalWipe {
         "rewards",       // 업적 보상 · 그림판 도구 (demo/Rewards.kt)
         "session_reports", // 부모 리포트 · 아이가 한 말 그대로 (demo/SessionReport.kt)
         "sent_reports",  // 보낸 문제 신고의 접수 번호 · 날짜 · 분류 (ui/Consent.kt SentReports · #283)
+        "mission_history", // past books' mission combos · book ids (demo/missions/MissionPicker.kt MissionHistory · #259)
     )
 
     /** filesDir 아래 폴더 — 그림 */
@@ -50,6 +51,7 @@ object LocalWipe {
         com.example.finalproject_demo.demo.SessionReports.reload()   // the copy in memory goes with the file
         com.example.finalproject_demo.demo.Rewards.reload()   // the copy in memory goes with the file
         com.example.finalproject_demo.ui.SentReports.reload()   // the copy in memory goes with the file
+        com.example.finalproject_demo.demo.missions.MissionHistory.reload()   // the copy in memory goes with the file
         FILES.forEach { ok = deleteTree(File(app.filesDir, it)) && ok }
         NO_BACKUP.forEach { ok = deleteTree(File(app.noBackupFilesDir, it)) && ok }
         // 오또 목소리를 틀려고 잠깐 둔 파일 (net/Voice.kt) — 대사에 아이 말이 들어갈 수 있다

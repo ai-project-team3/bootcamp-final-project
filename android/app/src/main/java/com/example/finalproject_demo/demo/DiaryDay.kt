@@ -90,8 +90,14 @@ enum class DiaryFeel(val emoji: String, val line: String, val word: String) {
 }
 
 /** 화면이 읽는 것(조각 · 날씨 · 기분)은 Compose 상태라 바뀌면 그림판 · 그림일기가 다시 그려진다 */
+/** 그림일기가 어디까지 왔나 — 🏠 → 「이어서 하기」가 이 단계부터 다시 들어온다 (#335) */
+enum class DiaryPhase { NEW, DRAWING, PIECE_STORIES, ASKING, PICKING, FINISHING, READING, DONE }
+
 class DiaryDay {
     val pieces = mutableStateListOf<DiaryPiece>()
+
+    /** 지금 단계 — [DiaryPhase.NEW] · [DiaryPhase.DONE] 이 아니면 이어서 할 일기다 (#335) */
+    var phase = DiaryPhase.NEW
 
     /** 날씨와 누가 골랐나 — `drawing`(그림에서 알아봄) · `card`(아이가 누름) */
     var weather by mutableStateOf<DiaryWeather?>(null)
@@ -166,6 +172,9 @@ class DiaryDay {
     /** 마지막으로 붙인 획 · 색을 바꿔 이어 그리는 중인 조각 — [addStroke] 가 본다 */
     internal var lastStroke: Stroke? = null
     internal var continuing: Int? = null
+
+    /** 화이트보드의 폭/높이 — 획 사이 거리를 화면에서 보이는 대로 재려고 [addStroke] 가 본다 ([DemoState.drawingAspect]) */
+    internal var boardAspect: () -> Float = { 1f }
 
     /**
      * 오또가 이야기를 마친 조각 → 그때 판에 있던 획 수. 그 뒤에 그은 선은 [addStroke] 가 이 조각에 몰래 붙이지 않는다 —
@@ -251,7 +260,17 @@ fun DemoState.hasDiaryCover(key: String): Boolean = diaryCovers[key]?.pieces?.is
 fun ShelfBook.coverKey(): String = savedStoryId ?: title
 
 /** 그림일기를 새로 시작한다 — 지난 판의 조각 · 날씨 · 기분 · 호출 수를 버린다 */
-fun DemoState.newDiaryDay(): DiaryDay = DiaryDay().also { dayByState[this] = it }
+fun DemoState.newDiaryDay(): DiaryDay = DiaryDay().also {
+    it.boardAspect = { drawingAspect.takeIf { a -> a > 0f } ?: 1f }
+    dayByState[this] = it
+}
+
+/** 하다 만 그림일기 — 🏠 로 나갔다가 「이어서 하기」로 돌아온 것. 시작 전이거나 다 끝났으면 null (#335) */
+fun DemoState.unfinishedDiaryDay(): DiaryDay? =
+    dayByState[this]?.takeIf { it.phase != DiaryPhase.NEW && it.phase != DiaryPhase.DONE }
+
+/** 새 이야기를 시작할 때 — 하다 만 그림일기를 버린다. 안 버리면 새 일기가 지난 일기를 이어 쓴다 (#335) */
+fun DemoState.dropDiaryDay() { dayByState.remove(this) }
 
 private val readingByState = WeakHashMap<DemoState, DiaryBookInput>()
 
