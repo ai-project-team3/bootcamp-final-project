@@ -2,6 +2,7 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.STORY_NEW_FRIEND
+import com.example.finalproject_demo.demo.TurnHistory
 import com.example.finalproject_demo.demo.exchangeStoryTurn
 import com.example.finalproject_demo.demo.nextStoryPrompt
 import com.example.finalproject_demo.demo.storyLooksLikeSentence
@@ -70,6 +71,28 @@ class StoryNameGuardTest {
         assertEquals(STORY_NEW_FRIEND, s.newcomerKind)
         assertEquals(said, s.slots["extra"])
         assertEquals("cause", s.storyNextSlot)
+    }
+
+    /** Undo takes back the one more ask with the answer — the same sentence again is asked again, not 「새 친구」 */
+    @Test
+    fun undoTakesBackTheOneMoreAsk() = runBlocking {
+        val s = started()
+        val history = TurnHistory(s)
+        val said = "눈보라가 불어서 길을 잃었어"
+        suspend fun answer() = s.exchangeStoryTurn("newcomer", "그때 누구를 만났어?", said) {
+            Server.TurnResult(verdict("newcomer" to said, next = "cause"), Server.Line("그랬구나", null, "왜 그랬을까?"))
+        }
+        history.before(); answer(); history.done()
+        assertTrue("newcomer" in s.storyWhoReasked)
+        assertTrue(history.undo())
+        assertTrue("the one more ask is taken back too", s.storyWhoReasked.isEmpty())
+        assertNull(s.slots["extra"])
+
+        history.before(); answer(); history.done()
+        assertNull("asked again, not 「새 친구」", s.slots["newcomer"])
+        assertEquals("newcomer", s.storyNextSlot)
+        assertTrue(history.undo()); assertTrue(history.redo())
+        assertTrue("redo brings the one more ask back", "newcomer" in s.storyWhoReasked)
     }
 
     @Test
