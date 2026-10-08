@@ -454,6 +454,9 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
     return r
 }
 
+/** 「누구랑 갔어?」의 「아무도 없었다」 */
+private val NOBODY = setOf("없어", "없었어", "없어요", "아무도", "아무도 없어", "아무도 없었어")
+
 /** 한 걸음에 받는 아이 질문 수 — 셋째부터는 지금 흐름(쉬운 질문) (#327 ⚖️5 · 사용자 결정 10-08) */
 internal const val CHILD_QUESTIONS_PER_STEP = 2
 
@@ -748,6 +751,12 @@ internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r
 
 private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: String, r: Reply.Spoke): String? {
     val text = r.text.trim()
+    // 「누구랑 갔어?」에 「없어」 · 「아무도」는 답이다 — 혼자 갔다(#327 §3-4). 협업은 판정의 no_longer_needed 를 쓰지 않아
+    // 판정에 보내도 칸이 접히지 않았다(10-08 실기기) — 같이 간 사람 칸에 바로 「혼자」
+    if (step.slot == "companion" && text.trimEnd('.', '!', '~', ' ') in NOBODY && classifyCoopReply(text, question) == CoopReply.Answer) {
+        log("[${step.bookKey}] 「$text」 — 아무도 없었다 → 같이 간 사람 「혼자」")
+        return "혼자"
+    }
     if (isNonAnswer(text)) return null
     // 아이가 오또에게 되물은 말 — 칸에도, 거절 목록(사다리 끝에서 칸 값이 된다)에도 넣지 않는다. 두 번 물어도
     // 「같은 음절 = 하고 싶은 말」로 받지 않는다 (#327 §1 잘못 둘)

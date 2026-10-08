@@ -95,6 +95,16 @@ class CoopQuestionFlowTest {
         } finally { server.close() }
     }
 
+    /** 「누구랑 갔어?」에 「없어」는 답 — 같이 간 사람이 「혼자」가 되고 다음 걸음으로 (#327 §3-4 · 10-08 실기기) */
+    @Test
+    fun nobodyToAWhoQuestionMeansAlone() = run { d ->
+        d.toFirstQuestion()
+        withTimeoutOrNull(10_000) { while (d.s.place == null) { d.send(Reply.Spoke("회전목마")); delay(60) } }
+        assertNotNull(await { d.s.micEnabled && "누구" in d.s.line })
+        withTimeoutOrNull(10_000) { while (d.s.friend == null) { d.send(Reply.Spoke("없어")); delay(60) } }
+        assertEquals("혼자", d.s.friend)
+    }
+
     /** 같은 질문을 계속 해도 — 전에는 거절 목록에 들어가 「같은 음절 = 하고 싶은 말」로 칸에 들어갔다(#327 §1) */
     @Test
     fun theSameQuestionAgainAndAgainNeverBecomesTheSlotValue() = run { d ->
