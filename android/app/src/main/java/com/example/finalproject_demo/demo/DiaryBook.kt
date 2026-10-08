@@ -51,7 +51,7 @@ data class DiaryPage(
     val item: String? = null,
 )
 
-/** 앱이 정한 일기 책 쪽 하나 (#220 ③) — 서버 쪽 종류(`DAY_KIND_MEANING`) · 앱 쪽 종류 · extra 쪽이면 그 말 */
+/** 앱이 정한 일기 책 쪽 하나 (#220 ③) — 서버 쪽 종류(`DIARY_KIND_MEANING`) · 앱 쪽 종류 · extra 쪽이면 그 말 */
 data class DiaryPlanPage(val serverKind: String, val kind: DiaryPageKind, val item: String? = null)
 
 /**
