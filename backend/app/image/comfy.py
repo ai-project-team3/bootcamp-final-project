@@ -10,12 +10,10 @@ routers/image.py runs the check.
 """
 import asyncio
 import base64
-import io
 import random
 import urllib.parse
 
 import httpx
-from PIL import Image
 
 from ..config import settings
 
@@ -63,7 +61,7 @@ def styles(style: str) -> dict:
 def workflow(scene: str, seed: int, style: str = "felt", mode: str = "story") -> dict:
     st = styles(style)
     if mode == "diary":                  # the diary keeps colored pencil whatever the book's style (#264)
-        st = {**st, "bg": DIARY_SCENE_STYLE, "neg": DIARY_BG_NEG}
+        st = {**st, "bg": DIARY_BG_STYLE, "neg": DIARY_BG_NEG}
     return {
         "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": settings.image_ckpt}},
         "8": {"class_type": "LoraLoaderModelOnly", "inputs": {
@@ -99,10 +97,7 @@ async def _cancel(base: str, pid: str) -> None:
 
 async def background(scene: str, style: str = "felt", mode: str = "story") -> bytes:
     """PNG bytes. Raises ComfyError; the caller owns the deadline and cancelling cancels the job."""
-    png = await run(workflow(scene, random.randrange(2 ** 31), style, mode), front=True)
-    if mode == "diary":                  # under the child's lines: washed pale before the check sees it
-        png = await asyncio.to_thread(wash, png, DIARY_SCENE_WASH)
-    return png
+    return await run(workflow(scene, random.randrange(2 ** 31), style, mode), front=True)
 
 
 # ── characters: img2img from a posed mannequin (docs/캐릭터_생성_규격.md §8) ──────────
@@ -245,24 +240,6 @@ DIARY_BG_NEG = ("text, letters, watermark, photo, photorealistic, 3d render, cut
                 "blurry, ugly, scary, dark, horror, frame, border, people, person, child, animal, character, "
                 "nudity, blood, weapon, gore")
 DIARY_BG_DENOISE = 0.9
-
-# A diary place drawn from words alone (#264 · 10-08): it lies under the child's own lines, so it is
-# sparse and pale. DIARY_BG_STYLE above made dense, finished illustrations here (12 places × 2, 10-08).
-# Nothing about people: at cfg 1.0 the negative prompt is all but ignored, and naming them calls them in.
-DIARY_SCENE_STYLE = (", children's colored pencil drawing on white paper, sparse simple landscape, "
-                     "a few large shapes, minimal detail, wide open ground and sky, pale soft pastel colors, "
-                     "light sketchy pencil strokes, white paper showing through, a quiet empty scene, no text")
-# how much white goes over it — the child's lines must stay on top (black → 40 % grey)
-DIARY_SCENE_WASH = 0.4
-
-
-def wash(png: bytes, amount: float) -> bytes:
-    """Blend toward white: white stays white, colour lightens by [amount]."""
-    im = Image.open(io.BytesIO(png)).convert("RGB")
-    out = Image.blend(im, Image.new("RGB", im.size, (255, 255, 255)), amount)
-    buf = io.BytesIO()
-    out.save(buf, "PNG")
-    return buf.getvalue()
 
 
 def redraw_workflow(subject: str, seed: int, drawing_b64: str, denoise: float | None = None,
