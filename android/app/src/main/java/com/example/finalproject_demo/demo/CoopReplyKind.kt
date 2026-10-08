@@ -186,15 +186,15 @@ private fun premiseDenied(core: String, question: String): CoopReply.PremiseDeni
     return CoopReply.PremiseDenied(verbStem(word), noun)
 }
 
-// ── 부정 대응 (#327 ② · 설계 §5) ─────────────────────────────────────────────
+// ── Negation (#327 ② · design §5) ─────────────────────────────────────────────
 
 private val NO_HEAD_ONLY = Regex("^아니(?:야|요|에요)?[,\\s]+")
 private val LINKING = listOf("서", "고", "니까", "는데", "면")
 
 /**
- * 오또 질문의 전제를 부정한 답에 하는 받아주기 — 부정된 끝 어절에 「구나」(「아니, 안 줬어」 → 「안 줬구나!」 ·
- * 「기린 없었어」 → 「기린 없었구나!」). `pastEcho` 와 같은 안전 조건(5어절 이하 · 이음 끝 없음 · 거친 말 없음).
- * 못 만들면 null — 부르는 쪽이 「그랬구나!」로. 「우와!」 · 「응응!」은 쓰지 않는다(§5-1)
+ * The ack for an answer that denies the premise of Otto's question — 「구나」 on the negated last eojeol (「아니, 안 줬어」 → 「안 줬구나!」 ·
+ * 「기린 없었어」 → 「기린 없었구나!」). The same safety rules as `pastEcho` (five eojeols or fewer · no linking ending · no rough word).
+ * Null when it cannot be made — the caller says 「그랬구나!」. Never 「우와!」 · 「응응!」 (§5-1)
  */
 internal fun negationAck(said: String): String? {
     val t = said.trim().replace(NO_HEAD_ONLY, "").trimEnd('.', '!', '~', ' ', '?')
@@ -207,8 +207,8 @@ internal fun negationAck(said: String): String? {
 }
 
 /**
- * 전제 없는 질문 — 이름 자리 · 선택지가 없는 열린 질문(§5-2). 아이가 오또 질문의 전제를 부정했을 때 한 번 묻는다.
- * 곧 해요의 cause 는 null(지금 템플릿 그대로). 걸음이 뼈대 넷이 아니면 null
+ * A premise-free question — open, with no name slot and no choices (§5-2). Asked once after the child denied the premise of Otto's question.
+ * Null for the cause of 곧 해요 (the template question stays) and for steps other than the four skeleton steps
  */
 internal fun coopPremiseFree(key: String, reason: CoopReason): String? {
     val soon = reason == CoopReason.SOON

@@ -27,9 +27,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * #327 ② §5 — 아이가 오또 질문의 전제를 부정하거나(「아니, 안 좋았어」) 고쳐 말할 때(「회전목마 말고 롤러코스터」).
- * 필수 걸음은 전제 없는 질문으로 한 번 · 꼬리 걸음은 칸 없이 다음 걸음 · 부모 질문 걸음은 그 답 그대로 ·
- * 고쳐 말하기는 고친 말만 판정에 보내고, 이미 찬 칸은 판정도 같은 칸일 때만 덮는다.
+ * #327 ② §5 — the child denies the premise of Otto's question (「아니, 안 좋았어」) or corrects an answer (「회전목마 말고 롤러코스터」).
+ * A required step asks once without the premise · a tail step moves on with the slot empty · a parent question keeps the answer as said ·
+ * a correction sends only the corrected words to the judge, and overwrites a filled slot only when the judge filled the same slot.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -66,7 +66,7 @@ class CoopNegationTest {
         assertNull(coopPremiseFree("detail", CoopReason.DONE))
     }
 
-    /** 물은 칸을 아이 말로 채우는 판정 — 「안 ○○」은 채우지 않는다. 「A 말고 B」면 [corrected] 칸을 B 로 */
+    /** A judge that fills the asked slot with the child's words — not 「안 ○○」. For 「A 말고 B」 it fills [corrected] with B */
     private fun server(corrected: String? = null) = StoryTestServer { path, body ->
         if (path != "/turn") JSONObject() else {
             val said = body.optString("utterance")
@@ -93,7 +93,7 @@ class CoopNegationTest {
         assertNotNull("첫 질문에서 마이크가 안 켜졌다", await { s.micEnabled })
     }
 
-    /** 한 번 말하고, 오또가 다음 질문을 할 때까지 기다린다(받아주기는 「?」가 없다) */
+    /** Say it once and wait until Otto asks the next question (an ack has no 「?」) */
     private suspend fun Director.sayOnce(text: String) {
         assertNotNull(await { s.micEnabled })
         val id = s.lineId
@@ -101,12 +101,12 @@ class CoopNegationTest {
         assertNotNull("「$text」 뒤에 다음 질문이 없었다 — ${s.line}", await { s.lineId > id && s.micEnabled && '?' in s.line })
     }
 
-    /** 부정 대응 받아주기를 했나 — 받아주기는 대화록에 남지 않아 로그로 본다 */
-    private fun Director.ottoSaid(text: String) = s.log.any { "부정 대응 「$text」" in it }
+    /** Was the negation ack said — acks are not in the transcript, so the log is checked */
+    private fun Director.ottoSaid(text: String) = s.log.any { "ack — negation 「$text」" in it }
 
     private suspend fun Director.asks(text: String) = await { text in s.line && s.micEnabled }
 
-    /** 필수 걸음 — 「어디가 제일 좋았어?」에 「아니, 안 좋았어」 → 「안 좋았구나!」 · 전제 없는 질문 · 칸은 진짜 답으로 */
+    /** Required step — 「아니, 안 좋았어」 to 「어디가 제일 좋았어?」 → 「안 좋았구나!」 · the premise-free question · the slot gets the real answer */
     @Test
     fun aDeniedPremiseOnARequiredStepIsAskedOnceWithoutThePremise() = run { d ->
         val server = server()
@@ -125,7 +125,7 @@ class CoopNegationTest {
         } finally { server.close() }
     }
 
-    /** 판정이 없을 때도 — 「안 좋았어」가 칸 값이 되지 않는다 */
+    /** Without the judge too — 「안 좋았어」 does not become the slot value */
     @Test
     fun withoutTheServerADenialIsNotTheSlotValue() = run { d ->
         d.toFirstQuestion()
@@ -136,7 +136,7 @@ class CoopNegationTest {
         assertEquals("회전목마", d.s.place)
     }
 
-    /** 꼬리 걸음 — 「누구랑 갔어?」에 「아니, 안 갔어」: 칸 없이 다음 걸음으로 (⚖️3) */
+    /** Tail step — 「아니, 안 갔어」 to 「누구랑 갔어?」: on to the next step with the slot empty (⚖️3) */
     @Test
     fun aDeniedPremiseOnATailStepLeavesTheSlotEmptyAndMovesOn() = run { d ->
         d.toFirstQuestion()
@@ -148,7 +148,7 @@ class CoopNegationTest {
         assertNotNull("다음 걸음으로 가지 않았다: ${d.s.line}", await { d.s.micEnabled && "누구" !in d.s.line })
     }
 
-    /** 부모 질문 걸음 — 「안 줬어」도 부모가 알고 싶은 답이다: 부모 질문 칸에 그대로 */
+    /** Parent question — 「안 줬어」 is an answer the parent wants too: kept as said in the parent slot */
     @Test
     fun aDenialToAParentQuestionIsKeptAsTheAnswer() = run { d ->
         d.toFirstQuestion("기린한테 뭐 줬어?")
@@ -161,7 +161,7 @@ class CoopNegationTest {
         assertEquals("아니, 안 줬어", d.s.slots["parent1"])
     }
 
-    /** 고쳐 말하기 — 「회전목마 말고 롤러코스터」: 판정에는 「롤러코스터」만, 이미 찬 곳 칸을 덮는다(⚖️4) */
+    /** Correction — 「회전목마 말고 롤러코스터」: only 「롤러코스터」 goes to the judge, and the filled place slot is overwritten (⚖️4) */
     @Test
     fun aCorrectionOverwritesTheFilledSlotWhenTheJudgeAgrees() = run { d ->
         val server = server(corrected = "place")
@@ -177,7 +177,7 @@ class CoopNegationTest {
             assertTrue(d.ottoSaid("아, 롤러코스터구나!"))
             val sent = server.requests.filter { it.first == "/turn" }.map { it.second.optString("utterance") }
             assertTrue("판정에 고친 말만 가지 않았다: $sent", "롤러코스터" in sent && sent.none { "말고" in it })
-            // 같이 간 사람 칸에는 넣지 않는다 — 거절 목록에도 없어 사다리 끝에 칸 값이 되지 않는다
+            // Not in the companion slot — and not a rejected answer, so it never becomes the slot value at the ladder's end
             assertNotEquals("롤러코스터", d.s.friend)
         } finally { server.close() }
     }
