@@ -353,6 +353,65 @@ class SessionDraftTest {
         }
     }
 
+    /**
+     * Review on #353 (P2): a kill without ON_STOP right after a generated candidate is on screen must not lose the
+     * candidate PNG (image cleanup on launch) nor give back the spent attempt / redraw.
+     */
+    @Test fun killedWithoutOnStopKeepsTheGeneratedCandidateAndTheSpentBudget() = runBlocking {
+        val png = ByteArrayOutputStream().also { Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+        val server = com.example.finalproject_demo.StoryTestServer { _, _ -> JSONObject().put("preset", false)
+            .put("rig", "human").put("png_base64", java.util.Base64.getEncoder().encodeToString(png)) }
+        val base = Server.base
+        val modes = Server.liveModes
+        val drafts = SessionDraftStore.Memory()
+        val first = CoroutineScope(coroutineContext + SupervisorJob())
+        val second = CoroutineScope(coroutineContext + SupervisorJob())
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.STORY)
+            val d = Director(first, storyImageStore = StoryImageStore(ctx), draftStore = drafts)
+                .apply { s.speed = 0.01; s.timerOn = false; s.mode = StoryMode.STORY }
+            suspend fun answer(said: String) {
+                assertNotNull(await { d.s.micEnabled && d.s.stage !is com.example.finalproject_demo.demo.Stage.HeroAnswer })
+                delay(30)
+                d.send(Reply.Spoke(said))
+                assertNotNull(await { d.s.stage is com.example.finalproject_demo.demo.Stage.HeroAnswer })
+                d.send(Reply.Tapped("ok", "맞아"))
+                assertNotNull(await { d.s.stage !is com.example.finalproject_demo.demo.Stage.HeroAnswer })
+            }
+            d.go(Scene.MAKEHERO)
+            assertNotNull(await { d.s.stage is com.example.finalproject_demo.demo.Stage.CardsRow })
+            delay(30)
+            d.send(Reply.Tapped("voice", "말로 만들기"))
+            for (said in listOf("짧은 머리", "빨간 옷", "안경 없어")) answer(said)
+            assertNotNull(await(8_000) { d.s.stage is com.example.finalproject_demo.demo.Stage.Confirm })
+            delay(30)
+            d.send(Reply.Tapped("no", "싫어"))                       // one redraw spent
+            assertNotNull(await { d.s.micEnabled && "바꾸면" in d.s.line })
+            answer("노란 모자")
+            assertNotNull(await(8_000) { d.s.stage is com.example.finalproject_demo.demo.Stage.Confirm && d.s.images == 2 })
+            val made = d.s.heroCreationDraft!!.generatedTries.map { it.first }
+            assertEquals(2, made.filterNotNull().distinct().size)
+            first.cancel()                                           // killed — no holdSession(), no ON_STOP
+
+            val e = Director(second, storyImageStore = StoryImageStore(ctx), draftStore = drafts)
+                .apply { s.speed = 0.01; CoopShelf.attach(ctx, s); restoreDraft(); recoverStoryImages() }   // launch order (MainActivity)
+            assertEquals(Scene.MAKEHERO, e.s.paused)
+            val h = e.s.heroCreationDraft!!
+            assertEquals("후보 그림이 저장본에 없다", made, h.generatedTries.map { it.first })
+            assertEquals(made.last(), h.generatedImage)
+            made.filterNotNull().forEach { assertTrue("켤 때 정리가 후보 그림을 지웠다: $it", File(it.removePrefix("local:")).exists()) }
+            assertEquals(HeroCreationDraft.Phase.CONFIRM, h.phase)
+            assertEquals("다시 그리기 횟수가 되살아났다", 1, h.fixes)
+            assertEquals(2, e.s.heroTries.size)
+            assertEquals(2, e.s.images)
+        } finally {
+            first.cancel(); second.cancel()
+            Server.base = base; Server.liveModes = modes
+            server.close()
+        }
+    }
+
     @Test fun finishingTheBookClearsTheDraftAndTheEndDoesNotWriteItBack() = runBlocking {
         val drafts = SessionDraftStore.Memory()
         val scope = CoroutineScope(coroutineContext + SupervisorJob())

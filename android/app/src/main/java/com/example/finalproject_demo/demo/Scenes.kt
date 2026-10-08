@@ -414,6 +414,10 @@ private suspend fun Director.sceneMakeHero() {
     var generatedImage by draft::generatedImage
     var generatedRig by draft::generatedRig
 
+    // #336 review: write the unfinished book whenever the doll's committed state moves — an answer, a reserved attempt,
+    // a finished candidate, a spent redraw, a phase change — so a kill without ON_STOP keeps the candidate and the budget
+    fun checkpoint() { if (s.heroCreationDraft === draft) saveDraft() }
+
     fun heroName(): String {
         val h = when (attr.hair) { "long" -> "긴 머리"; "tied" -> "묶은 머리"; else -> "짧은 머리" }
         val col = when (shirtKey(attr.shirt)) { "red" -> "빨간 옷"; "yellow" -> "노란 옷"; else -> "파란 옷" }
@@ -422,6 +426,7 @@ private suspend fun Director.sceneMakeHero() {
 
     suspend fun save() {
         draft.phase = HeroCreationDraft.Phase.NAME
+        checkpoint()
         val called = askHeroName(attr, generatedImage)          // 말로 · 글로 이름 짓기 (10-02 · demo/HeroName.kt)
         s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called)
         s.heroAttr = attr
@@ -597,8 +602,10 @@ private suspend fun Director.sceneMakeHero() {
                 break
             }
             draft.questionIndex = i + 1
+            checkpoint()
         }
         draft.phase = HeroCreationDraft.Phase.GENERATE
+        checkpoint()
     }
 
     suspend fun fixFlow() {
@@ -631,6 +638,7 @@ private suspend fun Director.sceneMakeHero() {
                 else -> {}
             }
             draft.phase = HeroCreationDraft.Phase.GENERATE
+            checkpoint()
             return
         }
     }
@@ -656,6 +664,7 @@ private suspend fun Director.sceneMakeHero() {
                 draft.phase = HeroCreationDraft.Phase.QUESTIONS
             }
             s.heroTries.clear()
+            checkpoint()
         }
         HeroCreationDraft.Phase.PRESET -> { presetBuilder(); return }
         HeroCreationDraft.Phase.QUESTIONS -> voiceStep(draft.questionIndex)
@@ -667,7 +676,11 @@ private suspend fun Director.sceneMakeHero() {
             s.heroTries += attr
             generatedTries += null to null
             draft.phase = HeroCreationDraft.Phase.CONFIRM
-            try { generate() } finally { generatedTries[generatedTries.lastIndex] = generatedImage to generatedRig }
+            checkpoint()                                   // the attempt is spent before the request goes out
+            try { generate() } finally {
+                generatedTries[generatedTries.lastIndex] = generatedImage to generatedRig
+                checkpoint()                               // the candidate PNG is owned by the draft from now on
+            }
         }
         HeroCreationDraft.Phase.CONFIRM -> {
             if (confirm() == "ok") { save(); return }
@@ -677,6 +690,7 @@ private suspend fun Director.sceneMakeHero() {
                 log("싫어 → 수정 $fixes/${s.redrawMax} · 한 번에 한 가지만")
                 draft.phase = HeroCreationDraft.Phase.REPAIR
             }
+            checkpoint()
         }
         HeroCreationDraft.Phase.REPAIR -> fixFlow()
         HeroCreationDraft.Phase.PICK -> { pickFromTries(); return }
