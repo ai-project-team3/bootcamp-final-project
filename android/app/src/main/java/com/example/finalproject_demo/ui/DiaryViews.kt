@@ -84,6 +84,7 @@ import com.example.finalproject_demo.demo.DiaryTrace
 import com.example.finalproject_demo.demo.UndoneStroke
 import com.example.finalproject_demo.demo.sendBoardTool
 import com.example.finalproject_demo.demo.tapBoard
+import com.example.finalproject_demo.demo.tapD3Picture
 import com.example.finalproject_demo.demo.pieceAt
 import com.example.finalproject_demo.demo.redoStroke
 import com.example.finalproject_demo.demo.undoStroke
@@ -706,6 +707,15 @@ private fun DiaryAskView(d: Director, cq: Dp) {
                     // 그린 부분만 카드 비율로 잘라 꽉 채운다 — 화이트보드의 빈 곳은 버린다
                     val crop = pictureCrop(pieces, s.drawingAspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)   // 오또 배경이 있으면 판 전체 (10-07)
                     pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
+                    // 톡 — 그 조각을 오또가 그린다. 책 만들기 전에 고른다 (#302). 질문의 답으로는 섞지 않는다
+                    var size by remember { mutableStateOf(IntSize(1, 1)) }
+                    Box(Modifier.fillMaxSize().onSizeChanged { size = it }.testTag("d3-picture-tap").pointerInput(crop) {
+                        detectTapGestures { o ->
+                            val x = crop.left + o.x / size.width * crop.width
+                            val y = crop.top + o.y / size.height * crop.height
+                            s.diaryDay.pieceAt(x, y)?.let { d.tapD3Picture(it.id) }
+                        }
+                    })
                 }
                 Box(Modifier.align(Alignment.TopCenter).size(cq * 2.4f).shadow(2.dp, CircleShape).background(FeltCoral, CircleShape))
             }

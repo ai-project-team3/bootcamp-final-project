@@ -2,6 +2,7 @@ package com.example.finalproject_demo
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import com.example.finalproject_demo.demo.D3_TAP_ASK
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.DiaryAsk
 import com.example.finalproject_demo.demo.DiaryBoard
@@ -23,6 +24,7 @@ import com.example.finalproject_demo.demo.newDiaryDay
 import com.example.finalproject_demo.demo.pieceAt
 import com.example.finalproject_demo.demo.sendBoardTool
 import com.example.finalproject_demo.demo.tapBoard
+import com.example.finalproject_demo.demo.tapD3Picture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
@@ -146,5 +148,46 @@ class DiaryTapAnyPieceTest {
         d.tool("drawme")
         assertTrue("a third drawing of the same piece — 말=${d.s.line}", await { d.s.line == OTTO_TOO_MANY_LINE } != null)
         assertEquals(OTTO_ORDERS_MAX, d.s.diaryDay.ottoOrders[id])
+    }
+
+    // ── 2 · after drawing (D3), until the book ─────────────────────
+
+    @Test
+    fun aPieceTouchedAfterDrawingIsDrawnAndPickedBeforeTheBook() = run { d ->
+        d.board()
+        d.draw(.3f)
+        d.s.diaryDay.pieces[0] = d.s.diaryDay.pieces[0].copy(name = "강아지")
+        val id = d.s.diaryDay.pieces[0].id
+        d.finish()
+        d.tapD3Picture(id)
+        d.talkD3({ (d.s.stage as? DiaryBoard)?.pick == id }) { null }
+        d.send(Reply.Tapped("otto", "오또 그림"))
+        assertTrue(await { d.s.diaryDay.pieces.single().look == PieceLook.OTTO } != null)
+    }
+
+    @Test
+    fun anUnnamedPieceTouchedAfterDrawingIsNamedFirst() = run { d ->
+        d.board()
+        d.draw(.3f)
+        val id = d.s.diaryDay.pieces[0].id
+        d.finish()
+        d.tapD3Picture(id)
+        var asked = false
+        d.talkD3({ (d.s.stage as? DiaryBoard)?.pick == id }) { line ->
+            if (line == D3_TAP_ASK) { asked = true; "고양이야" } else null
+        }
+        assertTrue("Otto drew a piece without knowing what it is", asked)
+        assertEquals("고양이", d.s.diaryDay.pieces.single().name)
+    }
+
+    @Test
+    fun aPieceNotTouchedIsNeverOrdered() = run { d ->
+        d.board()
+        d.draw(.3f)
+        d.s.diaryDay.pieces[0] = d.s.diaryDay.pieces[0].copy(name = "강아지")
+        d.finish()
+        d.talkD3({ d.s.stage !is DiaryAsk }) { null }
+        assertTrue(d.s.diaryDay.ottoOrders.isEmpty())
+        assertEquals(PieceLook.ORIGINAL, d.s.diaryDay.pieces.single().look)
     }
 }

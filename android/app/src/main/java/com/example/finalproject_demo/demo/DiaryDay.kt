@@ -207,6 +207,9 @@ class DiaryDay {
     /** 조각마다 오또 그림을 주문한 수 — [OTTO_ORDERS_MAX] 까지. 한 장마다 우리 GPU 수 초 (#302) */
     val ottoOrders = mutableMapOf<Int, Int>()
 
+    /** 다 그린 뒤(D3) 그림에서 누른 조각 — 다음 질문 전에 받는다 (#302) */
+    @Volatile var d3Pick: Int? = null
+
     /** 이름 붙은 조각의 이름 — 그린 차례대로, 뒤에 [alsoDrawn]. 같은 이름은 한 번만 */
     val pieceNames: List<String> get() = (pieces.mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) } + alsoDrawn).distinct()
 
