@@ -1,5 +1,8 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.pinMissions
+import com.example.finalproject_demo.demo.missions.missions
+import com.example.finalproject_demo.demo.missions.missionRecord
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.geometry.Offset
@@ -29,6 +32,8 @@ data class SavedStoryVisuals(
     val liveStory: Boolean? = null,
     // The felt doll made for a character slot with no preset (10-06 · FriendArt.kt); older books have none.
     val friend: GeneratedFriend? = null,
+    /** The missions and props it was made with (#259 · PinnedMissions.encode) — a re-read book plays the same ones. Older books: null */
+    val missions: String? = null,
 ) {
     /** Server pictures this book still needs — kept when unused story images are cleared. */
     val images: List<String> get() = listOfNotNull(hero.image, friend?.image)
@@ -38,7 +43,7 @@ fun DemoState.captureStoryVisuals() = SavedStoryVisuals(
     templateKey!!, persona, Hero(childName, heroAttr ?: HeroAttr(), storyHeroImage, storyHeroRig),
     drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
     dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
-    newcomerKind, soundLine, causeLine, Server.liveFor(mode), generatedFriend,
+    newcomerKind, soundLine, causeLine, Server.liveFor(mode), generatedFriend, missionRecord(),
 )
 
 /** Build a separate reading state; reopening a book must not overwrite the current conversation. */
@@ -68,6 +73,8 @@ fun DemoState.restoreStoryBook(book: SavedStoryBook): Boolean {
     soundLine = visual.soundLine
     causeLine = visual.causeLine
     generatedFriend = visual.friend
+    // the missions it was made with — its facts are not all stored, and the mission history has moved on (#259)
+    pinMissions(com.example.finalproject_demo.demo.missions.PinnedMissions.decode(visual.missions))
     // The stored captions already include mission results. Do not append them twice.
     m1Result = null
     m2Result = null
@@ -96,6 +103,7 @@ internal fun SavedStoryVisuals.toJson(): JSONObject {
         .put("liveStory", liveStory ?: JSONObject.NULL)
         .put("friend", friend?.let { JSONObject().put("words", it.words).put("image", it.image).put("rig", it.rig ?: JSONObject.NULL) }
             ?: JSONObject.NULL)
+        .put("missions", missions ?: JSONObject.NULL)
 }
 
 internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
@@ -124,6 +132,7 @@ internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
         obj.optString("causeLine", "친구가 없어서 심심했어"),
         if (obj.isNull("liveStory")) null else obj.getBoolean("liveStory"),
         obj.optJSONObject("friend")?.let { GeneratedFriend(it.getString("words"), it.getString("image"), it.nullableString("rig")) },
+        if (obj.has("missions")) obj.nullableString("missions") else null,
     )
 }
 

@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.missions
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Voice
@@ -106,6 +107,8 @@ class Director(
             if (book.soundClipId != null && storyBookStore == null) return false
             if (!s.keepStorySound(book)) return false
             storyBookStore?.save(book)
+            // the next books avoid this one's missions (#259)
+            com.example.finalproject_demo.demo.missions.MissionHistory.record(s.mode, book.id, s.missions())
             s.commitStorySound()
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))

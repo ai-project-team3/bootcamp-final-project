@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.soundProp
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
 import com.example.finalproject_demo.demo.missions.BlowProp
@@ -823,7 +824,7 @@ suspend fun Director.coopWriteBook() {
         level = s.level.name.lowercase(),
         // 미션 쪽에 미션 ID 를 단다 — 서버가 그 쪽을 미션 직전 상황으로 끝맺는다 (#52 3번 · 동화 `storyPagePlan` 과 같은 표)
         // 물건은 아이 말에서 나온 것만 — 없으면 서버가 미션 상황 없이 쓴다(실제 하루에 없던 먼지 · 별 · 10-05)
-        pages = pages.map { Server.Page(it.kind.name, s.coopPageMission(it.kind), s.coopMissionProp(it.kind)) },
+        pages = pages.map { Server.Page(it.kind.name, s.coopPageMission(it.kind), s.coopMissionProp(it.kind), s.missionSource(it.kind)) },
         // 고른 이야기와 이유 — 이유에 따라 책 시제가 갈린다(곧 해요 = 앞으로 할 일 · 좋아해요 = 상상) (#52 1번 · 서버 `77a9d5c`)
         template = s.coopTurnContext()?.let(mask::mask),
         reason = s.coopStoryReason(),
@@ -840,8 +841,37 @@ suspend fun Director.coopWriteBook() {
  * 아직 안 끝냈거나 미션 쪽이 아니면 null
  */
 internal fun DemoState.coopMissionResult(kind: PageKind): String? =
-    // 곧 해요 책은 「-ㄹ 거예요」 — 「물을 뿌릴 거예요」 뒤에 「불이 다 꺼졌어요」가 붙었다(10-06 실기기 · CoopTense.kt)
-    coopMissionResultAsDone(kind)?.let { if (coopServerTense() == CoopReason.SOON) soonTense(it) else it }
+    coopImaginedResult(kind)
+        // A 곧 해요 book is in the future tense — 「불이 다 꺼졌어요」 followed 「물을 뿌릴 거예요」 (device 10-06 · CoopTense.kt)
+        ?: coopMissionResultAsDone(kind)?.let { if (coopServerTense() == CoopReason.SOON) soonTense(it) else it }
+
+/** Missions played on the board — nothing to imagine, so the server does not write them as imagined either (#340) */
+private val ON_BOARD = setOf(MissionId.A3)
+
+/**
+ * On a real day (다녀왔어요 · 곧 해요) a mission page the child did not talk about is written by the server as imagined
+ * (「오또가 상상해 봤어! … 네가 …줄래?」 · #340 · lead 10-08). Its result closes as imagined too — closing it as a fact
+ * (「불이 다 꺼졌어요」) would make the imagined thing part of that day. Null for 좋아해요 (the whole book is imagined),
+ * for a page whose prop came from the child's words, and for board missions (the current sentence stays)
+ */
+internal fun DemoState.coopImaginedResult(kind: PageKind): String? {
+    if (coopServerTense() == CoopReason.DREAM || coopMissionInBook(kind)) return null
+    val m = missionFor(kind)?.takeIf { it !in ON_BOARD } ?: return null
+    val done = when (kind) { PageKind.RUB -> m1Result != null; PageKind.DRAG -> m2Result != null; else -> false }
+    if (!done) return null
+    return "상상 속에서 " + when (m) {
+        MissionId.A6 -> "반짝반짝 깨끗해졌어!"
+        MissionId.C1 -> "후~ 다 날아갔어!"
+        MissionId.C3 -> soundProp()?.let { "「${it.sound}!」 소리가 울렸어!" } ?: "큰 소리가 울렸어!"
+        MissionId.A1 -> "불이 꺼졌어!"
+        MissionId.A4 -> "물이 딱 멈췄어!"
+        MissionId.D4 -> "공이 골대에 쏙 들어갔어!"
+        MissionId.E2 -> "부서진 곳이 고쳐졌어!"
+        MissionId.A5 -> "블록 탑이 높이 섰어!"
+        MissionId.E1 -> "선물을 건넸어!"
+        else -> "해냈어!"
+    }
+}
 
 private fun DemoState.coopMissionResultAsDone(kind: PageKind): String? = if (!coopMissionInBook(kind)) null else when (kind) {
     PageKind.RUB -> if (m1Result != null) slot1Prop()?.result ?: mission1().blobName.let { "${it}${ga(it)} 사라졌어요." } else null

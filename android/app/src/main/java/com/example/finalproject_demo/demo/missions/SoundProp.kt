@@ -61,12 +61,13 @@ enum class SoundProp(
 
 /** 아이 말에서 C3 소품을 찾는다 — 없으면 null. 소리 낱말이 먼저, 그다음 그 소리를 내는 것 */
 fun soundPropIn(said: String): SoundProp? = when {
-    listOf("삐뽀", "사이렌", "소방차", "구급차", "경찰차").any { it in said } -> SoundProp.SIREN
-    listOf("부릉", "빵빵", "자동차", "버스").any { it in said } -> SoundProp.CAR
-    listOf("칙칙", "기차").any { it in said } -> SoundProp.TRAIN
-    listOf("어흥", "사자", "호랑이").any { it in said } -> SoundProp.LION
-    listOf("멍멍", "강아지", "왈왈").any { it in said } -> SoundProp.DOG
-    listOf("슛", "골인", "응원").any { it in said } -> SoundProp.CHEER
+    // Words match only at the start of an eojeol (#259 · MissionWords.kt)
+    saysAny(said, listOf("삐뽀", "사이렌", "소방차", "구급차", "경찰차")) -> SoundProp.SIREN
+    saysAny(said, listOf("부릉", "빵빵", "자동차", "버스", "트럭", "택시", "오토바이")) -> SoundProp.CAR
+    saysAny(said, listOf("칙칙", "기차", "지하철")) -> SoundProp.TRAIN
+    saysAny(said, listOf("어흥", "사자", "호랑이")) -> SoundProp.LION
+    saysAny(said, listOf("멍멍", "강아지", "왈왈")) -> SoundProp.DOG
+    saysAny(said, listOf("슛", "골인", "응원")) -> SoundProp.CHEER
     else -> null
 }
 
@@ -77,8 +78,8 @@ fun soundPropIn(said: String): SoundProp? = when {
 const val SERVER_KNOWS_C3 = true   // main 0dfa664 — 서버 MissionId 에 C3 (10-05)
 
 /** 이 책의 C3 소품 — 자리 1 이 C3 일 때만 */
-fun DemoState.soundProp(): SoundProp? =
-    if (missions().slot1 == MissionId.C3) soundPropIn(storyFacts().slot1Words) else null
+fun DemoState.soundProp(): SoundProp? = pinnedMissions()?.sound            // a re-read book (#321 review)
+    ?: if (pinnedMissions() == null && missions().slot1 == MissionId.C3) soundPropIn(storyFacts().slot1Words) else null
 
 /** 이 책 자리 1 의 소품 말 — C1 · C3 면 그 소품, 아니면 null(A6 문지르기 · `Missions.kt` 원래 문장) */
 fun DemoState.slot1Prop(): Slot1Prop? = blowProp() ?: soundProp()

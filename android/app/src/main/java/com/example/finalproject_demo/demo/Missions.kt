@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.slot2PlayProp
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
 
@@ -142,6 +143,10 @@ fun DemoState.mission2(): Mission2 = when (solutionItem) {
     "block" -> Mission2("prop_block", "🧱", "블록", "블록 하나를 건네주었어요", "블록을 받고 같이 쌓기 시작했어!")
     "picturebook" -> Mission2("prop_picturebook", "📗", "그림책", "그림책을 건네주었어요", "그림책을 받고 눈이 반짝!")
     "bandaid" -> Mission2("prop_bandaid", "🩹", "반창고", "반창고를 붙여 주었어요", "반창고를 붙이고 씩 웃어!")
+    // A scripted story's star is what the child picked in scene 10 (「별 따기」) — the child's own. A live story's or
+    // a co-op book's "star" is the first value left unchanged (nothing found) — the default (#309 · #321 review)
+    "star" -> Mission2("obj_star", "⭐", "별", "반짝이는 별을 건네주었어요", "별을 받고 활짝 웃어!",
+        fromChild = mode == StoryMode.STORY && !com.example.finalproject_demo.net.Server.liveFor(mode))
     else -> Mission2("obj_star", "⭐", "별", "반짝이는 별을 건네주었어요", "별을 받고 활짝 웃어!", fromChild = false)
 }
 
@@ -158,6 +163,19 @@ fun DemoState.m2Log(page: Int): String {
         else -> "장면 10에서 말한 ${m.itemName}${eul(m.itemName)}"
     }
     return "${page}쪽 미션 2 ($how) — $what ${friendCallName}에게"
+}
+
+/**
+ * Mission 1's name on the parent screen (「받은 선물」) and in logs — the default dust is not something the child said,
+ * so it does not say 「먼지 치운 손」 (#259 §4-3 4)
+ */
+fun DemoState.m1Badge(): String = slot1Prop()?.badge ?: mission1().blobName.let { b ->
+    if (b == "먼지" && !mission1FromChildWords()) "깨끗하게 치운 손" else "$b 치운 손"
+}
+
+/** Mission 2's 「받은 선물」 — the mission on screen; for giving, the thing given. The default star has no name (#259 §4-3 4) */
+fun DemoState.m2Badge(): String = slot2PlayProp()?.badge ?: mission2().let { m ->
+    if (m.fromChild) "${m.itemName} 건넨 손" else "마음을 건넨 손"
 }
 
 /** "심심했어" → "심심했대" (남의 말을 전할 때) */
@@ -251,7 +269,8 @@ fun DemoState.m1Done(): String =
     else "${mission1().done} $storyActor 덕분에 ${rideName}${ga(rideName)} 다시 반짝반짝!"
 
 fun DemoState.m2Line(easy: Boolean): String {
-    slot2Prop()?.let { return it.ask }                   // A1 물대포 · A4 돌려 잠그기 (Slot2Prop.kt)
+    // The mission on screen — rotated stacking · fixing · rolling included (#259). Only giving · puzzle go below
+    slot2PlayProp()?.let { return it.ask }               // A1 water cannon · A4 turn the tap … (Slot2Prop.kt)
     val m = mission2()
     // 9/22 — 아무도 없었던 날에는 "그 친구" 를 지어내지 않는다. 마스코트가 받는다 (그림도 이미 마스코트다)
     val f = giveTargetName
@@ -261,4 +280,4 @@ fun DemoState.m2Line(easy: Boolean): String {
     return "${f}${ga(f)} ${reported(causeLine)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
 }
 
-fun DemoState.m2Done(): String = slot2Prop()?.cheer ?: "${giveTargetName}${ga(giveTargetName)} ${mission2().done}"
+fun DemoState.m2Done(): String = slot2PlayProp()?.cheer ?: "${giveTargetName}${ga(giveTargetName)} ${mission2().done}"
