@@ -73,8 +73,8 @@ class ShellFlowTest {
 
     /** 처음 설정을 끝까지 — 방에 들어오기까지 */
     private fun onboard() {
-        waitText("눌러서 시작", 10_000); shot("01_title")
-        tap("눌러서 시작")
+        waitText("건너뛰기", 10_000); shot("01_title")
+        tap("건너뛰기")
         waitText("카카오로 시작하기"); shot("02_login")
         assertEquals("로그인 없이 둘러보는 길이 남아 있다", 0, count("샘플 책 보기"))
         tap("카카오로 시작하기")
@@ -142,7 +142,7 @@ class ShellFlowTest {
     @Test
     fun emailSignUpReachesConsent() {
         compose.activity.getSharedPreferences("otto_account", android.content.Context.MODE_PRIVATE).edit().clear().commit()
-        waitText("눌러서 시작", 10_000); tap("눌러서 시작")
+        waitText("건너뛰기", 10_000); tap("건너뛰기")
         tap("이메일로 회원가입")
         waitText("영문 + 숫자 8자 이상")
         compose.onNode(hasContentDescription("이메일")).performTextInput("parent@example.com")
@@ -164,7 +164,7 @@ class ShellFlowTest {
      */
     @Test
     fun consentNeedsEveryRequiredItemAndKeepsOptionalChoices() {
-        waitText("눌러서 시작", 10_000); tap("눌러서 시작")
+        waitText("건너뛰기", 10_000); tap("건너뛰기")
         tap("카카오로 시작하기")
         waitText("이렇게만 써요"); shot("03a_consent_empty")
         compose.onNode(hasText("동의하고 계속") and hasClickAction()).assertIsNotEnabled()
@@ -373,7 +373,7 @@ class ShellFlowTest {
         // 10-05 판에 동의한 보호자가 앱을 다시 켠 것처럼 — Shell 이 붙은 저장소로 쓴다(object 라 앞 검사의 것일 수 있다)
         Shell.saveConsent("2026-10-05", news = Shell.newsSince != null, at = Shell.newsSince ?: 0L)
         Shell.step = Step.TITLE
-        tap("눌러서 시작")
+        tap("건너뛰기")
         waitText("약관이 바뀌었어요"); shot("25_reconsent")
         assertEquals("처음 가입 화면이 그대로 나왔다", 0, count("이렇게만 써요"))
         assertEquals("다시 동의인데 단계 점이 보인다", 0, count("/ 5"))
@@ -384,7 +384,7 @@ class ShellFlowTest {
         compose.waitUntil(5_000) { Shell.step == Step.TITLE }
         assertEquals("2026-10-05", Shell.consentVersion)
         // 다시 들어가 동의하면 방으로, 판은 지금 판
-        tap("눌러서 시작")
+        tap("건너뛰기")
         waitText("약관이 바뀌었어요")
         tap("모두 동의해요"); tap("동의하고 계속")
         compose.waitUntil(5_000) { Shell.step == Step.APP }
@@ -463,14 +463,14 @@ class ShellFlowTest {
     }
 
     /**
-     * **실제 손가락처럼** 누르고 → 잠시 뒤 떼면 넘어가는가 (09-29 실기기 — 「눌러서 시작」이 안 넘어갔다).
+     * **실제 손가락처럼** 누르고 → 잠시 뒤 떼면 넘어가는가 (09-29 실기기 — 「건너뛰기」이 안 넘어갔다).
      *
      * `performClick` 은 누름과 뗌을 한 번에 넣어서, 방패 층(`Shield`)이 터치를 처리됨으로 표시해 누름이
      * 취소되는 문제를 못 잡았다. 누름 · 조금 움직임 · 뗌을 시간을 두고 따로 넣는다(움직이지 않으면 실기기에서도 넘어갔다). 로그인 · 설정 버튼도 같은 층이다
      */
     @Test
     fun aRealFingerTapPassesTheTitleAndLogin() {
-        waitText("눌러서 시작", 10_000)
+        waitText("건너뛰기", 10_000)
         fun finger(t: String) {
             compose.waitUntil(8_000) { compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
             compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).onLast().performTouchInput {
@@ -479,7 +479,7 @@ class ShellFlowTest {
             }
             compose.waitForIdle()
         }
-        finger("눌러서 시작")
+        finger("건너뛰기")
         waitText("카카오로 시작하기")
         finger("카카오로 시작하기")
         waitText("이렇게만 써요")
