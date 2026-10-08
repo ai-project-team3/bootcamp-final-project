@@ -386,6 +386,7 @@ private suspend fun Director.onHeroPicked(v: String) {
     s.storyHeroRig = s.heroes[idx].rig
     s.storyHeroCall = s.heroes[idx].called
     s.storyHeroDescription = s.heroes[idx].description
+    if (s.mode == StoryMode.STORY) heroSetupLog.finish("new")?.let(::log)
     mark("bestiary")
     log("주인공 고름: ${s.heroes[idx].name} → 고정 스프라이트 그대로 씀 (⭐20 · ⭐26)")
     say("${s.heroes[idx].name}${ya(s.heroes[idx].name)}, 준비됐지?")
@@ -397,6 +398,7 @@ private suspend fun Director.onHeroPicked(v: String) {
 // ── 장면 2↳ · 주인공 만들기 (말로 / 골라서) — 둘 다 같은 펠트 그림 ──
 
 private suspend fun Director.sceneMakeHero() {
+    if (s.mode == StoryMode.STORY && choosePreviousStoryHero()) return
     var attr = HeroAttr(hair = "short", shirt = Color(0xFF3F7BD9), glasses = "none", likes = "dino")
     var fixes = 0
     val c = s.childName
@@ -740,7 +742,7 @@ private suspend fun Director.scenePartner() {
     })
     mark("partner")
     pause(1600)
-    if (s.firstDay) go(Scene.MAKEHERO) else go(Scene.BESTIARY)
+    if (s.mode == StoryMode.STORY || s.firstDay) go(Scene.MAKEHERO) else go(Scene.BESTIARY)
 }
 
 // ── 장면 3′ · 오늘 있었던 일 ────────────────────────────
