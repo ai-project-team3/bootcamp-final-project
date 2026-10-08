@@ -185,7 +185,7 @@ object Server {
     // ── /story ─────────────────────────────────────────────────────
 
     /** One page of the book plan: a `PageKind` name and the mission on it (`docs/미션_구상.md` §3 id), if any. */
-    data class Page(val kind: String, val mission: String? = null, val prop: String? = null)
+    data class Page(val kind: String, val mission: String? = null, val prop: String? = null, val missionSource: String? = null)
 
     /** Title is optional for compatibility with deployed servers that return captions only. */
     data class StoryBook(val captions: List<String>, val title: String? = null)
@@ -225,7 +225,11 @@ object Server {
         stage?.map(String::trim)?.filter { it.isNotEmpty() && it.length <= 12 }?.take(5)?.takeIf(List<String>::isNotEmpty)
             ?.let { body.put("stage", JSONArray(it)) }
         if (pages != null) body.put("pages", JSONArray().apply {
-            pages.forEach { put(JSONObject().put("kind", it.kind).put("mission", it.mission ?: JSONObject.NULL).put("prop", it.prop ?: JSONObject.NULL)) }
+            pages.forEach { p ->
+                put(JSONObject().put("kind", p.kind).put("mission", p.mission ?: JSONObject.NULL).put("prop", p.prop ?: JSONObject.NULL)
+                    // child · rotated · default (#321) — only on mission pages
+                    .apply { p.missionSource?.let { put("mission_source", it) } })
+            }
         })
         val j = postJson("/story", body, readMs = 60_000) ?: return null
         return try {
@@ -247,8 +251,8 @@ object Server {
      * flagged), or the call failed. Call it the moment the place slot fills, in the background;
      * what to show while waiting and the 15 s preset line stay the caller's. [place] must be name-masked.
      */
-    suspend fun image(place: String, mode: String = "story"): ByteArray? {
-        val body = JSONObject().put("kind", "background").put("place", place).put("mode", mode)
+    suspend fun image(place: String, mode: String = "story", style: String = "felt"): ByteArray? {
+        val body = JSONObject().put("kind", "background").put("place", place).put("mode", mode).put("style", style)
         return postImage(body, "background") { png, _ -> png }
     }
 
@@ -275,8 +279,8 @@ object Server {
      * About 7-8 s warm — start it the moment the description is known, not when it is needed.
      * [description] must be name-masked.
      */
-    suspend fun character(description: String, mode: String = "story"): Character? {
-        val body = JSONObject().put("kind", "character").put("description", description).put("mode", mode)
+    suspend fun character(description: String, mode: String = "story", style: String = "felt"): Character? {
+        val body = JSONObject().put("kind", "character").put("description", description).put("mode", mode).put("style", style)
         return postImage(body, "character") { png, j -> Character(png, j.getString("rig")) }
     }
 
@@ -289,8 +293,8 @@ object Server {
      * [role] "background" (#168 · 10-06): [png] is the whole board with a background piece's lines where they
      * were, and the answer is a scene in the board's shape, not cut out. Null = a piece, as above.
      */
-    suspend fun redraw(png: ByteArray, description: String, mode: String = "diary", role: String? = null): ByteArray? {
-        val body = JSONObject().put("kind", "redraw").put("description", description).put("mode", mode)
+    suspend fun redraw(png: ByteArray, description: String, mode: String = "diary", role: String? = null, style: String = "felt"): ByteArray? {
+        val body = JSONObject().put("kind", "redraw").put("description", description).put("mode", mode).put("style", style)
             .put("png_base64", android.util.Base64.encodeToString(png, android.util.Base64.NO_WRAP))
         if (role != null) body.put("role", role)
         // nobody waits on it — the diary shows it at the next brush pause — so it can queue behind story pictures

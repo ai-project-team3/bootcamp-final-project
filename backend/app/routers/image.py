@@ -66,7 +66,7 @@ _uploaded: dict[str, str] = {}          # rig → name in ComfyUI's input folder
 
 async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
     if req.kind == "background":
-        return await comfy.background(scene)
+        return await comfy.background(scene, req.style)
     if req.kind == "redraw":
         # the child's drawing lives only in this call: decoded, sent to ComfyUI through
         # memory (comfy_nodes/otto_memory.py), history entry deleted in comfy.run
@@ -83,7 +83,7 @@ async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
         async with _redraw_turn:
             raw = await comfy.run(comfy.redraw_workflow(scene, random.randrange(2 ** 31),
                                                         base64.b64encode(drawing).decode(), mode=req.mode,
-                                                        role=req.role))
+                                                        role=req.role, style=req.style))
         del drawing
         if backdrop:                             # a scene behind everything — nothing to cut out
             return raw
@@ -91,7 +91,8 @@ async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
     tmpl = character.template(rig)
     if tmpl is not None and rig not in _uploaded:
         _uploaded[rig] = await comfy.upload(tmpl, f"otto_mannequin_{rig}.png")
-    raw = await comfy.run(comfy.character_workflow(scene, rig, random.randrange(2 ** 31), _uploaded.get(rig)), front=True)
+    raw = await comfy.run(comfy.character_workflow(scene, rig, random.randrange(2 ** 31), _uploaded.get(rig), req.style),
+                          front=True)
     return await asyncio.to_thread(character.cut_and_fit, raw)
 
 

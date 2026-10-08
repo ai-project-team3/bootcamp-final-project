@@ -635,7 +635,9 @@ fun diaryPlaceBg(place: String?): String {
 
 
 /** 책장에 꽂힌 책 한 권. 저장된 동화만 [savedStoryId]로 다시 읽을 수 있다. */
-data class ShelfBook(val title: String, val themeKey: String, val bgName: String, val pages: Int = 6, val fresh: Boolean = false, val savedStoryId: String? = null)
+data class ShelfBook(val title: String, val themeKey: String, val bgName: String, val pages: Int = 6, val fresh: Boolean = false, val savedStoryId: String? = null,
+    /** The cover is drawn in the book's own art style (demo/WorldStyle.kt) */
+    val artStyle: String = "felt")
 
 /** 부모 모드 그림체 견본 4종 (결정안건 부록 6) */
 data class ArtStyle(val key: String, val name: String, val img: String, val ready: Boolean)
@@ -1096,6 +1098,8 @@ class DemoState {
     var generatedBg by mutableStateOf(false)
     /** 서버 PNG를 앱 전용 파일에 보관한 뒤 이 책이 끝날 때까지 사용한다. */
     var storyBackground by mutableStateOf<String?>(null)
+    /** Place whose background request completed, including a completed preset fallback. */
+    var storyBackgroundPlace: String? = null
     /**
      * Felt scene kit drawing this place on the stage (`demo/scene/SceneKit.kt` key, e.g. "park"), or null for the
      * background picture. Set only by the live story for a place outside the three themes (10-05).
@@ -1252,7 +1256,7 @@ class DemoState {
 
     /** 아이가 말한 사람의 그림 — 프리셋에서 고른다. 없으면 아무도 그리지 않는다 */
     val companionArt: Art?
-        get() = companionPreset(companionKind) ?: when {
+        get() = (if (isCoop) coopCompanionPreset(companionKind) else companionPreset(companionKind)) ?: when {
             companionKind.isBlank() || "혼자" in companionKind -> null
             // 같이 만들기에서 프리셋이 없는 사람 · 동물은 서버가 만든 인형으로 (10-06 · `FriendArt.kt`)
             isCoop && generatedFriend?.words == companionKind.trim() ->
@@ -1377,6 +1381,8 @@ class DemoState {
     var dailyLimit by mutableStateOf(3)
     var pinToStart by mutableStateOf(false)
     var artStyle by mutableStateOf("felt")
+    /** This book's art style — taken from [artStyle] when the book starts, so a change applies from the next book (demo/WorldStyle.kt) */
+    var bookStyle by mutableStateOf("felt")
 
     /** 오늘 쓴 이야기 수 · 남은 하루 별 — 한 권마다 하나씩 쓴다 */
     var usedToday by mutableStateOf(0)
@@ -1404,6 +1410,7 @@ class DemoState {
 
     /** 말로 만든 주인공 후보들 — 다시 만들기를 다 쓰면 이 중에서 고른다 (결정 29) */
     val heroTries = mutableStateListOf<HeroAttr>()
+    var heroCreationDraft: HeroCreationDraft? = null
 
     // ── 시연 패널
     val log = mutableStateListOf<String>()
@@ -1430,6 +1437,7 @@ class DemoState {
 
     /** 이야기 한 권 분량만 지운다. 책장 · 부모 설정 · 하루 별 · 도감 · 수준(다음 세션 시작점) · 쓴 질문은 남긴다 */
     fun resetStory() {
+        dropDiaryDay()                // a half-made picture diary is not resumed by a new story (#335)
         // A session left before its book still tells what it called (10-06 · per-mode call counts)
         com.example.finalproject_demo.net.Server.callSummary().takeIf { it.isNotEmpty() }
             ?.let { com.example.finalproject_demo.net.Trace.line("calls", "${mode.name.lowercase()} unfinished · $it") }
@@ -1455,6 +1463,7 @@ class DemoState {
         templateKey = null; attribute = null; causeKind = "lonely"; notes.clear(); levelWhy = ""
         askedThisStory.clear()
         themeKey = "space"; placeLabel = null; generatedBg = false; storyBackground = null; sceneKit = null
+        storyBackgroundPlace = null
         mentioned.clear()
         newcomerKind = "외계인"; newcomerEmoji = "👽"
         dinoKey = "horn"; solutionKey = "play"; solutionItem = "star"
@@ -1471,8 +1480,12 @@ class DemoState {
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
         heroTries.clear()
+        heroCreationDraft = null
         modeVoice = 0; modeCard = 0; modeDraw = 0; modeSilent = 0
         shelf.replaceAll { it.copy(fresh = false) }
+        // a new book takes the parent's art style now; a change made during this book waits for the next one (결정 27)
+        bookStyle = artStyle
+        WorldStyle.current = bookStyle
     }
 
     /** 앱을 새로 켠 것처럼 전부 지운다 (시연 서랍 "처음부터") */
@@ -1519,6 +1532,23 @@ fun ya(w: String) = if (bat(w)) "아" else "야"
 fun rang(w: String) = if (bat(w)) "이랑" else "랑"
 
 /** 아이가 말한 사람에 맞는 프리셋 그림 — 없으면 null (일기 · 같이 만들기 공통) */
+/** Endings to drop — 「엄마랑」 · 「할머니하고」 · 「동생도」 */
+private val COOP_NAME_ENDS = listOf("이랑", "하고", "한테", "에게", "랑", "와", "과", "도")
+
+/**
+ * Co-op — the **last word** of the name is who it is (#339 design §3). 「엄마 친구 강아지」 is a dog with no preset (a server doll);
+ * 「유치원 선생님」 · 「친구 엄마」 (⚖️3 user 10-08) · 「엄마랑 아빠」 take the last word's preset. The diary keeps [companionPreset] (⚖️4 · Jinwoong)
+ */
+internal fun coopCompanionPreset(kind: String): Art? {
+    val head = kind.trim().split(Regex("\\s+")).lastOrNull { it.isNotEmpty() } ?: return null
+    val bare = COOP_NAME_ENDS.firstOrNull { head.length > it.length && head.endsWith(it) }?.let { head.dropLast(it.length) } ?: head
+    val word = bare.removeSuffix("들").let { if (it != "선생님") it.removeSuffix("님") else it }
+    return if (word == "선생" || word == "선생님") companionPreset("선생님") else companionPreset(word).takeIf { word in PRESET_PEOPLE }
+}
+
+/** People with a preset — only when the last word **is** one of these (「할머니 고양이」 is a cat) */
+private val PRESET_PEOPLE = setOf("할머니", "할아버지", "엄마", "아빠", "언니", "누나", "동생")
+
 internal fun companionPreset(kind: String): Art? = when {
     "선생님" in kind -> Art.Img("dp_teacher", Art.Emoji("🧑‍🏫"))
     "할머니" in kind -> Art.Img("ic_p_grandma", Art.Emoji("👵"))

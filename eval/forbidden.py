@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,6 +22,7 @@ class ForbiddenPolicy:
     allowed: frozenset[str]
     forbidden: frozenset[str]
     manual_categories: tuple[str, ...] = ()
+    brand_names: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,7 @@ def _load_markdown_policy(path: Path) -> ForbiddenPolicy:
     story_section = _between(text, "## 2.", "\n---")
 
     extra: set[str] = set()
+    brand_names: set[str] = set()
     manual_categories: list[str] = []
     for line in story_section.splitlines():
         stripped = line.strip()
@@ -86,7 +89,9 @@ def _load_markdown_policy(path: Path) -> ForbiddenPolicy:
                 examples = re.search(r"\(([^)]*)\)", value)
                 if examples:
                     for term in _split_terms(examples.group(1)):
-                        extra.add(re.sub(r"\s+등$", "", term).strip())
+                        brand = re.sub(r"\s+등$", "", term).strip()
+                        extra.add(brand)
+                        brand_names.add(brand)
             else:
                 extra.update(_split_terms(value))
 
@@ -95,6 +100,7 @@ def _load_markdown_policy(path: Path) -> ForbiddenPolicy:
         allowed=frozenset(allowed),
         forbidden=frozenset(term for term in forbidden if term),
         manual_categories=tuple(manual_categories),
+        brand_names=frozenset(brand_names),
     )
 
 
@@ -146,7 +152,7 @@ def _term_hits(text: str, term: str, *, fuzzy: bool) -> list[ForbiddenHit]:
     return hits
 
 
-def find_forbidden_hits(text: str, policy: ForbiddenPolicy) -> list[ForbiddenHit]:
+def find_forbidden_hits(text: str, policy: ForbiddenPolicy, *, given_names: Iterable[str] = ()) -> list[ForbiddenHit]:
     allowed_spans = {
         (hit.start, hit.end)
         for term in policy.allowed
@@ -154,8 +160,14 @@ def find_forbidden_hits(text: str, policy: ForbiddenPolicy) -> list[ForbiddenHit
     }
     hits = []
     seen = set()
+    # Only brand hits inside this book's declared names are exempt. Unsafe words
+    # remain forbidden even if a caller puts one in a name slot.
+    given_spans = [(hit.start, hit.end) for name in given_names if name.strip()
+                   for hit in _term_hits(text, name, fuzzy=False)]
     for term in sorted(policy.forbidden, key=lambda item: (-len(item), item)):
         for hit in _term_hits(text, term, fuzzy=True):
+            if term in policy.brand_names and any(start <= hit.start and hit.end <= end for start, end in given_spans):
+                continue
             if any(hit.start < end and start < hit.end for start, end in allowed_spans):
                 continue
             key = (hit.start, hit.end, hit.term)

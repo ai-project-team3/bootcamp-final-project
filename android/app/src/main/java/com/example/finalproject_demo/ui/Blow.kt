@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.ui
 
 import android.Manifest
+import com.example.finalproject_demo.net.Bgm
 import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
@@ -84,6 +85,7 @@ fun rememberBlow(active: Boolean, beats: androidx.compose.runtime.MutableIntStat
         val t = thread(isDaemon = true, name = "blow") {
             var rec: AudioRecord? = null
             val effects = mutableListOf<AudioEffect>()
+            var held = false
             try {
                 val rate = 16000
                 val frame = 1024
@@ -108,6 +110,8 @@ fun rememberBlow(active: Boolean, beats: androidx.compose.runtime.MutableIntStat
                 var frames = 0
                 var peak = 0f
                 Trace.line("blow", "mic open · echo canceller ${effects.any { it is AcousticEchoCanceler }} · noise suppressor ${effects.any { it is NoiseSuppressor }}")
+                Bgm.holdNow("blow")                                 // 음악이 멈춘 뒤에 마이크를 연다
+                held = true
                 rec.startRecording()
                 while (running) {
                     val n = rec.read(buf, 0, frame)
@@ -132,6 +136,7 @@ fun rememberBlow(active: Boolean, beats: androidx.compose.runtime.MutableIntStat
                 effects.forEach { runCatching { it.release() } }
                 runCatching { rec?.stop() }
                 runCatching { rec?.release() }
+                if (held) Bgm.resume("blow")
                 reading.level = 0f
                 reading.blowing = false
             }

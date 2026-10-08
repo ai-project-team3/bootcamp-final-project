@@ -76,7 +76,9 @@ internal suspend fun Director.askLeftoverParentQuestions() {
             is Reply.Tapped -> r.label.trim()
             else -> ""
         }
-        if (said.isNotEmpty() && !isNonAnswer(said)) setDiarySlot("extra", key, said, said, if (r is Reply.Spoke) "child" else "card")
+        if (r is Reply.Spoke && (s.coopChildAsked(said) || classifyCoopReply(said, q.text).isQuestion))
+            log("[$key] the child asked back 「$said」 — not put into the parent question slot, moving on (#332)")
+        else if (said.isNotEmpty() && !isNonAnswer(said)) setDiarySlot("extra", key, said, said, if (r is Reply.Spoke) "child" else "card")
         else log("[$key] 부모 질문에 답이 없다 → 지어 채우지 않고 넘어간다")
     }
 }
@@ -97,7 +99,7 @@ internal suspend fun Director.drawCoopBackground() {
     if (s.slotBy["place"] == "mascot" || !s.coopClaimBackground(place)) return
     // a place a kit draws (「우리 집」 · 「바닷가」 · 「운동장」) — the same felt pieces as a story, a floor, and no /image (#222 · 10-06).
     // The stage draws the kit live; the book reads it as one saved picture, like a generated background
-    val kit = SceneKits.matching(place)
+    val kit = SceneKits.matching(place)?.takeIf { WorldStyle.kitReady(it, s.bookStyle) }   // this book's style only (WorldStyle)
     s.sceneKit = kit?.key
     if (kit != null) {
         s.sceneSeed = kotlin.random.Random.nextLong()
@@ -112,7 +114,7 @@ internal suspend fun Director.drawCoopBackground() {
     val words = s.bookPick?.name?.takeIf { it !in place }?.let { "$place ($it 이야기)" } ?: place
     val mask = s.nameMask()
     CoroutineScope(currentCoroutineContext()).launch {
-        val png = withTimeoutOrNull(15_000) { Server.image(mask.mask(words), "coop") }
+        val png = withTimeoutOrNull(15_000) { Server.image(mask.mask(words), "coop", s.bookStyle) }
         val saved = png?.let { withContext(Dispatchers.IO) { saveStoryImage(it) } }
         when {
             saved == null -> log("[배경] 「$words」 생성 실패 또는 15초 경과 → 고른 요소의 배경 그대로")

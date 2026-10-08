@@ -20,6 +20,8 @@ data class SavedStoryBook(
     val soundClipId: String? = null,
     /** 만든 날(ISO) — 부모 책장 정리 목록에 보인다. 10-05 전에 꽂은 책은 "" (#80) */
     val madeAt: String = "",
+    /** The art style the book was made in — read in it later (demo/WorldStyle.kt). Books from before 10-07 are felt */
+    val artStyle: String = "felt",
 )
 
 /** 완성된 동화만 저장한다. 진행 중인 이야기와 다른 모드의 책은 이 저장소의 범위 밖이다. */
@@ -42,7 +44,7 @@ fun DemoState.completedStoryBook(): SavedStoryBook? {
     val pages = (1..pageCount).map { SavedStoryPage(pageKind(it), bookCaption(it)) }
     if (pages.any { it.caption.isBlank() }) return null
     return SavedStoryBook(storySoundBookId ?: UUID.randomUUID().toString(), title ?: autoTitleFor(),
-        themeKey, bgName, pages, captureStoryVisuals(), storySoundClip?.id, LocalDate.now().toString())
+        themeKey, bgName, pages, captureStoryVisuals(), storySoundClip?.id, LocalDate.now().toString(), bookStyle)
 }
 
 /** 앱 내부 저장소에만 보관한다. 저장 시 전체 배열을 한 번에 교체해 중간 상태를 남기지 않는다. */
@@ -93,6 +95,7 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
                         obj.optJSONObject("visuals")?.let { runCatching { storyVisualsFromJson(it) }.getOrNull() },
                         if (obj.isNull("soundClipId")) null else obj.optString("soundClipId").takeIf(String::isNotBlank),
                         obj.optString("madeAt", ""),
+                        obj.optString("artStyle", "felt"),
                     )
                 } catch (_: Exception) { null }
             }
@@ -148,7 +151,7 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
                 pages.put(JSONObject().put("kind", page.kind.name).put("caption", page.caption))
             }
             array.put(JSONObject()
-                .put("id", entry.id).put("title", entry.title).put("madeAt", entry.madeAt)
+                .put("id", entry.id).put("title", entry.title).put("madeAt", entry.madeAt).put("artStyle", entry.artStyle)
                 .put("themeKey", entry.themeKey).put("bgName", entry.bgName)
                 .put("pages", pages).put("visuals", entry.visuals?.toJson() ?: JSONObject.NULL)
                 .put("soundClipId", entry.soundClipId ?: JSONObject.NULL))

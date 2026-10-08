@@ -1,6 +1,8 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.missions
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Voice
 import com.example.finalproject_demo.net.nameMask
 import androidx.compose.runtime.getValue
@@ -97,7 +99,7 @@ class Director(
     }
 
     private fun SavedStoryBook.onShelf(fresh: Boolean = false) =
-        ShelfBook(title, themeKey, bgName, pages.size, fresh, id)
+        ShelfBook(title, themeKey, bgName, pages.size, fresh, id, artStyle)
 
     /** 실패한 저장은 책장에 성공한 것처럼 표시하지 않는다. */
     fun saveFinishedStory(): Boolean {
@@ -107,6 +109,8 @@ class Director(
             if (!s.keepStorySound(book)) return false
             storyBookStore?.save(book)
             keepBookVoices(book, StoryMode.STORY)
+            // the next books avoid this one's missions (#259)
+            com.example.finalproject_demo.demo.missions.MissionHistory.record(s.mode, book.id, s.missions())
             s.commitStorySound()
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))
@@ -152,7 +156,8 @@ class Director(
             ?: savedStories.flatMap { listOfNotNull(it.bgName) + it.visuals?.images.orEmpty() }.toSet()
         val coop = CoopShelf.imageReferences(s) ?: return
         val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground, s.generatedFriend?.image) +
-            s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName }
+            s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName } +
+            s.heroCreationDraft?.imageReferences().orEmpty()
         store.recover(saved + coop + active)
     }
 
@@ -307,6 +312,17 @@ class Director(
 
     private fun heardQuestion(text: String) {
         if ('?' in text) pendingQuestion = text.trim()
+    }
+
+    /**
+     * Otto's own line in the report transcript, written now — his answer to a child's question has no 「?」, so
+     * [heardQuestion] never keeps it (#327 §4-3). It follows the child's question, which [talk] already wrote
+     * together with the question it answered, so nothing is pending here
+     */
+    fun talkOtto(text: String) {
+        if (text.isBlank()) return
+        if (s.talkStartedAtMs == 0L) s.talkStartedAtMs = System.currentTimeMillis()
+        s.talk += TalkLine("otto", text.trim())
     }
 
     /** One answer in the report transcript, after the question it answers (demo/SessionReport.kt · rule 5) */
@@ -782,6 +798,7 @@ class Director(
             drain()
             currentQ = null
             s.scene = scene
+            sceneMusic(scene)
             s.buttons.clear()
             s.countdown = null
             s.stage = Stage.Empty
@@ -848,7 +865,7 @@ class Director(
      * 다시 같은 모드로 들어오면 「이어서 할까?」 → `resume` 신호로 이 장면부터 이어 간다 (`Scenes.sceneAdult`)
      */
     fun leaveToRoom() {
-        s.holding = false
+        if (s.holding) { s.holding = false; Bgm.stop(); Bgm.resume("pause") }   // stop first: resume would fade the paused track back in for a blink
         pauseStory()
         goHome()
     }
@@ -862,6 +879,7 @@ class Director(
         if (s.holding) return
         s.holding = true
         hushVoice()
+        Bgm.hold("pause")
         if (s.micOn) { stopMic = true; micJob?.cancel(); s.micOn = false }
         log("⏸ 일시정지 — 목소리 · 녹음을 멈추고 흐름을 세운다")
     }
@@ -870,6 +888,7 @@ class Director(
     fun resumeSession() {
         if (!s.holding) return
         s.holding = false
+        Bgm.resume("pause")
         log("▶ 이어 하기")
         replayLine()
     }

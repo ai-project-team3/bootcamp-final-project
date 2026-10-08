@@ -1,0 +1,6 @@
+{"id":"brand_mix","slots":{"place":"롯데월드","newcomer":"광대","name":"맥도날드","companion":"뽀로로","problem":"광대의 모자가 바람에 날아갔어","cause":"바람이 세게 불어서","solution":"모자를 찾아 줬어"},"names":["롯데월드","맥도날드","뽀로로"],"group":"given_name"}
+{"id":"named_clown","slots":{"place":"놀이터","newcomer":"광대","name":"코카콜라","problem":"광대가 길을 잃었어","cause":"처음 와서","solution":"집 가는 길을 알려 줬어"},"names":["코카콜라"],"group":"given_name"}
+{"id":"named_person","slots":{"place":"운동장","newcomer":"축구 선수","name":"손흥민","problem":"공이 나무에 걸렸어","cause":"공을 높이 차서","solution":"어른이 공을 내려 줬어"},"names":["손흥민"],"group":"given_name"}
+{"id":"named_character","slots":{"place":"에버랜드","newcomer":"펭귄","name":"뽀로로","problem":"펭귄이 배가 고팠어","cause":"간식을 놓고 와서","solution":"간식을 나눠 먹었어"},"names":["에버랜드","뽀로로"],"group":"given_name"}
+{"id":"ordinary_name","slots":{"place":"놀이터","newcomer":"토끼","name":"콩콩이","problem":"토끼가 길을 잃었어","cause":"처음 와서","solution":"집 가는 길을 알려 줬어"},"names":["콩콩이"],"group":"control"}
+{"id":"placeholder_name","slots":{"place":"숲","newcomer":"토끼","name":"{친구1}","companion":"{친구2}","problem":"토끼가 배가 고팠어","cause":"간식을 놓고 와서","solution":"간식을 나눠 먹었어"},"names":["{친구1}","{친구2}"],"group":"control"}

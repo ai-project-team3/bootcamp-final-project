@@ -190,7 +190,14 @@ private fun kitBitmaps(kit: SceneKitDef): Map<String, ImageBitmap> {
     val out = HashMap<String, ImageBitmap>()
     // a fixed list per kit, so the composable calls below keep their order
     for (res in kit.pieces.map { it.res }.distinct()) assetBitmap(res)?.let { out[res] = it }
-    groundRes(kit).let { r -> assetBitmap(r)?.let { out[r] = it } }
+    // the baked ground in this book's style only — never the felt one under another style (demo/WorldStyle.kt)
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val style = com.example.finalproject_demo.demo.LocalWorldStyle.current ?: com.example.finalproject_demo.demo.WorldStyle.active
+    @Suppress("DiscouragedApi")
+    val ground = androidx.compose.runtime.remember(kit.key, style) {
+        com.example.finalproject_demo.demo.WorldStyle.resolveOrNone(groundRes(kit), style) { ctx.resources.getIdentifier(it, "drawable", ctx.packageName) != 0 }
+    }
+    ground?.let { r -> assetBitmap(r)?.let { out[groundRes(kit)] = it } }
     // the pictures of who comes by (the bird) — not in the layout, so not among the pieces
     for (res in VISITORS_BY_KIT[kit.key].orEmpty().flatMap { listOf(it.sit, it.fly) }) assetBitmap(res)?.let { out[res] = it }
     return out
@@ -244,9 +251,15 @@ fun renderKitPicture(context: android.content.Context, kit: SceneKitDef, seedBas
     val res = context.resources
     val opt = android.graphics.BitmapFactory.Options().apply { inScaled = false; inPreferredConfig = Bitmap.Config.ARGB_8888 }
     @Suppress("DiscouragedApi")
-    fun load(name: String) = res.getIdentifier(name, "drawable", context.packageName).takeIf { it != 0 }
+    fun load(name: String) = res.getIdentifier(com.example.finalproject_demo.demo.WorldStyle.resolve(name) { res.getIdentifier(it, "drawable", context.packageName) != 0 },
+        "drawable", context.packageName).takeIf { it != 0 }
         ?.let { android.graphics.BitmapFactory.decodeResource(res, it, opt)?.asImageBitmap() }
-    val imgs = (kit.pieces.map { it.res } + groundRes(kit)).distinct().mapNotNull { r -> load(r)?.let { r to it } }.toMap()
+    @Suppress("DiscouragedApi")
+    val ground = com.example.finalproject_demo.demo.WorldStyle.resolveOrNone(groundRes(kit)) { res.getIdentifier(it, "drawable", context.packageName) != 0 }
+        ?.let { n -> res.getIdentifier(n, "drawable", context.packageName).takeIf { it != 0 } }
+        ?.let { android.graphics.BitmapFactory.decodeResource(res, it, opt)?.asImageBitmap() }
+    val imgs = kit.pieces.map { it.res }.distinct().mapNotNull { r -> load(r)?.let { r to it } }.toMap() +
+        listOfNotNull(ground?.let { groundRes(kit) to it })
     val dm = res.displayMetrics
     val density = dm.density
     // size 0 = the frame the stage itself last drew in; before any stage, this screen with the stage's chrome
@@ -488,11 +501,13 @@ private fun DrawScope.drawPiece(imgs: Map<String, ImageBitmap>, p: PlacedPiece, 
  * but a mesh takes neither the saturation filter nor the veil's alpha, so the bent path draws one ready picture.
  * A handful of entries: far pieces of the kit on screen × its sky colour.
  */
-private object HazedPieces {
-    private val made = HashMap<Triple<String, Int, Int>, Bitmap>()
+internal object HazedPieces {
+    // Keyed by the source picture itself, not its piece name: under another art style the same piece name is a
+    // different picture, and a felt far piece must not come back under a crayon book (#253 review)
+    private val made = HashMap<Triple<Bitmap, Int, Int>, Bitmap>()
 
-    fun of(res: String, img: ImageBitmap, fade: Float, haze: Color): Bitmap =
-        made.getOrPut(Triple(res, (fade * 100).roundToInt(), haze.toArgb())) {
+    fun of(img: ImageBitmap, fade: Float, haze: Color): Bitmap =
+        made.getOrPut(Triple(img.asAndroidBitmap(), (fade * 100).roundToInt(), haze.toArgb())) {
             val src = img.asAndroidBitmap().let { if (it.config == Bitmap.Config.HARDWARE) it.copy(Bitmap.Config.ARGB_8888, false) else it }
             val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
             val c = android.graphics.Canvas(out)
@@ -521,7 +536,7 @@ private fun DrawScope.bent(res: String, img: ImageBitmap, box: com.example.final
         verts[j * 4] = box.l + lean; verts[j * 4 + 1] = y
         verts[j * 4 + 2] = box.r + lean; verts[j * 4 + 3] = y
     }
-    val bmp = if (fade > 0f) HazedPieces.of(res, img, fade, haze) else img.asAndroidBitmap()
+    val bmp = if (fade > 0f) HazedPieces.of(img, fade, haze) else img.asAndroidBitmap()
     drawIntoCanvas { c ->
         val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG or android.graphics.Paint.ANTI_ALIAS_FLAG)
         c.nativeCanvas.drawBitmapMesh(bmp, 1, BEND_ROWS, verts, 0, null, 0, paint)

@@ -94,7 +94,7 @@ class MissionPickerTest {
             coop("먼지가 쌓였어") to BlowProp.DUST,
             coop(null, detail = "민들레가 잔뜩 있었어") to BlowProp.DANDELION,
             coop("바람이 많이 불었어", realDay = false) to BlowProp.LEAF,     // 상상 — 나뭇잎을 빌려 쓴다
-            coop("바람이 많이 불었어", realDay = true) to BlowProp.DUST,      // 실제 일 — 말하지 않은 나뭇잎은 넣지 않는다 (§3-8)
+            coop("바람이 많이 불었어", realDay = true) to BlowProp.BREEZE,    // real day — no leaves · dust the child did not say; nameless sparkle dust (§3-8 · device 10-08)
         )
         table.forEach { (f, prop) ->
             assertEquals(f.slot1Words, MissionId.C1, pickMissions(f).slot1)
