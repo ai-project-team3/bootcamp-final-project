@@ -24,10 +24,13 @@ import com.example.finalproject_demo.demo.storyPagePlan
 import com.example.finalproject_demo.demo.storyVisualsFromJson
 import com.example.finalproject_demo.demo.toJson
 import com.example.finalproject_demo.demo.useGeneratedStory
+import com.example.finalproject_demo.demo.useCoopCaptions
+import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.net.Server
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -92,6 +95,47 @@ class MissionRereadTest {
         s.m1Result = "solo"; s.m2Result = "solo"
         assertEquals("기본 먼지의 완료 문장이 붙었다", "서버 문장 $rub", s.bookCaption(rub))
         assertEquals("기본 별의 완료 문장이 붙었다", "서버 문장 $drag", s.bookCaption(drag))
+    }
+
+    /**
+     * 조장 10-08(#340) — 실제 하루에 아이가 말하지 않은 미션 쪽은 서버가 「오또가 상상해 봤어!」로 쓴다. 앱이 미션 뒤에 붙이는
+     * 결과도 상상 말투(「상상 속에서 …」). 저장한 문장 · 다시 연 문장도 같다. 좋아해요 책 · 아이가 말한 소품의 쪽은 그대로
+     */
+    @Test
+    fun anImaginedPageOnARealDayClosesInImagination() {
+        MissionHistory.record(StoryMode.COOP, "e1", BookMissions(MissionId.A6, MissionId.E1, false, false))
+        val s = DemoState().apply {
+            mode = StoryMode.COOP; coopPick = CoopPick("place", "놀이공원", "done"); problem = "풍선을 놓쳤어"; solution = "괜찮다고 했어"
+        }
+        assertEquals(MissionId.A5, s.missions().slot2)
+        val pages = s.template!!.pages
+        assertTrue(s.useCoopCaptions(pages.indices.map { "서버 문장 ${it + 1}" }))
+        val drag = pages.indexOfFirst { it.kind == PageKind.DRAG } + 1
+        assertEquals("서버 문장 $drag", s.bookCaption(drag))
+        s.m2Result = "solo"
+        val done = s.bookCaption(drag)
+        assertEquals("서버 문장 $drag 상상 속에서 블록 탑이 높이 섰어!", done)
+        // 저장한 문장으로 다시 열면 같은 문장 — 결과가 두 번 붙지 않는다
+        val saved = (1..s.pageCount).map { s.bookCaption(it) }
+        s.templateKey = "N"                                   // a co-op book is saved under the diary frame 「N」 (completedCoopBook)
+        val again = DemoState().apply {
+            restoreStoryBook(SavedStoryBook("b", "책", "park", "bg_park", pages.mapIndexed { i, p -> SavedStoryPage(p.kind, saved[i]) }, s.captureStoryVisuals()))
+            mode = StoryMode.COOP
+        }
+        assertEquals(done, again.bookCaption(drag))
+        // 좋아해요(상상 책 전체)는 상상 표시를 붙이지 않는다
+        val dream = DemoState().apply { mode = StoryMode.COOP; coopPick = CoopPick("place", "놀이공원", "dream"); problem = "풍선을 놓쳤어" }
+        dream.useCoopCaptions(dream.template!!.pages.indices.map { "서버 문장 ${it + 1}" })
+        dream.m2Result = "solo"
+        assertTrue(dream.bookCaption(drag), "상상 속에서" !in dream.bookCaption(drag))
+        // 아이가 말한 소품의 쪽(「불을 껐어」)은 그날의 일 그대로
+        val said = DemoState().apply {
+            mode = StoryMode.COOP; coopPick = CoopPick("place", "소방서", "done"); problem = "불이 났어"; solution = "물을 뿌려서 불을 껐어"
+            listOf("problem", "solution").forEach { slotBy[it] = "child" }
+        }
+        said.useCoopCaptions(said.template!!.pages.indices.map { "서버 문장 ${it + 1}" })
+        said.m2Result = "solo"
+        assertTrue(said.bookCaption(drag), "상상 속에서" !in said.bookCaption(drag))
     }
 
     /** 조장 결정 — 까닭으로 말한 바람은 불기가 아니다. 바람에 날아간 일은 그대로 */

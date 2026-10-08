@@ -775,14 +775,15 @@ class CoopLiveAnswerTest {
             s.m1Result = "solo"
             s.m2Result = "solo"
             // 미션 1 — 「미끄럼틀」에서 모래를 짐작하지만 아이는 「모래」라고 하지 않았다. 실제 하루 책에는 붙이지 않는다(#134 리뷰)
-            assertEquals("아이가 말하지 않은 모래의 결과가 붙었다", "서버 문장 $rub", s.bookCaption(rub))
+            // 서버가 그 쪽을 「오또가 상상해 봤어!」로 쓴다(#340) — 결과도 상상 말투로만, 모래를 그날 일로 적지 않는다
+            assertEquals("아이가 말하지 않은 모래의 결과가 사실로 붙었다", "서버 문장 $rub 상상 속에서 반짝반짝 깨끗해졌어!", s.bookCaption(rub))
             // 아이가 그 물건 이름을 말했으면 붙는다
             s.problem = "친구가 밀어서 옷에 모래가 묻었어"
             val item = s.mission1().blobName
             assertTrue("미션 1 결과가 안 붙었다: ${s.bookCaption(rub)}", s.bookCaption(rub).startsWith("서버 문장 $rub ") && s.bookCaption(rub).endsWith("사라졌어요.") && item in s.bookCaption(rub))
             // 미션 2 — 이 날 아이는 건넬 물건을 말하지 않았다(「같이 미끄럼틀을 탔어」 → 기본 별). 실제 하루 책에 없던 별을
             // 적지 않는다: 미션은 화면에서 하고 결과 문장은 붙이지 않는다 (10-05 실기기 · coopMissionInBook)
-            assertEquals("아이가 말하지 않은 물건의 결과가 붙었다", "서버 문장 $drag", s.bookCaption(drag))
+            assertEquals("아이가 말하지 않은 물건의 결과가 사실로 붙었다", "서버 문장 $drag 상상 속에서 선물을 건넸어!", s.bookCaption(drag))
             // 아이가 그 물건 이름을 말했으면 붙는다 — 블록 이야기를 한 날은 블록을 건넨다
             s.solutionItem = "block"
             s.solution = "같이 미끄럼틀을 타고 블록 놀이도 했어"

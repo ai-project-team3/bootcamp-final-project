@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.soundProp
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
 import com.example.finalproject_demo.demo.missions.BlowProp
@@ -840,8 +841,36 @@ suspend fun Director.coopWriteBook() {
  * 아직 안 끝냈거나 미션 쪽이 아니면 null
  */
 internal fun DemoState.coopMissionResult(kind: PageKind): String? =
-    // 곧 해요 책은 「-ㄹ 거예요」 — 「물을 뿌릴 거예요」 뒤에 「불이 다 꺼졌어요」가 붙었다(10-06 실기기 · CoopTense.kt)
-    coopMissionResultAsDone(kind)?.let { if (coopServerTense() == CoopReason.SOON) soonTense(it) else it }
+    coopImaginedResult(kind)
+        // 곧 해요 책은 「-ㄹ 거예요」 — 「물을 뿌릴 거예요」 뒤에 「불이 다 꺼졌어요」가 붙었다(10-06 실기기 · CoopTense.kt)
+        ?: coopMissionResultAsDone(kind)?.let { if (coopServerTense() == CoopReason.SOON) soonTense(it) else it }
+
+/** 판 위에서 하는 미션 — 상상할 상황이 없어 서버도 상상 쪽으로 쓰지 않는다(#340) */
+private val ON_BOARD = setOf(MissionId.A3)
+
+/**
+ * 실제 하루(다녀왔어요 · 곧 해요)에 아이가 말하지 않은 미션 쪽 — 서버가 「오또가 상상해 봤어! … 네가 …줄래?」로 쓴다(#340 ·
+ * 조장 10-08). 아이가 미션을 끝내면 결과도 **상상 말투**로 닫는다 — 「불이 다 꺼졌어요」처럼 사실로 닫으면 상상이 그날
+ * 있었던 일이 된다. 좋아해요(상상 책 전체) · 아이 말에서 나온 소품의 쪽 · 판 위 미션은 null(지금 문장 그대로)
+ */
+internal fun DemoState.coopImaginedResult(kind: PageKind): String? {
+    if (coopServerTense() == CoopReason.DREAM || coopMissionInBook(kind)) return null
+    val m = missionFor(kind)?.takeIf { it !in ON_BOARD } ?: return null
+    val done = when (kind) { PageKind.RUB -> m1Result != null; PageKind.DRAG -> m2Result != null; else -> false }
+    if (!done) return null
+    return "상상 속에서 " + when (m) {
+        MissionId.A6 -> "반짝반짝 깨끗해졌어!"
+        MissionId.C1 -> "후~ 다 날아갔어!"
+        MissionId.C3 -> soundProp()?.let { "「${it.sound}!」 소리가 울렸어!" } ?: "큰 소리가 울렸어!"
+        MissionId.A1 -> "불이 꺼졌어!"
+        MissionId.A4 -> "물이 딱 멈췄어!"
+        MissionId.D4 -> "공이 골대에 쏙 들어갔어!"
+        MissionId.E2 -> "부서진 곳이 고쳐졌어!"
+        MissionId.A5 -> "블록 탑이 높이 섰어!"
+        MissionId.E1 -> "선물을 건넸어!"
+        else -> "해냈어!"
+    }
+}
 
 private fun DemoState.coopMissionResultAsDone(kind: PageKind): String? = if (!coopMissionInBook(kind)) null else when (kind) {
     PageKind.RUB -> if (m1Result != null) slot1Prop()?.result ?: mission1().blobName.let { "${it}${ga(it)} 사라졌어요." } else null
