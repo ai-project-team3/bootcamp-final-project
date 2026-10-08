@@ -101,6 +101,14 @@ internal var requestBackgroundRedraw: suspend (png: ByteArray, description: Stri
     redrawLogged(png, description, role = "background")
 }
 
+/**
+ * 장소 배경을 부르는 곳 (#264) — 아이가 배경을 안 그렸고 장소를 말했을 때(묻지 않는다 · 10-08 종훈 결정).
+ * [place] 는 이름을 가린 장소 낱말이다(규칙 6). 일기는 색연필(`mode=diary`) · null = 흰 바탕 그대로(검사 · 늦음 · 실패)
+ */
+internal var requestPlaceBackground: suspend (place: String) -> ByteArray? = { place ->
+    Server.image(place, mode = "diary")
+}
+
 private suspend fun redrawLogged(png: ByteArray, description: String, role: String?): ByteArray? {
     val t0 = System.currentTimeMillis()
     return Server.redraw(png, description, mode = "diary", role = role).also { out ->

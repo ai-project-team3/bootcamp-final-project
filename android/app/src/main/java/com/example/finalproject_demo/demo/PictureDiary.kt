@@ -63,6 +63,7 @@ suspend fun Director.pictureDiary() {
     val day = s.newDiaryDay()
     s.diaryStart = System.currentTimeMillis()
     s.diaryTimeUp = false
+    day.placeBgScope = CoroutineScope(currentCoroutineContext())
     log("그림일기 — 그리는 동안 짧게 묻고, 다 그리면 빈 칸을 칸마다 ${SLOT_TRIES}번까지 묻는다. 빈 칸은 메우지 않는다 (흐름 HTML · #89)")
 
     s.progressVisible = false        // 위쪽 별 막대는 일기 화면이 따로 그린다 (D3 별 두 개)
@@ -113,6 +114,7 @@ private suspend fun Director.drawWhileTalking(day: DiaryDay) = coroutineScope {
     val held = mutableListOf<Pair<Int, String>>() // 미뤄 둔 「나도 그려볼까?」 — 조각 · 이름 (앞 것부터 · 덮어쓰지 않는다)
     say("좋아! 다 그리면 알려 줘.")
     while (true) {
+        orderPlaceBackground(day)                   // 장소를 들었으면 — 그리는 동안 뒤에서 (#264)
         // 이야기를 마친 조각 — 이제부터 그 위 · 곁에 긋는 선은 새 그림으로 보고 묻는다. 이야기하는 사이 그은 선까지는 그 조각이다 (10-06 실기기)
         askedPieces.forEach { day.talkedAbout(it, s.drawing.size) }
         buttons(
@@ -1351,6 +1353,7 @@ private suspend fun Director.askEmptySlotsLive() {
             wrapOffered = true
             if (offerWrapUp()) break
         }
+        orderPlaceBackground(day)                   // 장소를 들었고 배경을 안 그렸으면 — 남은 질문 동안 뒤에서 그린다 (#264)
         val (slot, text, key) = next
         // 필수 칸 질문이 아닌 차례가 오면 — 이름 없는 조각 하나를 먼저 묻는다(10-02)
         if (!pieceAsked && key !in PICTURE_REQUIRED) {
@@ -1438,8 +1441,71 @@ private suspend fun Director.askEmptySlotsLive() {
         drawNewThing(day, r.text)
         next = (serverNext(result) ?: if (v.storyReady) tomorrowQuestion(gaveUp) else firstEmptyQuestion(gaveUp))?.let { withClue(day, it) }
     }
+    orderPlaceBackground(day)
     if (s.endReason == null && PICTURE_REQUIRED.all { !s.slots[it].isNullOrBlank() }) s.endReason = "story_ready"
     log("다 그린 뒤 ${asked}번 물었다 · /turn ${day.turnCalls}번 (#30 — 세기만)")
+}
+
+/** 책을 만든 뒤에도 장소 배경이 이만큼 더 안 오면 기다리지 않는다 — 흰 바탕 그대로 (규칙 8 · D3 질문 · 책 꿰매기 동안 이미 기다렸다) */
+internal const val PLACE_BG_WAIT_MS = 3_000L
+
+/** 서버가 장소 배경을 포기하는 13초 + 네트워크 — 다른 모드의 배경과 같다 */
+private const val PLACE_BG_ORDER_MS = 15_000L
+
+/**
+ * 아이가 배경을 안 그렸고 장소를 말했으면 묻지 않고 장소 배경을 뒤에서 주문한다 (#264 · 10-08 종훈 결정 — 배경이 있고 없고의 차이가 크다).
+ * 장소 낱말만 가려서 `/image`(background · diary 색연필)로 · 서버가 있을 때만 · 아이가 무엇이든 그렸을 때만(말로만 일기는 장소 그림이 따로 있다).
+ * 장소가 바뀌면 한 번만 다시 주문한다. 아이가 배경을 그리면 주문을 거둔다 — 아이 그림이 이긴다(차별점 1)
+ */
+private fun Director.orderPlaceBackground(day: DiaryDay) {
+    if (!Server.liveFor(s.mode)) return
+    if (day.pieces.any { it.role == PieceRole.BACKGROUND && !it.byOtto }) { dropPlaceBackground(day); return }
+    if (day.pieces.none { it.strokes.isNotEmpty() } || s.slotBy["place"] != "child") return
+    val place = s.placeLabel?.trim()?.takeIf(String::isNotEmpty) ?: return
+    if (place == day.placeBgFor) return
+    if (day.placeBgFor != null) {
+        if (day.placeBgReorders >= 1) return
+        day.placeBgReorders++
+        day.placeBg?.cancel()
+    }
+    val scope = day.placeBgScope ?: return
+    day.placeBgFor = place
+    val words = s.nameMask().mask(place)
+    day.placeBg = scope.async {
+        runCatching { withTimeoutOrNull(PLACE_BG_ORDER_MS) { requestPlaceBackground(words) } }.getOrNull()   // 실패가 일기를 멈추지 않게
+    }
+    log("장소 배경 「$place」 → /image background (diary 색연필 · 장소 낱말만 · 묻지 않는다 · 검사 뒤에만 보인다)")
+}
+
+/** 아이가 배경을 그렸다 — 오또 장소 배경 주문을 거둔다 */
+private fun Director.dropPlaceBackground(day: DiaryDay) {
+    val art = day.placeBg ?: return
+    art.cancel()
+    day.placeBg = null
+    log("아이가 배경을 그렸다 → 오또 장소 배경 「${day.placeBgFor}」은 버린다 (아이 그림이 먼저)")
+}
+
+/**
+ * 책 쪽에 장소 배경을 깐다 — 아이 획이 없는 배경 조각([byOtto])으로 맨 아래층에. 아이 그림은 그대로 위에 있다(차별점 1).
+ * 안 왔으면(검사 · 늦음 · 실패) 흰 바탕 그대로 · 프리셋으로 바꾸지 않는다 — 일기에 펠트를 섞지 않는다.
+ * 아이가 부탁한 것이 아니니 못 그렸다고 말하지 않는다 (#264)
+ */
+private suspend fun Director.takePlaceBackground(day: DiaryDay) {
+    orderPlaceBackground(day)                       // 마지막에 그린 배경이 있으면 여기서 거둔다
+    val art = day.placeBg ?: return
+    day.placeBg = null
+    val png = withTimeoutOrNull(PLACE_BG_WAIT_MS) { runCatching { art.await() }.getOrNull() }
+    val place = day.placeBgFor.orEmpty()
+    event("image_request", "type" to "background", "result" to if (png != null) "generated" else "original")
+    if (png == null) {
+        art.cancel()
+        log("장소 배경 「$place」이 안 왔다(검사 · 늦음 · 실패) → 흰 바탕 그대로")
+        return
+    }
+    day.pieces.add(0, DiaryPiece(id = (day.pieces.maxOfOrNull { it.id } ?: -1) + 1, strokes = emptyList(), name = place,
+        look = PieceLook.OTTO, ottoPng = png, role = PieceRole.BACKGROUND))
+    s.images++
+    log("장소 배경 「$place」 → 아이 그림 밑에 깐다 (오또 그림 · 아이가 그린 것 목록에는 넣지 않는다)")
 }
 
 /** 그림 쪽에 들어갈, 아직 이름 없는 조각 — 선이 있는 첫 조각 */
@@ -1691,6 +1757,7 @@ private suspend fun Director.finishPictureDiary(day: DiaryDay) {
     s.stage = DiaryStitch
     say("그림일기를 만들고 있어. 조금만 기다려 줘!")
     if (Server.liveFor(s.mode)) writeDiaryBook(day) else pause(1500)
+    takePlaceBackground(day)
     day.weatherFromDrawing()
     s.title = s.slots["title"]?.takeIf { it.isNotBlank() } ?: dateTitle()
     event("book", "template" to "그림일기", "pages" to pages.size, "title" to s.title)

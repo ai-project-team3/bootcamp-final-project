@@ -722,7 +722,7 @@ private fun DiaryStitchView(d: Director, cq: Dp) {
     val phase by t.animateFloat(0f, 36f, infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "phase")
     Box(Modifier.fillMaxSize()) {
         if (pieces.isNotEmpty()) BoxWithConstraints(Modifier.fillMaxSize().blur(8.dp).alpha(0.35f).padding(cq * 4)) {
-            val crop = cropFor(pieces.flatMap { it.strokes }, d.s.drawingAspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)
+            val crop = pictureCrop(pieces, d.s.drawingAspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)   // 오또 배경이면 판 전체 (#264)
             pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
         }
         Box(Modifier.fillMaxSize().background(Wool.copy(alpha = 0.55f)))
@@ -1202,7 +1202,7 @@ private fun DiaryGiftView(d: Director, cq: Dp) {
 fun DiaryShelfCover(s: DemoState, title: String, modifier: Modifier = Modifier) {
     val cover = s.diaryCovers[title] ?: return
     BoxWithConstraints(modifier.background(Color.White).padding(4.dp).testTag("diary-shelf-cover")) {
-        val crop = cropFor(cover.pieces.flatMap { it.strokes }, cover.aspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)
+        val crop = pictureCrop(cover.pieces, cover.aspect.takeIf { it > 0f } ?: 1f, ratio = maxWidth / maxHeight)   // 오또 배경이면 판 전체 (#264)
         cover.pieces.forEach { p -> PieceLayer(p, crop, null, 1f, maxWidth.value, maxHeight.value) }
     }
 }
@@ -1246,7 +1246,7 @@ private fun PuzzlePanel(d: Director, page: DiaryPage, cq: Dp, pageIndex: Int) {
         val cqPx = with(density) { cq.toPx() }
         val picLeft = (maxWidth - cq * 66) / 2
         val slotW = cq * 22
-        val crop = cropFor(pieces.flatMap { it.strokes }, s.drawingAspect.takeIf { it > 0f } ?: 1f)
+        val crop = pictureCrop(pieces, s.drawingAspect.takeIf { it > 0f } ?: 1f)   // 오또 배경이면 판 전체 (#264)
         fun strip(i: Int) = BoardBox(crop.left + i * crop.width / PUZZLE_N, crop.top, crop.left + (i + 1) * crop.width / PUZZLE_N, crop.bottom)
         fun slotRect(i: Int): Pair<Offset, Float> = Offset(with(density) { (picLeft + slotW * i).toPx() }, 6 * cqPx) to with(density) { slotW.toPx() }
         fun homeOf(i: Int): Offset { val j = PUZZLE_SHUFFLE.indexOf(i); return Offset((10 + j * (22 * PUZZLE_SMALL + 6)) * cqPx, 30 * cqPx) }
