@@ -38,6 +38,7 @@ import com.example.finalproject_demo.ui.Wool
 import com.example.finalproject_demo.ui.felt
 import com.example.finalproject_demo.ui.motionFrozen
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /*
@@ -176,3 +177,38 @@ internal fun BoxScope.MicListeningTag(listening: Boolean, strong: Boolean, idle:
     )
 }
 
+/**
+ * 한 번 피어오르는 그림들 — 불이 꺼진 자리의 김 · 촛불 연기처럼 「결과」가 잠깐 남는 것 (#260 §6-3).
+ * [fire] 로 i 번째를 다시 띄우고, [Draw] 가 그 자리에서 위로 오르며 옅어지게 그린다. 검사(움직임 멈춤)에서는 띄우지 않는다
+ */
+internal class Bursts(n: Int, private val scope: kotlinx.coroutines.CoroutineScope) {
+    val t = List(n) { androidx.compose.animation.core.Animatable(1f) }
+
+    fun fire(i: Int, ms: Int = 1400) {
+        if (motionFrozen || i !in t.indices) return
+        scope.launch {
+            t[i].snapTo(0f)
+            t[i].animateTo(1f, androidx.compose.animation.core.tween(ms, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+        }
+    }
+
+    /** [at] 자리에서 [size] 크기 그림이 [rise] 만큼 오르며 사라진다 */
+    @Composable
+    fun Draw(i: Int, art: com.example.finalproject_demo.demo.Art, at: androidx.compose.ui.geometry.Offset, size: Float, rise: Float) {
+        val v = t[i].value
+        if (v >= 1f) return
+        val density = androidx.compose.ui.platform.LocalDensity.current.density
+        androidx.compose.foundation.layout.Box(
+            Modifier
+                .offset { androidx.compose.ui.unit.IntOffset((at.x - size / 2).roundToInt(), (at.y - size / 2 - rise * v).roundToInt()) }
+                .size((size * (0.8f + 0.4f * v) / density).dp)
+                .alpha((1f - v).coerceIn(0f, 1f)),
+        ) { com.example.finalproject_demo.ui.ArtView(art, Modifier.fillMaxSize()) }
+    }
+}
+
+@Composable
+internal fun rememberBursts(n: Int): Bursts {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    return remember { Bursts(n, scope) }
+}

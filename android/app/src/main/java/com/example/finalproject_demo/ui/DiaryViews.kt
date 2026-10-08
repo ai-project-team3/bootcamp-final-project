@@ -479,9 +479,11 @@ private fun DiaryBubble(d: Director, cq: Dp, modifier: Modifier) {
     val text = s.line
     var shown by remember { mutableIntStateOf(text.length) }
     var tucked by remember { mutableStateOf(false) }
-    LaunchedEffect(s.lineId) {
+    val go = d.voicePending != s.lineId || waitedOut(s.lineId)          // 목소리 시작에 맞춰 (#262)
+    LaunchedEffect(s.lineId, go) {
         tucked = false
         shown = 0
+        if (!go) return@LaunchedEffect
         while (shown < text.length) { delay(28); shown++ }
         delay(4_000)
         // 묻는 말은 답이 올 때까지 펼쳐 둔다 — 접히면 아이는 오또가 무엇을 기다리는지 모른다(10-01 실기기)
@@ -795,6 +797,7 @@ private fun DiaryPaperView(d: Director, stage: DiaryPaper, cq: Dp) {
                 page, cq, replay,
                 Modifier.padding(start = cq * 3, end = if (feel) cq * 38 else cq * 3, top = cq * 28.8f, bottom = cq)
                     .clickable { replay++ }.testTag("d5-lines"),
+                voiceWaiting = { d.voicePending == s.lineId },
             )
             if (feel) FeelRow(d, cq, Modifier.align(Alignment.TopEnd).padding(end = cq * 3, top = cq * 29.6f))
         }
@@ -998,6 +1001,17 @@ private fun PicturePanel(
 private const val SPOT_MOVE = 0.35f
 private const val SPOT_GROW = 0.3f
 
+/** 글자를 목소리에 맞추려고 기다리는 한도 — 목소리가 늦거나 안 오면(대본 · 실패) 그냥 쓴다 (#262) */
+private const val VOICE_WAIT_MS = 5_000L
+
+/** [key] 가 바뀐 뒤 [VOICE_WAIT_MS] 가 지났나 — 목소리를 기다리다 그냥 쓰는 때 */
+@Composable
+private fun waitedOut(key: Any): Boolean {
+    var out by remember(key) { mutableStateOf(false) }
+    LaunchedEffect(key) { delay(VOICE_WAIT_MS); out = true }
+    return out
+}
+
 /** 도구로 조각을 누를 때 조각이 하는 한마디 (프로토타입 react) */
 private fun reactionWord(tool: Tool, p: DiaryPiece): String = when (tool) {
     Tool.HAND -> p.name?.let { "$it 톡!" } ?: "톡!"
@@ -1061,12 +1075,15 @@ private fun PieceLayer(
 
 /** 원고지 — 문장이 한 글자씩 써진다. 비었다고 쓰는 꼬리와 「오늘은 …」은 연하게. 넘치면 칸을 줄인다 */
 @Composable
-private fun Manuscript(page: DiaryPage, cq: Dp, replay: Int, modifier: Modifier) {
+private fun Manuscript(page: DiaryPage, cq: Dp, replay: Int, modifier: Modifier, voiceWaiting: () -> Boolean = { false }) {
     val main = page.text
     val soft = listOfNotNull(page.tail, page.closing ?: if (page.asksFeel) "$FEEL_LEAD …" else null).joinToString(" ")
     val chars = (main + if (soft.isEmpty()) "" else " $soft").toList()
     var shown by remember(page, replay) { mutableIntStateOf(0) }
-    LaunchedEffect(page, replay) { while (shown < chars.size) { delay(60); shown++ } }
+    // 이 쪽의 목소리가 나오기 시작할 때 쓰기 시작한다 — 글이 다 써진 뒤에야 소리가 나던 것을 맞춘다 (#262).
+    // 다시 누르면 바로 · 목소리가 [VOICE_WAIT_MS] 안에 안 오면 그냥 쓴다
+    val go = replay > 0 || !voiceWaiting() || waitedOut(page to replay)
+    LaunchedEffect(page, replay, go) { if (go) while (shown < chars.size) { delay(60); shown++ } }
     BoxWithConstraints(modifier.fillMaxSize()) {
         // 프로토타입 칸 3.3 × 5.2cqw — 글이 넘치면 같은 비율로 줄인다
         var cellW = cq.value * 3.3f

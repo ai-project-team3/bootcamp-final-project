@@ -1548,6 +1548,11 @@ private suspend fun Director.sceneBook() {
     val last = s.pageCount
     s.bookPage = 0
     s.m1Result = null; s.m2Result = null
+    // Fetch the voices of the next pages ahead so a page turn does not wait for /tts (#262). Only the next
+    // [BOOK_PREFETCH_AHEAD] — a child who leaves early does not pay for the whole book (#276 review)
+    fun caption(i: Int) = if (i == 0) "『${s.title}』" else s.bookCaption(i)
+    fun prefetchAhead(from: Int) = (from..minOf(last, from + BOOK_PREFETCH_AHEAD)).forEach { prefetchSpeech(caption(it)) }
+    prefetchAhead(0)
     val rubPage = (1..last).firstOrNull { s.pageKind(it) == PageKind.RUB } ?: -1
     val dragPage = (1..last).firstOrNull { s.pageKind(it) == PageKind.DRAG } ?: -1
     // 미션 완료 신호는 바로 받아 완료를 먼저 남기고, 쪽 문장만 결과 장면(DONE_SCENE_MS) 뒤에 읽는다 —
@@ -1572,7 +1577,8 @@ private suspend fun Director.sceneBook() {
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
         }
-        say(if (i == 0) "『${s.title}』" else s.bookCaption(i))
+        say(caption(i))
+        prefetchAhead(i + 1)
         when {
             i == 0 -> {}
             i == rubPage && s.m1Result == null -> log(
@@ -1581,7 +1587,7 @@ private suspend fun Director.sceneBook() {
                     ?: if (s.isDiary) "${i}쪽 미션 1 (쉬움 · 문지르기) — 뼈대는 그대로, 소품만 하루에서 나온 것으로 (${m1.blobName} · 도구 ${m1.toolName} · §7-1 ②)"
                 else "${i}쪽 미션 1 (쉬움 · 문지르기) — 장면 4의 \"${s.newcomerKind}\"에서 나온 ${m1.blobName} · 도구 ${m1.toolName}"
             )
-            i == dragPage && s.m2Result == null -> log(s.slot2Prop()?.let { "${i}쪽 미션 2 (${it.mission.name}) — 아이 말에서 고른 미션 · 「${it.ask}」" } ?: "${i}쪽 미션 2 (${if (s.m1Result == "helped") "쉬움 · 탭" else "보통 · 끌어다 놓기"}) — ${if (s.isDiary) "4턴째에 말한" else "장면 10에서 말한"} ${m2.itemName}${eul(m2.itemName)} ${s.friendCallName}에게")
+            i == dragPage && s.m2Result == null -> log(s.slot2Prop()?.let { "${i}쪽 미션 2 (${it.mission.name}) — 아이 말에서 고른 미션 · 「${it.ask}」" } ?: s.m2Log(i))
             i == last && s.isDiary -> log("${i}쪽(마지막): 일기 모드도 미션 난이도 신호가 그대로 나온다 (§7-1 ②) · 공룡 소리 칸은 묻지 않았다 (§2-2)")
             i == last -> log("${i}쪽(마지막): ${if (s.hasPartner && s.partnerHelpLine != null) "${s.pn} 참여 한 줄 들어감" else "동행자 참여 문장 없음"} · 소리 대상 ${soundHolder?.name ?: "없음"}")
             else -> log("${i}쪽 [${s.pageKind(i)}] — 템플릿 ${s.template?.code} 칸으로 만든 자막")
@@ -1897,3 +1903,6 @@ private suspend fun Director.sceneParent() {
         }
     }
 }
+
+/** How many pages ahead a book fetches its voices (#262 · #276 review) */
+internal const val BOOK_PREFETCH_AHEAD = 2
