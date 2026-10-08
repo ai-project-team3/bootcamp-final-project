@@ -296,6 +296,15 @@ internal fun DemoState.captureDraftState(): JSONObject = JSONObject().apply {
         put("diaryAlsoDrawn", strings(day.alsoDrawn))
         put("diaryPieceStories", JSONObject().apply { day.pieceStories.forEach { (k, v) -> put(k.toString(), v) } })
         putN("diaryWeather", day.weather?.name); putN("diaryWeatherBy", day.weatherBy); putN("diaryFeel", day.feel?.name)
+        // #368: the phase `pictureDiary()` resumes from, and what that phase reads so it does not ask or offer again.
+        // Written as is; [applyDraft] maps it through [restoredDiaryPhase]
+        put("diaryPhase", day.phase.name)
+        put("diaryPieceStoryAsked", JSONArray().apply { day.pieceStoryAsked.forEach { put(it) } })
+        put("diaryCluesUsed", JSONArray().apply { day.cluesUsed.forEach { put(it) } })
+        put("diaryTalkedUpTo", JSONObject().apply { day.talkedUpToSnapshot().forEach { (k, v) -> put(k.toString(), v) } })
+        put("diarySameSaying", strings(day.sameSaying))
+        day.nextStory?.let { (slot, q, key) -> put("diaryNextStory", JSONArray().put(slot).put(q).put(key)) }
+        put("diaryOttoOffers", day.ottoOffers); put("diaryBoardAgain", day.boardAgain); put("diaryTurnCalls", day.turnCalls)
     }
 }
 
@@ -388,6 +397,7 @@ fun DemoState.applyDraft(d: SessionDraft) {
     if (parentQuestions.isEmpty()) parentQuestions.addAll(o.optJSONArray("parentQuestions").strings())
     parentQIndex = o.optInt("parentQIndex")
     o.optJSONArray("diaryPieces")?.let { a ->
+        // a fresh DiaryDay; the saved phase below makes it the day `unfinishedDiaryDay()` hands back to `pictureDiary()` (#368)
         val day = newDiaryDay()
         for (i in 0 until a.length()) a.getJSONObject(i).let { p ->
             day.pieces += DiaryPiece(p.getInt("id"), p.optJSONArray("strokes").strokes(), p.optStr("name"),
@@ -397,5 +407,26 @@ fun DemoState.applyDraft(d: SessionDraft) {
         o.optJSONObject("diaryPieceStories").stringMap().forEach { (k, v) -> day.pieceStories[k.toInt()] = v }
         day.weather = o.optStr("diaryWeather")?.let(DiaryWeather::valueOf); day.weatherBy = o.optStr("diaryWeatherBy")
         day.feel = o.optStr("diaryFeel")?.let(DiaryFeel::valueOf)
+        o.optJSONArray("diaryPieceStoryAsked")?.let { ids -> for (i in 0 until ids.length()) day.pieceStoryAsked += ids.getInt(i) }
+        o.optJSONArray("diaryCluesUsed")?.let { ids -> for (i in 0 until ids.length()) day.cluesUsed += ids.getInt(i) }
+        o.optJSONObject("diaryTalkedUpTo")?.let { t -> t.keys().forEach { k -> day.talkedAbout(k.toInt(), t.getInt(k)) } }
+        day.sameSaying.addAll(o.optJSONArray("diarySameSaying").strings())
+        day.nextStory = o.optJSONArray("diaryNextStory")?.let { Triple(it.getString(0), it.getString(1), it.getString(2)) }
+        day.ottoOffers = o.optInt("diaryOttoOffers"); day.boardAgain = o.optInt("diaryBoardAgain"); day.turnCalls = o.optInt("diaryTurnCalls")
+        day.phase = restoredDiaryPhase(o.optStr("diaryPhase"))
+        // READING → FINISHING writes the book again, and that logs its `book` event again — keep one
+        if (o.optStr("diaryPhase") == DiaryPhase.READING.name) events.removeAll { it == "book" || it.startsWith("book ") }
     }
 }
+
+/**
+ * The phase a restored picture diary resumes from (#368 · `pictureDiary()`). NEW and DONE are not an unfinished
+ * diary — they stay NEW, so `unfinishedDiaryDay()` is null and a new diary starts. READING becomes FINISHING:
+ * the server's pages (`DiaryDay.written`) are not kept, so the book is written again before it is read.
+ */
+internal fun restoredDiaryPhase(saved: String?): DiaryPhase =
+    when (val p = saved?.let { runCatching { DiaryPhase.valueOf(it) }.getOrNull() }) {
+        null, DiaryPhase.NEW, DiaryPhase.DONE -> DiaryPhase.NEW
+        DiaryPhase.READING -> DiaryPhase.FINISHING
+        else -> p
+    }

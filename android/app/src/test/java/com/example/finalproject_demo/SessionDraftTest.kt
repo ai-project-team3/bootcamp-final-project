@@ -9,7 +9,15 @@ import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.CoopShelf
 import com.example.finalproject_demo.demo.DemoBtn
 import com.example.finalproject_demo.demo.DemoState
+import com.example.finalproject_demo.demo.DiaryAsk
+import com.example.finalproject_demo.demo.DiaryBoard
+import com.example.finalproject_demo.demo.DiaryPaper
+import com.example.finalproject_demo.demo.DiaryPhase
 import com.example.finalproject_demo.demo.DiaryPiece
+import com.example.finalproject_demo.demo.DiaryStart
+import com.example.finalproject_demo.demo.Stage
+import com.example.finalproject_demo.demo.catchUp
+import com.example.finalproject_demo.demo.unfinishedDiaryDay
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.GeneratedFriend
 import com.example.finalproject_demo.demo.Hero
@@ -447,5 +455,120 @@ class SessionDraftTest {
             d.restart()
             assertNotNull("「처음부터」 뒤에 만들던 이야기가 남았다", await { drafts.raw == null && d.s.scene == Scene.ADULT })
         } finally { scope.cancel() }
+    }
+
+    // ── picture diary through #368's DiaryDay resume (review P2 on #353) ─────────────
+
+    @Test fun diaryPhaseAndResumeStateRoundTripReadingBecomesFinishing() {
+        fun roundTrip(a: DemoState) = DemoState().apply { applyDraft(SessionDraft.fromJson(JSONObject(a.captureDraft(Scene.DIARY).toJson().toString()))!!) }
+        val a = DemoState().apply {
+            mode = StoryMode.DIARY
+            newDiaryDay().apply {
+                pieces += DiaryPiece(0, listOf(Stroke(Color.Blue, listOf(Offset(0f, 0f), Offset(1f, 1f)))), "고양이", PieceLook.ORIGINAL)
+                phase = DiaryPhase.ASKING
+                pieceStoryAsked += 0; cluesUsed += 0; talkedAbout(0, 1); sameSaying += "reaction"
+                nextStory = Triple("place", "어디서 놀았어?", "place"); ottoOffers = 1; boardAgain = 1; turnCalls = 3
+            }
+        }
+        val b = roundTrip(a)
+        val day = b.unfinishedDiaryDay()
+        assertNotNull("되살린 일기가 「이어서 할 일기」가 아니다 — pictureDiary() 가 새 일기를 만든다", day)
+        assertEquals(DiaryPhase.ASKING, day!!.phase)
+        assertEquals(a.diaryDay.pieces.toList(), day.pieces.toList())
+        assertEquals(setOf(0), day.pieceStoryAsked); assertEquals(setOf(0), day.cluesUsed)
+        assertEquals(mapOf(0 to 1), day.talkedUpToSnapshot()); assertEquals(setOf("reaction"), day.sameSaying)
+        assertEquals(a.diaryDay.nextStory, day.nextStory)
+        assertEquals(listOf(1, 1, 3), listOf(day.ottoOffers, day.boardAgain, day.turnCalls))
+
+        // READING: the server's pages are not kept → FINISHING writes the book again, and its `book` event is not doubled
+        a.diaryDay.phase = DiaryPhase.READING
+        a.events.add(0, "book  template=그림일기, pages=3"); a.events.add(0, "utterance  text=고양이")
+        val r = roundTrip(a)
+        assertEquals(DiaryPhase.FINISHING, r.unfinishedDiaryDay()?.phase)
+        assertEquals(listOf("utterance  text=고양이"), r.events.toList())
+
+        // NEW · DONE are not an unfinished diary — a new diary starts
+        a.diaryDay.phase = DiaryPhase.NEW
+        assertNull(roundTrip(a).unfinishedDiaryDay())
+        a.diaryDay.phase = DiaryPhase.DONE
+        assertNull(roundTrip(a).unfinishedDiaryDay())
+    }
+
+    private fun diaryDirector(scope: CoroutineScope, drafts: SessionDraftStore) =
+        Director(scope, draftStore = drafts).apply { s.speed = 0.01; s.mode = StoryMode.DIARY }
+
+    /** Start a picture diary, draw one piece and tap 「완료」 — the questions after drawing begin */
+    private suspend fun Director.drawOnePieceAndFinish() {
+        go(Scene.DIARY)
+        assertNotNull(await { s.stage is DiaryStart })
+        assertNotNull(await { if (s.stage is DiaryStart) send(Reply.Tapped("draw", "그릴래")); s.stage is DiaryBoard })
+        s.drawing += Stroke(Color.Red, listOf(Offset(.3f, .3f), Offset(.33f, .45f)))
+        s.diaryDay.catchUp(s.drawing)
+        assertNotNull(await { if (s.diaryDay.watching) send(Reply.Tapped("done", "완료")); s.stage is DiaryAsk })
+    }
+
+    /** The room after a relaunch → 「이어서」 */
+    private suspend fun Director.resumeFromRoom() {
+        go(Scene.ADULT)
+        assertNotNull(await { s.scene == Scene.ADULT && s.stage == Stage.Adult && s.buttons.isNotEmpty() })
+        delay(30)
+        assertNotNull("「이어서」가 일기로 돌아가지 않았다", await { send(Reply.Tapped("resume", "이어서")); Thread.sleep(20); s.scene == Scene.DIARY })
+    }
+
+    @Test fun killedMidDiaryQuestionsComesBackToTheQuestionsWithTheSamePieces() = runBlocking {
+        val drafts = SessionDraftStore.Memory()
+        val first = CoroutineScope(coroutineContext + SupervisorJob())
+        val second = CoroutineScope(coroutineContext + SupervisorJob())
+        try {
+            val d = diaryDirector(first, drafts)
+            d.drawOnePieceAndFinish()
+            // answer the piece questions until the slot questions (ASKING) are on
+            var last = -1
+            assertNotNull("일기 질문 단계까지 가지 않았다 — 단계=${d.s.diaryDay.phase}", await(10_000) {
+                if (d.s.diaryDay.phase != DiaryPhase.ASKING && d.s.micEnabled && d.s.lineId != last) { last = d.s.lineId; d.send(Reply.Spoke("몰라")) }
+                d.s.diaryDay.phase == DiaryPhase.ASKING
+            })
+            val pieces = d.s.diaryDay.pieces.toList()
+            val strokes = d.s.sceneDrawing.toList() + d.s.drawing.toList()
+            assertTrue(pieces.isNotEmpty())
+            first.cancel()                                     // killed — no ON_STOP
+
+            val e = launch(second, drafts)
+            assertEquals(Scene.DIARY, e.s.paused)
+            assertEquals("다시 켰는데 일기 단계를 잃었다", DiaryPhase.ASKING, e.s.unfinishedDiaryDay()?.phase)
+            e.resumeFromRoom()
+            assertNotNull("이어서 한 일기가 질문으로 가지 않았다 — 무대=${e.s.stage}", await { e.s.stage is DiaryAsk })
+            delay(200)
+            assertFalse("이어서 했는데 그리기부터 다시 시작했다", e.s.stage is DiaryStart || e.s.stage is DiaryBoard)
+            assertEquals("이어서 했는데 조각이 사라졌다", pieces, e.s.diaryDay.pieces.toList())
+            assertEquals("그림이 사라졌다", strokes, e.s.sceneDrawing.toList() + e.s.drawing.toList())
+            assertEquals(DiaryPhase.ASKING, e.s.diaryDay.phase)
+        } finally { first.cancel(); second.cancel() }
+    }
+
+    @Test fun killedWhileReadingTheDiaryWritesTheBookOnceMore() = runBlocking {
+        val drafts = SessionDraftStore.Memory()
+        val first = CoroutineScope(coroutineContext + SupervisorJob())
+        val second = CoroutineScope(coroutineContext + SupervisorJob())
+        try {
+            val d = diaryDirector(first, drafts)
+            d.drawOnePieceAndFinish()
+            var last = -1
+            assertNotNull("책 읽기까지 가지 않았다 — 말=${d.s.line}", await(20_000) {
+                if (d.s.stage !is DiaryPaper && d.s.micEnabled && d.s.lineId != last) { last = d.s.lineId; d.send(Reply.Spoke("몰라")) }
+                d.s.stage is DiaryPaper
+            })
+            assertEquals(DiaryPhase.READING, d.s.diaryDay.phase)
+            assertNotNull(await { drafts.load()?.state?.optString("diaryPhase") == DiaryPhase.READING.name })
+            val pieces = d.s.diaryDay.pieces.toList()
+            first.cancel()
+
+            val e = launch(second, drafts)
+            assertEquals("읽던 일기는 책을 다시 쓰는 단계로 돌아온다", DiaryPhase.FINISHING, e.s.unfinishedDiaryDay()?.phase)
+            e.resumeFromRoom()
+            assertNotNull("이어서 한 일기가 책 읽기로 가지 않았다 — 무대=${e.s.stage}", await(8_000) { e.s.stage is DiaryPaper })
+            assertEquals("책 이벤트가 두 번 남았다", 1, e.s.events.count { it == "book" || it.startsWith("book ") })
+            assertEquals(pieces, e.s.diaryDay.pieces.toList())
+        } finally { first.cancel(); second.cancel() }
     }
 }
