@@ -309,7 +309,8 @@ class Director(
 
     /**
      * Otto's own line in the report transcript, written now — his answer to a child's question has no 「?」, so
-     * [heardQuestion] never keeps it (#327 §4-3). Any pending question is written first, keeping the order
+     * [heardQuestion] never keeps it (#327 §4-3). It follows the child's question, which [talk] already wrote
+     * together with the question it answered, so nothing is pending here
      */
     fun talkOtto(text: String) {
         if (text.isBlank()) return

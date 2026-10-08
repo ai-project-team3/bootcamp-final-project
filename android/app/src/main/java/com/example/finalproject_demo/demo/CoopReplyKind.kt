@@ -13,12 +13,18 @@ package com.example.finalproject_demo.demo
 internal sealed interface CoopReply {
     /** 보통 답 — 지금 길 그대로(판정 · 받아주기) */
     data object Answer : CoopReply
+    /** 떠올리는 말 뒤에 붙은 답 — 「엄마 우리 누구랑 갔지? 아 할머니!」 → 「할머니」만 답으로(판정에도 이것만) (#341) */
+    data class AnswerAfterRecall(val answer: String) : CoopReply
     /** 「몰라」 · 「응」 · 그냥 「아니」 — 지금처럼 사다리 */
     data object NonAnswer : CoopReply
     /** 오또 질문의 뜻을 묻는다 — 「뭐를 넣어?」 · 「그게 뭐야?」 · 「까닭이 뭐야」 */
     data class AboutQuestion(val text: String) : CoopReply
-    /** 옆 어른에게 묻는다 — 「엄마, 우리 뭐 먹었지?」. [who] 부른 사람(없으면 null) */
-    data class ToPartner(val text: String, val who: String?) : CoopReply
+    /**
+     * 같이 겪은 일을 떠올리는 말 — 「엄마, 우리 뭐 먹었지?」 · 「누구랑 갔더라」(#341 · 전에는 ToPartner).
+     * 옆 어른에게 묻는 꼴이어도 어른을 부르지 않고 아이에게 돌려준다(사용자 결정 10-08 — 부모 개입을 키우지 않는다).
+     * [who] 부른 사람 — 로그에만 남기고 말하지 않는다
+     */
+    data class Recall(val text: String, val who: String?) : CoopReply
     /** 그 밖의 질문 — 「기린은 뭐 먹어?」 · 「오또는 어디 살아?」 */
     data class World(val text: String) : CoopReply
     /** 오또 질문의 전제를 부정 — 「안 줬어」 → stem 「줬」 · 「기린 없었어」 → stem 「없」 noun 「기린」 (대응은 #327 ②) */
@@ -27,19 +33,22 @@ internal sealed interface CoopReply {
     data class Corrected(val instead: String, val denied: String?) : CoopReply
 }
 
-/** 아이가 오또에게 물었나 — 대답한 뒤 같은 질문을 다시 한다(§4) */
-internal val CoopReply.isQuestion: Boolean get() = this is CoopReply.AboutQuestion || this is CoopReply.ToPartner || this is CoopReply.World
+/** 아이가 오또에게 물었나 · 떠올리는 중인가 — 대답한 뒤 다시 묻는다(§4). 칸에는 넣지 않는다 */
+internal val CoopReply.isQuestion: Boolean get() = this is CoopReply.AboutQuestion || this is CoopReply.Recall || this is CoopReply.World
 
 /** 묻는 말 — 어절 처음에서 (「뭐 · 뭘 · 뭐를 · 무엇 · 무슨 · 왜 · 어떻게 · 어디 · 누구 · 누가 · 언제 · 몇 · 어느」) */
 private val ASK_WORDS = listOf("뭐", "뭘", "무엇", "무슨", "왜", "어떻게", "어떡", "어디", "누구", "누가", "누굴", "언제", "몇", "어느")
 
-/** 물음 끝 — 끝 어절이 이것으로 끝나면 묻는 꼴 (「뭐야 · 뭐예요 · 먹니 · 하냐 · 할까 · 먹지 · 한대 · 하는데 · 먹어 · 가 · 해」) */
-private val ASK_ENDS = listOf("야", "예요", "에요", "니", "냐", "나", "까", "지", "래", "는데", "어", "아", "해", "가")
+/**
+ * 묻는 말로 시작해도 답인 꼴 — 까닭을 대는 「왜냐(하)면 · ~냐면」, 「언제나 · 어느 날」(#332 조장 리뷰: cause 걸음의
+ * 가장 흔한 답 「왜냐면 배고파서 그랬어」가 질문으로 갈렸다)
+ */
+private val ANSWER_FORMS = Regex("왜냐|냐면|언제나|어느\\s*날|어느날")
 
 /** 대답 속 「뭐」 — 「뭐 그냥 놀았어」 · 「뭐더라… 아 츄러스」 */
 private val ANSWER_MWO = Regex("^뭐(\\s*그냥|더라|였지)")
 
-/** 부르는 말 — 첫 어절이면 옆 어른에게 묻는 것 */
+/** 부르는 말 — 첫 어절이면 옆 어른을 부른 것(로그에만) */
 private val CALLS = listOf("엄마", "아빠", "할머니", "할아버지", "이모", "삼촌", "선생님", "고모", "언니", "누나", "형", "오빠")
 
 /** 오또 질문을 가리키는 말 — 「그게 뭐야?」 · 「뭐를 넣어?」 · 「무슨 말이야?」 */
@@ -58,42 +67,64 @@ private fun eojeolsOf(t: String): List<String> = t.split(Regex("[\\s,.!?~·…\"
 /** 낱말 앞 두 글자 — #310 `causeAsksOtherEvent` 와 같은 잣대 */
 private fun stems(t: String): Set<String> = Regex("[가-힣A-Za-z0-9]{2,}").findAll(t).map { it.value.take(2) }.toSet()
 
+private fun Char.hasSsangSiot() = this in '가'..'힣' && (this - '가') % 28 == 20
+
+/** 지난 일로 끝나나 — 끝 어절의 마지막 앞 글자에 ㅆ 받침(「났어 · 먹었어 · 갔어」). 지난 일 평서는 답이다 */
+private fun endsInPast(word: String): Boolean = word.length >= 2 && word[word.length - 2].hasSsangSiot()
+
+/** 떠올리는 끝 — 「~더라」 · 지난 일 + 「지」(「먹었지 · 갔지」) */
+private fun recallEnd(word: String): Boolean = word.endsWith("더라") || (word.endsWith("지") && endsInPast(word))
+
+private fun hasAskWord(words: List<String>) = words.any { w -> ASK_WORDS.any { w.startsWith(it) } }
+
 /** 「있었나」를 묻는 질문 — 「누구랑 갔어?」 · 「누굴 만났어?」 · 「누가 있었어?」. 「없어」 · 「아무도」가 답이 된다(§3-4) */
 private fun asksWhetherAnyone(question: String): Boolean =
     listOf("누구", "누굴", "누가").any { it in question } && listOf("갔", "만났", "있었", "같이", "랑").any { it in question }
 
 /**
- * 아이 말 [said] 를 오또가 물은 [question] 과 견줘 가른다(§3-2 차례 — 위가 먼저).
- * [partner] 옆에 어른이 있나(#303) — 없으면 부르는 말이 있어도 옆 어른에게 묻는 것으로 보지 않는다
+ * 떠올리는 말 뒤에 말이 더 붙었으면 그 뒤쪽 — 「엄마 우리 누구랑 갔지? 아 할머니!」 → 「할머니」 ·
+ * 「뭐 먹었더라 츄러스」 → 「츄러스」. 없으면 null
  */
-internal fun classifyCoopReply(said: String, question: String, partner: Boolean = true): CoopReply {
+private fun answerAfterRecall(t: String): String? {
+    val words = eojeolsOf(t)
+    val i = words.indexOfFirst(::recallEnd)
+    if (i < 0 || i == words.size - 1 || !hasAskWord(words.subList(0, i + 1))) return null
+    val rest = words.subList(i + 1, words.size).joinToString(" ").replace(HESITATION_HEAD, "").trim()
+        .let { r -> if (r.startsWith("아 ")) r.removePrefix("아 ") else r }
+    return rest.takeIf { it.isNotEmpty() && !isNonAnswer(it) }
+}
+
+/**
+ * 아이 말 [said] 를 오또가 물은 [question] 과 견줘 가른다(§3-2 차례 — 위가 먼저).
+ * 받아쓰기는 「?」를 빼기 일쑤라 낱말로 보되, **반말 평서문을 질문으로 잡지 않게** 좁게 본다(#332 조장 리뷰):
+ * 「?」가 없으면 묻는 말이 첫 어절이고 · 3어절 이하이고 · 지난 일로 끝나지 않을 때만(또는 「○○가 뭐야」) 질문이다
+ */
+internal fun classifyCoopReply(said: String, question: String): CoopReply {
     val raw = said.trim()
     val t = raw.replace(HESITATION_HEAD, "").trim()
     val core = t.trimEnd('.', '!', '?', '~', ' ', '…')
     if (core.isEmpty()) return CoopReply.NonAnswer
-    // ① 답 아님 — 단, 있었나를 묻는 질문에 「없어」 · 「아무도」는 답이다(판정이 no_longer_needed 를 낸다 · §3-4)
+    // ① 답 아님 — 단, 있었나를 묻는 질문에 「없어」 · 「아무도」는 답이다(§3-4)
     if (core in setOf("없어", "없었어", "아무도", "아무도 없어", "아무도 없었어") && asksWhetherAnyone(question)) return CoopReply.Answer
+    // 떠올리다가 스스로 답을 찾았으면 그 답만 (#341)
+    answerAfterRecall(t)?.let { return CoopReply.AnswerAfterRecall(it) }
     if (isNonAnswer(core)) return CoopReply.NonAnswer
 
-    // ② 질문
+    // ② 질문 · 떠올리기
     val words = eojeolsOf(core)
-    val hasAsk = words.any { w -> ASK_WORDS.any { w.startsWith(it) } }
-    val endsAsk = words.lastOrNull()?.let { last -> ASK_ENDS.any { last.endsWith(it) } } == true
-    val answerMwo = ANSWER_MWO.containsMatchIn(core)
-    val asking = !answerMwo && !DONT_KNOW_IN.containsMatchIn(core) &&
-        (raw.trimEnd().endsWith("?") || (hasAsk && endsAsk && words.size <= 6))
-    if (asking) {
+    val notAsking = ANSWER_MWO.containsMatchIn(core) || DONT_KNOW_IN.containsMatchIn(core) || ANSWER_FORMS.containsMatchIn(core)
+    if (!notAsking && hasAskWord(words) && recallEnd(words.last())) {
         val first = words.first().trimEnd('야', '아')
-        val call = CALLS.firstOrNull { first == it }
-        // 「우리 뭐 먹었지」 · 「뭐였더라」 — 같이 겪은 일을 떠올리는 꼴(지난 일 + 지 · 더라)
-        val last = words.last()
-        val recall = last.endsWith("더라") || (last.endsWith("지") && last.length >= 2 && last[last.length - 2].let { c ->
-            c in '가'..'힣' && (c - '가') % 28 == 20       // ㅆ 받침 — 먹었지 · 갔지 · 했지
-        })
-        if (partner && (call != null || recall)) return CoopReply.ToPartner(t, call)
+        return CoopReply.Recall(t, CALLS.firstOrNull { first == it })
+    }
+    val marked = raw.trimEnd().endsWith("?")
+    val askFirst = ASK_WORDS.any { words.first().startsWith(it) }
+    val whatIsLast = WHAT_IS.matches(words.last())
+    val asking = !notAsking && (marked || (words.size <= 3 && (askFirst || whatIsLast) && !endsInPast(words.last())))
+    if (asking) {
         // 오또 질문의 낱말을 되묻는 「○○가 뭐야」 꼴 — 「까닭이 뭐야」. 같은 동사(「먹었지」)는 뜻을 묻는 것이 아니다
         val qStems = stems(question) - stems(ASK_WORDS.joinToString(" "))
-        val whatIs = words.size >= 2 && WHAT_IS.matches(words.last()) && words[words.size - 2].let { w -> w.length >= 2 && w.take(2) in qStems }
+        val whatIs = words.size >= 2 && whatIsLast && words[words.size - 2].let { w -> w.length >= 2 && w.take(2) in qStems }
         val about = ABOUT_WORDS.any { core.startsWith(it) || " $it" in " $core" } || whatIs
         return if (about) CoopReply.AboutQuestion(t) else CoopReply.World(t)
     }

@@ -76,7 +76,9 @@ internal suspend fun Director.askLeftoverParentQuestions() {
             is Reply.Tapped -> r.label.trim()
             else -> ""
         }
-        if (said.isNotEmpty() && !isNonAnswer(said)) setDiarySlot("extra", key, said, said, if (r is Reply.Spoke) "child" else "card")
+        if (r is Reply.Spoke && (s.coopChildAsked(said) || classifyCoopReply(said, q.text).isQuestion))
+            log("[$key] 아이가 되물은 말 「$said」 — 부모 질문 칸에 넣지 않고 넘어간다 (#332)")
+        else if (said.isNotEmpty() && !isNonAnswer(said)) setDiarySlot("extra", key, said, said, if (r is Reply.Spoke) "child" else "card")
         else log("[$key] 부모 질문에 답이 없다 → 지어 채우지 않고 넘어간다")
     }
 }

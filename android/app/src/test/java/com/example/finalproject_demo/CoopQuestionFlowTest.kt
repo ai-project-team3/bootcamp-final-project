@@ -105,6 +105,19 @@ class CoopQuestionFlowTest {
         assertEquals("혼자", d.s.friend)
     }
 
+    /** #341 — 떠올리는 말(「엄마, 우리 …지?」)에 어른을 부르지 않고 기다리지도 않는다 · 아이에게 돌려준다 */
+    @Test
+    fun recallingIsGivenBackToTheChildNotTheParent() = run { d ->
+        d.toFirstQuestion()
+        d.sayOnce("엄마 우리 어디가 제일 좋았지?")
+        val lines = setOf("생각나는 만큼만 말해 줘!", "천천히 떠올려 봐도 돼!")
+        assertNotNull("떠올리기 대답이 없다: ${d.s.talk}", await { d.s.talk.any { it.who == "otto" && it.text in lines } })
+        val all = d.s.talk.joinToString(" ") { it.text }
+        assertTrue("어른을 불렀다: $all", "엄마한테" !in all && "물어봐도" !in all)
+        assertNull(d.s.place)
+        assertEquals(1, d.s.coopStats?.childQuestions?.get("recall"))
+    }
+
     /** 같은 질문을 계속 해도 — 전에는 거절 목록에 들어가 「같은 음절 = 하고 싶은 말」로 칸에 들어갔다(#327 §1) */
     @Test
     fun theSameQuestionAgainAndAgainNeverBecomesTheSlotValue() = run { d ->
@@ -120,6 +133,8 @@ class CoopQuestionFlowTest {
             assertNull("아이 질문이 칸 값이 됐다", d.s.place)
             assertTrue(server.requests.none { it.first == "/turn" && it.second.optString("utterance") == "그게 뭐야?" })
             assertTrue("질문은 「몰라」로 세지 않는다", (d.s.coopStats?.dontKnows ?: 0) == 0)
+            // 셋째 질문이 judge() 를 지나 리포트 원문 인용으로 남았다(#332 리뷰 P2)
+            assertTrue("아이 질문이 리포트 인용에 남았다: ${d.s.quotes}", "그게 뭐야?" !in d.s.quotes)
         } finally { server.close() }
     }
 }

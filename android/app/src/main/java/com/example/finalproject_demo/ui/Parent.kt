@@ -474,6 +474,9 @@ private fun CoopQuestionsTab(c: CoopDraft) {
             Text(if (c.hasSaved) "저장된 이야기를 고치는 중이에요" else "오늘 아이와 만들 이야기를 골라 두세요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
             Text("이야기를 고르거나 질문을 적은 뒤 아래 [저장하기]를 눌러야 확정돼요. 아이가 오또의 방에서 소파(같이 만들기)를 누르면 오또가 평소처럼 물어보되, 고른 이야기에 맞춰 묻고 적어 둔 질문도 중간에 끼워 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
         }
+        // 아이가 「엄마, 뭐였지?」 하고 떠올리다 물으면 오또는 아이에게 돌려준다(#341) — 옆의 어른이 대신 답하지 않게 한 줄(⚖️7 · #347).
+        // 「옆에 계시다면」 — 부모가 옆에 있다는 전제의 문구를 리포트에서 뺀 이력(fdfa6d71)이 있어 있을 때만의 말로
+        Text("ⓘ 옆에 계시다면, 아이가 \"엄마, 뭐였지?\" 하고 물어도 대신 답하지 말고 아이가 떠올려 말하도록 기다려 주세요.", fontSize = 11.sp, color = PSub)
     }
 
     CoopTemplateCards(c)
