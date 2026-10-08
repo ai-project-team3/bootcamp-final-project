@@ -1,0 +1,16 @@
+{
+  "name": "dp_friend_b_crayon",
+  "of": "dp_friend_b",
+  "kind": "cut",
+  "text": "cute doll of a small boy child friend, short dark hair, green t-shirt, smiling, upper body",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 1774619233,
+  "prompt": "cute doll of a small boy child friend, short dark hair, green t-shirt, smiling, upper body, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "gen_diary.py",
+  "made": "2026-10-07"
+}

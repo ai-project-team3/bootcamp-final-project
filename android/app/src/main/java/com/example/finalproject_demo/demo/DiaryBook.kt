@@ -1,5 +1,8 @@
 package com.example.finalproject_demo.demo
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+
 /*
  * 그림일기 책 짜기 (D5 · docs/일기모드_흐름.html 「엔드 픽처」).
  *
@@ -316,21 +319,6 @@ fun pageFocus(page: DiaryPage, pieces: List<DiaryPiece>): List<DiaryPiece> {
     return things.filter { it.name != null && it.name in page.cast }
 }
 
-/** 가까이 가도 그림 전체 높이의 이만큼은 보인다 — 작은 조각을 화면 가득 키우면 선이 굵게 뭉개진다 */
-internal const val FOCUS_MIN = 0.45f
-
-/** [focus] 조각으로 다가간 그림 칸(3:1) — 조각이 없거나 전체만큼 크면 그림 전체 */
-fun focusCrop(focus: List<DiaryPiece>, all: List<DiaryPiece>, aspect: Float): BoardBox {
-    val whole = cropFor(all.flatMap { it.strokes }, aspect)
-    if (focus.isEmpty()) return whole
-    val f = cropFor(focus.flatMap { it.strokes }, aspect, pad = 0.06f)
-    if (f.height >= whole.height) return whole
-    val k = maxOf(1f, whole.height * FOCUS_MIN / f.height)
-    val cx = (f.left + f.right) / 2f
-    val cy = (f.top + f.bottom) / 2f
-    return BoardBox(cx - f.width * k / 2f, cy - f.height * k / 2f, cx + f.width * k / 2f, cy + f.height * k / 2f)
-}
-
 internal fun moveFrom(text: String): PieceMove = when {
     Regex("무너|쓰러|넘어|떨어|와르르").containsMatchIn(text) -> PieceMove.TOPPLE
     Regex("쌓|세웠|만들|지었|고쳤").containsMatchIn(text) -> PieceMove.BUILD
@@ -338,4 +326,14 @@ internal fun moveFrom(text: String): PieceMove = when {
     Regex("갔어|왔어|걸어|도착").containsMatchIn(text) -> PieceMove.WALK
     Regex("놀았|뛰|달렸|신났|웃었|재밌").containsMatchIn(text) -> PieceMove.HOP
     else -> PieceMove.BOB
+}
+
+/**
+ * 그림 칸이 보여 줄 판의 자리 — 보통은 그린 부분만. 오또가 다시 그린 배경(#168)이 있으면 그 그림이 판 전체라 판 전체를 —
+ * 그린 부분만 자르면 판 전체 그림이 잘린 자리에 맞춰져 위로 밀려 보였다 (10-07 실기기 · 다 그린 뒤 질문 · 그림일기 읽기)
+ */
+internal fun pictureCrop(pieces: List<DiaryPiece>, aspect: Float, ratio: Float = 3f): BoardBox {
+    val ottoBackdrop = pieces.any { it.role == PieceRole.BACKGROUND && it.look == PieceLook.OTTO }
+    val frame = if (ottoBackdrop) listOf(Stroke(Color.Transparent, listOf(Offset(0f, 0f), Offset(1f, 1f)))) else pieces.flatMap { it.strokes }
+    return cropFor(frame, aspect, ratio, pad = if (ottoBackdrop) 0f else 0.04f)
 }

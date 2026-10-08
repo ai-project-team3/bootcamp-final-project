@@ -15,6 +15,7 @@ docker run -d --name otto-monitor `
     --network otto `
     -v "$(Join-Path $monitorDir 'index.html'):/usr/share/nginx/html/index.html:ro" `
     -v "$(Join-Path $monitorDir 'login.html'):/usr/share/nginx/html/login.html:ro" `
+    -v "$(Join-Path $monitorDir 'reports.html'):/usr/share/nginx/html/reports.html:ro" `
     -v "$(Join-Path $monitorDir 'nginx.conf'):/etc/nginx/conf.d/default.conf:ro" `
     -p 80:80 `
     nginx:alpine
