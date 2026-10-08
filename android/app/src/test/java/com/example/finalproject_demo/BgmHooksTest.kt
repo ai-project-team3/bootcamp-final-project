@@ -171,4 +171,16 @@ class BgmHooksTest {
         while (mic.isAlive && System.currentTimeMillis() < end) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(2) }
         assertEquals("music still playing when the mic thread went on to record", true, pausedAtReturn)
     }
+
+    /** the child's own recorded sound in a book sits over the music like Otto's voice does */
+    @Test fun playingTheChildsSoundDucksThenUnducks() {
+        val f = java.io.File.createTempFile("clip", ".m4a").apply { writeBytes(ByteArray(64)); deleteOnExit() }
+        startMusic()
+        val job = CoroutineScope(Dispatchers.Default).launch { ChildSound.play(ChildSound.SoundClip("c", f)) }
+        val end = System.currentTimeMillis() + 5000
+        while (!job.isCompleted && System.currentTimeMillis() < end) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(5) }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue("the sound finished", job.isCompleted)
+        assertEquals(listOf(true, false), duckCalls)
+    }
 }

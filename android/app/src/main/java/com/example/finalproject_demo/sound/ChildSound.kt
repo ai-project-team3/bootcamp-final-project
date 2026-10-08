@@ -99,6 +99,9 @@ object ChildSound {
     /** Plays one clip and returns when it ends (or fails). */
     suspend fun play(clip: SoundClip) {
         if (!clip.file.exists()) return
+        // the music sinks under the child's sound like under Otto's voice — released even if playback fails or is cut
+        Bgm.duck(true)
+        try {
         withContext(Dispatchers.Main) {
             suspendCancellableCoroutine { cont ->
                 val p = MediaPlayer()
@@ -119,6 +122,7 @@ object ChildSound {
                 cont.invokeOnCancellation { runCatching { p.stop() }; runCatching { p.release() } }
             }
         }
+        } finally { Bgm.duck(false) }
     }
 
     // ── pure parts (tested without a phone) ─────────────────────────
