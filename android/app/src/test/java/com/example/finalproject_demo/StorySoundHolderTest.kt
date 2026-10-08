@@ -14,6 +14,7 @@ import com.github.takahirom.roborazzi.RoborazziTaskType
 import com.github.takahirom.roborazzi.captureRoboImage
 import androidx.test.core.app.ApplicationProvider
 import com.example.finalproject_demo.demo.*
+import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Voice
 import com.example.finalproject_demo.sound.ChildSound
@@ -50,6 +51,7 @@ class StorySoundHolderTest {
     private val players = mutableListOf<ShadowMediaPlayer>()
 
     @Before fun setup() {
+        Bgm.resetForTest()   // an earlier MainActivity test leaves Bgm attached; book music would add a second MediaPlayer
         folder = Files.createTempDirectory("story_sound_holder").toFile()
         ChildSound.root = folder
         motionFrozen = true
@@ -58,6 +60,7 @@ class StorySoundHolderTest {
     }
 
     @After fun cleanup() {
+        Bgm.resetForTest()
         ShadowMediaPlayer.setCreateListener(null)
         ChildSound.root = oldRoot
         Server.base = oldBase

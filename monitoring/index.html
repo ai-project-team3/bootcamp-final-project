@@ -64,6 +64,11 @@
   .s2 { color: var(--ok); } .s4 { color: var(--warn); } .s5 { color: var(--bad); }
   .muted { color: var(--muted); }
   tr.hasErr td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
+  /* vendor failures (#298 · 10-08): the credit ran out on 10-07 and only "/tts 502" showed */
+  .vbanner { display: none; margin: 0 0 14px; padding: 11px 14px; border-radius: 12px;
+             border: 1px solid var(--bad); color: var(--bad); background: var(--card); font-weight: 600; }
+  .vbanner.warn { border-color: var(--warn); color: var(--warn); font-weight: 500; }
+  .vbanner .why { display: block; font-weight: 400; font-size: 13px; color: var(--muted); margin-top: 2px; }
   footer { margin-top: 16px; font-size: 12px; color: var(--muted); }
   h2 { font-size: 15px; margin: 26px 0 4px; }
   /* Phones (10-07 종훈): the tables were wider than the screen, so the page opened zoomed in and needed a pinch.
@@ -91,6 +96,8 @@
 <div class="wrap">
   <h1>오또 백엔드 — 엔드포인트 모니터 <a id="reports" href="/reports.html" style="font-size:13px;font-weight:400;margin-left:8px;color:var(--muted)">문제 신고</a> <button id="logout" type="button" style="float:right;font:inherit;font-size:13px;font-weight:400;padding:4px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer">로그아웃</button></h1>
   <div class="sub">2초마다 갱신 · 컨테이너를 다시 띄우면 0부터 다시 셉니다</div>
+
+  <div class="vbanner" id="vbanner" role="alert"></div>
 
   <div class="cards">
     <div class="card"><div class="k">전체 요청</div><div class="v" id="total">—</div></div>
@@ -221,7 +228,9 @@ function render(d) {
         ? `<div class="bar"><i style="width:${pct}%"></i></div><span class="muted">${pct}%</span>`
         : '<span class="muted">—</span>'}</td>
       <td class="n">${e.avg_ms.toLocaleString()} ms</td>
-      <td>${codes}${e.errors ? ` <span class="s5">실패 ${failRate}%</span>` : ""}</td>
+      <td>${codes}${e.errors ? ` <span class="s5">실패 ${failRate}%</span>` : ""}${
+        Object.entries(e.vendor || {}).map(([r, n]) =>
+          ` <span class="pill s5" title="업체 오류 원인">${esc(VREASON[r] || r)}·${n}</span>`).join("")}</td>
     </tr>`;
   });
 
@@ -229,6 +238,7 @@ function render(d) {
   document.getElementById("rows").innerHTML =
     rows.length ? rows.join("") : `<tr><td colspan="5" class="muted">${empty}</td></tr>`;
 
+  renderVendor(d);
   renderClients(d);
 }
 
@@ -245,6 +255,35 @@ function device(ua) {
   m = ua.match(/(Edg|Chrome|Firefox|Safari)\/[\d.]+/);
   if (m) return { name: m[1] === "Edg" ? "Edge" : m[1], detail: "브라우저" };
   return { name: ua.slice(0, 28), detail: ua.slice(0, 60) };
+}
+
+// Vendor failure reasons from /stats (#298). Keys are the server's stable words (app/vendor_errors.py).
+const VREASON = {
+  quota: "크레딧 없음(quota)", auth: "키 거부(auth)", rate_limit: "요청 한도(rate_limit)",
+  vendor_5xx: "업체 서버 오류(5xx)", timeout: "시간 초과(timeout)", other: "기타",
+};
+const VENDOR = { openai: "OpenAI", typecast: "TypeCast", elevenlabs: "ElevenLabs" };
+const RED_WINDOW_S = 6 * 3600;     // quota/auth: someone has to act, so keep it up for hours
+const WARN_WINDOW_S = 30 * 60;     // rate limit · 5xx · timeout pass by themselves
+
+const hhmm = epochS => new Date(epochS * 1000).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
+
+function renderVendor(d) {
+  const el = document.getElementById("vbanner");
+  const v = d.vendor_errors || {};
+  const line = r => `${VREASON[r] || esc(r)} ${Number(v[r].count).toLocaleString()}건 · 마지막 ${hhmm(v[r].last_at)}`
+    + (v[r].vendor ? ` (${esc(VENDOR[v[r].vendor] || v[r].vendor)})` : "");
+  const red = ["quota", "auth"].filter(r => v[r] && v[r].last_ago_s < RED_WINDOW_S);
+  const warn = ["rate_limit", "vendor_5xx", "timeout"].filter(r => v[r] && v[r].last_ago_s < WARN_WINDOW_S);
+  if (red.length) {
+    el.className = "vbanner";
+    el.innerHTML = "업체 오류: " + red.map(line).join(" · ")
+      + '<span class="why">이 상태에선 판정·이야기·목소리·그림 검사가 실패합니다 — 업체 계정(결제·키)을 확인하세요</span>';
+  } else if (warn.length) {
+    el.className = "vbanner warn";
+    el.innerHTML = "업체 응답 이상: " + warn.map(line).join(" · ");
+  }
+  el.style.display = red.length || warn.length ? "block" : "none";
 }
 
 // Anything a client sent (User-Agent, forwarded IP) is text, never markup: any caller of the public backend

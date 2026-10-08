@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 # parsing the body") and 404, which FastAPI's subclass handler would miss.
 from starlette.exceptions import HTTPException
 
-from app import admin, limits, reports
+from app import admin, limits, reports, vendor_errors
 from app.config import settings
 from app.image import comfy
 
@@ -137,7 +137,13 @@ async def _count(request: Request, call_next):
     if limits.over(request.url.path):
         log_cap.warning("daily cap reached — %s refused", request.url.path)
         return JSONResponse({"error": True, "message": "daily cap"}, status_code=429)
-    response = await call_next(request)
+    # vendor failures inside this request land here, then get filed under its route (#298)
+    failed: list[str] = []
+    token = vendor_errors.current.set(failed)
+    try:
+        response = await call_next(request)
+    finally:
+        vendor_errors.current.reset(token)
     if response.status_code == 200:
         limits.spent(request.url.path)
     ms = (time.monotonic() - t0) * 1000
@@ -151,6 +157,7 @@ async def _count(request: Request, call_next):
         _MS[key] += ms
         _STATUS[response.status_code] += 1
         _ESTATUS[(request.method, path, response.status_code)] += 1
+        vendor_errors.file_under(request.method, path, failed)
         _note_client(request, path)
     return response
 
@@ -190,8 +197,12 @@ def stats(request: Request) -> dict:
                            if m == method and p == path},
                 "errors": sum(hits for (m, p, code), hits in _ESTATUS.items()
                               if m == method and p == path and code >= 400),
+                # why the vendor behind it failed (#298): {"quota": 3} — a 502 alone does not say
+                "vendor": vendor_errors.per_endpoint(method, path),
             }
             for (method, path), n in _HITS.most_common()
         ],
         "status": {str(code): n for code, n in sorted(_STATUS.items())},
+        # reason -> count · last_at (epoch s) · last_ago_s · vendor — the monitor's red banner reads this
+        "vendor_errors": vendor_errors.summary(),
     }

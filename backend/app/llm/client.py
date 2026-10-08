@@ -14,6 +14,7 @@ from typing import Callable
 
 import httpx
 
+from .. import vendor_errors
 from ..config import settings
 
 log = logging.getLogger("llm")
@@ -24,7 +25,18 @@ on_usage: Callable[[str, int, int], None] | None = None
 
 
 class LLMError(RuntimeError):
-    """The vendor failed or returned something that is not the schema. Maps to 502."""
+    """The vendor failed or returned something that is not the schema. Maps to 502.
+
+    [reason] is set when the vendor call itself failed (app/vendor_errors.py · #298); a bad answer leaves it None."""
+
+    def __init__(self, msg: str, reason: str | None = None):
+        super().__init__(msg)
+        self.reason = reason
+
+
+def _vendor_failed(msg: str, reason: str) -> LLMError:
+    # "HTTP 429 vendor:quota" — the tag after the space is stable; the app only reads `error`
+    return LLMError(f"{msg} {vendor_errors.note('openai', reason)}", reason=reason)
 
 
 def _output_text(body: dict) -> str:
@@ -80,11 +92,11 @@ async def complete(system: str, user: str, schema: dict, *, effort: str,
                 json=payload,
             ), timeout=timeout_s)
     except asyncio.TimeoutError as e:
-        raise LLMError(f"over {timeout_s:.0f}s") from e
+        raise _vendor_failed(f"over {timeout_s:.0f}s", "timeout") from e
     except httpx.HTTPError as e:
-        raise LLMError(f"network: {type(e).__name__}") from e
+        raise _vendor_failed(f"network: {type(e).__name__}", vendor_errors.classify(exc=e)) from e
     if r.status_code != 200:
-        raise LLMError(f"HTTP {r.status_code}")
+        raise _vendor_failed(f"HTTP {r.status_code}", vendor_errors.classify(r.status_code, r))
     body = r.json()
     usage = body.get("usage") or {}
     tin, tout = int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0)

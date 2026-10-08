@@ -197,6 +197,13 @@ class DiaryDay {
 
     fun canCallTurn(): Boolean = turnBudget.let { it == null || turnCalls < it }
 
+    /** 「나도 그려볼까?」에 응한 수 — 그리는 중과 다 그린 뒤를 합쳐 [OTTO_OFFERS] 까지 (#281) */
+    var ottoOffers = 0
+    /** 다 그린 뒤 이름이 붙어 주문한 오또 그림 — 조각 id → 그림(대본이면 null). D3 가 끝나면 고르게 한다 (#281) */
+    val lateArt = mutableMapOf<Int, kotlinx.coroutines.Deferred<ByteArray?>?>()
+    /** D3 에서 새로 나온 물건을 그리러 그림판을 다시 올린 수 — [BOARD_AGAIN_MAX] 까지 (#281) */
+    var boardAgain = 0
+
     /** 이름 붙은 조각의 이름 — 그린 차례대로, 뒤에 [alsoDrawn]. 같은 이름은 한 번만. 오또가 깐 배경([byOtto])은 아이가 그린 것이 아니다(규칙 5) */
     val pieceNames: List<String> get() = (pieces.filterNot { it.byOtto }.mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) } + alsoDrawn).distinct()
 
