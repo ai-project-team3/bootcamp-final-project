@@ -21,6 +21,9 @@ private val ACTOR_MODIFIERS = setOf("도둑", "아기", "꼬마", "거인", "빨
 internal fun problemActorIn(text: String): String? {
     val cleaned = text.trim().trimEnd('.', '!', '?')
     if (BARE_ACTOR.matches(cleaned)) return cleaned
+    val words = cleaned.split(Regex("\\s+"))
+    if (words.size > 1 && words.dropLast(1).all { it in ACTOR_MODIFIERS } && BARE_ACTOR.matches(words.last()))
+        return words.joinToString(" ")
     for (clause in cleaned.split(Regex("[.!?。\\n,]"))) {
         for (match in ACTOR.findAll(clause)) {
             val before = clause.substring(0, match.range.first).trimEnd()
@@ -65,7 +68,9 @@ internal fun DemoState.storyProblemDoll(): GeneratedFriend? = generatedCharacter
 
 internal fun DemoState.storyProblemArt(): Art? {
     val words = storyProblemCharacter() ?: storyProblemDoll()?.words ?: return null
-    return storyProblemDoll()?.let { Art.Img(it.image, Art.Emoji("✨"), it.rig) } ?: storyPresetMatch(words)
+    // A neutral marker avoids substituting an unrelated character when generation is unavailable.
+    return storyProblemDoll()?.let { Art.Img(it.image, Art.Emoji("✨"), it.rig) }
+        ?: storyPresetMatch(words) ?: Art.Emoji("✨")
 }
 
 /** Keep the kit stable as the newcomer and problem actor arrive asynchronously. */

@@ -14,6 +14,7 @@ class StoryProblemCharacterTest {
         mapOf("괴물이 길을 막았어" to "괴물", "사자가 나타났어" to "사자",
             "도둑 고양이가 사탕을 훔쳤어" to "도둑 고양이",
             "빨간 바늘괴물이 왔어" to "빨간 바늘괴물", "바늘괴물" to "바늘괴물",
+            "도둑 고양이" to "도둑 고양이", "아기 공룡" to "아기 공룡",
             "엄마 친구 강아지가 길을 막았어" to "강아지").forEach { (said, expected) ->
             assertEquals(said, expected, problemActorIn(said))
         }
@@ -110,5 +111,17 @@ class StoryProblemCharacterTest {
             slots["problem"] = "괴물이 넘어졌어"; slotBy["problem"] = "child"
         }
         assertNull(s.storyProblemCharacter())
+    }
+
+    @Test fun anUnavailablePictureKeepsANeutralFallbackWhenReopening() {
+        val s = DemoState().apply {
+            mode = StoryMode.STORY; templateKey = "A"
+            slots["problem"] = "괴물이 길을 막았어"; slotBy["problem"] = "child"
+        }
+        assertEquals(Art.Emoji("✨"), s.storyProblemArt())
+        val book = SavedStoryBook("fallback", "이야기", "dino", "bg_park",
+            listOf(SavedStoryPage(PageKind.TALK, "괴물이 길을 막았어")), s.captureStoryVisuals())
+        val reopened = DemoState().apply { restoreStoryBook(book) }
+        assertEquals(s.storyProblemArt(), reopened.storyProblemArt())
     }
 }
