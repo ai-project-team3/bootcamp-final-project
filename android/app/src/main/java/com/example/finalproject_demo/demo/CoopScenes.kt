@@ -179,6 +179,12 @@ private class CoopTrack {
     var lastRecallReply: String? = null
     /** Child questions per step — up to [CHILD_QUESTIONS_PER_STEP] per step even across rungs (#332 review P3) */
     val questionsAt = mutableMapOf<String, Int>()
+    /** 아이가 오또 질문의 전제를 부정한 걸음(「아니, 안 갔어」 · #327 ② §5) — 그 다음 물음까지만 */
+    var deniedAt: String? = null
+    /** 전제 없는 질문을 이미 물은 걸음 — 한 걸음에 한 번(§5-1 「또 부정하거나 안 차면 지금 사다리」) */
+    val premiseFreeAsked = mutableSetOf<String>()
+    /** 이번 답을 판정이 거절해도 거절 목록에 넣지 않는 걸음 — 전제 부정 · 다른 칸을 고쳐 말한 답(사다리 끝에 칸 값이 되면 안 된다) */
+    var notRejectedAt: String? = null
     /** 부모가 적은 질문으로 물은 걸음 — 판정이 거절한 답을 그 칸에 넣지 않는다(부모 질문은 칸과 안 맞을 수 있다) */
     val parentSteps = mutableSetOf<String>()
     /** 부모 질문으로 물은 걸음 → 그 답을 담을 책 칸(`parent1` …). 첫 답에 한 번 쓰고 지운다 (10-05) */
@@ -206,6 +212,8 @@ internal class CoopSessionStats(val startedAt: Long = System.currentTimeMillis()
     val guardHits = sortedMapOf<String, Int>()
     /** Child questions by kind (about · recall · world). Not counted as 「몰라」 or in answer length (#327 §7) */
     val childQuestions = sortedMapOf<String, Int>()
+    /** 아이 부정 수 — 전제 부정 · 고쳐 말하기 (#327 ② §7) */
+    val childNegations = sortedMapOf<String, Int>()
 
     fun count(r: Reply) {
         if (r !is Reply.Spoke) return
@@ -387,10 +395,19 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         log("[cause] 서버 질문이 해결의 까닭을 물어 버림 — \"${llm.second}\"")
     // 엉뚱한 답(다녀왔어요 · 곧 해요의 상상 낱말) 뒤 한 번 — 같은 자리를 「진짜로는」으로
     val redirect = !firstAsk && track.wildFor == key && track.wildAsked != key
+    // 앞 답이 이 걸음 질문의 전제를 부정했으면(「아니, 안 갔어」) 한 번 — 이름 · 선택지 없는 열린 질문으로 (#327 ② §5-2)
+    val premiseFree = if (scripted !is CoopLine.Parent && track.deniedAt == key && key !in track.premiseFreeAsked)
+        coopPremiseFree(key, reason)?.let { guarded(it, CoopSource.HEARD) } else null
+    track.deniedAt = null
+    track.notRejectedAt = null
 
     // 부모 질문이 먼저 — 몰래 바꾸지 않는다(질문 하나만 남긴다). 그다음 서버 LLM 질문, 그다음 이어 받기 · 템플릿, 그다음 사다리
     val (picked, src) = when {
         scripted is CoopLine.Parent -> (guarded(scripted.text, CoopSource.PARENT) ?: scripted.text) to CoopSource.PARENT
+        premiseFree != null -> {
+            track.premiseFreeAsked += key
+            premiseFree to CoopSource.HEARD
+        }
         llmText != null -> llmText to CoopSource.LLM
         redirect -> {
             track.wildAsked = key
@@ -436,26 +453,104 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         s.adultLine = text
     }
     if (r is Reply.Spoke) {
+        // 부정 — 오또 질문의 전제를 부정했나(「아니, 안 줬어」) · 고쳐 말했나(「놀이터 말고 수영장」) (#327 ② §5). 진짜 마이크 답만
+        val negation = if (r.isLiveSpeech()) classifyCoopReply(r.text, text).takeIf { it is CoopReply.PremiseDenied || it is CoopReply.Corrected } else null
+        val step = COOP_STEPS.firstOrNull { "diary_${it.bookKey}" == q.id }
+        val parentStep = src == CoopSource.PARENT || q.id in track.parentSteps
+        if (negation != null) {
+            val label = if (negation is CoopReply.PremiseDenied) "premise_denied" else "corrected"
+            log("[$key] 아이 말 종류 — $label · 「${r.text.trim()}」 ← 「$text」")
+            event("coop_reply_kind", "kind" to label, "text" to r.text.trim())
+            track.stats.childNegations.merge(label, 1, Int::plus)
+            // 부정된 이름은 다음 질문에 끼우지 않는다 (§5-2)
+            val gone = (negation as? CoopReply.PremiseDenied)?.noun ?: (negation as? CoopReply.Corrected)?.denied
+            gone?.let { g -> track.heard.entries.filter { sameSyllables(it.value, g) }.forEach { (slot, n) -> track.heard.remove(slot); log("[$key] 들은 이름 $slot=「$n」 뺌 — 아이가 부정했다") } }
+        }
+        if (negation is CoopReply.PremiseDenied) {
+            val ack = negationAck(r.text) ?: "그랬구나!"
+            // 부모 질문 걸음은 그 답 그대로 부모 질문 칸에 — 「안 줬어」도 부모가 알고 싶은 답이다. 다시 묻지 않는다
+            if (!parentStep) { track.deniedAt = key; track.notRejectedAt = key }
+            if (step != null && !step.required && !parentStep) {
+                // 꼬리 걸음 — 칸에 넣지 않는다(⚖️3 · 「안 했어」만 책에 가면 빈 쪽 문장). 판정도 부르지 않고 다음 걸음으로
+                log("[$key] 꼬리 걸음 전제 부정 → 칸에 넣지 않고 다음 걸음으로 (#327 ⚖️3)")
+                log("[$key] 받아주기 — 부정 대응 「$ack」")
+                track.lastAck = ack; say(ack); pause(700)
+                return r.copy(answer = coopSignals(r.text.trim(), text, null))
+            }
+        }
+        // 고쳐 말했으면 판정에는 고친 말만 — 「아니,」 · 「○○ 말고」를 뗀 말. 리포트 기록(track.asked)에는 원문이 남았다
+        val said = if (negation is CoopReply.Corrected) r.copy(text = negation.instead).also { log("[$key] 고쳐 말하기 → 판정에는 「${negation.instead}」만") } else r
         // 다녀왔어요 · 곧 해요에 상상 낱말 — 한 번만 「진짜로는」으로 되돌린다. 두 번째면 그대로 받는다
-        val wild = isWildForReality(r.text, reason) && track.wildFor != key
+        val wild = negation == null && isWildForReality(r.text, reason) && track.wildFor != key
         if (wild) { track.wildFor = key; log("[$key] 실제 일 이야기에 상상 낱말 → 고치지 않고 받아 준 뒤 한 번만 「진짜로는」으로 묻는다") }
-        // 앞 답에서 이름 하나 — 다음 자리 질문에 끼운다. 거친 말이 섞인 이름 · 되돌릴 상상 낱말은 끼우지 않는다
-        if (!wild) roleOf(key)?.let { (slot, role) ->
-            coopNameFrom(r.text, role)?.takeIf { !hasRoughWord(it) }?.let { track.heard[slot] = it; log("[$key] 들은 이름 $slot=「$it」 (다음 질문에 끼운다)") }
+        // 앞 답에서 이름 하나 — 다음 자리 질문에 끼운다. 거친 말이 섞인 이름 · 되돌릴 상상 낱말 · 부정한 답은 끼우지 않는다
+        if (!wild && negation !is CoopReply.PremiseDenied) roleOf(key)?.let { (slot, role) ->
+            coopNameFrom(said.text, role)?.takeIf { !hasRoughWord(it) }?.let { track.heard[slot] = it; log("[$key] 들은 이름 $slot=「$it」 (다음 질문에 끼운다)") }
         }
         // 진짜 마이크 답이면 /turn 을 받아주기보다 먼저 부른다 — 받아주기에 서버 대사를 쓰려고 (10-05).
         // 수준 신호도 여기서 단다 — 공용 판정이 신호 없는 답을 늘 「내림」으로 세던 것 (CoopSignals.kt)
-        val live = if (r.isLiveSpeech()) coopLiveSignals(q, text, r.text, wild) else null
+        val live = if (r.isLiveSpeech()) coopLiveSignals(q, text, said.text, wild) else null
+        // 이미 찬 칸을 고쳐 말했으면 덮는다 — 부정한 이름이 그 칸 값이고 판정도 같은 칸을 채웠을 때만 (⚖️4)
+        val fixed = (negation as? CoopReply.Corrected)?.denied?.let { coopOverwriteCorrected(key, it) }
+        if (fixed != null) track.notRejectedAt = key
+        // 부정한 답의 받아주기는 앱 것 — 서버 대사 · 「우와!」 · 「응응!」을 쓰지 않는다 (§5-1)
+        val negAck = fixed?.let { "아, $it${if (ga(it) == "이") "이" else ""}구나!" }
+            ?: if (negation is CoopReply.PremiseDenied) negationAck(r.text) ?: "그랬구나!" else null
+        if (negAck != null) {
+            log("[$key] 받아주기 — 부정 대응 「$negAck」")
+            track.lastAck = negAck; say(negAck); pause(700)
+            return if (live != null) said.copy(answer = live) else said
+        }
         // 받아주기 — 서버의 받아주기 + 되돌려주기(동화와 같게 · CoopServerLine.kt). 없거나 못 쓰면 앱의 한마디:
         // 아이 말에서 뗀 이름 하나. 「몰라」 · 「응」은 되비추지 않는다. 다음 질문과 합쳐 두 문장
         val server = if (live == null || wild) null else coopServerReaction(track.liveTurn?.result?.line)
         if (server != null) log("[$key] 받아주기 — 서버 대사 「$server」")
         // 못 썼으면 까닭을 남긴다 — 서버가 대사를 안 줬나(거절 · 실패), 앱이 버렸나를 다음 실기기에서 가른다 (#304 2)
         else if (live != null && !wild) log("[$key] 받아주기 — 서버 대사 못 씀: ${coopServerDropped(track.liveTurn?.result?.line).joinToString(" · ")}")
-        (server ?: coopAck(r.text, roleOf(key)?.second, reason, wild, track.lastAck))?.let { track.lastAck = it; say(it); pause(700) }
-        if (live != null) return r.copy(answer = live)
+        (server ?: coopAck(said.text, roleOf(key)?.second, reason, wild, track.lastAck))?.let { track.lastAck = it; say(it); pause(700) }
+        if (live != null) return said.copy(answer = live)
+        return said
     }
     return r
+}
+
+/**
+ * 고쳐 말하기(「놀이터 말고 수영장」)로 **이미 찬 뼈대 칸**을 덮는다 (#327 ② ⚖️4). [denied] 가 그 칸 값과 같고 방금 `/turn` 이
+ * 같은 칸을 채웠을 때만 — 덮은 값, 아니면 null. by child · 로그에 바뀐 것을 남긴다
+ */
+private fun Director.coopOverwriteCorrected(key: String, denied: String): String? {
+    val fills = s.coopTrack.liveTurn?.result?.verdict?.fills ?: return null
+    for ((slot, v) in fills) {
+        if (slot !in COOP_SKELETON || v.isBlank()) continue
+        val now = skeletonValue(slot)?.takeIf(String::isNotBlank) ?: continue
+        if (!sameSyllables(now, denied)) continue
+        val value = v.trim()
+        setDiarySlot(slot, slot, value, value, "child")
+        log("[$key] 고쳐 말하기 — 이미 찬 칸 [$slot] 「$now」 → 「$value」 (판정도 같은 칸 · #327 ⚖️4)")
+        event("coop_corrected", "slot" to slot, "from" to now, "to" to value)
+        return value
+    }
+    return null
+}
+
+private fun Director.skeletonValue(slot: String): String? = when (slot) {
+    "place" -> s.place
+    "problem" -> s.problem
+    "cause" -> s.cause
+    "solution" -> s.solution
+    else -> null
+}
+
+/** 꼬리 걸음에서 오또 질문의 전제를 부정했다 — 칸에 넣지 않고 다음 걸음으로 (#327 ② ⚖️3 · DiaryScenes) */
+internal fun DemoState.coopTailDenied(step: DiaryStep): Boolean =
+    isCoop && !step.required && trackByState[this]?.deniedAt == step.bookKey
+
+/** 필수 걸음에서 전제를 부정해 칸이 안 찼고, 다음 물음이 전제 없는 질문이다 — 사다리를 내려가지 않는다 (#327 ② §5-1) */
+internal fun DemoState.coopPremiseFreeNext(step: DiaryStep): Boolean {
+    if (!isCoop || !step.required) return false
+    val t = trackByState[this] ?: return false
+    return t.deniedAt == step.bookKey && step.bookKey !in t.premiseFreeAsked &&
+        coopPremiseFree(step.bookKey, coopPick?.reasonOrNull() ?: CoopReason.DREAM) != null
 }
 
 /** Did the child ask Otto this — not into a slot, a parent question slot, or a quote (#332) */
@@ -680,12 +775,13 @@ private fun Director.coopSessionLog() {
     val avg = "%.1f".format(st.averageChars)
     val end = s.endReason ?: "done"
     log("협업 수치($way) — 「몰라」 ${st.dontKnows}번 · 답 평균 ${avg}자(공백 뺌, ${st.answerChars.size}개) · 끝 $end · ${secs}초 · 갈무리 ${st.guardHits.ifEmpty { mapOf("없음" to 0) }}" +
-        " · 아이 질문 ${st.childQuestions.ifEmpty { mapOf("없음" to 0) }}")
+        " · 아이 질문 ${st.childQuestions.ifEmpty { mapOf("없음" to 0) }} · 부정 ${st.childNegations.ifEmpty { mapOf("없음" to 0) }}")
     event("coop_session", "way" to if (CoopLab.followUps) "new" else "before", "dont_know" to st.dontKnows,
         "avg_chars" to avg, "answers" to st.answerChars.size, "end" to end, "secs" to secs,
         "guard" to st.guardHits.entries.joinToString("|") { "${it.key}:${it.value}" },
         "questions" to st.childQuestions.values.sum(), "about_question" to (st.childQuestions["about"] ?: 0),
-        "recall" to (st.childQuestions["recall"] ?: 0), "world" to (st.childQuestions["world"] ?: 0))
+        "recall" to (st.childQuestions["recall"] ?: 0), "world" to (st.childQuestions["world"] ?: 0),
+        "premise_denied" to (st.childNegations["premise_denied"] ?: 0), "corrected" to (st.childNegations["corrected"] ?: 0))
 }
 
 /**
@@ -790,7 +886,11 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
         log("[${step.bookKey}] 상상 낱말이라 이번엔 칸에 넣지 않는다 → 「진짜로는」으로 한 번 더")
         return null
     }
-    if (!Server.liveFor(s.mode)) return text
+    if (!Server.liveFor(s.mode)) {
+        // 전제를 부정한 말(「안 갔어」)은 이 칸 값이 아니다 — 판정이 없으면 넣지 않고 전제 없는 질문으로 (#327 ② §5-1)
+        if (step.required && s.coopTrack.deniedAt == step.bookKey) return null
+        return text
+    }
     // 10-06 조장: 한 번 거절된 말을 아이가 🎤 를 다시 눌러 **같은 음절로** 또 말했으면, 그게 아이가 이야기에 넣고 싶은 말이다.
     // 판정을 다시 부르지 않고 바로 아이 말로 받는다(두 번째 거절을 기다리지 않는다 · 서버 한 번 덜) — #100 「딴 얘기」 필드 대신
     s.coopRejectedAnswer(step)?.takeIf { sameSyllables(it, text) }?.let {
@@ -831,7 +931,9 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
         // 「딴 얘기」(「쉬 마려」)도 아이 말로 지킨다 — 다시 물었는데 같은 말을 하면 하고 싶은 말이다(10-06 조장 · #100 · 딴 얘기 필드는 만들지 않음)
         val id = step.variant.id
         val reason = s.bookPick?.reasonOrNull() ?: CoopReason.DREAM
-        if (id !in s.coopTrack.parentSteps && !isWildForReality(text, reason)) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
+        val denied = s.coopTrack.notRejectedAt == step.bookKey   // 전제 부정 · 다른 칸 고쳐 말하기 (#327 ②)
+        if (denied) log("[${step.bookKey}] 부정한 답이라 거절 목록에 넣지 않는다 — 사다리 끝에 칸 값이 되지 않게")
+        if (id !in s.coopTrack.parentSteps && !denied && !isWildForReality(text, reason)) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
         // 판정이 이 칸 답이 아니라고 한 말에서 뗀 이름은 다음 질문에 끼우지 않는다 — 「친구들」이 곳 이름으로 끼어
         // 「친구들에 누구랑 같이 갔어?」 · 「친구들에서 뭐 봤어?」가 세 번 나왔다(10-06 실기기 · 학교 다녀왔어요)
         roleOf(step.bookKey)?.let { (slot, _) -> s.coopTrack.heard.remove(slot)?.let { n -> log("[${step.bookKey}] 들은 이름 $slot=「$n」 뺌 — 판정이 이 칸 답이 아니라고 했다") } }

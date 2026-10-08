@@ -204,6 +204,8 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
         )
         val r = askOrCoopAsk(q)                 // 협업이면 소리 없이 부모 띠에 띄운다 (CoopScenes.kt)
         judge(v, r, q.text)
+        // 꼬리 걸음에서 오또 질문의 전제를 부정했다(「안 했어」) — 칸에 넣지 않고 다음 걸음으로 (#327 ② ⚖️3)
+        if (s.coopTailDenied(step)) return
 
         if (r is Reply.Tapped && r.byMascot) {
             if (keepChildAnswer(step)) return
@@ -235,7 +237,9 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
 
         // 말은 했는데 칸이 안 찼다 ("몰라") — 사다리에 남은 칸이 있으면 질문을 바꿔 다시 묻는다.
         // 협업에서 아이가 진짜로 답했는데 판정이 두 번 거절했으면 더 내려가지 않는다 — 다시 묻는 건 한 번까지
-        if (rungs.size <= 1 || (step.required && s.coopRejectedCount(step) >= 2)) {
+        // 전제를 부정해 칸이 안 찼다 — 사다리는 그대로 두고 전제 없는 질문으로 한 번 (#327 ② §5-1)
+        val premiseFree = s.coopPremiseFreeNext(step)
+        if (!premiseFree && (rungs.size <= 1 || (step.required && s.coopRejectedCount(step) >= 2))) {
             if (keepChildAnswer(step)) return
             val fb = if (pack != null) pack.mascot else step.mascot?.invoke(s)
             if (fb == null) {
@@ -250,8 +254,11 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
             pause(1500)
             return
         }
-        rungs = rungs.drop(1)
-        log("말은 했지만 칸이 안 찼다 → 답을 고르게 하지 않고 사다리 한 칸 아래 질문으로 바꾼다 (일기 §4)")
+        if (premiseFree) log("[${step.bookKey}] 전제를 부정한 답 → 사다리는 그대로 두고 전제 없는 질문으로 한 번 (#327 ② §5-2)")
+        else {
+            rungs = rungs.drop(1)
+            log("말은 했지만 칸이 안 찼다 → 답을 고르게 하지 않고 사다리 한 칸 아래 질문으로 바꾼다 (일기 §4)")
+        }
         pause(700)
     }
 }
