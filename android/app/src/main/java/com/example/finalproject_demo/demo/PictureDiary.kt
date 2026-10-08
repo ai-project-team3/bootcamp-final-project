@@ -40,6 +40,13 @@ import kotlinx.coroutines.withTimeoutOrNull
  */
 internal const val OTTO_OFFERS = 4
 
+/** 한 조각을 오또가 그리는 수 — 처음 한 번 · 다시 한 번. 한 장마다 우리 GPU 수 초라 끝없이 누르는 것을 막는다 (#302 · 종훈) */
+internal const val OTTO_ORDERS_MAX = 2
+internal const val OTTO_REDRAW_LINE = "한 번 더 그려 볼게! 더 그리고 있어!"
+internal const val OTTO_TOO_MANY_LINE = "이 그림은 벌써 두 번 그렸어! 이번엔 여기까지야."
+/** 다 그린 뒤 그림에서 누른 조각에 이름이 없다 — 무엇인지 듣고 그린다 (#302) */
+internal const val D3_TAP_ASK = "이건 뭐야? 알려 주면 그려 볼게!"
+
 /**
  * 그리면서 듣는 D1 질문의 첫 답 기다림(초). 기본 5초는 손을 멈추고 답하기엔 짧다(10-01 진웅 · 프로토타입 15초 · 흐름 10초).
  * 말이 끊기지 않게 언제 거둘지(오래 그리는 중 · 손을 놓고 멈춤)는 따로 정한다
@@ -72,6 +79,7 @@ suspend fun Director.pictureDiary() {
         askPieceStoriesAfterDrawing(day)
     } else log("그림 없이 말로 — D3 로 바로 간다")
     askEmptySlots()
+    takeD3Pick(day)                                  // 마지막 질문 중에 누른 조각 (#302)
     pickLateDrawings(day)
     finishPictureDiary(day)
 }
@@ -411,6 +419,7 @@ private fun Director.addToDiarySlot(slot: String, bookKey: String, value: String
  * 조각 이름은 가려서 보낸다(규칙 6).
  */
 private fun Director.orderOttoDrawing(scope: CoroutineScope, piece: DiaryPiece, name: String): OttoOrder {
+    s.diaryDay.ottoOrders.merge(piece.id, 1, Int::plus)
     if (!Server.liveFor(s.mode)) return OttoOrder(piece.id, null)
     // 배경은 판 전체를 보낸다 — 땅 · 하늘은 그은 자리가 뜻이다(#168). 무리는 가장 큰 덩어리 하나만 보낸다 —
     // 받은 그림을 덩어리 자리마다 찍는다(서버는 여럿을 보내면 자리를 바꿔 다시 짠다 · 10-02 측정)
@@ -677,9 +686,9 @@ private suspend fun Director.drawMe(scope: CoroutineScope, day: DiaryDay, waitin
             log("오또 그림 — 「$label」 그리는 중")
             say("나도 지금 그리고 있어! 조금만 기다려 줘.")
         }
-        target.ottoPng != null -> {
-            log("오또 그림 — 「$label」 벌써 그렸다")
-            say("벌써 그렸어! 반짝이는 이름표를 눌러 봐.")
+        (day.ottoOrders[target.id] ?: 0) >= OTTO_ORDERS_MAX -> {
+            log("오또 그림 — 「$label」 벌써 ${OTTO_ORDERS_MAX}번 그렸다 → 더 그리지 않는다 (#302)")
+            say(OTTO_TOO_MANY_LINE)
         }
         else -> {
             // 이름 없는 배경은 아이가 말한 장소로 주문한다 — 배경을 그리면 「여기는 어디야?」를 물었다 (#168).
@@ -688,8 +697,9 @@ private suspend fun Director.drawMe(scope: CoroutineScope, day: DiaryDay, waitin
                 ?: s.slots["place"]?.takeIf { target.role == PieceRole.BACKGROUND && it.isNotBlank() }
                 ?: askNameToDraw(day, target)
                 ?: return false
-            log("오또 그림 — 「$words」 그린다")
-            say("나도 그려 볼게! 더 그리고 있어!")
+            val again = (day.ottoOrders[target.id] ?: 0) > 0
+            log("오또 그림 — 「$words」 ${if (again) "다시 " else ""}그린다")
+            say(if (again) OTTO_REDRAW_LINE else "나도 그려 볼게! 더 그리고 있어!")
             waiting += orderOttoDrawing(scope, target, words)
             pause(600)
             return true
@@ -769,6 +779,60 @@ internal fun isBoardTool(value: String): Boolean =
 fun Director.sendBoardTool(r: Reply.Tapped) {
     if (!s.diaryDay.watching) s.diaryDay.pendingTap = r
     send(r)
+}
+
+/**
+ * 그림판에서 조각을 눌렀다 (#302) — 이름표가 없는 조각도 고른다. 새 획을 긋기 전까지 [그려 줘] · 「그려줘」가 이 조각이다.
+ * 이름이 없으면 [그려 줘] 때 무엇인지 먼저 묻는다([askNameToDraw])
+ */
+fun Director.tapBoard(x: Float, y: Float) {
+    val day = s.diaryDay
+    day.catchUp(s.drawing)
+    val piece = day.pieceAt(x, y) ?: return
+    day.focus = piece.id to s.drawing.size
+    sendBoardTool(Reply.Tapped("name:${piece.id}", "조각 고르기"))
+}
+
+/**
+ * 다 그린 뒤(D3) 그림에서 조각을 눌렀다 (#302) — 질문의 답으로 섞지 않고 남겨 두었다가 다음 질문 전에 받는다([takeD3Pick]).
+ * 책을 만들기 전까지 받는다
+ */
+fun Director.tapD3Picture(pieceId: Int) {
+    s.diaryDay.d3Pick = pieceId
+}
+
+/**
+ * D3 에서 누른 조각을 오또가 그린다 — 뒤에서 그리고 질문을 이어 가다가, 책 만들기 전에 고르게 한다([pickLateDrawings] · #281).
+ * 아이가 누른 조각만 서버로 간다(차별점 1). 같은 조각은 [OTTO_ORDERS_MAX] 번까지
+ */
+private suspend fun Director.takeD3Pick(day: DiaryDay) {
+    val id = day.d3Pick ?: return
+    day.d3Pick = null
+    val piece = day.pieces.firstOrNull { it.id == id } ?: return
+    if (id in day.lateArt) { say("나도 지금 그리고 있어! 조금만 기다려 줘."); pause(600); return }
+    if ((day.ottoOrders[id] ?: 0) >= OTTO_ORDERS_MAX) {
+        log("D3 에서 누른 「${piece.name ?: "이름 없는 조각"}」 — 벌써 ${OTTO_ORDERS_MAX}번 그렸다 (#302)")
+        say(OTTO_TOO_MANY_LINE); pause(600); return
+    }
+    val name = piece.name
+        ?: s.slots["place"]?.takeIf { piece.role == PieceRole.BACKGROUND && it.isNotBlank() }
+        ?: askNameOnD3(day, piece)
+        ?: return
+    day.lateArt[id] = orderOttoDrawing(CoroutineScope(currentCoroutineContext()), piece, name).art
+    say("좋아! 이야기하는 동안 그려 둘게.")
+    log("D3 에서 누른 「$name」 → 오또 그림 주문 · 고르기는 D3 가 끝난 뒤 (#302)")
+    pause(600)
+}
+
+/** D3 에서 누른 조각에 이름이 없다 — 무엇인지 듣는다. 못 들었으면 null(그리지 않는다) */
+private suspend fun Director.askNameOnD3(day: DiaryDay, piece: DiaryPiece): String? {
+    day.focusPiece = piece.id
+    val name = try {
+        val r = ask(Question(text = D3_TAP_ASK, kind = Kind.EASY, noCards = true, spoken = PIECE_ANSWERS, id = "diary_tap_piece"))
+        (r as? Reply.Spoke)?.let { nameThePiece(day, piece, it) }
+    } finally { day.focusPiece = null }
+    if (name == null) { say("그래, 그대로 둘게!"); pause(600) }
+    return name
 }
 
 /** D1 질문을 조용히 거둔 까닭 — 아이가 다른 조각을 그리기 시작했다 · 손을 놓고 말이 없었다 */
@@ -1136,6 +1200,7 @@ private suspend fun Director.askEmptySlots() {
     var wrapOffered = false
     var pieceAsked = false
     while (queue.isNotEmpty()) {
+        takeD3Pick(s.diaryDay)
         if (!wrapOffered && diaryRanLong()) {
             wrapOffered = true
             if (offerWrapUp()) break
@@ -1341,6 +1406,7 @@ private suspend fun Director.askEmptySlotsLive() {
     var easyTried: String? = null
     var pieceAsked = false
     while (next != null) {
+        takeD3Pick(day)
         if ((tries[next.third] ?: 0) >= SLOT_TRIES) {
             gaveUp += next.third
             log("[${next.third}] ${SLOT_TRIES}번 물었다 → 비워 둔다")

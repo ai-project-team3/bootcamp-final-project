@@ -167,6 +167,9 @@ class DiaryDay {
     internal var lastStroke: Stroke? = null
     internal var continuing: Int? = null
 
+    /** 화이트보드의 폭/높이 — 획 사이 거리를 화면에서 보이는 대로 재려고 [addStroke] 가 본다 ([DemoState.drawingAspect]) */
+    internal var boardAspect: () -> Float = { 1f }
+
     /**
      * 오또가 이야기를 마친 조각 → 그때 판에 있던 획 수. 그 뒤에 그은 선은 [addStroke] 가 이 조각에 몰래 붙이지 않는다 —
      * 새 조각으로 두고 「○○에 더 그린 거야, 새로 그린 거야?」 · 「뭐 그린 거야?」로 묻는다 (10-06 실기기 · 진웅).
@@ -200,6 +203,12 @@ class DiaryDay {
     val lateArt = mutableMapOf<Int, kotlinx.coroutines.Deferred<ByteArray?>?>()
     /** D3 에서 새로 나온 물건을 그리러 그림판을 다시 올린 수 — [BOARD_AGAIN_MAX] 까지 (#281) */
     var boardAgain = 0
+
+    /** 조각마다 오또 그림을 주문한 수 — [OTTO_ORDERS_MAX] 까지. 한 장마다 우리 GPU 수 초 (#302) */
+    val ottoOrders = mutableMapOf<Int, Int>()
+
+    /** 다 그린 뒤(D3) 그림에서 누른 조각 — 다음 질문 전에 받는다 (#302) */
+    @Volatile var d3Pick: Int? = null
 
     /** 이름 붙은 조각의 이름 — 그린 차례대로, 뒤에 [alsoDrawn]. 같은 이름은 한 번만 */
     val pieceNames: List<String> get() = (pieces.mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) } + alsoDrawn).distinct()
@@ -251,7 +260,10 @@ fun DemoState.hasDiaryCover(key: String): Boolean = diaryCovers[key]?.pieces?.is
 fun ShelfBook.coverKey(): String = savedStoryId ?: title
 
 /** 그림일기를 새로 시작한다 — 지난 판의 조각 · 날씨 · 기분 · 호출 수를 버린다 */
-fun DemoState.newDiaryDay(): DiaryDay = DiaryDay().also { dayByState[this] = it }
+fun DemoState.newDiaryDay(): DiaryDay = DiaryDay().also {
+    it.boardAspect = { drawingAspect.takeIf { a -> a > 0f } ?: 1f }
+    dayByState[this] = it
+}
 
 private val readingByState = WeakHashMap<DemoState, DiaryBookInput>()
 
