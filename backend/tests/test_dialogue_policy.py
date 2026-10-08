@@ -89,25 +89,25 @@ def test_only_a_repair_takes_anything_back():
 
 def test_a_bare_denial_does_not_refill_the_slot_it_denied():
     v = JudgeResult(reason="jev", slot_1="place", value_1="그거 아니야")
-    out = policy.trim_verdict("repair", d("correct", target="place"), v, ["place"])
+    out = policy.trim_verdict("repair", d("correct", target="place"), v)
     assert out.slot_1 is None and out.value_1 is None
 
 
 def test_a_correction_with_the_right_value_keeps_it():
     v = JudgeResult(reason="x", slot_1="place", value_1="바닷가")
-    out = policy.trim_verdict("repair", d("correct", target="place", new_value=True), v, ["place"])
+    out = policy.trim_verdict("repair", d("correct", target="place", new_value=True), v)
     assert out.slot_1 == "place" and out.value_1 == "바닷가"
 
 
 def test_a_question_back_fills_nothing():
     v = JudgeResult(reason="x", slot_1="extra", value_1="오또는 뭐 좋아해")
-    out = policy.trim_verdict("answer_back", d("ask_back"), v, [])
+    out = policy.trim_verdict("answer_back", d("ask_back"), v)
     assert out.slot_1 is None
 
 
 def test_an_aside_keeps_what_the_judge_filed():
     v = JudgeResult(reason="x", slot_1="extra", value_1="어제 비 왔어")
-    assert policy.trim_verdict("aside", d("aside"), v, []).slot_1 == "extra"
+    assert policy.trim_verdict("aside", d("aside"), v).slot_1 == "extra"
 
 
 # --- recipes: which slot the question is about, and what context the line gets ---

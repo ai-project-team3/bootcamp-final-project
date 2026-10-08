@@ -57,8 +57,7 @@ def retract_for(act: Optional[Act], d: Decision | None, req: TurnRequest) -> lis
     return [slot] if slot and req.slots.get(slot) else []
 
 
-def trim_verdict(act: Optional[Act], d: Decision | None, v: JudgeResult | None,
-                 retract: list[str]) -> JudgeResult | None:
+def trim_verdict(act: Optional[Act], d: Decision | None, v: JudgeResult | None) -> JudgeResult | None:
     """Drop fills the reply cannot have made. The rest of the verdict (next slot, signals) stands."""
     if v is None or act is None:
         return v
@@ -69,8 +68,8 @@ def trim_verdict(act: Optional[Act], d: Decision | None, v: JudgeResult | None,
             continue
         if act in NOT_AN_ANSWER:
             drop.add(slot_f)
-        # 「그거 아니야」 alone — Jev copies the words into the slot it denies (jev.py value_1)
-        elif act == "repair" and slot in retract and not (d and d.new_value):
+        # 「그거 아니야」 alone answers nothing — and Jev copies the words into a slot (jev.py value_1)
+        elif act == "repair" and not (d and d.new_value):
             drop.add(slot_f)
     if not drop:
         return v
