@@ -235,6 +235,9 @@ def score_stories(*, fixtures: Path, forbidden_words_path: Path) -> dict:
 
     for story in stories:
         scenes = story.get("scenes", [])
+        slots = story.get("slots", {})
+        given_names = [slots[key] for key in ("name", "companion", "place")
+                       if isinstance(slots, dict) and isinstance(slots.get(key), str)]
         if len(scenes) == 6:
             scene_ok += 1
         story_text = " ".join(_scene_caption(scene) for scene in scenes)
@@ -243,7 +246,7 @@ def score_stories(*, fixtures: Path, forbidden_words_path: Path) -> dict:
         for scene_idx, scene in enumerate(scenes, start=1):
             subtitle = _scene_caption(scene)
             subtitles.append(subtitle)
-            for hit in find_forbidden_hits(subtitle, policy):
+            for hit in find_forbidden_hits(subtitle, policy, given_names=given_names):
                 forbidden_hits.append({
                     "story": story.get("id"),
                     "scene": scene_idx,
