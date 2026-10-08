@@ -1,5 +1,8 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.pinMissions
+import com.example.finalproject_demo.demo.missions.missions
+import com.example.finalproject_demo.demo.missions.missionRecord
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.geometry.Offset
@@ -31,6 +34,8 @@ data class SavedStoryVisuals(
     val friend: GeneratedFriend? = null,
     val characters: List<GeneratedFriend> = emptyList(),
     val problemCharacter: String? = null,
+    /** The missions and props it was made with (#259 · PinnedMissions.encode) — a re-read book plays the same ones. Older books: null */
+    val missions: String? = null,
 ) {
     /** Old books have only friend. New role entries take precedence over that compatibility field. */
     val cast: List<GeneratedFriend> get() = (characters + listOfNotNull(friend)).distinctBy { it.role }
@@ -45,6 +50,7 @@ fun DemoState.captureStoryVisuals() = SavedStoryVisuals(
     newcomerKind, soundLine, causeLine, Server.liveFor(mode), generatedFriend,
     generatedCharacters.filter { it.role != "problem" || readingSavedCast || it.words == storyProblemCharacter() },
     storyProblemCharacter(),
+    missionRecord(),
 )
 
 /** Build a separate reading state; reopening a book must not overwrite the current conversation. */
@@ -77,6 +83,8 @@ fun DemoState.restoreStoryBook(book: SavedStoryBook): Boolean {
     generatedCharacters.addAll(visual.cast)
     readingSavedCast = true
     savedProblemCharacter = visual.problemCharacter ?: visual.cast.firstOrNull { it.role == "problem" }?.words
+    // the missions it was made with — its facts are not all stored, and the mission history has moved on (#259)
+    pinMissions(com.example.finalproject_demo.demo.missions.PinnedMissions.decode(visual.missions))
     // The stored captions already include mission results. Do not append them twice.
     m1Result = null
     m2Result = null
@@ -110,6 +118,7 @@ internal fun SavedStoryVisuals.toJson(): JSONObject {
                 .put("image", it.image).put("rig", it.rig ?: JSONObject.NULL)) }
         })
         .put("problemCharacter", problemCharacter ?: JSONObject.NULL)
+        .put("missions", missions ?: JSONObject.NULL)
 }
 
 internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
@@ -146,6 +155,7 @@ internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
             }
         },
         obj.nullableString("problemCharacter"),
+        if (obj.has("missions")) obj.nullableString("missions") else null,
     )
 }
 

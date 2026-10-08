@@ -1,0 +1,232 @@
+{
+  "dataset": {
+    "id": 108,
+    "url": "https://aihub.or.kr/aihubdata/data/view.do?dataSetSn=108",
+    "download_date_kst": "2026-10-08",
+    "raw_data_published": false
+  },
+  "calculation_commit": "8feeb657d18094b357884d0205b1373565ddc686",
+  "scope": "all_child",
+  "unit": "one JSON recording label",
+  "window": 50,
+  "analyzer": {
+    "name": "Kiwi",
+    "version": "0.24.0",
+    "model_version": "0.24.0",
+    "model_type": "cong",
+    "normalize_coda": false,
+    "split_complex": false,
+    "typos": null
+  },
+  "bootstrap": {
+    "unit": "speaker",
+    "samples": 2000,
+    "seed": 320
+  },
+  "ages": {
+    "3": {
+      "speakers": 47,
+      "answers_per_speaker": 50,
+      "mean_mlu_m": 5.679574468085106,
+      "ci95": [
+        5.458297872340426,
+        5.899148936170213
+      ],
+      "mean_ndw": 93.59574468085107,
+      "mean_content_tokens": 130.63829787234042,
+      "causal_answer_rate": 0.014893617021276596,
+      "foreign_answers": 1
+    },
+    "4": {
+      "speakers": 113,
+      "answers_per_speaker": 50,
+      "mean_mlu_m": 5.600884955752212,
+      "ci95": [
+        5.443185840707964,
+        5.753451327433629
+      ],
+      "mean_ndw": 91.66371681415929,
+      "mean_content_tokens": 129.1769911504425,
+      "causal_answer_rate": 0.01327433628318584,
+      "foreign_answers": 0
+    },
+    "5": {
+      "speakers": 200,
+      "answers_per_speaker": 50,
+      "mean_mlu_m": 5.633,
+      "ci95": [
+        5.5226,
+        5.7423
+      ],
+      "mean_ndw": 93.16,
+      "mean_content_tokens": 129.455,
+      "causal_answer_rate": 0.0131,
+      "foreign_answers": 0
+    },
+    "6": {
+      "speakers": 293,
+      "answers_per_speaker": 50,
+      "mean_mlu_m": 5.729146757679181,
+      "ci95": [
+        5.63617747440273,
+        5.822798634812287
+      ],
+      "mean_ndw": 93.27986348122867,
+      "mean_content_tokens": 131.92491467576792,
+      "causal_answer_rate": 0.015085324232081912,
+      "foreign_answers": 0
+    }
+  },
+  "inventory": {
+    "counts": {
+      "json_records": 2807994,
+      "after_complete_window_not_tokenized": 532086,
+      "outside_3_to_6": 2239995,
+      "non_analyzable_before_window": 167
+    },
+    "records_by_age": {
+      "3": 25852,
+      "4": 84626,
+      "5": 171791,
+      "6": 285730,
+      "7": 450276,
+      "8": 581462,
+      "9": 604257,
+      "10": 604000
+    },
+    "sources": [
+      {
+        "file_id": "48685",
+        "json_records": 2202722,
+        "age_3_to_6_records": 506339
+      },
+      {
+        "file_id": "48686",
+        "json_records": 51617
+      },
+      {
+        "file_id": "48687",
+        "json_records": 254814
+      },
+      {
+        "file_id": "48620",
+        "json_records": 263482,
+        "age_3_to_6_records": 61660
+      },
+      {
+        "file_id": "48621",
+        "json_records": 6772
+      },
+      {
+        "file_id": "48622",
+        "json_records": 28587
+      }
+    ],
+    "speakers_by_age": {
+      "3": 74,
+      "4": 147,
+      "5": 244,
+      "6": 346
+    },
+    "multi_archive_speakers": 75,
+    "question_related_schema_keys": {}
+  },
+  "selected_rows_including_under_50": 35746,
+  "analyzed_answers": 32650,
+  "eligible_speakers": 653,
+  "speakers_with_1_to_49_answers": 157,
+  "speakers_with_zero_analyzable_answers": 1,
+  "sample_criterion_met": true,
+  "numerical_age_direction_met": false,
+  "age_direction": "exploratory_only",
+  "policy_activation": "not_performed",
+  "clinical_validity": "not_established",
+  "human_segmentation_agreement": "not_measured",
+  "duplicate_text_diagnostic": {
+    "cohort_answers": 32650,
+    "distinct_texts": 7208,
+    "answers_whose_exact_text_occurs_more_than_once": 27393,
+    "largest_identical_text_frequency": 103,
+    "interpretation": "Shared text alone does not establish prompted reading or contamination"
+  },
+  "selection": {
+    "dataset": 108,
+    "scope": "all_child",
+    "age_range": [
+      3,
+      4,
+      5,
+      6
+    ],
+    "archive_order": [
+      "48685",
+      "48686",
+      "48687",
+      "48620",
+      "48621",
+      "48622"
+    ],
+    "within_archive_order": "lexicographic member path",
+    "window": "first 50 analyzable answers per recorderId; include undersampled separately",
+    "question_type": "unknown",
+    "duplicate_rule": "identical selected member path across archives excluded",
+    "speaker_key": "recorderId as supplied; conflicting ages abort",
+    "unit": "one JSON recording label, not verified conversational turn or clinical utterance",
+    "normalization": "only (UPPERCASE:...) non-speech labels and whitespace, same as existing reader",
+    "bootstrap": {
+      "unit": "speaker",
+      "samples": 2000,
+      "seed": 320
+    },
+    "stop_rules": [
+      "No raw answers or speaker IDs in stdout/public outputs",
+      "Unknown question type cannot activate a policy",
+      "Human review is pending until actually supplied by a human"
+    ]
+  },
+  "crosscheck": "Existing language_metrics_bench CLI reproduces age statistics exactly",
+  "archives": [
+    {
+      "file_id": "48685",
+      "zip_bytes": 2726382385,
+      "entry_count": 2202722,
+      "sha256": "492c2217ed5fcecf0a1bc67760b27b5d4d8f66d454665c8fe545205f1457d93c",
+      "crc_verified": true
+    },
+    {
+      "file_id": "48686",
+      "zip_bytes": 61112849,
+      "entry_count": 51617,
+      "sha256": "c531780da1e707a8893cd0c1d7edd7f7565b293d0c3ebee1251366acbc82fa52",
+      "crc_verified": true
+    },
+    {
+      "file_id": "48687",
+      "zip_bytes": 304093989,
+      "entry_count": 254814,
+      "sha256": "00431a418e52b58d99d3a3706b9ba99bc738a2d2b9d6ae0d8e5fc40bd4a7744c",
+      "crc_verified": true
+    },
+    {
+      "file_id": "48620",
+      "zip_bytes": 325098876,
+      "entry_count": 263482,
+      "sha256": "8c3da4ce10765e39e112693036a575e3e71e93aa1f2a264416c38a7352b4d3da",
+      "crc_verified": true
+    },
+    {
+      "file_id": "48621",
+      "zip_bytes": 7930038,
+      "entry_count": 6772,
+      "sha256": "e29d68318b6748e7d18e30e8fb3619cab3344552119fee0aaeeacef3e0ee3d3b",
+      "crc_verified": true
+    },
+    {
+      "file_id": "48622",
+      "zip_bytes": 34324844,
+      "entry_count": 28587,
+      "sha256": "82b517e52aa51b55e2610296008239234942935553b8140f45d20d26bb847183",
+      "crc_verified": true
+    }
+  ]
+}

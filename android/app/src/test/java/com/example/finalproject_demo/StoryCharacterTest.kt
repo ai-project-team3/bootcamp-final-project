@@ -48,6 +48,7 @@ class StoryCharacterTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val d = Director(scope, LocalStoryBookStore(context), StoryImageStore(context))
         d.s.speed = 0.01
+        d.s.bookStyle = "crayon"            // even in a crayon book the 도감 hero is drawn felt (결정 27)
         Server.base = server.base
         Server.liveModes = setOf(StoryMode.STORY)
         try {
@@ -77,6 +78,7 @@ class StoryCharacterTest {
             assertArrayEquals(png, File(art.name.removePrefix("local:")).readBytes())
             val request = server.requests.single { it.first == "/image" }.second
             assertEquals("character", request.getString("kind"))
+            assertEquals("the 도감 hero is felt in any book (결정 27 · #331 audit)", "felt", request.getString("style"))
             assertTrue(request.getString("description").contains("드레스"))
             assertTrue("the latest card choice must also reach generation", request.getString("description").contains("F9B233"))
             assertTrue(request.getString("description").contains("square"))

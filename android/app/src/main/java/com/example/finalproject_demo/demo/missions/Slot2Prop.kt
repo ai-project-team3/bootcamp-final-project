@@ -53,6 +53,8 @@ enum class FixProp(
         "블록을 하나씩 끌어 올려서 탑을 쌓아 볼래?", "우와, 높은 탑이 됐어!"),
     ;
 
+    companion object
+
     /** 부모 화면 「받은 선물」 — 건네주기의 「○○ 건넨 손」 자리. 물대포로 불을 껐는데 「별 건넨 손」이 남았다(10-06 실기기) */
     val badge: String get() = when (this) {
         FIRE -> "불 끈 물대포"
@@ -68,22 +70,38 @@ enum class FixProp(
  * **해결 동사가 먼저**(설계 §6-1 「껐어」가 「불」보다 세다) — 해결 · 먼저 한 일에서 동사를 찾고, 없을 때 문제 칸의 사물을 본다
  */
 fun fixPropIn(solution: String, problem: String): FixProp? = when {
-    // 「끄」 하나만 보면 「미끄럼틀」이 걸린다 — 「불을 끄 · 꺼 줬」처럼 불과 함께 쓴 말이나 「껐」만
-    listOf("껐", "불을 끄", "불 끄", "불을 꺼", "물을 뿌", "물 뿌", "물대포", "소방").any { it in solution } -> FixProp.FIRE
-    listOf("잠갔", "잠궜", "잠가", "잠그", "잠궈", "수도꼭지", "꼭지").any { it in solution } -> FixProp.FAUCET
-    listOf("굴렸", "굴려", "데굴", "골인", "공을 넣", "공 넣", "골을 넣").any { it in solution } -> FixProp.BALL
-    listOf("고쳤", "고쳐", "붙였", "테이프", "맞췄").any { it in solution } -> FixProp.PIECES
-    listOf("쌓았", "쌓아", "다시 쌓", "탑을").any { it in solution } -> FixProp.BLOCKS
-    listOf("불이 났", "불났", "불이 붙", "연기", "불이 나").any { it in problem } -> FixProp.FIRE
-    listOf("샜", "새서", "새고", "물이 새", "넘쳤", "물이 넘", "수도꼭지").any { it in problem } -> FixProp.FAUCET
-    listOf("공이 굴러", "공이 데굴", "공을 놓쳤", "공이 멀리").any { it in problem } -> FixProp.BALL
-    listOf("무너", "와르르").any { it in problem } -> FixProp.BLOCKS
-    listOf("부서", "망가", "깨졌", "고장", "찢어").any { it in problem } -> FixProp.PIECES
+    // Words match only at the start of an eojeol (#259 · MissionWords.kt) — 「미끄럼틀」's 「끄」 no longer matches, but 「끄」
+    // alone would still match 「끄덕였어」, so only with fire (「불을 끄 · 꺼 줬」) or 「껐」
+    saysAny(solution, listOf("껐", "불을 끄", "불 끄", "불을 꺼", "물을 뿌", "물 뿌", "물대포", "소방")) -> FixProp.FIRE
+    saysAny(solution, listOf("잠갔", "잠궜", "잠가", "잠그", "잠궈", "수도꼭지", "꼭지")) -> FixProp.FAUCET
+    saysAny(solution, listOf("굴렸", "굴려", "데굴", "골인", "공을 넣", "공 넣", "골을 넣", "공을 찼", "공 찼", "공놀이", "축구")) -> FixProp.BALL
+    saysAny(solution, listOf("고쳤", "고쳐", "붙였", "테이프", "맞췄", "꿰맸")) -> FixProp.PIECES
+    saysAny(solution, listOf("쌓았", "쌓아", "다시 쌓", "탑을")) -> FixProp.BLOCKS
+    // 「연기를 했어」 (acting) is not fire — only smoke that rose (#259 design §4-1 false positive)
+    saysAny(problem, listOf("불이 났", "불났", "불이 붙", "연기가", "연기 나", "불이 나")) -> FixProp.FIRE
+    // 「기쁨이 넘쳤어」 is not water — only water that overflowed (#259 design §4-1 false positive)
+    saysAny(problem, listOf("샜", "새서", "새고", "물이 새", "물이 넘", "물이 졸졸", "물이 콸콸", "수도꼭지")) -> FixProp.FAUCET
+    saysAny(problem, listOf("공이 굴러", "공이 데굴", "공을 놓쳤", "공이 멀리", "공이 날아")) -> FixProp.BALL
+    saysAny(problem, listOf("무너", "와르르", "넘어뜨")) -> FixProp.BLOCKS
+    saysAny(problem, listOf("부서", "망가", "깨졌", "깨져", "고장", "찢어", "부러")) -> FixProp.PIECES
     else -> null
 }
 
-/** 이 책 자리 2 의 소품 — A1 · A4 일 때만 */
+/** That mission's prop — the screen and ask of a rotated slot 2 use it (#259). Giving · puzzle have no prop */
+fun FixProp.Companion.forMission(m: MissionId): FixProp? = FixProp.entries.firstOrNull { it.mission == m }
+
+/**
+ * This book's slot 2 prop — **what the book's sentences use**. Picked from the child's words, or borrowed by rotation in
+ * an imagined story (#259 · an imagined story may borrow · mission design §7-2). Null for a rotated mission on a real day —
+ * no thing the child did not say goes into the book (§3-8). The screen and ask use [slot2PlayProp]
+ */
 fun DemoState.slot2Prop(): FixProp? {
+    pinnedMissions()?.let { return it.fix.takeIf { _ -> it.fixInBook } }     // a re-read book (#321 review)
     val f = storyFacts()
-    return fixPropIn(f.slot2Words, f.slot1Words)?.takeIf { it.mission == missions().slot2 }
+    val m = missions()
+    return fixPropIn(f.slot2Words, f.slot1Words)?.takeIf { it.mission == m.slot2 }
+        ?: if (!f.realDay && !m.slot2FromChild) FixProp.forMission(m.slot2) else null
 }
+
+/** The prop for slot 2's screen · Otto's ask · the badge — a rotated mission on a real day too (the screen has the blocks · ball) */
+fun DemoState.slot2PlayProp(): FixProp? = pinnedMissions()?.fix ?: slot2Prop() ?: FixProp.forMission(missions().slot2)

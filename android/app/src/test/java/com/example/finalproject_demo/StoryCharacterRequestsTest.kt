@@ -162,6 +162,7 @@ class StoryCharacterRequestsTest {
         withServer(server) { d ->
             Server.liveModes = setOf(StoryMode.COOP)
             d.s.mode = StoryMode.COOP; d.s.companionKind = "강아지"
+            d.s.done.add(COOP_DRAW_DECIDED)
             coroutineScope { d.drawFriend() }
             coroutineScope { d.drawFriend() }
             assertEquals(2, server.requests.count { it.first == "/image" })

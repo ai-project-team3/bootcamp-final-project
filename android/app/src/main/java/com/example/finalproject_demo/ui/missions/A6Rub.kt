@@ -123,7 +123,7 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
     //
     // **날아갈 수 있는 것에만** 붙인다 — 먼지 · 모래는 불면 날아가지만 먹물 · 진흙은 아니다.
     // 손으로 문지르는 길은 **그대로 남는다.** 불기는 덤이지 대신이 아니다 (실패 없는 설계).
-    val blowable = m.blobName.contains("먼지") || m.blobName.contains("모래") || m.blobName.contains("가루")
+    val blowable = !m.named || m.blobName.contains("먼지") || m.blobName.contains("모래") || m.blobName.contains("가루")
     // 판정은 C1 과 같은 [BlowDetector] — 오또가 말하는 동안은 듣지 않고 「후~」만 센다(#258). 같은 객체의 상태라 반복문에서도 지금 값
     val blow = com.example.finalproject_demo.ui.rememberBlow(blowable && !allOut)
     val speaking by com.example.finalproject_demo.net.Voice.playing.collectAsState()

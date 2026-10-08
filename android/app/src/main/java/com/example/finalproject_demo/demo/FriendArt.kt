@@ -14,6 +14,9 @@ import kotlinx.coroutines.ensureActive
 data class GeneratedFriend(val words: String, val image: String, val rig: String?, val role: String = "friend")
 
 /** 「친구」 alone names nobody in particular — the generic friend preset already fits it. */
+
+/** Co-op: the child has chosen whether to draw the companion (or was not asked) — only then a doll may be asked for. */
+internal const val COOP_DRAW_DECIDED = "coopdrawdecided"
 private val GENERIC_FRIEND = setOf("친구", "친구들")
 
 /**
@@ -27,7 +30,11 @@ internal fun DemoState.friendToDraw(): String? = when {
     mode == StoryMode.STORY && "draw" !in done -> null          // wait for the child's drawing decision
     mode == StoryMode.STORY ->
         slots["newcomer"]?.trim()?.takeIf { it.isNotEmpty() && storyPresetMatch(it) == null }
-    isCoop -> companionKind.trim().takeIf { it.isNotEmpty() && companionPreset(it) == null && it !in GENERIC_FRIEND }
+    // Co-op waits until the child chose whether to draw the companion (the drawing step comes last) — a doll asked for
+    // earlier was thrown away when the child drew, and still cost a request (#339 · design §5 · ⚖️5)
+    isCoop -> companionKind.trim().takeIf {
+        it.isNotEmpty() && COOP_DRAW_DECIDED in done && coopCompanionPreset(it) == null && it !in GENERIC_FRIEND && "혼자" !in it
+    }
     else -> null
 }
 

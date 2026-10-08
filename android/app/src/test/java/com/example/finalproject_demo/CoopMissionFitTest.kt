@@ -51,8 +51,9 @@ class CoopMissionFitTest {
         assertNull(s.coopMissionProp(PageKind.DRAG))
         assertFalse(s.coopMissionInBook(PageKind.RUB))
         s.m1Result = "solo"; s.m2Result = "solo"
-        assertNull("먼지 결과 문장이 책에 붙었다", s.coopMissionResult(PageKind.RUB))
-        assertNull("별 결과 문장이 책에 붙었다", s.coopMissionResult(PageKind.DRAG))
+        // The server writes that page as 「오또가 상상해 봤어!」 (#340), so the result is imagined too — dust · star are not that day's events
+        assertEquals("상상 속에서 반짝반짝 깨끗해졌어!", s.coopMissionResult(PageKind.RUB))
+        assertEquals("상상 속에서 선물을 건넸어!", s.coopMissionResult(PageKind.DRAG))
     }
 
     @Test
