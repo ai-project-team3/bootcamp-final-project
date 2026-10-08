@@ -19,8 +19,8 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * #259 설계 §4-3 4 — 아이 말에서 아무것도 못 찾았을 때의 소품은 이름 없는 그림으로(반짝이 가루 · 작은 선물 상자).
- * 안내 · 완료 · 배지에 「먼지」 · 「별」을 쓰지 않는다 — 아이가 말한 적이 없다. 대본 동화의 별(아이가 10장면에서 고름)은 그대로.
+ * #259 design §4-3 4 — when nothing was found in the child's words the prop is a nameless picture (sparkle dust · a small gift box).
+ * The ask · done line · badge never say 「먼지」 · 「별」 — the child never said them. A scripted story's star (picked in scene 10) stays.
  */
 class NamelessDefaultPropTest {
     private val base = Server.base
@@ -51,13 +51,13 @@ class NamelessDefaultPropTest {
 
     @Test
     fun whatTheChildSaidKeepsItsName() {
-        // 아이가 모래 · 블록을 말했으면 그 이름 그대로
+        // Sand · blocks the child named keep their names
         val s = DemoState().apply { mode = StoryMode.COOP; problem = "모래놀이를 했어"; solutionItem = "block" }
         assertTrue(s.mission1().named)
         assertEquals("모래", s.mission1().blobName)
         assertEquals("블록", s.mission2().itemName)
         assertTrue(s.mission2().fromChild)
-        // 대본 동화(서버 없음)의 별은 아이가 10장면에서 고른 「별 따기」
+        // A scripted story's star (no server) is the child's pick in scene 10 (「별 따기」)
         Server.base = null
         val scripted = DemoState().apply { mode = StoryMode.STORY; templateKey = "C"; solutionItem = "star" }
         assertEquals("별", scripted.mission2().itemName)

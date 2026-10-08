@@ -22,22 +22,22 @@ data class Mission1(
     val stuck: String,
     val done: String,
     /**
-     * 이름을 불러도 되는 것인가 — false 면 아무것도 못 찾아 쓴 **이름 없는 반짝이 가루**([NAMELESS_RUB] · #259 §4-3 4).
-     * 안내 · 책 · 배지가 그 이름을 쓰지 않고 「문질러서 깨끗하게」 동작만 말한다
+     * Whether it may be called by name — false for the **nameless sparkle dust** used when nothing was found ([NAMELESS_RUB] · #259 §4-3 4).
+     * The ask · book · badge then say only the action (「문질러서 깨끗하게」), not the name
      */
     val named: Boolean = true,
 )
 
 /**
- * 아이 말에서 문지를 것을 못 찾았을 때 — 전에는 「먼지」였다. 아이가 먼지를 말한 적이 없는데 안내가 「먼지가 아직 잔뜩
- * 남아 있어」 · 배지가 「먼지 치운 손」이었다(#259). 그림은 이름 없는 반짝이 가루, 말은 동작만
+ * When nothing to rub was found in the child's words — it used to be dust. The child never said dust, yet Otto said 「먼지가 아직 잔뜩
+ * 남아 있어」 and the badge said 「먼지 치운 손」 (#259). The picture is nameless sparkle dust; the words are the action only
  */
 internal val NAMELESS_RUB = Mission1("prop_sparkle_dust", "✨", "반짝이 가루", "prop_sparkle", "✨", "ic_hand", "✋", "손",
     "반짝이 가루가 묻었어요", "반짝반짝 깨끗해졌어!", named = false)
 
 /**
- * 아이 말에서 건넬 것을 못 찾았을 때 — 전에는 「별」이었다(#259 · #309). 그림은 작은 선물 상자, 이름은 「선물」만.
- * 그림은 `prop_gift`(#326 — 펠트 · 크레용 판, `ic_gift` 와 같은 모양). 그림이 없는 빌드(#326 전)는 🎁 로 그린다
+ * When nothing to give was found in the child's words — it used to be a star (#259 · #309). The picture is a small gift box, the name only 「선물」.
+ * The picture is `prop_gift` (#326 — felt · crayon sets, the same shape as `ic_gift`). A build without it (before #326) draws 🎁
  */
 internal val NAMELESS_GIVE = Mission2("prop_gift", "🎁", "선물", "작은 선물을 건네주었어요", "선물을 받고 활짝 웃어!", fromChild = false)
 
@@ -71,7 +71,7 @@ private fun diaryMission1(s: DemoState): Mission1 {
     val leaf = Mission1("prop_leaf", "🍂", "나뭇잎", "prop_sparkle", "✨", "prop_broom", "🧹", "빗자루", "나뭇잎이 잔뜩 붙었어요", "나뭇잎을 다 쓸어 냈어!")
     val water = Mission1("prop_splash", "💦", "물방울", "prop_sparkle", "✨", "prop_sponge", "🧽", "수건", "물이 잔뜩 튀었어요", "물기를 뽀송하게 다 닦았어!")
     val crumb = Mission1("prop_strawberry", "🍓", "부스러기", "prop_sparkle", "✨", "ic_hand", "✋", "손", "간식 부스러기가 묻었어요", "부스러기를 탈탈 다 털어 냈어!")
-    // 아이 말 · 장소에서 아무것도 못 찾으면 묻은 것을 지어내지 않는다 — 이름 없는 반짝이 가루(#259)
+    // Nothing found in the child's words or the place — no made-up dirt; the nameless sparkle dust (#259)
     val dust = NAMELESS_RUB
 
     return when (stainSaid(said)) {
@@ -224,7 +224,7 @@ fun DemoState.placeWord(): String? = placeLabel?.trim()?.takeIf { p ->
 fun DemoState.m1Line(): String {
     slot1Prop()?.let { return it.ask }                   // C1 불기 · C3 소리 흉내 — 소품은 아이 말에서 (SoundProp.kt)
     val m = mission1(); val v = rideName
-    // 이름 없는 반짝이 가루 — 무엇이 묻었다고 말하지 않고 동작만 (#259)
+    // Nameless sparkle dust — no saying what was on it, the action only (#259)
     if (!m.named) return "손으로 슥슥 문질러서 반짝반짝 깨끗하게 해 줄래?"
     if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode))
         return "이 자리에 ${m.blobName}${ga(m.blobName)} 남아 있어. ${m.toolName}${ro(m.toolName)} 슥슥 치워 줄래?"
@@ -250,7 +250,7 @@ fun DemoState.m1Caption(withSubject: Boolean = true): String {
     }
     val m = mission1(); val v = rideName; val f = friendCallName
     if (!m.named) {
-        // 이름 없는 반짝이 가루 — 무엇을 치웠는지 지어 적지 않는다 (#259)
+        // Nameless sparkle dust — no made-up thing that was cleaned (#259)
         val clause = "${placeWord()?.let { "${it}에서 " } ?: ""}손으로 슥슥 문질러 깨끗하게 치웠어요."
         return if (withSubject) "$childName${eun(childName)} $clause" else clause
     }

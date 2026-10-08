@@ -31,7 +31,7 @@ class StoryLiveRubTest {
             assertFalse("hidden ride in live mission: $line", s.rideName in line)
             assertFalse("invented shaking in live mission: $line", "흔들" in line)
         }
-        // 모르는 손님(고양이)이면 이름 없는 반짝이 가루 — 무엇이 묻었는지 말하지 않고 동작만(#259 · 전에는 「먼지」)
+        // An unknown guest (a cat) gives the nameless sparkle dust — the action only, no saying what was on it (#259 · was 「먼지」)
         assertFalse(s.mission1().named)
         assertTrue(s.m1Line(), "문질러" in s.m1Line() && "먼지" !in s.m1Line())
     }
