@@ -1,0 +1,16 @@
+{
+  "name": "prop_goal_net_crayon",
+  "of": "prop_goal_net",
+  "kind": "cut",
+  "text": "a small soccer goal seen from the front, a white frame with a soft white net",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 1798662239,
+  "prompt": "a small soccer goal seen from the front, a white frame with a soft white net, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "art_recipes",
+  "made": "2026-10-08"
+}
