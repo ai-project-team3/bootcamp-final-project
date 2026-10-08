@@ -476,7 +476,9 @@ private suspend fun Director.sceneMakeHero() {
                 if (confirmedChoices.isNotEmpty()) "\nLatest confirmed choices override earlier descriptions: " +
                     confirmedChoices.entries.joinToString("; ") { "${it.key}=${it.value}" } else ""
             val mask = s.nameMask()
-            val character = withTimeoutOrNull(15_000) { Server.character(mask.mask(description), mode = "story") }
+            // felt on purpose, not the book's style: this doll goes into the 도감 and walks into later books of any style
+            // (결정 27 — the 도감 stays felt). Said out loud so the #331 audit of every picture call can see it
+            val character = withTimeoutOrNull(15_000) { Server.character(mask.mask(description), mode = "story", style = "felt") }
             if (character != null) {
                 generatedImage = saveStoryImage(character.png)
                 generatedRig = character.rig.takeIf { generatedImage != null }
