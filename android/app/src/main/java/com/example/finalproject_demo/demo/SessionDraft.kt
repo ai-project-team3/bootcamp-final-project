@@ -1,14 +1,19 @@
 package com.example.finalproject_demo.demo
 
 import android.content.Context
-import android.util.AtomicFile
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import com.example.finalproject_demo.sound.ChildSound
 import com.example.finalproject_demo.ui.HeroAttr
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicReference
 
 /*
  * ── Unfinished-book checkpoint across a killed process (#336 · lead decision 10-08) ──────────────────
@@ -23,12 +28,16 @@ import java.io.File
  *
  * Contract:
  *  - **Local only.** App-private `files/session_draft/draft.json`, never sent to the server. `LocalWipe` deletes it.
- *  - **Atomic.** `AtomicFile` (write to a new file, then rename) — a kill mid-write leaves the previous draft.
+ *  - **Atomic, off the main thread.** One writer thread, latest draft wins; write `draft.json.tmp`, then
+ *    rename over `draft.json` — a kill mid-write leaves the previous draft.
  *  - **Provenance exact.** `slotBy` (child · card · mascot) and every `talk` line's `who` are copied as they are (rule 5).
  *  - **Scene boundary.** Resume reruns the stopped scene from its start with the saved state, as in-app continue does.
  *    State a scene keeps in its own locals (a live question in progress) is not saved.
  *  - **Cleared** when the book is finished (`Scene.BOOK`, the picture diary shelved), a new story starts,
  *    the 시연 「처음부터」 resets, or the parent wipes the phone.
+ *  - **Expires** ([isExpired] · lead 10-08): after 24 h, and a picture diary also when the calendar date changes —
+ *    a diary is about that day. An expired draft is dropped silently on read; its pictures and recording go with it
+ *    (image cleanup and `ChildSound.discardSession` no longer see it).
  *  - Unknown [VERSION] or an unreadable file is discarded — never half-restored.
  */
 
@@ -45,6 +54,22 @@ data class SessionDraft(
         listOf("storyBackground", "storyHeroImage").forEach { k -> state.optStr(k)?.let(::add) }
         state.optJSONObject("generatedFriend")?.optStr("image")?.let(::add)
         state.optJSONArray("heroes")?.let { a -> for (i in 0 until a.length()) a.getJSONObject(i).optStr("image")?.let(::add) }
+        state.optJSONObject("heroCreationDraft")?.let { h ->
+            if (h.optString("phase") != HeroCreationDraft.Phase.COMPLETE.name) {
+                h.optStr("generatedImage")?.let(::add)
+                h.optJSONArray("generatedTries")?.let { a -> for (i in 0 until a.length()) a.getJSONObject(i).optStr("image")?.let(::add) }
+            }
+        }
+    }
+
+    /** The child's recordings (session clip ids) this draft still needs — `ChildSound.discardSession` must keep them */
+    fun soundClipIds(): Set<String> = setOfNotNull(state.optStr("storySoundClip"))
+
+    /** 24 h after saving, or — for a picture diary — once the calendar day has changed (lead 10-08) */
+    fun isExpired(nowMs: Long, zone: ZoneId = ZoneId.systemDefault()): Boolean {
+        if (nowMs - savedAtMs >= EXPIRY_MS || nowMs < savedAtMs) return true
+        fun day(ms: Long): LocalDate = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
+        return mode == StoryMode.DIARY && day(nowMs) != day(savedAtMs)
     }
 
     fun toJson(): JSONObject = JSONObject()
@@ -54,6 +79,7 @@ data class SessionDraft(
     companion object {
         /** Bump when a field changes meaning; an older draft is then discarded, not misread */
         const val VERSION = 1
+        const val EXPIRY_MS = 24L * 60 * 60 * 1000
 
         fun fromJson(o: JSONObject): SessionDraft? = runCatching {
             if (o.getInt("version") != VERSION) return null
@@ -63,41 +89,99 @@ data class SessionDraft(
     }
 }
 
-/** Where a draft is kept. Tests use [Memory]; the app [LocalSessionDraftStore]. */
+/** Where a draft is kept. Tests use [Memory]; the app [LocalSessionDraftStore]. [load] never returns an expired draft. */
 interface SessionDraftStore {
     fun load(): SessionDraft?
     fun save(draft: SessionDraft)
     fun clear()
+    /** Waits until queued writes have reached the disk (the file store writes in the background) */
+    fun flush() {}
 
-    class Memory : SessionDraftStore {
+    class Memory(private val now: () -> Long = System::currentTimeMillis) : SessionDraftStore {
         var raw: String? = null
         var writes = 0
         override fun load() = raw?.let { runCatching { SessionDraft.fromJson(JSONObject(it)) }.getOrNull() }
+            ?.let { if (it.isExpired(now())) { raw = null; null } else it }
         override fun save(draft: SessionDraft) { raw = draft.toJson().toString(); writes++ }
         override fun clear() { raw = null }
     }
 }
 
-/** App-private file, replaced atomically. A damaged or older-version file is deleted on read. */
-class LocalSessionDraftStore(context: Context) : SessionDraftStore {
-    private val file = AtomicFile(File(File(context.applicationContext.filesDir, "session_draft").apply { mkdirs() }, "draft.json"))
+/**
+ * App-private file, replaced atomically on one background thread. [save] and [clear] return at once: the
+ * latest request wins and older ones that have not started are skipped. [load] waits for queued writes first.
+ * A damaged, older-version or expired file is deleted on read.
+ */
+class LocalSessionDraftStore(
+    context: Context,
+    private val now: () -> Long = System::currentTimeMillis,
+) : SessionDraftStore {
+    private val dir = File(context.applicationContext.filesDir, "session_draft")
+    private val file = File(dir, "draft.json")
+    private val tmp = File(dir, "draft.json.tmp")
 
-    @Synchronized override fun load(): SessionDraft? {
-        val bytes = runCatching { file.readFully() }.getOrNull() ?: return null
-        val draft = runCatching { SessionDraft.fromJson(JSONObject(String(bytes, Charsets.UTF_8))) }.getOrNull()
-        if (draft == null) file.delete()
-        return draft
+    /** null = delete; otherwise the draft to write */
+    private class Op(val draft: SessionDraft?)
+    private val latest = AtomicReference<Op?>(null)
+    private companion object {
+        /** One writer for the whole app — two stores on the same file never write at once */
+        val writer = Executors.newSingleThreadExecutor { r -> Thread(r, "session-draft").apply { isDaemon = true } }
     }
 
-    @Synchronized override fun save(draft: SessionDraft) {
-        val out = runCatching { file.baseFile.parentFile?.mkdirs(); file.startWrite() }.getOrNull() ?: return
-        try {
-            out.write(draft.toJson().toString().toByteArray(Charsets.UTF_8))
-            file.finishWrite(out)
-        } catch (_: Exception) { file.failWrite(out) }
+    /** Tests: called on the writer thread after each write or delete */
+    @Volatile internal var onWritten: (() -> Unit)? = null
+
+    override fun load(): SessionDraft? {
+        flush()
+        synchronized(file) {
+            tmp.delete()                                // a write the process did not finish — the old file is intact
+            val bytes = runCatching { file.takeIf { it.isFile }?.readBytes() }.getOrNull() ?: return null
+            val draft = runCatching { SessionDraft.fromJson(JSONObject(String(bytes, Charsets.UTF_8))) }.getOrNull()
+            if (draft == null || draft.isExpired(now())) { file.delete(); return null }
+            return draft
+        }
     }
 
-    @Synchronized override fun clear() { file.delete() }
+    /** The caller has already captured the state (Compose state is read on its own thread); only JSON and disk run here */
+    override fun save(draft: SessionDraft) = enqueue(Op(draft))
+
+    override fun clear() = enqueue(Op(null))
+
+    /** Waits until every queued write has reached the disk */
+    override fun flush() { runCatching { writer.submit {}.get() } }
+
+    private fun enqueue(op: Op) {
+        latest.set(op)
+        runCatching { writer.execute(::writeLatest) }.onFailure { writeLatest() }
+    }
+
+    private fun writeLatest() {
+        val op = latest.getAndSet(null) ?: return       // a newer request already wrote — latest wins
+        synchronized(file) {
+            val draft = op.draft
+            if (draft == null) file.delete()
+            else runCatching {
+                dir.mkdirs()
+                java.io.FileOutputStream(tmp).use { out ->
+                    out.write(draft.toJson().toString().toByteArray(Charsets.UTF_8))
+                    out.fd.sync()                               // on disk before it replaces the old draft
+                }
+                // rename replaces atomically on Android (POSIX). Only a desktop JVM (Windows tests) refuses
+                // to rename over an existing file — there the old file goes first
+                if (!tmp.renameTo(file)) { file.delete(); if (!tmp.renameTo(file)) tmp.delete() }
+            }.onFailure { tmp.delete() }
+        }
+        onWritten?.invoke()
+    }
+}
+
+/**
+ * Launch: the session recordings a still-valid draft needs are kept, every other un-kept recording is deleted
+ * (as before #336). Expired drafts are dropped by [SessionDraftStore.load] here, so their recording goes too.
+ */
+fun discardUnusedSessionSounds(drafts: SessionDraftStore) {
+    val keep = runCatching { drafts.load()?.soundClipIds() }.getOrNull().orEmpty()
+    ChildSound.discardSession(keep)
 }
 
 // ── The explicit field list ─────────────────────────────────────────────────────
@@ -161,7 +245,19 @@ internal fun DemoState.captureDraftState(): JSONObject = JSONObject().apply {
     put("askedThisStory", strings(askedThisStory)); put("usedVariants", strings(usedVariants))
     // the world and pictures
     put("themeKey", themeKey); putN("placeLabel", placeLabel); put("generatedBg", generatedBg)
-    putN("storyBackground", storyBackground); putN("sceneKit", sceneKit); put("sceneSeed", sceneSeed)
+    putN("storyBackground", storyBackground); putN("storyBackgroundPlace", storyBackgroundPlace)   // #334: a finished place is not drawn again
+    putN("sceneKit", sceneKit); put("sceneSeed", sceneSeed)
+    // #334: the doll being made — phase, spent redraws and every candidate, so a resume does not buy new tries
+    heroCreationDraft?.let { h ->
+        put("heroCreationDraft", JSONObject().put("phase", h.phase.name).put("questionIndex", h.questionIndex)
+            .put("attr", h.attr.json()).put("fixes", h.fixes).put("descriptions", strings(h.descriptions))
+            .put("confirmedChoices", JSONArray().apply { h.confirmedChoices.forEach { (k, v) -> put(JSONArray().put(k).put(v)) } })
+            .put("generatedTries", JSONArray().apply { h.generatedTries.forEach { (img, rig) -> put(JSONObject().putN("image", img).putN("rig", rig)) } })
+            .putN("generatedImage", h.generatedImage).putN("generatedRig", h.generatedRig))
+    }
+    // the child's recorded sound, while it is still a session clip (not yet moved under a saved book) — stays on the phone
+    if (storySoundBookId == null) storySoundClip?.let { put("storySoundClip", it.id) }
+    put("storySoundAttempted", storySoundAttempted)
     put("enteredOnStage", strings(enteredOnStage)); put("mentioned", strings(mentioned)); put("hotspotIntroShown", hotspotIntroShown)
     put("newcomerKind", newcomerKind); put("newcomerEmoji", newcomerEmoji); put("dinoKey", dinoKey)
     put("solutionKey", solutionKey); put("solutionItem", solutionItem)
@@ -238,7 +334,21 @@ fun DemoState.applyDraft(d: SessionDraft) {
     askedThisStory.addAll(o.optJSONArray("askedThisStory").strings())
     o.optJSONArray("usedVariants").strings().forEach { if (it !in usedVariants) usedVariants += it }
     themeKey = o.optString("themeKey", themeKey); placeLabel = o.optStr("placeLabel"); generatedBg = o.optBoolean("generatedBg")
-    storyBackground = o.optStr("storyBackground"); sceneKit = o.optStr("sceneKit"); sceneSeed = o.optLong("sceneSeed")
+    storyBackground = o.optStr("storyBackground"); storyBackgroundPlace = o.optStr("storyBackgroundPlace")
+    sceneKit = o.optStr("sceneKit"); sceneSeed = o.optLong("sceneSeed")
+    heroCreationDraft = o.optJSONObject("heroCreationDraft")?.let { h ->
+        HeroCreationDraft().apply {
+            phase = HeroCreationDraft.Phase.valueOf(h.getString("phase")); questionIndex = h.optInt("questionIndex")
+            attr = h.getJSONObject("attr").heroAttr(); fixes = h.optInt("fixes")
+            descriptions.addAll(h.optJSONArray("descriptions").strings())
+            h.optJSONArray("confirmedChoices")?.let { a -> for (i in 0 until a.length()) a.getJSONArray(i).let { confirmedChoices[it.getString(0)] = it.getString(1) } }
+            h.optJSONArray("generatedTries")?.let { a -> for (i in 0 until a.length()) a.getJSONObject(i).let { generatedTries += it.optStr("image") to it.optStr("rig") } }
+            generatedImage = h.optStr("generatedImage"); generatedRig = h.optStr("generatedRig")
+        }
+    }
+    // the clip survived launch only if `discardUnusedSessionSounds` kept it; a missing file means no sound, as before
+    storySoundClip = o.optStr("storySoundClip")?.let { ChildSound.sessionClip(it) }
+    storySoundAttempted = o.optBoolean("storySoundAttempted")
     enteredOnStage.addAll(o.optJSONArray("enteredOnStage").strings()); mentioned.addAll(o.optJSONArray("mentioned").strings())
     hotspotIntroShown = o.optBoolean("hotspotIntroShown")
     newcomerKind = o.optString("newcomerKind", newcomerKind); newcomerEmoji = o.optString("newcomerEmoji", newcomerEmoji)

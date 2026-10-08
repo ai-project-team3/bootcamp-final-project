@@ -13,6 +13,11 @@ import com.example.finalproject_demo.demo.DiaryPiece
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.GeneratedFriend
 import com.example.finalproject_demo.demo.Hero
+import com.example.finalproject_demo.demo.HeroCreationDraft
+import com.example.finalproject_demo.demo.discardUnusedSessionSounds
+import com.example.finalproject_demo.sound.ChildSound
+import java.time.LocalDateTime
+import java.time.ZoneId
 import com.example.finalproject_demo.demo.Level
 import com.example.finalproject_demo.demo.LocalSessionDraftStore
 import com.example.finalproject_demo.demo.PieceLook
@@ -87,6 +92,15 @@ class SessionDraftTest {
         generatedFriend = GeneratedFriend("문어", "local:/x/friend.png", null)
         m1Result = "star"; m2Result = "gift"
         heroTries += heroAttr!!
+        // #334 session fields
+        storyBackgroundPlace = "바닷속"
+        heroCreationDraft = HeroCreationDraft().apply {
+            phase = HeroCreationDraft.Phase.REPAIR; questionIndex = 3; fixes = 1
+            attr = HeroAttr(hair = "tied", shirt = Color(0xFFF25C4C)); descriptions += "빨간 옷"
+            confirmedChoices["hair"] = "묶은 머리"; confirmedChoices["shirt"] = "빨간 옷"
+            generatedTries += "local:/x/try1.png" to "rigA"; generatedTries += null to null
+            generatedImage = "local:/x/try2.png"; generatedRig = null
+        }
     }
 
     @Test fun draftRoundTripKeepsTheBookAndProvenanceExactly() {
@@ -108,7 +122,100 @@ class SessionDraftTest {
         assertEquals("gift", b.m2Result)
         // everything in the field list comes back — a second capture is the same
         assertEquals(a.captureDraft(Scene.CAUSE, 1L).toJson().toString(), b.captureDraft(Scene.CAUSE, 1L).toJson().toString())
-        assertEquals(setOf("local:/x/bg.png", "local:/x/hero.png", "local:/x/friend.png"), back.imageReferences())
+        assertEquals(setOf("local:/x/bg.png", "local:/x/hero.png", "local:/x/friend.png", "local:/x/try1.png", "local:/x/try2.png"),
+            back.imageReferences())
+    }
+
+    @Test fun heroCreationAndPlaceFromPr334RoundTrip() {
+        val a = DemoState().apply { fillABook() }
+        val b = DemoState().apply { applyDraft(SessionDraft.fromJson(JSONObject(a.captureDraft(Scene.MAKEHERO).toJson().toString()))!!) }
+        assertEquals("바닷속", b.storyBackgroundPlace)
+        val h = b.heroCreationDraft!!
+        val o = a.heroCreationDraft!!
+        assertEquals(HeroCreationDraft.Phase.REPAIR, h.phase)
+        assertEquals("다시 그리기 횟수가 되살아났다", 1, h.fixes)
+        assertEquals(o.questionIndex, h.questionIndex)
+        assertEquals(o.attr, h.attr)
+        assertEquals(o.descriptions, h.descriptions)
+        assertEquals(o.confirmedChoices.toList(), h.confirmedChoices.toList())
+        assertEquals("후보가 바뀌었다", o.generatedTries, h.generatedTries)
+        assertEquals(o.generatedImage to o.generatedRig, h.generatedImage to h.generatedRig)
+        // a finished creation no longer owns its candidates (same rule as HeroCreationDraft.imageReferences)
+        a.heroCreationDraft!!.phase = HeroCreationDraft.Phase.COMPLETE
+        assertFalse("local:/x/try1.png" in a.captureDraft(Scene.BESTIARY).imageReferences())
+    }
+
+    // ── recordings · expiry · background writes ────────────────
+
+    @Test fun launchKeepsTheRecordingOfAValidDraftAndDropsTheRest() {
+        val root = File(ctx.cacheDir, "sounds-${System.nanoTime()}")
+        val old = ChildSound.root
+        ChildSound.root = root
+        try {
+            val session = File(root, "session").apply { mkdirs() }
+            val mine = File(session, "a1.wav").apply { writeBytes(byteArrayOf(1)) }
+            val stray = File(session, "b2.wav").apply { writeBytes(byteArrayOf(2)) }
+            val drafts = SessionDraftStore.Memory()
+            drafts.save(DemoState().apply { mode = StoryMode.STORY; storySoundClip = ChildSound.SoundClip("a1", mine); storySoundAttempted = true }
+                .captureDraft(Scene.CHECK))
+
+            discardUnusedSessionSounds(drafts)
+            assertTrue("만들던 이야기의 아이 소리를 지웠다", mine.exists())
+            assertFalse("책에도 이야기에도 없는 소리가 남았다", stray.exists())
+            val back = DemoState().apply { applyDraft(drafts.load()!!) }
+            assertEquals("a1", back.storySoundClip?.id)
+            assertTrue(back.storySoundAttempted)
+
+            // a discarded draft no longer protects it
+            drafts.clear()
+            discardUnusedSessionSounds(drafts)
+            assertFalse(mine.exists())
+        } finally { ChildSound.root = old; root.deleteRecursively() }
+    }
+
+    @Test fun draftsExpireAfterADayAndADiaryWhenTheDateChanges() {
+        val zone = ZoneId.systemDefault()
+        val late = LocalDateTime.of(2026, 10, 8, 23, 0).atZone(zone).toInstant().toEpochMilli()
+        val hour = 60L * 60 * 1000
+        var now = late
+        val drafts = SessionDraftStore.Memory { now }
+        fun save(mode: StoryMode) = drafts.save(DemoState().apply { this.mode = mode }.captureDraft(Scene.PLACE, late))
+
+        save(StoryMode.STORY)
+        now = late + 23 * hour
+        assertNotNull("하루가 안 지난 동화가 사라졌다", drafts.load())
+        now = late + 24 * hour
+        assertNull("24시간 지난 이야기가 남았다", drafts.load())
+        assertNull("만료된 이야기를 지우지 않았다", drafts.raw)
+
+        save(StoryMode.DIARY)
+        now = late + 30 * 60 * 1000                   // 23:30 the same day
+        assertNotNull(drafts.load())
+        now = late + 2 * hour                          // 01:00 the next day — still within 24 h
+        assertNull("날짜가 바뀐 그림일기가 남았다", drafts.load())
+
+        save(StoryMode.COOP)
+        assertNotNull("날짜가 바뀌어도 하루 안의 같이 만들기는 남는다", drafts.load())
+
+        // the file store drops an expired file too
+        val file = LocalSessionDraftStore(ctx) { late + 25 * hour }
+        file.save(DemoState().captureDraft(Scene.PLACE, late))
+        assertNull(file.load())
+        assertFalse(File(ctx.filesDir, "session_draft/draft.json").exists())
+    }
+
+    @Test fun theFileIsWrittenOffTheCallingThreadLatestWins() {
+        val store = LocalSessionDraftStore(ctx)
+        val threads = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+        store.onWritten = { threads += Thread.currentThread().name }
+        val scenes = listOf(Scene.PLACE, Scene.EVENT, Scene.CAUSE, Scene.DRAW, Scene.SOUND)
+        repeat(20) { i -> store.save(DemoState().apply { fillABook() }.captureDraft(scenes[i % scenes.size])) }
+        store.flush()
+        assertEquals("마지막 저장이 이기지 않았다", scenes[19 % scenes.size], store.load()?.scene)
+        assertEquals("메인 스레드에서 썼다", setOf("session-draft"), threads.toSet())
+        assertFalse(Thread.currentThread().name in threads)
+        store.clear()
+        assertNull(store.load())
     }
 
     @Test fun diaryPiecesAndCoopPlanRoundTrip() {
@@ -139,6 +246,7 @@ class SessionDraftTest {
         assertFalse(File(ctx.filesDir, "session_draft/draft.json").exists())
 
         store.save(DemoState().apply { fillABook() }.captureDraft(Scene.EVENT))
+        store.flush()                                       // the app flushes before wiping (AccountScreens · discardDraft(wait))
         assertTrue(LocalWipe.wipe(ctx))
         assertNull("「모두 지우기」 뒤에 만들던 이야기가 남았다", LocalSessionDraftStore(ctx).load())
     }

@@ -105,7 +105,8 @@ class MainActivity : ComponentActivity() {
         Voice.attach(this)        // 진짜 마이크 · 마스코트 목소리 — 서버 모드에서만 쓴다 (net/Voice.kt)
         com.example.finalproject_demo.sound.ChildSound.attach(this)   // 아이가 만든 소리 — 폰에만 (#42)
         com.example.finalproject_demo.net.ChildCall.attach(this)     // 마스코트가 아이를 부르는 말 — 부모가 정함 (10-02)
-        com.example.finalproject_demo.sound.ChildSound.discardSession()   // 책에 안 넣은 채 앱이 꺼졌던 소리
+        // 책에 안 넣은 채 앱이 꺼졌던 소리 — 이어 할 수 있는 만들던 이야기(만료 전)의 소리만 남긴다 (#336)
+        com.example.finalproject_demo.demo.discardUnusedSessionSounds(com.example.finalproject_demo.demo.LocalSessionDraftStore(this))
         WindowCompat.setDecorFitsSystemWindows(window, false)
         // 풀스크린 — 카메라 구멍(노치) 쪽까지 그린다 (09-29). 가로 화면에서 한쪽에 검은 띠가 남지 않게
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {

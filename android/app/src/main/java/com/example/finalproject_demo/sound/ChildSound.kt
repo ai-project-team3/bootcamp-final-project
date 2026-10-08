@@ -89,7 +89,23 @@ object ChildSound {
         File(book(bookId), "${safe(id)}.wav").takeIf { it.exists() }?.let { SoundClip(id, it) }
 
     /** The session ended without a book (or the app restarted): nothing un-kept survives. */
-    fun discardSession() { root?.let { File(it, "session").deleteRecursively() } }
+    fun discardSession() = discardSession(emptySet())
+
+    /**
+     * Same, but keeps the clips in [keep] (ids) — the recording of an unfinished book saved on the phone (#336).
+     * Everything else in the session folder still goes.
+     */
+    fun discardSession(keep: Set<String>) {
+        val dir = root?.let { File(it, "session") } ?: return
+        if (keep.isEmpty()) { dir.deleteRecursively(); return }
+        dir.listFiles()?.forEach { f -> if (!(f.isFile && f.extension == "wav" && f.nameWithoutExtension in keep)) f.deleteRecursively() }
+    }
+
+    /** A clip still in the session folder, by id (a resumed unfinished book · #336). Null when it is gone. */
+    fun sessionClip(id: String): SoundClip? {
+        val dir = root?.let { File(it, "session") } ?: return null
+        return File(dir, "${safe(id)}.wav").takeIf { it.isFile }?.let { SoundClip(id, it) }
+    }
 
     fun deleteBook(bookId: String) { book(bookId).deleteRecursively() }
 

@@ -179,7 +179,7 @@ class Director(
     }
 
     /** The book was finished, discarded or replaced by a new one — nothing to resume after a restart */
-    fun discardDraft() { runCatching { draftStore?.clear() } }
+    fun discardDraft(wait: Boolean = false) { runCatching { draftStore?.clear(); if (wait) draftStore?.flush() } }
 
     /**
      * On launch: put a saved unfinished book back and mark it paused, so the room offers 「만들던 이야기 이어서 할까?」
