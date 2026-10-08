@@ -25,6 +25,7 @@ class FriendArtTest {
         mode = StoryMode.STORY
         slots["newcomer"] = newcomer
         newcomerKind = newcomer
+        done += "draw"
     }
 
     private fun coop(companion: String) = DemoState().apply {

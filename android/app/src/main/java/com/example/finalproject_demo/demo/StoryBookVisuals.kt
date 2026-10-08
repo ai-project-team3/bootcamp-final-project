@@ -41,7 +41,8 @@ fun DemoState.captureStoryVisuals() = SavedStoryVisuals(
     templateKey!!, persona, Hero(childName, heroAttr ?: HeroAttr(), storyHeroImage, storyHeroRig),
     drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
     dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
-    newcomerKind, soundLine, causeLine, Server.liveFor(mode), generatedFriend, generatedCharacters.toList(),
+    newcomerKind, soundLine, causeLine, Server.liveFor(mode), generatedFriend,
+    generatedCharacters.filter { it.role != "problem" || readingSavedCast || it.words == storyProblemCharacter() },
 )
 
 /** Build a separate reading state; reopening a book must not overwrite the current conversation. */
@@ -72,6 +73,7 @@ fun DemoState.restoreStoryBook(book: SavedStoryBook): Boolean {
     causeLine = visual.causeLine
     generatedCharacters.clear()
     generatedCharacters.addAll(visual.cast)
+    readingSavedCast = true
     // The stored captions already include mission results. Do not append them twice.
     m1Result = null
     m2Result = null

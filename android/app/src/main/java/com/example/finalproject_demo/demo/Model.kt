@@ -1229,6 +1229,7 @@ class DemoState {
 
     /** 등장인물 칸에 맞는 그림이 없어 서버가 만든 펠트 인형 (10-06 · `FriendArt.kt`) — 책에 함께 저장된다 */
     val generatedCharacters = mutableStateListOf<GeneratedFriend>()
+    internal var readingSavedCast by mutableStateOf(false)
     /** Compatibility access for the existing story newcomer and co-op companion. */
     var generatedFriend: GeneratedFriend?
         get() = generatedCharacters.firstOrNull { it.role == "friend" }
@@ -1237,7 +1238,8 @@ class DemoState {
             if (value != null) generatedCharacters.add(value.copy(role = "friend"))
         }
     /** 지금 만들고 있는 낱말 — 같은 말로 두 번 부르지 않는다 (저장하지 않는다) */
-    var friendRequested: String? = null
+    internal val characterRequests = mutableMapOf<String, CharacterRequest>()
+    internal val characterAttempts = mutableSetOf<CharacterRequest>()
 
     /** 동화의 새 친구 인형 — 아이가 그리지 않았고, 지금 새 친구 칸 그대로일 때만 */
     val storyFriendDoll: GeneratedFriend?
@@ -1478,7 +1480,7 @@ class DemoState {
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
-        generatedCharacters.clear(); friendRequested = null
+        generatedCharacters.clear(); characterRequests.clear(); characterAttempts.clear(); readingSavedCast = false
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
         heroTries.clear()

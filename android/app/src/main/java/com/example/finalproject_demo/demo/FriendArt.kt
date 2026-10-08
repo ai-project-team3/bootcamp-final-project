@@ -8,6 +8,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.CancellationException
 
 /** A felt doll the server made for a character slot — used only while that slot still says [words]. */
 data class GeneratedFriend(val words: String, val image: String, val rig: String?, val role: String = "friend")
@@ -23,6 +25,7 @@ private val GENERIC_FRIEND = setOf("친구", "친구들")
  */
 internal fun DemoState.friendToDraw(): String? = when {
     drawing.isNotEmpty() -> null                               // the child's drawing is the default (differentiator 1)
+    mode == StoryMode.STORY && "draw" !in done -> null          // wait for the child's drawing decision
     mode == StoryMode.STORY ->
         slots["newcomer"]?.trim()?.takeIf { it.isNotEmpty() && storyPresetMatch(it) == null }
     isCoop -> companionKind.trim().takeIf { it.isNotEmpty() && companionPreset(it) == null && it !in GENERIC_FRIEND }
@@ -34,24 +37,36 @@ internal fun DemoState.friendToDraw(): String? = when {
  * 대화는 그대로 가고, 15초 안에 오면 무대와 책의 그 자리가 이 인형으로 바뀐다. 못 오면 프리셋 그대로.
  * 보내는 건 아이가 말한 낱말뿐이다(아이 그림은 보내지 않는다). 그사이 칸 값이 바뀌었으면 늦게 온 인형은 버린다.
  */
-internal suspend fun Director.drawFriend() {
+internal suspend fun Director.drawFriend(onReady: () -> Unit = {}) {
     if (!Server.liveFor(s.mode)) return
-    val words = s.friendToDraw() ?: return
-    if (s.generatedFriend?.words == words || s.friendRequested == words) return
-    s.friendRequested = words
     val mode = if (s.isCoop) "coop" else "story"
     val mask = s.nameMask()
-    CoroutineScope(currentCoroutineContext()).launch {
-        val made = withTimeoutOrNull(15_000) { Server.character(mask.mask(words), mode, s.bookStyle) }
-        val saved = made?.let { withContext(Dispatchers.IO) { saveStoryImage(it.png) } }
-        when {
-            saved == null -> log("[등장인물] 「$words」 인형 생성 실패 또는 15초 경과 → 프리셋 그대로")
-            s.friendToDraw() == words -> {
-                s.generatedFriend = GeneratedFriend(words, saved, made.rig)
-                log("[등장인물] 「$words」 인형을 무대와 책에 연결")
+    for (request in s.charactersToDraw()) {
+        if (s.generatedCharacters.any { it.role == request.role && it.words == request.words } ||
+            request in s.characterAttempts || s.characterRequests[request.role] == request) continue
+        s.characterRequests[request.role] = request
+        s.characterAttempts.add(request)
+        val style = s.bookStyle
+        CoroutineScope(currentCoroutineContext()).launch {
+            try {
+                val made = withTimeoutOrNull(15_000) { Server.character(mask.mask(request.words), mode, style) }
+                currentCoroutineContext().ensureActive()
+                if (s.characterRequests[request.role] !== request || request !in s.charactersToDraw()) return@launch
+                val saved = made?.let { withContext(Dispatchers.IO) { saveStoryImage(it.png) } }
+                currentCoroutineContext().ensureActive()
+                if (saved != null && s.characterRequests[request.role] === request && request in s.charactersToDraw()) {
+                    s.generatedCharacters.removeAll { it.role == request.role }
+                    s.generatedCharacters.add(GeneratedFriend(request.words, saved, made.rig, request.role))
+                    log("character ready role=${request.role} words=${request.words}")
+                    onReady()
+                } else log("character fallback role=${request.role} words=${request.words}")
+            } catch (cancelled: CancellationException) {
+                if (s.characterRequests[request.role] === request) s.characterAttempts.remove(request)
+                throw cancelled
+            } finally {
+                if (request !in s.charactersToDraw()) s.characterAttempts.remove(request)
+                if (s.characterRequests[request.role] === request) s.characterRequests.remove(request.role)
             }
-            else -> log("[등장인물] 그사이 칸이 바뀌어 「$words」 인형은 버린다")
         }
-        if (s.friendRequested == words) s.friendRequested = null
     }
 }

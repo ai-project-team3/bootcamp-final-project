@@ -118,7 +118,8 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 }
             }
             if (prompt.slot == "newcomer" && !s.slots["newcomer"].isNullOrBlank() && (looks || s.storyClarificationSlot == "newcomer")) {
-                if (!friendDrawingPrepared) { drawFriend(); prepareStoryFriendDrawing(); friendDrawingPrepared = true }
+                if (!friendDrawingPrepared) { prepareStoryFriendDrawing(); friendDrawingPrepared = true }
+                drawFriend()
                 s.storyClarificationSlot = null; s.storyNextSlot = null; s.storyServerQuestion = null
                 log("새 친구 생김새 질문 → 그리기로 대신함")
                 continue
@@ -173,11 +174,11 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             s.syncStoryPresentation()
             if (by != "mascot") judge(variant, reply, question.text)
             updateBackground()
-            drawFriend()                        // 새 친구에 맞는 그림이 없으면 뒤에서 인형을 만든다 — 기다리지 않는다 (FriendArt.kt)
             if (!friendDrawingPrepared && !s.slots["newcomer"].isNullOrBlank()) {
                 prepareStoryFriendDrawing()
                 friendDrawingPrepared = true
             }
+            drawFriend()
             // The third conversation turn chooses the local template. An early server finish
             // still needs a page plan, but does not force extra questions just to reach turn 3.
             if (s.templateKey == null && (s.turn >= 3 || s.storyReady)) decideTemplate("서버 대화")
@@ -189,13 +190,14 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     }
     if (s.templateKey == null) decideTemplate("대화 종료")
     if (!s.storySoundAttempted) recordStorySound()
-    if (imageJob?.isCompleted == false) {
+    val pendingPictures = coroutineContext[Job]!!.children.filter { !it.isCompleted }.toList()
+    if (pendingPictures.isNotEmpty()) {
         inputs(false, false)
         buttons()
         waitingConversation = null
         s.stage = Stage.Show(s.storyHeroArt, "이야기 그림을 마무리하는 중…")
     }
-    imageJob?.join()
+    pendingPictures.joinAll()
     val filledSlots = s.slots.filterValues { it.isNotBlank() }.keys.joinToString(" · ")
     log("Story conversation finished: ${s.endReason} · ${s.turn} turns · verdict-filled slots: $filledSlots")
     go(Scene.MAKING)
