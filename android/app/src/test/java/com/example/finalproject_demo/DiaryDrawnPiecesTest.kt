@@ -49,6 +49,13 @@ class DiaryDrawnPiecesTest {
             .filter { it.size > 1 }
             .map { "${d.name}: truth pieces $it became one" }
 
+    /** Truth pieces whose strokes ended in more than one piece — one thing drawn apart that became several */
+    private fun wrongSplits(d: Drawing, got: List<Int>): List<String> =
+        got.indices.groupBy { d.truth[it] }.entries
+            .map { (t, idx) -> t to idx.map { got[it] }.toSortedSet() }
+            .filter { it.second.size > 1 }
+            .map { "${d.name}: truth piece ${it.first} split into ${it.second.size}" }
+
     private val all = listOf("2026-10-05_4", "2026-10-05_5", "2026-10-06_1", "2026-10-06_2", "2026-10-06_3", "2026-10-07_0")
 
     @Test
@@ -70,13 +77,40 @@ class DiaryDrawnPiecesTest {
     }
 
     /**
-     * Without talk, things drawn over each other still become one piece (a person over the castle · trees side by side) —
-     * on the phone Otto asks and the child's answer splits them. Before #263 six merged; this keeps it from growing back.
+     * Without talk, things drawn over or pressed against each other still become one piece (two touching blue things,
+     * a tree's crown and trunk, a person over a yellow shape) — on the phone Otto asks and the child's answer splits them.
+     * Six merged before #263, four after the line distance, three after the colour rule; this keeps it from growing back.
      */
     @Test
     fun theDrawingsDoNotMergeMoreThanBefore() {
         val report = all.flatMap { n -> load(n).let { wrongMerges(it, replay(it)) } }
         println(report.joinToString("\n").ifEmpty { "no wrong merges" })
-        assertTrue(report.joinToString("\n"), report.size <= 4)
+        assertTrue(report.joinToString("\n"), report.size <= 3)
+    }
+
+    /** …and the rule does not break one thing into several: only the tree drawn with two trunks far apart (10-06_2) */
+    @Test
+    fun oneThingStaysOnePiece() {
+        val report = all.flatMap { n -> load(n).let { wrongSplits(it, replay(it)) } }
+        println(report.joinToString("\n").ifEmpty { "no wrong splits" })
+        assertTrue(report.joinToString("\n"), report.size <= 1)
+    }
+
+    @Test
+    fun aPersonDrawnBesideTheTreeIsNotTheTree() {
+        val d = load("2026-10-06_3")
+        val got = replay(d)
+        val tree = got[d.truth.indexOf(1)]
+        val person = d.truth.indices.filter { d.truth[it] == 5 }.map { got[it] }
+        assertTrue("the person beside the tree became the tree: $got", person.none { it == tree })
+    }
+
+    @Test
+    fun aCrabDrawnBesideTheWavesIsNotTheWaves() {
+        val d = load("2026-10-05_4")
+        val got = replay(d)
+        val waves = got[d.truth.indexOf(0)]
+        val crab = d.truth.indices.filter { d.truth[it] == 2 }.map { got[it] }
+        assertTrue("the crab beside the waves became the waves: $got", crab.none { it == waves })
     }
 }

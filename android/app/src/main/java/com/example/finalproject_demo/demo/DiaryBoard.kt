@@ -63,6 +63,16 @@ internal const val PIECE_GAP = 0.06f
  */
 internal const val PIECE_NEAR = 0.08f
 
+/**
+ * 다른 색 선이 [PIECE_NEAR] 대신 쓰는 거리 — 조각의 네모 안에 그린 것(문 · 창문 · 눈)은 색과 상관없이 붙는다.
+ * 그림 여섯 장(#263): 다른 색으로 따로 그린 물건은 0.042(게 ↔ 파도) · 0.078(사람 ↔ 나무)에서 붙었고,
+ * 한 물건 안의 다른 색 큰 선은 네모 밖에서 0.026 안에 있었다
+ */
+internal const val PIECE_NEAR_OTHER_COLOR = 0.035f
+
+/** 이만큼보다 작은 선(긴 변 · 판 높이 비율)은 색이 달라도 [PIECE_NEAR] 로 잰다 — 같은 물건의 다른 색 작은 선은 0.09 까지(성의 문 · 창문) */
+internal const val PIECE_DETAIL_SIDE = 0.12f
+
 /** 비율 좌표의 네모 */
 data class BoardBox(val left: Float, val top: Float, val right: Float, val bottom: Float) {
     val width get() = right - left
@@ -163,11 +173,15 @@ private fun DiaryDay.reaches(p: DiaryPiece, stroke: Stroke, b: BoardBox): Boolea
     val cy = (b.top + b.bottom) / 2
     if (box.contains(BoardBox(cx, cy, cx, cy))) return true
     val aspect = boardAspect()
-    val reach = b.grow(PIECE_NEAR)
+    // 다른 색으로 옆에 그은 큰 선은 새 물건일 때가 많다 — 바짝 붙었을 때만 이어 그린 것으로 본다(#263 · 파도 옆 게 · 나무 옆 사람).
+    // 작은 선(창문 · 문 · 단추)은 색이 달라도 그 물건의 것이다
+    val otherThing = p.strokes.none { it.color == stroke.color } && maxOf(b.width, b.height) > PIECE_DETAIL_SIDE
+    val near = if (otherThing) PIECE_NEAR_OTHER_COLOR else PIECE_NEAR
+    val reach = b.grow(near)
     return p.strokes.any { s ->
         s.pts.any { q ->
             q.x in reach.left..reach.right && q.y in reach.top..reach.bottom &&
-                stroke.pts.any { o -> kotlin.math.hypot((q.x - o.x) * aspect, q.y - o.y) <= PIECE_NEAR }
+                stroke.pts.any { o -> kotlin.math.hypot((q.x - o.x) * aspect, q.y - o.y) <= near }
         }
     }
 }
