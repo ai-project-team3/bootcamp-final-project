@@ -352,6 +352,7 @@ private suspend fun Director.sceneBestiary() {
 
         val v = awaitValue()
         if (v == "plus") {
+            s.heroCreationDraft = null
             log("＋ 버튼 → 주인공은 이때 한 번만 만든다. 이야기 중에는 고정 (⭐20)")
             go(Scene.MAKEHERO)
             return
@@ -396,14 +397,18 @@ private suspend fun Director.onHeroPicked(v: String) {
 // ── 장면 2↳ · 주인공 만들기 (말로 / 골라서) — 둘 다 같은 펠트 그림 ──
 
 private suspend fun Director.sceneMakeHero() {
-    var attr = HeroAttr(hair = "short", shirt = Color(0xFF3F7BD9), glasses = "none", likes = "dino")
-    var fixes = 0
+    val draft = if (s.mode == StoryMode.STORY) s.heroCreationDraft ?: HeroCreationDraft().also {
+        s.heroCreationDraft = it
+        s.heroTries.clear()
+    } else HeroCreationDraft()
+    var attr by draft::attr
+    var fixes by draft::fixes
     val c = s.childName
-    val descriptions = mutableListOf<String>()
-    val confirmedChoices = linkedMapOf<String, String>()
-    val generatedTries = mutableListOf<Pair<String?, String?>>()
-    var generatedImage: String? = null
-    var generatedRig: String? = null
+    val descriptions = draft.descriptions
+    val confirmedChoices = draft.confirmedChoices
+    val generatedTries = draft.generatedTries
+    var generatedImage by draft::generatedImage
+    var generatedRig by draft::generatedRig
 
     fun heroName(): String {
         val h = when (attr.hair) { "long" -> "긴 머리"; "tied" -> "묶은 머리"; else -> "짧은 머리" }
@@ -412,11 +417,13 @@ private suspend fun Director.sceneMakeHero() {
     }
 
     suspend fun save() {
+        draft.phase = HeroCreationDraft.Phase.NAME
         val called = askHeroName(attr, generatedImage)          // 말로 · 글로 이름 짓기 (10-02 · demo/HeroName.kt)
         s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called)
         s.heroAttr = attr
         s.storyHeroImage = generatedImage
         s.storyHeroRig = generatedRig
+        draft.phase = HeroCreationDraft.Phase.COMPLETE
         log("주인공 확정 → 고정 스프라이트로 도감에 저장. 이야기 중 다시 생성하지 않음 (⭐20 · ⭐26)")
         pause(600)
         go(Scene.BESTIARY)
@@ -517,6 +524,7 @@ private suspend fun Director.sceneMakeHero() {
         attr = tries[idx]
         generatedImage = images.getOrNull(idx)?.first
         generatedRig = images.getOrNull(idx)?.second
+        draft.phase = HeroCreationDraft.Phase.NAME
         s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = "$idx") ?: s.stage
         pause(900)
         save()
@@ -565,7 +573,9 @@ private suspend fun Director.sceneMakeHero() {
     }
 
     suspend fun voiceStep(from: Int) {
+        draft.phase = HeroCreationDraft.Phase.QUESTIONS
         for (i in from until questions.size) {
+            draft.questionIndex = i
             val q = questions[i]
             while (true) {
                 // No half-made preview: it was the grey mannequin, far from the finished doll (10-05 device · 3-1)
@@ -580,10 +590,13 @@ private suspend fun Director.sceneMakeHero() {
                 }
                 break
             }
+            draft.questionIndex = i + 1
         }
+        draft.phase = HeroCreationDraft.Phase.GENERATE
     }
 
     suspend fun fixFlow() {
+        draft.phase = HeroCreationDraft.Phase.REPAIR
         while (true) {
             s.stage = Stage.HeroShow(attr, "어디를 바꿀까 — 마이크로 말해 줘")
             val r = ask(
@@ -609,33 +622,58 @@ private suspend fun Director.sceneMakeHero() {
                 }
                 else -> {}
             }
+            draft.phase = HeroCreationDraft.Phase.GENERATE
             return
         }
     }
 
-    inputs(false, false)
-    s.stage = Stage.CardsRow(listOf(Card("말로 만들기", Art.Img("ic_mic", Art.Emoji("🎤")), "voice"), Card("골라서 만들기", Art.Img("ic_dials", Art.Emoji("🎛️")), "preset")))
-    say("우리 주인공을 만들자! 말로 만들까, 골라서 만들까?")
-    buttons(
-        DemoBtn("🖐 말로 만들기 탭") { send(Reply.Tapped("voice", "말로 만들기")) },
-        DemoBtn("🖐 골라서 만들기 탭") { send(Reply.Tapped("preset", "골라서 만들기")) },
-    )
-    when (awaitValue("voice", "preset")) {
-        "preset" -> { log("골라서 만들기 — 머리 · 옷 · 눈 · 안경 각 3개 토글 (81조합)"); presetBuilder(); return }
-        else -> log("말로 만들기 — 질문 → 녹음 → 속성값 → ComfyUI 생성 (⭐20: 도감에서 한 번만)")
-    }
-
-    voiceStep(0)
-    s.heroTries.clear()
-    while (true) {
-        generate()
-        s.heroTries += attr
-        generatedTries += generatedImage to generatedRig
-        if (confirm() == "ok") { save(); return }
-        if (fixes >= s.redrawMax) { pickFromTries(); return }
-        fixes++
-        log("싫어 → 수정 $fixes/${s.redrawMax} · 한 번에 한 가지만")
-        fixFlow()
+    while (true) when (draft.phase) {
+        HeroCreationDraft.Phase.CHOOSE -> {
+            inputs(false, false)
+            s.stage = Stage.CardsRow(listOf(Card("말로 만들기", Art.Img("ic_mic", Art.Emoji("🎤")), "voice"), Card("골라서 만들기", Art.Img("ic_dials", Art.Emoji("🎛️")), "preset")))
+            say("우리 주인공을 만들자! 말로 만들까, 골라서 만들까?")
+            buttons(
+                DemoBtn("🖐 말로 만들기 탭") { send(Reply.Tapped("voice", "말로 만들기")) },
+                DemoBtn("🖐 골라서 만들기 탭") { send(Reply.Tapped("preset", "골라서 만들기")) },
+            )
+            when (awaitValue("voice", "preset")) {
+                "preset" -> {
+                    log("골라서 만들기 — 머리 · 옷 · 눈 · 안경 각 3개 토글 (81조합)")
+                    draft.phase = HeroCreationDraft.Phase.PRESET
+                }
+                else -> log("말로 만들기 — 질문 → 녹음 → 속성값 → ComfyUI 생성 (⭐20: 도감에서 한 번만)")
+            }
+            if (draft.phase != HeroCreationDraft.Phase.PRESET) {
+                draft.questionIndex = 0
+                draft.phase = HeroCreationDraft.Phase.QUESTIONS
+            }
+            s.heroTries.clear()
+        }
+        HeroCreationDraft.Phase.PRESET -> { presetBuilder(); return }
+        HeroCreationDraft.Phase.QUESTIONS -> voiceStep(draft.questionIndex)
+        HeroCreationDraft.Phase.GENERATE -> {
+            // Reserve this attempt before starting the request. A cancelled generation must not
+            // silently start another request on continue; its preset remains an available candidate.
+            generatedImage = null
+            generatedRig = null
+            s.heroTries += attr
+            generatedTries += null to null
+            draft.phase = HeroCreationDraft.Phase.CONFIRM
+            try { generate() } finally { generatedTries[generatedTries.lastIndex] = generatedImage to generatedRig }
+        }
+        HeroCreationDraft.Phase.CONFIRM -> {
+            if (confirm() == "ok") { save(); return }
+            if (fixes >= s.redrawMax) draft.phase = HeroCreationDraft.Phase.PICK
+            else {
+                fixes++
+                log("싫어 → 수정 $fixes/${s.redrawMax} · 한 번에 한 가지만")
+                draft.phase = HeroCreationDraft.Phase.REPAIR
+            }
+        }
+        HeroCreationDraft.Phase.REPAIR -> fixFlow()
+        HeroCreationDraft.Phase.PICK -> { pickFromTries(); return }
+        HeroCreationDraft.Phase.NAME -> { save(); return }
+        HeroCreationDraft.Phase.COMPLETE -> { go(Scene.BESTIARY); return }
     }
 }
 

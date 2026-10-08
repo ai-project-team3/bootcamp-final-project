@@ -1408,6 +1408,7 @@ class DemoState {
 
     /** 말로 만든 주인공 후보들 — 다시 만들기를 다 쓰면 이 중에서 고른다 (결정 29) */
     val heroTries = mutableStateListOf<HeroAttr>()
+    var heroCreationDraft: HeroCreationDraft? = null
 
     // ── 시연 패널
     val log = mutableStateListOf<String>()
@@ -1475,6 +1476,7 @@ class DemoState {
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
         heroTries.clear()
+        heroCreationDraft = null
         modeVoice = 0; modeCard = 0; modeDraw = 0; modeSilent = 0
         shelf.replaceAll { it.copy(fresh = false) }
         // a new book takes the parent's art style now; a change made during this book waits for the next one (결정 27)
