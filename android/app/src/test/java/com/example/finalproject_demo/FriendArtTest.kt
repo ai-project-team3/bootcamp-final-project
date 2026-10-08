@@ -27,9 +27,11 @@ class FriendArtTest {
         newcomerKind = newcomer
     }
 
+    /** 그리기를 정한 뒤의 같이 만들기 — 그 전에는 인형을 맡기지 않는다 (#339 · CoopDrawBeforeRequestTest) */
     private fun coop(companion: String) = DemoState().apply {
         mode = StoryMode.COOP
         companionKind = companion
+        done += COOP_DRAW_DECIDED
     }
 
     @Test
