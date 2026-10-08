@@ -258,6 +258,13 @@ def test_wash_keeps_white_white_and_lifts_colour():
     assert Image.open(io.BytesIO(comfy.wash(_png((255, 255, 255)), 0.4))).convert("RGB").getpixel((0, 0)) == (255, 255, 255)
 
 
+def test_the_diary_scene_prompt_is_its_own():
+    """story and co-op keep the measured prompt word for word; only the diary reads the sparse one"""
+    assert image_route.system("background", "diary") != image_route.system("background")
+    assert image_route.system("background", "story") == image_route.system("background")
+    assert "땅" in image_route.system("background", "diary")
+
+
 def test_an_unknown_style_is_refused():
     r = TestClient(app).post("/image", json={"place": "공룡나라", "style": "oil"})
     assert r.status_code == 422
