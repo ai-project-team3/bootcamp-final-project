@@ -90,7 +90,46 @@ private val PUZZLE_FRAMES = setOf("A", "G")
 private val ROTATE_SLOT2 = listOf(MissionId.A5, MissionId.E2, MissionId.D4)
 
 private val picked = java.util.WeakHashMap<DemoState, Pair<Pair<StoryFacts, List<String>>, BookMissions>>()
-private val pinned = java.util.WeakHashMap<DemoState, BookMissions>()
+private val pinned = java.util.WeakHashMap<DemoState, PinnedMissions>()
+
+/**
+ * What a saved book was made with — the missions and the props the screens drew (#321 review). A re-read book
+ * does not have all its facts (a co-op book loses its pick, so a borrowed leaf turned into rubbing), so the props
+ * are kept too. [fixInBook] whether the book's text named slot 2's prop ([slot2Prop] was not null)
+ */
+data class PinnedMissions(
+    val missions: BookMissions,
+    val blow: BlowProp? = null,
+    val sound: SoundProp? = null,
+    val fix: FixProp? = null,
+    val fixInBook: Boolean = false,
+) {
+    /** 「A6-:E1-|blow=LEAF|sound=|fix=BLOCKS|book=0」 — the first part is the pre-review format, still read alone */
+    fun encode(): String = listOf(missions.encode(), "blow=${blow?.name.orEmpty()}", "sound=${sound?.name.orEmpty()}",
+        "fix=${fix?.name.orEmpty()}", "book=${if (fixInBook) 1 else 0}").joinToString("|")
+
+    companion object {
+        fun decode(s: String?): PinnedMissions? {
+            val parts = s?.split("|") ?: return null
+            val m = BookMissions.decode(parts.first()) ?: return null
+            val kv = parts.drop(1).mapNotNull { p -> p.split("=", limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] } }.toMap()
+            return PinnedMissions(
+                m,
+                kv["blow"]?.takeIf(String::isNotEmpty)?.let { n -> BlowProp.entries.firstOrNull { it.name == n } },
+                kv["sound"]?.takeIf(String::isNotEmpty)?.let { n -> SoundProp.entries.firstOrNull { it.name == n } },
+                kv["fix"]?.takeIf(String::isNotEmpty)?.let { n -> FixProp.entries.firstOrNull { it.name == n } },
+                kv["book"] == "1",
+            )
+        }
+    }
+}
+
+/** The pinned record of a re-read book, or null while a book is being made */
+internal fun DemoState.pinnedMissions(): PinnedMissions? = synchronized(picked) { pinned[this] }
+
+/** This book's missions and props as they are now — saved with the book */
+fun DemoState.missionRecord(): String =
+    PinnedMissions(missions(), blowProp(), soundProp(), slot2PlayProp(), slot2Prop() != null).encode()
 
 /**
  * This book's two missions. While a book is being made they follow its facts and this mode's history; a saved
@@ -99,15 +138,15 @@ private val pinned = java.util.WeakHashMap<DemoState, BookMissions>()
  */
 fun DemoState.missions(): BookMissions {
     synchronized(picked) {
-        pinned[this]?.let { return it }
+        pinned[this]?.let { return it.missions }
         val key = storyFacts() to MissionHistory.recent(mode)
         picked[this]?.takeIf { it.first == key }?.let { return it.second }
         return pickMissions(key.first, key.second).also { picked[this] = key to it }
     }
 }
 
-/** A re-read book: use the missions it was made with. null = pick again (a book saved before #259) */
-fun DemoState.pinMissions(m: BookMissions?) {
+/** A re-read book: use the missions and props it was made with. null = pick again (a book saved before #259) */
+fun DemoState.pinMissions(m: PinnedMissions?) {
     synchronized(picked) { if (m == null) pinned.remove(this) else pinned[this] = m }
 }
 

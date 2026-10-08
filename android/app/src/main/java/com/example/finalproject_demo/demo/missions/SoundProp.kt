@@ -78,8 +78,8 @@ fun soundPropIn(said: String): SoundProp? = when {
 const val SERVER_KNOWS_C3 = true   // main 0dfa664 — 서버 MissionId 에 C3 (10-05)
 
 /** 이 책의 C3 소품 — 자리 1 이 C3 일 때만 */
-fun DemoState.soundProp(): SoundProp? =
-    if (missions().slot1 == MissionId.C3) soundPropIn(storyFacts().slot1Words) else null
+fun DemoState.soundProp(): SoundProp? = pinnedMissions()?.sound            // a re-read book (#321 review)
+    ?: if (pinnedMissions() == null && missions().slot1 == MissionId.C3) soundPropIn(storyFacts().slot1Words) else null
 
 /** 이 책 자리 1 의 소품 말 — C1 · C3 면 그 소품, 아니면 null(A6 문지르기 · `Missions.kt` 원래 문장) */
 fun DemoState.slot1Prop(): Slot1Prop? = blowProp() ?: soundProp()

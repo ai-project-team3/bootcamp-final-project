@@ -143,6 +143,10 @@ fun DemoState.mission2(): Mission2 = when (solutionItem) {
     "block" -> Mission2("prop_block", "🧱", "블록", "블록 하나를 건네주었어요", "블록을 받고 같이 쌓기 시작했어!")
     "picturebook" -> Mission2("prop_picturebook", "📗", "그림책", "그림책을 건네주었어요", "그림책을 받고 눈이 반짝!")
     "bandaid" -> Mission2("prop_bandaid", "🩹", "반창고", "반창고를 붙여 주었어요", "반창고를 붙이고 씩 웃어!")
+    // A scripted story's star is what the child picked in scene 10 (「별 따기」) — the child's own. A live story's or
+    // a co-op book's "star" is the first value left unchanged (nothing found) — the default (#309 · #321 review)
+    "star" -> Mission2("obj_star", "⭐", "별", "반짝이는 별을 건네주었어요", "별을 받고 활짝 웃어!",
+        fromChild = mode == StoryMode.STORY && !com.example.finalproject_demo.net.Server.liveFor(mode))
     else -> Mission2("obj_star", "⭐", "별", "반짝이는 별을 건네주었어요", "별을 받고 활짝 웃어!", fromChild = false)
 }
 

@@ -96,6 +96,7 @@ fun FixProp.Companion.forMission(m: MissionId): FixProp? = FixProp.entries.first
  * 책에 적지 않는다(§3-8). 화면 · 안내는 [slot2PlayProp]
  */
 fun DemoState.slot2Prop(): FixProp? {
+    pinnedMissions()?.let { return it.fix.takeIf { _ -> it.fixInBook } }     // a re-read book (#321 review)
     val f = storyFacts()
     val m = missions()
     return fixPropIn(f.slot2Words, f.slot1Words)?.takeIf { it.mission == m.slot2 }
@@ -103,4 +104,4 @@ fun DemoState.slot2Prop(): FixProp? {
 }
 
 /** 자리 2 화면 · 마스코트 안내 · 배지가 쓰는 소품 — 실제 하루에 돌려 쓴 미션도(그 화면에 블록 · 공이 있으니) */
-fun DemoState.slot2PlayProp(): FixProp? = slot2Prop() ?: FixProp.forMission(missions().slot2)
+fun DemoState.slot2PlayProp(): FixProp? = pinnedMissions()?.fix ?: slot2Prop() ?: FixProp.forMission(missions().slot2)

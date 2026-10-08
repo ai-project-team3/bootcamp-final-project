@@ -203,7 +203,7 @@ class MissionRotationTest {
         val s = DemoState().apply { mode = StoryMode.STORY; templateKey = "C"; problem = "공룡이 나타났어" }
         val made = s.missions()
         val visuals = s.captureStoryVisuals()
-        assertEquals(made.encode(), visuals.missions)
+        assertEquals(made, com.example.finalproject_demo.demo.missions.PinnedMissions.decode(visuals.missions)?.missions)
         MissionHistory.record(StoryMode.STORY, "other1", made)
         MissionHistory.record(StoryMode.STORY, "other2", made)
 

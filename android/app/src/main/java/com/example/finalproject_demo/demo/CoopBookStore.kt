@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.demo.missions.missions
+import com.example.finalproject_demo.demo.missions.missionRecord
 import android.content.Context
 import com.example.finalproject_demo.ui.CoopReason
 import com.example.finalproject_demo.ui.reasonOrNull
@@ -100,7 +101,7 @@ fun DemoState.completedCoopBook(): SavedCoopBook? {
         drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
         dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
         newcomerKind, soundLine, causeLine, friend = generatedFriend,
-        missions = missions().encode(),
+        missions = missionRecord(),
     )
     val book = SavedStoryBook(UUID.randomUUID().toString(), title ?: autoTitleFor(), themeKey, bgName, pages, visuals,
         madeAt = java.time.LocalDate.now().toString(), artStyle = bookStyle)

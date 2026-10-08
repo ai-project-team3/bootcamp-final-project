@@ -1,22 +1,22 @@
 package com.example.finalproject_demo.demo.missions
 
 /*
- * ── 미션 낱말 맞추기 — 어절 앞에서만 (#259 · docs/실기기수정_설계_1007.md §4-3 1) ─────────────────────────────
+ * ── Mission words — matched at the start of an eojeol only (#259 · docs/실기기수정_설계_1007.md §4-3 1) ──────────────
  *
- * 전에는 낱말 표를 문장 아무 데서나 찾았다(부분일치). 그래서 낱말 가운데가 걸렸다 —
- * 「미끄럼틀」의 「끄」 · 「식초를」의 「초를」 · 「놀다가 넘어지는 바람에」의 「바람」(까닭을 말하는 표현) ·
- * 「연기를 했어」(연극)의 「연기」. 이제 표의 낱말은 **어절의 처음에서 시작할 때만** 걸린다
- * (「먼지가」 · 「먼지를」은 걸리고 「흙먼지」는 안 걸린다). 띄어 쓴 두 낱말(「불을 끄」)은 이어지는 어절로 본다.
- * 「후~」처럼 부호가 든 낱말은 글자 그대로 찾는다 — 부호를 떼면 「후회」 · 「후식」이 걸린다.
+ * The tables used to be searched anywhere in the sentence (substring), so the middle of a word matched —
+ * 「미끄럼틀」's 「끄」 · 「식초를」's 「초를」 · 「놀다가 넘어지는 바람에」's 「바람」 (a reason, not wind) ·
+ * 「연기를 했어」 (acting) as smoke. Now a table word matches only where an eojeol starts (「먼지가」 · 「먼지를」 match,
+ * 「흙먼지」 does not). Two words with a space (「불을 끄」) are read across consecutive eojeols.
+ * A word with a mark in it (「후~」) is matched as written — without the mark 「후회」 · 「후식」 would match.
  */
 
-/** 아이 말의 어절 — 문장 부호 · 따옴표를 떼고 띄어쓰기로 */
+/** The child's eojeols — punctuation and quotes dropped, split on spaces */
 internal fun eojeols(text: String): List<String> =
     text.split(Regex("[\\s,.!?~·…\"“”「」『』()]+")).filter(String::isNotEmpty)
 
 private val PUNCT = Regex("[~!?.]")
 
-/** [key] 가 [text] 의 어떤 어절 처음에서 시작하나 */
+/** Does [key] start at the beginning of some eojeol of [text] */
 internal fun saysWord(text: String, key: String): Boolean {
     if (PUNCT.containsMatchIn(key)) return key in text
     val words = eojeols(text)
@@ -26,8 +26,8 @@ internal fun saysWord(text: String, key: String): Boolean {
 }
 
 /**
- * [keys] 가운데 하나라도 어절 처음에서 걸리나. [unless] 는 먼저 지울 표현 — 낱말은 같아도 뜻이 다른 쓰임
- * (「…하는 바람에」는 바람이 아니라 까닭이다)
+ * Does any of [keys] start an eojeol. [unless] first removes uses where the same word means something else
+ * (「…하는 바람에」 is a reason, not wind)
  */
 internal fun saysAny(text: String, keys: List<String>, unless: (String) -> String = { it }): Boolean {
     val t = unless(text)
@@ -35,11 +35,17 @@ internal fun saysAny(text: String, keys: List<String>, unless: (String) -> Strin
 }
 
 /**
- * 까닭을 말하는 「바람에」를 지운다 — 앞 어절이 ㄴ 받침(넘어지는 · 서두른 · 뛰어간)이나 「던」으로 끝날 때.
- * 「바람에 모자가 날아갔어」 · 「바람이 불었어」는 그대로 둔다
+ * Removes 「바람에」 given as a reason — the eojeol before ends in ㄴ (넘어지는 · 서두른 · 뛰어간) or 「던」 — and wind
+ * given as the reason ([WIND_AS_CAUSE]). 「바람에 모자가 날아갔어」 · 「바람이 불었어」 stay
  */
 internal fun dropCauseBaram(text: String): String = Regex("(\\S+)\\s+바람에").replace(text) { m ->
     val c = m.groupValues[1].last()
     val nieun = c in '가'..'힣' && (c - '가') % 28 == 4
     if (nieun || c == '던') m.groupValues[1] + " " else m.value
-}
+}.let { WIND_AS_CAUSE.replace(it, " ") }
+
+/**
+ * Wind given as the reason — 「바람이 (세게) 불어서」 · 「바람 때문에」 (lead decision 10-08 #321: the 10-08 device book
+ * picked blowing from the cause answer 「바람이 세게 불어서」). The mission is for something blown, not for why
+ */
+private val WIND_AS_CAUSE = Regex("바람(?:이|에|가)?\\s*(?:\\S+\\s+)?불어서|바람\\s*때문에")

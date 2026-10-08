@@ -36,12 +36,18 @@ enum class BlowProp(
         "먼지를 후~ 불어서 날려 볼래?", "후~ 먼지가 다 날아갔어!"),
     LEAF("prop_leaf", "🍂", "나뭇잎", false, "나뭇잎이 잔뜩 쌓여 있어요.", "나뭇잎이 바람에 훨훨 날아갔어요.",
         "나뭇잎을 후~ 불어서 날려 볼래?", "휘이잉~ 나뭇잎이 다 날아갔어!"),
+    /**
+     * 실제 하루에 아이가 「바람」만 말했을 때 — 전에는 「먼지」였다(「먼지를 후~ 불어서 날려 볼래?」 · 10-08 실기기). 아이가
+     * 말하지 않은 이름을 쓰지 않는다: 그림은 이름 없는 반짝이 가루, 안내 · 완료는 동작만(#329 와 같은 원칙)
+     */
+    BREEZE("prop_sparkle_dust", "✨", "반짝이 가루", false, "후~ 불어 볼 자리가 있어요.", "후~ 하고 날려 보냈어요.",
+        "후~ 불어서 날려 볼래?", "후~ 다 날아갔어!"),
     ;
 
-    /** 「촛불을 후~ 불었어요.」 */
-    override val did: String get() = "$word${eul(word)} 후~ 불었어요."
-    /** 「촛불 끈 입김」 · 「먼지 날린 입김」 */
-    override val badge: String get() = if (flame) "$word 끈 입김" else "$word 날린 입김"
+    /** 「촛불을 후~ 불었어요.」 · 이름 없는 반짝이 가루는 이름을 말하지 않는다 */
+    override val did: String get() = if (this == BREEZE) "후~ 하고 불었어요." else "$word${eul(word)} 후~ 불었어요."
+    /** 「촛불 끈 입김」 · 「먼지 날린 입김」 · 이름 없는 반짝이 가루는 「후~ 분 입김」 */
+    override val badge: String get() = if (flame) "$word 끈 입김" else if (this == BREEZE) "후~ 분 입김" else "$word 날린 입김"
     override val motion: String get() = "blow"
 }
 
@@ -58,7 +64,7 @@ fun blowPropIn(said: String, realDay: Boolean): BlowProp? = when {
     saysAny(said, listOf("민들레", "홀씨", "꽃씨")) -> BlowProp.DANDELION
     saysAny(said, listOf("먼지")) -> BlowProp.DUST
     // 「넘어지는 바람에」는 까닭이지 바람이 아니다(#259 설계 §4-1 오탐)
-    saysAny(said, listOf("바람", "후~", "후우", "후 불"), ::dropCauseBaram) -> if (realDay) BlowProp.DUST else BlowProp.LEAF
+    saysAny(said, listOf("바람", "후~", "후우", "후 불"), ::dropCauseBaram) -> if (realDay) BlowProp.BREEZE else BlowProp.LEAF
     else -> null
 }
 
@@ -67,6 +73,7 @@ fun blowPropIn(said: String, realDay: Boolean): BlowProp? = when {
  * 나뭇잎을 빌려 온다 — 상상 이야기는 소품을 빌려 와도 된다(맞춤미션 설계 §7-2)
  */
 fun DemoState.blowProp(): BlowProp? {
+    pinnedMissions()?.let { return it.blow }            // a re-read book: what it was made with (#321 review)
     val f = storyFacts()
     if (missions().slot1 != MissionId.C1) return null
     return blowPropIn(f.slot1Words, f.realDay) ?: if (!f.realDay) BlowProp.LEAF else null
