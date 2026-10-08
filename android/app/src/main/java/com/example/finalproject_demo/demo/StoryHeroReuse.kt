@@ -43,20 +43,29 @@ internal class HeroSetupLog {
 
 /** Returns true only when a saved hero was applied and creation was skipped. */
 internal suspend fun Director.choosePreviousStoryHero(): Boolean {
-    val heroes = recentStoryHeroes(storyBooks())
+    val heroes = previousStoryHeroes()
     heroSetupLog.begin(heroes.isNotEmpty())
-    if (heroes.isEmpty()) return false
+    if (heroes.isEmpty()) {
+        log("hero_choice choice=new eligible=false input=automatic")
+        return false
+    }
     val cards = heroes.mapIndexed { i, hero ->
         Card(hero.name, hero.image?.let { Art.Img(it, Art.HeroArt(hero.attr), hero.rig) } ?: Art.HeroArt(hero.attr), "reuse:$i")
     } + Card("새로 만들기", Art.Img("ic_mic", Art.Emoji("🎤")), "new")
+    val question = Question(
+        text = "지난번 ${heroes.first().name}${rang(heroes.first().name)} 또 모험할래? 새 친구를 만들래?",
+        kind = Kind.CHOICE, choices = cards,
+        spoken = listOf(Answer("또 할래"), Answer("새로")), id = "story_hero_reuse",
+    )
     var shown = false
     try {
+        setListening(question)
         while (true) {
             val reply = awaitReplyShowing {
                 if (!shown) {
                     s.stage = Stage.CardsRow(cards)
                     inputs(mic = true, next = false)
-                    say("지난번 ${heroes.first().name}${rang(heroes.first().name)} 또 모험할래? 새 친구를 만들래?")
+                    say(question.text)
                     buttons(*cards.map { card -> DemoBtn(card.label) { send(Reply.Tapped(card.value, card.label)) } }.toTypedArray())
                     shown = true
                 }
@@ -66,7 +75,11 @@ internal suspend fun Director.choosePreviousStoryHero(): Boolean {
                 is Reply.Spoke -> previousHeroChoice(reply.text, heroes)
                 else -> null
             }
-            if (choice == "new") return false
+            val source = if (reply is Reply.Spoke) "voice" else "card"
+            if (choice == "new") {
+                log("hero_choice choice=new eligible=true input=$source")
+                return false
+            }
             val index = choice?.removePrefix("reuse:")?.toIntOrNull()
             val hero = index?.let(heroes::getOrNull) ?: continue
             s.heroAttr = hero.attr
@@ -74,11 +87,13 @@ internal suspend fun Director.choosePreviousStoryHero(): Boolean {
             s.storyHeroRig = hero.rig
             s.storyHeroCall = hero.called ?: hero.name
             s.storyHeroDescription = hero.description
+            log("hero_choice choice=reuse eligible=true input=$source")
             heroSetupLog.finish("reuse")?.let(::log)
             go(Scene.PLACE)
             return true
         }
     } finally {
+        setListening(null)
         inputs(mic = false, next = false)
         buttons()
     }

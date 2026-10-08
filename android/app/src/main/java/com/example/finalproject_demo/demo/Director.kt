@@ -120,6 +120,10 @@ class Director(
     /** 꽂힌 동화 — 새 책이 앞 (#80 부모 책장 정리) */
     fun storyBooks(): List<SavedStoryBook> = savedStories.toList()
 
+    /** Re-read local metadata so a full wipe cannot leave reusable heroes in a retained screen. */
+    internal fun previousStoryHeroes(): List<Hero> = recentStoryHeroes(
+        runCatching { storyBookStore?.load() ?: savedStories.toList() }.getOrDefault(emptyList()))
+
     /** 동화 권수. 저장 정보를 읽지 못하면 null — 0권(덮어써도 되는 빈 책장)으로 보지 않는다 (민우 #78) */
     fun storyBookCount(): Int? = runCatching { storyBookStore?.count() ?: savedStories.size }.getOrNull()
 

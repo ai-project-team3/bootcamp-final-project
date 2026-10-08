@@ -419,15 +419,19 @@ private suspend fun Director.sceneMakeHero() {
         val description = descriptions.joinToString("; ") +
             if (confirmedChoices.isNotEmpty()) "\nLatest confirmed choices override earlier descriptions: " +
                 confirmedChoices.entries.joinToString("; ") { "${it.key}=${it.value}" } else ""
-        s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called, description = description)
+        if (s.mode != StoryMode.STORY)
+            s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called, description = description)
         s.heroAttr = attr
         s.storyHeroImage = generatedImage
         s.storyHeroRig = generatedRig
         s.storyHeroCall = called
         s.storyHeroDescription = description
-        log("주인공 확정 → 고정 스프라이트로 도감에 저장. 이야기 중 다시 생성하지 않음 (⭐20 · ⭐26)")
+        log("Hero confirmed; the selected local picture is retained for this story")
         pause(600)
-        go(Scene.BESTIARY)
+        if (s.mode == StoryMode.STORY) {
+            heroSetupLog.finish("new")?.let(::log)
+            go(Scene.PLACE)
+        } else go(Scene.BESTIARY)
     }
 
     suspend fun presetBuilder() {

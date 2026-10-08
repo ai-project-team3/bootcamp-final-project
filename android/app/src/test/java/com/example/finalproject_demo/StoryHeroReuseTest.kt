@@ -93,6 +93,8 @@ class StoryHeroReuseTest {
             override fun save(book: SavedStoryBook) = Unit
         }).apply { s.speed = 0.01; s.timerOn = false }
         try {
+            d.s.heroes += listOf(Hero("세 번째", com.example.finalproject_demo.ui.HeroAttr()),
+                Hero("네 번째", com.example.finalproject_demo.ui.HeroAttr()))
             d.go(Scene.MAKEHERO)
             waitFor { d.s.stage is Stage.CardsRow && d.s.micEnabled }
             d.send(Reply.Spoke("새로"))
@@ -105,11 +107,9 @@ class StoryHeroReuseTest {
             waitFor { d.s.stage is Stage.NameEntry }
             delay(30)
             d.send(Reply.Tapped(NAME_TYPED, "새콩이"))
-            waitFor { d.s.stage is Stage.Bestiary }
-            delay(30)
-            d.send(Reply.Tapped("hero:${d.s.heroes.lastIndex}", "새콩이"))
             waitFor { d.s.scene == Scene.PLACE }
             assertEquals("새콩이", d.s.storyHeroCall)
+            assertEquals(4, d.s.heroes.size)
             assertTrue(d.s.log.any { "hero_setup choice=new eligible=true" in it })
         } finally { scope.cancel() }
     }
@@ -131,5 +131,20 @@ class StoryHeroReuseTest {
 
     private suspend fun waitFor(ready: () -> Boolean) {
         withTimeout(3000) { while (!ready()) delay(5) }
+    }
+
+    @Test fun theDemoMicrophoneAnswersThePreviousHeroQuestion() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope, object : StoryBookStore {
+            override fun load() = listOf(book())
+            override fun save(book: SavedStoryBook) = Unit
+        }).apply { s.speed = 0.01; s.timerOn = false }
+        try {
+            d.go(Scene.MAKEHERO)
+            waitFor { d.s.stage is Stage.CardsRow && d.s.micEnabled }
+            d.toggleMic()
+            d.toggleMic()
+            waitFor { (d.s.stage as? Stage.CardsRow)?.cards?.none { it.value == "new" } != false }
+        } finally { scope.cancel() }
     }
 }
