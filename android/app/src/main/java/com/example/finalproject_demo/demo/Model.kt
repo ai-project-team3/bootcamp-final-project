@@ -1098,6 +1098,8 @@ class DemoState {
     var generatedBg by mutableStateOf(false)
     /** 서버 PNG를 앱 전용 파일에 보관한 뒤 이 책이 끝날 때까지 사용한다. */
     var storyBackground by mutableStateOf<String?>(null)
+    /** Place whose background request completed, including a completed preset fallback. */
+    var storyBackgroundPlace: String? = null
     /**
      * Felt scene kit drawing this place on the stage (`demo/scene/SceneKit.kt` key, e.g. "park"), or null for the
      * background picture. Set only by the live story for a place outside the three themes (10-05).
@@ -1460,6 +1462,7 @@ class DemoState {
         templateKey = null; attribute = null; causeKind = "lonely"; notes.clear(); levelWhy = ""
         askedThisStory.clear()
         themeKey = "space"; placeLabel = null; generatedBg = false; storyBackground = null; sceneKit = null
+        storyBackgroundPlace = null
         mentioned.clear()
         newcomerKind = "외계인"; newcomerEmoji = "👽"
         dinoKey = "horn"; solutionKey = "play"; solutionItem = "star"

@@ -59,11 +59,26 @@ class StoryPendingBackgroundTest {
         withLiveStory { d, fixture ->
             // This is the retained state when home cancelled an unfinished background request.
             d.s.slots["place"] = "바닷속 연구소"
-            d.s.syncStoryPresentation()
             await { fixture.imageStarted.count == 0L && d.s.micEnabled }
             assertTrue("Continue must not expose snow while restarting the missing image", d.s.stage is Stage.Show)
             fixture.releaseImage.countDown()
             await { d.s.storyBackground != null }
+            assertTrue(d.s.stage is Stage.World)
+        }
+    }
+
+    @Test fun newlyAcceptedPlaceDoesNotReuseThePreviousPlacesPicture() = runBlocking {
+        withLiveStory { d, fixture ->
+            // A verdict can change the slot before its acknowledgement updates presentation.
+            d.s.place = "축구장"
+            d.s.storyBackground = "previous-field.png"
+            d.s.slots["place"] = "바닷속 연구소"
+            await { d.s.micEnabled }
+            assertEquals("The previous picture cannot belong to the new accepted place", 1,
+                fixture.server.requests.count { it.first == "/image" })
+            assertTrue(d.s.stage is Stage.Show)
+            fixture.releaseImage.countDown()
+            await { d.s.storyBackground != null && d.s.storyBackground != "previous-field.png" }
             assertTrue(d.s.stage is Stage.World)
         }
     }
@@ -85,6 +100,23 @@ class StoryPendingBackgroundTest {
             delay(100)
             assertEquals("Continue must retain the chosen picture", picture, d.s.storyBackground)
             assertEquals("The same place must not regenerate on continue", 1,
+                fixture.server.requests.count { it.first == "/image" })
+        }
+    }
+
+    @Test fun completedPresetFallbackIsNotRequestedAgainOnContinue() = runBlocking {
+        withLiveStory(preset = true) { d, fixture ->
+            answerPlace(d, fixture)
+            fixture.releaseImage.countDown()
+            await { d.s.stage is Stage.World && d.s.micEnabled }
+            assertNull(d.s.storyBackground)
+            d.leaveToRoom()
+            await { d.s.scene == Scene.ADULT && d.s.stage == Stage.Adult }
+            delay(30)
+            d.send(Reply.Tapped("resume", "이어서 하기"))
+            await { d.s.scene == Scene.PLACE && d.s.micEnabled }
+            delay(100)
+            assertEquals("A completed fallback is not an unfinished request", 1,
                 fixture.server.requests.count { it.first == "/image" })
         }
     }
@@ -117,13 +149,13 @@ class StoryPendingBackgroundTest {
     }
 
     private suspend fun withLiveStory(
-        newcomer: Boolean = false, ready: Boolean = false,
+        newcomer: Boolean = false, ready: Boolean = false, preset: Boolean = false,
         check: suspend (Director, HoldingBackground) -> Unit,
     ) = coroutineScope {
         val previousBase = Server.base
         val previousModes = Server.liveModes
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
-        val fixture = HoldingBackground(newcomer, ready)
+        val fixture = HoldingBackground(newcomer, ready, preset)
         val context = ApplicationProvider.getApplicationContext<Context>()
         try {
             Server.base = fixture.server.base
@@ -142,7 +174,7 @@ class StoryPendingBackgroundTest {
         }
     }
 
-    private class HoldingBackground(newcomer: Boolean, ready: Boolean) {
+    private class HoldingBackground(newcomer: Boolean, ready: Boolean, preset: Boolean) {
         val imageStarted = CountDownLatch(1)
         val releaseImage = CountDownLatch(1)
         private val png = ByteArrayOutputStream().apply output@{
@@ -164,7 +196,7 @@ class StoryPendingBackgroundTest {
                 "/image" -> {
                     imageStarted.countDown()
                     releaseImage.await(10, TimeUnit.SECONDS)
-                    JSONObject().put("preset", false)
+                    if (preset) JSONObject().put("preset", true) else JSONObject().put("preset", false)
                         .put("png_base64", Base64.getEncoder().encodeToString(png))
                 }
                 else -> JSONObject().put("preset", true)

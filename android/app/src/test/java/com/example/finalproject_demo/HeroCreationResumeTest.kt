@@ -103,6 +103,25 @@ class HeroCreationResumeTest {
         }
     }
 
+    @Test fun leavingDuringGenerationDoesNotBuyAnotherAttempt() = runBlocking {
+        withHero { d ->
+            createFirst(d)
+            d.send(Reply.Tapped("no", "싫어"))
+            await { d.s.micEnabled && "바꾸면" in d.s.line }
+            // Use the local generation delay so cancellation has a deterministic window.
+            Server.liveModes = emptySet()
+            d.s.speed = 1.0
+            d.send(Reply.Spoke("긴 머리", "hair:long"))
+            await { d.s.stage is Stage.Making && d.s.images == 2 }
+            d.s.speed = 0.01
+            resume(d)
+            assertTrue("Continue restores this reserved attempt, not a new generation", d.s.stage is Stage.Confirm)
+            assertEquals(2, d.s.images)
+            assertEquals(1, (d.s.stage as Stage.Confirm).redraws)
+            assertEquals(2, d.s.heroTries.size)
+        }
+    }
+
     @Test fun resumeAfterAllRetriesKeepsTheSameThreeChoices() = runBlocking {
         withHero { d ->
             createFirst(d)
