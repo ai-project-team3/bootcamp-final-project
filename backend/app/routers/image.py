@@ -66,7 +66,7 @@ _uploaded: dict[str, str] = {}          # rig → name in ComfyUI's input folder
 
 async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
     if req.kind == "background":
-        return await comfy.background(scene, req.style)
+        return await comfy.background(scene, req.style, req.mode)
     if req.kind == "redraw":
         # the child's drawing lives only in this call: decoded, sent to ComfyUI through
         # memory (comfy_nodes/otto_memory.py), history entry deleted in comfy.run

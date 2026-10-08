@@ -175,13 +175,48 @@ def test_a_background_goes_to_the_front_of_the_gpu_queue(monkeypatch):
 def test_the_book_style_reaches_the_background(live):
     got = []
 
-    async def draw(scene, style="felt"):
+    async def draw(scene, style="felt", mode="story"):
         got.append(style)
         return PNG
     live.setattr(comfy, "background", draw)
     post()
     post(style="crayon")
     assert got == ["felt", "crayon"]
+
+
+# ── diary background (#264 · 10-08 진웅) ───────────────────────────────
+
+def test_a_diary_background_is_asked_in_the_diary_style(live):
+    got = []
+
+    async def draw(scene, style="felt", mode="story"):
+        got.append(mode)
+        return PNG
+    live.setattr(comfy, "background", draw)
+    post()
+    post(mode="diary")
+    assert got == ["story", "diary"]
+
+
+def test_a_diary_background_is_colored_pencil_not_felt():
+    wf = comfy.workflow("a beach", seed=1, mode="diary")
+    assert wf["2"]["inputs"]["text"] == "a beach" + comfy.DIARY_BG_STYLE
+    assert wf["3"]["inputs"]["text"] == comfy.DIARY_BG_NEG
+    assert "felt" not in wf["2"]["inputs"]["text"]
+    # whatever the book's style — the diary keeps colored pencil, as its redraws do
+    assert comfy.workflow("a beach", seed=1, style="crayon", mode="diary")["2"]["inputs"]["text"] == "a beach" + comfy.DIARY_BG_STYLE
+    assert comfy.workflow("a beach", seed=1)["2"]["inputs"]["text"] == "a beach" + comfy.BG_STYLE
+
+
+def test_a_diary_background_reaches_the_workflow(monkeypatch):
+    seen = {}
+
+    async def run(wf, front=False):
+        seen["text"] = wf["2"]["inputs"]["text"]
+        return PNG
+    monkeypatch.setattr(comfy, "run", run)
+    asyncio.run(comfy.background("a sunny park", mode="diary"))
+    assert seen["text"].endswith(comfy.DIARY_BG_STYLE)
 
 
 def test_an_unknown_style_is_refused():
