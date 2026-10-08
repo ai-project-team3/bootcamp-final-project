@@ -3,10 +3,13 @@ package com.example.finalproject_demo.demo
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
+import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Trace
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
+import com.example.finalproject_demo.ui.Sfx
+import com.example.finalproject_demo.ui.Sound
 import com.example.finalproject_demo.ui.missions.DONE_SCENE_MS
 import com.example.finalproject_demo.ui.motionFrozen
 import kotlinx.coroutines.CoroutineScope
@@ -352,6 +355,7 @@ private suspend fun Director.sceneBestiary() {
 
         val v = awaitValue()
         if (v == "plus") {
+            s.heroCreationDraft = null
             log("＋ 버튼 → 주인공은 이때 한 번만 만든다. 이야기 중에는 고정 (⭐20)")
             go(Scene.MAKEHERO)
             return
@@ -396,14 +400,18 @@ private suspend fun Director.onHeroPicked(v: String) {
 // ── 장면 2↳ · 주인공 만들기 (말로 / 골라서) — 둘 다 같은 펠트 그림 ──
 
 private suspend fun Director.sceneMakeHero() {
-    var attr = HeroAttr(hair = "short", shirt = Color(0xFF3F7BD9), glasses = "none", likes = "dino")
-    var fixes = 0
+    val draft = if (s.mode == StoryMode.STORY) s.heroCreationDraft ?: HeroCreationDraft().also {
+        s.heroCreationDraft = it
+        s.heroTries.clear()
+    } else HeroCreationDraft()
+    var attr by draft::attr
+    var fixes by draft::fixes
     val c = s.childName
-    val descriptions = mutableListOf<String>()
-    val confirmedChoices = linkedMapOf<String, String>()
-    val generatedTries = mutableListOf<Pair<String?, String?>>()
-    var generatedImage: String? = null
-    var generatedRig: String? = null
+    val descriptions = draft.descriptions
+    val confirmedChoices = draft.confirmedChoices
+    val generatedTries = draft.generatedTries
+    var generatedImage by draft::generatedImage
+    var generatedRig by draft::generatedRig
 
     fun heroName(): String {
         val h = when (attr.hair) { "long" -> "긴 머리"; "tied" -> "묶은 머리"; else -> "짧은 머리" }
@@ -412,11 +420,13 @@ private suspend fun Director.sceneMakeHero() {
     }
 
     suspend fun save() {
+        draft.phase = HeroCreationDraft.Phase.NAME
         val called = askHeroName(attr, generatedImage)          // 말로 · 글로 이름 짓기 (10-02 · demo/HeroName.kt)
         s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called)
         s.heroAttr = attr
         s.storyHeroImage = generatedImage
         s.storyHeroRig = generatedRig
+        draft.phase = HeroCreationDraft.Phase.COMPLETE
         log("주인공 확정 → 고정 스프라이트로 도감에 저장. 이야기 중 다시 생성하지 않음 (⭐20 · ⭐26)")
         pause(600)
         go(Scene.BESTIARY)
@@ -517,6 +527,7 @@ private suspend fun Director.sceneMakeHero() {
         attr = tries[idx]
         generatedImage = images.getOrNull(idx)?.first
         generatedRig = images.getOrNull(idx)?.second
+        draft.phase = HeroCreationDraft.Phase.NAME
         s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = "$idx") ?: s.stage
         pause(900)
         save()
@@ -565,7 +576,9 @@ private suspend fun Director.sceneMakeHero() {
     }
 
     suspend fun voiceStep(from: Int) {
+        draft.phase = HeroCreationDraft.Phase.QUESTIONS
         for (i in from until questions.size) {
+            draft.questionIndex = i
             val q = questions[i]
             while (true) {
                 // No half-made preview: it was the grey mannequin, far from the finished doll (10-05 device · 3-1)
@@ -582,10 +595,13 @@ private suspend fun Director.sceneMakeHero() {
                 }
                 break
             }
+            draft.questionIndex = i + 1
         }
+        draft.phase = HeroCreationDraft.Phase.GENERATE
     }
 
     suspend fun fixFlow() {
+        draft.phase = HeroCreationDraft.Phase.REPAIR
         while (true) {
             s.stage = Stage.HeroShow(attr, "어디를 바꿀까 — 마이크로 말해 줘")
             var r = ask(
@@ -613,33 +629,58 @@ private suspend fun Director.sceneMakeHero() {
                 }
                 else -> {}
             }
+            draft.phase = HeroCreationDraft.Phase.GENERATE
             return
         }
     }
 
-    inputs(false, false)
-    s.stage = Stage.CardsRow(listOf(Card("말로 만들기", Art.Img("ic_mic", Art.Emoji("🎤")), "voice"), Card("골라서 만들기", Art.Img("ic_dials", Art.Emoji("🎛️")), "preset")))
-    say("우리 주인공을 만들자! 말로 만들까, 골라서 만들까?")
-    buttons(
-        DemoBtn("🖐 말로 만들기 탭") { send(Reply.Tapped("voice", "말로 만들기")) },
-        DemoBtn("🖐 골라서 만들기 탭") { send(Reply.Tapped("preset", "골라서 만들기")) },
-    )
-    when (awaitValue("voice", "preset")) {
-        "preset" -> { log("골라서 만들기 — 머리 · 옷 · 눈 · 안경 각 3개 토글 (81조합)"); presetBuilder(); return }
-        else -> log("말로 만들기 — 질문 → 녹음 → 속성값 → ComfyUI 생성 (⭐20: 도감에서 한 번만)")
-    }
-
-    voiceStep(0)
-    s.heroTries.clear()
-    while (true) {
-        generate()
-        s.heroTries += attr
-        generatedTries += generatedImage to generatedRig
-        if (confirm() == "ok") { save(); return }
-        if (fixes >= s.redrawMax) { pickFromTries(); return }
-        fixes++
-        log("싫어 → 수정 $fixes/${s.redrawMax} · 한 번에 한 가지만")
-        fixFlow()
+    while (true) when (draft.phase) {
+        HeroCreationDraft.Phase.CHOOSE -> {
+            inputs(false, false)
+            s.stage = Stage.CardsRow(listOf(Card("말로 만들기", Art.Img("ic_mic", Art.Emoji("🎤")), "voice"), Card("골라서 만들기", Art.Img("ic_dials", Art.Emoji("🎛️")), "preset")))
+            say("우리 주인공을 만들자! 말로 만들까, 골라서 만들까?")
+            buttons(
+                DemoBtn("🖐 말로 만들기 탭") { send(Reply.Tapped("voice", "말로 만들기")) },
+                DemoBtn("🖐 골라서 만들기 탭") { send(Reply.Tapped("preset", "골라서 만들기")) },
+            )
+            when (awaitValue("voice", "preset")) {
+                "preset" -> {
+                    log("골라서 만들기 — 머리 · 옷 · 눈 · 안경 각 3개 토글 (81조합)")
+                    draft.phase = HeroCreationDraft.Phase.PRESET
+                }
+                else -> log("말로 만들기 — 질문 → 녹음 → 속성값 → ComfyUI 생성 (⭐20: 도감에서 한 번만)")
+            }
+            if (draft.phase != HeroCreationDraft.Phase.PRESET) {
+                draft.questionIndex = 0
+                draft.phase = HeroCreationDraft.Phase.QUESTIONS
+            }
+            s.heroTries.clear()
+        }
+        HeroCreationDraft.Phase.PRESET -> { presetBuilder(); return }
+        HeroCreationDraft.Phase.QUESTIONS -> voiceStep(draft.questionIndex)
+        HeroCreationDraft.Phase.GENERATE -> {
+            // Reserve this attempt before starting the request. A cancelled generation must not
+            // silently start another request on continue; its preset remains an available candidate.
+            generatedImage = null
+            generatedRig = null
+            s.heroTries += attr
+            generatedTries += null to null
+            draft.phase = HeroCreationDraft.Phase.CONFIRM
+            try { generate() } finally { generatedTries[generatedTries.lastIndex] = generatedImage to generatedRig }
+        }
+        HeroCreationDraft.Phase.CONFIRM -> {
+            if (confirm() == "ok") { save(); return }
+            if (fixes >= s.redrawMax) draft.phase = HeroCreationDraft.Phase.PICK
+            else {
+                fixes++
+                log("싫어 → 수정 $fixes/${s.redrawMax} · 한 번에 한 가지만")
+                draft.phase = HeroCreationDraft.Phase.REPAIR
+            }
+        }
+        HeroCreationDraft.Phase.REPAIR -> fixFlow()
+        HeroCreationDraft.Phase.PICK -> { pickFromTries(); return }
+        HeroCreationDraft.Phase.NAME -> { save(); return }
+        HeroCreationDraft.Phase.COMPLETE -> { go(Scene.BESTIARY); return }
     }
 }
 
@@ -1581,6 +1622,7 @@ private suspend fun Director.sceneBook() {
             i == last -> "${d}${eul(d)} 눌러 봐! ${s.childName}${ga(s.childName)} 낸 소리가 나와."
             else -> ""
         }
+        if (s.bookMusic) Bgm.play(trackOf(moodOf(s.pageKind(i)), s.storyBookKey()))
         say(caption(i))
         prefetchAhead(i + 1)
         when {
@@ -1812,6 +1854,7 @@ private suspend fun Director.sceneShelf() {
         if (news.isNotEmpty()) {
             s.rewardNews.clear()
             pause(2400)
+            Sfx.play(Sound.FANFARE, minGapMs = 0L)            // 업적이 열렸다 — 빠밤 한 번 (#295 리뷰)
             val names = news.joinToString(", ") { it.title }
             say("그리고 $names${if (bat(names)) "이" else "가"} 생겼어! 다음에 그릴 때 써 보자!")
             log("보상 — $names (${news.joinToString(" · ") { it.how }}) · 폰에 남고 다음 그림판에 도구로 나온다")
@@ -1836,12 +1879,16 @@ private suspend fun Director.sceneShelf() {
             }
             "book" -> {
                 if (openSavedDiary(tapped.label)) { s.stage = Stage.Shelf(fromEnd); continue }   // 그림일기 다시 읽기(#37)
-                val book = savedStory(tapped.label) ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
+                val story = savedStory(tapped.label)
+                val book = story ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
+                val key = bgmBookKey(book.title, book.pages.firstOrNull()?.caption.orEmpty())
                 var page = 0
                 s.line = ""
                 buttons()
                 while (true) {
                     s.stage = Stage.SavedStory(book, page)
+                    // 동화 · 같이 만들기 책 모두 — 첫 읽기와 같은 쪽 · 같은 곡 (#221)
+                    Bgm.play(trackOf(moodOf(if (page == 0) PageKind.COVER else book.pages[page - 1].kind), key))
                     val action = (awaitReply() as? Reply.Tapped)?.value ?: continue
                     when (action) {
                         "next" -> if (page < book.pages.size) page++
@@ -1849,6 +1896,7 @@ private suspend fun Director.sceneShelf() {
                         "close" -> break
                     }
                 }
+                Bgm.stop()
                 s.stage = Stage.Shelf(fromEnd)
                 say("우리가 만든 책들이야!")
             }

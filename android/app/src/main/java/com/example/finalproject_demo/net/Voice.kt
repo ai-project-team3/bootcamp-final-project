@@ -145,6 +145,7 @@ object Voice {
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, RATE * 2 * 2))
             if (rec.state != AudioRecord.STATE_INITIALIZED) return@withContext null
             recording = true
+            Bgm.holdNow("mic")                                   // paused before the mic opens, not just posted
             // nothing of the mascot may be in the child's answer — the player lives on the main thread
             android.os.Handler(android.os.Looper.getMainLooper()).post { stopPlaying() }
             rec.startRecording()
@@ -169,6 +170,7 @@ object Voice {
         } finally {
             recording = false
             rec?.let { runCatching { it.stop() }; it.release() }
+            Bgm.resume("mic")                                    // after the mic is closed, so the fade-in is never recorded
             // the VAD stays loaded for the next press
         }
         // ⏹ before VAD caught anything still sends what was recorded — a quiet child is still an answer
@@ -213,6 +215,9 @@ object Voice {
         // recording, so the mascot's voice went into the child's answer and the transcript fell apart.
         // While the mic is open, nothing plays.
         if (recording) { Log.i(TAG, "a mascot line arrived while recording — not played"); return }
+        // the music sinks under the voice and comes back 700 ms after it ends — released even if playback fails or is cut
+        Bgm.duck(true)
+        try {
         withContext(Dispatchers.Main) {
             suspendCancellableCoroutine { cont ->
                 val finish = { if (cont.isActive) cont.resume(Unit) }
@@ -233,6 +238,7 @@ object Voice {
                 cont.invokeOnCancellation { android.os.Handler(android.os.Looper.getMainLooper()).post { stopPlaying() } }
             }
         }
+        } finally { Bgm.duck(false) }
     }
 
     /** Stop the voice now — 🎤 (the mascot must not be recorded) or a tap that cuts the line. */
