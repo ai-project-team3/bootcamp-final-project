@@ -65,10 +65,13 @@ class TurnHistoryTest {
         s.answer({ slots["place"] = "바닷속"; place = "바닷속" }, h)
         s.answer({ slots["newcomer"] = "문어" }, h)
         s.storyBackground = "local:/bg/sea.png"          // the picture came in after both turns
+        s.storyBackgroundPlace = "바닷속"
         h.undo()
         assertEquals("local:/bg/sea.png", s.storyBackground)
+        assertEquals("바닷속", s.storyBackgroundPlace)
         h.undo()                                          // now back before the place itself
         assertNull(s.storyBackground)
+        assertNull(s.storyBackgroundPlace)
     }
 
     /** 10-05 scene kit: undo/redo must redraw the same felt scene — the kit and its seed travel with the place */
@@ -84,6 +87,20 @@ class TurnHistoryTest {
         assertNull(s.sceneKit); assertEquals(5L, s.sceneSeed)
         h.undo(); h.undo()
         assertNull(s.sceneKit)
+    }
+
+    @Test fun completedFallbackOwnershipFollowsUndoAndRedo() {
+        val s = DemoState()
+        val h = TurnHistory(s)
+        s.answer({ slots["place"] = "축구장"; place = "축구장"; storyBackgroundPlace = "축구장" }, h)
+        s.answer({ slots["place"] = "바닷속"; place = "바닷속"; storyBackgroundPlace = "바닷속" }, h)
+        h.undo()
+        assertEquals("축구장", s.storyBackgroundPlace)
+        assertNull(s.storyBackground)
+        h.redo()
+        assertEquals("바닷속", s.storyBackgroundPlace)
+        s.resetStory()
+        assertNull(s.storyBackgroundPlace)
     }
 
     @Test
