@@ -1,0 +1,16 @@
+{
+  "name": "bud_seahorse_crayon",
+  "of": "bud_seahorse",
+  "kind": "cut",
+  "text": "a cute baby seahorse with a curled tail, coral pink, smiling",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 15883981,
+  "prompt": "a cute baby seahorse with a curled tail, coral pink, smiling, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "gen_buddies.py",
+  "made": "2026-10-07"
+}

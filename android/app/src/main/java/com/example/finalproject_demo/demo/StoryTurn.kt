@@ -26,7 +26,7 @@ private fun DemoState.rememberStoryQuestion(response: Server.TurnResult) {
     // must not reopen through that fallback (filled, unneeded, companion or recorded sound).
     val next = response.verdict?.nextSlot
     val accepted = next == null || (storyNextSlot != null && next != "companion" &&
-        !(next == "sound" && storySoundAttempted))
+        !(next == "sound" && storySoundAttempted) && !(next == "adult" && !hasPartner))
     storyServerQuestion = response.line?.question?.takeIf { accepted && !storyReady }
     storyAnswerOptions = null
     val line = response.line ?: return
@@ -43,7 +43,7 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
 
     for ((slot, rawValue) in verdict.fills) {
         val value = rawValue.trim()
-        if (slot !in Server.SLOTS || value.isEmpty()) continue
+        if (slot !in Server.SLOTS || value.isEmpty() || (slot == "adult" && !hasPartner)) continue
         slots[slot] = value
         slotBy[slot] = by
     }
@@ -88,7 +88,8 @@ suspend fun Director.askStory(
             currentQuestion = question.copy(text = "다른 생각도 들려줄래? ${question.text}")
             continue
         }
-        response.verdict.fills.filter { it.first in Server.SLOTS && it.second.isNotBlank() }.forEach { (slot, value) ->
+        response.verdict.fills.filter { it.first in Server.SLOTS && it.second.isNotBlank() &&
+            (it.first != "adult" || s.hasPartner) }.forEach { (slot, value) ->
             event("slot_filled", "slot" to slot, "value" to value, "source" to by)
         }
         val line = response.line
@@ -239,6 +240,7 @@ suspend fun DemoState.exchangeTurn(
         level = level.name.lowercase(),
         reason = if (mode == "coop") coopStoryReason() else null,
         names = mask.names,
+        partner = partnerWire(mode),
     )) ?: return null
     val verdict = response.verdict?.copy(
         fills = response.verdict.fills.map { (slot, value) -> slot to mask.unmask(value) },

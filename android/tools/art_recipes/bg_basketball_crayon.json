@@ -1,0 +1,14 @@
+{
+  "name": "bg_basketball_crayon",
+  "kind": "bg",
+  "text": "an indoor school gym basketball court, wooden floor with white lines, a hoop with a backboard on one side, a ball on the floor, a bench by the wall, sunny windows",
+  "style": "crayon",
+  "size": [
+    1344,
+    768
+  ],
+  "seed": 1912652623,
+  "prompt": "an indoor school gym basketball court, wooden floor with white lines, a hoop with a backboard on one side, a ball on the floor, a bench by the wall, sunny windows, wide landscape, no characters, no people, no animals, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-07"
+}

@@ -104,6 +104,6 @@ class DiaryPieceStoryTest {
 
     @Test
     fun whoWasThereIsAskedRightAfterWhere() {
-        assertEquals(listOf("place", "companion", "problem", "solution", "keep"), PICTURE_QUESTIONS.map { it.key })
+        assertEquals(listOf("place", "companion", "problem", "reaction", "solution", "keep"), PICTURE_QUESTIONS.map { it.key })
     }
 }

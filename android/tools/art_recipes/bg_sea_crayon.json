@@ -1,0 +1,16 @@
+{
+  "name": "bg_sea_crayon",
+  "of": "bg_sea",
+  "kind": "bg",
+  "text": "underwater world, turquoise water, coral and seaweed, tiny bubbles, sunlight rays from above, sandy bottom",
+  "style": "crayon",
+  "size": [
+    1344,
+    768
+  ],
+  "seed": 443606727,
+  "prompt": "underwater world, turquoise water, coral and seaweed, tiny bubbles, sunlight rays from above, sandy bottom, wide landscape, no characters, no people, no animals, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "source": "gen_assets.py",
+  "made": "2026-10-07"
+}

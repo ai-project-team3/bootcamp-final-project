@@ -121,12 +121,18 @@ fun OttoShell(d: Director) {
                 Step.LOGIN -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL })
                 Step.EXPIRED -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL }, expired = true)
                 Step.EMAIL -> EmailScreen(Shell.emailMode, onBack = { Shell.step = if (Shell.onboarded) Step.EXPIRED else Step.LOGIN }, onDone = { afterLogin() })
-                Step.CONSENT -> ConsentStep(
-                    onBack = { Shell.step = Step.LOGIN },
+                Step.CONSENT -> {
+                // 이미 동의한 보호자에게 판만 올라 다시 묻는 것이면 이유를 보이고, 뒤로가기는 로그인이 아니라 첫 화면으로 (#256).
+                // 새 계정 · 처음 설정은 동의한 적이 없으니(guardianAgreed = false) 처음 동의 화면 그대로
+                val reconsent = Shell.onboarded && ConsentStore.guardianAgreed && Shell.consentVersion != TERMS_VERSION
+                ConsentStep(
+                    reconsent = reconsent,
+                    onBack = { Shell.step = if (reconsent) Step.TITLE else Step.LOGIN },
                     // 약관이 바뀌어 다시 동의만 받은 계정은 방으로, 새 계정 · 처음 설정은 마이크로
                     onDone = { Shell.step = if (Shell.onboarded && Shell.isReady(Accounts.guardian)) Step.APP else Step.MIC },
                     onDecline = { activity?.finish() },      // 동의하지 않으면 앱을 닫는다 — 다음에 켜면 다시 묻는다
                 )
+                }
                 Step.MIC -> MicStep(onBack = { Shell.step = Step.CONSENT }, onDone = {
                     // 처음 설정이면 비밀번호 · 맞춤 설정으로 이어 가고, 처음 설정을 끝낸 폰의 새 계정이면 여기서 끝
                     if (Shell.onboarded) { Shell.markReady(Accounts.guardian); Shell.step = Step.APP } else Shell.step = Step.PIN
