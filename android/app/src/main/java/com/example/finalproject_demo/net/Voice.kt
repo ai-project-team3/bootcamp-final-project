@@ -145,7 +145,7 @@ object Voice {
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(min, RATE * 2 * 2))
             if (rec.state != AudioRecord.STATE_INITIALIZED) return@withContext null
             recording = true
-            Bgm.hold("mic")
+            Bgm.holdNow("mic")                                   // paused before the mic opens, not just posted
             // nothing of the mascot may be in the child's answer — the player lives on the main thread
             android.os.Handler(android.os.Looper.getMainLooper()).post { stopPlaying() }
             rec.startRecording()
@@ -169,8 +169,8 @@ object Voice {
             return@withContext null
         } finally {
             recording = false
-            Bgm.resume("mic")
             rec?.let { runCatching { it.stop() }; it.release() }
+            Bgm.resume("mic")                                    // after the mic is closed, so the fade-in is never recorded
             // the VAD stays loaded for the next press
         }
         // ⏹ before VAD caught anything still sends what was recorded — a quiet child is still an answer

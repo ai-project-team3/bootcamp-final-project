@@ -34,6 +34,18 @@ object Bgm {
     fun duck(on: Boolean) { onDuck(on); onMain { mixer.duck(on, clock()) } }
     // hold · resume come with every recording — logged only while music is there, so question scenes stay quiet
     fun hold(reason: String) = onMain { mixer.hold(reason); if (mixer.active) log("hold $reason · ${mixer.playing}") }
+    /**
+     * [hold], and from another thread wait until it is applied — a mic thread calls this right before
+     * `startRecording()`, and a plain post let the first tens of ms of music into the recording (#295 review).
+     * Capped so a busy main thread never keeps the mic shut.
+     */
+    fun holdNow(reason: String) {
+        if (ctx == null || Looper.myLooper() == Looper.getMainLooper()) { hold(reason); return }
+        val applied = java.util.concurrent.CountDownLatch(1)
+        onMain { mixer.hold(reason); if (mixer.active) log("hold $reason · ${mixer.playing}"); applied.countDown() }
+        if (!applied.await(HOLD_WAIT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)) log("hold $reason not applied in $HOLD_WAIT_MS ms")
+    }
+    private const val HOLD_WAIT_MS = 300L
     fun resume(reason: String) = onMain { mixer.resume(reason, clock()); if (mixer.active) log("resume $reason${if (mixer.held) " (still held)" else ""}") }
     fun setEnabled(on: Boolean) = onMain { mixer.setEnabled(on, clock()); log("music ${if (on) "on" else "off"}") }
     fun release() = onMain { mixer.release() }

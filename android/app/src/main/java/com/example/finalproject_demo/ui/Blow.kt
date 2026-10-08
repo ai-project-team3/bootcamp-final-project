@@ -110,7 +110,7 @@ fun rememberBlow(active: Boolean, beats: androidx.compose.runtime.MutableIntStat
                 var frames = 0
                 var peak = 0f
                 Trace.line("blow", "mic open · echo canceller ${effects.any { it is AcousticEchoCanceler }} · noise suppressor ${effects.any { it is NoiseSuppressor }}")
-                Bgm.hold("blow")
+                Bgm.holdNow("blow")                                 // 음악이 멈춘 뒤에 마이크를 연다
                 held = true
                 rec.startRecording()
                 while (running) {

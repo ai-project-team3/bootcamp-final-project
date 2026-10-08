@@ -158,4 +158,17 @@ class BgmHooksTest {
         d.resumeSession()
         assertTrue(channel.running)
     }
+
+    /** a mic thread (Voice.record on IO · Blow's own thread) starts recording right after the hold — it must already be applied */
+    @Test fun holdNowFromAMicThreadIsAppliedBeforeItReturns() {
+        Bgm.attach(RuntimeEnvironment.getApplication())
+        startMusic()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(channel.running)
+        var pausedAtReturn: Boolean? = null
+        val mic = Thread { Bgm.holdNow("mic"); pausedAtReturn = !channel.running }.apply { start() }
+        val end = System.currentTimeMillis() + 5000
+        while (mic.isAlive && System.currentTimeMillis() < end) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(2) }
+        assertEquals("music still playing when the mic thread went on to record", true, pausedAtReturn)
+    }
 }

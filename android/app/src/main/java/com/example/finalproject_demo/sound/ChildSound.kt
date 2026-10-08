@@ -65,7 +65,7 @@ object ChildSound {
     /** Listen, trim, save to the session folder. Null = nothing loud enough was heard, or no mic. */
     suspend fun record(maxMs: Long = MAX_MS): SoundClip? {
         // the music must not get into the child's own sound
-        Bgm.hold("sound-mic")
+        Bgm.holdNow("sound-mic")
         val pcm = try { capture(maxMs) } finally { Bgm.resume("sound-mic") } ?: return null
         val sound = trim(pcm) ?: return null
         return withContext(Dispatchers.IO) {
