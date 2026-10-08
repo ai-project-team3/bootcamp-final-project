@@ -23,8 +23,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * #327 §4 — 아이가 오또에게 되물으면 짧게 대답하고 같은 질문을 다시 한다. 그 질문은 칸에도, 거절 목록(사다리 끝에서
- * 칸 값이 된다)에도 들어가지 않고 `/turn` 도 부르지 않는다. 한 걸음에 둘까지 — 셋째는 지금처럼 쉬운 질문.
+ * #327 §4 — when the child asks Otto back, Otto answers briefly and asks the same question again. The question never goes into a slot
+ * or the rejected list (which becomes the slot value at the ladder's end), and `/turn` is not called. Two per step — the third gets the current easier question.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -39,7 +39,7 @@ class CoopQuestionFlowTest {
         try { block(d) } finally { sup.cancel(); Server.liveModes = emptySet(); Server.base = null }
     }
 
-    /** 무엇을 말해도 물은 칸에 그대로 넣는 판정 — 전에는 아이 질문이 이렇게 칸 값이 됐다 */
+    /** A judge that puts whatever is said into the asked slot — this is how a child's question used to become the slot value */
     private fun acceptingServer() = StoryTestServer { path, body ->
         if (path != "/turn") JSONObject() else {
             val asked = body.optString("asked_slot").takeIf { it.isNotBlank() && it != "null" }
@@ -61,7 +61,7 @@ class CoopQuestionFlowTest {
         assertNotNull("첫 질문에서 마이크가 안 켜졌다", await { s.micEnabled })
     }
 
-    /** 마이크가 켜졌을 때 한 번 말하고, 오또가 다음 말을 할 때까지 기다린다 */
+    /** Say it once when the mic is on, and wait until Otto speaks next */
     private suspend fun Director.sayOnce(text: String) {
         assertNotNull(await { s.micEnabled })
         val before = s.talk.size
@@ -79,10 +79,10 @@ class CoopQuestionFlowTest {
             d.sayOnce("기린은 뭐 먹어?")
             assertNull("아이 질문이 칸에 들어갔다", d.s.place)
             assertTrue("아이 질문에 /turn 을 불렀다", server.requests.none { it.first == "/turn" && it.second.optString("utterance") == "기린은 뭐 먹어?" })
-            // 진짜 답이 오면 그대로 간다
+            // A real answer goes through as before
             withTimeoutOrNull(10_000) { while (d.s.place == null) { d.send(Reply.Spoke("놀이터에 갔어")); delay(60) } }
             assertEquals("놀이터에 갔어", d.s.place)
-            // 대화록 — 오또 질문 · 아이 질문 · 오또 대답(「?」 없음) · 같은 오또 질문 · 아이 답
+            // Transcript — Otto's question · the child's question · Otto's answer (no 「?」) · the same Otto question · the child's answer
             val talk = d.s.talk.map { it.who to it.text }
             val i = talk.indexOf("child" to "기린은 뭐 먹어?")
             assertTrue("대화록에 아이 질문이 없다: $talk", i >= 1)
@@ -95,7 +95,7 @@ class CoopQuestionFlowTest {
         } finally { server.close() }
     }
 
-    /** 「누구랑 갔어?」에 「없어」는 답 — 같이 간 사람이 「혼자」가 되고 다음 걸음으로 (#327 §3-4 · 10-08 실기기) */
+    /** 「없어」 to 「누구랑 갔어?」 is an answer — the companion is 「혼자」 and the next step follows (#327 §3-4 · device 10-08) */
     @Test
     fun nobodyToAWhoQuestionMeansAlone() = run { d ->
         d.toFirstQuestion()
@@ -105,7 +105,7 @@ class CoopQuestionFlowTest {
         assertEquals("혼자", d.s.friend)
     }
 
-    /** #341 — 떠올리는 말(「엄마, 우리 …지?」)에 어른을 부르지 않고 기다리지도 않는다 · 아이에게 돌려준다 */
+    /** #341 — recalling (「엄마, 우리 …지?」) neither calls the adult nor waits · it goes back to the child */
     @Test
     fun recallingIsGivenBackToTheChildNotTheParent() = run { d ->
         d.toFirstQuestion()
@@ -118,7 +118,7 @@ class CoopQuestionFlowTest {
         assertEquals(1, d.s.coopStats?.childQuestions?.get("recall"))
     }
 
-    /** 같은 질문을 계속 해도 — 전에는 거절 목록에 들어가 「같은 음절 = 하고 싶은 말」로 칸에 들어갔다(#327 §1) */
+    /** The same question again and again — it used to land in the rejected list and then in the slot as 「same syllables = what the child wants to say」 (#327 §1) */
     @Test
     fun theSameQuestionAgainAndAgainNeverBecomesTheSlotValue() = run { d ->
         val server = acceptingServer()
@@ -133,7 +133,7 @@ class CoopQuestionFlowTest {
             assertNull("아이 질문이 칸 값이 됐다", d.s.place)
             assertTrue(server.requests.none { it.first == "/turn" && it.second.optString("utterance") == "그게 뭐야?" })
             assertTrue("질문은 「몰라」로 세지 않는다", (d.s.coopStats?.dontKnows ?: 0) == 0)
-            // 셋째 질문이 judge() 를 지나 리포트 원문 인용으로 남았다(#332 리뷰 P2)
+            // The third question passed judge() and stayed as a report quote (#332 review P2)
             assertTrue("아이 질문이 리포트 인용에 남았다: ${d.s.quotes}", "그게 뭐야?" !in d.s.quotes)
         } finally { server.close() }
     }

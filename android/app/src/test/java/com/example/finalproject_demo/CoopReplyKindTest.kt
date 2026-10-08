@@ -11,7 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * #327 §3-3 · #341 — 아이 말을 오또 질문과 견줘 가른다(앱 규칙). 받아쓰기라 「?」가 없을 수 있고, 「음…」으로 시작할 수 있다.
+ * #327 §3-3 · #341 — sorts the child's reply against Otto's question (app rules). Speech-to-text may drop the 「?」 and may start with 「음…」.
  */
 class CoopReplyKindTest {
     private fun kind(q: String, said: String) = classifyCoopReply(said, q)
@@ -35,7 +35,7 @@ class CoopReplyKindTest {
         assertEquals(CoopReply.NonAnswer, kind("왜 그랬을까?", "아니"))
     }
 
-    /** #341 — 떠올리는 말(옆 어른을 불러도) · 떠올린 뒤 스스로 한 답 */
+    /** #341 — recalling (even when calling the adult nearby) · an answer found after recalling */
     @Test
     fun recallingIsNotAskingTheParent() {
         assertTrue(kind("누구랑 갔어?", "누구랑 갔더라") is CoopReply.Recall)
@@ -45,8 +45,8 @@ class CoopReplyKindTest {
     }
 
     /**
-     * #332 조장 리뷰 P1 — 반말 평서문이 질문으로 갈렸다(진짜 답 18개 중 9개). 「왜냐면 …」은 cause 걸음의 가장 흔한 답이다.
-     * 「?」가 없으면 묻는 말이 첫 어절 · 3어절 이하 · 지난 일로 끝나지 않을 때만 질문이다
+     * #332 lead review P1 — casual statements were sorted as questions (9 of 18 real answers). 「왜냐면 …」 is the cause step's most common answer.
+     * Without 「?」 it is a question only if an ask word comes first · three eojeols or fewer · not ending in the past
      */
     @Test
     fun plainStatementsWithAnAskWordAreAnswers() {
@@ -58,7 +58,7 @@ class CoopReplyKindTest {
         ).forEach { assertFalse(it, kind("그때 뭐 하고 있었어?", it).isQuestion) }
     }
 
-    /** 받아쓰기 변형 — 「?」 있음 · 없음 · 「음…」 머리 */
+    /** Speech-to-text variants — with and without 「?」 · a 「음…」 head */
     @Test
     fun transcriptionVariants() {
         listOf("그게 뭐야?", "그게 뭐야", "음… 그게 뭐야", "어, 그게 뭐야?").forEach {
@@ -69,7 +69,7 @@ class CoopReplyKindTest {
         }
     }
 
-    /** 받아쓰기가 「?」를 빼면 「뭐 먹었어」가 「뭐 먹었구나!」가 됐다 — 묻는 말이 든 말은 되비추지 않는다 */
+    /** When speech-to-text dropped the 「?」, 「뭐 먹었어」 became 「뭐 먹었구나!」 — a reply with an ask word is not echoed */
     @Test
     fun aStatedQuestionIsNotEchoed() {
         assertNull(pastEcho("뭐 먹었어"))

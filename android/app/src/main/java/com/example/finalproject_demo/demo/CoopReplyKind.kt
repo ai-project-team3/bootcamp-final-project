@@ -1,89 +1,89 @@
 package com.example.finalproject_demo.demo
 
 /*
- * ── 같이 만들기 — 아이 말이 답인가, 질문인가, 부정인가 (#327 설계 · docs/같이만들기_질문답_부정답_설계.md §3) ──────────
+ * ── Co-op — is the child's reply an answer, a question or a negation (#327 design · docs/같이만들기_질문답_부정답_설계.md §3) ──────────
  *
- * 지금까지는 「아니」 · 「싫어」를 「몰라」와 같은 「답 아님」으로만 보고, 아이 질문(「그게 뭐야?」)은 보통 답처럼 판정에
- * 보냈다. 판정이 칸을 못 찾으면 그 말이 사다리 끝에서 **책 칸 값**이 됐다(「그게 뭐야?」가 problem 에).
- * 여기서 오또 질문과 견줘 일곱 가지로 가른다 — 앱 규칙만(서버 판정 칸은 실기기 로그로 재 본 뒤 · ⚖️1).
+ * Until now 「아니」 · 「싫어」 were only non-answers like 「몰라」, and a child's question (「그게 뭐야?」) went to the judge as a normal
+ * answer. When the judge found no slot, that question became the **book slot value** at the ladder's end (「그게 뭐야?」 in problem).
+ * Here a reply is sorted into seven kinds against Otto's question — app rules only (a judge field waits for device logs · ⚖️1).
  *
- * 받아쓰기라 「?」가 없을 수 있어 낱말로 본다. 잘못 갈려도 잃는 것은 질문 한 번이다 — 질문으로 갈린 말은 칸에 넣지 않는다.
- * 순수 함수 · Android 의존 없음 — 그림일기도 나중에 쓸 수 있다.
+ * Speech-to-text may drop the 「?」, so words are read. A wrong sort costs one question — a reply sorted as a question never fills a slot.
+ * Pure functions · no Android dependency — the picture diary can use them later.
  */
 internal sealed interface CoopReply {
-    /** 보통 답 — 지금 길 그대로(판정 · 받아주기) */
+    /** A normal answer — the current path (judge · ack) */
     data object Answer : CoopReply
-    /** 떠올리는 말 뒤에 붙은 답 — 「엄마 우리 누구랑 갔지? 아 할머니!」 → 「할머니」만 답으로(판정에도 이것만) (#341) */
+    /** An answer after recalling — 「엄마 우리 누구랑 갔지? 아 할머니!」 → only 「할머니」 is the answer (and all the judge sees) (#341) */
     data class AnswerAfterRecall(val answer: String) : CoopReply
-    /** 「몰라」 · 「응」 · 그냥 「아니」 — 지금처럼 사다리 */
+    /** 「몰라」 · 「응」 · a bare 「아니」 — the ladder, as now */
     data object NonAnswer : CoopReply
-    /** 오또 질문의 뜻을 묻는다 — 「뭐를 넣어?」 · 「그게 뭐야?」 · 「까닭이 뭐야」 */
+    /** Asks what Otto's question means — 「뭐를 넣어?」 · 「그게 뭐야?」 · 「까닭이 뭐야」 */
     data class AboutQuestion(val text: String) : CoopReply
     /**
-     * 같이 겪은 일을 떠올리는 말 — 「엄마, 우리 뭐 먹었지?」 · 「누구랑 갔더라」(#341 · 전에는 ToPartner).
-     * 옆 어른에게 묻는 꼴이어도 어른을 부르지 않고 아이에게 돌려준다(사용자 결정 10-08 — 부모 개입을 키우지 않는다).
-     * [who] 부른 사람 — 로그에만 남기고 말하지 않는다
+     * Recalling something shared — 「엄마, 우리 뭐 먹었지?」 · 「누구랑 갔더라」 (#341 · was ToPartner).
+     * Even when shaped as a question to the adult nearby, Otto does not call the adult and gives it back to the child (user decision 10-08 — no more parent involvement).
+     * [who] the person called — logged only, never said
      */
     data class Recall(val text: String, val who: String?) : CoopReply
-    /** 그 밖의 질문 — 「기린은 뭐 먹어?」 · 「오또는 어디 살아?」 */
+    /** Any other question — 「기린은 뭐 먹어?」 · 「오또는 어디 살아?」 */
     data class World(val text: String) : CoopReply
-    /** 오또 질문의 전제를 부정 — 「안 줬어」 → stem 「줬」 · 「기린 없었어」 → stem 「없」 noun 「기린」 (대응은 #327 ②) */
+    /** Denies the premise of Otto's question — 「안 줬어」 → stem 「줬」 · 「기린 없었어」 → stem 「없」 noun 「기린」 (handled in #327 ②) */
     data class PremiseDenied(val stem: String, val noun: String?) : CoopReply
-    /** 고쳐 말하기 — 「아니, 사과 줬어」 · 「놀이터 말고 수영장 갔어」. [denied] 부정한 앞 이름 (대응은 #327 ②) */
+    /** A correction — 「아니, 사과 줬어」 · 「놀이터 말고 수영장 갔어」. [denied] the name denied before it (handled in #327 ②) */
     data class Corrected(val instead: String, val denied: String?) : CoopReply
 }
 
-/** 아이가 오또에게 물었나 · 떠올리는 중인가 — 대답한 뒤 다시 묻는다(§4). 칸에는 넣지 않는다 */
+/** Did the child ask Otto, or is the child recalling — answer, then ask again (§4). Never into a slot */
 internal val CoopReply.isQuestion: Boolean get() = this is CoopReply.AboutQuestion || this is CoopReply.Recall || this is CoopReply.World
 
-/** 묻는 말 — 어절 처음에서 (「뭐 · 뭘 · 뭐를 · 무엇 · 무슨 · 왜 · 어떻게 · 어디 · 누구 · 누가 · 언제 · 몇 · 어느」) */
+/** Ask words — at the start of an eojeol (「뭐 · 뭘 · 뭐를 · 무엇 · 무슨 · 왜 · 어떻게 · 어디 · 누구 · 누가 · 언제 · 몇 · 어느」) */
 private val ASK_WORDS = listOf("뭐", "뭘", "무엇", "무슨", "왜", "어떻게", "어떡", "어디", "누구", "누가", "누굴", "언제", "몇", "어느")
 
 /**
- * 묻는 말로 시작해도 답인 꼴 — 까닭을 대는 「왜냐(하)면 · ~냐면」, 「언제나 · 어느 날」(#332 조장 리뷰: cause 걸음의
- * 가장 흔한 답 「왜냐면 배고파서 그랬어」가 질문으로 갈렸다)
+ * Starts with an ask word but is an answer — giving a reason with 「왜냐(하)면 · ~냐면」, 「언제나 · 어느 날」 (#332 lead review: the cause
+ * step's most common answer, 「왜냐면 배고파서 그랬어」, was sorted as a question)
  */
 private val ANSWER_FORMS = Regex("왜냐|냐면|언제나|어느\\s*날|어느날")
 
-/** 대답 속 「뭐」 — 「뭐 그냥 놀았어」 · 「뭐더라… 아 츄러스」 */
+/** 「뭐」 inside an answer — 「뭐 그냥 놀았어」 · 「뭐더라… 아 츄러스」 */
 private val ANSWER_MWO = Regex("^뭐(\\s*그냥|더라|였지)")
 
-/** 부르는 말 — 첫 어절이면 옆 어른을 부른 것(로그에만) */
+/** Calling words — as the first eojeol, the child called the adult nearby (logged only) */
 private val CALLS = listOf("엄마", "아빠", "할머니", "할아버지", "이모", "삼촌", "선생님", "고모", "언니", "누나", "형", "오빠")
 
-/** 오또 질문을 가리키는 말 — 「그게 뭐야?」 · 「뭐를 넣어?」 · 「무슨 말이야?」 */
+/** Words pointing at Otto's question — 「그게 뭐야?」 · 「뭐를 넣어?」 · 「무슨 말이야?」 */
 private val ABOUT_WORDS = listOf("그게", "그거", "뭐를", "뭘 말", "무슨 말", "어떻게 해", "뭐라고", "뭐 하라고", "뭐라는")
 
-/** 「뭐야 · 뭔데 · 뭐지 · 뭐예요 · 뭔지」 — 낱말의 뜻을 묻는 끝 */
+/** 「뭐야 · 뭔데 · 뭐지 · 뭐예요 · 뭔지」 — endings that ask what a word means */
 private val WHAT_IS = Regex("^(뭐야|뭔데|뭐지|뭐예요|뭐에요|뭔지|뭐니|뭐냐)$")
 
-/** 모르겠다는 말이 든 말은 질문이 아니다 — 「어디 갔는지 기억 안 나」 */
+/** A reply saying the child does not know is not a question — 「어디 갔는지 기억 안 나」 */
 private val DONT_KNOW_IN = Regex("몰라|모르|기억 안|기억이 안|생각 안|생각이 안")
 
 private val HESITATION_HEAD = Regex("^(?:(?:으*음+|어+|흠+|아+|그+)[.…,~!\\s]+)+")
 
 private fun eojeolsOf(t: String): List<String> = t.split(Regex("[\\s,.!?~·…\"“”「」]+")).filter(String::isNotEmpty)
 
-/** 낱말 앞 두 글자 — #310 `causeAsksOtherEvent` 와 같은 잣대 */
+/** The first two letters of each word — the same yardstick as #310 `causeAsksOtherEvent` */
 private fun stems(t: String): Set<String> = Regex("[가-힣A-Za-z0-9]{2,}").findAll(t).map { it.value.take(2) }.toSet()
 
 private fun Char.hasSsangSiot() = this in '가'..'힣' && (this - '가') % 28 == 20
 
-/** 지난 일로 끝나나 — 끝 어절의 마지막 앞 글자에 ㅆ 받침(「났어 · 먹었어 · 갔어」). 지난 일 평서는 답이다 */
+/** Ends in the past — ㅆ under the letter before the last of the last eojeol (「났어 · 먹었어 · 갔어」). A past-tense statement is an answer */
 private fun endsInPast(word: String): Boolean = word.length >= 2 && word[word.length - 2].hasSsangSiot()
 
-/** 떠올리는 끝 — 「~더라」 · 지난 일 + 「지」(「먹었지 · 갔지」) */
+/** Recalling endings — 「~더라」 · past + 「지」 (「먹었지 · 갔지」) */
 private fun recallEnd(word: String): Boolean = word.endsWith("더라") || (word.endsWith("지") && endsInPast(word))
 
 private fun hasAskWord(words: List<String>) = words.any { w -> ASK_WORDS.any { w.startsWith(it) } }
 
-/** 「있었나」를 묻는 질문 — 「누구랑 갔어?」 · 「누굴 만났어?」 · 「누가 있었어?」. 「없어」 · 「아무도」가 답이 된다(§3-4) */
+/** A question about whether anyone was there — 「누구랑 갔어?」 · 「누굴 만났어?」 · 「누가 있었어?」. 「없어」 · 「아무도」 answer it (§3-4) */
 private fun asksWhetherAnyone(question: String): Boolean =
     listOf("누구", "누굴", "누가").any { it in question } && listOf("갔", "만났", "있었", "같이", "랑").any { it in question }
 
 /**
- * 떠올리는 말 뒤에 말이 더 붙었으면 그 뒤쪽 — 「엄마 우리 누구랑 갔지? 아 할머니!」 → 「할머니」 ·
- * 「뭐 먹었더라 츄러스」 → 「츄러스」. 없으면 null
+ * Words after a recalling phrase, if any — 「엄마 우리 누구랑 갔지? 아 할머니!」 → 「할머니」 ·
+ * 「뭐 먹었더라 츄러스」 → 「츄러스」. Null otherwise
  */
 private fun answerAfterRecall(t: String): String? {
     val words = eojeolsOf(t)
@@ -95,22 +95,22 @@ private fun answerAfterRecall(t: String): String? {
 }
 
 /**
- * 아이 말 [said] 를 오또가 물은 [question] 과 견줘 가른다(§3-2 차례 — 위가 먼저).
- * 받아쓰기는 「?」를 빼기 일쑤라 낱말로 보되, **반말 평서문을 질문으로 잡지 않게** 좁게 본다(#332 조장 리뷰):
- * 「?」가 없으면 묻는 말이 첫 어절이고 · 3어절 이하이고 · 지난 일로 끝나지 않을 때만(또는 「○○가 뭐야」) 질문이다
+ * Sorts the child's reply [said] against Otto's [question] (§3-2 order — top first).
+ * Speech-to-text often drops the 「?」, so words are read — but narrowly, **so that casual statements are not taken as questions** (#332 lead review):
+ * without 「?」 it is a question only if an ask word comes first · three eojeols or fewer · not ending in the past (or 「○○가 뭐야」)
  */
 internal fun classifyCoopReply(said: String, question: String): CoopReply {
     val raw = said.trim()
     val t = raw.replace(HESITATION_HEAD, "").trim()
     val core = t.trimEnd('.', '!', '?', '~', ' ', '…')
     if (core.isEmpty()) return CoopReply.NonAnswer
-    // ① 답 아님 — 단, 있었나를 묻는 질문에 「없어」 · 「아무도」는 답이다(§3-4)
+    // ① Non-answer — except 「없어」 · 「아무도」 to a question about whether anyone was there (§3-4)
     if (core in setOf("없어", "없었어", "아무도", "아무도 없어", "아무도 없었어") && asksWhetherAnyone(question)) return CoopReply.Answer
-    // 떠올리다가 스스로 답을 찾았으면 그 답만 (#341)
+    // Found the answer while recalling — only that answer (#341)
     answerAfterRecall(t)?.let { return CoopReply.AnswerAfterRecall(it) }
     if (isNonAnswer(core)) return CoopReply.NonAnswer
 
-    // ② 질문 · 떠올리기
+    // ② Question · recalling
     val words = eojeolsOf(core)
     val notAsking = ANSWER_MWO.containsMatchIn(core) || DONT_KNOW_IN.containsMatchIn(core) || ANSWER_FORMS.containsMatchIn(core)
     if (!notAsking && hasAskWord(words) && recallEnd(words.last())) {
@@ -122,17 +122,17 @@ internal fun classifyCoopReply(said: String, question: String): CoopReply {
     val whatIsLast = WHAT_IS.matches(words.last())
     val asking = !notAsking && (marked || (words.size <= 3 && (askFirst || whatIsLast) && !endsInPast(words.last())))
     if (asking) {
-        // 오또 질문의 낱말을 되묻는 「○○가 뭐야」 꼴 — 「까닭이 뭐야」. 같은 동사(「먹었지」)는 뜻을 묻는 것이 아니다
+        // 「○○가 뭐야」 asking about a word of Otto's question — 「까닭이 뭐야」. The same verb (「먹었지」) is not asking what it means
         val qStems = stems(question) - stems(ASK_WORDS.joinToString(" "))
         val whatIs = words.size >= 2 && whatIsLast && words[words.size - 2].let { w -> w.length >= 2 && w.take(2) in qStems }
         val about = ABOUT_WORDS.any { core.startsWith(it) || " $it" in " $core" } || whatIs
         return if (about) CoopReply.AboutQuestion(t) else CoopReply.World(t)
     }
 
-    // ③ 고쳐 말하기 — 「아니, ○○」 · 「○○ 말고 ○○」 · 「○○ 아니고 ○○」 · 「그게 아니라 ○○」 (뒤가 부정이면 ④로)
+    // ③ Correction — 「아니, ○○」 · 「○○ 말고 ○○」 · 「○○ 아니고 ○○」 · 「그게 아니라 ○○」 (if what follows is a negation, ④)
     corrected(core)?.let { c -> if (negatedWord(c.instead) == null) return c }
 
-    // ④ 전제 부정 — 부정된 낱말이 오또 질문에 있을 때만. 질문에 없는 말의 부정(「안 무서웠어」)은 보통 답
+    // ④ Premise denied — only when the negated word is in Otto's question. Negating something not asked (「안 무서웠어」) is a normal answer
     premiseDenied(core, question)?.let { return it }
     return CoopReply.Answer
 }
@@ -151,7 +151,7 @@ private fun corrected(core: String): CoopReply.Corrected? {
     return null
 }
 
-/** 부정된 낱말 — 「안 줬어」 → 줬어 · 「못 갔어」 → 갔어 · 「가지 않았어」 → 가지 · 「기린 없었어」 → 없었어(앞 이름 기린) */
+/** The negated word — 「안 줬어」 → 줬어 · 「못 갔어」 → 갔어 · 「가지 않았어」 → 가지 · 「기린 없었어」 → 없었어 (name before it: 기린) */
 private fun negatedWord(core: String): Pair<String, String?>? {
     val w = eojeolsOf(core)
     w.forEachIndexed { i, x ->
@@ -163,7 +163,7 @@ private fun negatedWord(core: String): Pair<String, String?>? {
     return null
 }
 
-/** 「줬어」 → 줬 · 「만났어」 → 만났 · 「없었어」 → 없 — 어미를 떼고 앞 두 글자까지 */
+/** 「줬어」 → 줬 · 「만났어」 → 만났 · 「없었어」 → 없 — the ending dropped, up to the first two letters */
 private fun verbStem(word: String): String {
     if (word.startsWith("없")) return "없"
     val bare = listOf("었어요", "았어요", "어요", "아요", "었어", "았어", "어", "아", "요", "다", "지").fold(word) { acc, e ->
@@ -175,9 +175,9 @@ private fun verbStem(word: String): String {
 private fun premiseDenied(core: String, question: String): CoopReply.PremiseDenied? {
     val (word, before) = negatedWord(core) ?: return null
     val qStems = stems(question)
-    // 질문에 그 동사가 있나(「줬어」 ↔ 「줬어?」), 또는 부정한 앞 이름이 질문에 있나(「기린 없었어」 ↔ 「기린한테」)
+    // Is that verb in the question (「줬어」 ↔ 「줬어?」), or the name denied before it (「기린 없었어」 ↔ 「기린한테」)
     val noun = before?.takeIf { b -> b.length >= 2 && b.take(2) in qStems }?.replace(Regex("(은|는|이|가|도|을|를|한테|에게)$"), "")
-    // 동사는 어미를 뗀 줄기끼리 — 「안 줬어」 ↔ 「줬어?」 · 「안 갔었어」 ↔ 「갔어?」
+    // Verbs are compared by stem without the ending — 「안 줬어」 ↔ 「줬어?」 · 「안 갔었어」 ↔ 「갔어?」
     val stem = verbStem(word)
     val verbInQuestion = !stem.startsWith("없") && eojeolsOf(question).any { verbStem(it) == stem }
     if (noun == null && !verbInQuestion) return null

@@ -170,14 +170,14 @@ private class CoopTrack {
     var liveTurn: LiveTurn? = null
     /** 지금 방식 · 바뀐 방식을 견주는 이야기 하나의 수치 (§11) — 끝날 때 `coop_session` 으로 남긴다 */
     val stats = CoopSessionStats()
-    /** 아이가 오또에게 물은 말 — 칸 · 거절 목록에 넣지 않는다(#327 §1 잘못 둘) */
+    /** What the child asked Otto — never into a slot or the rejected list (#327 §1, the two bugs) */
     val childAsked = mutableSetOf<String>()
-    /** 「뭐를 넣어?」에 미리 보여 준 사다리 칸 — 정말 내려갈 때는 그 다음 칸부터(#327 §4-2) */
+    /** Ladder rungs already previewed for 「뭐를 넣어?」 — when really stepping down, start from the one after (#327 §4-2) */
     val previewedRungs = mutableSetOf<String>()
-    /** 바로 앞의 「궁금하다」 · 「떠올려 봐」 대답 — 같은 말이 이어지지 않게 */
+    /** The last 「궁금하다」 · 「떠올려 봐」 reply — so the same line does not repeat */
     var lastWorldReply: String? = null
     var lastRecallReply: String? = null
-    /** 걸음마다 받은 아이 질문 수 — 사다리 칸이 바뀌어도 한 걸음에 [CHILD_QUESTIONS_PER_STEP] 까지 (#332 리뷰 P3) */
+    /** Child questions per step — up to [CHILD_QUESTIONS_PER_STEP] per step even across rungs (#332 review P3) */
     val questionsAt = mutableMapOf<String, Int>()
     /** 부모가 적은 질문으로 물은 걸음 — 판정이 거절한 답을 그 칸에 넣지 않는다(부모 질문은 칸과 안 맞을 수 있다) */
     val parentSteps = mutableSetOf<String>()
@@ -204,7 +204,7 @@ internal class CoopSessionStats(val startedAt: Long = System.currentTimeMillis()
     var dontKnows = 0
     val answerChars = mutableListOf<Int>()
     val guardHits = sortedMapOf<String, Int>()
-    /** 아이 질문 수 — 종류별(about · partner · world). 「몰라」 수 · 답 길이에는 넣지 않는다 (#327 §7) */
+    /** Child questions by kind (about · recall · world). Not counted as 「몰라」 or in answer length (#327 §7) */
     val childQuestions = sortedMapOf<String, Int>()
 
     fun count(r: Reply) {
@@ -406,17 +406,17 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         scripted is CoopLine.Template -> (guarded(scripted.text, CoopSource.TEMPLATE) ?: q.text) to CoopSource.TEMPLATE
         else -> (guarded(q.text, CoopSource.LADDER) ?: q.text) to CoopSource.LADDER
     }
-    // 아이가 「뭐를 넣어?」로 물어 이 칸을 이미 미리 보여 줬으면 그 다음 칸부터 (#327 §4-2)
+    // If the child's 「뭐를 넣어?」 already previewed this rung, start from the one after (#327 §4-2)
     val shown = if (src == CoopSource.LADDER && picked in track.previewedRungs && q.ladder.isNotEmpty()) q.ladder.first() else picked
-    if (shown != picked) log("[$key] 미리 보여 준 사다리 칸이라 그 다음 칸으로 → \"$shown\"")
+    if (shown != picked) log("[$key] rung already previewed, the next one → \"$shown\"")
     log("[$key] ${src.label} 질문 → \"$shown\" · 수준 ${s.level.label}" + (if (src == CoopSource.HEARD) " · 들은 이름 ${track.heard}" else ""))
     if ("왜" in shown) track.whyAsked++
     if (idx != null && firstAsk) track.partQuestions[idx] = shown
     val (r, askedLast, stillAsking) = askAnsweringChildQuestions(q, key, shown)
     if (stillAsking) {
-        // 한 걸음에 세 번째 질문 — 지금 흐름(쉬운 질문)으로. 칸 · 거절 목록에는 넣지 않는다(coopLiveValueAsSaid) · 받아주기 없음
-        log("[$key] 아이 질문이 세 번째 → 대답하지 않고 지금처럼 쉬운 질문으로 (#327 ⚖️5)")
-        // 신호 · 인용 없이 그대로 — answer 를 달면 judge() 가 그 말을 리포트 원문 인용으로 남겼다(#332 리뷰 P2)
+        // A third question in one step — the current flow (an easier question). Not into a slot or the rejected list (coopLiveValueAsSaid) · no ack
+        log("[$key] third child question → no answer, the easier question as now (#327 ⚖️5)")
+        // Returned as is, with no signals or quote — with an answer attached, judge() kept it as a report quote (#332 review P2)
         return r
     }
     track.stats.count(r)
@@ -458,19 +458,19 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
     return r
 }
 
-/** 아이가 오또에게 물은 말인가 — 칸 · 부모 질문 칸 · 인용에 넣지 않는다 (#332) */
+/** Did the child ask Otto this — not into a slot, a parent question slot, or a quote (#332) */
 internal fun DemoState.coopChildAsked(text: String): Boolean = trackByState[this]?.childAsked?.contains(text.trim()) == true
 
-/** 「누구랑 갔어?」의 「아무도 없었다」 */
+/** 「Nobody was there」 for 「누구랑 갔어?」 */
 private val NOBODY = setOf("없어", "없었어", "없어요", "아무도", "아무도 없어", "아무도 없었어")
 
-/** 한 걸음에 받는 아이 질문 수 — 셋째부터는 지금 흐름(쉬운 질문) (#327 ⚖️5 · 사용자 결정 10-08) */
+/** Child questions taken per step — from the third on, the current flow (an easier question) (#327 ⚖️5 · user decision 10-08) */
 internal const val CHILD_QUESTIONS_PER_STEP = 2
 
 /**
- * 묻고, 아이가 **오또에게 되물으면** 짧게 대답한 뒤 같은 질문을 다시 묻는다(#327 §4). 사다리를 내려가지 않고 `/turn` 도
- * 부르지 않는다 — 칸을 채울 말이 아니다. 진짜 마이크 답만 본다(카드 · 대본 답은 그대로).
- * 돌려주는 것: 마지막 답 · 마지막으로 물은 말 · 셋째 질문이라 대답하지 않고 넘기는가
+ * Asks, and when the child **asks Otto back**, answers briefly and asks the same question again (#327 §4). No ladder step down and no
+ * `/turn` — it is not a slot answer. Live speech only (card and scripted answers pass through).
+ * Returns: the last reply · the last thing asked · whether it is a third question passed on without an answer
  */
 private suspend fun Director.askAnsweringChildQuestions(q: Question, key: String, first: String): Triple<Reply, String, Boolean> {
     val track = s.coopTrack
@@ -478,9 +478,9 @@ private suspend fun Director.askAnsweringChildQuestions(q: Question, key: String
     var r = ask(q.copy(text = asked, silent = false))
     while (r is Reply.Spoke && r.isLiveSpeech()) {
         val kind = classifyCoopReply(r.text, asked)
-        // 떠올리다가 스스로 답을 찾았다(「엄마 우리 누구랑 갔지? 아 할머니!」) — 뒤쪽만 답으로, 판정에도 그것만 (#341)
+        // Found the answer while recalling (「엄마 우리 누구랑 갔지? 아 할머니!」) — only the latter part is the answer, also for the judge (#341)
         if (kind is CoopReply.AnswerAfterRecall) {
-            log("[$key] 떠올린 뒤 한 답 「${kind.answer}」만 받는다 ← 「${r.text.trim()}」")
+            log("[$key] answer after recalling: only 「${kind.answer}」 ← 「${r.text.trim()}」")
             r = r.copy(text = kind.answer)
             break
         }
@@ -489,16 +489,16 @@ private suspend fun Director.askAnsweringChildQuestions(q: Question, key: String
         track.childAsked += said
         val label = when (kind) { is CoopReply.AboutQuestion -> "about"; is CoopReply.Recall -> "recall"; else -> "world" }
         track.stats.childQuestions.merge(label, 1, Int::plus)
-        log("[$key] 아이 말 종류 — $label · 「$said」 ← 「$asked」" + ((kind as? CoopReply.Recall)?.who?.let { " · 부른 사람 $it" } ?: ""))
+        log("[$key] reply kind — $label · 「$said」 ← 「$asked」" + ((kind as? CoopReply.Recall)?.who?.let { " · 부른 사람 $it" } ?: ""))
         event("coop_reply_kind", "kind" to label, "text" to said)
         val n = track.questionsAt[key] ?: 0
         if (n >= CHILD_QUESTIONS_PER_STEP) return Triple(r, asked, true)
         track.questionsAt[key] = n + 1
         val (reply, again) = coopAnswerChildQuestion(kind, asked, q.ladder, track)
         say(reply)
-        talkOtto(reply)                                   // 대화록에 오또의 대답도 남긴다 — 「?」가 없어 저절로는 안 남는다
-        pause(700)                                        // 어른을 기다리지 않는다 — 아이에게 바로 다시 묻는다(#341)
-        log("[$key] 아이 질문에 대답 → 다시 묻는다 \"$again\" (${n + 1}/$CHILD_QUESTIONS_PER_STEP)")
+        talkOtto(reply)                                   // keep Otto's answer in the transcript — without 「?」 it is not kept by itself
+        pause(700)                                        // no waiting for the adult — ask the child again right away (#341)
+        log("[$key] answered the child's question → asking again \"$again\" (${n + 1}/$CHILD_QUESTIONS_PER_STEP)")
         asked = again
         r = ask(q.copy(text = asked, silent = false))
     }
@@ -506,18 +506,18 @@ private suspend fun Director.askAnsweringChildQuestions(q: Question, key: String
 }
 
 /**
- * 아이 질문에 오또가 하는 말과 다시 물을 말 (#327 §4-2 · 1단계 · 앱 문장). 오또 말에는 「?」를 넣지 않는다 —
- * 넣으면 리포트 대화록에 오또 질문으로 남는다. 세상 일 대답(서버 대사)은 2단계 · 조장 몫(⚖️2)
+ * What Otto says to a child's question and what it asks again (#327 §4-2 · stage 1 · app sentences). No 「?」 in Otto's line —
+ * with one it would show as an Otto question in the report transcript. Answering world questions (a server line) is stage 2 · the lead's (⚖️2)
  */
 private fun coopAnswerChildQuestion(kind: CoopReply, asked: String, ladder: List<String>, track: CoopTrack): Pair<String, String> = when (kind) {
-    // 오또 질문의 뜻을 물었다 — 그 걸음 사다리의 다음 칸(더 쉬운 말)을 미리 보여 준다. 없으면 같은 질문을 다시
+    // Asked what Otto's question means — preview the next rung of the step's ladder (easier words). If none, the same question again
     is CoopReply.AboutQuestion -> {
         val easier = ladder.firstOrNull { it != asked && it !in track.previewedRungs }
         if (easier != null) track.previewedRungs += easier
         "쉽게 다시 물어볼게!" to (easier ?: asked)
     }
-    // 같이 겪은 일을 떠올리는 중(「엄마, 우리 뭐 먹었지?」) — 어른을 부르지 않고 아이에게 돌려준다. 어른이 답을 대신 채우면
-    // 부모 개입이 커진다(사용자 결정 10-08 · #341). 「몰라도 괜찮아」 · 어른 이름은 쓰지 않는다. 다시 물을 말은 더 쉬운 칸
+    // Recalling something shared (「엄마, 우리 뭐 먹었지?」) — give it back to the child without calling the adult. An adult filling in
+    // the answer means more parent involvement (user decision 10-08 · #341). No 「몰라도 괜찮아」 · no adult names. Ask again with the easier rung
     is CoopReply.Recall -> {
         val reply = listOf("생각나는 만큼만 말해 줘!", "천천히 떠올려 봐도 돼!").first { it != track.lastRecallReply }
         track.lastRecallReply = reply
@@ -772,17 +772,17 @@ internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r
 
 private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: String, r: Reply.Spoke): String? {
     val text = r.text.trim()
-    // 「누구랑 갔어?」에 「없어」 · 「아무도」는 답이다 — 혼자 갔다(#327 §3-4). 협업은 판정의 no_longer_needed 를 쓰지 않아
-    // 판정에 보내도 칸이 접히지 않았다(10-08 실기기) — 같이 간 사람 칸에 바로 「혼자」
+    // 「없어」 · 「아무도」 to 「누구랑 갔어?」 is an answer — the child went alone (#327 §3-4). Co-op ignores the judge's no_longer_needed,
+    // so sending it to the judge never closed the slot (device 10-08) — the companion slot gets 「혼자」 directly
     if (step.slot == "companion" && text.trimEnd('.', '!', '~', ' ') in NOBODY && classifyCoopReply(text, question) == CoopReply.Answer) {
-        log("[${step.bookKey}] 「$text」 — 아무도 없었다 → 같이 간 사람 「혼자」")
+        log("[${step.bookKey}] 「$text」 — nobody was there → companion 「혼자」")
         return "혼자"
     }
     if (isNonAnswer(text)) return null
-    // 아이가 오또에게 되물은 말 — 칸에도, 거절 목록(사다리 끝에서 칸 값이 된다)에도 넣지 않는다. 두 번 물어도
-    // 「같은 음절 = 하고 싶은 말」로 받지 않는다 (#327 §1 잘못 둘)
+    // What the child asked Otto — not into a slot, nor the rejected list (which becomes the slot value at the ladder's end). Asked twice,
+    // it is still not taken as 「same syllables = what the child wants to say」 (#327 §1, the two bugs)
     if (s.coopChildAsked(text) || classifyCoopReply(text, question).isQuestion) {
-        log("[${step.bookKey}] 아이 질문 「$text」 — 칸 · 거절 목록에 넣지 않는다 → 지금처럼 쉬운 질문")
+        log("[${step.bookKey}] child question 「$text」 — not into the slot or the rejected list → the easier question as now")
         return null
     }
     // 다녀왔어요 · 곧 해요의 엉뚱한 답 — 처음 한 번은 칸에 넣지 않고 「진짜로는」으로 다시 묻는다 (바뀐 방식 · 10-02)
