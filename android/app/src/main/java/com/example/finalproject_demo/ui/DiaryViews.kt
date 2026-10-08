@@ -83,6 +83,8 @@ import com.example.finalproject_demo.demo.CRAYON_PAUSE
 import com.example.finalproject_demo.demo.DiaryTrace
 import com.example.finalproject_demo.demo.UndoneStroke
 import com.example.finalproject_demo.demo.sendBoardTool
+import com.example.finalproject_demo.demo.tapBoard
+import com.example.finalproject_demo.demo.pieceAt
 import com.example.finalproject_demo.demo.redoStroke
 import com.example.finalproject_demo.demo.undoStroke
 import com.example.finalproject_demo.demo.BoardBox
@@ -358,6 +360,11 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                 .clip(RoundedCornerShape(cq * 2.5f))
                 .onSizeChanged { box = it; s.drawingAspect = it.width.toFloat() / maxOf(it.height, 1) }
                 .testTag("diary-board")
+                // 톡 — 그 자리 조각을 고른다(이름표 없는 조각도 · #302). 끌면 아래 긋기가 받는다
+                .pointerInput(stage.pick, day.drawingTalk) {
+                    if (stage.pick != null || !day.drawingTalk) return@pointerInput
+                    detectTapGestures { p -> d.tapBoard(p.x / box.width, p.y / box.height) }
+                }
                 .pointerInput(color) {
                     detectDragGestures(
                         onDragStart = { p -> live.clear(); live += p; day.penDown = true; downAt = DiaryTrace.now(); touched++ },
@@ -398,9 +405,9 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
                     drawPath(p, color, style = Stroke(size.width * PEN_W, cap = StrokeCap.Round, join = StrokeJoin.Round))
                 }
             }
-            PieceRings(day.pieces.toList(), day.askingPiece, cq)
-            // 방금 누른 이름표 — 새 획을 긋기 전까지 [그려 줘] · [이름 고치기]가 이 조각을 가리킨다. 청록으로 구별한다 (10-05 진웅)
+            // 방금 누른 조각 · 이름표 — 새 획을 긋기 전까지 [그려 줘] · [이름 고치기]가 이 조각을 가리킨다. 청록으로 구별한다 (10-05 진웅 · #302)
             val selected = day.focus?.takeIf { it.second == s.drawing.size }?.first
+            PieceRings(day.pieces.toList(), day.askingPiece, selected, cq)
             day.pieces.filter { it.name != null }.forEach { p ->
                 val b = boxOf(p.strokes) ?: return@forEach
                 // ✨ — 오또 그림이 와 있다. 톡 하면 다시 고른다
@@ -444,15 +451,18 @@ private fun DiaryBoardView(d: Director, stage: DiaryBoard, cq: Dp) {
     }
 }
 
-/** 조각 둘레 고리 — 묻는 조각은 청록 점선이 숨 쉬듯, 이름 붙은 조각은 가는 겨자 선 */
+/**
+ * 조각 둘레 고리 — 묻는 조각은 청록 점선이 숨 쉬듯, 고른 조각은 청록 선, 이름 붙은 조각은 가는 겨자 선,
+ * 이름 없는 물건은 옅은 점선(눌러서 고를 수 있다 · #302). 배경은 판 전체라 고를 때만
+ */
 @Composable
-private fun PieceRings(pieces: List<DiaryPiece>, asking: Int?, cq: Dp) {
+private fun PieceRings(pieces: List<DiaryPiece>, asking: Int?, selected: Int?, cq: Dp) {
     val t = rememberInfiniteTransition(label = "ring")
     val k by t.animateFloat(1f, 1.06f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "k")
     Canvas(Modifier.fillMaxSize()) {
         pieces.forEach { p ->
             val named = p.name != null
-            if (!named && p.id != asking) return@forEach
+            if (p.role == PieceRole.BACKGROUND && p.id != asking && p.id != selected) return@forEach
             val b = boxOf(p.strokes) ?: return@forEach
             val w = b.width * size.width
             val h = b.height * size.height
@@ -462,9 +472,14 @@ private fun PieceRings(pieces: List<DiaryPiece>, asking: Int?, cq: Dp) {
             val rh = (h + pad * 2) * scale
             val cx = (b.left + b.right) / 2f * size.width
             val cy = (b.top + b.bottom) / 2f * size.height
-            val style = if (p.id == asking) Stroke(cq.toPx() * 0.45f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(cq.toPx(), cq.toPx() * 0.7f)))
-            else Stroke(cq.toPx() * 0.3f)
-            drawOval(if (p.id == asking) FeltTeal else FeltMustard.copy(alpha = 0.8f), Offset(cx - rw / 2, cy - rh / 2), Size(rw, rh), style = style)
+            val dash = PathEffect.dashPathEffect(floatArrayOf(cq.toPx(), cq.toPx() * 0.7f))
+            val (color, style) = when {
+                p.id == asking -> FeltTeal to Stroke(cq.toPx() * 0.45f, pathEffect = dash)
+                p.id == selected -> FeltTeal to Stroke(cq.toPx() * 0.45f)
+                named -> FeltMustard.copy(alpha = 0.8f) to Stroke(cq.toPx() * 0.3f)
+                else -> InkSoft.copy(alpha = 0.35f) to Stroke(cq.toPx() * 0.25f, pathEffect = dash)
+            }
+            drawOval(color, Offset(cx - rw / 2, cy - rh / 2), Size(rw, rh), style = style)
         }
     }
 }

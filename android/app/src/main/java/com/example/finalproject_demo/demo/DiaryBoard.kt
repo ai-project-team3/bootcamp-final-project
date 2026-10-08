@@ -186,6 +186,22 @@ private fun DiaryDay.reaches(p: DiaryPiece, stroke: Stroke, b: BoardBox): Boolea
     }
 }
 
+/** 손가락이 이만큼(판 높이 비율) 안에 선이 있으면 그 조각을 누른 것이다 — 아이 손가락은 크다 */
+internal const val TAP_REACH = 0.05f
+
+/**
+ * 판에서 누른 자리의 조각 (#302) — 선 가까이를 눌렀거나 조각의 네모 안을 눌렀다. 물건이 배경보다 먼저고,
+ * 여럿이면 선이 가장 가까운 것 · 그다음 작은 네모. 빈 곳이면 null
+ */
+fun DiaryDay.pieceAt(x: Float, y: Float): DiaryPiece? {
+    val aspect = boardAspect()
+    fun dist(p: DiaryPiece) = p.strokes.minOfOrNull { s -> s.pts.minOf { q -> kotlin.math.hypot((q.x - x) * aspect, q.y - y) } } ?: Float.MAX_VALUE
+    fun inBox(p: DiaryPiece) = boxOf(p.strokes)?.let { x in it.left..it.right && y in it.top..it.bottom } == true
+    val hit = pieces.filter { it.strokes.isNotEmpty() && (dist(it) <= TAP_REACH || inBox(it)) }
+    return hit.sortedWith(compareBy<DiaryPiece>({ it.role == PieceRole.BACKGROUND }, { dist(it) > TAP_REACH }, { dist(it) },
+        { boxOf(it.strokes)!!.let { b -> b.width * b.height } })).firstOrNull()
+}
+
 /** 이름 붙은 조각 중 [piece] 에 닿은 것 — 「○○에 더 그린 거야, 새로 그린 거야?」를 물을 상대 */
 fun DiaryDay.namedNeighborOf(piece: DiaryPiece): DiaryPiece? {
     val b = boxOf(piece.strokes)?.grow(PIECE_GAP / 2) ?: return null

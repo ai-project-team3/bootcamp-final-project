@@ -771,6 +771,18 @@ fun Director.sendBoardTool(r: Reply.Tapped) {
     send(r)
 }
 
+/**
+ * 그림판에서 조각을 눌렀다 (#302) — 이름표가 없는 조각도 고른다. 새 획을 긋기 전까지 [그려 줘] · 「그려줘」가 이 조각이다.
+ * 이름이 없으면 [그려 줘] 때 무엇인지 먼저 묻는다([askNameToDraw])
+ */
+fun Director.tapBoard(x: Float, y: Float) {
+    val day = s.diaryDay
+    day.catchUp(s.drawing)
+    val piece = day.pieceAt(x, y) ?: return
+    day.focus = piece.id to s.drawing.size
+    sendBoardTool(Reply.Tapped("name:${piece.id}", "조각 고르기"))
+}
+
 /** D1 질문을 조용히 거둔 까닭 — 아이가 다른 조각을 그리기 시작했다 · 손을 놓고 말이 없었다 */
 internal const val MOVED_ON = "@moved_on"
 internal const val WENT_QUIET = "@quiet"
