@@ -143,6 +143,14 @@ class HeroCreationResumeTest {
                 (d.s.stage as? Stage.CardsRow)?.cards)
             assertEquals(3, d.s.images)
             assertTrue("The picker must not offer a fresh creation", "여태 만든" in d.s.line)
+            delay(30)
+            d.send(Reply.Tapped("0", "1번"))
+            await { d.s.stage is Stage.NameEntry }
+            delay(30)
+            d.send(Reply.Tapped(NAME_TYPED, "첫콩이"))
+            await { d.s.scene == Scene.PLACE }
+            assertTrue("The first candidate's original words must survive", "짧은 머리" in d.s.storyHeroDescription)
+            assertFalse("A rejected later candidate must not describe the selected picture", "빨간 모자" in d.s.storyHeroDescription)
         }
     }
 }

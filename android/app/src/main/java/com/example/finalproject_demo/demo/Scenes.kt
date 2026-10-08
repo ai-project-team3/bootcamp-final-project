@@ -419,12 +419,14 @@ private suspend fun Director.sceneMakeHero() {
         return if (attr.glasses != "none") "$h 안경 $c" else "$h $col $c"
     }
 
+    fun appearanceDescription() = descriptions.joinToString("; ") +
+            if (confirmedChoices.isNotEmpty()) "\nLatest confirmed choices override earlier descriptions: " +
+                confirmedChoices.entries.joinToString("; ") { "${it.key}=${it.value}" } else ""
+
     suspend fun save() {
         draft.phase = HeroCreationDraft.Phase.NAME
         val called = askHeroName(attr, generatedImage)          // 말로 · 글로 이름 짓기 (10-02 · demo/HeroName.kt)
-        val description = descriptions.joinToString("; ") +
-            if (confirmedChoices.isNotEmpty()) "\nLatest confirmed choices override earlier descriptions: " +
-                confirmedChoices.entries.joinToString("; ") { "${it.key}=${it.value}" } else ""
+        val description = draft.generatedDescription ?: appearanceDescription()
         if (s.mode != StoryMode.STORY)
             s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called, description = description)
         s.heroAttr = attr
@@ -536,6 +538,7 @@ private suspend fun Director.sceneMakeHero() {
         attr = tries[idx]
         generatedImage = images.getOrNull(idx)?.first
         generatedRig = images.getOrNull(idx)?.second
+        draft.generatedDescription = draft.generatedDescriptions.takeLast(3).getOrNull(idx)
         draft.phase = HeroCreationDraft.Phase.NAME
         s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = "$idx") ?: s.stage
         pause(900)
@@ -674,6 +677,8 @@ private suspend fun Director.sceneMakeHero() {
             generatedRig = null
             s.heroTries += attr
             generatedTries += null to null
+            draft.generatedDescription = appearanceDescription()
+            draft.generatedDescriptions += draft.generatedDescription.orEmpty()
             draft.phase = HeroCreationDraft.Phase.CONFIRM
             try { generate() } finally { generatedTries[generatedTries.lastIndex] = generatedImage to generatedRig }
         }
