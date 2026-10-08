@@ -1086,7 +1086,7 @@ internal fun DemoState.coopImaginedResult(kind: PageKind): String? {
 }
 
 private fun DemoState.coopMissionResultAsDone(kind: PageKind): String? = if (!coopMissionInBook(kind)) null else when (kind) {
-    PageKind.RUB -> if (m1Result != null) slot1Prop()?.result ?: mission1().blobName.let { "${it}${ga(it)} 사라졌어요." } else null
+    PageKind.RUB -> if (m1Result != null) slot1Prop()?.result ?: mission1().let { m -> if (m.named) "${m.blobName}${ga(m.blobName)} 사라졌어요." else "반짝반짝 깨끗해졌어요." } else null
     PageKind.DRAG -> if (m2Result != null) {
         slot2Prop()?.result ?: if (missions().slot2 == MissionId.A3) "그림 조각을 모두 맞춰 한 장면을 완성했어요."
         else "$childName${eun(childName)} ${m2Clause()}"     // 같이 간 사람이 없으면 「오늘 이야기를 들어준 마스코트에게 …」
