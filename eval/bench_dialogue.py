@@ -98,7 +98,7 @@ def instrument() -> list[Meter]:
     return cur
 
 
-async def run(variants: list[str], runs: int, mock: bool = False) -> list[dict]:
+async def run(variants: list[str], runs: int, mock: bool = False, sink: Path | None = None) -> list[dict]:
     cur = instrument()
     settings.mock = mock                                # mock: words-only decider, canned lines — free
     settings.judge_jev_modes = "story,diary,coop"        # as served since 10-05
@@ -113,6 +113,9 @@ async def run(variants: list[str], runs: int, mock: bool = False) -> list[dict]:
                 cur[0] = Meter()
                 res = await one(TurnRequest.model_validate(body), cur[0])
                 rows.append({"variant": variant, "run": r, "id": c["id"], **res})
+                if sink:                                   # each call as it lands — a stopped run keeps what it measured
+                    with sink.open("a", encoding="utf-8") as f:
+                        f.write(json.dumps(rows[-1], ensure_ascii=False) + "\n")
                 print(f"{variant} r{r} {c['id']} {res['act'] or '-':<11} {res['secs']:.2f}s", flush=True)
     return rows
 
@@ -260,11 +263,9 @@ def main() -> None:
         other = Settings(_env_file=a.env)
         for k in ("openai_api_key", "typesafe_api_key", "openai_base_url"):
             setattr(settings, k, getattr(other, k))
-    rows = asyncio.run(run(a.variants.split(","), a.runs, a.mock))
     stamp = ("mock_" if a.mock else "") + time.strftime("%m%d_%H%M")
     RAW.mkdir(exist_ok=True)
-    (RAW / f"dialogue_{stamp}.jsonl").write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n",
-                                                encoding="utf-8")
+    rows = asyncio.run(run(a.variants.split(","), a.runs, a.mock, RAW / f"dialogue_{stamp}.jsonl"))
     blind_pairs(rows, stamp)
     show(score(rows))
     print(f"raw: eval/raw/dialogue_{stamp}.jsonl · pairs: eval/raw/dialogue_{stamp}_pairs.md")
