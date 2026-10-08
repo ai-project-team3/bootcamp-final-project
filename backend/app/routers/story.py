@@ -109,6 +109,13 @@ MISSION_SETUP = {
 # puzzle is the scene picture cut into pieces, not something that broke in the story).
 NO_SITUATION = {"A3", "B2", "D3"}
 
+# #259 (10-08 lead): on a real day, a mission the child gave no prop for is set up as Otto's imagination.
+# The caption opens with this mark so a reader — and any code — can tell it from the day (rule 5: the book
+# must not pass our words off as the child's or as what happened). The app never quotes captions as the
+# child's words (SessionReport quotes talk lines only); the mark is for the parent reading the book.
+IMAGINE = "오또가 상상해 봤어!"
+IMAGINE_AGAIN = "오또가 또 상상해 봤어!"
+
 
 def real_day(req: StoryRequest) -> bool:
     """A book of a real day — a diary, or a co-op day that happened or is coming. Imagined co-op stories
@@ -119,12 +126,23 @@ def real_day(req: StoryRequest) -> bool:
 def plan(req: StoryRequest) -> str:
     """The page list as the model reads it. Takes the place of the fixed scene order."""
     lines = [f"[쪽 목록] 정확히 {len(req.pages)}쪽. 이 차례와 개수를 그대로 따른다 — 위 장면 구성보다 우선한다."]
+    imagined = 0
     for i, pg in enumerate(req.pages, 1):
         prop = pg.prop if pg.prop and not is_blocked(pg.prop) else None
-        if pg.mission and not prop and real_day(req):
-            # a day that happened (or will) has no situation the child did not tell — the app sends a prop only
-            # when the child's words named one. 10-05 device: 「무언가 묻거나 가려진 일은 아직 듣지 못했어요」
-            # and 「불 끄는 모습은 아직 가려진 채로」 on a zoo day and a fire-station day
+        if pg.mission and pg.mission not in NO_SITUATION and not prop and real_day(req):
+            # #259 (10-08 lead): a day that happened (or will) has no situation the child did not tell — the app
+            # sends a prop only when the child's words named one. Without it the mission still needs a scene, so
+            # the page sets it up as Otto's imagination, marked, never as the day (10-05 device: 「무언가 묻거나
+            # 가려진 일은 아직 듣지 못했어요」 on a zoo day when the page had to make do with the slots)
+            imagined += 1
+            mark = IMAGINE if imagined == 1 else IMAGINE_AGAIN
+            line = (f"{i} {pg.kind} : {meaning(req.mode, pg.kind)}. 이 쪽 칸에 아이가 말한 일이 있으면 먼저 그 일을 짧은 한 문장으로 쓴다."
+                    f" 이어서 「{mark}」로 시작하는 오또의 상상을 붙인다 — 미션 {pg.mission} {MISSION_SETUP[pg.mission]}을"
+                    " 「만약 …라면?」 물음으로 그려 보이고, 「네가 …줄래?」처럼 아이에게 묻는 말로 쪽을 끝낸다."
+                    " 그날의 장소 · 함께한 사람은 상상의 무대로만 빌린다. 상상한 일은 「~했어요」 · 「~할 거예요」처럼 있었던 일 · 할 일로 단정하지 않고,"
+                    " 다른 쪽에는 쓰지 않는다. 미션 이름 · 도구 이름은 쓰지 않는다")
+        elif pg.mission and not prop and real_day(req):
+            # a puzzle · order · beat page is played on the page itself — nothing to imagine, as before
             line = (f"{i} {pg.kind} : {meaning(req.mode, pg.kind)}. 미션 상황(묻은 것 · 가려진 것 · 건넬 물건)을 만들지 않고"
                     " 칸에 있는 일로만 쓴다")
         elif pg.mission in NO_SITUATION:
@@ -137,11 +155,25 @@ def plan(req: StoryRequest) -> str:
                          " 칸에 그 일을 이미 했다는 말이 있어도 이 쪽은 하기 바로 전에서 멈추고, '~했어요'처럼 한 일로 쓰지 않는다"
                          " — 결과 문장은 아이가 미션을 마친 뒤 앱이 붙인다(#100 · 10-06)."
                          " 미션 이름 · 도구 이름 · '직전' 같은 설명 말은 쓰지 않고 이야기 속 장면으로만 보여 준다")
+                if not real_day(req):
+                    # #259 (10-08 lead): a picture book may set the trouble up from nothing — the child should
+                    # want to put a hand in, so the scene belongs to the child's own cast and ends on a call
+                    line += (". 아이가 말하지 않은 일이어도 이 쪽만은 이야기 속 사건으로 지어 써도 된다."
+                             " 아이가 지은 주인공이나 친구가 이 쪽에 나오고 그 앞에서 이 상황이 벌어진다."
+                             " 쪽 끝은 「어떡하지? 네가 도와줄래?」처럼 아이에게 손을 내미는 짧은 물음 하나로 닫는다"
+                             " — 물음에도 미션 이름 · 도구 이름은 넣지 않는다")
                 if prop:
                     line += f" · 이 쪽에 나오는 물건은 「{prop}」 — 다른 물건으로 바꾸지 않는다"
         lines.append(line)
     if req.mode != "story":
-        lines.append(f"{TENSE[req.reason if req.mode == 'coop' else None]} 미션 쪽도 칸에 있는 일로만 쓰고, 없던 일을 지어내지 않는다.")
+        tense = TENSE[req.reason if req.mode == 'coop' else None]
+        if not real_day(req):
+            lines.append(f"{tense} 미션이 적힌 쪽 말고는 칸에 있는 일로만 쓰고, 없던 일을 지어내지 않는다.")
+        elif imagined:
+            lines.append(f"{tense} 미션 쪽도 칸에 있는 일로만 쓰고, 없던 일을 지어내지 않는다 — 「{IMAGINE}」로 시작하는 상상만 예외이고,"
+                         " 그 상상은 다른 쪽에 있었던 일 · 할 일로 옮기지 않는다.")
+        else:
+            lines.append(f"{tense} 미션 쪽도 칸에 있는 일로만 쓰고, 없던 일을 지어내지 않는다.")
         # an empty slot used to become an empty page — 「…은 아직 듣지 못했어요」 three pages running (10-05)
         lines.append("쪽의 칸이 비었으면 앞뒤 쪽에 있는 일의 모습 · 소리 · 마음을 보여 주는 장면으로 쓰고, 새 일은 만들지 않는다. "
                      "「아직 듣지 못했어요」 · 「그날 알게 될 거예요」 같은 빈자리 문장은 결말(solution)이 비었을 때 마지막 쪽에 한 번만 쓴다.")
