@@ -36,14 +36,33 @@ private fun DemoState.rememberStoryQuestion(response: Server.TurnResult) {
 }
 
 /** 서버 판정을 동화 모드의 자료와 다음 질문에 반영한다. 서버 호출과 이름 가리기는 공통 경로가 담당한다. */
-fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
-    if (mode != StoryMode.STORY) return
-    if (verdict.reason == "blocked_by_filter") return
+fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String, askedSlot: String? = null): String? {
+    if (mode != StoryMode.STORY) return null
+    if (verdict.reason == "blocked_by_filter") return null
     require(by in setOf("child", "card", "mascot"))
 
+    var reask: String? = null
     for ((slot, rawValue) in verdict.fills) {
-        val value = rawValue.trim()
+        var value = rawValue.trim()
         if (slot !in Server.SLOTS || value.isEmpty() || (slot == "adult" && !hasPartner)) continue
+        if (slot in STORY_WHO_SLOTS && storyLooksLikeSentence(value)) {
+            val said = value
+            value = (if (slot == "newcomer") storyNameInSentence(said) else null) ?: run {
+                // the sentence stays in the story as something that happened, unless another slot already holds it
+                if (slots.filterKeys { it != slot }.values.none { said in it }) {
+                    slots["extra"] = listOfNotNull(slots["extra"]?.takeIf(String::isNotBlank), said).joinToString("\n")
+                    slotBy.putIfAbsent("extra", by)
+                }
+                // asked once more; after that the newcomer is just 「새 친구」 and a name stays empty.
+                // Filled while another slot was asked, it is left empty — no friend is made up
+                if (slot != askedSlot) ""
+                else if (storyWhoReasked.add(slot)) { reask = slot; "" }
+                else if (slot == "newcomer") STORY_NEW_FRIEND else ""
+            }
+            Trace.line("story_verdict", "who-slot [$slot] got a sentence → ${if (value.isEmpty()) "not filled" else "「$value」"}" +
+                if (reask == slot) " · asked again" else "")
+            if (value.isEmpty()) continue
+        }
         slots[slot] = value
         slotBy[slot] = by
     }
@@ -58,7 +77,14 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
             it !in storyUnneededSlots && (slots[it].isNullOrBlank() || verdict.unclear)
     }
     storyClarificationSlot = storyNextSlot?.takeIf { verdict.unclear }
+    return reask
 }
+
+/** The question for a who-slot the child answered with a sentence — no server question names that sentence */
+private val WHO_REASK = mapOf(
+    "newcomer" to "그때 만난 친구는 누구였어?",
+    "name" to "그 친구 이름은 뭐라고 부를까?",
+)
 
 suspend fun Director.askStory(
     question: Question, askedSlot: String?,
@@ -90,7 +116,9 @@ suspend fun Director.askStory(
         }
         response.verdict.fills.filter { it.first in Server.SLOTS && it.second.isNotBlank() &&
             (it.first != "adult" || s.hasPartner) }.forEach { (slot, value) ->
-            event("slot_filled", "slot" to slot, "value" to value, "source" to by)
+            // a who-slot keeps what the guard put there (StoryNameGuard.kt) — nothing when it is asked again
+            val kept = if (slot in STORY_WHO_SLOTS) s.slots[slot]?.takeIf(String::isNotBlank) ?: return@forEach else value
+            event("slot_filled", "slot" to slot, "value" to kept, "source" to by)
         }
         val line = response.line
         // the question's voice is made while the ack is voiced and played, not after (10-05 trace: −2.5 s a turn)
@@ -261,8 +289,12 @@ suspend fun DemoState.exchangeStoryTurn(
 ): Server.TurnResult? {
     if (mode != StoryMode.STORY) return null
     return exchangeTurn("story", askedSlot, question, utterance, request = request)?.also { response ->
-        response.verdict?.let { applyStoryVerdict(it, by) }
+        val reask = response.verdict?.let { applyStoryVerdict(it, by, askedSlot) }
         rememberStoryQuestion(response)
+        if (reask != null) {
+            storyNextSlot = reask; storyClarificationSlot = null
+            storyServerQuestion = WHO_REASK.getValue(reask); storyAnswerOptions = null
+        }
         val verdict = response.verdict
         Trace.line("story_verdict", "asked=$askedSlot by=$by ready=${verdict?.storyReady} " +
             "next=${verdict?.nextSlot} applied=$storyNextSlot unclear=${verdict?.unclear} " +
