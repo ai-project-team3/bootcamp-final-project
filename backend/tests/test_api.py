@@ -118,6 +118,30 @@ def test_stt_flags_an_unsure_transcript(client, monkeypatch, text, sure, unsure)
     assert r.status_code == 200 and r.json() == {"text": text, "unsure": unsure}
 
 
+def test_stt_drops_the_10_08_silence_line_and_counts_it(client, monkeypatch, caplog):
+    # #331 — the whole transcript is a known silence line → empty text; the log names the list line, not the words
+    from app.routers import stt
+    monkeypatch.setattr(settings, "mock", False)
+    monkeypatch.setattr(stt, "dropped", stt.Counter())
+    monkeypatch.setattr(stt, "_transcribe", lambda audio: ("자막을 키고 해줘", -0.4))
+    with caplog.at_level("INFO", logger="uvicorn.error"):
+        for _ in range(2):
+            r = client.post("/stt", files={"file": ("a.wav", b"RIFF....", "audio/wav")})
+            assert r.status_code == 200 and r.json() == {"text": "", "unsure": False}
+    assert stt.dropped["자막을키고*"] == 2
+    assert "rule 자막을키고* · 2 since start" in caplog.text
+    assert "해줘" not in caplog.text
+
+
+@pytest.mark.parametrize("answer", ["응", "아니", "몰라", "사자"])
+def test_stt_keeps_short_real_answers(client, monkeypatch, answer):
+    from app.routers import stt
+    monkeypatch.setattr(settings, "mock", False)
+    monkeypatch.setattr(stt, "_transcribe", lambda audio: (answer, -0.3))
+    r = client.post("/stt", files={"file": ("a.wav", b"RIFF....", "audio/wav")})
+    assert r.json() == {"text": answer, "unsure": False}
+
+
 def test_stt_refuses_empty_audio(client):
     r = client.post("/stt", files={"file": ("a.wav", b"", "audio/wav")})
     assert r.status_code == 400 and r.json()["error"] is True

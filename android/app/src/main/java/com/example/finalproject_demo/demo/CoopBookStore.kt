@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.missions
+import com.example.finalproject_demo.demo.missions.missionRecord
 import android.content.Context
 import com.example.finalproject_demo.ui.CoopReason
 import com.example.finalproject_demo.ui.reasonOrNull
@@ -99,6 +101,7 @@ fun DemoState.completedCoopBook(): SavedCoopBook? {
         drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
         dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
         newcomerKind, soundLine, causeLine, friend = generatedFriend,
+        missions = missionRecord(),
     )
     val book = SavedStoryBook(UUID.randomUUID().toString(), title ?: autoTitleFor(), themeKey, bgName, pages, visuals,
         madeAt = java.time.LocalDate.now().toString(), artStyle = bookStyle)
@@ -348,6 +351,8 @@ object CoopShelf {
         if (count(s) >= COOP_SHELF_CAPACITY) return CoopShelved.FULL
         return try {
             store.save(book)
+            // the next books avoid this one's missions (#259)
+            com.example.finalproject_demo.demo.missions.MissionHistory.record(s.mode, book.book.id, s.missions())
             books.getOrPut(s) { mutableListOf() }.add(0, book)
             book.snapshot?.let { snapshots[book.book.id] = it }
             s.shelf.add(0, book.book.onCoopShelf(fresh = true))

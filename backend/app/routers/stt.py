@@ -18,6 +18,7 @@ import os
 import sysconfig
 import threading
 import time
+from collections import Counter
 from functools import lru_cache
 from pathlib import Path
 
@@ -32,6 +33,9 @@ log = logging.getLogger("uvicorn.error")      # shows up in the server console n
 # One at a time on the GPU. 09-29 on the S25+: the first five calls came in while the model
 # was still loading and all five died (502) — lru_cache does not stop concurrent first loads.
 _gpu = threading.Lock()
+
+# Drops per list line since the server started (#331) — how often each known silence line still comes
+dropped: Counter[str] = Counter()
 
 
 def _add_cuda_dlls() -> None:
@@ -68,6 +72,10 @@ def _transcribe(audio: bytes) -> tuple[str, float]:
     with _gpu:
         segments = list(_model().transcribe(io.BytesIO(audio), language="ko", beam_size=5)[0])
         sure = min((s.avg_logprob for s in segments), default=0.0)
+        # A number only, so large-v3's no_speech_prob can be judged on real phones before anything drops on it
+        # (#331). turbo said 0.00 on every clip (09-22); large-v3 is not measured yet
+        log.info("stt no_speech max %.2f · %d segments",
+                 max((s.no_speech_prob for s in segments), default=0.0), len(segments))
         return "".join(s.text for s in segments).strip(), sure
 
 
@@ -147,9 +155,14 @@ async def transcribe(file: UploadFile) -> dict:
         raise HTTPException(502, f"stt failed: {type(e).__name__}") from e
     whole = text
     text = strip_tail(text)
-    kept = check_transcript(text).keep
+    verdict = check_transcript(text)
+    kept = verdict.keep
     if kept and text != whole:
         log.info("stt dropped a hallucinated tail · %d of %d chars kept", len(text), len(whole))
+    if verdict.rule:
+        # which list line, and how often since start — our words only, never the child's (#331)
+        dropped[verdict.rule] += 1
+        log.info("stt dropped as hallucination · rule %s · %d since start", verdict.rule, dropped[verdict.rule])
     # length and timing only — the words are a child's
     unsure = kept and bool(text) and sure < settings.stt_unsure_below
     log.info("stt %.2fs · %d KB · %d chars · %s · logprob %.2f%s · %s", time.monotonic() - t0, len(audio) // 1024,

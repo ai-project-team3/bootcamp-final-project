@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.missions
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Voice
@@ -107,6 +108,8 @@ class Director(
             if (book.soundClipId != null && storyBookStore == null) return false
             if (!s.keepStorySound(book)) return false
             storyBookStore?.save(book)
+            // the next books avoid this one's missions (#259)
+            com.example.finalproject_demo.demo.missions.MissionHistory.record(s.mode, book.id, s.missions())
             s.commitStorySound()
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))
@@ -314,6 +317,17 @@ class Director(
 
     private fun heardQuestion(text: String) {
         if ('?' in text) pendingQuestion = text.trim()
+    }
+
+    /**
+     * Otto's own line in the report transcript, written now — his answer to a child's question has no 「?」, so
+     * [heardQuestion] never keeps it (#327 §4-3). It follows the child's question, which [talk] already wrote
+     * together with the question it answered, so nothing is pending here
+     */
+    fun talkOtto(text: String) {
+        if (text.isBlank()) return
+        if (s.talkStartedAtMs == 0L) s.talkStartedAtMs = System.currentTimeMillis()
+        s.talk += TalkLine("otto", text.trim())
     }
 
     /** One answer in the report transcript, after the question it answers (demo/SessionReport.kt · rule 5) */
