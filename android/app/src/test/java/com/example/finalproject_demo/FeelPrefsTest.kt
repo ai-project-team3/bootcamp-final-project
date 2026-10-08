@@ -49,7 +49,7 @@ class FeelPrefsTest {
     }
 
     @After
-    fun release() = FeelPrefs.unload()
+    fun release() { FeelPrefs.unload(); com.example.finalproject_demo.net.Bgm.resetForTest() }
 
     @Test
     fun soundAndBuzzAreOnAtFirst() {
@@ -79,5 +79,13 @@ class FeelPrefsTest {
     fun onlyTheContinuousHissDoesNotBuzz() {
         assertNull(Sfx.buzz(Sound.HISS))
         listOf(Sound.POP, Sound.THUD, Sound.SPARKLE).forEach { assertNotNull("$it 는 떨어야 한다", Sfx.buzz(it)) }
+    }
+
+    @Test
+    fun musicIsOnAtFirstAndSurvivesARestart() {
+        assertTrue(FeelPrefs.musicOn)
+        FeelPrefs.setMusic(false)
+        restart()
+        assertFalse(FeelPrefs.musicOn)
     }
 }
