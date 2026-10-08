@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -56,14 +57,35 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.ShelfBook
 import com.example.finalproject_demo.demo.CoopShelf
 import com.example.finalproject_demo.demo.Stage
+import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.demo.openShelfMode
+import com.example.finalproject_demo.demo.shelfMode
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import com.example.finalproject_demo.demo.restoreStoryBook
 import com.example.finalproject_demo.demo.restoreCoopBook
 import com.example.finalproject_demo.demo.playStorySound
 import kotlinx.coroutines.isActive
 import kotlin.math.roundToInt
 
-/** 선반 윗면의 높이(화면 비율) — bg_shelf 그림의 선반 두 칸에 맞춘다 */
-private val SHELF_Y = listOf(0.645f, 0.985f)   // bg_shelf를 가로 화면에 Crop했을 때 가운데 · 아래 선반 윗면
+/*
+ * bg_shelf (1344 × 768) 속 책장 칸 — 그림의 픽셀로 잰 값이다(10-07). 화면 비율로 박아 두었을 때는 화면이 바뀌면
+ * 책이 칸에서 어긋났다: 폰에서 가운데보다 왼쪽으로 쏠리고 맨 위 칸이 비어 좁아 보였다 · 태블릿에서는 더 작고 더 왼쪽(10-07 종훈).
+ * 이제 그림을 Crop 한 그대로 화면에 옮겨, 책이 그림의 칸 안에 선다.
+ */
+private const val SHELF_ART_W = 1344f
+private const val SHELF_ART_H = 768f
+/** 칸 안쪽 벽의 왼쪽 · 오른쪽 */
+private const val SHELF_IN_L = 318f
+private const val SHELF_IN_R = 1028f
+/** 칸마다 (천장, 책이 서는 선반 윗면) — 위 · 가운데 · 아래 */
+private val SHELF_ROWS = listOf(55f to 240f, 282f to 476f, 515f to 700f)
+/** 한 칸에 몇 권 — 세 칸 × 4 = 12, 모드마다 책장 상한(SHELF_CAPACITY)과 같아 한 화면에 다 선다 */
+private const val PER_ROW = 4
+private const val PER_PAGE = PER_ROW * 3
 
 /**
  * 책장 — 만든 책이 표지를 보이며 선반에 선다. 방금 만든 책은 위에서 내려와 꽂히고 "새 책!"이 붙는다.
@@ -72,28 +94,52 @@ private val SHELF_Y = listOf(0.645f, 0.985f)   // bg_shelf를 가로 화면에 C
 @Composable
 fun ShelfView(d: Director, stage: Stage.Shelf) {
     val s = d.s
-    var shelfPage by remember { mutableIntStateOf(0) }
-    val lastShelfPage = ((s.shelf.size - 1).coerceAtLeast(0)) / 8
+    // 책장은 모드마다 따로다(#154 · guidelines/3 §3-5) — 왼쪽 그림 탭으로 고른다. 글을 못 읽어도 방 물건과 같은 그림 · 색이다
+    var mode by remember { mutableStateOf(openShelfMode(s.shelf, s.mode)) }
+    val shown = s.shelf.filter { it.shelfMode(s.mode) == mode }
+    var shelfPage by remember(mode) { mutableIntStateOf(0) }
+    val lastShelfPage = ((shown.size - 1).coerceAtLeast(0)) / PER_PAGE
     if (shelfPage > lastShelfPage) shelfPage = lastShelfPage
     Box(Modifier.fillMaxSize().background(Color(0xFF6B4A33))) {
         AssetImage("bg_shelf", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF8A6246), Color(0xFF5E4030)))))
         }
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val bookW = 72.dp
-            val bookH = 98.dp
-            val books = s.shelf.drop(shelfPage * 8).take(8)
+            // the picture as ContentScale.Crop lays it out: scaled to cover, centred
+            val scale = maxOf(maxWidth.value / SHELF_ART_W, maxHeight.value / SHELF_ART_H)
+            val ox = (maxWidth.value - SHELF_ART_W * scale) / 2
+            val oy = (maxHeight.value - SHELF_ART_H * scale) / 2
+            fun ax(px: Float) = (ox + px * scale).dp
+            fun ay(px: Float) = (oy + px * scale).dp
+            // one size for every row: 80 % of the lowest compartment, a book's 72:98 shape
+            val bookH = (SHELF_ROWS.minOf { it.second - it.first } * 0.8f * scale).dp
+            val bookW = bookH * (72f / 98f)
+            // spread evenly inside the compartment walls — the same gap at both ends and between books
+            val inner = ax(SHELF_IN_R) - ax(SHELF_IN_L)
+            val gap = (inner - bookW * PER_ROW) / (PER_ROW + 1)
+            val books = shown.drop(shelfPage * PER_PAGE).take(PER_PAGE)
             books.forEachIndexed { i, b ->
-                val row = if (i < 4) 0 else 1
-                val col = if (i < 4) i else i - 4
-                val x = maxWidth * 0.262f + (bookW + 22.dp) * col
-                val y = maxHeight * SHELF_Y[row] - bookH
-                Box(Modifier.offset(x, y).size(bookW, bookH)) {
-                    ShelfBookView(d, b, fresh = b.fresh && stage.fromEnd)
+                val row = i / PER_ROW
+                val col = i % PER_ROW
+                val x = ax(SHELF_IN_L) + gap + (bookW + gap) * col
+                val y = ay(SHELF_ROWS[row].second) - bookH
+                // 탭을 바꾸면 다른 책이 같은 자리에 온다 — 내려오는 움직임 · 「새 책!」이 그 책을 따라가게
+                key(b.savedStoryId ?: b.title) {
+                    Box(Modifier.offset(x, y).size(bookW, bookH)) {
+                        ShelfBookView(d, b, fresh = b.fresh && stage.fromEnd)
+                    }
                 }
             }
         }
-        if (s.shelf.isEmpty()) {
+        Column(
+            Modifier.align(Alignment.TopStart).padding(start = 14.dp, top = 78.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SHELF_TABS.forEach { tab ->
+                ShelfModeTab(tab, on = tab.mode == mode, count = s.shelf.count { it.shelfMode(s.mode) == tab.mode }) { mode = tab.mode }
+            }
+        }
+        if (shown.isEmpty()) {
             Text("아직 만든 책이 없어요", color = Color.White, fontSize = 24.sp,
                 modifier = Modifier.align(Alignment.Center))
         }
@@ -119,8 +165,43 @@ fun ShelfView(d: Director, stage: Stage.Shelf) {
             Modifier
                 .felt(FeltWhite.copy(alpha = 0.94f), RoundedCornerShape(Radius.Round), lift = 3.dp, stitch = false)
                 .padding(horizontal = 14.dp, vertical = 6.dp)
-        ) { Text("📚 ${s.shelf.size}권", fontSize = 16.sp, color = Ink) }
+        ) { Text("📚 ${shown.size}권", fontSize = 16.sp, color = Ink) }
         }
+    }
+}
+
+/** 책장 탭 하나 = 모드 하나. 그림 · 색은 방의 물건 이름표와 같다(`ui/shell/Room.kt` Thing) */
+private class ShelfTab(val mode: StoryMode, val name: String, val badge: String, val icon: String, val color: Color)
+
+private val SHELF_TABS = listOf(
+    ShelfTab(StoryMode.STORY, "동화", "icon_story", "🎭", FeltCoral),
+    ShelfTab(StoryMode.DIARY, "그림일기", "icon_diary", "☀️", FeltSky),
+    ShelfTab(StoryMode.COOP, "같이 만들기", "icon_coop", "🛋", FeltTeal),
+)
+
+/** 동그란 펠트 탭 — 고른 탭은 크고 흰 테두리. 오른쪽 위 숫자는 그 책장의 권수 */
+@Composable
+private fun ShelfModeTab(tab: ShelfTab, on: Boolean, count: Int, onClick: () -> Unit) {
+    val size = if (on) 64.dp else 54.dp
+    Box(
+        Modifier.size(64.dp).semantics { contentDescription = "${tab.name} 책장 ${count}권"; selected = on },
+        contentAlignment = Alignment.Center,
+    ) {
+        FeltButton(
+            tab.color, onClick = onClick,
+            modifier = Modifier.size(size).alpha(if (on) 1f else 0.8f)
+                .then(if (on) Modifier.border(4.dp, FeltWhite, CircleShape) else Modifier),
+            shape = CircleShape,
+        ) {
+            AssetImage(tab.badge, Modifier.align(Alignment.Center).size(size * 0.66f)) {
+                Text(tab.icon, fontSize = 24.sp, modifier = Modifier.align(Alignment.Center))
+            }
+        }
+        if (count > 0) Box(
+            Modifier.align(Alignment.TopEnd).size(22.dp)
+                .felt(FeltWhite, CircleShape, lift = 2.dp, stitch = false),
+            contentAlignment = Alignment.Center,
+        ) { Text("$count", fontSize = 12.sp, color = Ink, fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -165,7 +246,10 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     // 그림일기는 아이 그림이 표지다 (ui/DiaryViews.kt · #46 과 같은 한 줄 요청)
                     if (d.s.hasDiaryCover(b.coverKey())) DiaryShelfCover(d.s, b.coverKey(), Modifier.fillMaxSize())
-                    else AssetImage(b.bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { Box(Modifier.fillMaxSize().background(Sun2)) }
+                    // each cover in the style its book was made in (demo/WorldStyle.kt · #253 review)
+                    else CompositionLocalProvider(com.example.finalproject_demo.demo.LocalWorldStyle provides b.artStyle) {
+                        AssetImage(b.bgName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { Box(Modifier.fillMaxSize().background(Sun2)) }
+                    }
                     // 책등 그림자
                     Box(Modifier.width(7.dp).fillMaxHeight().background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent))))
                 }
@@ -195,6 +279,12 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
 /** 저장 당시의 자막을 그대로 보여 주는 읽기 전용 책. 미션 결과도 이미 자막에 포함되어 있다. */
 @Composable
 fun SavedStoryView(d: Director, stage: Stage.SavedStory) {
+    // a saved book is read in the art style it was made in, not the style of the book being made now (#253 review)
+    CompositionLocalProvider(com.example.finalproject_demo.demo.LocalWorldStyle provides stage.book.artStyle) { SavedStoryBody(d, stage) }
+}
+
+@Composable
+private fun SavedStoryBody(d: Director, stage: Stage.SavedStory) {
     val book = stage.book
     val page = stage.index
     if (book.visuals != null) {

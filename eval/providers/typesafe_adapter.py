@@ -41,13 +41,14 @@ SLOTS = ["place", "problem", "reaction", "cause", "newcomer", "name",
 # 슬롯 설명 — Jev의 `criteria`는 "옵션 이름 → 그 옵션의 설명" 맵이다.
 # 설명이 판정 품질을 좌우하므로 `guidelines/2_공통_데이터_모델.md` §1-1의 문구를 쓴다.
 SLOT_CRITERIA = {
-    "place": "어디로 가나 — 장소",
+    # same text as backend/app/llm/jev.py SLOT_CRITERIA (#250 · 10-07)
+    "place": "어디로 가나 — 장소 (가게 · 놀이공원 이름도 장소다)",
     "problem": "무슨 일이 생겼나 — 사건",
     "reaction": "그래서 어떻게 됐나",
     "cause": "왜 그랬나 — 까닭",
     "newcomer": "새로 나온 친구",
-    "name": "그 친구의 이름",
-    "companion": "같이 간 친구",
+    "name": "그 친구의 이름 — 아이가 지어 준 말이면 상표 · 음식 · 캐릭터 · 사람 이름도 이름이다",
+    "companion": "같이 간 친구 — 캐릭터 · 실존 인물이어도 친구다",
     "sound": "우는 소리",
     "adult": "옆에 있는 어른의 한마디",
     "solution": "어떻게 풀었나",

@@ -134,6 +134,20 @@ class ServerClientTest {
         assertNull(Server.character("유령"))
     }
 
+    /** 10-07 종훈 · 그림체: every /image kind says the book's style — felt unless the book is drawn in another */
+    @Test
+    fun everyPictureCallCarriesTheBooksStyle() = runBlocking {
+        json("/image", """{"preset":true,"reason":"x","scene":"x","png_base64":null}""")
+        Server.image("바닷가")
+        assertEquals("felt", JSONObject(seen.getValue("/image")).getString("style"))
+        Server.image("바닷가", "story", "crayon")
+        assertEquals("crayon", JSONObject(seen.getValue("/image")).getString("style"))
+        Server.character("파란 눈 로봇", "story", "crayon")
+        JSONObject(seen.getValue("/image")).let { assertEquals("character", it.getString("kind")); assertEquals("crayon", it.getString("style")) }
+        Server.redraw(byteArrayOf(1, 2), "집", mode = "story", style = "crayon")
+        JSONObject(seen.getValue("/image")).let { assertEquals("redraw", it.getString("kind")); assertEquals("crayon", it.getString("style")) }
+    }
+
     @Test
     fun storySendsThePagePlanAndRefusesAShortBook() = runBlocking {
         val plan = listOf(Server.Page("DEPART"), Server.Page("RUB", "A1"), Server.Page("TOGETHER"))

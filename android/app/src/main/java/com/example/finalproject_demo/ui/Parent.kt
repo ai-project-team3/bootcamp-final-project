@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.reportBook
 import com.example.finalproject_demo.demo.Reward
 import com.example.finalproject_demo.demo.Rewards
 import com.example.finalproject_demo.demo.SessionReport
@@ -464,8 +465,15 @@ private fun CoopQuestionsTab(c: CoopDraft) {
     }
 
     PCard(Modifier.fillMaxWidth()) {
-        Text(if (c.hasSaved) "저장된 이야기를 고치는 중이에요" else "오늘 아이와 만들 이야기를 골라 두세요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
-        Text("이야기를 고르거나 질문을 적은 뒤 아래 [저장하기]를 눌러야 확정돼요. 아이가 오또의 방에서 소파(같이 만들기)를 누르면 오또가 평소처럼 물어보되, 고른 이야기에 맞춰 묻고 적어 둔 질문도 중간에 끼워 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
+        val after = c.fromAfter
+        if (after != null) {
+            // a draft opened from the 「다녀온 뒤」 box says so (#255) — the parent saw the old heading and thought nothing happened
+            Text("‘${after.name}’ 다녀온 이야기를 준비하고 있어요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
+            Text("질문은 비워 두었어요. 더 물어볼 게 있으면 적고, [저장하기]를 누르면 소파에 🎁가 붙어요.", fontSize = 13.sp, color = PSub)
+        } else {
+            Text(if (c.hasSaved) "저장된 이야기를 고치는 중이에요" else "오늘 아이와 만들 이야기를 골라 두세요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
+            Text("이야기를 고르거나 질문을 적은 뒤 아래 [저장하기]를 눌러야 확정돼요. 아이가 오또의 방에서 소파(같이 만들기)를 누르면 오또가 평소처럼 물어보되, 고른 이야기에 맞춰 묻고 적어 둔 질문도 중간에 끼워 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
+        }
     }
 
     CoopTemplateCards(c)
@@ -573,7 +581,10 @@ private fun CoopQuestionsTab(c: CoopDraft) {
 @Composable
 private fun CoopTemplateCards(c: CoopDraft) {
     val pick = c.pick
-    var kindKey by remember { mutableStateOf(pick?.kind) }
+    // keyed on fromAfter, not on pick (#255): the cards are first drawn with no pick, so a plain remember kept kindKey = null
+    // and the draft filled by [있었던 일로 준비하기] never showed. pick?.kind as the key would undo a kind the parent changed
+    // before choosing an item; fromAfter only changes when a box card is opened or cancelled
+    var kindKey by remember(c.fromAfter) { mutableStateOf(c.pick?.kind) }
     var typing by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf("") }
     var err by remember { mutableStateOf<String?>(null) }
@@ -707,9 +718,13 @@ private class CoopDraft(private val s: DemoState) {
     /** [있었던 일로 준비하기] — 같은 종류 · 이름 · 다녀왔어요로 채운 편집 화면. 질문 칸은 비운다. 확정은 [저장하기] */
     fun prepareAfter(a: CoopAfter) {
         qs.clear(); pick = CoopPick(a.kind, a.name, CoopReason.DONE.key); fromAfter = a; askDelete = false; editing = true
+        com.example.finalproject_demo.net.Trace.line("parent", "prepare after-story ‘${a.name}’ (before book ${a.beforeBookId})")
     }
 
-    fun dismissAfter(a: CoopAfter) = CoopPlan.dismissAfter(s, a)
+    fun dismissAfter(a: CoopAfter) {
+        com.example.finalproject_demo.net.Trace.line("parent", "after-story ‘${a.name}’ not yet (before book ${a.beforeBookId})")
+        CoopPlan.dismissAfter(s, a)
+    }
 
     val hasSaved: Boolean get() = s.coopReady
     /** 이야기를 골랐거나 질문을 하나라도 적었나 */
@@ -730,8 +745,10 @@ private class CoopDraft(private val s: DemoState) {
         s.parentQIndex = 0
         s.coopPick = pick
         // 상자에서 꺼낸 그대로(같은 이야기 · 다녀왔어요)일 때만 짝 — 부모가 이름이나 이유를 바꿨으면 다른 이야기다
-        fromAfter?.takeIf { a -> pick?.kind == a.kind && pick?.name?.trim() == a.name && pick?.reasonOrNull() == CoopReason.DONE }
-            ?.let { CoopPlan.startAfter(s, it) }
+        val paired = fromAfter?.takeIf { a -> pick?.kind == a.kind && pick?.name?.trim() == a.name && pick?.reasonOrNull() == CoopReason.DONE }
+        paired?.let { CoopPlan.startAfter(s, it) }
+        com.example.finalproject_demo.net.Trace.line("parent", "co-op plan saved · ${pick?.kind}/${pick?.name}/${pick?.reason} · ${qs.count { it.isNotBlank() }} questions" +
+            (paired?.let { " · paired with before book ${it.beforeBookId}" } ?: ""))
         fromAfter = null
         CoopPlan.saved(s)         // 앱을 껐다 켜도 남는다 (#98 · CoopPlanStore.kt)
         load(); editing = false
@@ -1202,6 +1219,8 @@ private fun ShelfTidyTab(d: Director) {
     val shelfSize = s.shelf.size
     val books = remember(mode, shelfSize) { d.shelfEntries(mode) }
     var asking by remember(mode) { mutableStateOf<ShelfEntry?>(null) }
+    // 신고 — 「이 그림이 이상해요」가 대부분이라 주 입구는 여기다(설정의 신고는 책 맥락이 없다 · #283 설계 §2-1)
+    var reporting by remember(mode) { mutableStateOf<ShelfEntry?>(null) }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SHELF_MODES.forEach { (m, name) ->
             val n = remember(m, shelfSize) { d.shelfCount(m) }?.toString() ?: "?"
@@ -1227,7 +1246,16 @@ private fun ShelfTidyTab(d: Director) {
                     Text(b.title, fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold, maxLines = 1)
                     Text(listOfNotNull(b.madeAt.takeIf(String::isNotBlank), "${b.pages}쪽").joinToString(" · "), fontSize = 12.sp, color = PSub)
                 }
-                if (asking != b) PButton("빼기", PAccent, Modifier.width(96.dp), outline = true) { asking = b }
+                if (asking != b && reporting != b) {
+                    PButton("신고", PSub, Modifier.width(84.dp), outline = true) { reporting = b; asking = null }
+                    Spacer(Modifier.width(8.dp))
+                    PButton("빼기", PAccent, Modifier.width(96.dp), outline = true) { asking = b }
+                }
+            }
+            if (reporting == b) {
+                Spacer(Modifier.height(10.dp))
+                val ctx = remember(b) { d.reportBook(b) }
+                ReportSheet(book = ctx, onLog = { d.log(it) }, onClose = { reporting = null })
             }
             // 「정말 뺄까요?」는 누른 책 카드 안에서 — 목록 맨 아래에 두면 12권 아래로 밀려 보이지 않는다
             if (asking == b) {

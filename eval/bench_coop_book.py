@@ -10,6 +10,13 @@ Started 10-05 as an empty-page count (a 「동물원 다녀왔어요」 book cam
 
 Keys come from the repo's .env, read by the backend settings as usual — nothing is printed.
 Every check is a count of pages (or books) that break the rule — lower is better; the summary line adds them up.
+
+10-07 (#301 · #304 4): a fixture may also carry
+    "names":    the child's own names (brands · characters · real people) — each missing from the captions counts
+    "indirect": answers that already report someone's words (「괜찮다고 했어」) — each page quoting one counts
+    "direct":   words someone said (「조심해」) — a book that quotes none of them counts
+and every book without {주인공} in its captions counts (#292 dropped the protagonist in 16/18 books).
+    --runs 3 --concurrency 3 runs each fixture three times · --only c012,c013 runs some
 """
 from __future__ import annotations
 
@@ -103,6 +110,18 @@ def checks(req: StoryRequest, caps: list[str]) -> dict:
             "bad_quote": bad_quote, "missing": len(missing), "missing_what": missing, "prop_miss": prop_miss}
 
 
+def given_checks(case: dict, caps: list[str]) -> dict:
+    """#301 · #304 4 — the child's names kept · reported speech not quoted · direct speech still quoted · {주인공} present"""
+    text = " ".join(caps)
+    names_lost = [n for n in case.get("names", []) if n not in text]
+    quotes = [norm(q) for c in caps for q in quoted(c)]
+    indirect = sum(1 for c in caps for q in quoted(c) for i in case.get("indirect", []) if norm(i)[:-1] in norm(q))
+    direct = case.get("direct", [])
+    direct_lost = 1 if direct and not any(norm(d) in q for d in direct for q in quotes) else 0
+    return {"name_lost": len(names_lost), "name_lost_what": names_lost, "quote_indirect": indirect,
+            "direct_lost": direct_lost, "no_hero": 0 if "{주인공}" in text else 1}
+
+
 async def one(case: dict, system: str) -> dict:
     req = StoryRequest.model_validate(case["req"])
     t = time.perf_counter()
@@ -112,12 +131,13 @@ async def one(case: dict, system: str) -> dict:
     caps = [s.caption for s in result.scenes]
     return {"id": case["id"], "reason": req.reason, "s": round(time.perf_counter() - t, 1),
             "rejected": story_route.check(result, req.mode, req.pages), "title": result.title, "captions": caps,
-            "c": checks(req, caps)}
+            "c": {**checks(req, caps), **given_checks(case, caps)}}
 
 
 KEYS = [("empty", "빈 쪽"), ("long", "긴 쪽"), ("same_start", "첫 어절 반복"), ("linker2", "이음말 2회"), ("moral", "교훈 결말"),
         ("repeat", "같은 문장"), ("no_refrain", "후렴 없음"), ("past_in_soon", "곧 해요 과거형"), ("bad_quote", "지어낸 인용"),
-        ("missing", "빠진 필수 칸"), ("prop_miss", "미션 물건 빠짐")]
+        ("missing", "빠진 필수 칸"), ("prop_miss", "미션 물건 빠짐"),
+        ("name_lost", "아이 이름 빠짐"), ("quote_indirect", "옮긴 말 따옴표"), ("direct_lost", "직접 말 따옴표 없음"), ("no_hero", "주인공 없음")]
 
 
 async def main() -> None:
@@ -127,21 +147,36 @@ async def main() -> None:
     ap.add_argument("--label", default="after")
     ap.add_argument("--fixtures", default=str(EVAL / "fixtures_book_coop.jsonl"))
     ap.add_argument("--json", help="also write every book and its checks here (one JSON line per book)")
+    ap.add_argument("--runs", type=int, default=1, help="books per fixture")
+    ap.add_argument("--concurrency", type=int, default=1)
+    ap.add_argument("--only", help="comma-separated fixture ids")
     a = ap.parse_args()
     if a.story_meanings and hasattr(story_route, "DAY_KIND_MEANING"):
         story_route.DAY_KIND_MEANING = {}
     system = system_block(Path(a.prompt)) if a.prompt else story_route.system("coop")
     cases = [json.loads(l) for l in Path(a.fixtures).read_text(encoding="utf-8").splitlines() if l.strip()]
-    rows = [await one(c, system) for c in cases]
+    if a.only:
+        cases = [c for c in cases if c["id"] in a.only.split(",")]
+    gate = asyncio.Semaphore(a.concurrency)
+
+    async def gated(c: dict, run: int) -> dict:
+        async with gate:
+            try:
+                return {**await one(c, system), "run": run}
+            except Exception as e:  # noqa: BLE001 — one failed book is a row, not a crash
+                return {"id": c["id"], "run": run, "error": type(e).__name__, "reason": c["req"].get("reason"),
+                        "s": 0, "rejected": "error", "title": "", "captions": [], "c": {k: 0 for k, _ in KEYS} | {"missing_what": [], "name_lost_what": []}}
+    rows = await asyncio.gather(*(gated(c, run) for run in range(1, a.runs + 1) for c in cases))
     for r in rows:
         flags = " · ".join(f"{k2} {r['c'][k]}" for k, k2 in KEYS if r["c"][k])
-        print(f"\n[{a.label}] {r['id']} ({r['reason']}) · {r['s']}s · 버림 {r['rejected']} · 『{r['title']}』 · {flags or '검사 전부 통과'}"
-              + (f" · 빠진 칸 {r['c']['missing_what']}" if r["c"]["missing_what"] else ""))
+        print(f"\n[{a.label}] {r['id']}#{r.get('run', 1)} ({r['reason']}) · {r['s']}s · 버림 {r['rejected']} · 『{r['title']}』 · {flags or '검사 전부 통과'}"
+              + (f" · 빠진 칸 {r['c']['missing_what']}" if r["c"]["missing_what"] else "")
+              + (f" · 빠진 이름 {r['c']['name_lost_what']}" if r["c"].get("name_lost_what") else ""))
         for i, c in enumerate(r["captions"], 1):
             print(f"  {i}. {c}")
     total = {k: sum(r["c"][k] for r in rows) for k, _ in KEYS}
     npages = sum(len(r["captions"]) for r in rows)
-    print(f"\n[{a.label}] {len(rows)}권 {npages}쪽 · effort {settings.llm_effort_story} · 버린 책 {sum(1 for r in rows if r['rejected'])}")
+    print(f"\n[{a.label}] {len(rows)}권 {npages}쪽 · {settings.llm_model} · effort {settings.llm_effort_story} · 버린 책 {sum(1 for r in rows if r['rejected'])} · 오류 {sum(1 for r in rows if 'error' in r)}")
     print("  " + " · ".join(f"{k2} {total[k]}" for k, k2 in KEYS))
     print(f"  어긴 것 합계 {sum(total.values())}")
     if a.json:

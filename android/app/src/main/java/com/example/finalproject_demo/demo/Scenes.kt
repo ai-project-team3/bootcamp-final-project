@@ -7,8 +7,15 @@ import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Trace
 import com.example.finalproject_demo.net.nameMask
 import com.example.finalproject_demo.ui.HeroAttr
+import com.example.finalproject_demo.ui.missions.DONE_SCENE_MS
+import com.example.finalproject_demo.ui.motionFrozen
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 // 장면별 대본. 기준: 구현대본.md(9/16) + v0.8 요청 + v0.9 요청(9/17).
@@ -577,26 +584,32 @@ private suspend fun Director.sceneMakeHero() {
     }
 
     suspend fun fixFlow() {
-        s.stage = Stage.HeroShow(attr, "어디를 바꿀까 — 마이크로 말해 줘")
-        val r = ask(
-            Question(
-                text = "어디를 바꾸면 더 마음에 들까?",
-                kind = Kind.EASY,
-                spoken = listOf(
-                    Answer("옷! 빨간 거!", "shirt:F25C4C"), Answer("머리 길게!", "hair:long"), Answer("노란 옷!", "shirt:F9B233"),
-                    Answer("머리 묶어 줘!", "hair:tied"), Answer("네모 안경 씌워 줘!", "glasses:square"),
-                ),
-                easierText = "주인공을 잘 봐. 어디가 마음에 안 들어?", easierAsk = "뭘 바꿀까?",
-                choices = listOf(Card("머리", Art.Img("ic_hair_short", Art.Emoji("💇")), "hair"), Card("옷", Art.Img("ic_shirt_blue", Art.Emoji("👕")), "shirt"), Card("안경", Art.Img("ic_glasses_round", Art.Emoji("👓")), "glasses")),
+        while (true) {
+            s.stage = Stage.HeroShow(attr, "어디를 바꿀까 — 마이크로 말해 줘")
+            val r = ask(
+                Question(
+                    text = "어디를 바꾸면 더 마음에 들까?",
+                    kind = Kind.EASY,
+                    spoken = listOf(
+                        Answer("옷! 빨간 거!", "shirt:F25C4C"), Answer("머리 길게!", "hair:long"), Answer("노란 옷!", "shirt:F9B233"),
+                        Answer("머리 묶어 줘!", "hair:tied"), Answer("네모 안경 씌워 줘!", "glasses:square"),
+                    ),
+                    easierText = "주인공을 잘 봐. 어디가 마음에 안 들어?", easierAsk = "뭘 바꿀까?",
+                    choices = listOf(Card("머리", Art.Img("ic_hair_short", Art.Emoji("💇")), "hair"), Card("옷", Art.Img("ic_shirt_blue", Art.Emoji("👕")), "shirt"), Card("안경", Art.Img("ic_glasses_round", Art.Emoji("👓")), "glasses")),
+                )
             )
-        )
-        when (r) {
-            is Reply.Spoke -> applySpoken(null, r)          // 한 번에 한 가지만
-            is Reply.Tapped -> {
-                val idx = questions.indexOfFirst { it.key == r.value }
-                if (idx >= 0) voiceStep(idx)
+            // A correction is still speech recognition, not consent to regenerate the hero.
+            if (r is Reply.Spoke && s.mode == StoryMode.STORY && heroFromWords() &&
+                !confirmHeroDescription(r.text)) continue
+            when (r) {
+                is Reply.Spoke -> applySpoken(null, r)          // 한 번에 한 가지만
+                is Reply.Tapped -> {
+                    val idx = questions.indexOfFirst { it.key == r.value }
+                    if (idx >= 0) voiceStep(idx)
+                }
+                else -> {}
             }
-            else -> {}
+            return
         }
     }
 
@@ -638,18 +651,19 @@ private suspend fun Director.scenePartner() {
         Answer("할머니랑 같이!", "grandma"), Answer("할머니! 할머니 집에 놀러 왔어.", "grandma"),
         Answer("할아버지!", "grandpa"), Answer("할아버지랑 할래.", "grandpa"),
         Answer("친구랑 할 거야!", "friend"), Answer("옆집 친구랑!", "friend"),
+        Answer("나 혼자!", "solo"),
     )
     val asks = listOf(
         "오늘은 누구랑 같이 이야기를 만들어? 마이크를 누르고 말해 줘!",
-        "옆에 누가 있어? 이름을 불러 줄래?",
-        "함께 온 사람한테 손을 흔들어 봐! 누구야?",
+        "누구랑 할까? 혼자라면 혼자라고 말해 줘도 돼.",
+        "혼자 하는 거야, 누군가와 함께하는 거야?",
     )
     log("함께 하는 사람을 녹음으로 묻는다 — 그림 카드 없음 (9/17). 호칭을 이모로 못 박지 않고, 말한 사람에 맞춰 질문 · 말투(할머니 · 할아버지는 높임, 친구는 친구 말투) · 책 자막 · 기록이 바뀐다")
     var key: String? = null
     var call: String? = null
     var round = 0
     // 09-29 S25+: 못 알아들으면 「다시 한번 말해 줄래?」 뒤에 **첫 질문을 통째로 다시** 읽어서 같은 말이 두 번씩 나왔다.
-    // 이제 다시 묻는 건 짧게 한 번, 두 번 못 알아들으면 엄마로 두고 넘어간다(아이를 붙잡아 두지 않는다 · 부모 모드에서 바꾼다)
+    // An unknown answer is not evidence that any adult is present.
     var needAsk = true
     var misses = 0
     while (key == null) {
@@ -667,16 +681,17 @@ private suspend fun Director.scenePartner() {
             is Reply.Spoke -> {
                 s.micOn = false
                 childSays(r.text)
-                val found = r.value.takeIf { v -> PARTNERS.any { it.key == v } }?.let { it to null } ?: partnerIn(r.text)
+                val found = r.value.takeIf { v -> v == "solo" || PARTNERS.any { it.key == v } }?.let { it to null }
+                    ?: readPartner(r.text, Server.liveFor(s.mode))   // the server reads it first, the word list when it can't (#303)
                 when {
                     found != null -> {
                         key = found.first; call = found.second
                         log("\"${r.text}\" → ${partner(found.first).name}${call?.let { " (부르는 말: $it)" } ?: ""}")
                     }
                     ++misses >= 2 -> {
-                        key = "mom"
-                        say("잘 못 들었어. 오늘은 엄마랑 함께라고 할게! 나중에 바꿀 수 있어.")
-                        log("두 번 못 알아들음 → 기본 호칭(엄마)으로 진행 · 부모 모드에서 바꿀 자리")
+                        key = "unknown"
+                        say("좋아, 먼저 네 이야기를 들어볼게.")
+                        log("Partner not identified after two replies; no companion is assumed")
                         pause(1500)
                     }
                     else -> { say("누구랑 왔는지 한 번만 더 말해 줄래?"); pause(600) }
@@ -687,9 +702,9 @@ private suspend fun Director.scenePartner() {
                 needAsk = true
                 log("무응답 → 카드 대신 다른 말로 다시 묻는다 (${round}번째)")
                 if (round > asks.lastIndex) {
-                    key = "mom"
-                    say("그럼 오늘은 엄마랑 함께라고 할게! 나중에 바꿀 수 있어.")
-                    log("세 번 다 무응답 → 기본 호칭(엄마)으로 두고 진행 · 부모 모드에서 바꿀 자리")
+                    key = "unknown"
+                    say("먼저 네 이야기를 들어볼게.")
+                    log("Partner not identified after silence; no companion is assumed")
                     pause(1500)
                 }
             }
@@ -702,10 +717,17 @@ private suspend fun Director.scenePartner() {
     s.partnerKey = key
     s.partnerCall = call?.takeIf { it != partner(key).name }
     s.stage = Stage.PartnerPick(key)
-    event("partner", "who" to s.pn, "adult" to s.partner.adult, "mode" to "voice")
-    log("함께 하는 사람 = ${s.pn} (${if (s.partner.honor) "높임말" else if (s.partner.adult) "어른" else "또래 친구"}) → 이후 질문 · 자막 · 부모 기록에 \"${s.pn}\"")
+    s.partnerHelp = null
+    s.partnerHelpLine = null
+    if (s.hasPartner) event("partner", "who" to s.pn, "adult" to s.partner.adult, "mode" to "voice")
+    else event("partner", "status" to key, "mode" to if (key == "solo") "voice" else "unknown")
+    log("Session partner status: $key")
     pause(500)
-    say(if (s.partner.honor) "${s.pn}${rang(s.pn)} 함께구나! ${s.pn}, 잘 부탁드려요!" else "${s.pn}${rang(s.pn)} 함께구나! 좋아!")
+    say(when {
+        !s.hasPartner -> if (key == "solo") "혼자 하는구나! 오또랑 이야기를 만들어 보자!" else "좋아! 네 이야기를 들려줘."
+        s.partner.honor -> "${s.pn}${rang(s.pn)} 함께구나! ${s.pn}, 잘 부탁드려요!"
+        else -> "${s.pn}${rang(s.pn)} 함께구나! 좋아!"
+    })
     mark("partner")
     pause(1600)
     if (s.firstDay) go(Scene.MAKEHERO) else go(Scene.BESTIARY)
@@ -792,7 +814,7 @@ private suspend fun Director.scenePlace() {
         say("${s.placeName}? 그런 데는 처음이야. 그림을 만들어 볼게!")
         if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
             val png = coroutineScope {
-                val request = async { Server.image(s.nameMask().mask(s.placeName), mode = "story") }
+                val request = async { Server.image(s.nameMask().mask(s.placeName), mode = "story", style = s.bookStyle) }
                 val early = withTimeoutOrNull(8_000) { request.await() }
                 if (early != null || request.isCompleted) early
                 else {
@@ -903,7 +925,7 @@ private suspend fun Director.sceneEvent() {
     // 창문에 새 친구가 나타난다
     val shown = base.map { it.copy(shake = false) } + WorldItem(s.newcomerArt, 0.82f, 0.18f, 0.12f, depth = 0.85f, enter = Enter.DROP)
     s.stage = world(shown)
-    if (r is Reply.Spoke) log("LLM 판정: 이름을 가린 문장({주인공}: ${r.text}) → Anthropic → S1 · S2 표시 JSON → 수준은 규칙이 계산")
+    if (r is Reply.Spoke) log("LLM verdict: child's utterance (${r.text}) → server LLM → S1/S2 JSON → rule-based level")
 
     // 질문 은행 — 그다음 (결과 · 대응 · 누가 놀랐나 중 하나)
     val (v2, r2) = askSlot("reaction")
@@ -941,13 +963,15 @@ private suspend fun Director.sceneCause() {
     say("$nc${ga(nc)} 창문에서 쳐다봐. ${base.text}")
     inputs(false, false)
     pause(1800)
-    val pl = partnerLine(s, "cause")
-    partnerSays(pl)
-    s.partnerTurns++
-    event("utterance", "speaker" to (if (s.partner.adult) "adult" else "peer"), "who" to s.pn, "mode" to "voice", "text" to pl)
-    log("[${s.pn}] 먼저 말함 → 칸을 채우지 않음 → 2.5초 뒤 \"$c${eun(c)} 어떻게 생각해?\" 한 번 (⭐5 · 구현대본 §0-2)")
-    mark("partnerfirst")
-    pause(2500)
+    if (s.hasPartner) {
+        val pl = partnerLine(s, "cause")
+        partnerSays(pl)
+        s.partnerTurns++
+        event("utterance", "speaker" to (if (s.partner.adult) "adult" else "peer"), "who" to s.pn, "mode" to "voice", "text" to pl)
+        log("[${s.pn}] 먼저 말함 → 칸을 채우지 않음 → 2.5초 뒤 \"$c${eun(c)} 어떻게 생각해?\" 한 번 (⭐5 · 구현대본 §0-2)")
+        mark("partnerfirst")
+        pause(2500)
+    }
     val q = base.copy(text = "$c${eun(c)} 어떻게 생각해?")
     val r = askStory(q, "cause")
     val a = (r as? Reply.Spoke)?.answer
@@ -1366,7 +1390,10 @@ private suspend fun Director.sceneSolution() {
     say(
         when (t.key) {
             "E" -> "${s.slots["stop"] ?: "여기저기"}${eul(s.slots["stop"] ?: "여기저기")} 지나 왔어! 거의 다 왔나 봐."
-            "C" -> "${s.slots["helper"] ?: s.pn}${ga(s.slots["helper"] ?: s.pn)} 도와줘서 흔들림이 멈췄어!"
+            "C" -> s.slots["helper"].orEmpty().ifBlank { if (s.hasPartner) s.pn else "" }.let { helper ->
+                if (helper.isBlank() || helper in setOf("스스로", "혼자", "나 혼자")) "어떻게 할지 생각하는 동안 흔들림이 멈췄어!"
+                else "$helper${ga(helper)} 도와줘서 흔들림이 멈췄어!"
+            }
             "D" -> "${s.slots["role"] ?: "구조대원"} ${s.childName}, 준비됐지?"
             "A" -> "${f}${ga(f)} 아직 고개를 숙이고 있어…"
             else -> "${f}${ga(f)} 이제 미안한 마음이 들었나 봐."
@@ -1406,31 +1433,36 @@ private suspend fun Director.sceneSolution() {
     askSlot("feel") { it.copy(noCards = true, hint = null) }
 
     // ── 함께 하는 사람 참여 — 누구냐에 따라 말투 · 답이 다르다 (9/17)
-    val pn = s.pn
-    say(
-        if (s.partner.honor) "${f}${wa(f)} 친해지려면 ${pn} 도움도 있으면 좋겠다!"
-        else if (s.partner.adult) "${f}${wa(f)} 친해지려면 ${pn} 도움도 있으면 좋겠다!"
-        else "${f}${wa(f)} 친해지려면 친구 도움도 있으면 좋겠다!"
-    )
-    pause(1400)
-    val (text, answers) = partnerQuestion(s)
-    val help = askPartner(text, answers)
-    if (help != null) {
-        s.partnerHelp = help.text
-        s.partnerHelpLine = help.value
-        // 문서의 12종 이름은 `adult`("어른의 한마디")다. 앱 변수명은 partnerHelp 이지만
-        // **밖으로 나가는 이름은 문서 쪽을 따른다** — 부모 리포트가 이 이름으로 집계한다 (guidelines/2 §1-1)
-        event("slot_filled", "slot" to "adult", "who" to pn, "value" to help.value, "source" to "voice")
-        log("${pn} 참여 칸 = \"${help.value}\" → 마지막 쪽에 한 줄 · 함께하기 기록 재료 (칸 진행 · 수준 판단에는 안 씀)")
-        say(if (s.partner.honor) "좋아요! ${pn}도 함께예요!" else "좋아! ${pn}도 함께야!")
+    if (s.hasPartner) {
+        val pn = s.pn
+        say(
+            if (s.partner.honor) "${f}${wa(f)} 친해지려면 ${pn} 도움도 있으면 좋겠다!"
+            else if (s.partner.adult) "${f}${wa(f)} 친해지려면 ${pn} 도움도 있으면 좋겠다!"
+            else "${f}${wa(f)} 친해지려면 친구 도움도 있으면 좋겠다!"
+        )
+        pause(1400)
+        val (text, answers) = partnerQuestion(s)
+        val help = askPartner(text, answers)
+        if (help != null) {
+            s.partnerHelp = help.text
+            s.partnerHelpLine = help.value
+            // 문서의 12종 이름은 `adult`("어른의 한마디")다. 앱 변수명은 partnerHelp 이지만
+            // **밖으로 나가는 이름은 문서 쪽을 따른다** — 부모 리포트가 이 이름으로 집계한다 (guidelines/2 §1-1)
+            event("slot_filled", "slot" to "adult", "who" to pn, "value" to help.value, "source" to "voice")
+            log("${pn} 참여 칸 = \"${help.value}\" → 마지막 쪽에 한 줄 · 함께하기 기록 재료 (칸 진행 · 수준 판단에는 안 씀)")
+            say(if (s.partner.honor) "좋아요! ${pn}도 함께예요!" else "좋아! ${pn}도 함께야!")
+        } else {
+            s.partnerHelp = null
+            s.partnerHelpLine = null
+            log("${pn}${ga(pn)} 답하지 않음 → 대신 고르지 않고, 책에도 넣지 않는다")
+            say(if (s.partner.honor) "괜찮아요, ${pn}께서는 옆에서 응원해 주세요!" else "괜찮아, ${pn}${eun(pn)} 옆에서 응원해 줘!")
+        }
+        mark("partnerslot")
+        pause(1300)
     } else {
         s.partnerHelp = null
         s.partnerHelpLine = null
-        log("${pn}${ga(pn)} 답하지 않음 → 대신 고르지 않고, 책에도 넣지 않는다")
-        say(if (s.partner.honor) "괜찮아요, ${pn}께서는 옆에서 응원해 주세요!" else "괜찮아, ${pn}${eun(pn)} 옆에서 응원해 줘!")
     }
-    mark("partnerslot")
-    pause(1300)
 
     val (est, why) = s.ruleEstimate()
     log("세션 누적 판단: ${est.label} — $why · 템플릿 ${t.code}은 3턴째 확정이라 그대로 (다음 세션 시작점 ${(s.nextLevel ?: s.level).label})")
@@ -1450,8 +1482,8 @@ private suspend fun Director.sceneMaking() {
     val bookWord = if (s.isCoop) "이야기책" else "동화책"
     say("${bookWord}을 만들고 있어! 조금만 기다려 줘.")
     log(
-        "템플릿 ${t.code} ${t.name}(${t.pages.size}쪽) + 모은 칸들(이름은 가림) → Anthropic → 쪽마다 자막(−어요체) · 제목 JSON → " +
-            "폰에서 {주인공} → ${s.childName}, {친구1} → ${s.friendName} 복원 · 확정 그림은 다시 그리지 않음 (⭐26)"
+        "Template ${t.code} ${t.name} (${t.pages.size} pages) + collected slots → server LLM → captions/title JSON → " +
+            "restore placeholders on device: {주인공} → ${s.childName}, {친구1} → ${s.friendName}; keep confirmed pictures (⭐26)"
     )
     if (s.isDiary) {
         val mascot = listOf("place", "problem", "cause", "solution").filter { s.slotBy[it] == "mascot" }
@@ -1501,6 +1533,12 @@ private suspend fun Director.sceneMaking() {
 
 // ── 장면 12 · 책 6~8쪽 · 전체 화면 · 도구 4종 · 대화로 만든 미션 2개 (⭐7) ──
 
+/** 미션 결과 장면을 [DONE_SCENE_MS] 보여 준 뒤 [announce] — 검사는 움직임을 멈춰 두므로 기다리지 않는다 */
+private suspend fun announceAfterScene(announce: () -> Unit) {
+    if (!motionFrozen) delay(DONE_SCENE_MS)
+    announce()
+}
+
 private suspend fun Director.sceneBook() {
     inputs(false, false)
     val d = s.dino.name
@@ -1517,6 +1555,10 @@ private suspend fun Director.sceneBook() {
     prefetchAhead(0)
     val rubPage = (1..last).firstOrNull { s.pageKind(it) == PageKind.RUB } ?: -1
     val dragPage = (1..last).firstOrNull { s.pageKind(it) == PageKind.DRAG } ?: -1
+    // 미션 완료 신호는 바로 받아 완료를 먼저 남기고, 쪽 문장만 결과 장면(DONE_SCENE_MS) 뒤에 읽는다 —
+    // 화면이 신호를 늦추면 그 사이 ▶ 로 넘긴 아이의 완료가 사라졌다(#293 리뷰). 넘기면 늦춘 낭독은 버린다
+    val sceneScope = CoroutineScope(currentCoroutineContext())
+    var lateAnnounce: Job? = null
 
     fun show() {
         s.stage = Stage.BookPage(s.bookPage, m1Done = s.m1Result != null, m2Done = s.m2Result != null)
@@ -1545,9 +1587,9 @@ private suspend fun Director.sceneBook() {
                     ?: if (s.isDiary) "${i}쪽 미션 1 (쉬움 · 문지르기) — 뼈대는 그대로, 소품만 하루에서 나온 것으로 (${m1.blobName} · 도구 ${m1.toolName} · §7-1 ②)"
                 else "${i}쪽 미션 1 (쉬움 · 문지르기) — 장면 4의 \"${s.newcomerKind}\"에서 나온 ${m1.blobName} · 도구 ${m1.toolName}"
             )
-            i == dragPage && s.m2Result == null -> log(s.slot2Prop()?.let { "${i}쪽 미션 2 (${it.mission.name}) — 아이 말에서 고른 미션 · 「${it.ask}」" } ?: "${i}쪽 미션 2 (${if (s.m1Result == "helped") "쉬움 · 탭" else "보통 · 끌어다 놓기"}) — ${if (s.isDiary) "4턴째에 말한" else "장면 10에서 말한"} ${m2.itemName}${eul(m2.itemName)} ${s.friendCallName}에게")
+            i == dragPage && s.m2Result == null -> log(s.slot2Prop()?.let { "${i}쪽 미션 2 (${it.mission.name}) — 아이 말에서 고른 미션 · 「${it.ask}」" } ?: s.m2Log(i))
             i == last && s.isDiary -> log("${i}쪽(마지막): 일기 모드도 미션 난이도 신호가 그대로 나온다 (§7-1 ②) · 공룡 소리 칸은 묻지 않았다 (§2-2)")
-            i == last -> log("${i}쪽(마지막): ${if (s.partnerHelpLine != null) "${s.pn} 참여 한 줄 들어감" else "${s.pn}${ga(s.pn)} 답하지 않아 그 줄 없음"} · 소리 대상 ${soundHolder?.name ?: "없음"}")
+            i == last -> log("${i}쪽(마지막): ${if (s.hasPartner && s.partnerHelpLine != null) "${s.pn} 참여 한 줄 들어감" else "동행자 참여 문장 없음"} · 소리 대상 ${soundHolder?.name ?: "없음"}")
             else -> log("${i}쪽 [${s.pageKind(i)}] — 템플릿 ${s.template?.code} 칸으로 만든 자막")
         }
     }
@@ -1573,17 +1615,18 @@ private suspend fun Director.sceneBook() {
         val vv = r.value
         when {
             vv == "next" -> {
+                lateAnnounce?.cancel()
                 if (s.bookPage < last) { s.bookPage++; show(); announce(); refreshButtons() }
                 else { go(Scene.FRIENDS); return }
             }
-            vv == "prev" -> { if (s.bookPage > 0) { s.bookPage--; show(); announce(); refreshButtons() } }
+            vv == "prev" -> { lateAnnounce?.cancel(); if (s.bookPage > 0) { s.bookPage--; show(); announce(); refreshButtons() } }
             vv == "speak" -> log("🔊 자막 낭독 (CLOVA Voice, 이름 없는 문장)")
             vv == "mission" && s.bookPage == rubPage && s.m1Result == null -> {
                 s.m1Result = "solo"; s.reactions++; feel(Mood.CHEER)
                 // C1 · C3 면 그 미션의 선물 · 동작 이름 — 촛불을 불었는데 「먼지 치운 손」이 나오지 않게 (#105 리뷰)
                 val p1 = s.slot1Prop()
                 s.achievements += p1?.badge ?: "${m1.blobName} 치운 손"
-                show(); announce(); refreshButtons()
+                show(); refreshButtons(); lateAnnounce = sceneScope.launch { announceAfterScene { announce() } }
                 event("mission", "id" to 1, "motion" to (p1?.motion ?: "rub"), "result" to "solo")
                 log("미션 1 완료 → mission_result: solo → 다음 미션 보통 (안치영 §7 · ⭐7) · 걸린 시간 · 시도 횟수 저장 안 함")
                 mark("book")
@@ -1601,9 +1644,9 @@ private suspend fun Director.sceneBook() {
                 // 아이 말에서 고른 미션(불 끄기 · 잠그기 …)이면 그 미션으로 남긴다 — 「별 건넨 손」 · 「별 · 하트가 퐁」은 건네주기 때만(10-06 실기기)
                 val fix = s.slot2Prop()
                 s.achievements += fix?.badge ?: "${m2.itemName} 건넨 손"
-                show(); announce(); refreshButtons()
+                show(); refreshButtons(); lateAnnounce = sceneScope.launch { announceAfterScene { announce() } }
                 event("mission", "id" to 2, "motion" to "drag", "result" to s.m2Result)
-                log(fix?.let { "미션 2 완료 — ${it.mission.name} · 「${it.cheer}」" } ?: "미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (연출은 공통)")
+                log(fix?.let { "미션 2 완료 — ${it.mission.name} · 「${it.cheer}」" } ?: "미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (건네주기 연출 — 미션마다 따로 · #260)")
                 mark("book")
             }
             vv == "dino" || vv == "sound" -> {

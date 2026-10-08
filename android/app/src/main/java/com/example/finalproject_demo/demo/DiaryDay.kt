@@ -280,7 +280,11 @@ suspend fun <T> DemoState.withSavedDiary(book: SavedDiaryBook, block: suspend (D
     readingDiary = book.input
     title = book.title
     drawingAspect = book.aspect
+    // its place picture in the style it was made in, not the style of the next book (#253 review)
+    val reading0 = WorldStyle.reading
+    WorldStyle.reading = book.artStyle
     return try { block(day) } finally {
+        WorldStyle.reading = reading0
         readingDiary = null
         if (before != null) dayByState[this] = before else dayByState.remove(this)
         title = title0

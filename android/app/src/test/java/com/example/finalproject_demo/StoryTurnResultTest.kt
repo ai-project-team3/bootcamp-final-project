@@ -40,6 +40,26 @@ class StoryTurnResultTest {
         }
     }
 
+    @Test fun nullNextQuestionPrecedesUnaskedTemplateSlots() = runBlocking {
+        val s = settledStory().apply {
+            template!!.let { it.plot + it.ending }.forEach { slots.remove(it) }
+        }
+        val followUp = "스트레칭을 끝내고 누구와 밥을 먹었어?"
+        s.exchangeStoryTurn("solution", "운동은 어떻게 마무리됐어?", "스트레칭하고 밥을 먹었어") {
+            Server.TurnResult(verdict(listOf("solution" to it.utterance)), Server.Line("그랬구나", null, followUp))
+        }
+        val prompt = s.nextStoryPrompt(s.storyServerQuestion)!!
+        assertEquals(followUp, prompt.text)
+        assertNull("A free follow-up must not be assigned to a template slot", prompt.slot)
+        assertFalse(prompt.templateOnly)
+        s.exchangeStoryTurn(prompt.slot, prompt.text, "엄마와 먹었어") {
+            assertNull(it.askedSlot)
+            assertEquals(followUp, it.question)
+            Server.TurnResult(verdict(listOf("extra" to it.utterance), ready = true), null)
+        }
+        assertTrue(s.storyReady)
+    }
+
     @Test fun rejectedFilledSlotDoesNotReturnThroughTheUnassignedQuestionFallback() = runBlocking {
         val s = settledStory()
         s.exchangeStoryTurn(null, "더 들려줄래?", "끝났어") {

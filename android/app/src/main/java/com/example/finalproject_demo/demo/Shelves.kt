@@ -20,6 +20,28 @@ data class ShelfEntry(val id: String, val title: String, val madeAt: String, val
 /** 책장 정리에 보이는 모드 순서 · 이름 */
 val SHELF_MODES = listOf(StoryMode.STORY to "동화", StoryMode.DIARY to "그림일기", StoryMode.COOP to "같이 만들기")
 
+/**
+ * 화면 책장(`s.shelf`)의 한 권이 어느 모드 책인가 (#154 — 보이는 책장도 모드별).
+ * 저장된 책은 id 앞머리(`diary:` · `coop:` · 그 밖은 동화)로 가른다.
+ * 저장소가 없어 id 없이 꽂힌 책은 앱을 켜 둔 동안 방금 만든 책뿐이라 [current] 모드로 본다.
+ */
+fun ShelfBook.shelfMode(current: StoryMode): StoryMode {
+    val id = savedStoryId ?: return current
+    return when {
+        id.startsWith(DIARY_SHELF_ID) -> StoryMode.DIARY
+        id.startsWith(COOP_SHELF_ID) -> StoryMode.COOP
+        else -> StoryMode.STORY
+    }
+}
+
+/**
+ * 책장에 들어갈 때 펼칠 모드 — 방금 꽂은 책이 있으면 그 책의 모드, 아니면 책이 있는 첫 모드, 다 비었으면 동화
+ */
+fun openShelfMode(shelf: List<ShelfBook>, current: StoryMode): StoryMode =
+    shelf.firstOrNull { it.fresh }?.shelfMode(current)
+        ?: SHELF_MODES.map { it.first }.firstOrNull { m -> shelf.any { it.shelfMode(current) == m } }
+        ?: StoryMode.STORY
+
 /** 그 모드 책장의 책 — 새 책이 앞 */
 fun Director.shelfEntries(mode: StoryMode): List<ShelfEntry> = when (mode) {
     StoryMode.STORY -> storyBooks().map { ShelfEntry(it.id, it.title, it.madeAt, it.pages.size, mode) }

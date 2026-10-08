@@ -14,9 +14,11 @@ docker rm -f otto-monitor | Out-Null
 docker run -d --name otto-monitor `
     --network otto `
     -v "$(Join-Path $monitorDir 'index.html'):/usr/share/nginx/html/index.html:ro" `
+    -v "$(Join-Path $monitorDir 'login.html'):/usr/share/nginx/html/login.html:ro" `
+    -v "$(Join-Path $monitorDir 'reports.html'):/usr/share/nginx/html/reports.html:ro" `
     -v "$(Join-Path $monitorDir 'nginx.conf'):/etc/nginx/conf.d/default.conf:ro" `
     -p 80:80 `
     nginx:alpine
 if ($LASTEXITCODE -ne 0) { throw "docker run failed (exit $LASTEXITCODE)" }
 
-Write-Host "monitor on http://localhost/ (stats proxied from otto-backend)"
+Write-Host "monitor on http://localhost/ (stats proxied from otto-backend) — admin sign-in: ADMIN_USER / ADMIN_PASSWORD_HASH in .env"

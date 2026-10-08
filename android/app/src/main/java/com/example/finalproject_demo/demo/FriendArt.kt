@@ -42,7 +42,7 @@ internal suspend fun Director.drawFriend() {
     val mode = if (s.isCoop) "coop" else "story"
     val mask = s.nameMask()
     CoroutineScope(currentCoroutineContext()).launch {
-        val made = withTimeoutOrNull(15_000) { Server.character(mask.mask(words), mode) }
+        val made = withTimeoutOrNull(15_000) { Server.character(mask.mask(words), mode, s.bookStyle) }
         val saved = made?.let { withContext(Dispatchers.IO) { saveStoryImage(it.png) } }
         when {
             saved == null -> log("[등장인물] 「$words」 인형 생성 실패 또는 15초 경과 → 프리셋 그대로")
