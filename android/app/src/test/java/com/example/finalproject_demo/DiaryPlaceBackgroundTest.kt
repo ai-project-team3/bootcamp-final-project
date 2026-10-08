@@ -103,22 +103,17 @@ class DiaryPlaceBackgroundTest {
 
     private fun DiaryDay.ottoBackdrop() = pieces.firstOrNull { it.role == PieceRole.BACKGROUND && it.strokes.isEmpty() }
 
+    /** 묻지 않는다 — 장소를 들으면 바로 뒤에서 주문하고, 오면 아이 그림 밑에 깐다 */
     @Test
-    fun aYesLaysOttosPlaceUnderTheChildsDrawing() {
+    fun thePlaceIsOrderedWithoutAskingAndLaidUnderTheChildsDrawing() {
         val art = byteArrayOf(7, 7, 7)
         val asked = mutableListOf<String>()
         live({ place -> asked += place; art }) { d ->
             d.drawOnlyAPerson()
-            var offered: String? = null
-            d.talkToTheBook { line ->
-                when {
-                    "어디" in line -> "바닷가 갔어"
-                    "배경으로 그려 줄까" in line -> { offered = line; "응" }
-                    else -> null
-                }
-            }
-            assertEquals("내가 바닷가를 배경으로 그려 줄까?", offered)
-            assertEquals("장소 낱말만 보낸다", listOf("바닷가"), asked)
+            val lines = mutableListOf<String>()
+            d.talkToTheBook { line -> lines += line; if ("어디" in line) "바닷가 갔어" else null }
+            assertFalse("배경을 그려 줄지 물었다 — 묻지 않는다(10-08 종훈 결정)", lines.any { "배경" in it })
+            assertEquals("장소 낱말만 한 번 보낸다", listOf("바닷가"), asked)
             val bg = d.s.diaryDay.ottoBackdrop()
             assertNotNull("오또 배경이 책에 안 들어갔다", bg)
             assertTrue(bg!!.ottoPng.contentEquals(art))
@@ -132,32 +127,70 @@ class DiaryPlaceBackgroundTest {
         }
     }
 
+    /** 그리는 중에 장소를 들었으면 그때 주문한다 — 다 그린 뒤까지 기다리지 않는다(규칙 8) */
     @Test
-    fun aNoKeepsTheWhitePage() {
-        var called = false
-        live({ called = true; byteArrayOf(1) }) { d ->
-            d.drawOnlyAPerson()
-            d.talkToTheBook { line -> when { "어디" in line -> "바닷가 갔어"; "배경으로 그려 줄까" in line -> "아니"; else -> null } }
-            assertFalse(called)
-            assertNull(d.s.diaryDay.ottoBackdrop())
+    fun aPlaceHeardWhileDrawingIsOrderedThen() {
+        val asked = mutableListOf<String>()
+        live({ place -> asked += place; byteArrayOf(1) }) { d ->
+            d.board()
+            d.s.drawing += Stroke(Color.Red, listOf(Offset(.4f, .3f), Offset(.42f, .6f)))
+            d.s.diaryDay.catchUp(d.s.drawing)
+            d.s.diaryDay.pieces[0] = d.s.diaryDay.pieces[0].copy(name = "아빠")
+            d.s.quotes += "아빠"
+            fun pause() { if (d.s.diaryDay.watching) d.send(Reply.Tapped("pause", "붓 멈춤")) }
+            assertTrue("그리는 중에 장소를 묻지 않았다 — 말=${d.s.line}", await { pause(); "어디" in d.s.line } != null)
+            var last = -1
+            assertTrue("그리는 중에 주문하지 않았다 — 말=${d.s.line}", await(10_000) {
+                if (d.s.micEnabled && d.s.lineId != last && "어디" in d.s.line) { last = d.s.lineId; d.send(Reply.Spoke("바닷가 갔어")) }
+                pause()
+                asked.isNotEmpty()
+            } != null)
+            assertTrue("다 그리기 전이다", d.s.stage is DiaryBoard)
+            assertEquals(listOf("바닷가"), asked)
         }
     }
 
+    /** 장소가 바뀌면 한 번만 다시 주문한다 — 그 뒤로 또 바뀌면 그대로 */
     @Test
-    fun aDrawingThatDidNotComeKeepsTheWhitePageAndSaysSo() {
+    fun aChangedPlaceIsReorderedOnceAtMost() {
+        val asked = mutableListOf<String>()
+        live({ place -> asked += place; byteArrayOf(1) }) { d ->
+            d.board()
+            d.s.drawing += Stroke(Color.Red, listOf(Offset(.4f, .3f), Offset(.42f, .6f)))
+            d.s.diaryDay.catchUp(d.s.drawing)
+            d.s.diaryDay.pieces[0] = d.s.diaryDay.pieces[0].copy(name = "아빠")
+            d.s.quotes += "아빠"
+            fun pause() { if (d.s.diaryDay.watching) d.send(Reply.Tapped("pause", "붓 멈춤")) }
+            var last = -1
+            for (place in listOf("바닷가", "놀이터", "공원")) {
+                d.s.placeLabel = place; d.s.slots["place"] = place; d.s.slotBy["place"] = "child"
+                // 오또가 묻는 중이면 그 물음이 끝나야 다음 차례에 주문한다 — 「몰라」로 넘긴다
+                await(if (place == "공원") 3_000 else 10_000) {
+                    if (d.s.micEnabled && d.s.lineId != last) { last = d.s.lineId; d.send(Reply.Spoke("몰라")) }
+                    pause(); asked.lastOrNull() == place
+                }
+            }
+            assertEquals(listOf("바닷가", "놀이터"), asked)
+        }
+    }
+
+    /** 안 오면(검사 · 늦음 · 실패) 흰 바탕 그대로 — 아이가 부탁한 것이 아니니 미안하다고도 하지 않는다 */
+    @Test
+    fun aBackgroundThatDidNotComeKeepsTheWhitePage() {
         live({ null }) { d ->
             d.drawOnlyAPerson()
-            d.talkToTheBook { line ->
-                when { "어디" in line -> "바닷가 갔어"; "배경으로 그려 줄까" in line -> "응"; else -> null }
-            }
+            val lines = mutableListOf<String>()
+            d.talkToTheBook { line -> lines += line; if ("어디" in line) "바닷가 갔어" else null }
             assertNull(d.s.diaryDay.ottoBackdrop())
+            assertFalse(lines.any { "배경" in it })
             assertTrue(d.s.log.any { "장소 배경" in it && "안 왔다" in it })
             assertTrue(d.s.events.any { it.startsWith("image_request") && "type=background" in it && "result=original" in it })
         }
     }
 
+    /** 아이가 배경을 그렸으면 주문하지 않는다 — 아이 그림을 바꾸지 않는다(차별점 1) */
     @Test
-    fun aDrawnBackgroundIsNotOffered() {
+    fun aDrawnBackgroundIsNotOrdered() {
         var called = false
         live({ called = true; byteArrayOf(1) }) { d ->
             d.board()
@@ -166,10 +199,29 @@ class DiaryPlaceBackgroundTest {
             assertEquals(PieceRole.BACKGROUND, d.s.diaryDay.pieces.single().role)
             d.s.diaryDay.pieces[0] = d.s.diaryDay.pieces[0].copy(name = "바닷가")
             assertTrue(await { if (d.s.diaryDay.watching) d.send(Reply.Tapped("done", "완료")); d.s.stage !is DiaryBoard } != null)
-            var offered = false
-            d.talkToTheBook { line -> if ("배경으로 그려 줄까" in line) { offered = true; "응" } else if ("어디" in line) "바닷가 갔어" else null }
-            assertFalse("아이가 그린 배경이 있는데 또 물었다", offered)
+            d.talkToTheBook { line -> if ("어디" in line) "바닷가 갔어" else null }
             assertFalse(called)
+            assertNull(d.s.diaryDay.ottoBackdrop())
+        }
+    }
+
+    /** 주문한 뒤에 아이가 배경을 그리면 아이 배경이 이긴다 — 오또 것은 버린다 */
+    @Test
+    fun aBackgroundDrawnAfterTheOrderWins() {
+        live({ byteArrayOf(1) }) { d ->
+            d.drawOnlyAPerson()
+            d.talkToTheBook { line ->
+                if ("어디" in line) "바닷가 갔어"
+                else {
+                    // 주문이 나간 뒤 — 아이 배경 조각이 생겼다
+                    if (d.s.diaryDay.placeBg != null && d.s.diaryDay.pieces.none { it.role == PieceRole.BACKGROUND })
+                        d.s.diaryDay.pieces += DiaryPiece(99, listOf(Stroke(Color.Blue, listOf(Offset(0.02f, 0.6f), Offset(0.98f, 0.62f)))),
+                            name = "바다", role = PieceRole.BACKGROUND)
+                    null
+                }
+            }
+            assertNull("아이가 그린 배경이 있는데 오또 배경을 깔았다", d.s.diaryDay.ottoBackdrop())
+            assertEquals(1, d.s.diaryDay.pieces.count { it.role == PieceRole.BACKGROUND })
         }
     }
 

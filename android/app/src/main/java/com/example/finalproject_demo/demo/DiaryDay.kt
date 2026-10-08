@@ -200,11 +200,15 @@ class DiaryDay {
     /** 이름 붙은 조각의 이름 — 그린 차례대로, 뒤에 [alsoDrawn]. 같은 이름은 한 번만. 오또가 깐 배경([byOtto])은 아이가 그린 것이 아니다(규칙 5) */
     val pieceNames: List<String> get() = (pieces.filterNot { it.byOtto }.mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) } + alsoDrawn).distinct()
 
-    /** D3 에서 「배경으로 그려 줄까?」를 이미 물었다 — 한 일기에 한 번 (#264) */
-    var placeBgOffered = false
-
-    /** 아이가 「응」 한 장소 배경 — 뒤에서 그리는 중. 책 만들기 전에 거둔다 (#264) */
+    /** 장소 배경 — 아이가 배경을 안 그렸고 장소를 말하면 묻지 않고 뒤에서 그린다. 책 만들기 전에 거둔다 (#264 · 10-08 종훈 결정) */
     var placeBg: kotlinx.coroutines.Deferred<ByteArray?>? = null
+
+    /** [placeBg] 를 주문한 장소 · 다시 주문한 수(장소가 바뀌면 한 번만) */
+    var placeBgFor: String? = null
+    var placeBgReorders = 0
+
+    /** 장소 배경을 그리는 자리 — 일기 흐름 전체(그리는 중이 끝나도 이어 그린다). [pictureDiary] 가 정한다 */
+    var placeBgScope: kotlinx.coroutines.CoroutineScope? = null
 
     /**
      * 이름 붙은 조각에 이어 그리고 아이가 말한 것 — 「조개 그렸어」(바다에 붙여 그렸다). 조각은 하나로 두고 그린 것 이름에만 더한다.
