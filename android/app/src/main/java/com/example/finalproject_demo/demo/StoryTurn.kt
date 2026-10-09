@@ -218,6 +218,8 @@ internal suspend fun Director.notifyStorySoundChoice(prompt: StoryPrompt) {
 
 suspend fun DemoState.exchangeTurn(
     mode: String, askedSlot: String?, question: String, utterance: String,
+    /** the session so far (#323 · diary after drawing). Empty for every other caller — the request is unchanged */
+    history: List<Server.HistoryTurn> = emptyList(),
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult? {
     if (utterance.isBlank()) return null
@@ -241,6 +243,13 @@ suspend fun DemoState.exchangeTurn(
         reason = if (mode == "coop") coopStoryReason() else null,
         names = mask.names,
         partner = partnerWire(mode),
+        history = history.map { h ->
+            h.copy(
+                otto = Server.OttoSaid(h.otto.ack?.let(mask::mask), h.otto.expand?.let(mask::mask), h.otto.question?.let(mask::mask)),
+                child = mask.mask(h.child),
+                fills = h.fills.map { f -> f.copy(value = mask.mask(f.value), prev = f.prev?.let(mask::mask)) },
+            )
+        },
     )) ?: return null
     val verdict = response.verdict?.copy(
         fills = response.verdict.fills.map { (slot, value) -> slot to mask.unmask(value) },
@@ -250,7 +259,8 @@ suspend fun DemoState.exchangeTurn(
             it.options?.map { option -> mask.unmask(option).trim() }?.filter(String::isNotBlank)?.take(3)
                 ?.takeIf(List<String>::isNotEmpty))
     }
-    return Server.TurnResult(verdict, line)
+    // act · retract (#323) ride along — the result is rebuilt here, so they must be carried over
+    return Server.TurnResult(verdict, line, response.act, response.retract)
 }
 
 /** Story owns how to apply the result; other modes use exchangeTurn without changing their state. */

@@ -42,4 +42,29 @@ class ExchangeTurnTest {
         assertNull(s.endReason)
         assertNull(s.storyNextSlot)
     }
+
+    /** #323: the history goes out with the turn, and the act / retract come back through the rebuilt result */
+    @Test
+    fun historyGoesOutAndActAndRetractComeBack() = runBlocking {
+        val s = DemoState().apply { mode = StoryMode.DIARY }
+        val h = Server.HistoryTurn(1, "companion", Server.OttoSaid("아빠랑 갔구나!", null, "누구랑 같이 있었어?"),
+            "아빠랑", listOf(Server.HistoryFill("companion", "아빠", null)), null)
+        var sent: Server.Turn? = null
+        val result = s.exchangeTurn("diary", "problem", "놀이터에서 무슨 일이 있었어?", "그거 아니야", history = listOf(h)) {
+            sent = it; response().copy(act = "repair", retract = listOf("companion"))
+        }
+        assertEquals(listOf(h), sent?.history)
+        assertEquals("repair", result?.act)
+        assertEquals(listOf("companion"), result?.retract)
+    }
+
+    @Test
+    fun withoutHistoryNothingExtraGoesOut() = runBlocking {
+        val s = DemoState().apply { mode = StoryMode.DIARY }
+        var sent: Server.Turn? = null
+        val result = s.exchangeTurn("diary", "problem", "무슨 일이야?", "넘어졌어") { sent = it; response() }
+        assertTrue(sent!!.history.isEmpty())
+        assertNull(result?.act)
+        assertTrue(result!!.retract.isEmpty())
+    }
 }

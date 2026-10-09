@@ -198,6 +198,55 @@ class ServerClientTest {
         assertNull(half.line!!.question)
     }
 
+    /** #323: the act and the slots to take back come at the top of the answer, outside the line */
+    @Test
+    fun turnCarriesTheActAndTheSlotsToTakeBack() = runBlocking {
+        json("/turn", """{"judge":$VERDICT,"line":{"ack":"앗, 내가 잘못 알았구나!","expand":null,"question":"누구랑 갔어?"},"act":"repair","retract":["companion"]}""")
+        val r = Server.turn(turn())!!
+        assertEquals("repair", r.act)
+        assertEquals(listOf("companion"), r.retract)
+
+        // a failed line keeps the act — the phone answers with a baked line
+        json("/turn", """{"judge":$VERDICT,"line":null,"act":"answer_back","retract":[]}""")
+        val noLine = Server.turn(turn())!!
+        assertNull(noLine.line)
+        assertEquals("answer_back", noLine.act)
+    }
+
+    /** an older server answers without act / retract: a plain turn */
+    @Test
+    fun turnWithoutActIsAPlainTurn() = runBlocking {
+        json("/turn", """{"judge":$VERDICT,"line":{"ack":"놀이터구나!","expand":null,"question":"거기서 뭐 했어?"}}""")
+        val r = Server.turn(turn())!!
+        assertNull(r.act)
+        assertEquals(emptyList<String>(), r.retract)
+    }
+
+    /** #323: the history goes out only when there is one — every other caller's request is unchanged */
+    @Test
+    fun turnSendsTheHistoryOnlyWhenThereIsOne() = runBlocking {
+        json("/turn", """{"judge":$VERDICT,"line":null}""")
+        Server.turn(turn())
+        assertTrue(!JSONObject(seen.getValue("/turn")).has("history"))
+
+        val h = Server.HistoryTurn(
+            turn = 1, askedSlot = "companion",
+            otto = Server.OttoSaid(ack = "아빠랑 갔구나!", expand = null, question = "누구랑 같이 있었어?"),
+            child = "아빠랑",
+            fills = listOf(Server.HistoryFill("companion", "아빠", prev = null)),
+            act = null,
+        )
+        Server.turn(turn().copy(history = listOf(h)))
+        val sent = JSONObject(seen.getValue("/turn")).getJSONArray("history").getJSONObject(0)
+        assertEquals("companion", sent.getString("asked_slot"))
+        assertEquals("아빠랑 갔구나!", sent.getJSONObject("otto").getString("ack"))
+        assertEquals("child", sent.getJSONObject("child").getString("by"))     // rule 5: the child's words only
+        val fill = sent.getJSONArray("fills").getJSONObject(0)
+        assertEquals("아빠", fill.getString("value"))
+        assertTrue(fill.isNull("prev"))
+        assertTrue(sent.isNull("act"))
+    }
+
     private fun turn() = Server.Turn("diary", mapOf("place" to null), "place", "오늘 어디 갔었어?", "놀이터 갔어")
 
     companion object {

@@ -84,6 +84,27 @@ object Server {
         val names: List<String> = emptyList(),
         /** who sits with the child — "adult" · "peer" · "none" (#303). "none": the server never asks the adult slot. Null = not sent */
         val partner: String? = null,
+        /** the session so far, oldest first (#323 · diary). Empty = not sent: the server runs the turn as before */
+        val history: List<HistoryTurn> = emptyList(),
+    )
+
+    /** What Otto said in a finished turn: the question the child answered, then the reaction to the answer (#323). */
+    data class OttoSaid(val ack: String?, val expand: String?, val question: String?)
+
+    /** A slot filled in that turn and the value it replaced — what a repair puts back. */
+    data class HistoryFill(val slot: String, val value: String, val prev: String?)
+
+    /**
+     * One finished turn the phone keeps and sends back whole (#323 · guidelines/3 「대화 수선」). The server keeps
+     * nothing between turns. [child] is the child's words only (rule 5 — Otto's live in [otto]).
+     */
+    data class HistoryTurn(
+        val turn: Int,
+        val askedSlot: String?,
+        val otto: OttoSaid,
+        val child: String,
+        val fills: List<HistoryFill>,
+        val act: String?,
     )
 
     /** The verdict fields the app reads (guidelines/2 §2). Slot names are already checked against the 12 by the server. */
@@ -137,8 +158,12 @@ object Server {
     /** [options]: up to 3 short answers for the slot [question] asks — cards, then the mascot's pick (#79). Null in diary. */
     data class Line(val ack: String, val expand: String?, val question: String?, val options: List<String>? = null)
 
-    /** Either half may be null — fill it from the script. [question] is null when [ask] was false or the story is ready. */
-    data class TurnResult(val verdict: Verdict?, val line: Line?)
+    /**
+     * Either half may be null — fill it from the script. [question] is null when [ask] was false or the story is ready.
+     * [act] (#323): what this turn does with a reply that is not an answer — "repair" · "answer_back" · "rephrase", null =
+     * a plain turn. Outside [line] so a failed line keeps it. [retract]: slots the child said were wrong — put back their prev.
+     */
+    data class TurnResult(val verdict: Verdict?, val line: Line?, val act: String? = null, val retract: List<String> = emptyList())
 
     /**
      * One turn: the verdict, then the mascot's three pieces, in one round trip (~3.3s, 09-29).
@@ -158,6 +183,7 @@ object Server {
             .put("reason", t.reason ?: JSONObject.NULL)
             .put("ask", ask)
         t.partner?.let { body.put("partner", it) }
+        if (t.history.isNotEmpty()) body.put("history", historyJson(t.history))
         val j = postJson("/turn", body, readMs = 30_000) ?: return null   // server answers within 25 s (turn_deadline_s)
         return try {
             TurnResult(
@@ -166,8 +192,29 @@ object Server {
                     val options = l.optJSONArray("options")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).takeIf(String::isNotBlank) } }
                     Line(l.getString("ack"), str(l, "expand"), str(l, "question"), options?.takeIf { it.isNotEmpty() })
                 },
+                act = str(j, "act"),
+                retract = j.optJSONArray("retract")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).takeIf { s -> s in SLOTS } } }.orEmpty(),
             )
         } catch (e: Exception) { warn("/turn parse", e); null }
+    }
+
+    private fun historyJson(history: List<HistoryTurn>) = JSONArray().apply {
+        history.forEach { h ->
+            put(JSONObject()
+                .put("turn", h.turn)
+                .put("asked_slot", h.askedSlot ?: JSONObject.NULL)
+                .put("otto", JSONObject()
+                    .put("ack", h.otto.ack ?: JSONObject.NULL)
+                    .put("expand", h.otto.expand ?: JSONObject.NULL)
+                    .put("question", h.otto.question ?: JSONObject.NULL))
+                .put("child", JSONObject().put("text", h.child).put("by", "child"))
+                .put("fills", JSONArray().apply {
+                    h.fills.filter { it.slot in SLOTS }.forEach { f ->
+                        put(JSONObject().put("slot", f.slot).put("value", f.value).put("prev", f.prev ?: JSONObject.NULL))
+                    }
+                })
+                .put("act", h.act ?: JSONObject.NULL))
+        }
     }
 
     // ── /partner ───────────────────────────────────────────────────
