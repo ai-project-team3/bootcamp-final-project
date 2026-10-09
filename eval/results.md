@@ -3962,6 +3962,52 @@ PR #26 의 일기 규칙 「바람·계획은 `solution` 이 아니다」가 **�
 **부모 리포트와 상상 표시** — 앱의 부모 리포트(`SessionReport.kt` `buildSessionReport`)는 아이 원문을 `talk` 의 `child` 줄에서만 뽑고 책 자막은 쓰지 않는다. 자막이 들어가는 곳은 신고 첨부(`ReportCandidates.kt`)뿐이다. 그래서 상상 문장이 「아이가 한 말」로 인용될 길은 지금 없다. 상상 표시는 `story.py` `IMAGINE` · `IMAGINE_AGAIN` 고정 문구로 자막 맨 앞에 와서, 책을 읽는 부모와 코드가 모두 가를 수 있다. API 모양은 바꾸지 않았다.
 
 **확인되지 않은 것** — 실기기 · 운영 서버 · effort `high` · 실제 아이 대화로 찬 칸 · 틀 C 밖의 쪽 구성 · 쪽마다 결과 문장이 붙은 뒤 읽힘 · 10문항은 작은 표본이다.
+## 2026-10-08 — #218 배경 장소 6종: 미래 도시의 그림 미반영과 피자마을의 문장 구체성 부족
+
+**확인 범위:** 공개 `https://otto-back.shelldocs.cloud/health` 및 `/image` 실제 호출, 반환 영어 `scene`, 원본 PNG 6장 직접 검수. 15:26:31~15:27:37 KST(06:26:31~06:27:37 UTC), `kind=background`, `mode=story`, `style=felt`, 장소마다 1회 순차 실행·사이 2초. 이번 평가는 앱의 테마·키트 선택이나 S7 무대·책 표시를 실행한 검사가 아니다. [사전 기준](background_places_1008.md)은 이미지 요청 전에 작성했다.
+
+**서버·측정 조건:** 최초 별도 `/health` 확인은 HTTP 200 · `mock=false` · 0.598초. 평가 도구 기본 Python User-Agent의 health는 403이어서 이미지 요청을 보내지 않았다. 도구 이름을 명시한 `OttoBackgroundEvaluation/1.0`으로 변경 후 health HTTP 200 · `status=ok` · `mock=false` · 0.436초를 확인하고 6개를 호출했다. 403의 서버측 원인은 확인하지 않았다. 로컬 시작 커밋 `eabde487c34edb1953dd1997985607536bcffb7f`; 실제 운영 배포 커밋·모델·seed는 공개 응답에 없어 확인하지 못했다. 생성 설정을 로컬 기본값과 같다고 단정하지 않는다.
+
+**응답:** 6/6 HTTP 200 · `preset=false` · `reason=ok` · `rig=null`, 원본 PNG 모두 1344×768. 총 응답 지연은 8.833~11.051초(중앙값 8.923초). 서버 내부 LLM/그림/안전 검사별 지연이나 앱 체감 지연은 이 수치로 알 수 없다. 생성 응답 성공 6/6은 장소 품질 성공 6/6이라는 뜻이 아니다.
+
+| 장소 | 영어 scene 원문 | 총 응답(초) | 원본 파일 | 장면 문장 판정 | 원본 그림 판정·근거 |
+|---|---|---:|---|---|---|
+| 공원 | `a sunny park with green lawns, leafy trees and a winding path` | 9.243 | `park.png` | 녹지·나무·산책길 보존 | **보임** — 나무, 잔디, 굽은 길과 벤치가 보임 |
+| 바닷속 | `an underwater world with colorful coral, seaweed and bubbles` | 11.051 | `underwater.png` | 수중·산호·해초·기포 보존 | **보임** — 산호·해초·기포가 있는 수중 장면. scene에 없는 물고기와 구름 같은 물체도 추가됨 |
+| 우주 | `a bright outer space scene with colorful planets, twinkling stars and a glowing nebula` | 8.833 | `space.png` | 우주·행성·별 보존 | **보임** — 별과 고리 있는 행성, 큰 천체가 보임. 지표·나무도 있어 순수 우주 공간은 아님 |
+| 할머니 집 | `a cozy countryside house with a small garden and a wooden fence` | 8.928 | `grandma_house.png` | 집·정원·울타리 보존 | **보임** — 집 한 채, 꽃밭·나무·울타리. 실제 할머니 집과 닮았는지는 입력에 정보가 없어 판단 불가 |
+| 미래 도시 | `a bright futuristic city with sleek towers, rooftop gardens and glowing pathways` | 8.918 | `future_city.png` | 미래 도시·매끈한 탑·옥상 정원·빛나는 길이라는 구체적 단서 있음 | **안 보임** — 고깔/기와 지붕의 동화 마을, 나무와 노란 길. 미래적 건축·옥상 정원·발광 통로를 뚜렷하게 식별하지 못함 |
+| 피자마을 | `a cheerful pizza village with colorful houses, flower boxes and cobblestone paths` | 8.907 | `pizza_village.png` | **부분** — `pizza village` 이름은 남았지만 구체물은 일반 집·화분·돌길. 피자·치즈·토핑을 건축/지형으로 옮기는 단서가 없음 | **안 보임** — 알록달록한 일반 집과 돌길. 피자 조각·치즈·토핑으로 인식할 만한 장소 특징을 식별하지 못함 |
+
+**단계별 해석:** 미래 도시는 문장에 있는 특징이 그림에서 약해진 사례다. 그림 생성 단계(모델·실제 스타일 문자열·seed 등)를 다음 비교 대상으로 삼을 근거가 있지만 어느 하나의 원인이라고 확정할 수 없다. 피자마을은 이름 자체를 지운 번역 오류가 아니다. 이름 뒤의 사물 묘사가 일반 마을에 머문 **장면 문장 구체성 부족**과 결과 그림의 특징 부재가 함께 관찰됐다. 문장을 구체화하면 그림이 개선되는지는 아직 재지 않았다. 두 장 모두 키트나 `preset=true`로 인한 결과는 아니다.
+
+**추가 관찰·한계:** 바닷속에는 물고기가 보인다. 로컬 배경 규칙의 `no animals`와 달라 보이지만 운영에 어떤 스타일 문자열이 전달됐는지는 미확인이다. 화풍도 장소마다 다르게 보인다. 이 둘은 별도 품질 항목이며 이번 장소 특징 평가를 통과했다는 이유로 지켜졌다고 보고하지 않는다. 한 장소 한 장·AI 단독 시각 검수이며 블라인드 팀 평가나 반복 성공률이 아니다. 과거 실기기 「피자마을」 장면과 동일 seed/운영 버전이라는 증거도 없다.
+
+**증거 보관:** 생성 산출물 제외 규칙을 따라 PNG를 Git에 넣지 않았다. 원본 및 요청/응답 메타데이터 `responses.json`은 아래 두 로컬 경로에 있으며 6장 모두 복사본과 원본의 SHA-256 일치·바이트 동일성과 PNG 무결성을 확인했다. 파일명은 위 표와 같다. GitHub에서 로컬 파일 링크가 열리는 것은 아니며 현재 PR의 원격 첨부는 없다.
+
+- 실행 원본: `C:/Users/hi/Documents/Codex/2026-10-08/story-background-place-evaluation/eval/image_out/background_places_1008_ua/`
+- 전달 사본: `C:/Users/hi/Documents/Codex/2026-10-08/outputs/background-places-1008/`
+
+| 파일 | 바이트 | SHA-256 |
+|---|---:|---|
+| `park.png` | 1504555 | `926cc0257be32411f7e2bd3fff0b964e91ba4824937452bba34a133b49743ed0` |
+| `underwater.png` | 1682110 | `dd13e77a41cba63f3f655267679e74894359abc8980a927313af927e63944cd6` |
+| `space.png` | 1671799 | `2631c68bd44f5bc92ee6e8d0e891c89a0995c85bf0445b50534dde359922e0b0` |
+| `grandma_house.png` | 1465478 | `b2196374370e3bf72a263ca1ae6308e1796c7d54cdc1e3f3cf989f8ec0c51b7b` |
+| `future_city.png` | 1942480 | `fd45ce31289e0ad0bf28e563ad761d9b6e2de6507ab1b5f800f3857947713e47` |
+| `pizza_village.png` | 1862111 | `d9ca030d78f970de5296f081d83043a91b7038956d3b1065cec59c9f94d3680f` |
+
+재실행(저장소 루트, 새 폴더명 사용):
+
+```powershell
+python -m eval.bench_background_places --base-url https://otto-back.shelldocs.cloud --out eval/image_out/background_places_<new_run>
+python -m unittest eval.test_bench_background_places -v
+```
+
+도구는 health 미확인 시 생성 요청 0건, 프리셋/mock/빈 scene/잘못된 PNG는 성공에서 제외하고 기존 결과 폴더를 덮어쓰지 않는다. 관련 자동 검사 4개와 백엔드 전체 241개 통과. 백엔드 첫 실행은 기존 시스템 임시 폴더 접근 권한으로 25개 setup 오류가 났고, 쓰기 가능한 새 `--basetemp`를 지정한 전체 재실행에서 241개가 통과했다. 원본 6장 저장과 시각 검수는 실제 서버 결과이며, 자동 검사는 장소 품질을 대신 판정하지 않는다.
+
+**다음 비교는 무엇을 고정해야 하나?** 조장이 운영 버전·모델·실제 스타일 적용 상태를 확인한 뒤, 같은 6개 장소와 본 사전 기준으로 ① 피자 같은 합성 장소의 핵심 특징을 건축·지형의 구체적인 모양으로 풀어 쓰는 문장 변경 하나, ② 미래 도시의 동일 영어 scene을 고정한 그림 단계 비교를 각각 수행한다. 가능한 통제 환경에서는 같은 seed 묶음을 전후에 사용하고, 현재 `/image`에는 seed 입력이 없으므로 API를 통한 반복 비교는 무작위 변동이 남는다고 기록한다. 개선 후보는 실패 두 장소의 회복뿐 아니라 나머지 네 장소의 악화·프리셋·지연도 함께 비교한다. 이번에는 프롬프트·백엔드·운영 설정을 변경하거나 배포하지 않았다. #218의 해결·전후 개선·실기기 확인을 완료했다고 판단하지 않는다.
+
 
 <a id="language-metrics-320"></a>
 
