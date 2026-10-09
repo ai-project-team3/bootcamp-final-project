@@ -295,6 +295,54 @@ def blind_pairs(rows: list[dict], stamp: str) -> None:
     (RAW / f"dialogue_{stamp}_pairs_key.json").write_text(json.dumps(key, ensure_ascii=False), encoding="utf-8")
 
 
+async def run_decider(runs: int, sink: Path) -> list[dict]:
+    """The decider alone (no judge, no line): when only its input changed, this is all that needs re-measuring."""
+    from app.dialogue import policy
+    from app.dialogue.decide import decide
+    settings.mock = False
+    rows = []
+    for r in range(runs):
+        for c in CASES:
+            req = TurnRequest.model_validate(c["req"])
+            t = time.monotonic()
+            d = await decide(req)
+            act = policy.act_for(d)
+            row = {"variant": "R-decider", "run": r, "id": c["id"], "secs": round(time.monotonic() - t, 3),
+                   "decision": d.__dict__ if d else None, "act": act, "retract": policy.retract_for(act, d, req)}
+            rows.append(row)
+            with sink.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            print(f"r{r} {c['id']} {act or '-':<11} {(d.intent if d else '-'):<10} {row['secs']:.2f}s", flush=True)
+    return rows
+
+
+def score_decider(rows: list[dict]) -> dict:
+    cases = {c["id"]: c for c in CASES}
+    runs = sorted({r["run"] for r in rows})
+    per_run = lambda pick: [sum(1 for r in rows if r["run"] == k and pick(r, cases[r["id"]]["gold"])) for k in runs]
+    conf = lambda r: ((r["decision"] or {}).get("intent_conf") or 0)
+    intent = lambda r: (r["decision"] or {}).get("intent")
+    act_ok = sum(1 for r in rows if r["act"] == cases[r["id"]]["gold"]["act"])
+    all_ok = defaultdict(lambda: True)
+    for r in rows:
+        all_ok[r["id"]] = all_ok[r["id"]] and r["act"] == cases[r["id"]]["gold"]["act"]
+    return {
+        "runs": len(runs),
+        "false_pos_per_run": per_run(lambda r, g: g["intent"] == "answer" and (
+            r["act"] == "repair" or (intent(r) in ("correct", "refuse") and conf(r) >= 0.8))),
+        "words_dropped_per_run": per_run(lambda r, g: g["intent"] == "answer" and r["act"] in DROPS_WORDS),
+        "ignored_per_run": per_run(lambda r, g: g["intent"] in ("correct", "ask_back", "not_heard") and r["act"] is None),
+        "retracted_per_run": per_run(lambda r, g: g["intent"] == "correct" and g["target"] in r["retract"]),
+        "intent_acc": round(sum(1 for r in rows if intent(r) == cases[r["id"]]["gold"]["intent"]) / len(rows), 3),
+        "act_acc": round(act_ok / len(rows), 3), "act_acc_ci": [round(x, 3) for x in wilson(act_ok, len(rows))],
+        "pass_k": round(sum(all_ok.values()) / len(all_ok), 3),
+        "pass_k_ci": [round(x, 3) for x in wilson(sum(all_ok.values()), len(all_ok))],
+        "wrong": sorted({(r["id"], cases[r["id"]]["gold"]["act"], r["act"]) for r in rows
+                         if r["act"] != cases[r["id"]]["gold"]["act"]}, key=str),
+        "p50": round(statistics.median(r["secs"] for r in rows), 2), "p95": round(pct([r["secs"] for r in rows], .95), 2),
+    }
+
+
 def show(report: dict) -> None:
     for k, v in report.items():
         print(f"{k}: {json.dumps(v, ensure_ascii=False)}")
@@ -310,12 +358,22 @@ def main() -> None:
     ap.add_argument("--mock", action="store_true", help="dry run on the mock server — checks the harness, measures nothing")
     ap.add_argument("--cached-usd", type=float, default=None, help="luna cached input $/Mtok — with --jev-won, adds won per turn")
     ap.add_argument("--jev-won", type=float, default=None, help="won per Jev call, once known from the bill")
+    ap.add_argument("--decider-only", action="store_true", help="re-measure only the decider (Jev), no judge or line")
     a = ap.parse_args()
     if a.cached_usd is not None and a.jev_won is not None:
         PRICES.update(cached_usd=a.cached_usd, jev_won=a.jev_won)
     if a.score:
         rows = [json.loads(l) for l in Path(a.score).read_text(encoding="utf-8").splitlines() if l.strip()]
-        show(score(rows))
+        show({"R-decider": score_decider(rows)} if rows and rows[0]["variant"] == "R-decider" else score(rows))
+        return
+    if a.decider_only:
+        if not a.yes_spend:
+            sys.exit(f"{len(CASES)} cases × {a.runs} runs on the decider — add --yes-spend")
+        RAW.mkdir(exist_ok=True)
+        sink = RAW / f"dialogue_decider_{time.strftime('%m%d_%H%M')}.jsonl"
+        rows = asyncio.run(run_decider(a.runs, sink))
+        show({"R-decider": score_decider(rows)})
+        print(f"raw: eval/raw/{sink.name}")
         return
     if not a.yes_spend and not a.mock:
         sys.exit(f"{len(CASES)} cases × {a.runs} runs × {a.variants} — add --yes-spend to call the vendors")
