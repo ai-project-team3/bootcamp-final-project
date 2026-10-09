@@ -42,7 +42,8 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
     require(by in setOf("child", "card", "mascot"))
 
     for ((slot, rawValue) in verdict.fills) {
-        val value = rawValue.trim()
+        // 「숲속에 갔어」 is 숲속 — the place without the child's sentence around it (StoryPlaceWords.kt)
+        val value = if (slot == "place") storyPlaceFromSentence(rawValue) else rawValue.trim()
         if (slot !in Server.SLOTS || value.isEmpty() || (slot == "adult" && !hasPartner)) continue
         slots[slot] = value
         slotBy[slot] = by
@@ -90,7 +91,7 @@ suspend fun Director.askStory(
         }
         response.verdict.fills.filter { it.first in Server.SLOTS && it.second.isNotBlank() &&
             (it.first != "adult" || s.hasPartner) }.forEach { (slot, value) ->
-            event("slot_filled", "slot" to slot, "value" to value, "source" to by)
+            event("slot_filled", "slot" to slot, "value" to (if (slot == "place") storyPlaceFromSentence(value) else value), "source" to by)
         }
         val line = response.line
         // the question's voice is made while the ack is voiced and played, not after (10-05 trace: −2.5 s a turn)
