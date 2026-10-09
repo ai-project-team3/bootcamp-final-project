@@ -994,6 +994,9 @@ private fun SettingRow(title: String, desc: String, checked: Boolean, onToggle: 
 @Composable
 private fun ChildCallSection() {
     var text by remember { mutableStateOf(com.example.finalproject_demo.net.ChildCall.name ?: "") }
+    var pendingCall by remember { mutableStateOf<String?>(null) }
+    var resetting by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
     PCard(Modifier.fillMaxWidth()) {
         Text("오또가 아이를 뭐라고 부를까요?", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
         Text("실명 대신 별명을 권해요 · 오또가 이야기와 목소리에서 이렇게 불러요 · 비우면 「친구」", fontSize = 12.sp, color = PSub)
@@ -1011,8 +1014,38 @@ private fun ChildCallSection() {
                 ),
             )
             Spacer(Modifier.width(8.dp))
-            PButton("저장", PAccent, Modifier.widthIn(min = 72.dp)) { com.example.finalproject_demo.net.ChildCall.set(text) }
+            PButton("저장", PAccent, Modifier.widthIn(min = 72.dp)) {
+                val clean = com.example.finalproject_demo.net.ChildCall.clean(text)
+                if (clean == com.example.finalproject_demo.net.ChildCall.name) {
+                    com.example.finalproject_demo.net.ChildCall.set(text)
+                } else { pendingCall = clean ?: ""; resetting = false; failed = false }
+            }
         }
+        pendingCall?.let { call ->
+            Text("호칭만 바꾸나요, 다른 아이가 쓰나요?", fontSize = 14.sp, color = Ink)
+            Text("다른 아이는 말 기록을 새로 시작해요. 책과 책별 리포트는 그대로 있어요.", fontSize = 12.sp, color = PSub)
+            PButton("같은 아이예요", PMint, Modifier.fillMaxWidth()) {
+                com.example.finalproject_demo.net.ChildCall.set(call); pendingCall = null
+            }
+            PButton("다른 아이가 써요", PAccent, Modifier.fillMaxWidth(), outline = true) {
+                if (com.example.finalproject_demo.demo.AnswerHistory.startNewChild()) {
+                    com.example.finalproject_demo.net.ChildCall.set(call); pendingCall = null
+                } else failed = true
+            }
+            PButton("취소", PSub, Modifier.fillMaxWidth(), outline = true) { pendingCall = null }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("질문별 말 기록 · ${com.example.finalproject_demo.demo.AnswerHistory.all().size}권 누적", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
+        Text("열린·까닭 질문에 말한 답 ${com.example.finalproject_demo.demo.AnswerHistory.languageAnswers().size}개 · 선택 답 ${com.example.finalproject_demo.demo.AnswerHistory.choiceAnswers().size}개", fontSize = 13.sp, color = PSub)
+        Text("질문 문구로 분류하며, 확인 답과 유형을 모르는 답은 언어 지표에서 빼요. 원문은 기기에만 남겨요.", fontSize = 12.sp, color = PSub)
+        if (resetting) {
+            Text("누적 말 기록을 비울까요? 책과 책별 리포트는 지우지 않아요.", fontSize = 14.sp, color = Ink)
+            PButton("네, 새로 시작할게요", PAccent, Modifier.fillMaxWidth()) {
+                if (com.example.finalproject_demo.demo.AnswerHistory.startNewChild()) resetting = false else failed = true
+            }
+            PButton("그대로 둘게요", PSub, Modifier.fillMaxWidth(), outline = true) { resetting = false }
+        } else PButton("말 기록 새로 시작", PSub, Modifier.fillMaxWidth(), outline = true) { resetting = true; pendingCall = null; failed = false }
+        if (failed) Text("기기에 저장하지 못했어요. 다시 시도해 주세요.", fontSize = 13.sp, color = Curtain)
     }
 }
 
