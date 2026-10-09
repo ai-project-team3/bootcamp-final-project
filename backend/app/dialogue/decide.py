@@ -56,18 +56,18 @@ class Decision:
 
 def state_text(req: TurnRequest) -> str:
     """The short state the decider reads. Otto's words and the child's are labelled apart (rule 5)."""
+    # one history turn runs: the question Otto asked → the child's answer → Otto's reaction to it
     lines = []
     for h in req.history[-RECENT:]:
-        said = " ".join(x for x in (h.otto.ack, h.otto.expand) if x)
-        if said:
-            lines.append(f"오또: {said}")
         if h.otto.question:
             lines.append(f"오또: {h.otto.question}")
         lines.append(f"아이: {h.child.text}")
         if h.fills:
             lines.append("  받아 적은 칸: " + " · ".join(f"{f.slot}={f.value}" for f in h.fills))
-    last = req.history[-1] if req.history else None
-    if last is not None and req.question and req.question != (last.otto.question or ""):
+        said = " ".join(x for x in (h.otto.ack, h.otto.expand) if x)
+        if said:
+            lines.append(f"오또: {said}")
+    if req.question:
         lines.append(f"오또: {req.question}")
     lines.append(f"아이(방금): {req.utterance}")
     return "[대화]\n" + "\n".join(lines)

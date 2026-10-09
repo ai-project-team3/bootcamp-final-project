@@ -94,3 +94,12 @@ def test_names_are_masked_before_they_leave(monkeypatch):
 def test_the_mock_reads_a_bare_denial_and_one_with_the_right_value():
     assert decide_mod.mock(req("그거 아니야")).new_value is False
     assert decide_mod.mock(req("아니야, 바닷가야")).new_value is True
+
+
+def test_the_state_runs_in_the_order_it_was_said():
+    # question → the child's answer → Otto's reaction to it; then the question just asked (10-09: the
+    # reaction came first, so Otto seemed to settle 「아빠랑 갔구나!」 before the child answered)
+    lines = state_text(req()).splitlines()
+    order = [lines.index(x) for x in ("오또: 어디에서 놀았어?", "아이: 놀이터", "오또: 놀이터에 갔구나!",
+                                      "오또: 놀이터에서 무슨 일이 있었어?", "아이(방금): 그거 아니야")]
+    assert order == sorted(order)
