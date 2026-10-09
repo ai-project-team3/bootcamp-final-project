@@ -22,6 +22,9 @@ log = logging.getLogger("llm")
 # Every call's tokens, for cost (#30 · 10-02): the server log gets one line per call, and a
 # measurement script can hook in to add them up. Never the text — only the call name and counts.
 on_usage: Callable[[str, int, int], None] | None = None
+# of those input tokens, how many the vendor served from its prompt cache (billed lower) — a measurement
+# that prices every input token at list price overstates the bill (#323 · 10-09: about 2×)
+on_cached: Callable[[str, int], None] | None = None
 
 
 class LLMError(RuntimeError):
@@ -100,9 +103,12 @@ async def complete(system: str, user: str, schema: dict, *, effort: str,
     body = r.json()
     usage = body.get("usage") or {}
     tin, tout = int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0)
-    log.info("llm %s · in %d · out %d tokens", name, tin, tout)
+    cached = int((usage.get("input_tokens_details") or {}).get("cached_tokens") or 0)
+    log.info("llm %s · in %d (cached %d) · out %d tokens", name, tin, cached, tout)
     if on_usage:
         on_usage(name, tin, tout)
+    if on_cached:
+        on_cached(name, cached)
     try:
         return json.loads(_output_text(body))
     except json.JSONDecodeError as e:
