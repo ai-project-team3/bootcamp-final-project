@@ -28,6 +28,11 @@ private val MEETING = Regex("^(?:만났|만나|봤|보았|나타났|나왔|왔|�
 /** Particles that cannot be the end of the noun itself — 이 is handled apart ([stripSubjectI]) */
 private val PARTICLE = Regex("(?:하고|을|를|와|과|가|랑)$")
 private val NOT_ADJECTIVE = setOf('은', '는', '인', '면', '던', '만')
+/**
+ * A word with no particle is a bare noun only when it does not end like a linked verb or a place — 「열고」 (문을 열고
+ * 나왔어) · 「집에서」 · 「공원에」 · 「숲으로」 are not who was met (#375 re-review). Such a sentence is asked again
+ */
+private val NOT_BARE_NOUN = Regex("(?:고|서|에|에서|으로|로|며|는데|니까)$")
 
 /** Nouns whose own last syllable is 이 — 「고양이 봤어」 is the cat, not 「고양」 (#375 review) */
 private val OWN_FINAL_I = setOf(
@@ -72,6 +77,7 @@ internal fun storyNameInSentence(value: String): String? {
     if (words.size < 2 || !MEETING.containsMatchIn(words.last())) return null
     val marked = words[words.size - 2]
     val particle = PARTICLE.find(marked)?.value
+    if (particle == null && NOT_BARE_NOUN.containsMatchIn(marked)) return null
     val bare = if (particle != null) marked.dropLast(particle.length) else marked
     // 「곰이랑」 → 곰이 → 곰 · 「고양이랑」 → 고양이. After 을 · 를 · 와 · 과 the 이 is the noun's own
     val noun = if (particle == null || particle == "랑") stripSubjectI(bare) else bare

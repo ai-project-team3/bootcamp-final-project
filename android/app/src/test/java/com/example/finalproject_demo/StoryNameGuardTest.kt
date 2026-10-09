@@ -46,6 +46,13 @@ class StoryNameGuardTest {
         assertEquals("곰", storyNameInSentence("곰이랑 만났어"))
         assertEquals("펭귄", storyNameInSentence("펭귄이 나타났어"))
         assertEquals("토끼", storyNameInSentence("토끼가 나타났어"))
+        // a linked verb or a place is not who was met — asked again (#375 re-review)
+        assertNull(storyNameInSentence("문을 열고 나왔어"))
+        assertNull(storyNameInSentence("집에서 나왔어"))
+        assertNull(storyNameInSentence("공원에 왔어"))
+        assertNull(storyNameInSentence("숲으로 나왔어"))
+        assertEquals("강아지", storyNameInSentence("강아지 만났어"))
+        assertEquals("꽃게", storyNameInSentence("꽃게 봤어"))
         assertNull(storyNameInSentence("눈보라가 불어서 길을 잃었어"))
         assertNull(storyNameInSentence("만났어"))
     }
@@ -192,6 +199,17 @@ class StoryNameGuardTest {
         assertNull(s.slots["name"])
         assertEquals("북극곰", s.friendName)
         assertEquals("name", s.nextStoryPrompt(s.storyServerQuestion)?.slot)
+    }
+
+    /** #375 re-review — 「문을 열고 나왔어」 never makes 「열고」 the newcomer; the question comes once more */
+    @Test
+    fun aLinkedVerbIsNotTheNewcomer() = runBlocking {
+        val s = started()
+        s.exchangeStoryTurn("newcomer", "그때 누구를 만났어?", "문을 열고 나왔어") {
+            Server.TurnResult(verdict("newcomer" to it.utterance, next = "cause"), Server.Line("그랬구나", null, "왜 그랬을까?"))
+        }
+        assertNull(s.slots["newcomer"])
+        assertEquals("newcomer", s.nextStoryPrompt(s.storyServerQuestion)?.slot)
     }
 
     @Test
