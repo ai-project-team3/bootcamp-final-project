@@ -153,7 +153,7 @@ class Director(
         val saved = storyBookStore?.let { runCatching { it.imageReferences() }.getOrNull() ?: return }
             ?: savedStories.flatMap { listOfNotNull(it.bgName) + it.visuals?.images.orEmpty() }.toSet()
         val coop = CoopShelf.imageReferences(s) ?: return
-        val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground, s.generatedFriend?.image) +
+        val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground) + s.generatedCharacters.map { it.image } +
             s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName } +
             s.heroCreationDraft?.imageReferences().orEmpty()
         store.recover(saved + coop + active)
@@ -172,9 +172,10 @@ class Director(
      */
     suspend fun saveKitPicture(kit: com.example.finalproject_demo.demo.scene.SceneKitDef, seed: Long): String? {
         val store = storyImageStore ?: return null
+        val actors = s.sceneActorCapacity
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             runCatching {
-                val bmp = com.example.finalproject_demo.ui.renderKitPicture(store.appContext, kit, seed)
+                val bmp = com.example.finalproject_demo.ui.renderKitPicture(store.appContext, kit, seed, actors = actors)
                 val out = java.io.ByteArrayOutputStream()
                 bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
                 store.save(out.toByteArray())
