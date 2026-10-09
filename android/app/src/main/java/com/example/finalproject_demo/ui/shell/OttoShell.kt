@@ -108,15 +108,12 @@ fun OttoShell(d: Director) {
         Box(Modifier.fillMaxSize().background(Wool)) {
             androidx.compose.animation.Crossfade(Shell.step, animationSpec = androidx.compose.animation.core.tween(220), label = "step") { step ->
             when (step) {
-                Step.CLAP -> SplashScreen { Shell.step = Step.TITLE }
+                Step.CLAP -> SplashScreen {
+                    Shell.step = if (Shell.onboarded && Shell.openingSeen) Shell.startStep() else Step.TITLE
+                }
                 Step.TITLE -> CurtainOpening(d) {
-                    Shell.step = when {
-                        !Shell.onboarded -> Step.LOGIN
-                        Accounts.guardian == null -> Step.EXPIRED        // 예외 · 로그인이 풀렸을 때
-                        // 동의가 없거나, 약관이 바뀌어 새 판에 아직 동의하지 않았으면 다시 묻는다 (처리방침 제11조)
-                        !ConsentStore.guardianAgreed || Shell.consentVersion != TERMS_VERSION -> Step.CONSENT
-                        else -> Step.APP
-                    }
+                    Shell.markOpeningSeen()
+                    Shell.step = Shell.startStep()
                 }
                 Step.LOGIN -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL })
                 Step.EXPIRED -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL }, expired = true)
