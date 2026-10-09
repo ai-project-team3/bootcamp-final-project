@@ -2,7 +2,7 @@
 
 > 근거: #323 「규칙 대 LLM」 비교. **측정용이다 — 서버 기본값(`dialogue_policy=rule`)에서는 쓰이지 않는다.**
 > `dialogue_policy=llm` 일 때 서버는 `line_prompt.md` + `line_act.md` 뒤에 아래 펜스 안을 붙이고,
-> user 메시지 끝에 `[대화]`(판단기가 읽는 것과 같은 짧은 상태)를 더한다. 스키마는 `line_schema.json` 에 `act` · `target` · `new_value` 를 더한 것.
+> user 메시지 끝에 `[대화]`(판단기가 읽는 것과 같은 짧은 상태)를 더한다. 스키마는 `line_schema.json` 에 `act` · `target` · `new_value` · `fixed_value` 를 더한 것.
 > 규칙(R)과 같은 행동 목록 · 같은 레시피 문구를 쓰고 **누가 고르나만** 다르다.
 
 ---
@@ -22,5 +22,6 @@
 
 target: repair 일 때 아이가 고치려는 칸 이름(칸 이름 뜻 목록 안). 모르겠거나 repair 가 아니면 null.
 new_value: repair 이면서 아이가 맞는 내용을 같이 말했으면 true, 아니면 false.
+fixed_value: repair 이면 위 「아이 반응 받기」의 repair 규칙대로 씁니다(retry_slot 은 target 칸). repair 가 아니면 null.
 act 가 repair · answer_back · rephrase · aside 이면 question 은 next_slot 이 아니라 고친 칸이나 방금 물은 칸을 다시 묻습니다.
 ```

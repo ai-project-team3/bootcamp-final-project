@@ -86,11 +86,25 @@ def test_a_bare_denial_takes_back_what_otto_just_heard(client):
     assert out["judge"]["next_slot"] == "companion"
 
 
-def test_a_correction_with_the_right_value_keeps_it(client):
-    out = client.post("/turn", json=body(utterance="아니야, 고양이야", asked_slot="companion",
-                                         history=walked_to_park())).json()
+def test_a_correction_with_the_right_value_fills_the_slot_taken_back(client):
+    out = client.post("/turn", json=body(utterance="아니야, 고양이야", history=walked_to_park())).json()
     assert out["line"]["act"] == "repair" and out["retract"] == ["companion"]
-    assert out["judge"]["slot_1"] == "companion"
+    assert (out["judge"]["slot_1"], out["judge"]["value_1"]) == ("companion", "고양이야")
+    assert "fixed_value" not in out["line"]           # server-side only — the value goes out as slot_1
+
+
+def test_an_invented_value_is_dropped_with_its_question(client, monkeypatch):
+    from app.routers import turn as turn_route
+    monkeypatch.setattr(turn_route, "mock_fixed_value", lambda req: "고양이")
+    out = client.post("/turn", json=body(utterance="그거 아니야", history=walked_to_park())).json()
+    assert out["judge"]["slot_1"] is None and out["judge"]["next_slot"] == "companion"
+    assert out["line"]["question"] is None
+
+
+def test_the_repair_schema_adds_fixed_value_and_the_served_one_does_not():
+    from app.routers import turn as turn_route
+    assert "fixed_value" in turn_route.repair_schema()["required"]
+    assert "fixed_value" not in turn_route.schema()["properties"]
 
 
 def test_a_question_back_fills_nothing_and_asks_the_same_slot(client):
@@ -122,7 +136,7 @@ def test_the_line_is_told_the_act_and_its_context():
     d = Decision("correct", 0.9, "companion", 0.9, False)
     r = recipes.build("repair", req, d, ["companion"])
     text = turn_route.user(req, None, r)
-    assert "act:repair" in text and "wrong:companion=강아지" in text and "next_slot:companion" in text
+    assert "act:repair" in text and "wrong:companion=강아지" in text and "retry_slot:companion" in text
 
 
 def test_a_plain_line_input_is_unchanged_by_the_feature():

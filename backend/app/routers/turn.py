@@ -53,6 +53,19 @@ def schema() -> dict:
     return load_schema("line_schema.json")
 
 
+_FIXED_VALUE = {"type": ["string", "null"],
+                "description": "repair 턴만 — 고친 칸의 맞는 값을 아이 말에서 받아쓴 그대로. 아니라고만 했으면 null"}
+
+
+@lru_cache(maxsize=None)
+def repair_schema() -> dict:
+    """The line schema plus fixed_value — a repair turn only (#323). Every other turn keeps the served schema."""
+    s = json.loads(json.dumps(schema()))
+    s["properties"]["fixed_value"] = _FIXED_VALUE
+    s["required"] = [*s["required"], "fixed_value"]
+    return s
+
+
 def user(req: TurnRequest, v: JudgeResult | None, recipe: recipes.Recipe | None = None) -> str:
     """The §3 inputs. Without a verdict, the slots are empty and the model just continues.
 
@@ -130,12 +143,15 @@ async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30
     if settings.mock:
         line = shape(mock_line(req, v), req, v)
         line.act = act
+        if act == "repair":
+            line.fixed_value = mock_fixed_value(req)
         return line
     if budget_s < LINE_MIN_S:
         log.warning("line skipped: %.1fs left of the /turn deadline", budget_s)
         return None          # the phone asks its own next question; the verdict still counts
     try:
-        raw = await complete(system_for(req.mode, act), user(req, v, recipe), schema(), name="mascot_line",
+        raw = await complete(system_for(req.mode, act), user(req, v, recipe),
+                             repair_schema() if act == "repair" else schema(), name="mascot_line",
                              effort=settings.llm_effort_line, timeout_s=budget_s)
     except LLMError as e:
         log.warning("line failed: %s", e)
@@ -176,7 +192,8 @@ def choose_schema() -> dict:
     s["properties"]["act"] = {"type": ["string", "null"], "enum": [*_INTENT_OF, None]}
     s["properties"]["target"] = {"type": ["string", "null"], "enum": [*SLOT_NAMES, None]}
     s["properties"]["new_value"] = {"type": "boolean"}
-    s["required"] = [*s["required"], "act", "target", "new_value"]
+    s["properties"]["fixed_value"] = _FIXED_VALUE
+    s["required"] = [*s["required"], "act", "target", "new_value", "fixed_value"]
     return s
 
 
@@ -195,6 +212,8 @@ async def run_line_choosing(req: TurnRequest, v: JudgeResult | None,
         act = policy.ACTS.get(d.intent)
         line = shape(mock_line(req, v), req, v)
         line.act = act
+        if act == "repair":
+            line.fixed_value = mock_fixed_value(req)
         return line, act, d
     if budget_s < LINE_MIN_S:
         return None, None, None
@@ -211,6 +230,25 @@ async def run_line_choosing(req: TurnRequest, v: JudgeResult | None,
         return None, act, d
     line.act = act
     return shape(line, req, v), act, d
+
+
+def settle(act: Act | None, req: TurnRequest, v: JudgeResult | None, line: Line | None,
+           retract: list[str]) -> tuple[JudgeResult | None, Line | None]:
+    """A repair's value: the slot the decider picked, the words the line model copied — no extra call."""
+    v, kept = policy.settle_repair(act, req, v, line.fixed_value if line else None, retract)
+    if line is not None and not kept:
+        # the model wrote a value that is not the child's words: it is dropped, and so is its question,
+        # which moved on as if the slot were settled — the phone asks that slot with its own words
+        log.warning("repair value not in the child's words — dropped, slot asked again")
+        line.question = None
+    return v, line
+
+
+def mock_fixed_value(req: TurnRequest) -> str | None:
+    """Mock only: the last word of a correction that carries one."""
+    d = mock_decision(req)
+    words = req.utterance.replace(",", " ").split()
+    return words[-1] if d.new_value and words else None
 
 
 async def _judge(req: TurnRequest) -> JudgeResult | None:
@@ -230,6 +268,7 @@ async def turn(req: TurnRequest) -> TurnResult:
         v = await _judge(req)
         line, act, d = await run_line_choosing(req, v, settings.turn_deadline_s - (time.monotonic() - t0))
         v, retract, _ = apply_act(act, d, req, v)
+        v, line = settle(act, req, v, line, retract)
         if v is None and line is None:
             raise HTTPException(502, "judge and line both failed")
         return TurnResult(judge=v, line=line, retract=retract)
@@ -246,6 +285,7 @@ async def turn(req: TurnRequest) -> TurnResult:
     act = policy.act_for(d)
     v, retract, recipe = apply_act(act, d, req, v)
     line = await run_line(req, v, settings.turn_deadline_s - (time.monotonic() - t0), recipe)
+    v, line = settle(act, req, v, line, retract)
     if v is None and line is None:
         raise HTTPException(502, "judge and line both failed")
     return TurnResult(judge=v, line=line, retract=retract)

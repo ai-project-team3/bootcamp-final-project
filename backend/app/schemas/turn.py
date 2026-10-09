@@ -5,7 +5,7 @@ leave the mascot something to say, and a failed line must not lose the verdict.
 """
 from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .judge import JudgeRequest, JudgeResult, SlotName
 
@@ -70,6 +70,9 @@ class Line(BaseModel):
     options: Optional[list[str]] = None
     # what this line does with the child's reply (#323); None = a plain turn
     act: Optional[Act] = None
+    # repair turns only: the right value for the slot the decider picked, copied from the child's words
+    # as transcribed. Server-side — it goes out as the verdict's slot_1 once it passes the check, never here
+    fixed_value: Optional[str] = Field(default=None, exclude=True)
 
 
 class TurnResult(BaseModel):

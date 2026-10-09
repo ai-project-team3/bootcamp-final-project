@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from ..filters.blocklist import is_blocked
 from ..schemas.judge import JudgeResult
 from ..schemas.turn import Act, TurnRequest
 from .decide import Decision
@@ -66,10 +67,10 @@ def trim_verdict(act: Optional[Act], d: Decision | None, v: JudgeResult | None) 
         slot = getattr(v, slot_f)
         if slot is None:
             continue
-        if act in NOT_AN_ANSWER:
-            drop.add(slot_f)
-        # 「그거 아니야」 alone answers nothing — and Jev copies the words into a slot (jev.py value_1)
-        elif act == "repair" and not (d and d.new_value):
+        # a question back or 「뭐라고?」 answers nothing. A correction's value comes from the line model
+        # for the slot the decider picked (settle_repair) — the judge saw the wrong value still in place,
+        # and on Jev copies the whole reply into some slot (jev.py value_1)
+        if act in NOT_AN_ANSWER or act == "repair":
             drop.add(slot_f)
     if not drop:
         return v
@@ -78,3 +79,28 @@ def trim_verdict(act: Optional[Act], d: Decision | None, v: JudgeResult | None) 
         setattr(out, slot_f, None)
         setattr(out, slot_f.replace("slot", "value"), None)
     return out
+
+
+def from_the_child(value: str | None, utterance: str) -> bool:
+    """A corrected value is taken only when it is the child's own words (rule 5) — a model that wrote
+    something the child did not say would make 「아이가 한 말」 a lie. Spaces aside, it must sit inside
+    the transcript as it is; the line model is told to copy, not fix (STT typos stay, like every slot)."""
+    if not value or not value.strip() or is_blocked(value):
+        return False
+    squash = lambda s: "".join(s.split())
+    return squash(value) in squash(utterance)
+
+
+def settle_repair(act: Optional[Act], req: TurnRequest, v: JudgeResult | None, fixed_value: str | None,
+                  retract: list[str]) -> tuple[JudgeResult | None, bool]:
+    """After the line: put the child's right value in the slot taken back, or ask that slot again.
+
+    Returns (verdict, kept) — kept=False means the line's question is about the wrong slot now."""
+    if act != "repair" or not retract:
+        return v, True
+    slot = retract[0]
+    base = v or JudgeResult(reason="dialogue_repair")
+    if from_the_child(fixed_value, req.utterance):
+        return base.model_copy(update={"slot_1": slot, "value_1": fixed_value.strip(),
+                                       "slot_2": None, "value_2": None}), True
+    return base.model_copy(update={"next_slot": slot}), fixed_value is None

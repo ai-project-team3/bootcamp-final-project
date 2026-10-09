@@ -35,10 +35,10 @@ def repair(req: TurnRequest, d: Decision, retract: list[str]) -> Recipe:
     slot = retract[0] if retract else None
     lines = [f"otto_said_before:{_otto_last(req)}"]
     if slot:
-        lines.append(f"wrong:{slot}={_value_before(req, slot)}")
-    # with the right value in the reply the judge has already filled it; otherwise ask the slot again
-    again = slot if slot and not d.new_value else None
-    return Recipe("repair", "\n".join(lines), again)
+        # the line model copies the right value for this slot (fixed_value) or asks it again (retry_slot);
+        # which of the two happened is settled after the line (policy.settle_repair)
+        lines += [f"wrong:{slot}={_value_before(req, slot)}", f"retry_slot:{slot}"]
+    return Recipe("repair", "\n".join(lines), None)
 
 
 def answer_back(req: TurnRequest, d: Decision, retract: list[str]) -> Recipe:

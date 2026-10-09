@@ -96,10 +96,11 @@ def test_a_bare_denial_does_not_refill_the_slot_it_denied():
     assert out.slot_1 is None and out.value_1 is None
 
 
-def test_a_correction_with_the_right_value_keeps_it():
-    v = JudgeResult(reason="x", slot_1="place", value_1="바닷가")
+def test_a_correction_s_value_does_not_come_from_the_judge():
+    # the judge saw the wrong value still in place; the value comes from the line model (settle_repair)
+    v = JudgeResult(reason="x", slot_1="extra", value_1="바다 아니야, 수영장이야")
     out = policy.trim_verdict("repair", d("correct", target="place", new_value=True), v)
-    assert out.slot_1 == "place" and out.value_1 == "바닷가"
+    assert out.slot_1 is None and out.value_1 is None
 
 
 def test_a_question_back_fills_nothing():
@@ -115,15 +116,55 @@ def test_an_aside_keeps_what_the_judge_filed():
 
 # --- recipes: which slot the question is about, and what context the line gets ---
 
-def test_a_repair_asks_the_taken_back_slot_again():
+def test_a_repair_tells_the_line_the_wrong_value_and_the_slot_to_ask_again():
     r = recipes.build("repair", req(), d("correct", target="place"), ["place"])
-    assert r.question_slot == "place"
-    assert "놀이터" in r.context and "놀이터에 갔구나!" in r.context
+    assert "wrong:place=놀이터" in r.context and "retry_slot:place" in r.context
+    assert "놀이터에 갔구나!" in r.context
+    assert r.question_slot is None      # settled after the line: a value moves on, none asks again
 
 
-def test_a_repair_with_the_new_value_moves_on():
-    r = recipes.build("repair", req(), d("correct", target="place", new_value=True), ["place"])
-    assert r.question_slot is None      # the judge's next slot stands
+# --- the corrected value: the decider's slot, the line model's copy of the child's words ---
+
+def test_the_child_s_own_words_pass():
+    assert policy.from_the_child("수영장", "바다 아니야, 수영장이야")
+    assert policy.from_the_child("엄마 랑", "아니야, 엄마랑 갔어")         # spaces aside
+
+
+def test_a_typo_the_child_s_transcript_has_is_kept_as_it_is():
+    assert policy.from_the_child("수영쟝", "바다 아니야 수영쟝이야")
+    assert not policy.from_the_child("수영장", "바다 아니야 수영쟝이야")   # a fixed typo is not in the words
+
+
+def test_a_value_the_child_did_not_say_is_refused():
+    assert not policy.from_the_child("고양이", "그거 아니야")
+    assert not policy.from_the_child("", "아니야")
+    assert not policy.from_the_child(None, "아니야")
+
+
+def test_settle_puts_the_value_in_the_slot_taken_back():
+    r = req("바다 아니야, 놀이공원이야")
+    v, kept = policy.settle_repair("repair", r, JudgeResult(reason="x", next_slot="problem"), "놀이공원", ["place"])
+    assert (v.slot_1, v.value_1, v.next_slot, kept) == ("place", "놀이공원", "problem", True)
+
+
+def test_settle_without_a_value_asks_the_slot_again():
+    v, kept = policy.settle_repair("repair", req(), JudgeResult(reason="x", next_slot="problem"), None, ["place"])
+    assert v.slot_1 is None and v.next_slot == "place" and kept
+
+
+def test_settle_with_an_invented_value_asks_again_and_drops_the_line_s_question():
+    v, kept = policy.settle_repair("repair", req("그거 아니야"), JudgeResult(reason="x"), "공원", ["place"])
+    assert v.slot_1 is None and v.next_slot == "place" and kept is False
+
+
+def test_settle_carries_the_value_even_when_the_judge_failed():
+    v, _ = policy.settle_repair("repair", req("아니야 공원이야"), None, "공원", ["place"])
+    assert v.slot_1 == "place" and v.value_1 == "공원"
+
+
+def test_settle_leaves_other_acts_alone():
+    v = JudgeResult(reason="x", next_slot="problem")
+    assert policy.settle_repair("answer_back", req(), v, None, []) == (v, True)
 
 
 def test_the_same_question_comes_back_after_a_question_back():
