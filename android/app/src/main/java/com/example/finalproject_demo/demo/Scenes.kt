@@ -391,6 +391,8 @@ private suspend fun Director.onHeroPicked(v: String) {
     s.storyHeroImage = s.heroes[idx].image
     s.storyHeroRig = s.heroes[idx].rig
     s.storyHeroCall = s.heroes[idx].called
+    // a nameless card is the hero by its card name — the same one the child says (Model.kt storyHeroCard)
+    s.storyHeroCard = s.heroes[idx].name.takeIf { s.heroes[idx].called.isNullOrBlank() }
     mark("bestiary")
     log("주인공 고름: ${s.heroes[idx].name} → 고정 스프라이트 그대로 씀 (⭐20 · ⭐26)")
     say("${s.heroes[idx].name}${ya(s.heroes[idx].name)}, 준비됐지?")
