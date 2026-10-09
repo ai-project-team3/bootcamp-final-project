@@ -109,7 +109,7 @@ fun OttoShell(d: Director) {
             androidx.compose.animation.Crossfade(Shell.step, animationSpec = androidx.compose.animation.core.tween(220), label = "step") { step ->
             when (step) {
                 Step.CLAP -> SplashScreen { Shell.step = Step.TITLE }
-                Step.TITLE -> TitleScreen {
+                Step.TITLE -> CurtainOpening(d) {
                     Shell.step = when {
                         !Shell.onboarded -> Step.LOGIN
                         Accounts.guardian == null -> Step.EXPIRED        // 예외 · 로그인이 풀렸을 때
