@@ -31,7 +31,9 @@ enum class ReportQuestionType(val key: String) {
 
 /** Conservative classification of the question actually asked, including a changed ladder rung. */
 internal fun reportQuestionType(text: String, choice: Boolean = false): ReportQuestionType {
-    if (choice || Regex("아니면|중에서|어느 쪽|어떤 쪽").containsMatchIn(text)) return ReportQuestionType.CHOICE
+    // The spoken picture ladder reads three comma-separated options before asking for a place.
+    val listedOptions = Regex("^[^,?.!]+,[^,?.!]+,[^,?.!]+[.!?]").containsMatchIn(text.trim())
+    if (choice || listedOptions || Regex("아니면|중에서|어느 쪽|어떤 쪽").containsMatchIn(text)) return ReportQuestionType.CHOICE
     if (Regex("맞아|맞을까|맞니|맞나요|괜찮아|할래|해볼래|해 볼래").containsMatchIn(text) || text.trim().endsWith("좋아?"))
         return ReportQuestionType.CONFIRMATION
     if (Regex("왜|어째서|까닭|이유").containsMatchIn(text)) return ReportQuestionType.REASON
@@ -250,9 +252,11 @@ object SessionReports {
      * The book was removed from the shelf — its report goes too. When it is the book just made, the parent
      * screen's copy and this session's transcript go with it, so 「오늘의 기록」 does not keep showing a removed book (#223)
      */
-    @Synchronized fun forget(bookId: String, s: DemoState? = null) {
+    @Synchronized fun forget(bookId: String, s: DemoState? = null, deleteBook: () -> Boolean = { true }): Boolean {
+        if (!AnswerHistory.forget(bookId, deleteBook)) return false
         if (reports.removeAll { it.bookId == bookId }) save()
         if (s != null && s.lastReport?.bookId == bookId) { s.lastReport = null; s.talk.clear() }
+        return true
     }
 
     /** 테스트 · 탈퇴 뒤 — 메모리에 든 것도 비운다 */

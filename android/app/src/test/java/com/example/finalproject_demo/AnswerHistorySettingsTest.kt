@@ -45,12 +45,29 @@ class AnswerHistorySettingsTest {
         assertTrue(AnswerHistory.languageAnswers().isEmpty())
         assertNotNull(SessionReports.of("book"))
         compose.onNodeWithText("말 기록 새로 시작").assertExists()
-        val destination = java.io.File("C:/Users/hi/Documents/Codex/2026-10-09/report-followups/history-settings.png")
+        val destination = java.io.File(System.getProperty("java.io.tmpdir"), "otto-history-settings.png")
         compose.onRoot().captureRoboImage(destination.absolutePath,
             com.github.takahirom.roborazzi.RoborazziOptions(
                 taskType = com.github.takahirom.roborazzi.RoborazziTaskType.Record))
     }
 
+    @Test fun unreadableHistoryIsShownAndRequiresAnExplicitReset() {
+        val context = RuntimeEnvironment.getApplication()
+        context.getSharedPreferences("answer_history", android.content.Context.MODE_PRIVATE)
+            .edit().putString("sessions", "[{broken-history]").commit()
+        AnswerHistory.reload()
+        compose.setContent { ParentView(Director(scope), "set") }
+        compose.onNodeWithText("말 기록을 읽지 못했어요. 기존 자료는 보존했고, 새 기록 저장과 책 삭제는 잠시 멈췄어요.")
+            .performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("질문별 말 기록 · 0권 누적").assertDoesNotExist()
+        compose.onRoot().captureRoboImage(java.io.File(System.getProperty("java.io.tmpdir"), "otto-history-read-error.png").absolutePath,
+            com.github.takahirom.roborazzi.RoborazziOptions(taskType = com.github.takahirom.roborazzi.RoborazziTaskType.Record))
+        compose.onNodeWithText("말 기록 새로 시작").performScrollTo().performClick()
+        assertTrue(AnswerHistory.readFailed)
+        compose.onNodeWithText("네, 새로 시작할게요").performScrollTo().performClick()
+        assertFalse(AnswerHistory.readFailed)
+        compose.onNodeWithText("질문별 말 기록 · 0권 누적").assertExists()
+    }
     @Test fun changingACallKeepsHistoryOnlyAfterTheGuardianChoosesSameChild() {
         compose.setContent { ParentView(Director(scope), "set") }
         compose.onNode(hasSetTextAction()).performTextReplacement("별님")

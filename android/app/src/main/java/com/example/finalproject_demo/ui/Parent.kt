@@ -1035,11 +1035,16 @@ private fun ChildCallSection() {
             PButton("취소", PSub, Modifier.fillMaxWidth(), outline = true) { pendingCall = null }
         }
         Spacer(Modifier.height(8.dp))
-        Text("질문별 말 기록 · ${com.example.finalproject_demo.demo.AnswerHistory.all().size}권 누적", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
-        Text("열린·까닭 질문에 말한 답 ${com.example.finalproject_demo.demo.AnswerHistory.languageAnswers().size}개 · 선택 답 ${com.example.finalproject_demo.demo.AnswerHistory.choiceAnswers().size}개", fontSize = 13.sp, color = PSub)
+        if (com.example.finalproject_demo.demo.AnswerHistory.readFailed) {
+            Text("말 기록을 읽지 못했어요. 기존 자료는 보존했고, 새 기록 저장과 책 삭제는 잠시 멈췄어요.", fontSize = 13.sp, color = Curtain)
+        } else {
+            Text("질문별 말 기록 · ${com.example.finalproject_demo.demo.AnswerHistory.all().size}권 누적", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
+            Text("열린·까닭 질문에 말한 답 ${com.example.finalproject_demo.demo.AnswerHistory.languageAnswers().size}개 · 선택 답 ${com.example.finalproject_demo.demo.AnswerHistory.choiceAnswers().size}개", fontSize = 13.sp, color = PSub)
+        }
+        if (com.example.finalproject_demo.demo.AnswerHistory.writeFailed) Text("말 기록을 저장하지 못했어요. 저장 공간을 확인해 주세요.", fontSize = 13.sp, color = Curtain)
         Text("질문 문구로 분류하며, 확인 답과 유형을 모르는 답은 언어 지표에서 빼요. 원문은 기기에만 남겨요.", fontSize = 12.sp, color = PSub)
         if (resetting) {
-            Text("누적 말 기록을 비울까요? 책과 책별 리포트는 지우지 않아요.", fontSize = 14.sp, color = Ink)
+            Text("누적 말 기록을 비울까요? 책과 책별 리포트는 지우지 않아요. 다음 새 책부터 기록해요.", fontSize = 14.sp, color = Ink)
             PButton("네, 새로 시작할게요", PAccent, Modifier.fillMaxWidth()) {
                 if (com.example.finalproject_demo.demo.AnswerHistory.startNewChild()) resetting = false else failed = true
             }

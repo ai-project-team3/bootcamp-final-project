@@ -335,11 +335,10 @@ object CoopShelf {
     fun delete(s: DemoState, id: String): Boolean {
         val store = stores[s] ?: return false
         if (books[s]?.none { it.book.id == id } != false) return false
-        if (!runCatching { store.delete(id) }.getOrDefault(false)) return false
+        if (!SessionReports.forget(COOP_SHELF_ID + id, s) { store.delete(id) }) return false
         books[s]?.removeAll { it.book.id == id }
         snapshots.remove(id)
         s.shelf.removeAll { it.savedStoryId == COOP_SHELF_ID + id }
-        SessionReports.forget(COOP_SHELF_ID + id, s)
         CoopPlan.forgetBook(s, id)   // the 「다녀온 뒤」 box must not offer a book that is gone (#223)
         return true
     }

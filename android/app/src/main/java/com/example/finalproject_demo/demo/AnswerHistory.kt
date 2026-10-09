@@ -20,6 +20,11 @@ object AnswerHistory {
     var revision by mutableIntStateOf(0)
         private set
 
+    var readFailed by androidx.compose.runtime.mutableStateOf(false)
+        private set
+    var writeFailed by androidx.compose.runtime.mutableStateOf(false)
+        private set
+
     @Synchronized fun attach(context: Context) {
         prefs = context.applicationContext.getSharedPreferences("answer_history", Context.MODE_PRIVATE)
         reload()
@@ -29,6 +34,7 @@ object AnswerHistory {
         val id = prefs?.getString("profile", null)
         profileId = id ?: UUID.randomUUID().toString()
         sessions.clear()
+        readFailed = false; writeFailed = false
         val raw = prefs?.getString("sessions", null)
         if (raw != null) {
             val loaded = runCatching {
@@ -44,7 +50,7 @@ object AnswerHistory {
                                 question = a.optString("question").takeUnless { it.isBlank() || it == "null" })
                         })
                 }
-            }.getOrDefault(emptyList())
+            }.onFailure { readFailed = true }.getOrDefault(emptyList())
             sessions.addAll(loaded)
         }
         revision++
@@ -62,22 +68,43 @@ object AnswerHistory {
 
     @Synchronized fun keep(report: SessionReport) {
         // A paused book for a previous child must not enter the new child's history.
-        if (report.bookId.isBlank() || report.profileId != profileId) return
+        if (readFailed || report.bookId.isBlank() || report.profileId != profileId) return
         val next = sessions.filterNot { it.bookId == report.bookId } + AnswerSession(
             report.bookId, report.day, report.mode, report.talk.filter { it.who != "otto" })
-        if (save(next, profileId)) { sessions.clear(); sessions.addAll(next); revision++ }
+        writeFailed = !save(next, profileId)
+        if (!writeFailed) { sessions.clear(); sessions.addAll(next); revision++ }
+    }
+
+    /** Persist the removal first. Do not delete a book if its raw copy cannot be removed safely. */
+    @Synchronized fun forget(bookId: String, deleteBook: () -> Boolean = { true }): Boolean {
+        if (readFailed) return false
+        val before = sessions.toList()
+        val next = before.filterNot { it.bookId == bookId }
+        if (next.size == before.size) return runCatching(deleteBook).getOrDefault(false)
+        writeFailed = !save(next, profileId)
+        if (writeFailed) return false
+        if (!runCatching(deleteBook).getOrDefault(false)) {
+            writeFailed = !save(before, profileId)
+            if (writeFailed) { sessions.clear(); sessions.addAll(next); revision++ }
+            return false
+        }
+        sessions.clear(); sessions.addAll(next); revision++
+        return true
     }
 
     /** A different child or an explicit guardian reset starts a fresh history; books stay on the shelf. */
     @Synchronized fun startNewChild(): Boolean {
         val id = UUID.randomUUID().toString()
-        if (!save(emptyList(), id)) return false
+        writeFailed = !save(emptyList(), id)
+        if (writeFailed) return false
+        readFailed = false
         sessions.clear(); profileId = id; revision++
         return true
     }
 
     @Synchronized fun clear() {
         sessions.clear(); profileId = UUID.randomUUID().toString(); revision++
+        readFailed = false; writeFailed = false
         prefs?.edit()?.clear()?.commit()
     }
 

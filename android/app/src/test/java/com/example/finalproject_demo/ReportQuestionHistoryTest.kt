@@ -99,6 +99,101 @@ class ReportQuestionHistoryTest {
             assertNotNull("Old books and reports are preserved", SessionReports.of("old"))
         } finally { SessionReports.clear() }
     }
+    @Test fun voiceAtThePictureCardRungIsAChoiceNotAnOpenAnswer() {
+        val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob())
+        val d = Director(scope)
+        try {
+            d.setListening(Question("어디로 갈까?", Kind.EASY))
+            d.say("어디로 갈까?")
+            d.say("어린이집, 놀이터, 할머니 집. 오늘은 어디 있었어?")
+            d.talk("child", "놀이터")
+            assertEquals(ReportQuestionType.CHOICE, d.s.talk.last().questionType)
+            d.say("어디로 갈까?")
+            d.s.stage = Stage.CardsRow(listOf(Card("숲", Art.Mascot, "forest")))
+            d.talk("child", "숲")
+            assertEquals(ReportQuestionType.CHOICE, d.s.talk.last().questionType)
+        } finally { scope.coroutineContext[kotlinx.coroutines.Job]?.cancel() }
+    }
+
+    @Test fun deletingABookAlsoDeletesItsRawAnswerCopy() {
+        SessionReports.attach(org.robolectric.RuntimeEnvironment.getApplication())
+        SessionReports.clear()
+        try {
+            val state = DemoState()
+            state.talk += TalkLine("child", "집에 갔어", questionType = ReportQuestionType.OPEN)
+            SessionReports.keep(state, "delete-me")
+            SessionReports.keep(state, "keep-me")
+            SessionReports.forget("delete-me")
+            AnswerHistory.reload()
+            assertEquals(listOf("keep-me"), AnswerHistory.all().map { it.bookId })
+        } finally { SessionReports.clear() }
+    }
+
+    @Test fun unreadableHistoryIsNotOverwrittenByTheNextBook() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        SessionReports.attach(context)
+        SessionReports.clear()
+        try {
+            val prefs = context.getSharedPreferences("answer_history", android.content.Context.MODE_PRIVATE)
+            val damaged = "[{broken-history]"
+            prefs.edit().putString("sessions", damaged).commit()
+            AnswerHistory.reload()
+            val state = DemoState()
+            state.talk += TalkLine("child", "집에 갔어", questionType = ReportQuestionType.OPEN)
+            SessionReports.keep(state, "new")
+            assertEquals(damaged, prefs.getString("sessions", null))
+        } finally { SessionReports.clear() }
+    }
+    @Test fun failedBookDeletionRestoresTheRawHistoryAndReport() {
+        SessionReports.attach(org.robolectric.RuntimeEnvironment.getApplication())
+        SessionReports.clear()
+        try {
+            val state = DemoState()
+            state.talk += TalkLine("child", "집에 갔어", questionType = ReportQuestionType.OPEN)
+            SessionReports.keep(state, "keep-me")
+            assertFalse(SessionReports.forget("keep-me", state) { false })
+            AnswerHistory.reload()
+            assertEquals(listOf("keep-me"), AnswerHistory.all().map { it.bookId })
+            assertNotNull(SessionReports.of("keep-me"))
+            assertNotNull(state.lastReport)
+        } finally { SessionReports.clear() }
+    }
+
+    @Test fun unreadableHistoryStopsDeletionUntilAnExplicitReset() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        SessionReports.attach(context); SessionReports.clear()
+        try {
+            val prefs = context.getSharedPreferences("answer_history", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putString("sessions", "[{broken-history]").commit()
+            AnswerHistory.reload()
+            var deleted = false
+            assertTrue(AnswerHistory.readFailed)
+            assertFalse(SessionReports.forget("book") { deleted = true; true })
+            assertFalse(deleted)
+            assertTrue(AnswerHistory.startNewChild())
+            assertFalse(AnswerHistory.readFailed)
+            assertTrue(SessionReports.forget("book") { deleted = true; true })
+            assertTrue(deleted)
+        } finally { SessionReports.clear() }
+    }
+    @Test fun repairedHistoryCanBeLoadedWithoutResettingTheChild() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        SessionReports.attach(context); SessionReports.clear()
+        try {
+            val prefs = context.getSharedPreferences("answer_history", android.content.Context.MODE_PRIVATE)
+            val state = DemoState()
+            state.talk += TalkLine("child", "집에 갔어", questionType = ReportQuestionType.OPEN)
+            SessionReports.keep(state, "book")
+            val intact = prefs.getString("sessions", null)
+            prefs.edit().putString("sessions", "[{broken-history]").commit()
+            AnswerHistory.reload()
+            assertTrue(AnswerHistory.readFailed)
+            prefs.edit().putString("sessions", intact).commit()
+            AnswerHistory.reload()
+            assertFalse(AnswerHistory.readFailed)
+            assertEquals(listOf("book"), AnswerHistory.all().map { it.bookId })
+        } finally { SessionReports.clear() }
+    }
     @Test fun undoAndRedoRestoreTheAnswersUsedByTheReport() {
         val s = DemoState()
         val history = TurnHistory(s)
