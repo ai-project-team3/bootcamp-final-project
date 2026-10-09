@@ -1,6 +1,7 @@
 package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.DemoState
+import com.example.finalproject_demo.demo.TurnHistory
 import com.example.finalproject_demo.demo.exchangeStoryTurn
 import com.example.finalproject_demo.demo.nextStoryPrompt
 import com.example.finalproject_demo.demo.storyEndIntent
@@ -69,6 +70,43 @@ class StoryEndIntentTest {
         }
         assertTrue(s.storyReady)
         assertEquals("the ending words are not the solution", null, s.slots["solution"])
+    }
+
+    /** 10-09 device (4th round) — the answer to the closing question makes the book; no second 「끝이야」 */
+    @Test
+    fun theClosingAnswerEndsTheStory() = runBlocking {
+        val s = DemoState().apply { turn = 6; slots["problem"] = "길을 잃었어" }
+        s.say("이제 끝이야")
+        assertFalse(s.storyReady)
+        s.exchangeStoryTurn("solution", "좋아, 그럼 마지막으로! 이야기는 어떻게 끝났어?", "엄마랑 손잡고 집에 갔어") {
+            Server.TurnResult(verdict().copy(fills = listOf("solution" to it.utterance)), Server.Line("그랬구나", null, "그다음에는 무슨 일이 있었어?"))
+        }
+        assertTrue(s.storyReady)
+        assertEquals("엄마랑 손잡고 집에 갔어", s.slots["solution"])
+    }
+
+    /** The closing answer filled nothing — the child already wanted to stop, so it ends anyway (decided in #381) */
+    @Test
+    fun anUnfilledClosingAnswerEndsToo() = runBlocking {
+        val s = DemoState().apply { turn = 6; slots["problem"] = "길을 잃었어" }
+        s.say("이제 끝이야")
+        s.say("음 몰라")
+        assertTrue(s.storyReady)
+    }
+
+    /** #381 review — undoing 「끝이야」 takes back the closing question's mark too; redo brings it back */
+    @Test
+    fun undoTakesBackTheEndAsk() = runBlocking {
+        val s = DemoState().apply { turn = 6; slots["problem"] = "길을 잃었어" }
+        val history = TurnHistory(s)
+        history.before(); s.say("이제 끝이야"); history.done()
+        assertTrue(s.storyEndAsked)
+        assertTrue(history.undo())
+        assertFalse(s.storyEndAsked)
+        history.before(); s.say("이제 끝이야"); history.done()
+        assertFalse("after undo the closing question comes again, it does not end at once", s.storyReady)
+        assertTrue(history.undo()); assertTrue(history.redo())
+        assertTrue(s.storyEndAsked)
     }
 
     @Test

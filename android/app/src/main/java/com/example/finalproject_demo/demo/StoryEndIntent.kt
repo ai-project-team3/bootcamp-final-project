@@ -29,7 +29,16 @@ internal val STORY_CLOSING_QUESTIONS = mapOf(
  * next question is the closing one for the missing core slot. Returns whether it acted.
  */
 internal fun DemoState.applyStoryEndIntent(utterance: String, by: String): Boolean {
-    if (mode != StoryMode.STORY || storyReady || by != "child" || !storyEndIntent(utterance)) return false
+    if (mode != StoryMode.STORY || storyReady) return false
+    if (by != "child" || !storyEndIntent(utterance)) {
+        // the closing question was answered — the child already said the story is over, so the book is made now, filled
+        // or not; asking once more made the child say 「끝이야」 a second time (10-09 device · laya 4th round)
+        if (!storyEndAsked) return false
+        endReason = "story_ready"
+        com.example.finalproject_demo.net.Trace.line("story_verdict", "closing question answered → story_ready" +
+            (STORY_END_CORE.firstOrNull { slots[it].isNullOrBlank() }?.let { " ([$it] still empty)" } ?: ""))
+        return true
+    }
     val missing = STORY_END_CORE.firstOrNull { slots[it].isNullOrBlank() }
     // asked to end a second time — the child's wish wins; the book is made from what was told
     if (missing == null || storyEndAsked) {
