@@ -111,9 +111,13 @@ fun OttoShell(d: Director) {
                 Step.CLAP -> SplashScreen {
                     Shell.step = if (Shell.onboarded && Shell.openingSeen) Shell.startStep() else Step.TITLE
                 }
-                Step.TITLE -> CurtainOpening(d) {
-                    Shell.markOpeningSeen()
-                    Shell.step = Shell.startStep()
+                Step.TITLE -> {
+                    // Returning from re-consent must not replay the whole opening.
+                    if (Shell.onboarded && Shell.openingSeen) TitleScreen { Shell.step = Shell.startStep() }
+                    else CurtainOpening(d) {
+                        Shell.markOpeningSeen()
+                        Shell.step = Shell.startStep()
+                    }
                 }
                 Step.LOGIN -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL })
                 Step.EXPIRED -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL }, expired = true)

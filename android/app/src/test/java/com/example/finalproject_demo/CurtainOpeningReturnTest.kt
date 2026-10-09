@@ -84,4 +84,14 @@ class CurtainOpeningReturnTest {
         compose.onNodeWithText("카카오로 시작하기").assertIsDisplayed()
         compose.onNodeWithTag("opening-rope").assertDoesNotExist()
     }
+    @Test fun backingOutOfReconsentDoesNotReplayTheOpening() {
+        completeOpening()
+        compose.runOnIdle { Shell.saveConsent("previous-version", false, 1L); Shell.step = Step.CONSENT }
+        compose.onNodeWithText("약관이 바뀌었어요").assertIsDisplayed()
+        compose.onNodeWithText("←").performClick()
+        compose.onNodeWithText("눌러서 시작").assertIsDisplayed()
+        compose.onNodeWithTag("opening-rope").assertDoesNotExist()
+        compose.onNodeWithText("눌러서 시작").performClick()
+        compose.onNodeWithText("약관이 바뀌었어요").assertIsDisplayed()
+    }
 }
