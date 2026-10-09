@@ -25,6 +25,18 @@ class StoryHeroCardNameTest {
         assertFalse("a lone 「친구」 is not masked", "{주인공}" in mask.mask("친구랑 놀았어"))
     }
 
+    /** #392 review — a new story forgets the last hero card; the next doll request keeps its words */
+    @Test
+    fun aNewStoryForgetsTheCard() {
+        val s = story()
+        s.resetStory()
+        s.mode = StoryMode.STORY
+        assertEquals(null, s.storyHeroCard)
+        assertEquals("빨간 옷 친구처럼 생긴 토끼", s.nameMask().mask("빨간 옷 친구처럼 생긴 토끼"))
+        val app = story().apply { reset(); mode = StoryMode.STORY }
+        assertEquals(null, app.storyHeroCard)
+    }
+
     @Test
     fun aNamedDollOrAnotherModeIsUnchanged() {
         val named = story().apply { storyHeroCall = "도리" }.nameMask()

@@ -1460,6 +1460,9 @@ class DemoState {
         com.example.finalproject_demo.net.Server.callSummary().takeIf { it.isNotEmpty() }
             ?.let { com.example.finalproject_demo.net.Trace.line("calls", "${mode.name.lowercase()} unfinished · $it") }
         com.example.finalproject_demo.net.Server.resetCalls()
+        // the last story's hero card is not this one's — kept, it masked 「빨간 옷 친구처럼 생긴 토끼」 into the next doll
+        // request as 「{주인공}처럼 생긴 토끼」 before a hero was picked (#392 review)
+        storyHeroCard = null
         clearStorySound()
         enteredOnStage.clear()
         canUndo = false; canRedo = false
