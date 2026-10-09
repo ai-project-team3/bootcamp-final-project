@@ -32,9 +32,12 @@ from app.schemas.turn import TurnRequest  # noqa: E402
 
 CASES = [json.loads(l) for l in (EVAL / "fixtures_dialogue.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
 RAW = EVAL / "raw"
+PRICES: dict[str, float] = {}                # set only from the command line (--cached-usd · --jev-won)
 
-USD_IN, USD_OUT, KRW = 0.10, 0.50, 1400      # luna per Mtok (model_catalog.json 09-25)
-JEV_KRW = 0.292                              # 100 questions 29.2원 (09-22)
+USD_IN, USD_OUT, KRW = 0.10, 0.50, 1400      # luna list price per Mtok (model_catalog.json 09-25)
+# ⚠️ Prices are not the bill. 10-08's runs priced every input token at list price and Jev at 0.292원 a call
+# (09-22's 「100문항 29.2원」 divided by calls — never checked): about 2× the OpenAI bill (10-09: 1,228 calls,
+# $0.13~0.14). Now the report gives token counts (cached apart) and Jev calls; won only with prices passed in.
 DROPS_WORDS = {"repair", "answer_back", "rephrase"}   # acts that may drop the judge's fills
 NEEDS_QUESTION = {"answer_back", "rephrase", "aside"}
 ALLOWED = {None, "repair", "answer_back", "rephrase", "aside"}
@@ -46,7 +49,7 @@ class Meter:
     """Tokens, Jev calls and the seconds of each step inside one /turn call."""
 
     def __init__(self):
-        self.tin = self.tout = self.jev = 0
+        self.tin = self.tout = self.tcached = self.jev = 0
         self.decision = None
         self.steps: dict[str, float] = {}       # judge · decide · line · line_choose · jev_judge · jev_ask
 
@@ -72,7 +75,7 @@ async def one(req: TurnRequest, m: Meter) -> dict:
         "fills": [[s, x] for s, x in ((v.slot_1, v.value_1), (v.slot_2, v.value_2)) if s] if v else [],
         "next_slot": v.next_slot if v else None,
         "decision": d.__dict__ if d else None,
-        "tin": m.tin, "tout": m.tout, "jev": m.jev,
+        "tin": m.tin, "tcached": m.tcached, "tout": m.tout, "jev": m.jev,
         "steps": m.steps,
     }
 
@@ -85,6 +88,10 @@ def instrument() -> list[Meter]:
         cur[0].tin += tin
         cur[0].tout += tout
     client.on_usage = usage
+
+    def cached(name, n):
+        cur[0].tcached += n
+    client.on_cached = cached
 
     def timed(owner, fn: str, step: str, keep_decision: bool = False):
         orig = getattr(owner, fn)
@@ -207,7 +214,8 @@ def score(rows: list[dict]) -> dict:
         for r, s in items:
             all_ok[r["id"]] = all_ok[r["id"]] and s["act_ok"]
         secs = [r["secs"] for r, _ in items]
-        won = [(r["tin"] * USD_IN + r["tout"] * USD_OUT) / 1e6 * KRW + r["jev"] * JEV_KRW for r, _ in items]
+        rs = [r for r, _ in items]
+        mean = lambda k: round(statistics.mean(r.get(k, 0) for r in rs), 1)
         report[variant] = {
             "runs": len(runs),
             "false_pos_per_run": per_run("false_pos"), "of_answers": n_answer,
@@ -221,7 +229,12 @@ def score(rows: list[dict]) -> dict:
             "pass_k_ci": [round(x, 3) for x in wilson(sum(all_ok.values()), len(all_ok))],
             "broken": sum(1 for _, s in items if s["broken"]),
             "p50": round(statistics.median(secs), 2), "p95": round(pct(secs, .95), 2),
-            "won_per_turn": round(statistics.mean(won), 3),
+            # per turn: luna tokens (cached apart) and Jev calls — the bill's own units
+            "luna_in": mean("tin"), "luna_cached": mean("tcached"), "luna_out": mean("tout"), "jev_calls": mean("jev"),
+            **({"won_per_turn": round(statistics.mean(
+                ((r["tin"] - r.get("tcached", 0)) * USD_IN + r.get("tcached", 0) * PRICES["cached_usd"]
+                 + r["tout"] * USD_OUT) / 1e6 * KRW + r["jev"] * PRICES["jev_won"] for r in rs), 3)}
+               if PRICES else {}),
             "steps": steps([r for r, _ in items]),
             "errors": sum(1 for r, _ in items if r["error"]),
         }
@@ -291,7 +304,11 @@ def main() -> None:
     ap.add_argument("--yes-spend", action="store_true", help="real vendor calls cost money")
     ap.add_argument("--score", default=None, help="score a saved raw file instead of running")
     ap.add_argument("--mock", action="store_true", help="dry run on the mock server — checks the harness, measures nothing")
+    ap.add_argument("--cached-usd", type=float, default=None, help="luna cached input $/Mtok — with --jev-won, adds won per turn")
+    ap.add_argument("--jev-won", type=float, default=None, help="won per Jev call, once known from the bill")
     a = ap.parse_args()
+    if a.cached_usd is not None and a.jev_won is not None:
+        PRICES.update(cached_usd=a.cached_usd, jev_won=a.jev_won)
     if a.score:
         rows = [json.loads(l) for l in Path(a.score).read_text(encoding="utf-8").splitlines() if l.strip()]
         show(score(rows))
