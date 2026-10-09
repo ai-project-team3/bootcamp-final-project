@@ -21,7 +21,20 @@ import java.time.LocalDate
  */
 
 /** 대화 한 줄. who: otto · child(말) · card · draw · mascot(오또가 대신 채움) · adult */
-data class TalkLine(val who: String, val text: String, val tags: List<String> = emptyList())
+enum class ReportQuestionType(val key: String) {
+    OPEN("open"), REASON("reason"), CHOICE("choice"), CONFIRMATION("confirmation"), UNKNOWN("unknown");
+
+    companion object {
+        fun fromKey(key: String): ReportQuestionType = entries.firstOrNull { it.key == key } ?: UNKNOWN
+    }
+}
+
+data class TalkLine(
+    val who: String,
+    val text: String,
+    val tags: List<String> = emptyList(),
+    val questionType: ReportQuestionType = ReportQuestionType.UNKNOWN,
+)
 
 /** 이야기 뼈대 한 칸. by: child · card · mascot. quoted — text 가 아이가 한 말 그대로일 때만 따옴표를 친다 */
 data class ReportBone(val label: String, val text: String, val by: String, val quoted: Boolean = false)
@@ -161,7 +174,7 @@ fun SessionReport.toJson(): JSONObject = JSONObject()
     .put("longestWords", longestWords).put("homeQuestion", homeQuestion).put("firsts", firsts.json())
     .put("bones", JSONArray().also { a -> bones.forEach { a.put(JSONObject().put("label", it.label).put("text", it.text).put("by", it.by).put("quoted", it.quoted)) } })
     .put("moments", JSONArray().also { a -> moments.forEach { a.put(JSONObject().put("kind", it.kind).put("quote", it.quote)) } })
-    .put("talk", JSONArray().also { a -> talk.forEach { a.put(JSONObject().put("who", it.who).put("text", it.text).put("tags", it.tags.json())) } })
+    .put("talk", JSONArray().also { a -> talk.forEach { a.put(JSONObject().put("who", it.who).put("text", it.text).put("tags", it.tags.json()).put("questionType", it.questionType.key)) } })
 
 fun sessionReportOf(j: JSONObject): SessionReport {
     fun objs(name: String) = j.optJSONArray(name)?.let { a -> (0 until a.length()).map { a.getJSONObject(it) } }.orEmpty()
@@ -172,7 +185,7 @@ fun sessionReportOf(j: JSONObject): SessionReport {
         exchanges = j.optInt("exchanges"), spoken = j.optInt("spoken"), longestWords = j.optInt("longestWords"),
         bones = objs("bones").map { ReportBone(it.getString("label"), it.getString("text"), it.getString("by"), it.optBoolean("quoted")) },
         moments = objs("moments").map { ReportMoment(it.getString("kind"), it.getString("quote")) },
-        talk = objs("talk").map { TalkLine(it.getString("who"), it.getString("text"), it.optJSONArray("tags").strings()) },
+        talk = objs("talk").map { TalkLine(it.getString("who"), it.getString("text"), it.optJSONArray("tags").strings(), ReportQuestionType.fromKey(it.optString("questionType"))) },
         homeQuestion = j.optString("homeQuestion"),
         firsts = j.optJSONArray("firsts").strings(),
     )
