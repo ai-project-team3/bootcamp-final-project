@@ -32,6 +32,17 @@ class StoryPlaceWordsTest {
     }
 
     @Test
+    fun anUncertainPartOfThePlaceIsKept() {
+        // #390 re-review — 「우리」 and a noun ending in 이 can be part of the place
+        assertEquals("우리 집", storyPlaceFromSentence("우리 집에 갔어"))
+        assertEquals("고양이 마을", storyPlaceFromSentence("고양이 마을로 갔어"))
+        assertEquals("원숭이 섬", storyPlaceFromSentence("원숭이 섬에 갔어"))
+        // a known someone with a bare 이 is still the subject
+        assertEquals("놀이터", storyPlaceFromSentence("동생이 놀이터에 갔어"))
+        assertEquals("동물원", storyPlaceFromSentence("우리 같이 동물원에 갔어"))
+    }
+
+    @Test
     fun aPlaceNameStaysAsItIs() {
         listOf("우리 집", "놀이공원", "바다 속 궁전", "숲", "구름 위 성").forEach { assertEquals(it, storyPlaceFromSentence(it)) }
         assertEquals("not a place sentence — kept", "공룡이 나타났어", storyPlaceFromSentence("공룡이 나타났어"))
@@ -46,6 +57,13 @@ class StoryPlaceWordsTest {
             s1Reason = false, s2Addition = false, emotion = null,
         ), "child")
         assertEquals("숲속", s.slots["place"])
+        val home = DemoState()
+        home.applyStoryVerdict(Server.Verdict(
+            reason = "test", fills = listOf("place" to "우리 집에 갔어"), nextSlot = null,
+            noLongerNeeded = null, storyReady = false, unclear = false, unclearOf = null, contradiction = false,
+            s1Reason = false, s2Addition = false, emotion = null,
+        ), "child")
+        assertEquals("우리 집", home.slots["place"])
         assertEquals("other slots keep the sentence", "숲속에 갔어", s.slots["problem"])
     }
 }

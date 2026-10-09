@@ -15,17 +15,26 @@ private val NOT_PLACE_WORD = Regex("(?:랑|하고|와|과|는|가|을|를|도|�
 /** 은 ends these place adjectives — 「작은 숲」 · 「높은 산」; elsewhere it is a topic (「동생은」) */
 private val PLACE_ADJECTIVES = setOf("작은", "높은", "넓은", "깊은", "좋은", "맑은", "밝은", "검은", "붉은", "낮은", "좁은", "얕은", "같은")
 
-/** Does [w] still belong to the place phrase — 이 is a subject only after a final consonant (「곰이」), not 「하와이」 */
+/**
+ * Someone who can be the subject with a bare 이 — 「곰이 숲에 갔어」. Only these stop the phrase: an unknown word ending in 이
+ * may be the place's own noun (「고양이 마을로 갔어」 → 고양이 마을), so it is kept (#390 review — keep what is uncertain).
+ */
+private val SUBJECT_BEFORE_I = listOf(
+    "곰", "괴물", "공룡", "드래곤", "외계인", "유령", "도둑", "해적", "로봇", "사람", "동생", "형", "선생님",
+)
+
+/** Does [w] still belong to the place phrase — it stops only at someone (「엄마랑」 · 「곰이」) or a time (「오늘」) */
 private fun belongsToPlace(w: String): Boolean {
     if (w in TIME_WORDS || NOT_PLACE_WORD.containsMatchIn(w)) return false
     if (w.endsWith('은')) return w in PLACE_ADJECTIVES
     if (w.endsWith('이') && w.length >= 2) {
-        val before = w[w.length - 2]
-        if (before in '가'..'힣' && (before - '가') % 28 != 0) return false
+        val stem = w.dropLast(1)
+        if (SUBJECT_BEFORE_I.any(stem::endsWith)) return false
     }
     return true
 }
-private val TIME_WORDS = setOf("오늘", "어제", "내일", "아까", "주말", "그때", "지금", "같이", "우리", "다", "또", "나", "내가", "제가", "저", "얼른", "빨리")
+/** Times and words about the speaker — 「우리」 is not here: 「우리 집」 is a place (#390 review) */
+private val TIME_WORDS = setOf("오늘", "어제", "내일", "아까", "주말", "그때", "지금", "같이", "다", "또", "나", "내가", "제가", "저", "얼른", "빨리")
 
 internal fun storyPlaceFromSentence(value: String): String {
     val words = value.trim().trimEnd('.', '!', '?', '~', '…').split(Regex("\\s+")).filter(String::isNotEmpty)
