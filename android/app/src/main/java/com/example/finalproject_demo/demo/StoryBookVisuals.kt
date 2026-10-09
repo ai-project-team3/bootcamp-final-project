@@ -89,6 +89,7 @@ fun DemoState.restoreStoryBook(book: SavedStoryBook): Boolean {
     m1Result = null
     m2Result = null
     storyCaptions = book.pages.map { it.caption }
+    storyBookPages = book.pages.map { page -> PageSpec(page.kind) { page.caption } }
     return true
 }
 

@@ -1031,9 +1031,9 @@ fun DemoState.autoTitleFor(): String {
 
 /** 표지 · 쪽 수 · 자막 */
 val DemoState.pageCount: Int get() =
-    if ((!isDiary || isCoop) && !storyCaptions.isNullOrEmpty()) storyCaptions!!.size else (template?.pages?.size ?: 6)
+    if ((!isDiary || isCoop) && !storyCaptions.isNullOrEmpty()) storyCaptions!!.size else if (template != null) bookPages.size else 6
 
-fun DemoState.pageKind(i: Int): PageKind = if (i == 0) PageKind.COVER else template?.pages?.getOrNull(i - 1)?.kind ?: PageKind.TOGETHER
+fun DemoState.pageKind(i: Int): PageKind = if (i == 0) PageKind.COVER else bookPages.getOrNull(i - 1)?.kind ?: PageKind.TOGETHER
 
 fun DemoState.bookCaption(i: Int): String =
     if (i == 0) title ?: "우리 책"
@@ -1050,4 +1050,4 @@ fun DemoState.bookCaption(i: Int): String =
     // A co-op mission in a story (10-06): the template's 「건네주었어요」 would not be what the child did
     else if (mode == StoryMode.STORY && pageKind(i) == PageKind.DRAG && slot2Prop() != null)
         slot2Prop()!!.let { if (m2Result == null) it.before else "${storyActor}${eun(storyActor)} ${it.did} ${it.result}" }
-    else template?.pages?.getOrNull(i - 1)?.text?.invoke(this) ?: ""
+    else bookPages.getOrNull(i - 1)?.text?.invoke(this) ?: ""
