@@ -43,11 +43,15 @@ ALLOWED = {None, "repair", "answer_back", "rephrase", "aside"}
 # --- running ---
 
 class Meter:
-    """Tokens and Jev calls of one /turn call."""
+    """Tokens, Jev calls and the seconds of each step inside one /turn call."""
 
     def __init__(self):
         self.tin = self.tout = self.jev = 0
         self.decision = None
+        self.steps: dict[str, float] = {}       # judge · decide · line · line_choose · jev_judge · jev_ask
+
+    def add(self, step: str, secs: float):
+        self.steps[step] = round(self.steps.get(step, 0.0) + secs, 3)
 
 
 async def one(req: TurnRequest, m: Meter) -> dict:
@@ -69,6 +73,7 @@ async def one(req: TurnRequest, m: Meter) -> dict:
         "next_slot": v.next_slot if v else None,
         "decision": d.__dict__ if d else None,
         "tin": m.tin, "tout": m.tout, "jev": m.jev,
+        "steps": m.steps,
     }
 
 
@@ -81,6 +86,20 @@ def instrument() -> list[Meter]:
         cur[0].tout += tout
     client.on_usage = usage
 
+    def timed(owner, fn: str, step: str, keep_decision: bool = False):
+        orig = getattr(owner, fn)
+
+        async def wrapped(*a, **k):
+            t = time.monotonic()
+            try:
+                out = await orig(*a, **k)
+            finally:
+                cur[0].add(step, time.monotonic() - t)
+            if keep_decision:
+                cur[0].decision = out
+            return out
+        setattr(owner, fn, wrapped)
+
     for fn in ("ask", "judge"):
         orig = getattr(jev, fn)
 
@@ -88,13 +107,14 @@ def instrument() -> list[Meter]:
             cur[0].jev += 1
             return await _orig(*a, **k)
         setattr(jev, fn, counted)
-
-    orig_decide = turn.decide
-
-    async def kept(req):
-        cur[0].decision = await orig_decide(req)
-        return cur[0].decision
-    turn.decide = kept
+    # the vendor round trips themselves — a failed Jev call is timed too
+    timed(jev, "judge", "jev_judge")
+    timed(jev, "ask", "jev_ask")
+    # the steps /turn runs: judge and decider side by side, then the line
+    timed(turn.judge, "run", "judge")
+    timed(turn, "decide", "decide", keep_decision=True)
+    timed(turn, "run_line", "line")
+    timed(turn, "run_line_choosing", "line_choose")
     return cur
 
 
@@ -103,10 +123,12 @@ async def run(variants: list[str], runs: int, mock: bool = False, sink: Path | N
     settings.mock = mock                                # mock: words-only decider, canned lines — free
     settings.judge_jev_modes = "story,diary,coop"        # as served since 10-05
     rows = []
-    for variant in variants:
-        settings.dialogue_policy = "llm" if variant == "M" else "rule"
-        for r in range(runs):
-            for c in CASES:
+    # variants take turns on every case — a slow vendor minute lands on all of them, not on one (10-08:
+    # run one after another, the >8 s calls bunched into R's last runs). Who goes first flips per case.
+    for r in range(runs):
+        for i, c in enumerate(CASES):
+            for variant in (variants if (i + r) % 2 == 0 else variants[::-1]):
+                settings.dialogue_policy = "llm" if variant == "M" else "rule"
                 body = dict(c["req"])
                 if variant == "B":
                     body["history"] = []                   # main's /turn: no history, no repair
@@ -116,7 +138,9 @@ async def run(variants: list[str], runs: int, mock: bool = False, sink: Path | N
                 if sink:                                   # each call as it lands — a stopped run keeps what it measured
                     with sink.open("a", encoding="utf-8") as f:
                         f.write(json.dumps(rows[-1], ensure_ascii=False) + "\n")
-                print(f"{variant} r{r} {c['id']} {res['act'] or '-':<11} {res['secs']:.2f}s", flush=True)
+                st = res["steps"]
+                print(f"{variant} r{r} {c['id']} {res['act'] or '-':<11} {res['secs']:.2f}s · judge {st.get('judge', 0):.2f}"
+                      f" · decide {st.get('decide', 0):.2f} · line {st.get('line', st.get('line_choose', 0)):.2f}", flush=True)
     return rows
 
 
@@ -198,11 +222,26 @@ def score(rows: list[dict]) -> dict:
             "broken": sum(1 for _, s in items if s["broken"]),
             "p50": round(statistics.median(secs), 2), "p95": round(pct(secs, .95), 2),
             "won_per_turn": round(statistics.mean(won), 3),
+            "steps": steps([r for r, _ in items]),
             "errors": sum(1 for r, _ in items if r["error"]),
         }
     if "R" in by_v and "M" in by_v:
         report["cascade"] = cascade(by_v["R"], by_v["M"], cases)
     return report
+
+
+def steps(rows: list[dict]) -> dict:
+    """p50 / p95 of each step, and how long the turn waited on the decider past the judge (they run side by side)."""
+    out = {}
+    names = sorted({k for r in rows for k in (r.get("steps") or {})})
+    for k in names:
+        xs = [r["steps"][k] for r in rows if k in (r.get("steps") or {})]
+        out[k] = [round(statistics.median(xs), 2), round(pct(xs, .95), 2), len(xs)]
+    waits = [max(0.0, r["steps"]["decide"] - r["steps"].get("judge", 0.0))
+             for r in rows if "decide" in (r.get("steps") or {})]
+    if waits:
+        out["wait_on_decider"] = [round(statistics.median(waits), 2), round(pct(waits, .95), 2), len(waits)]
+    return out
 
 
 def cascade(r_items, m_items, cases) -> list[dict]:
