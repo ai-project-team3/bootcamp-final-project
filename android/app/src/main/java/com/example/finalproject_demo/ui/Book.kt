@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.ui
 
 import com.example.finalproject_demo.demo.storyProblemOnPage
+import com.example.finalproject_demo.demo.coopSecondOnPage
 
 import androidx.compose.animation.core.Animatable
 import com.example.finalproject_demo.demo.coopMetLabel
@@ -260,7 +261,8 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
     val dinoArt = Art.DinoArt(s.dinoColor, s.dinoKey)
     val kind = if (page == 0) PageKind.COVER else savedBook?.pages?.getOrNull(page - 1)?.kind ?: s.pageKind(page)
     val caption = if (page > 0) savedBook?.pages?.getOrNull(page - 1)?.caption ?: s.bookCaption(page) else ""
-    val problemArt = s.storyProblemOnPage(kind, caption)
+    // the middle spot — a story's problem actor, or co-op's second character (#339 ②)
+    val problemArt = s.storyProblemOnPage(kind, caption) ?: s.coopSecondOnPage(kind, caption)
 
     fun react(target: String) = onReply(Reply.Tapped("tool:$tool:$target", tool))
 

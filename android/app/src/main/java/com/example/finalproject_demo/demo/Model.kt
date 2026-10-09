@@ -1244,6 +1244,8 @@ class DemoState {
     /** 지금 만들고 있는 낱말 — 같은 말로 두 번 부르지 않는다 (저장하지 않는다) */
     internal val characterRequests = mutableMapOf<CharacterRequest, Any>()
     internal val characterAttempts = mutableSetOf<CharacterRequest>()
+    /** Co-op second-character tries that came back empty — capped at [COOP_CHARACTER_TRIES] (#339 ② §2-5) */
+    internal val coopCharacterTries = mutableMapOf<CharacterRequest, Int>()
 
     /** 동화의 새 친구 인형 — 아이가 그리지 않았고, 지금 새 친구 칸 그대로일 때만 */
     val storyFriendDoll: GeneratedFriend?
@@ -1487,7 +1489,7 @@ class DemoState {
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
-        generatedCharacters.clear(); characterRequests.clear(); characterAttempts.clear(); readingSavedCast = false
+        generatedCharacters.clear(); characterRequests.clear(); characterAttempts.clear(); coopCharacterTries.clear(); readingSavedCast = false
         savedProblemCharacter = null
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L

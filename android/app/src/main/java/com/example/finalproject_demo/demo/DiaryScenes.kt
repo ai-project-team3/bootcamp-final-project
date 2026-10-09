@@ -2,6 +2,7 @@ package com.example.finalproject_demo.demo
 
 import com.example.finalproject_demo.demo.scene.FRIEND_SPOT
 import com.example.finalproject_demo.demo.scene.HERO_SPOT
+import com.example.finalproject_demo.demo.scene.PROBLEM_SPOT
 import com.example.finalproject_demo.ui.HeroAttr
 
 /*
@@ -105,6 +106,10 @@ private fun Director.diaryStage(bump: Boolean = false): Stage {
         add(if (kit) WorldItem(diaryHero, HERO_SPOT.x, 0.34f, 0.11f, depth = HERO_SPOT.depth) else WorldItem(diaryHero, 0.22f, 0.34f, 0.11f))
         s.companionArt?.let {
             add(if (kit) WorldItem(it, FRIEND_SPOT.x, 0.32f, 0.12f, depth = FRIEND_SPOT.depth) else WorldItem(it, 0.58f, 0.32f, 0.12f))
+        }
+        // co-op's second character — the middle spot on a kit, the right edge on a background picture (#339 ② §4-2)
+        s.coopSecondArt()?.let {
+            add(if (kit) WorldItem(it, PROBLEM_SPOT.x, 0.32f, 0.11f, depth = PROBLEM_SPOT.depth) else WorldItem(it, 0.82f, 0.32f, 0.10f))
         }
     }
     return diaryWorld(items, bump)
