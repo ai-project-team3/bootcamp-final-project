@@ -197,13 +197,19 @@ private val NEED_BOTTOM = imgY(345f)
 private const val WALL_TOP = 90f
 private const val WALL_BOTTOM = 545f
 
-private class Grid(w: Dp, h: Dp) {
+/** internal for RoomScreenSizesTest */
+internal class Grid(w: Dp, h: Dp) {
     /** 그림 1px 이 몇 dp 인가 · 그림 왼쪽 위가 화면 어디인가 */
     val s: Float = minOf(w.value / IMG_W, h.value / (NEED_BOTTOM - NEED_TOP))
     val ox: Float = (w.value - IMG_W * s) / 2
     val oy: Float = (IMG_H * s).let { ih ->
         if (ih <= h.value) h.value - ih
-        else ((h.value - ih) / 2).coerceIn(-NEED_TOP * s, h.value - NEED_BOTTOM * s)
+        else {
+            // 10-09 · 폴드7 바깥 화면처럼 가로로 긴 창은 세로에 맞춘 배율이라 두 한계가 이론상 같다 —
+            // float 반올림으로 아래가 위보다 커지면 coerceIn 이 빈 범위로 앱을 끈다. 그때는 창문 위를 맞춘다
+            val top = -NEED_TOP * s
+            ((h.value - ih) / 2).coerceIn(top, maxOf(top, h.value - NEED_BOTTOM * s))
+        }
     }
     /** 자리 */
     fun x(v: Float) = (ox + imgX(v) * s).dp
