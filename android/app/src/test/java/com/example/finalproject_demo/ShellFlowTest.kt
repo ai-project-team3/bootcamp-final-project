@@ -91,6 +91,12 @@ class ShellFlowTest {
         tap("2권"); tap("양모"); tap("받지 않아요")
         shot("06_setup_done")
         tap("설정 끝")
+        guideAndTutorial()
+    }
+
+    /** ⑥ 기능 안내 → ⑦ 건네기 → ⑧ 방 둘러보기 → ⑨ 말해 보기 → 방. 처음 설정의 뒷부분 · 새 보호자 계정도 다시 본다 (#319) */
+    private fun guideAndTutorial(shots: Boolean = true) {
+        fun shot(name: String) { if (shots) this.shot(name) }
         // ⑥ 기능 안내 (10-05) — 여섯 장을 넘긴다
         waitText("오또로 이렇게 놀아요"); waitText("상상한 이야기가 그림책이 돼요"); shot("06b_guide_1_story")
         listOf("2_diary", "3_coop", "4_shelf", "5_parent", "6_safe").forEach { tap("다음"); compose.mainClock.advanceTimeBy(400); shot("06b_guide_$it") }
@@ -340,7 +346,12 @@ class ShellFlowTest {
         waitText("마이크"); shot("26_new_account_mic")
         assertTrue("마이크를 건너뛰었다", Shell.step == Step.MIC)
         tap("마이크 켜기")
-        compose.waitUntil(5_000) { Shell.step == Step.APP }
+        // #319 (10-08 종훈) — 새 계정은 기능 안내 · 튜토리얼을 다시 본다. 비밀번호 · 맞춤 설정은 폰 단위라 물려받는다(건너뜀)
+        compose.waitUntil(5_000) { Shell.step == Step.FEATURES }
+        assertEquals("비밀번호를 다시 정하게 했다", 0, count("부모 비밀번호를 정해요"))
+        assertEquals("맞춤 설정을 다시 하게 했다", 0, count("우리 아이에게 맞춰요"))
+        guideAndTutorial(shots = false)
+        assertEquals(Step.APP, Shell.step)
         assertTrue(Shell.isReady(com.example.finalproject_demo.net.Accounts.guardian))
         assertTrue(ConsentStore.micNoticeShown)
         assertTrue(Shell.isReady(first))
@@ -359,6 +370,7 @@ class ShellFlowTest {
         compose.waitUntil(8_000) { Shell.step == Step.MIC }
         assertEquals("같은 계정인데 동의를 또 물었다", 0, count("이렇게만 써요"))
         tap("마이크 켜기")
+        // 이미 준비된 보호자 — 튜토리얼은 다시 보지 않는다
         compose.waitUntil(5_000) { Shell.step == Step.APP }
     }
 
@@ -374,21 +386,92 @@ class ShellFlowTest {
         Shell.saveConsent("2026-10-05", news = Shell.newsSince != null, at = Shell.newsSince ?: 0L)
         Shell.step = Step.TITLE
         tap("눌러서 시작")
+        // #319 — 로그인이 먼저(동의는 로그인한 그 보호자에게). 같은 보호자로 들어오면 다시 동의만
+        loginAgainBecauseTermsChanged()
+        compose.waitUntil(8_000) { Shell.step == Step.CONSENT }
         waitText("약관이 바뀌었어요"); shot("25_reconsent")
         assertEquals("처음 가입 화면이 그대로 나왔다", 0, count("이렇게만 써요"))
         assertEquals("다시 동의인데 단계 점이 보인다", 0, count("/ 5"))
         val lines = com.example.finalproject_demo.ui.shell.termsChangesSince("2026-10-05")
         lines.take(3).forEach { assertTrue("바뀐 것이 안 보인다: $it", count(it) > 0) }
-        // 뒤로 — 로그인이 아니라 첫 화면
+        // 뒤로 — 첫 화면. 거기서 「시작」은 다시 로그인으로 가니 다른 계정으로 들어갈 길이 막히지 않는다 (#319)
         tap("←")
         compose.waitUntil(5_000) { Shell.step == Step.TITLE }
         assertEquals("2026-10-05", Shell.consentVersion)
-        // 다시 들어가 동의하면 방으로, 판은 지금 판
+        // 다시 들어가 동의하면 방으로(튜토리얼 없이), 판은 지금 판
         tap("눌러서 시작")
-        waitText("약관이 바뀌었어요")
+        loginAgainBecauseTermsChanged()
+        compose.waitUntil(8_000) { Shell.step == Step.CONSENT }
         tap("모두 동의해요"); tap("동의하고 계속")
         compose.waitUntil(5_000) { Shell.step == Step.APP }
         assertEquals(com.example.finalproject_demo.ui.shell.TERMS_VERSION, Shell.consentVersion)
+    }
+
+    /** 판이 바뀐 폰의 「시작」 — 동의 화면이 아니라 다시 로그인이 먼저, 왜 다시 로그인하는지 보인다 (#319). 같은 카카오로 들어간다 */
+    private fun loginAgainBecauseTermsChanged() {
+        compose.waitUntil(5_000) { Shell.step == Step.EXPIRED }
+        waitText("다시 로그인해 주세요")
+        assertTrue("다시 로그인하는 이유가 안 보인다", count("로그인한 보호자에게 다시 동의") > 0)
+        assertEquals("로그인보다 동의가 먼저 나왔다", 0, count("동의하고 계속"))
+        tap("카카오로 시작하기")
+    }
+
+    /**
+     * #319 (10-08 치영 · 종훈 결정) — 처음 설정을 마친 폰에 판이 바뀐 뒤 **다른 보호자**가 로그인하면: 로그인 → 동의(앞 보호자의
+     * 동의를 물려받지 않고 처음 동의) → 마이크 → 기능 안내 → 튜토리얼 → 방. 비밀번호 · 맞춤 설정은 폰 단위라 건너뛴다.
+     * 그 뒤 앞 보호자가 다시 들어와도 남은 동의(새 보호자의 것)를 물려받지 않는다.
+     */
+    @Test
+    fun aNewAccountAfterATermsBumpLogsInFirstThenSeesTheTutorial() {
+        compose.activity.getSharedPreferences("otto_account", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        onboard()                                            // 카카오(개발용)로 처음 설정까지
+        val first = com.example.finalproject_demo.net.Accounts.guardian
+        Shell.saveConsent("2026-10-05", news = false, at = 0L)
+        Shell.step = Step.TITLE
+        tap("눌러서 시작")
+        compose.waitUntil(5_000) { Shell.step == Step.EXPIRED }
+        assertEquals("로그인보다 동의가 먼저 나왔다", 0, count("동의하고 계속"))
+        // 다른 보호자가 이메일로 가입
+        tap("이메일로 회원가입"); waitText("영문 + 숫자 8자 이상")
+        compose.onNode(hasContentDescription("이메일")).performTextInput("third@example.com")
+        compose.onNode(hasContentDescription("비밀번호")).performTextInput("otto2026")
+        compose.onNode(hasContentDescription("비밀번호 확인")).performTextInput("otto2026")
+        tap("가입하기")
+        compose.waitUntil(8_000) { Shell.step == Step.CONSENT }
+        waitText("이렇게만 써요")
+        assertTrue("앞 보호자의 동의가 그대로 남았다", !ConsentStore.guardianAgreed)
+        tap("약관에 모두 동의해요"); tap("동의하고 계속")
+        compose.waitUntil(5_000) { Shell.step == Step.MIC }
+        tap("마이크 켜기")
+        compose.waitUntil(5_000) { Shell.step == Step.FEATURES }
+        guideAndTutorial(shots = false)
+        assertEquals(Step.APP, Shell.step)
+        val third = com.example.finalproject_demo.net.Accounts.guardian
+        assertTrue(Shell.isReady(third))
+        assertEquals(third?.key, Shell.consentBy)
+        // 앞 보호자(이미 준비됨)로 바꿔 들어오면 — 남은 동의는 새 보호자의 것이라 물려받지 않는다
+        assertTrue(Shell.isReady(first))
+        assertTrue(!Shell.consentOk(first))
+        assertTrue(Shell.consentOk(third))
+    }
+
+    /** #319 — 처음 설정 다시 하기는 진행 기록만 지운다: 처음부터(로그인 · 비밀번호까지) 다시 나오고, 책 · 비밀번호 · 동의 기록은 남는다 */
+    @Test
+    fun redoOnboardingShowsTheWholeFirstRunAgain() {
+        compose.activity.getSharedPreferences("otto_account", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        onboard()
+        assertTrue("디버그 · 테스트 빌드인데 처음 설정 다시 하기가 없다", Shell.redoAvailable)
+        val g = com.example.finalproject_demo.net.Accounts.guardian
+        compose.runOnIdle { Shell.redoOnboarding() }
+        assertTrue(!Shell.onboarded)
+        assertTrue("준비된 계정 기록이 남았다", !Shell.isReady(g))
+        assertTrue("비밀번호까지 지웠다", Shell.hasPin)
+        assertTrue("동의 기록까지 지웠다", ConsentStore.guardianAgreed)
+        waitText("건너뛰기", 10_000); tap("건너뛰기")          // not onboarded → the curtain opening again
+        compose.waitUntil(5_000) { Shell.step == Step.LOGIN }
+        tap("카카오로 시작하기")
+        compose.waitUntil(5_000) { Shell.step == Step.CONSENT }
+        waitText("이렇게만 써요")
     }
 
     /**

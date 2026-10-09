@@ -40,13 +40,19 @@ fun OttoShell(d: Director) {
     /**
      * 로그인 · 가입 뒤 (10-05) — 처음 설정 전이면 처음 설정을 이어 간다. 이미 끝낸 폰이라도 **이 폰에서 처음 보는 보호자 계정**이면
      * 동의 · 마이크를 그 보호자에게 다시 받는다(앞 보호자의 동의를 물려받지 않는다). 전에 동의를 마친 계정은 마이크만 다시(로그아웃했으니)
+     *
+     * 10-08 #319 — 약관 판이 바뀐 폰은 「시작」에서 **로그인이 먼저**고, 다시 동의는 여기서 **로그인한 그 보호자**에게 받는다.
+     * 남은 동의가 다른 보호자의 것이면 처음 동의처럼 받는다(마이크도 다시)
      */
     fun afterLogin() {
+        val g = Accounts.guardian
         Shell.step = when {
             !Shell.onboarded -> Step.CONSENT
+            !Shell.isReady(g) -> { ConsentStore.withdraw(); Step.CONSENT }
+            Shell.consentByOther(g) -> { ConsentStore.withdraw(); Step.CONSENT }
+            !Shell.consentOk(g) -> Step.CONSENT                  // 판이 바뀌었거나 동의를 물렸다 — 같은 보호자의 다시 동의
             // 마친 계정이라도 로그아웃했다 들어오면 마이크는 다시 묻는다
-            Shell.isReady(Accounts.guardian) -> if (ConsentStore.micNoticeShown) Step.APP else Step.MIC
-            else -> { ConsentStore.withdraw(); Step.CONSENT }
+            else -> if (ConsentStore.micNoticeShown) Step.APP else Step.MIC
         }
     }
 
@@ -120,23 +126,36 @@ fun OttoShell(d: Director) {
                     }
                 }
                 Step.LOGIN -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL })
-                Step.EXPIRED -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL }, expired = true)
+                Step.EXPIRED -> LoginScreen(
+                    onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL }, expired = true,
+                    termsChanged = Accounts.guardian != null && !Shell.consentOk(Accounts.guardian),
+                )
                 Step.EMAIL -> EmailScreen(Shell.emailMode, onBack = { Shell.step = if (Shell.onboarded) Step.EXPIRED else Step.LOGIN }, onDone = { afterLogin() })
                 Step.CONSENT -> {
-                // 이미 동의한 보호자에게 판만 올라 다시 묻는 것이면 이유를 보이고, 뒤로가기는 로그인이 아니라 첫 화면으로 (#256).
+                // 이미 동의한 보호자에게 판만 올라 다시 묻는 것이면 이유를 보이고, 뒤로가기는 첫 화면으로 (#256) — 첫 화면의 「시작」은
+                // 다시 로그인으로 가니(#319) 다른 계정으로 들어갈 길이 남는다.
                 // 새 계정 · 처음 설정은 동의한 적이 없으니(guardianAgreed = false) 처음 동의 화면 그대로
                 val reconsent = Shell.onboarded && ConsentStore.guardianAgreed && Shell.consentVersion != TERMS_VERSION
                 ConsentStep(
                     reconsent = reconsent,
                     onBack = { Shell.step = if (reconsent) Step.TITLE else Step.LOGIN },
-                    // 약관이 바뀌어 다시 동의만 받은 계정은 방으로, 새 계정 · 처음 설정은 마이크로
-                    onDone = { Shell.step = if (Shell.onboarded && Shell.isReady(Accounts.guardian)) Step.APP else Step.MIC },
+                    // 약관이 바뀌어 다시 동의만 받은 계정은 방으로(로그아웃했다 들어왔으면 마이크만), 새 계정 · 처음 설정은 마이크로
+                    onDone = {
+                        Shell.step = if (Shell.onboarded && Shell.isReady(Accounts.guardian) && ConsentStore.micNoticeShown) Step.APP else Step.MIC
+                    },
                     onDecline = { activity?.finish() },      // 동의하지 않으면 앱을 닫는다 — 다음에 켜면 다시 묻는다
                 )
                 }
                 Step.MIC -> MicStep(onBack = { Shell.step = Step.CONSENT }, onDone = {
-                    // 처음 설정이면 비밀번호 · 맞춤 설정으로 이어 가고, 처음 설정을 끝낸 폰의 새 계정이면 여기서 끝
-                    if (Shell.onboarded) { Shell.markReady(Accounts.guardian); Shell.step = Step.APP } else Shell.step = Step.PIN
+                    // 처음 설정이면 비밀번호 · 맞춤 설정으로 이어 간다. 처음 설정을 끝낸 폰에 들어온 **새 보호자 계정**이면
+                    // 비밀번호 · 맞춤 설정(폰 단위 · 물려받음)을 건너뛰고 기능 안내 · 튜토리얼을 다시 본다 (10-08 #319 종훈).
+                    // 이미 준비된 보호자(다시 동의 · 다시 로그인)는 여기서 끝
+                    val g = Accounts.guardian
+                    Shell.step = when {
+                        !Shell.onboarded -> Step.PIN
+                        Shell.isReady(g) -> Step.APP
+                        else -> { Shell.markReady(g); Step.FEATURES }
+                    }
                 })
                 Step.PIN -> PinStep(onBack = { Shell.step = Step.MIC }, onDone = { Shell.step = Step.SETUP })
                 Step.SETUP -> SetupStep(onBack = { Shell.step = Step.PIN }, onDone = { Shell.applySetup(d.s); Shell.step = Step.FEATURES })
