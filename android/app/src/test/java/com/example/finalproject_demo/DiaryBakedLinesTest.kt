@@ -30,6 +30,12 @@ class DiaryBakedLinesTest {
         "오또 그림은 조금 뒤에 올 거야! 계속 그리고 있어.",
         "그림을 먼저 그려 줘! 그다음에 나도 그려 볼게.",
         "이름표가 붙은 그림이 아직 없어!",
+        // 대화 수선 (#323) — 새 음성 상한을 넘거나 대사가 없을 때 받는 말과, 그 뒤의 쉬운 질문 · 앱 질문
+        com.example.finalproject_demo.demo.SORRY_LINE,
+        com.example.finalproject_demo.demo.ASK_AGAIN_LINE,
+        "그때 마음이 어땠어?",
+        "누구랑 같이 있었어?",
+        "혼자 있었어, 아니면 같이 있었어?",
     )
 
     @Test
