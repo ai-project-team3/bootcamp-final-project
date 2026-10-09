@@ -24,6 +24,20 @@ class StoryNameCallTest {
         assertEquals("more than one word is left alone", "아기 펭귄야", storyNameWithoutCopula("아기 펭귄야"))
     }
 
+    /** #380 review — a picked name keeps its 야: 「카구야」 from a card or the mascot is 카구야 */
+    @Test
+    fun aPickedNameIsKeptAsItIs() {
+        listOf("card", "mascot").forEach { by ->
+            val s = DemoState().apply { slots["newcomer"] = "토끼" }
+            s.applyStoryVerdict(Server.Verdict(
+                reason = "test", fills = listOf("name" to "카구야"), nextSlot = null, noLongerNeeded = null,
+                storyReady = false, unclear = false, unclearOf = null, contradiction = false,
+                s1Reason = false, s2Addition = false, emotion = null,
+            ), by)
+            assertEquals(by, "카구야", s.slots["name"])
+        }
+    }
+
     @Test
     fun theNameSlotKeepsTheNameOnly() {
         val s = DemoState().apply { slots["newcomer"] = "아기 펭귄" }
