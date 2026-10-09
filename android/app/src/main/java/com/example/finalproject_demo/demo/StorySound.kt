@@ -59,6 +59,13 @@ internal fun DemoState.clearStorySound() {
 /** Creative sounds never pass through ask(), STT, or the language verdict. */
 suspend fun Director.recordStorySound() {
     if (s.mode != StoryMode.STORY || s.storySoundAttempted) return
+    // nobody was met — no 「친구의 소리」 to make (Model.kt liveStoryWithoutFriend · 10-09 device)
+    if (s.liveStoryWithoutFriend) {
+        s.storySoundAttempted = true
+        if ("sound" !in s.storyUnneededSlots) s.storyUnneededSlots += "sound"
+        log("friend sound skipped — no newcomer in this story")
+        return
+    }
     inputs(false, false)
     setListening(null)
     var pending: ChildSound.SoundClip? = null

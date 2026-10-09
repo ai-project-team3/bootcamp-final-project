@@ -78,6 +78,7 @@ class StorySoundHolderTest {
         s.mode = StoryMode.STORY
         s.templateKey = "C"
         s.newcomerKind = "용"
+        s.slots["newcomer"] = "용"   // a live story's friend is the newcomer the child told (StoryNoFriendTest)
         s.friendName = "도리"
         s.storySoundClip = clip()
         s.speed = 0.01

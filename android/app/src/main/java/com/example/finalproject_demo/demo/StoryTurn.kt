@@ -210,6 +210,8 @@ private suspend fun Director.exchangeStoryTurnWithRetry(
 /** Notify the server of a local activity/choice, never its recording or a fabricated spoken reply. */
 internal suspend fun Director.notifyStorySoundChoice(prompt: StoryPrompt) {
     if (!Server.liveFor(s.mode) || !s.storySoundAttempted || s.storyReady) return
+    // no friend, no sound step — nothing was chosen to tell the server
+    if (s.liveStoryWithoutFriend) return
     val recorded = s.storySoundClip != null
     val utterance = if (recorded) "친구의 소리를 직접 만들었어요" else "친구의 소리는 소리 없이 넘어갈래"
     val response = exchangeStoryTurnWithRetry("sound", prompt.text, utterance, if (recorded) "child" else "card")

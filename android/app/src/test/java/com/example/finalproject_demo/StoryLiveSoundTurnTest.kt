@@ -70,6 +70,8 @@ class StoryLiveSoundTurnTest {
         Server.liveModes = setOf(StoryMode.STORY)
         try {
             d.go(Scene.PLACE)
+            // the friend whose sound is made — a live story with nobody met has no sound step (StoryNoFriendTest)
+            d.s.slots["newcomer"] = "토끼"
             val feeder = scope.launch {
                 while (isActive) {
                     val choices = (d.s.stage as? Stage.CardsRow)?.cards?.map { it.value }.orEmpty()
@@ -78,6 +80,9 @@ class StoryLiveSoundTurnTest {
                             retryShown = true
                             d.send(Reply.Tapped("ok", "다시 연결"))
                         }
+                        // the friend is named now — skip drawing it
+                        d.s.stage is Stage.DrawPad -> d.send(Reply.Tapped("preset", "프리셋"))
+                        "0" in choices -> d.send(Reply.Tapped("0", "뿌뿌"))
                         "sound:ok" in choices -> d.send(Reply.Tapped("sound:ok", "이 소리로"))
                         "sound:record" in choices -> d.send(Reply.Tapped(
                             if (record) "sound:record" else "sound:skip", "선택"))

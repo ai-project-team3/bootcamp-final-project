@@ -1297,9 +1297,19 @@ class DemoState {
      * (일기 설계 §3-2). 미션과 자막은 이 값을 먼저 보고 문장을 고른다.
      */
     val hasCompanion: Boolean
-        get() = !isDiary ||
+        get() = !liveStoryWithoutFriend && (!isDiary ||
             !friendName.startsWith("{") ||
-            (companionKind.isNotBlank() && "혼자" !in companionKind)
+            (companionKind.isNotBlank() && "혼자" !in companionKind))
+
+    /**
+     * A live story where the child met nobody — no newcomer said, drawn or made (10-09 device · Laya v5). The script's
+     * default alien stood on the cover, mission 2 went to it, and Otto asked to make 「친구」's sound. Like the diary's
+     * rule above, the app does not make up a friend: no friend on the pages, mission 2 to the mascot, no friend sound.
+     * A reopened book keeps what it was made with.
+     */
+    val liveStoryWithoutFriend: Boolean
+        get() = mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode) && !readingSavedCast &&
+            slots["newcomer"].isNullOrBlank() && drawing.isEmpty() && storyFriendDoll == null
 
     /** 미션 2에서 건넬 상대의 이름 — 아무도 없었던 날에는 마스코트가 받는다 (그림도 마스코트다) */
     val giveTargetName: String get() = if (hasCompanion) friendCallName else "마스코트"
