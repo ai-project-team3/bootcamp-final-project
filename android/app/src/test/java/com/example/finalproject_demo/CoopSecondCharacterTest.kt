@@ -1,6 +1,14 @@
 package com.example.finalproject_demo
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.example.finalproject_demo.demo.Art
+import com.example.finalproject_demo.demo.CoopShelf
+import com.example.finalproject_demo.demo.CoopShelved
+import com.example.finalproject_demo.demo.LocalCoopBookStore
+import com.example.finalproject_demo.demo.coopSecondDoll
+import com.example.finalproject_demo.demo.restoreCoopBook
+import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.demo.COOP_SECOND_ROLE
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.DemoState
@@ -118,6 +126,45 @@ class CoopSecondCharacterTest {
             readingSavedCast = true
         }
         assertEquals("story_zebra.png", (s.coopSecondArt() as? Art.Img)?.name)
+    }
+
+    /** #378 review — a one-syllable animal inside another word is nobody: 모양 · 태양 · 인형 · 장소 */
+    @Test
+    fun aShortNounInsideAWordIsNotAnActor() {
+        listOf("모양이 이상했어", "태양이 뜨거웠어", "인형이 망가졌어", "장소가 멀었어").forEach { said ->
+            assertNull(said, coopActorIn(said))
+            val s = coop().apply { slots["problem"] = said; slotBy["problem"] = "child" }
+            assertNull(said, s.coopSecondCharacter())
+            assertTrue("no doll asked for: $said", s.charactersToDraw().none { it.role == COOP_SECOND_ROLE })
+        }
+        assertEquals("a word of its own still counts", "양", coopActorIn("양이 풀을 먹었어"))
+        val sheep = coop().apply { slots["parent1"] = "양한테 풀을 줬어" }
+        assertNull("「양말」 is no 양", sheep.coopSecondOnPage(PageKind.DEPART, "양말을 신고 갔어요"))
+        assertNull("「인형극」 is no 형", coop().apply { slots["parent1"] = "형이랑 놀았어" }
+            .coopSecondOnPage(PageKind.DEPART, "인형극을 봤어요"))
+    }
+
+    /** #378 review — saved and reopened through the shelf: a doll made for an earlier second character is not kept */
+    @Test
+    fun aDollForAnEarlierSecondIsNotSaved() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.getSharedPreferences("coop_books", Context.MODE_PRIVATE).edit().clear().commit()
+        val made = coop().apply {
+            title = "동물원"; place = "동물원"; placeLabel = "동물원"; slots["place"] = "동물원"
+            slots["parent1"] = "얼룩말한테 인사했어"
+            generatedCharacters.add(GeneratedFriend("얼룩말", "local:/x/zebra.png", null, COOP_SECOND_ROLE))
+            // the cause told later names the lion — the second character is now 사자
+            slots["cause"] = "사자가 배고파서"; slotBy["cause"] = "child"
+        }
+        made.storyCaptions = (1..made.pageCount).map { "${it}쪽 사자 이야기" }
+        val store = LocalCoopBookStore(context)
+        CoopShelf.attach(made, store)
+        assertEquals(CoopShelved.SAVED, CoopShelf.shelve(made))
+        val saved = store.load().single()
+        assertTrue(saved.book.visuals!!.cast.none { it.role == COOP_SECOND_ROLE })
+        val again = DemoState().also { CoopShelf.attach(it, store) }
+        assertTrue(again.restoreCoopBook(saved.book))
+        assertNull("the zebra doll does not stand for the lion", again.coopSecondDoll())
     }
 
     /** §2-5 — a failed doll is asked for again on the next step, twice at most */

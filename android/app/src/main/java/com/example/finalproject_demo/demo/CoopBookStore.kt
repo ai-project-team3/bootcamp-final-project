@@ -100,7 +100,10 @@ fun DemoState.completedCoopBook(): SavedCoopBook? {
         template?.key ?: "N", persona, Hero(childName, heroAttr ?: com.example.finalproject_demo.ui.HeroAttr(), storyHeroImage, storyHeroRig),
         drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
         dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
-        newcomerKind, soundLine, causeLine, friend = generatedFriend, characters = generatedCharacters.toList(),
+        newcomerKind, soundLine, causeLine, friend = generatedFriend,
+        // a second doll only while it is still the second character — like a story's problem doll (StoryBookVisuals ·
+        // #378 review: a zebra doll from a parent answer stood for the lion of a later cause on reopening)
+        characters = generatedCharacters.filter { it.role != COOP_SECOND_ROLE || it.words == coopSecondCharacter() },
         missions = missionRecord(),
     )
     val book = SavedStoryBook(UUID.randomUUID().toString(), title ?: autoTitleFor(), themeKey, bgName, pages, visuals,

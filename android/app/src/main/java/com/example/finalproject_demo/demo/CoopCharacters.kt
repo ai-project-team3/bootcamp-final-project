@@ -20,9 +20,17 @@ private val COOP_ACTOR_NOUNS = ACTOR_NOUNS + listOf(
     "소방관", "경찰관", "의사", "간호사", "요리사", "아기", "형", "오빠", "누나", "언니", "동생", "이모", "삼촌", "고모",
 ).distinct().sortedByDescending { it.length }
 
+/**
+ * One-syllable nouns count only at the start of a word — 「모양이」 · 「태양이」 · 「인형이」 · 「장소가」 are no sheep, doll-brother or
+ * cow (#378 review). Longer nouns keep their modifiers (「아기 기린」 · 「북극곰」 from the story list)
+ */
+private val STRICT_SHORT = setOf("소", "양", "형", "닭")
+private val COOP_NOUN = "(?:[가-힣]*(?:${COOP_ACTOR_NOUNS.filter { it !in STRICT_SHORT }.joinToString("|")})" +
+    "|(?<![가-힣])(?:${STRICT_SHORT.joinToString("|")}))"
 /** A parent question's answer names who received or joined — 「기린한테 사과 줬어」 · 「강아지랑 놀았어」 (§2-2) */
-private val COOP_ACTOR = actorPattern(COOP_ACTOR_NOUNS, "이랑|이|가|은|는|한테|에게|랑|하고|도")
-private val COOP_BARE_ACTOR = Regex("[가-힣]*(?:${COOP_ACTOR_NOUNS.joinToString("|")})")
+private val COOP_PARTICLES = "이랑|이|가|은|는|한테|에게|랑|하고|도"
+private val COOP_ACTOR = Regex("($COOP_NOUN)(?:$COOP_PARTICLES)(?=\\s|$)")
+private val COOP_BARE_ACTOR = Regex(COOP_NOUN)
 private val PARENT_SLOT = Regex("^parent\\d+$")
 
 /** The first actor named in a co-op answer — [problemActorIn]'s rules with co-op's nouns and particles */
@@ -70,5 +78,7 @@ internal fun DemoState.coopSecondOnPage(kind: PageKind, caption: String): Art? {
     if (kind in setOf(PageKind.COVER, PageKind.RUB, PageKind.DRAG)) return null
     val words = coopSecondCharacter() ?: coopSecondDoll()?.words ?: return null
     val noun = COOP_ACTOR_NOUNS.firstOrNull { words.endsWith(it) } ?: words
-    return coopSecondArt()?.takeIf { words in caption || noun in caption }
+    // the noun as a word of its own — 「양말」 · 「인형극」 are no 양 · 형 (#378 review)
+    val asWord = Regex("(?<![가-힣])${Regex.escape(noun)}(?:$COOP_PARTICLES|을|를|와|과|의|에게서)?(?![가-힣])")
+    return coopSecondArt()?.takeIf { words in caption || asWord.containsMatchIn(caption) }
 }
