@@ -3,7 +3,10 @@ package com.example.finalproject_demo
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.demo.m2Line
+import com.example.finalproject_demo.demo.nextStoryPrompt
 import com.example.finalproject_demo.demo.recordStorySound
+import com.example.finalproject_demo.demo.syncStoryPresentation
 import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -12,6 +15,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -40,6 +44,28 @@ class StoryNoFriendTest {
         assertTrue(s.liveStoryWithoutFriend)
         assertFalse(s.hasCompanion)
         assertEquals("마스코트", s.giveTargetName)
+    }
+
+    /** 10-09 device second round — the missions still showed the alien, and mission 2 put the cause on the mascot */
+    @Test
+    fun theMissionsHaveNoFriendAndNoCauseOnTheMascot() {
+        val s = story().apply { slots["cause"] = "무서워서 울었어"; syncStoryPresentation() }
+        assertNull("mission 2 receiver — the mascot (E1Give falls back to it)", s.friendOrPartnerArt)
+        val line = s.m2Line(easy = false)
+        assertFalse(line, "울었대" in line)
+    }
+
+    /** 「그 친구 이름은 뭐야?」 with no newcomer — not asked, and a name answered anyway names nobody */
+    @Test
+    fun aNameWithoutANewcomerIsNotAskedOrUsed() {
+        val s = story().apply { turn = 5; storyNextSlot = "name"; storyServerQuestion = "그 친구 이름은 뭐야?" }
+        assertFalse("name" == s.nextStoryPrompt(s.storyServerQuestion)?.slot)
+        s.slots["name"] = "뽀뽀"
+        s.syncStoryPresentation()
+        assertFalse("뽀뽀" == s.friendName)
+        s.slots["newcomer"] = "아기 펭귄"
+        s.syncStoryPresentation()
+        assertEquals("뽀뽀", s.friendName)
     }
 
     @Test

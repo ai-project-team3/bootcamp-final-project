@@ -1281,7 +1281,7 @@ class DemoState {
      * ⚠️ 앱이 아이의 하루를 추측해 **없는 친구를 그려 넣지 않는다** (일기 설계 §3-2).
      */
     val friendOrPartnerArt: Art?
-        get() = if (hasChildArt) friendArt else companionArt
+        get() = if (liveStoryWithoutFriend) null else if (hasChildArt) friendArt else companionArt
 
     /** 말로 부를 이름 — 이름 → 아이가 말한 사람 → 동화 모드의 종류 이름 */
     val friendCallName: String

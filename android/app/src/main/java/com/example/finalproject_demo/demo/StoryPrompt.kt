@@ -25,7 +25,9 @@ fun DemoState.nextStoryPrompt(serverQuestion: String? = null, deferredSlot: Stri
     //    asked 「사육사 아저씨는 어떤 소리를 낼까?」 four turns in a row
     //  - companion — the session already asked who is here (할아버지); 「또치와 누가 함께할까?」 came out of nowhere.
     //    It still fills when the child brings someone in on their own
+    // 「그 친구 이름은 뭐야?」 with no newcomer has nobody to name (10-09 device · #387)
     fun skipped(slot: String) = (slot == "sound" && storySoundAttempted) || slot == "companion" ||
+        (slot == "name" && slots["newcomer"].isNullOrBlank()) ||
         (slot == "adult" && !hasPartner)
 
     // 첫 두 턴은 장소와 사건을 확인한다. 한 답이 둘 다 채웠으면 같은 질문을 되묻지 않는다.
