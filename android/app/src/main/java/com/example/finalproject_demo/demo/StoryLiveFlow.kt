@@ -1,7 +1,5 @@
 package com.example.finalproject_demo.demo
 
-import com.example.finalproject_demo.demo.scene.FRIEND_SPOT
-import com.example.finalproject_demo.demo.scene.HERO_SPOT
 import com.example.finalproject_demo.demo.scene.SceneKits
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.nameMask
@@ -9,7 +7,9 @@ import kotlinx.coroutines.*
 
 /** The live conversation enters here once; script scenes remain available with the switch off. */
 suspend fun Director.liveStoryConversation() = coroutineScope {
-    var imagePlace: String? = null
+    // Home can cancel an acknowledgement after its verdict changed slots but before presentation.
+    s.syncStoryPresentation()
+    var imagePlace = s.storyBackgroundPlace
     var imageJob: Job? = null
     var backgroundPending = false
     var waitingConversation: Stage.Show? = null
@@ -19,13 +19,11 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
 
     // 친구는 아이가 그렸을 때만 선다 — 안 그렸으면 friendArt 가 대본의 기본 낙서라
     // 배경이 생기면 오른쪽에 「이상한 애」가 늘 떠 있었다 (10-02 조장 실기기)
-    fun conversationWorld() = Stage.World(listOfNotNull(
-        // spots shared with the scene kit layout, which keeps them clear (demo/scene/SceneLayout.kt)
-        WorldItem(s.storyHeroArt, HERO_SPOT.x, 0.32f, 0.11f, depth = HERO_SPOT.depth),
-        // 오또가 만든 새 친구 인형(10-06 · FriendArt.kt)도 선다 — 대본의 기본 낙서가 아니라 아이가 말한 친구다
-        if (s.drawing.isNotEmpty() || s.storyFriendDoll != null)
-            WorldItem(s.friendArt, FRIEND_SPOT.x, 0.32f, 0.13f, depth = FRIEND_SPOT.depth) else null,
-    ))
+    fun conversationWorld() = s.storyConversationWorld()
+
+    fun refreshCast() {
+        if (s.stage is Stage.World) s.stage = conversationWorld()
+    }
 
     fun showConversation() {
         // World and Making both render bgName, whose unknown-place fallback is snow.
@@ -41,6 +39,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
         if (imagePlace == place) return
         imagePlace = place
         imageJob?.cancel()
+        s.storyBackgroundPlace = null
         if (s.sceneKit != null) {
             log("background route=kit place=$place kit=${s.sceneKit}")
             // 10-05 scene kit: the place is drawn from pre-made felt pieces at once — no /image request, nothing
@@ -57,6 +56,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 val saved = saveKitPicture(kit, seed)
                 if (saved != null && s.slots["place"] == place && s.sceneKit == kit.key) {
                     s.storyBackground = saved
+                    s.storyBackgroundPlace = place
                     log("scene kit ${kit.key} saved as the book's picture")
                 }
             }
@@ -79,6 +79,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 currentCoroutineContext().ensureActive()
                 if (s.place == place && imagePlace == place) {
                     s.storyBackground = saved
+                    s.storyBackgroundPlace = place
                     backgroundPending = false
                     log("background result=${if (saved == null) "preset" else "generated"} place=$place")
                     // Only refresh our waiting conversation, never a drawing/card/retry stage.
@@ -91,6 +92,9 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             } finally { reminder.cancel() }
         }
     }
+    // Restart only an unfinished request. Mark it pending before rendering any question,
+    // otherwise an interrupted generation can flash the unrelated snow preset on resume.
+    updateBackground()
     if (s.storyStartedAtMs == 0L) s.storyStartedAtMs = System.currentTimeMillis()
     // 되돌리기 · 앞으로 가기 — 잘못 알아들은 답을 직전 차례째로 무른다 (10-02 · demo/TurnHistory)
     val history = TurnHistory(s)
@@ -118,7 +122,8 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 }
             }
             if (prompt.slot == "newcomer" && !s.slots["newcomer"].isNullOrBlank() && (looks || s.storyClarificationSlot == "newcomer")) {
-                if (!friendDrawingPrepared) { drawFriend(); prepareStoryFriendDrawing(); friendDrawingPrepared = true }
+                if (!friendDrawingPrepared) { prepareStoryFriendDrawing(); friendDrawingPrepared = true }
+                drawFriend(::refreshCast)
                 s.storyClarificationSlot = null; s.storyNextSlot = null; s.storyServerQuestion = null
                 log("새 친구 생김새 질문 → 그리기로 대신함")
                 continue
@@ -138,6 +143,7 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                     log(if (undo) "↩ 직전 차례를 되돌림 — 같은 질문을 다시" else "↪ 되돌린 차례를 다시 적용")
                     say(if (undo) "그럼 다시 말해 줄래?" else "좋아, 아까 그 이야기로 갈게!")
                     updateBackground()
+                    drawFriend(::refreshCast)
                     s.holdStoryGauge()
                 }
                 continue
@@ -173,11 +179,11 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             s.syncStoryPresentation()
             if (by != "mascot") judge(variant, reply, question.text)
             updateBackground()
-            drawFriend()                        // 새 친구에 맞는 그림이 없으면 뒤에서 인형을 만든다 — 기다리지 않는다 (FriendArt.kt)
             if (!friendDrawingPrepared && !s.slots["newcomer"].isNullOrBlank()) {
                 prepareStoryFriendDrawing()
                 friendDrawingPrepared = true
             }
+            drawFriend(::refreshCast)
             // The third conversation turn chooses the local template. An early server finish
             // still needs a page plan, but does not force extra questions just to reach turn 3.
             if (s.templateKey == null && (s.turn >= 3 || s.storyReady)) decideTemplate("서버 대화")
@@ -189,13 +195,14 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
     }
     if (s.templateKey == null) decideTemplate("대화 종료")
     if (!s.storySoundAttempted) recordStorySound()
-    if (imageJob?.isCompleted == false) {
+    val pendingPictures = coroutineContext[Job]!!.children.filter { !it.isCompleted }.toList()
+    if (pendingPictures.isNotEmpty()) {
         inputs(false, false)
         buttons()
         waitingConversation = null
         s.stage = Stage.Show(s.storyHeroArt, "이야기 그림을 마무리하는 중…")
     }
-    imageJob?.join()
+    pendingPictures.joinAll()
     val filledSlots = s.slots.filterValues { it.isNotBlank() }.keys.joinToString(" · ")
     log("Story conversation finished: ${s.endReason} · ${s.turn} turns · verdict-filled slots: $filledSlots")
     go(Scene.MAKING)

@@ -78,6 +78,8 @@ const val DEFAULT_SERVER = "https://otto-back.shelldocs.cloud"
 class MainActivity : ComponentActivity() {
     /** 지금 흐름 — 검사(`ShellFlowTest`)가 상태를 들여다볼 때 쓴다 */
     var director: Director? = null
+    /** Play immediate update — store builds only (net/AppUpdate.kt) */
+    private var appUpdate: com.example.finalproject_demo.net.AppUpdate? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 동의를 기기에서 읽어 온다 — 없으면 켤 때마다 동의 화면이 다시 뜬다 (09-25)
@@ -98,11 +100,17 @@ class MainActivity : ComponentActivity() {
             ?.let { Server.liveModes = Server.parseLive(it) }
         com.example.finalproject_demo.demo.SessionReports.attach(this)   // 부모 리포트 — 책마다 폰 안에만 (10-06)
         com.example.finalproject_demo.demo.Rewards.attach(this)   // 업적 보상 — 폰 안에만 (10-06 · #223)
+        // Past books' mission combos — on the phone only (#259). Not attached under Robolectric: one test's books stayed
+        // in memory and rotated the next test's missions. MissionRotationTest attaches the history itself
+        if (android.os.Build.FINGERPRINT != "robolectric") com.example.finalproject_demo.demo.missions.MissionHistory.attach(this)
         com.example.finalproject_demo.net.CallLimits.attach(this)   // 서버 연결판 하루 한도 — 폰에만 (10-06)
         // which bundled pictures exist — a world picture in the book's art style is used only when it is bundled (10-07)
         com.example.finalproject_demo.demo.WorldStyle.has = { n -> @Suppress("DiscouragedApi") resources.getIdentifier(n, "drawable", packageName) != 0 }
+        // a debug build is installed with adb, not from Play — no update to look for. Not under Robolectric either
+        if (!debuggable && byDefault) appUpdate = com.example.finalproject_demo.net.AppUpdate(this)
         com.example.finalproject_demo.net.CallLimits.enabled = !debuggable   // 스토어 빌드만 — 팀 개발 앱 · 검사는 막지 않는다
         Voice.attach(this)        // 진짜 마이크 · 마스코트 목소리 — 서버 모드에서만 쓴다 (net/Voice.kt)
+        com.example.finalproject_demo.net.Bgm.attach(this)    // 동화책 배경음악 (#221)
         com.example.finalproject_demo.sound.ChildSound.attach(this)   // 아이가 만든 소리 — 폰에만 (#42)
         com.example.finalproject_demo.net.ChildCall.attach(this)     // 마스코트가 아이를 부르는 말 — 부모가 정함 (10-02)
         com.example.finalproject_demo.sound.ChildSound.discardSession()   // 책에 안 넣은 채 앱이 꺼졌던 소리
@@ -118,6 +126,17 @@ class MainActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         setContent { MaterialTheme(typography = PuppetTypography) { com.example.finalproject_demo.ui.FitScreen { DemoApp() } } }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appUpdate?.check()
+    }
+
+    override fun onDestroy() {
+        com.example.finalproject_demo.net.Bgm.release()
+        com.example.finalproject_demo.net.Bgm.detach()    // the singleton must not keep this activity's context
+        super.onDestroy()
     }
 
     /** 앱으로 돌아올 때 · 창(설정 · 알림)이 닫힐 때마다 다시 전체 화면으로 (09-29) */
@@ -182,7 +201,11 @@ fun DemoApp() {
         val inSession by rememberUpdatedState(kidScreen)
         DisposableEffect(owner) {
             val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
-                if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP && inSession) d.holdSession()
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                    com.example.finalproject_demo.net.Bgm.hold("screen")   // 책장 다시 읽기처럼 세션 밖 화면도 (#221)
+                    if (inSession) d.holdSession()
+                }
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_START) com.example.finalproject_demo.net.Bgm.resume("screen")
             }
             owner.lifecycle.addObserver(obs)
             onDispose { owner.lifecycle.removeObserver(obs) }

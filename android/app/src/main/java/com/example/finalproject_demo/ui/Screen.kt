@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.ui
 
+import com.example.finalproject_demo.demo.sceneActorCapacity
+
 import androidx.compose.ui.draw.rotate
 
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -341,12 +343,15 @@ private fun FrontGround(bgName: String) {
 }
 
 /**
- * 키트 없는 무대에 깔 펠트 바닥의 색 — 그림에 땅이 없을 때만, 아니면 null (10-06 조장 · 「바닥이 됐다 안 됐다」).
- * 서버가 그린 배경(`local:`)과 우주 · 바닷속 그림은 땅이 없어 인물이 공중에 떠 있었다. 색은 그 곳이 속하는 키트의 땅
+ * Fallback floor for a kit-free stage. Preserve a generated picture's own ground (#337); do not cover it with a temporary
+ * park floor while its pixels are being read. Sky-only generated pictures and the bundled space/sea keep their floor.
  */
-internal fun com.example.finalproject_demo.demo.DemoState.plainFloor(): Color? {
+internal fun com.example.finalproject_demo.demo.DemoState.plainFloor(
+    ground: com.example.finalproject_demo.demo.scene.Ground? = null,
+): Color? {
     val bg = bgName
     if (!(bg.startsWith("local:") || bg == "bg_space" || bg == "bg_sea")) return null
+    if (bg.startsWith("local:") && ground?.hasGround != false) return null
     val kit = SceneKits.matching(placeLabel.orEmpty())
         ?: SceneKits.all[when (bg) { "bg_space" -> "space"; "bg_sea" -> "sea"; else -> "park" }]
     return kit?.let { Color(it.ground) }
@@ -357,11 +362,14 @@ internal fun com.example.finalproject_demo.demo.DemoState.plainFloor(): Color? {
  * or a reread from the shelf does not read it again. null while it is read, and for anything but a generated picture
  */
 @Composable
-private fun rememberGround(name: String): com.example.finalproject_demo.demo.scene.Ground? {
+internal fun rememberGround(name: String): com.example.finalproject_demo.demo.scene.Ground? {
     if (!name.startsWith("local:")) return null
-    return androidx.compose.runtime.produceState(GroundCache.peek(name), name) {
-        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { GroundCache.of(name) }
-    }.value
+    // produceState's key restarts its producer but retains the previous value. A new picture must not inherit that floor.
+    return androidx.compose.runtime.key(name) {
+        androidx.compose.runtime.produceState(GroundCache.peek(name), name) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { GroundCache.of(name) }
+        }.value
+    }
 }
 
 internal object GroundCache {
@@ -608,10 +616,10 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
             // 10-05 scene kit (`demo/scene` · `docs/배경_조각_목록.md`): when on, a felt floor + pieces (SceneBack)
             // replace the background picture, the actors are drawn as before, and the foreground piece (SceneFront)
             // goes over them. Hotspots and FrontGround belong to a background picture, so they are skipped.
-            // The layout always keeps room for two actors — the scene must not reshuffle when the friend appears.
+            // Reserve the mode's full cast from the start; late images must not reshuffle the kit.
             is Stage.World -> WorldBackground(
                 s.worldBg, s.bgName, framed = true,
-                backdrop = kit?.let { k -> { inset -> SceneBack(k, s.sceneSeed, 2, inset, if (inset > 0.dp) TopChrome else 0.dp) } },
+                backdrop = kit?.let { k -> { inset -> SceneBack(k, s.sceneSeed, s.sceneActorCapacity, inset, if (inset > 0.dp) TopChrome else 0.dp) } },
             ) {
                 val quake = if (stage.quake) {
                     val t = rememberInfiniteTransition(label = "quake")
@@ -619,16 +627,12 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                     dy
                 } else 0f
                 val hot = rememberHotspotState(s.bgName)
-                // ① 배경 층 — 바닥이 없는 그림(생성 배경 · 우주 · 바닷속)에는 키트와 같은 펠트 바닥을 먼저 깐다 (10-06)
-                if (kit == null) s.plainFloor()?.let { kitColor ->
-                    // a generated picture gives its own floor colour, read from its bottom band (#257) — kit colour until it is read
+                // Add a floor only when the picture needs one; actor positions and contact shadows are independent.
+                if (kit == null) {
                     val g = rememberGround(s.bgName)
-                    val colour = g?.let { Color(it.color) } ?: kitColor
-                    // over a picture that paints its own ground: the floor ~40 % lower (about 60 % as tall) and see-through —
-                    // just under the actors' feet, never gone (#223). Done here so FeltFloor's drawing (#265 feltGround) is untouched
-                    if (g?.hasGround == true) Box(Modifier.fillMaxSize().graphicsLayer { translationY = size.height * 0.12f; alpha = 0.85f }) {
-                        FeltFloor(colour, LocalStageBottomInset.current)
-                    } else FeltFloor(colour, LocalStageBottomInset.current)
+                    s.plainFloor(g)?.let { kitColor ->
+                        FeltFloor(g?.let { Color(it.color) } ?: kitColor, LocalStageBottomInset.current)
+                    }
                 }
                 if (kit == null) HotspotLayer(s.bgName, stage.glow, stage.pulse, quake = stage.quake, state = hot, part = HotspotPart.Pieces)
                 // ② 인물 층
@@ -638,7 +642,7 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                     if (kit == null) FrontGround(s.bgName)
                     else {
                         val inset = LocalStageBottomInset.current
-                        SceneFront(kit, s.sceneSeed, 2, inset, if (inset > 0.dp) TopChrome else 0.dp)
+                        SceneFront(kit, s.sceneSeed, s.sceneActorCapacity, inset, if (inset > 0.dp) TopChrome else 0.dp)
                     }
                 }
                 // ③ 상호작용 층

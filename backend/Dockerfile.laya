@@ -1,0 +1,17 @@
+# The Laya judge sidecar (backend/scripts/laya_judge_server.py) as a container next to otto-backend.
+# The checkpoint is mounted, not baked in (650 MB, not in git):
+#   docker build -f backend/Dockerfile.laya -t otto-laya .
+#   (scripts/deploy/start_laya.ps1 builds and runs it on the `otto` network, no published port)
+FROM pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime
+
+RUN pip install --no-cache-dir "laya==0.3.28" fastapi uvicorn
+
+WORKDIR /app
+COPY backend/scripts/laya_judge_server.py /app/laya_judge_server.py
+
+ENV LAYA_CKPT=/ckpt \
+    LAYA_HOST=0.0.0.0 \
+    LAYA_PORT=8100 \
+    HF_HUB_OFFLINE=1
+EXPOSE 8100
+CMD ["python", "/app/laya_judge_server.py"]
