@@ -72,14 +72,14 @@ def test_result_defaults_take_nothing_back():
 
 def test_a_turn_without_history_answers_as_before(client):
     out = client.post("/turn", json=body()).json()
-    assert out["retract"] == [] and out["line"]["act"] is None
+    assert out["retract"] == [] and out["act"] is None
 
 
 # --- /turn with history: the act, what is taken back, what the line is told ---
 
 def test_a_bare_denial_takes_back_what_otto_just_heard(client):
     out = client.post("/turn", json=body(utterance="그거 아니야", history=walked_to_park())).json()
-    assert out["line"]["act"] == "repair"
+    assert out["act"] == "repair"
     assert out["retract"] == ["companion"]
     # the denial is not an answer to the place question, nor a new companion
     assert out["judge"]["slot_1"] is None
@@ -88,9 +88,9 @@ def test_a_bare_denial_takes_back_what_otto_just_heard(client):
 
 def test_a_correction_with_the_right_value_fills_the_slot_taken_back(client):
     out = client.post("/turn", json=body(utterance="아니야, 고양이야", history=walked_to_park())).json()
-    assert out["line"]["act"] == "repair" and out["retract"] == ["companion"]
+    assert out["act"] == "repair" and out["retract"] == ["companion"]
     assert (out["judge"]["slot_1"], out["judge"]["value_1"]) == ("companion", "고양이야")
-    assert "fixed_value" not in out["line"]           # server-side only — the value goes out as slot_1
+    assert "fixed_value" not in out["line"] and "act" not in out["line"]   # the value goes out as slot_1
 
 
 def test_an_invented_value_is_dropped_with_its_question(client, monkeypatch):
@@ -109,14 +109,14 @@ def test_the_repair_schema_adds_fixed_value_and_the_served_one_does_not():
 
 def test_a_question_back_fills_nothing_and_asks_the_same_slot(client):
     out = client.post("/turn", json=body(utterance="오또는 뭐 좋아해?", history=walked_to_park())).json()
-    assert out["line"]["act"] == "answer_back"
+    assert out["act"] == "answer_back"
     assert out["judge"]["slot_1"] is None and out["judge"]["next_slot"] == "place"
     assert out["retract"] == []
 
 
 def test_a_plain_answer_with_history_is_a_plain_turn(client):
     out = client.post("/turn", json=body(history=walked_to_park())).json()
-    assert out["line"]["act"] is None and out["retract"] == []
+    assert out["act"] is None and out["retract"] == []
     assert out["judge"]["slot_1"] == "place"
 
 
@@ -157,13 +157,13 @@ def llm_client(monkeypatch):
 
 def test_the_llm_path_applies_the_same_rules_after_its_choice(llm_client):
     out = llm_client.post("/turn", json=body(utterance="그거 아니야", history=walked_to_park())).json()
-    assert out["line"]["act"] == "repair" and out["retract"] == ["companion"]
+    assert out["act"] == "repair" and out["retract"] == ["companion"]
     assert out["judge"]["slot_1"] is None
 
 
 def test_the_llm_path_without_history_is_a_plain_turn(llm_client):
     out = llm_client.post("/turn", json=body()).json()
-    assert out["line"]["act"] is None and out["retract"] == []
+    assert out["act"] is None and out["retract"] == []
 
 
 def test_the_choosing_schema_adds_act_target_and_new_value():
@@ -172,3 +172,13 @@ def test_the_choosing_schema_adds_act_target_and_new_value():
     assert {"act", "target", "new_value"} <= set(s["required"])
     assert None in s["properties"]["act"]["enum"] and "repair" in s["properties"]["act"]["enum"]
     assert "act" not in turn_route.schema()["properties"]      # the served schema is untouched
+
+
+def test_the_act_survives_a_failed_line(client, monkeypatch):
+    from app.routers import turn as turn_route
+
+    async def no_line(*a, **k):
+        return None
+    monkeypatch.setattr(turn_route, "run_line", no_line)
+    out = client.post("/turn", json=body(utterance="오또는 뭐 좋아해?", history=walked_to_park())).json()
+    assert out["line"] is None and out["act"] == "answer_back" and out["judge"]["next_slot"] == "place"

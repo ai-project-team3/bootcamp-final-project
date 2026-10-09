@@ -68,8 +68,6 @@ class Line(BaseModel):
     # the app shows them as cards, then the mascot takes the first (#79 · guidelines/2 §1-1).
     # Null with no question, and in diary (what really happened today is not picked for the child).
     options: Optional[list[str]] = None
-    # what this line does with the child's reply (#323); None = a plain turn
-    act: Optional[Act] = None
     # repair turns only: the right value for the slot the decider picked, copied from the child's words
     # as transcribed. Server-side — it goes out as the verdict's slot_1 once it passes the check, never here
     fixed_value: Optional[str] = Field(default=None, exclude=True)
@@ -79,5 +77,9 @@ class TurnResult(BaseModel):
     # Either may be null; the app fills the gap from its script (spec §3-0).
     judge: Optional[JudgeResult] = None
     line: Optional[Line] = None
+    # what this turn does with the child's reply (#323); None = a plain turn. Here, not in `line`: the
+    # rules decide it before the line is written, so a failed line must not take it along — the phone
+    # can still answer with a baked line (「앗, 내가 잘못 알았구나!」)
+    act: Optional[Act] = None
     # slots the child said were wrong (#323): the app puts back each one's `prev` from its history
     retract: list[SlotName] = []

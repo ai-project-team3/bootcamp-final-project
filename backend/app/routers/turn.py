@@ -142,7 +142,6 @@ async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30
     act = recipe.act if recipe else None
     if settings.mock:
         line = shape(mock_line(req, v), req, v)
-        line.act = act
         if act == "repair":
             line.fixed_value = mock_fixed_value(req)
         return line
@@ -161,7 +160,6 @@ async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30
     if why:
         log.warning("line rejected: %s", why)
         return None
-    line.act = act
     return shape(line, req, v)
 
 
@@ -211,7 +209,6 @@ async def run_line_choosing(req: TurnRequest, v: JudgeResult | None,
         d = mock_decision(req)
         act = policy.ACTS.get(d.intent)
         line = shape(mock_line(req, v), req, v)
-        line.act = act
         if act == "repair":
             line.fixed_value = mock_fixed_value(req)
         return line, act, d
@@ -228,7 +225,6 @@ async def run_line_choosing(req: TurnRequest, v: JudgeResult | None,
     line = Line.model_validate(raw)
     if check(line):
         return None, act, d
-    line.act = act
     return shape(line, req, v), act, d
 
 
@@ -271,7 +267,7 @@ async def turn(req: TurnRequest) -> TurnResult:
         v, line = settle(act, req, v, line, retract)
         if v is None and line is None:
             raise HTTPException(502, "judge and line both failed")
-        return TurnResult(judge=v, line=line, retract=retract)
+        return TurnResult(judge=v, line=line, act=act, retract=retract)
 
     # with history (#323) the quick decider runs next to the judge, so the turn waits for the slower
     # of the two, not both. It never raises: no opinion = the turn runs as before
@@ -288,4 +284,4 @@ async def turn(req: TurnRequest) -> TurnResult:
     v, line = settle(act, req, v, line, retract)
     if v is None and line is None:
         raise HTTPException(502, "judge and line both failed")
-    return TurnResult(judge=v, line=line, retract=retract)
+    return TurnResult(judge=v, line=line, act=act, retract=retract)
