@@ -70,7 +70,7 @@ async def one(req: TurnRequest, m: Meter) -> dict:
     d = m.decision
     return {
         "secs": round(secs, 3), "error": err,
-        "act": line.act if line else None, "line": line.model_dump() if line else None,
+        "act": out.act if out else None, "line": line.model_dump() if line else None,
         "retract": out.retract if out else [],
         "fills": [[s, x] for s, x in ((v.slot_1, v.value_1), (v.slot_2, v.value_2)) if s] if v else [],
         "next_slot": v.next_slot if v else None,
@@ -181,7 +181,10 @@ def judge_row(row: dict, case: dict) -> dict:
         "false_pos": g["intent"] == "answer" and (
             act == "repair" or (d.get("intent") in ("correct", "refuse") and (d.get("intent_conf") or 0) >= 0.8)),
         "words_dropped": g["intent"] == "answer" and act in DROPS_WORDS,
+        # no act at all (the phone has nothing to answer with) — and, as #323 first counted it, no act
+        # reaching the child in a line (a failed line counts; before 10-09 act lived inside the line)
         "ignored": g["intent"] in ("correct", "ask_back", "not_heard") and act is None,
+        "ignored_in_line": g["intent"] in ("correct", "ask_back", "not_heard") and (act is None or row["line"] is None),
         "reasked": bool(row["next_slot"] and row["next_slot"] in filled and row["next_slot"] not in row["retract"]),
         "broken": row["line"] is None or act not in ALLOWED or (
             act in NEEDS_QUESTION and not (row["line"] or {}).get("question")) or not (row["line"] or {}).get("ack"),
@@ -221,7 +224,8 @@ def score(rows: list[dict]) -> dict:
             "false_pos_per_run": per_run("false_pos"), "of_answers": n_answer,
             "words_dropped_per_run": per_run("words_dropped"),
             "retracted_per_run": per_run("retracted"), "repaired_per_run": per_run("repaired"), "of_corrections": n_correct,
-            "ignored_per_run": per_run("ignored"), "of_non_answers": n_ign,
+            "ignored_per_run": per_run("ignored"), "ignored_in_line_per_run": per_run("ignored_in_line"),
+            "of_non_answers": n_ign,
             "reasked_per_run": per_run("reasked"),
             "act_acc": round(act_ok / len(items), 3), "act_acc_ci": [round(x, 3) for x in wilson(act_ok, len(items))],
             "intent_acc": round(sum(intents) / len(intents), 3) if intents else None,
