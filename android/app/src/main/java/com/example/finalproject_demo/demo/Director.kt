@@ -1237,7 +1237,7 @@ class Director(
                 round++
             } else {
                 val c = set.first()
-                say("그럼 마스코트가 고를게! ${c.label}!")
+                say("그럼 ${MASCOT_NAME}가 고를게! ${c.label}!")
                 log("마스코트가 골라줌: ${c.label} (벌점 · 아쉬움 표현 없음)")
                 s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = c.value) ?: s.stage
                 talk("mascot", c.label)

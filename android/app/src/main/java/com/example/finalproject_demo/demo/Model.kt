@@ -722,6 +722,9 @@ sealed interface Stage {
 data class RateItem(val id: String, val name: String, val art: Art, val keep: Boolean? = null)
 
 /** [called] = 아이가 지어 준 이름(말 · 글 · 10-02) — 있으면 이야기의 주인공 이름이 된다. 없으면 [name](모습)으로 부른다 */
+/** The mascot as the child knows it — every child-facing line says this name, never 「마스코트」 (10-09 user) */
+const val MASCOT_NAME = "오또"
+
 data class Hero(val name: String, val attr: HeroAttr, val image: String? = null, val rig: String? = null, val called: String? = null)
 
 /** 옷 색 → 생성 그림 이름 조각 */
@@ -1302,7 +1305,8 @@ class DemoState {
             (companionKind.isNotBlank() && "혼자" !in companionKind)
 
     /** 미션 2에서 건넬 상대의 이름 — 아무도 없었던 날에는 마스코트가 받는다 (그림도 마스코트다) */
-    val giveTargetName: String get() = if (hasCompanion) friendCallName else "마스코트"
+    // the child sees and hears 「오또」, not the word 「마스코트」 (10-09 user) — internal ids such as by=mascot stay
+    val giveTargetName: String get() = if (hasCompanion) friendCallName else MASCOT_NAME
 
     // ── 수준 신호 (역할 1)
     var turn by mutableStateOf(0)

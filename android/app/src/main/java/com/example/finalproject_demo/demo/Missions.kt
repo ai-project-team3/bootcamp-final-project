@@ -278,7 +278,7 @@ fun DemoState.m1Before(): String {
 
 /** 같이 만들기 · 미션 2 전 — 아직 건네지 않았다. 앞의 「그리고」 뒤에 이어도 읽히게 절로 (#98) */
 fun DemoState.m2Before(): String = slot2Prop()?.before ?:
-    if (hasCompanion) "${giveTargetName}에게 줄 선물이 있어요." else "오늘 이야기를 들어준 마스코트에게 줄 선물이 있어요."
+    if (hasCompanion) "${giveTargetName}에게 줄 선물이 있어요." else "오늘 이야기를 들어준 ${MASCOT_NAME}에게 줄 선물이 있어요."
 
 /**
  * 미션 2가 책에 남는 절 — 주어 없이. 앞의 "마침내 …" 문장에 이어 붙는다 (9/22).
@@ -288,7 +288,7 @@ fun DemoState.m2Clause(): String = slot2Prop()?.did ?:
     // 아무도 없었던 날엔 마스코트가 받는다. 그런데 마스코트는 앞쪽에 한 번도 안 나온 인물이라
     // 그냥 "마스코트에게 건네주었어요" 라고 하면 뜬금없다. 한 마디로 자리를 만들어 준다 (9/22)
     if (hasCompanion) "${giveTargetName}에게 ${mission2().give}."
-    else "오늘 이야기를 들어준 마스코트에게 ${mission2().give}."
+    else "오늘 이야기를 들어준 ${MASCOT_NAME}에게 ${mission2().give}."
 
 fun DemoState.m1Done(): String =
     slot1Prop()?.cheer ?: if (!mission1().named) mission1().done else if (isDiary) "${mission1().done} 자리가 다시 깨끗해졌어!"
