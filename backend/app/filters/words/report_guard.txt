@@ -1,17 +1,12 @@
 # If an LLM-written parent sentence contains any of these, drop it and use a
 # prewritten one. guidelines/8_금칙어.md §3
-또래
-평균
-백분위
-정상
-등급
-레벨
-수준
-단계
+# 10-09 (#343): peer comparison and level words are allowed now; diagnosis words stay.
 발달지수
 진단
 선별
 지연
+장애
+의심
 부족
 늦다
 향상
