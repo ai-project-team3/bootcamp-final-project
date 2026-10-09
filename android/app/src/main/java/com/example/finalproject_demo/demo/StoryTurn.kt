@@ -263,6 +263,8 @@ suspend fun DemoState.exchangeStoryTurn(
     return exchangeTurn("story", askedSlot, question, utterance, request = request)?.also { response ->
         response.verdict?.let { applyStoryVerdict(it, by) }
         rememberStoryQuestion(response)
+        // 「이제 끝이야」 — the judge does not always end; the child's ending words do (StoryEndIntent.kt)
+        if (response.verdict != null && response.verdict.reason != "blocked_by_filter") applyStoryEndIntent(utterance, by)
         val verdict = response.verdict
         Trace.line("story_verdict", "asked=$askedSlot by=$by ready=${verdict?.storyReady} " +
             "next=${verdict?.nextSlot} applied=$storyNextSlot unclear=${verdict?.unclear} " +
