@@ -73,7 +73,7 @@ class StoryPendingBackgroundTest {
             d.s.place = "축구장"
             d.s.storyBackground = "previous-field.png"
             d.s.slots["place"] = "바닷속 연구소"
-            await { d.s.micEnabled }
+            await { fixture.imageStarted.count == 0L && d.s.micEnabled }
             assertEquals("The previous picture cannot belong to the new accepted place", 1,
                 fixture.server.requests.count { it.first == "/image" })
             assertTrue(d.s.stage is Stage.Show)

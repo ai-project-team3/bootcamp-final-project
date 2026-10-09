@@ -21,6 +21,8 @@ kakaoSdk = "2.25.0"
 naverOauth = "5.10.0"
 credentials = "1.5.0"
 googleId = "1.1.1"
+# Play in-app update, immediate type (net/AppUpdate.kt · 10-09)
+appUpdate = "2.1.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -49,6 +51,7 @@ naver-oauth = { group = "com.navercorp.nid", name = "oauth", version.ref = "nave
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-credentials-play = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleId" }
+play-app-update = { group = "com.google.android.play", name = "app-update", version.ref = "appUpdate" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

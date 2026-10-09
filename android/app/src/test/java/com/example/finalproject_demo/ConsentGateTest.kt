@@ -43,8 +43,8 @@ class ConsentGateTest {
      * 로그인은 아직 서버가 없어 폰 안의 가짜(`net/Account.kt`)라 카카오를 누르면 바로 넘어간다
      */
     private fun awaitConsent() {
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("눌러서 시작").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText("눌러서 시작").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("건너뛰기").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("건너뛰기").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText("카카오로 시작하기").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("카카오로 시작하기").performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText(CONSENT_TITLE).fetchSemanticsNodes().isNotEmpty() }

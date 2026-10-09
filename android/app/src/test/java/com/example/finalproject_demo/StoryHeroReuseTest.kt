@@ -7,6 +7,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class StoryHeroReuseTest {
+    @Test fun aNewStoryClearsPreviousHeroAndSavedCastTogether() {
+        val state = DemoState().apply {
+            storyHeroCall = "콩이"
+            storyHeroDescription = "구름 머리; 노란 우비"
+            storyHeroImage = "local:hero.png"
+            generatedCharacters += GeneratedFriend("괴물", "local:monster.png", rig = null, role = "problem")
+            readingSavedCast = true
+            savedProblemCharacter = "괴물"
+        }
+        state.resetStory()
+        assertNull(state.storyHeroCall)
+        assertEquals("", state.storyHeroDescription)
+        assertNull(state.storyHeroImage)
+        assertTrue(state.generatedCharacters.isEmpty())
+        assertFalse(state.readingSavedCast)
+        assertNull(state.savedProblemCharacter)
+    }
     @Test fun naturalSpokenChoicesKeepNamesAndNegationDistinct() {
         val heroes = listOf("콩이", "별이", "응원", "새로").map { Hero(it, com.example.finalproject_demo.ui.HeroAttr()) }
         val cases = mapOf(

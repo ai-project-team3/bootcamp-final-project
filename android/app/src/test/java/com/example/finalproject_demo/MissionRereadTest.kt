@@ -3,6 +3,11 @@ package com.example.finalproject_demo
 import androidx.test.core.app.ApplicationProvider
 import com.example.finalproject_demo.demo.CoopPick
 import com.example.finalproject_demo.demo.DemoState
+import com.example.finalproject_demo.demo.GeneratedFriend
+import com.example.finalproject_demo.demo.completedCoopBook
+import com.example.finalproject_demo.demo.coopBooksFromJson
+import com.example.finalproject_demo.demo.coopBooksToJson
+import com.example.finalproject_demo.demo.storyProblemCharacter
 import com.example.finalproject_demo.demo.PageKind
 import com.example.finalproject_demo.demo.SavedStoryBook
 import com.example.finalproject_demo.demo.SavedStoryPage
@@ -68,6 +73,45 @@ class MissionRereadTest {
         assertEquals(made, again.missions())
         assertEquals("다시 읽어도 소방차", SoundProp.SIREN, again.soundProp())
         assertEquals(SoundProp.SIREN, again.slot1Prop())
+    }
+
+    @Test
+    fun storyCastAndProblemActorSurviveAlongsideSavedMissions() {
+        val s = DemoState().apply {
+            mode = StoryMode.STORY; templateKey = "C"
+            problem = "괴물이 소방차를 흔들었어"; slotBy["problem"] = "child"
+            slots["problem"] = problem!!
+            generatedFriend = GeneratedFriend("토끼", "local:/friend.png", "quad")
+            generatedCharacters.add(GeneratedFriend("괴물", "local:/monster.png", "biped", "problem"))
+        }
+        assertEquals("괴물", s.storyProblemCharacter())
+        val made = s.missions()
+        val again = reread(s, StoryMode.STORY)
+        assertEquals(made, again.missions())
+        assertEquals(SoundProp.SIREN, again.soundProp())
+        assertEquals(s.generatedCharacters.toList(), again.generatedCharacters.toList())
+        assertEquals("괴물", again.storyProblemCharacter())
+    }
+
+    @Test
+    fun completedCoopBookKeepsEveryCastRoleAndItsMissions() {
+        val s = DemoState().apply {
+            mode = StoryMode.COOP; templateKey = "C"
+            coopPick = CoopPick("place", "소방서", "done")
+            problem = "소방차가 달려왔어"
+            generatedFriend = GeneratedFriend("고양이", "local:/cat.png", "quad")
+            generatedCharacters.add(GeneratedFriend("강아지", "local:/dog.png", "quad", "second"))
+        }
+        val made = s.missions()
+        val saved = s.completedCoopBook()!!
+        val loaded = coopBooksFromJson(coopBooksToJson(listOf(saved))).single()
+        val again = DemoState().apply {
+            assertTrue(restoreStoryBook(loaded.book))
+            mode = StoryMode.COOP
+        }
+        assertEquals(made, again.missions())
+        assertEquals(SoundProp.SIREN, again.soundProp())
+        assertEquals(s.generatedCharacters.toList(), again.generatedCharacters.toList())
     }
 
     @Test

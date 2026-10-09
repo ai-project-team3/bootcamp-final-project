@@ -100,7 +100,7 @@ fun DemoState.completedCoopBook(): SavedCoopBook? {
         template?.key ?: "N", persona, Hero(childName, heroAttr ?: com.example.finalproject_demo.ui.HeroAttr(), storyHeroImage, storyHeroRig),
         drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
         dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
-        newcomerKind, soundLine, causeLine, friend = generatedFriend,
+        newcomerKind, soundLine, causeLine, friend = generatedFriend, characters = generatedCharacters.toList(),
         missions = missionRecord(),
     )
     val book = SavedStoryBook(UUID.randomUUID().toString(), title ?: autoTitleFor(), themeKey, bgName, pages, visuals,

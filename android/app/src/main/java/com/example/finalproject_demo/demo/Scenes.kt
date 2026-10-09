@@ -1550,11 +1550,13 @@ private suspend fun Director.sceneMaking() {
     inputs(false, false)
     buttons()
     val t = s.template ?: templateOf(chooseTemplate(s.level, s.causeKind).first).also { s.templateKey = it.key }
+    if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) s.prepareStoryBookPages()
+    val plannedPageCount = s.bookPages.size
     // 같이 만들기는 동화가 아니라 같이 지은 이야기책이다 (#98)
     val bookWord = if (s.isCoop) "이야기책" else "동화책"
     say("${bookWord}을 만들고 있어! 조금만 기다려 줘.")
     log(
-        "Template ${t.code} ${t.name} (${t.pages.size} pages) + collected slots → server LLM → captions/title JSON → " +
+        "Template ${t.code} ${t.name} ($plannedPageCount pages) + collected slots → server LLM → captions/title JSON → " +
             "restore placeholders on device: {주인공} → ${s.childName}, {친구1} → ${s.friendName}; keep confirmed pictures (⭐26)"
     )
     if (s.isDiary) {
@@ -1570,13 +1572,13 @@ private suspend fun Director.sceneMaking() {
     log("이번 책에 들어가는 이야기 조각: ${filled.joinToString(" · ").ifEmpty { "기본 문장" }} · 까닭 \"${s.causeLine}\" · 해결 \"${s.solutionLine}\"")
     var p = 0f
     while (p < 1f) {
-        s.stage = Stage.Making("${bookWord}을 만드는 중… (${t.pages.size}쪽)", p)
+        s.stage = Stage.Making("${bookWord}을 만드는 중… (${plannedPageCount}쪽)", p)
         pause(120)
         p += 0.05f
     }
     s.title = s.autoTitleFor()
     if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
-        s.stage = Stage.Making("이야기 문장을 쓰는 중… (${t.pages.size}쪽)")
+        s.stage = Stage.Making("이야기 문장을 쓰는 중… (${plannedPageCount}쪽)")
         val mask = s.nameMask()
         val storyInput = s.storyServerInput()
         val book = Server.storyBook(
@@ -1597,7 +1599,7 @@ private suspend fun Director.sceneMaking() {
     s.stage = Stage.Making("『${s.title}』", 1f)
     say("다 만들었어! 제목은 『${s.title}』${if (bat(s.title!!)) "이야" else "야"}.")
     log("제목은 아이에게 묻지 않고 템플릿 · 대화로 지어 준다 → 책장에서 바꿀 수 있다")
-    event("book", "template" to "${t.code} ${t.name}", "attribute" to s.attribute, "pages" to t.pages.size, "title" to s.title)
+    event("book", "template" to "${t.code} ${t.name}", "attribute" to s.attribute, "pages" to plannedPageCount, "title" to s.title)
     mark("making")
     pause(2200)
     go(Scene.BOOK)

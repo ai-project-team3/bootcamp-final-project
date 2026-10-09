@@ -1209,6 +1209,7 @@ class DemoState {
     var m2Result by mutableStateOf<String?>(null)
     /** Server-written story scenes. Null keeps the existing template book for the scripted demo. */
     var storyCaptions by mutableStateOf<List<String>?>(null)
+    var storyBookPages by mutableStateOf<List<PageSpec>?>(null)
     var bookPage by mutableStateOf(0)
 
     /** 책 화면 위쪽 안내 한 줄 (책은 전체 화면이라 마스코트 말풍선 대신 여기에) */
@@ -1231,9 +1232,19 @@ class DemoState {
     }
 
     /** 등장인물 칸에 맞는 그림이 없어 서버가 만든 펠트 인형 (10-06 · `FriendArt.kt`) — 책에 함께 저장된다 */
-    var generatedFriend by mutableStateOf<GeneratedFriend?>(null)
+    val generatedCharacters = mutableStateListOf<GeneratedFriend>()
+    internal var readingSavedCast by mutableStateOf(false)
+    internal var savedProblemCharacter: String? = null
+    /** Compatibility access for the existing story newcomer and co-op companion. */
+    var generatedFriend: GeneratedFriend?
+        get() = generatedCharacters.firstOrNull { it.role == "friend" }
+        set(value) {
+            generatedCharacters.removeAll { it.role == "friend" }
+            if (value != null) generatedCharacters.add(value.copy(role = "friend"))
+        }
     /** 지금 만들고 있는 낱말 — 같은 말로 두 번 부르지 않는다 (저장하지 않는다) */
-    var friendRequested: String? = null
+    internal val characterRequests = mutableMapOf<CharacterRequest, Any>()
+    internal val characterAttempts = mutableSetOf<CharacterRequest>()
 
     /** 동화의 새 친구 인형 — 아이가 그리지 않았고, 지금 새 친구 칸 그대로일 때만 */
     val storyFriendDoll: GeneratedFriend?
@@ -1472,14 +1483,15 @@ class DemoState {
         drawing.clear(); drawnPreset = 0
         sceneDrawing.clear(); sceneDrawingAspect = 1f
         friendName = "{친구1}"; causeLine = "친구가 없어서 심심했어"; soundLine = "뿌우우우웅!"
-        solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; storyCaptions = null; bookPage = 0; bookNote = ""
+        solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; storyCaptions = null; storyBookPages = null; bookPage = 0; bookNote = ""
         turn = 0; s1streak = 0; s1count = 0; noAnswerStreak = 0
         mood = Mood.NONE
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
         storyHeroCall = null; storyHeroDescription = ""
-        generatedFriend = null; friendRequested = null
+        generatedCharacters.clear(); characterRequests.clear(); characterAttempts.clear(); readingSavedCast = false
+        savedProblemCharacter = null
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
         heroTries.clear()
