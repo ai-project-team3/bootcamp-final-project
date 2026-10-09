@@ -258,17 +258,18 @@
 
 <header class="cover">
   <div class="wrap wide">
-    <div class="eyebrow">쉽게 풀어쓴 버전 · 2026-10-07 ~ 10-08 · 치영 · #324 · 숫자 정본 <code>eval/results.md</code></div>
+    <div class="eyebrow">쉽게 풀어쓴 버전 · 2026-10-07 ~ 10-09 · 치영 · #324 · 숫자 정본 <code>eval/results.md</code></div>
     <h1>아이 말을 듣고 「어느 칸을 채웠나」 판정하는 AI를 우리 컴퓨터로 옮겨봤다</h1>
     <p class="lede">
       지금 판정은 미국 회사 AI(Jev)를 빌려 쓴다. 이걸 <b>우리 서버에서 돌아가는 작은 AI(라야)</b>로 바꾸려고,
       학습 데이터를 직접 만들어 네 번 가르쳤다. 결과는 <b>Jev와 같거나 나은 정확도</b> — 그런데 대조군을 돌려 보니
       <b>정확도를 만든 건 모델이 아니라 우리가 만든 데이터</b>였다.
+      서버에 켜고 폰으로 해 보니 <b>질문만 보고 답하는 지름길</b>이 드러나, 다섯 번째(v5)로 고쳐 지금 쓰고 있다.
     </p>
     <div class="stat-row">
       <div class="stat"><div class="n">19.1%</div><div class="l">가르치기 전 라야 (9필드)</div></div>
-      <div class="stat"><div class="n accent">95.8%</div><div class="l">네 번째로 가르친 라야 (같은 100문항)</div></div>
-      <div class="stat"><div class="n">88.6%</div><div class="l">지금 쓰는 Jev</div></div>
+      <div class="stat"><div class="n accent">96.0%</div><div class="l">지금 쓰는 라야 v5 (같은 100문항)</div></div>
+      <div class="stat"><div class="n">88.6%</div><div class="l">Jev (같은 100문항)</div></div>
       <div class="stat"><div class="n">0바이트</div><div class="l">판정 때 밖으로 나가는 아이 말</div></div>
     </div>
   </div>
@@ -437,7 +438,56 @@
           <div class="tl-body">
             <p>서버의 백엔드는 Docker 컨테이너라, 라야도 <b>컨테이너로 옆에 띄우고 바깥 포트는 열지 않았다</b> — 백엔드만 부를 수 있어서 아이 말이 기계 밖으로 안 나간다. 지금 서버에 도는 코드(release)에 변경을 붙여 새로 빌드했고, 그 안에서 백엔드 테스트 <b>216개가 모두 통과</b>했다. 처음엔 이야기 모드만 켰다.</p>
             <p>판정 한 번에 <b>0.08~0.10초</b>(처음 한 번만 데우느라 1.09초) — 같은 때 Jev는 0.25초. 라야가 차지한 GPU 메모리는 <b>약 1.5GB</b>(12GB 중). 실패해서 Jev로 넘어간 판정은 0번.</p>
-            <span class="chip good">지금 쓰는 것 — 이야기 모드</span>
+            <p>⚠️ <b>나중에 바로잡음(10-09)</b>: 0.08초는 요청을 <b>연달아</b> 보냈을 때의 숫자였다. 폰으로 25~50초 간격으로 대화하면 <b>0.27~0.45초(가운데 0.40초)</b>로 Jev(0.25~0.29초)와 비슷하거나 조금 느리다. 「시간 약 1/3」은 철회 — ⑫.</p>
+            <span class="chip good">이야기 모드에 켬 — 지금은 v5(⑭)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-item verdict-bad">
+        <div class="tl-rail"><div class="tl-dot">12</div><div class="tl-line"></div></div>
+        <div>
+          <div class="tl-date">10-08 밤</div>
+          <h3 class="tl-title">실수 — 빠르다고 한 숫자가 실제 대화와 달랐다</h3>
+          <div class="tl-body">
+            <p>서버 숫자 0.08~0.10초는 판정을 <b>쉬지 않고 연달아</b> 보낸 값이었다. 실제 아이는 25~50초에 한 번 말한다. 그 간격으로 폰에서 10턴을 재니 라야는 <b>0.27~0.45초(가운데 0.40초)</b>, Jev는 0.25~0.29초. 5초만 쉬어도 라야가 느려지고, 10초마다 깨워 두는 방법도 듣지 않았다. 그래서 <b>「시간 약 1/3」을 철회</b>한다. 라야로 바꿔서 얻는 건 <b>아이 말이 밖으로 안 나감 · 업체 비용 0원 · 업체가 멈춰도 판정이 됨</b>이다.</p>
+            <span class="chip bad">실수 — 숫자를 바로잡음</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-item verdict-bad">
+        <div class="tl-rail"><div class="tl-dot">13</div><div class="tl-line"></div></div>
+        <div>
+          <div class="tl-date">10-08 저녁</div>
+          <h3 class="tl-title">폰에서 드러난 지름길 — 물은 칸을 그대로 고른다(v4)</h3>
+          <div class="tl-body">
+            <p>이름을 물었는데 아이가 「눈보라가 불어서 길을 잃었어」라고 하자, 라야는 <b>「이름」 칸이라고 확신 1.00</b>으로 답했고 책 친구 이름이 그 문장이 됐다. 질문과 다른 답 42쌍을 넣어 보니 <b>31쌍(74%)이 물은 칸을 그대로</b> 골랐다. 학습 데이터의 이야기 줄이 「정답 = 물은 칸」 1,288 · 「다른 칸」 97이라, <b>질문만 보고 답하는 지름길</b>을 배운 것이다. 시험 100문항도 대부분 질문 = 답이라 이걸 못 잡았다.</p>
+            <span class="chip bad">탈락 — 질문과 다른 답에 약함</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-item verdict-good">
+        <div class="tl-rail"><div class="tl-dot">14</div><div class="tl-line"></div></div>
+        <div>
+          <div class="tl-date">10-08 밤 ~ 10-09</div>
+          <h3 class="tl-title">질문과 다른 답을 가르침(v5) — 새 시험지로 확인</h3>
+          <div class="tl-body">
+            <p>「질문과 다른 답」 시험지 96문항을 먼저 따로 만들고(학습에 안 씀), 질문과 다른 칸을 채우는 문장 864줄 · 물은 칸 그대로인 문장 126줄 · 「울었다 = 행동」 60줄을 더 가르쳤다. 처음 보는 시험지에서 <b>물은 칸 베끼기 68% → 15%</b>, 맞힘 29% → <b>79%</b>. 시험 100문항은 <b>96.0%</b>로 떨어지지 않았다. 서버를 v5로 바꾸고 폰에서 다시 해 보니 「엉엉 울면서 엄마를 불렀어」는 행동으로, 이름 질문에 「바다에 놀러 갔어」는 아무 칸도 안 채웠다.</p>
+            <span class="chip good">지금 쓰는 것 — 이야기 모드(10-09)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-item verdict-ref">
+        <div class="tl-rail"><div class="tl-dot">15</div><div class="tl-line"></div></div>
+        <div>
+          <div class="tl-date">10-09</div>
+          <h3 class="tl-title">더 가르쳐 봄(v6) — 낫지 않아 안 씀 · 남은 건 앱에서 막음</h3>
+          <div class="tl-body">
+            <p>v5가 약한 칸을 더 가르쳤지만 v5보다 2문항 더 맞혔을 뿐(66문항 중, 오차 안)이고, 아무 칸도 아닌 답을 비우는 정확도는 92% → 75%로 떨어졌다. 폰에서 틀린 「새 친구를 물었는데 사건을 말한」 문장도 v6는 여전히 새 친구라고 했다. 그래서 v6는 쓰지 않고, 그 경우는 <b>앱에서 막았다</b> — 새 친구 · 이름 칸에 문장이 오면 채우지 않고 「그때 만난 친구는 누구였어?」라고 다시 묻는다(PR #375).</p>
+            <span class="chip ref">참고 — 모델로 다 못 막는 건 앱 규칙으로</span>
           </div>
         </div>
       </div>
@@ -490,11 +540,23 @@
     </div>
 
     <h3 style="font-size:17px; margin:40px 0 4px">④ 서버 PC에서 판정 한 번 걸린 시간</h3>
-    <p class="sec-dek" style="margin-bottom:4px">10-08 저녁 · 서버(RTX 3060) 백엔드 로그 · 백엔드 → 판정 → 백엔드 왕복 · 라야는 데운 뒤 7번의 가운데 값(처음 한 번 1.09초는 뺌) · Jev는 같은 때 다른 모드 2번</p>
+    <p class="sec-dek" style="margin-bottom:4px">서버(RTX 3060) 백엔드 로그 · 백엔드 → 판정 → 백엔드 왕복 · 「연달아」 = 10-08 저녁 데운 뒤 7번의 가운데 값 · 「폰 대화」 = 10-08 밤 폰 10턴(25~50초 간격) · 라야는 가운데 값, Jev는 0.25~0.29초 범위의 가운데</p>
     <div class="chart-card">
       <div class="chart-title">판정 왕복 시간 (초, 낮을수록 좋음)</div>
-      <div class="chart-sub">라야 0.09초 · Jev 0.25초 — 정확도는 비기고 시간은 약 1/3</div>
+      <div class="chart-sub">연달아 보내면 라야가 빠르지만, 실제 대화 간격에서는 Jev와 비슷하거나 조금 느리다 — 「약 1/3」 철회(⑫)</div>
       <div class="bars-scroll"><div class="bars" id="chart5"></div></div>
+    </div>
+
+    <h3 style="font-size:17px; margin:40px 0 4px">⑤ 질문과 다른 답 — 처음 보는 시험지</h3>
+    <p class="sec-dek" style="margin-bottom:4px"><code>offq2</code> 96문항 중 「질문과 다른 칸을 채운 답」 66문항 · 학습에 안 씀 · v6를 만들 때 첫 시험지(<code>offq</code>)의 오답을 봐서 이 새 시험지로 비교</p>
+    <div class="chart-card">
+      <div class="chart-title">맞힘 · 물은 칸 베끼기 (%)</div>
+      <div class="chart-sub">v5에서 베끼기가 68% → 15%로 줄었다 · v6는 v5와 오차 안</div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--series-lora1)"></span>맞힘</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--series-turbo)"></span>물은 칸 베끼기</div>
+      </div>
+      <div class="bars-scroll"><div class="bars" id="chart6"></div></div>
     </div>
   </div>
 </section>
@@ -506,9 +568,9 @@
       <h2>그래서 지금 뭘 쓰고 있나?</h2>
     </div>
     <p>
-      <b>운영 서버의 이야기 모드는 라야(v4)다</b>(10-08부터). 그림일기 · 같이 만들기는 아직 Jev이고, 이야기 모드를 지켜본 뒤 넓힌다.
+      <b>운영 서버의 이야기 모드는 라야(v5)다</b>(10-08 v4로 켜고, 10-09 v5로 바꿈). 그림일기 · 같이 만들기는 아직 Jev이고, 이야기 모드를 지켜본 뒤 넓힌다.
       라야가 멈추면 판정은 Jev → 루나로 넘어가서 앱은 멈추지 않는다. 정확도는 Jev와 같거나 낫다.
-      다만 <b>운영 조건으로 맞추면 비긴다</b> — 라야로 바꿔서 얻는 건 정확도보다 <b>아이 말이 밖으로 안 나감 · 업체 비용 0원 · 업체가 멈춰도 판정이 됨</b>이다.
+      다만 <b>운영 조건으로 맞추면 비긴다</b>. 실제 대화 간격에서는 <b>속도도 Jev와 비슷하다</b>(⑫) — 라야로 바꿔서 얻는 건 정확도 · 속도보다 <b>아이 말이 밖으로 안 나감 · 업체 비용 0원 · 업체가 멈춰도 판정이 됨</b>이다.
       그리고 대조군이 보여 줬듯 <b>점수를 만든 건 데이터</b>라, 같은 데이터면 한국어 전용 AI로도 된다.
     </p>
     <div class="pill-row">
@@ -521,7 +583,7 @@
     <p style="font-size:14.5px; color:var(--ink-secondary)">
       실제 아이 말로는 한 번도 안 쟀다(예측 85~90%) · 시험 100문항이 쉬워서(아이 말을 지워도 88%) 모델 차이를 잘 못 가른다 ·
       학습 라벨과 시험 1차 라벨이 둘 다 Claude 손을 거쳐 습관이 닮았을 수 있다 ·
-      서버 반영은 레포를 거치지 않은 수동 빌드라 다음 release 배포가 오면 판정이 Jev로 돌아간다 ·
+      질문과 다른 답에서 「어떻게 풀었나」 · 사건 칸끼리의 구분이 아직 약하다(⑮) · 속도는 폰 10턴 한 번의 값이다 ·
       운영 경로는 「둘째 칸」을 버려서 그림일기에서 약간 손해 · 「확신 낮으면 루나로」 곡선은 루나 원본이 없어 못 그렸다.
     </p>
     <p style="font-size:14.5px; color:var(--ink-secondary)">
@@ -537,6 +599,7 @@
     <ul>
       <li><code>eval/results.md</code> 「2026-10-07 ~ 10-08 · 판정 Jev → Laya」 절 — 이 로그의 숫자 정본 (과정의 원문은 로컬 <code>Laya_판정_전환_설계.md</code> §7-1~§7-11)</li>
       <li>⑪ 서버 숫자 — 서버 PC 10-08 저녁: 백엔드 로그 <code>judge laya N.NNs</code> · 사이드카 <code>/health</code>의 <code>this_process_mib</code> · <code>judge_examples.ps1</code></li>
+      <li>⑫~⑮ — <code>eval/results.md</code> 「2026-10-08 ~ 10-09 · 판정 Laya — 속도 바로잡기 · 질문과 다른 답 · v5 · v6」 절 · 로컬 <code>D:\dev\laya_eval</code>의 <code>eval_offq.py</code> · <code>data/fixtures_offq*.jsonl</code></li>
       <li><code>eval/baselines/jev-latest_0922.jsonl</code> (#330) · <code>eval/fixtures_judge.jsonl</code> · <code>fixtures_judge_demo.jsonl</code> · <code>fixtures_mode.jsonl</code> · <code>fixtures_coop_reason.jsonl</code></li>
       <li>로컬 <code>D:\dev\laya_eval</code> — <code>bench_laya.py</code> · <code>bench_modes_laya.py</code> · <code>klue_baseline.py</code> · <code>stt_sim.py</code> · <code>synth/</code></li>
       <li><code>docs/받아쓰기_미세조정.md</code> — 아이 목소리 받아쓰기 실측 오류율(⑧의 근거)</li>
@@ -603,8 +666,15 @@
     {label:'한국어 AI', sub:'대조군', values:{a:0}}, {label:'Jev', sub:'26판단 중', values:{a:4}}
   ], '', 7);
   buildChart('chart5', [{key:'a', color:'var(--series-lora1)', label:'왕복'}], [
-    {label:'라야 v4', sub:'서버 · 이야기', values:{a:0.09}},
-    {label:'Jev', sub:'서버 · 같은 때', values:{a:0.25}}
-  ], '초', 0.3);
+    {label:'라야 v4', sub:'연달아', values:{a:0.09}},
+    {label:'Jev', sub:'연달아 · 같은 때', values:{a:0.25}},
+    {label:'라야 v4', sub:'폰 대화', values:{a:0.40}},
+    {label:'Jev', sub:'폰 대화 · 0.25~0.29', values:{a:0.27}}
+  ], '초', 0.5);
+  buildChart('chart6', [{key:'a', color:'var(--series-lora1)', label:'맞힘'},{key:'b', color:'var(--series-turbo)', label:'물은 칸 베끼기'}], [
+    {label:'v4', sub:'10-08', values:{a:29, b:68}},
+    {label:'v5', sub:'지금 씀', values:{a:79, b:15}},
+    {label:'v6', sub:'안 씀', values:{a:82, b:14}}
+  ], '%', 100);
 })();
 </script>
