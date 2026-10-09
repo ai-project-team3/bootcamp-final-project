@@ -42,14 +42,24 @@ private val OWN_FINAL_I = setOf(
 private val OWN_FINAL_I_TAIL = Regex("(?:양|랑|숭|북|엉|렁|팽|벵|멍|옹)이$")
 
 /**
- * A final 이 is the subject particle only after a consonant (「곰이」 → 곰), and not when it belongs to the noun
- * (「고양이」 · 「호랑이」). A word like that is kept whole.
+ * Known nouns with a final consonant — after these a bare 이 is surely the subject particle (「곰이」 · 「북극곰이」 · 「공룡이」).
+ * Any other word keeps its 이: 「올챙이」 · 「토순이」 may end in their own 이, and a whole word is safer than a cut one
+ * (#375 re-review — the consonant before 이 alone does not tell).
+ */
+private val SUBJECT_STEMS = listOf(
+    "곰", "괴물", "공룡", "드래곤", "외계인", "유령", "도둑", "해적", "로봇", "사람", "동생", "형", "선생님", "사슴",
+    "펭귄", "용", "뱀", "왕", "님",
+)
+
+/**
+ * A final 이 is the subject particle only after a known noun with a final consonant (「곰이」 → 곰). The noun's own 이
+ * (「고양이」 · 「올챙이」) and every uncertain case keep the word whole.
  */
 private fun stripSubjectI(word: String): String {
     if (!word.endsWith('이') || word.length < 2) return word
     if (word in OWN_FINAL_I || OWN_FINAL_I_TAIL.containsMatchIn(word)) return word
-    val before = jong(word[word.length - 2])
-    return if (before > 0) word.dropLast(1) else word
+    val stem = word.dropLast(1)
+    return if (jong(stem.last()) > 0 && SUBJECT_STEMS.any(stem::endsWith)) stem else word
 }
 
 /**

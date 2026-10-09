@@ -46,6 +46,11 @@ class StoryNameGuardTest {
         assertEquals("곰", storyNameInSentence("곰이랑 만났어"))
         assertEquals("펭귄", storyNameInSentence("펭귄이 나타났어"))
         assertEquals("토끼", storyNameInSentence("토끼가 나타났어"))
+        // an unknown word keeps its final 이 — the consonant before it does not tell (#375 re-review)
+        assertEquals("올챙이", storyNameInSentence("올챙이 봤어"))
+        assertEquals("토순이", storyNameInSentence("토순이 만났어"))
+        assertEquals("북극곰", storyNameInSentence("북극곰이 나타났어"))
+        assertEquals("공룡", storyNameInSentence("공룡이 나타났어"))
         // a linked verb or a place is not who was met — asked again (#375 re-review)
         assertNull(storyNameInSentence("문을 열고 나왔어"))
         assertNull(storyNameInSentence("집에서 나왔어"))
@@ -219,5 +224,15 @@ class StoryNameGuardTest {
             Server.TurnResult(verdict("newcomer" to it.utterance, next = "cause"), null)
         }
         assertEquals("보라색 문어", s.slots["newcomer"])
+    }
+
+    /** #375 re-review — 「올챙이 봤어」 is the tadpole, not 「올챙」 */
+    @Test
+    fun anUnknownNameKeepsItsFinalI() = runBlocking {
+        val s = started()
+        s.exchangeStoryTurn("newcomer", "그때 누구를 만났어?", "올챙이 봤어") {
+            Server.TurnResult(verdict("newcomer" to it.utterance, next = "cause"), Server.Line("그랬구나", null, "왜 그랬을까?"))
+        }
+        assertEquals("올챙이", s.slots["newcomer"])
     }
 }
