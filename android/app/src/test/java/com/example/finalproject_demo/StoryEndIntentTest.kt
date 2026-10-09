@@ -53,6 +53,24 @@ class StoryEndIntentTest {
         assertTrue("asked to end twice — the child's wish wins", s.storyReady)
     }
 
+    /** 10-09 device — the judge copied 「그만할래」 into the asked solution; ending words fill no slot */
+    @Test
+    fun endingWordsFillNoSlot() = runBlocking {
+        val s = DemoState().apply { turn = 6; slots["problem"] = "길을 잃었어" }
+        val copy = Server.Verdict(
+            reason = "test", fills = listOf("solution" to "이제 끝이야"), nextSlot = "sound", noLongerNeeded = null,
+            storyReady = false, unclear = false, unclearOf = null, contradiction = false,
+            s1Reason = false, s2Addition = false, emotion = null,
+        )
+        s.exchangeStoryTurn("solution", "이야기는 어떻게 끝났어?", "이제 끝이야") { Server.TurnResult(copy, null) }
+        assertEquals(null, s.slots["solution"])
+        s.exchangeStoryTurn("solution", "이야기는 어떻게 끝났어?", "그만할래") {
+            Server.TurnResult(copy.copy(fills = listOf("solution" to "그만할래")), null)
+        }
+        assertTrue(s.storyReady)
+        assertEquals("the ending words are not the solution", null, s.slots["solution"])
+    }
+
     @Test
     fun aStorySentenceOrAMascotPickDoesNotEnd() = runBlocking {
         val s = DemoState().apply { turn = 6; slots["problem"] = "길을 잃었어"; slots["solution"] = "집에 갔어" }
