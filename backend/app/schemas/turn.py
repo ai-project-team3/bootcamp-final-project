@@ -13,10 +13,11 @@ from .judge import JudgeRequest, JudgeResult, SlotName
 #   repair      — the child said Otto got it wrong: take the slot back, ask it again
 #   answer_back — the child asked Otto something: answer briefly, ask the same question again
 #   rephrase    — the child did not catch the question: ask the same slot in easier words
-#   aside       — talk off the question: take it in (extra), ask the same question again
-# A child still telling (「근데 있잖아」) is a plain turn for now: the app should keep listening, not
+# Talk off the question (「나 배고파」) and a child still telling (「근데 있잖아」) are plain turns:
+# asides were not rated better than main in the 10-09 blind check, and a child still telling
+# needs the app to keep listening, not the server to answer. A child still telling (「근데 있잖아」) is a plain turn for now: the app should keep listening, not
 # the server answer (10-08 · out of this round)
-Act = Literal["repair", "answer_back", "rephrase", "aside"]
+Act = Literal["repair", "answer_back", "rephrase"]
 
 
 class OttoSaid(BaseModel):

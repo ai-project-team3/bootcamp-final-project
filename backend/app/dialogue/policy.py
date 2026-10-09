@@ -24,7 +24,7 @@ ACTS: dict[str, Optional[Act]] = {
     "ask_back": "answer_back",
     "not_heard": "rephrase",
     "refuse": None,          # each mode already has a ladder for 「몰라」 (diary: easier once, then move on)
-    "aside": "aside",
+    "aside": None,           # plain turn (10-09): blind raters did not prefer R on asides (R 5 · B 3 · both poor 5)
     "continue": None,        # out of this round (10-08): the app should keep listening — a plain turn, logged
 }
 

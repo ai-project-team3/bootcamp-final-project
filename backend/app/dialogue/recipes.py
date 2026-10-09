@@ -49,15 +49,10 @@ def rephrase(req: TurnRequest, d: Decision, retract: list[str]) -> Recipe:
     return Recipe("rephrase", f"repeat_question:{req.question}", req.asked_slot)
 
 
-def aside(req: TurnRequest, d: Decision, retract: list[str]) -> Recipe:
-    return Recipe("aside", f"repeat_question:{req.question}", req.asked_slot)
-
-
 RECIPES: dict[str, Callable[[TurnRequest, Decision, list[str]], Recipe]] = {
     "repair": repair,
     "answer_back": answer_back,
     "rephrase": rephrase,
-    "aside": aside,
 }
 
 

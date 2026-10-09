@@ -45,7 +45,6 @@ def test_each_non_answer_has_its_act():
     assert policy.act_for(d("correct")) == "repair"
     assert policy.act_for(d("ask_back")) == "answer_back"
     assert policy.act_for(d("not_heard")) == "rephrase"
-    assert policy.act_for(d("aside")) == "aside"
 
 
 def test_refusal_is_left_to_the_modes_own_ladder():
@@ -109,9 +108,9 @@ def test_a_question_back_fills_nothing():
     assert out.slot_1 is None
 
 
-def test_an_aside_keeps_what_the_judge_filed():
-    v = JudgeResult(reason="x", slot_1="extra", value_1="어제 비 왔어")
-    assert policy.trim_verdict("aside", d("aside"), v).slot_1 == "extra"
+def test_an_aside_is_a_plain_turn():
+    # 10-09 blind check: asides were not better than main — no act, the judge's fills stand as before
+    assert policy.act_for(d("aside")) is None
 
 
 # --- recipes: which slot the question is about, and what context the line gets ---
@@ -173,4 +172,4 @@ def test_the_same_question_comes_back_after_a_question_back():
 
 
 def test_every_act_has_a_recipe():
-    assert set(recipes.RECIPES) == {"repair", "answer_back", "rephrase", "aside"}
+    assert set(recipes.RECIPES) == {"repair", "answer_back", "rephrase"}

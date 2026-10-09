@@ -39,8 +39,8 @@ USD_IN, USD_OUT, KRW = 0.10, 0.50, 1400      # luna list price per Mtok (model_c
 # (09-22's 「100문항 29.2원」 divided by calls — never checked): about 2× the OpenAI bill (10-09: 1,228 calls,
 # $0.13~0.14). Now the report gives token counts (cached apart) and Jev calls; won only with prices passed in.
 DROPS_WORDS = {"repair", "answer_back", "rephrase"}   # acts that may drop the judge's fills
-NEEDS_QUESTION = {"answer_back", "rephrase", "aside"}
-ALLOWED = {None, "repair", "answer_back", "rephrase", "aside"}
+NEEDS_QUESTION = {"answer_back", "rephrase"}
+ALLOWED = {None, "repair", "answer_back", "rephrase"}       # aside dropped 10-09 — runs before that scored aside as an act
 
 
 # --- running ---

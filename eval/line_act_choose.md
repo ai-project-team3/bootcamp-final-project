@@ -17,11 +17,10 @@
 - repair: 오또가 앞에서 잘못 알아들은 것을 아이가 고쳤습니다. 「아니야」 · 「그거 아닌데」 · 「고양이였어」
 - answer_back: 아이가 오또에게 되물었습니다. 「오또는?」 · 「왜?」
 - rephrase: 아이가 질문을 못 알아들었습니다. 「뭐라고?」 · 「응?」
-- aside: 질문과 상관없는 다른 이야기를 했습니다.
-「몰라」 · 「싫어」처럼 답하기 싫거나 모르는 말, 「그리고」 · 「근데 있잖아」처럼 아직 말하는 중인 말은 null 입니다(앱이 따로 처리합니다).
+「몰라」 · 「싫어」처럼 답하기 싫거나 모르는 말, 질문과 상관없는 딴 얘기, 「그리고」 · 「근데 있잖아」처럼 아직 말하는 중인 말은 null 입니다(앱이 따로 처리합니다).
 
 target: repair 일 때 아이가 고치려는 칸 이름(칸 이름 뜻 목록 안). 모르겠거나 repair 가 아니면 null.
 new_value: repair 이면서 아이가 맞는 내용을 같이 말했으면 true, 아니면 false.
 fixed_value: repair 이면 위 「아이 반응 받기」의 repair 규칙대로 씁니다(retry_slot 은 target 칸). repair 가 아니면 null.
-act 가 repair · answer_back · rephrase · aside 이면 question 은 next_slot 이 아니라 고친 칸이나 방금 물은 칸을 다시 묻습니다.
+act 가 repair · answer_back · rephrase 이면 question 은 next_slot 이 아니라 고친 칸이나 방금 물은 칸을 다시 묻습니다.
 ```
