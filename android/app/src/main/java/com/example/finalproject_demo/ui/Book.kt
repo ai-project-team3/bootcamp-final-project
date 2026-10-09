@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.ui
 
+import com.example.finalproject_demo.demo.storyProblemOnPage
+
 import androidx.compose.animation.core.Animatable
 import com.example.finalproject_demo.demo.coopMetLabel
 import com.example.finalproject_demo.demo.heroImageName
@@ -256,6 +258,9 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
     var tool by remember { mutableStateOf("hand") }
     val heroArt = s.storyHeroArt
     val dinoArt = Art.DinoArt(s.dinoColor, s.dinoKey)
+    val kind = if (page == 0) PageKind.COVER else savedBook?.pages?.getOrNull(page - 1)?.kind ?: s.pageKind(page)
+    val caption = if (page > 0) savedBook?.pages?.getOrNull(page - 1)?.caption ?: s.bookCaption(page) else ""
+    val problemArt = s.storyProblemOnPage(kind, caption)
 
     fun react(target: String) = onReply(Reply.Tapped("tool:$tool:$target", tool))
 
@@ -298,11 +303,16 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                 onTap = { if (tool == "hand" && onHand != null) onHand() else react(target) },
             ) { ArtView(art, Modifier.fillMaxSize(), if (walking) RigMotion.WALK else act) }
         }
-        if (stand != null) Stand(xf, wf, stand, floor = hasFloor(s.bgName), modifier = walkMod.then(mod), content = body)
+        val castSpot = if (problemArt == null) null else when (target) {
+            "hero" -> com.example.finalproject_demo.demo.scene.HERO_SPOT
+            "friend" -> com.example.finalproject_demo.demo.scene.FRIEND_SPOT
+            else -> null
+        }
+        if (stand != null) Stand(castSpot?.x ?: xf, if (castSpot != null) .11f else wf,
+            castSpot?.depth ?: stand, floor = hasFloor(s.bgName), modifier = walkMod.then(mod), content = body)
         else Layer(xf, yf, wf, aspect, walkMod.then(mod), content = body)
     }
 
-    val kind = if (page == 0) PageKind.COVER else savedBook?.pages?.getOrNull(page - 1)?.kind ?: s.pageKind(page)
     val last = savedBook?.pages?.size ?: s.pageCount
     val soundHolder = s.storySoundHolder(liveStory)
     val hasRecording = if (savedBook != null) savedBook.soundClipId != null else s.storySoundClip != null
@@ -319,7 +329,6 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
      *
      * "기차가 흔들렸어요"처럼 사람이 흔든 것이 아닌 문장은 인사로 읽지 않는다 — `손`·`인사`·`안녕`이 같이 있어야 한다.
      */
-    val caption = if (page > 0) savedBook?.pages?.getOrNull(page - 1)?.caption ?: s.bookCaption(page) else ""
     val riding = ridingFrom(caption)
     val waving = wavingFrom(caption)
     // 소리말과 흔들림도 자막에서 읽는다 (9/22) — 쪽 종류가 아니라 **적힌 내용**이 정한다
@@ -408,6 +417,13 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
         val showDino = !s.isDiary && scripted
         // 일기 · 협업은 아이가 그린 것 → 아이가 말한 사람 순으로 세우고, 둘 다 없으면 아무도 안 세운다 (일기 §3-2)
         val friendShown: Art? = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
+
+        problemArt?.let { art ->
+            val spot = com.example.finalproject_demo.demo.scene.PROBLEM_SPOT
+            Stand(spot.x, .11f, spot.depth, floor = hasFloor(s.bgName)) {
+                ArtView(art, Modifier.fillMaxSize())
+            }
+        }
 
         when (kind) {
             PageKind.COVER -> Cover(d, heroArt, liveStory)
@@ -602,7 +618,7 @@ private fun Cover(d: Director, heroArt: Art, liveStory: Boolean) {
         // 전에는 "· 함께 {어른}" 이 늘 붙었다. 어른이 지은 자리가 하나도 없는 날에도 붙어서
         // 아이가 혼자 지은 책에 어른 이름이 올라갔다. 이 책의 지은이는 아이다.
         Text("글 · 그림 ${s.childName}", fontSize = 13.sp, color = Color.White)
-        s.template?.let { t -> Text("${t.pages.size}쪽", fontSize = 11.sp, color = Color.White.copy(alpha = 0.75f)) }
+        s.template?.let { Text("${s.pageCount}쪽", fontSize = 11.sp, color = Color.White.copy(alpha = 0.75f)) }
     }
 }
 

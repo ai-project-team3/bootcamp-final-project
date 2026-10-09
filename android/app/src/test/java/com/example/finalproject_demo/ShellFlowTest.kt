@@ -73,8 +73,8 @@ class ShellFlowTest {
 
     /** 처음 설정을 끝까지 — 방에 들어오기까지 */
     private fun onboard() {
-        waitText("눌러서 시작", 10_000); shot("01_title")
-        tap("눌러서 시작")
+        waitText("건너뛰기", 10_000); shot("01_title")
+        tap("건너뛰기")
         waitText("카카오로 시작하기"); shot("02_login")
         assertEquals("로그인 없이 둘러보는 길이 남아 있다", 0, count("샘플 책 보기"))
         tap("카카오로 시작하기")
@@ -142,7 +142,7 @@ class ShellFlowTest {
     @Test
     fun emailSignUpReachesConsent() {
         compose.activity.getSharedPreferences("otto_account", android.content.Context.MODE_PRIVATE).edit().clear().commit()
-        waitText("눌러서 시작", 10_000); tap("눌러서 시작")
+        waitText("건너뛰기", 10_000); tap("건너뛰기")
         tap("이메일로 회원가입")
         waitText("영문 + 숫자 8자 이상")
         compose.onNode(hasContentDescription("이메일")).performTextInput("parent@example.com")
@@ -164,7 +164,7 @@ class ShellFlowTest {
      */
     @Test
     fun consentNeedsEveryRequiredItemAndKeepsOptionalChoices() {
-        waitText("눌러서 시작", 10_000); tap("눌러서 시작")
+        waitText("건너뛰기", 10_000); tap("건너뛰기")
         tap("카카오로 시작하기")
         waitText("이렇게만 써요"); shot("03a_consent_empty")
         compose.onNode(hasText("동의하고 계속") and hasClickAction()).assertIsNotEnabled()
@@ -470,7 +470,7 @@ class ShellFlowTest {
      */
     @Test
     fun aRealFingerTapPassesTheTitleAndLogin() {
-        waitText("눌러서 시작", 10_000)
+        waitText("건너뛰기", 10_000)
         fun finger(t: String) {
             compose.waitUntil(8_000) { compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
             compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).onLast().performTouchInput {
@@ -479,7 +479,7 @@ class ShellFlowTest {
             }
             compose.waitForIdle()
         }
-        finger("눌러서 시작")
+        finger("건너뛰기")
         waitText("카카오로 시작하기")
         finger("카카오로 시작하기")
         waitText("이렇게만 써요")

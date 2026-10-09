@@ -38,6 +38,17 @@ class Settings(BaseSettings):
     # Who picks the act: "rule" (decider + rule table · served) or "llm" (the line model picks it in
     # the same call · measurement only, eval/line_act_choose.md). #323 compares the two before deciding.
     dialogue_policy: str = "rule"
+    # Modes whose judge runs on Laya, our own fine-tuned encoder on this machine (10-08 · app/llm/laya.py).
+    # Checked before Jev; a Laya failure falls to Jev (if that mode is on it) and then luna. The v4 checkpoint
+    # is trained on all three modes (story · diary · coop), so "story,diary,coop" is valid — start with
+    # "story" on a new server and widen. Empty = off. The sidecar (backend/scripts/laya_judge_server.py)
+    # must be running at laya_url.
+    judge_laya_modes: str = ""
+    # team server: the backend is a container, so the sidecar is one too (scripts/deploy/start_laya.ps1) —
+    # LAYA_URL=http://otto-laya:8100 in C:\otto\.env. 127.0.0.1 is for a dev PC running it as a process.
+    laya_url: str = "http://127.0.0.1:8100"
+    # answer confidence a slot choice needs (10-08 on the 100 questions: 0.9 keeps the score and trims 5 fills)
+    laya_floor: float = 0.9
     # medium since 10-05: 3 stories x 2 — high p50 36.9 s · medium 12.6 s · low 8.0 s, rejected 0 at all three,
     # captions read alike (low repeated a line); eval/results.md 10-05 / eval/bench_story_title.py
     llm_effort_story: str = "medium"

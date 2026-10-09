@@ -68,6 +68,14 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
                         entry.getJSONObject("visuals").optJSONObject("friend")?.let { friend ->
                             add(friend.get("image") as? String ?: error("Unreadable story friend reference"))
                         }
+                        val visuals = entry.getJSONObject("visuals")
+                        if (visuals.has("characters")) {
+                            val cast = visuals.getJSONArray("characters")
+                            repeat(cast.length()) { index ->
+                                add(cast.getJSONObject(index).get("image") as? String
+                                    ?: error("Unreadable story character reference"))
+                            }
+                        }
                     }
                 }
             }.toSet()
