@@ -86,6 +86,31 @@ fun Director.setDiarySlot(slot: String, bookKey: String, value: String, line: St
     )
 }
 
+/**
+ * 아이가 틀렸다고 한 칸을 되돌린다 (#323 `retract`) — [prev] 가 있으면 그 값으로, 없으면 비운다.
+ * 일기 칸은 늘 아이 출처라(`guidelines/2` 일기) 되돌린 값도 `child` 다. 칸 값 · 출처 · 화면용 필드를 같이 되돌린다
+ */
+fun Director.restoreDiarySlot(slot: String, bookKey: String, prev: String?) {
+    if (prev != null) {
+        setDiarySlot(slot, bookKey, prev, prev, "child")
+        log("칸 [$slot] 아이가 틀렸다고 해서 앞 값 「$prev」으로 되돌렸다")
+        return
+    }
+    when (slot) {
+        "place" -> { s.place = null; s.placeLabel = null }
+        "problem" -> s.problem = null
+        "cause" -> s.cause = null
+        "solution" -> s.solution = null
+        "reaction" -> s.reaction = null
+        "newcomer" -> s.newcomer = null
+        "companion" -> { s.friend = null; s.companionKind = "" }
+    }
+    s.slots.remove(bookKey)
+    s.slotBy.remove(bookKey)
+    event("slot_retracted", "slot" to slot)
+    log("칸 [$slot] 아이가 틀렸다고 해서 비웠다 — 다시 묻는다")
+}
+
 // ── 장면 ───────────────────────────────────────────────────────
 
 private val Director.diaryHero: Art get() = Art.HeroArt(s.heroAttr ?: HeroAttr())

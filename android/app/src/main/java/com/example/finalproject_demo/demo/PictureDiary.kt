@@ -52,6 +52,19 @@ internal const val D1_WAIT_SEC = 10.0
  */
 internal const val SLOT_TRIES = 2
 
+/**
+ * 답이 아닌 말(되묻기 · 못 알아들음 · 값 없는 정정)에 서버 대사 = **새 음성**을 쓰는 수 — 세션마다, 넘으면 구운 대사 (#323 · #389).
+ * 지금 앱은 그 턴에 구운 쉬운 질문(0초 · 0원)이라 새 음성은 늘어나는 몫이다. 숫자 하나로 바꾼다
+ */
+internal const val VOICE_GEN_CAP = 4
+
+/** 값을 함께 말한 정정(「아니야, 수영장이야」)의 되받기 — 아이가 들은 값을 확인하는 유일한 때라 따로 센다. 넘어도 칸은 고친다 */
+internal const val REPAIR_VOICE_CAP = 3
+
+/** 구운 대사 (#323) — 글자 그대로여야 앱의 녹음 파일로 나간다(`Voice.baked`) */
+internal const val SORRY_LINE = "앗, 내가 잘못 알았구나!"
+internal const val ASK_AGAIN_LINE = "다시 물어볼게!"
+
 /** 마무리를 제안하는 때 — 끝내는 시간이 아니다 (guidelines/2 §1-1 · 09-30) */
 internal const val WRAP_UP_MS = 30L * 60 * 1000
 
@@ -1317,6 +1330,58 @@ private fun Director.withClue(day: DiaryDay, q: Triple<String, String, String>):
         Triple(q.first, text, q.third)
     } ?: q
 
+/** 그 칸이 마지막으로 채워질 때 덮어쓴 값 — 정정이 되돌릴 값. 기록에 없으면(그리는 중에 찬 칸 등) null = 비운다 */
+private fun prevOf(day: DiaryDay, slot: String): String? =
+    day.talk.asReversed().firstNotNullOfOrNull { h -> h.fills.lastOrNull { it.slot == slot } }?.prev
+
+/** 한 턴을 기록에 — 물은 질문 → 아이 말 → 오또가 실제로 한 말 순서 (#323 · 아이 말과 오또 말을 섞지 않는다 · 규칙 5) */
+private fun remember(day: DiaryDay, slot: String, question: String, child: String,
+                     fills: List<Server.HistoryFill>, act: String?, said: String?) {
+    day.talk += Server.HistoryTurn(
+        turn = day.talk.size + 1, askedSlot = slot.takeIf { it in Server.SLOTS },
+        otto = Server.OttoSaid(ack = said, expand = null, question = question),
+        child = child.trim(), fills = fills, act = act,
+    )
+}
+
+private class ActOutcome(val next: Triple<String, String, String>?, val said: String?)
+
+/**
+ * 답이 아닌 말을 받는다 (#323) — 서버 대사를 말하되 새 음성 상한 안에서만. 넘었거나 대사가 없으면 구운 대사로.
+ * - 정정: 칸은 이미 되돌렸다. 값이 있으면 「…였구나」 되받기 + 다음 칸, 없으면 그 칸을 다시
+ * - 못 알아들음: 「다시 물어볼게!」 + 그 칸의 쉬운 질문 · 되묻기: 그 칸의 쉬운 질문(앞말은 #389 에서 정한다)
+ */
+private suspend fun Director.answerAct(
+    day: DiaryDay, result: Server.TurnResult, act: String, slot: String, text: String, key: String,
+    hasValue: Boolean, gaveUp: Set<String>,
+): ActOutcome {
+    val reaction = listOfNotNull(result.line?.ack, result.line?.expand).filter(String::isNotBlank).joinToString(" ")
+    val valueRepair = act == "repair" && hasValue
+    val room = if (valueRepair) day.repairVoice < REPAIR_VOICE_CAP else day.voiceGen < VOICE_GEN_CAP
+    if (reaction.isNotBlank() && room) {
+        if (valueRepair) day.repairVoice++ else day.voiceGen++
+        log("[$act] 서버 대사로 받는다 (새 음성 ${if (valueRepair) "정정 ${day.repairVoice}/$REPAIR_VOICE_CAP" else "${day.voiceGen}/$VOICE_GEN_CAP"})")
+        say(reaction)
+        pause(600)
+        return ActOutcome(serverNext(result) ?: bakedNext(act, slot, text, key, hasValue, result, gaveUp), reaction)
+    }
+    log("[$act] ${if (reaction.isBlank()) "서버 대사가 없다" else "새 음성 상한에 닿았다"} → 구운 대사")
+    val opener = when (act) { "repair" -> SORRY_LINE; "rephrase" -> ASK_AGAIN_LINE; else -> null }
+    opener?.let { say(it); pause(600) }
+    return ActOutcome(bakedNext(act, slot, text, key, hasValue, result, gaveUp), opener)
+}
+
+/** 구운 쪽 다음 질문 — 앱의 고정 질문으로(녹음 파일). 정정이면 되돌린 칸(값이 없을 때)이나 다음 빈 칸 */
+private fun Director.bakedNext(
+    act: String, slot: String, text: String, key: String, hasValue: Boolean, result: Server.TurnResult, gaveUp: Set<String>,
+): Triple<String, String, String>? = when {
+    act == "repair" && !hasValue -> result.retract.firstOrNull()
+        ?.let { gone -> PICTURE_QUESTIONS.firstOrNull { it.key == askedKeyOf(gone) } }
+        ?.let { Triple(judgeSlotOf(it.key), it.ask(s), it.key) } ?: firstEmptyQuestion(gaveUp)
+    act == "repair" -> firstEmptyQuestion(gaveUp)
+    else -> Triple(slot, PICTURE_QUESTIONS.firstOrNull { it.key == key }?.easy ?: text, key)
+}
+
 private fun bookKeyOf(slot: String, askedKey: String): String = when (slot) {
     "extra" -> if (askedKey == "keep") "keep" else "extra"
     else -> slot
@@ -1388,7 +1453,8 @@ private suspend fun Director.askEmptySlotsLive() {
         }
         day.turnCalls++                            // #30 — 세기만 한다
         // 요청 함수를 넘기지 않는다 — 넘기면 Kotlin IR 백엔드가 StoryTurn.kt 에서 죽는다(AddContinuationLowering · 10-01)
-        val result = s.exchangeTurn("diary", slot, text, r.text)
+        // 지난 턴들을 같이 보낸다 — 「그거 아니야」가 무엇을 아니라고 하는지 서버가 알게 (#323)
+        val result = s.exchangeTurn("diary", slot, text, r.text, history = day.talk.toList())
         val v = result?.verdict
         if (v == null) {
             log("판정 서버가 답하지 않았다 → 이 턴은 아이 말을 물은 칸에 그대로 넣고 대본 차례로")
@@ -1412,8 +1478,16 @@ private suspend fun Director.askEmptySlotsLive() {
             el = if (v.s2Addition) setOf("추가") else emptySet(),
             emo = v.emotion.orEmpty(),
         )), q.text)
+        // 아이가 틀렸다고 한 칸부터 되돌린다 — 같은 턴의 새 값은 그 뒤에 채운다 (#323)
+        result.retract.forEach { gone -> restoreDiarySlot(gone, bookKeyOf(gone, key), prevOf(day, gone)) }
+        val filled = v.fills.filter { (fs, value) -> fs in Server.SLOTS && value.isNotBlank() }
+            .map { (fs, value) -> Server.HistoryFill(fs, value.trim(), s.slots[bookKeyOf(fs, key)]) }
         fillFromVerdict(day, v, r, key)
-        if (v.fills.isEmpty()) {
+        val act = result.act
+        // 정정의 새 값은 아이 말에서 옮긴 그 낱말로 책에 — 「바다 아니야, 수영장이야」 통째면 「아니야」가 책에 들어간다
+        if (act == "repair") filled.forEach { f -> setDiarySlot(f.slot, bookKeyOf(f.slot, key), f.value, f.value, "child") }
+        // 행동이 있는 턴은 칸이 비는 게 정상이다 — 쉬운 질문으로 넘기지 않고 그 반응을 받는다
+        if (v.fills.isEmpty() && act == null) {
             if (easyTried != key && step != null) {
                 easyTried = key
                 val easy = PICTURE_QUESTIONS.firstOrNull { it.key == key }?.easy
@@ -1434,7 +1508,15 @@ private suspend fun Director.askEmptySlotsLive() {
             s.endReason = "story_ready"
             log("판정 story_ready — 남은 물음은 판정이 고른 칸과 「내일」만")
         }
+        if (act != null) {
+            val out = answerAct(day, result, act, slot, text, key, filled.isNotEmpty(), gaveUp)
+            remember(day, slot, text, r.text, filled, act, out.said)
+            next = out.next?.let { withClue(day, it) }
+            continue
+        }
         sayReaction(result, r, key)
+        remember(day, slot, text, r.text, filled, null,
+            listOfNotNull(result.line?.ack, result.line?.expand).filter(String::isNotBlank).joinToString(" ").ifBlank { null })
         drawNewThing(day, r.text)
         next = (serverNext(result) ?: if (v.storyReady) tomorrowQuestion(gaveUp) else firstEmptyQuestion(gaveUp))?.let { withClue(day, it) }
     }

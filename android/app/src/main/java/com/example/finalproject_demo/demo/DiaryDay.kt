@@ -194,6 +194,16 @@ class DiaryDay {
 
     fun canCallTurn(): Boolean = turnBudget.let { it == null || turnCalls < it }
 
+    /**
+     * 다 그린 뒤 묻고 답한 기록 — 턴마다 하나, `/turn` 에 통째로 다시 보낸다 (#323 · 서버는 턴 사이에 아무것도 갖지 않는다).
+     * 그리는 중 말은 넣지 않는다(2단계 책 만들기에서 더한다). `prev` 는 정정(`retract`)이 되돌릴 값이다
+     */
+    val talk = mutableListOf<com.example.finalproject_demo.net.Server.HistoryTurn>()
+    /** 되묻기 · 못 알아들음 · 값 없는 정정에서 서버 대사(새 음성)를 쓴 수 — [VOICE_GEN_CAP] 넘으면 구운 대사 (#323 · #389) */
+    var voiceGen = 0
+    /** 값을 함께 말한 정정에서 서버 대사(되받기)를 쓴 수 — [REPAIR_VOICE_CAP] 넘으면 구운 앞말만, 칸은 계속 고친다 */
+    var repairVoice = 0
+
     /** 「나도 그려볼까?」에 응한 수 — 그리는 중과 다 그린 뒤를 합쳐 [OTTO_OFFERS] 까지 (#281) */
     var ottoOffers = 0
     /** 다 그린 뒤 이름이 붙어 주문한 오또 그림 — 조각 id → 그림(대본이면 null). D3 가 끝나면 고르게 한다 (#281) */
