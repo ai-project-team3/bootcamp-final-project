@@ -78,6 +78,8 @@ const val DEFAULT_SERVER = "https://otto-back.shelldocs.cloud"
 class MainActivity : ComponentActivity() {
     /** 지금 흐름 — 검사(`ShellFlowTest`)가 상태를 들여다볼 때 쓴다 */
     var director: Director? = null
+    /** Play immediate update — store builds only (net/AppUpdate.kt) */
+    private var appUpdate: com.example.finalproject_demo.net.AppUpdate? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 동의를 기기에서 읽어 온다 — 없으면 켤 때마다 동의 화면이 다시 뜬다 (09-25)
@@ -104,6 +106,8 @@ class MainActivity : ComponentActivity() {
         com.example.finalproject_demo.net.CallLimits.attach(this)   // 서버 연결판 하루 한도 — 폰에만 (10-06)
         // which bundled pictures exist — a world picture in the book's art style is used only when it is bundled (10-07)
         com.example.finalproject_demo.demo.WorldStyle.has = { n -> @Suppress("DiscouragedApi") resources.getIdentifier(n, "drawable", packageName) != 0 }
+        // a debug build is installed with adb, not from Play — no update to look for. Not under Robolectric either
+        if (!debuggable && byDefault) appUpdate = com.example.finalproject_demo.net.AppUpdate(this)
         com.example.finalproject_demo.net.CallLimits.enabled = !debuggable   // 스토어 빌드만 — 팀 개발 앱 · 검사는 막지 않는다
         Voice.attach(this)        // 진짜 마이크 · 마스코트 목소리 — 서버 모드에서만 쓴다 (net/Voice.kt)
         com.example.finalproject_demo.net.Bgm.attach(this)    // 동화책 배경음악 (#221)
@@ -122,6 +126,11 @@ class MainActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         setContent { MaterialTheme(typography = PuppetTypography) { com.example.finalproject_demo.ui.FitScreen { DemoApp() } } }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appUpdate?.check()
     }
 
     override fun onDestroy() {
