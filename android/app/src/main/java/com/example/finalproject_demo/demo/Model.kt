@@ -1308,8 +1308,12 @@ class DemoState {
      * A reopened book keeps what it was made with.
      */
     val liveStoryWithoutFriend: Boolean
-        get() = mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode) && !readingSavedCast &&
-            slots["newcomer"].isNullOrBlank() && drawing.isEmpty() && storyFriendDoll == null
+        get() = mode == StoryMode.STORY && (if (readingSavedCast) savedNoFriend
+            else com.example.finalproject_demo.net.Server.liveFor(mode) &&
+                slots["newcomer"].isNullOrBlank() && drawing.isEmpty() && storyFriendDoll == null)
+
+    /** A reopened book's [liveStoryWithoutFriend] — saved with it (StoryBookVisuals.noFriend · #387 review) */
+    internal var savedNoFriend = false
 
     /** 미션 2에서 건넬 상대의 이름 — 아무도 없었던 날에는 마스코트가 받는다 (그림도 마스코트다) */
     val giveTargetName: String get() = if (hasCompanion) friendCallName else "마스코트"
@@ -1498,7 +1502,7 @@ class DemoState {
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
         generatedCharacters.clear(); characterRequests.clear(); characterAttempts.clear(); readingSavedCast = false
-        savedProblemCharacter = null
+        savedProblemCharacter = null; savedNoFriend = false
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
         heroTries.clear()

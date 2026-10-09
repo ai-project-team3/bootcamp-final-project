@@ -1,6 +1,13 @@
 package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.DemoState
+import com.example.finalproject_demo.demo.PageKind
+import com.example.finalproject_demo.demo.SavedStoryBook
+import com.example.finalproject_demo.demo.SavedStoryPage
+import com.example.finalproject_demo.demo.captureStoryVisuals
+import com.example.finalproject_demo.demo.restoreStoryBook
+import com.example.finalproject_demo.demo.storyVisualsFromJson
+import com.example.finalproject_demo.demo.toJson
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.m2Line
@@ -66,6 +73,22 @@ class StoryNoFriendTest {
         s.slots["newcomer"] = "아기 펭귄"
         s.syncStoryPresentation()
         assertEquals("뽀뽀", s.friendName)
+    }
+
+    /** #387 review — saved and reopened, a story with nobody met still has no friend; an older book is as it was */
+    @Test
+    fun aReopenedBookKeepsNoFriend() {
+        fun reopen(made: DemoState) = DemoState().apply {
+            restoreStoryBook(SavedStoryBook("b", "책", "forest", "bg_forest", listOf(SavedStoryPage(PageKind.DEPART, "쪽")),
+                storyVisualsFromJson(made.captureStoryVisuals().toJson())))
+        }
+        val lonely = story().apply { templateKey = "C" }
+        assertTrue(reopen(lonely).liveStoryWithoutFriend)
+        assertFalse(reopen(lonely).hasCompanion)
+        val withFriend = story().apply { templateKey = "C"; slots["newcomer"] = "북극곰"; newcomerKind = "북극곰" }
+        assertFalse(reopen(withFriend).liveStoryWithoutFriend)
+        val old = storyVisualsFromJson(lonely.captureStoryVisuals().toJson().apply { remove("noFriend") })
+        assertFalse("an older book has no flag and keeps its old look", old.noFriend)
     }
 
     @Test
