@@ -1546,7 +1546,7 @@ private suspend fun Director.sceneMaking() {
         log("아이 말은 씨앗이고 나머지는 원래 이야기다. 메운 문장은 책에만 나오고 부모 리포트 인용에는 안 들어간다 (§5 · §5-1)")
     }
     val filled = s.slots.filterValues { it.isNotEmpty() }.keys
-    log("이번 책에 들어가는 이야기 조각: ${filled.joinToString(" · ").ifEmpty { "기본 문장" }} · 까닭 \"${s.causeLine}\" · 해결 \"${s.solutionLine}\"")
+    log("이번 책에 들어가는 이야기 조각: ${filled.joinToString(" · ").ifEmpty { "기본 문장" }} · 까닭 ${s.causeSaid?.let { "\"$it\"" } ?: "(not told)"} · 해결 \"${s.solutionLine}\"")
     var p = 0f
     while (p < 1f) {
         s.stage = Stage.Making("${bookWord}을 만드는 중… (${plannedPageCount}쪽)", p)
