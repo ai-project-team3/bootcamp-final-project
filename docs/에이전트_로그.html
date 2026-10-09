@@ -270,7 +270,7 @@
       <div class="stat"><div class="n accent">89/90</div><div class="l">고치기 · 되묻기 · 못 알아들음을 받아 준 횟수 (전: 0/90)</div></div>
       <div class="stat"><div class="n">30/30</div><div class="l">정정을 끝까지 바로잡은 횟수 (전: 0/30)</div></div>
       <div class="stat"><div class="n">0초</div><div class="l">늘어난 기다림 (빠른 AI를 판정과 동시에)</div></div>
-      <div class="stat"><div class="n crit">2</div><div class="l">미리 정한 기준 중 못 넘은 것</div></div>
+      <div class="stat"><div class="n accent">92%</div><div class="l">팀원 3명이 가려서 새 방식을 고른 비율</div></div>
     </div>
   </div>
 </header>
@@ -364,7 +364,7 @@
       </div>
 
       <div class="tl-item verdict-ref">
-        <div class="tl-rail"><div class="tl-dot">5</div></div>
+        <div class="tl-rail"><div class="tl-dot">5</div><div class="tl-line"></div></div>
         <div>
           <div class="tl-date">10-09 오후</div>
           <h3 class="tl-title">대화 순서 버그 — 고쳤지만 잘못 잡은 문항은 그대로</h3>
@@ -372,6 +372,18 @@
             <p>정상 답 「아빠가 아니고 내가 밀었어」를 정정으로 잘못 잡은 이유를 찾다가, 빠른 AI에게 대화를 <b>순서가 뒤집힌 채</b>(오또의 받아 주기가 아이 답보다 먼저) 보내고 있던 버그를 찾았다.
               고치고 빠른 AI만 다시 쟀는데 결과는 같았다 — AI는 이 말을 앞의 「아빠랑 갔구나!」를 고치는 말로 읽는다. 문턱을 이 문항에 맞춰 바꾸면 과적합이라, <b>알려진 한계</b>로 남겼다.</p>
             <span class="chip ref">참고 — 버그는 고침, 잘못 잡음의 원인은 아니었음</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-item verdict-good">
+        <div class="tl-rail"><div class="tl-dot">6</div></div>
+        <div>
+          <div class="tl-date">10-09 저녁</div>
+          <h3 class="tl-title">팀원이 가려서 고른 만족도 — 새 방식 92%</h3>
+          <div class="tl-body">
+            <p>처음 표는 서버가 만든 문장을 보여 줬는데, 지금 앱은 칸을 못 채우면 그 문장을 말하지 않고 짧은 고정 질문으로 넘어간다는 것을 알았다. 그래서 <b>아이가 실제로 듣는 말</b>로 표를 다시 만들어 팀원 세 명이 어느 쪽인지 모른 채 골랐다. 새 방식을 고른 비율은 <b>64번 중 59번(92%)</b>. 되묻기와 못 알아들음에서 크게 이겼고, 딴 얘기는 낫지 않아 지금 앱처럼 두기로 했다.</p>
+            <span class="chip good">통과 — 딴 얘기는 빼고, 새 음성은 상한을 두고 쓰기로(#389)</span>
           </div>
         </div>
       </div>
@@ -401,7 +413,7 @@
           <tr><td>대사가 깨짐</td><td>0번</td><td class="num">22</td><td class="num">7</td><td><span class="chip bad">못 넘음</span></td></tr>
           <tr><td>한 턴 지연 p95</td><td>B + 0.5초</td><td class="num">3.33초</td><td class="num winner">2.51초</td><td><span class="chip good">통과</span></td></tr>
           <tr><td>한 턴 비용</td><td>B의 1.5배 이내</td><td class="num">약 0.53원</td><td class="num">약 0.59원</td><td><span class="chip good">통과 (1.12배)</span></td></tr>
-          <tr><td>사람이 가려서 고른 만족도 (답이 아닌 말 35줄)</td><td>R 선호 70% 이상</td><td class="num" colspan="2">R 11 · B 4 · 둘 다 좋음 14 · 둘 다 별로 6</td><td><span class="chip warn">중간 73% — 평가자 1명</span></td></tr>
+          <tr><td>사람이 가려서 고른 만족도 (아이가 실제로 듣는 말 27줄)</td><td>R 선호 70% 이상</td><td class="num" colspan="2">R 59 · B 5 · 둘 다 좋음 6 · 둘 다 별로 11 (블라인드 3명)</td><td><span class="chip good">통과 92%</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -443,7 +455,7 @@
     <p style="font-size:14.5px; color:var(--ink-secondary)">
       「아빠가 아니고 내가 밀었어」처럼 고치는 말처럼 들리는 정상 답을 정정으로 잡는다 — 이때 칸이 「아빠」에서 「내가」로 잘못 바뀐다 ·
       「재밌었나?」처럼 사람도 갈릴 말은 되묻기로 본다 · 대사 AI가 형식을 깨는 일이 지금 앱에서도 10% 가까이 있다(원인 모름) ·
-      만족도는 아직 한 사람만 골랐다(73%, 둘째 평가자 대기) · 딴 얘기(「나 배고파」 같은 말)는 두 방식 모두 별로라는 평가가 많았다 ·
+      딴 얘기(「나 배고파」 같은 말)는 새 방식이 뚜렷이 낫지 않아 지금 앱처럼 두기로 했다 · 새로 만든 대사는 목소리 값이 들어 세션당 상한을 두기로 했다(#389) ·
       실제 아이 말 · 실기기 · 동화와 같이 만들기 모드에서는 재지 않았다 · 빠른 AI를 라야(#324)로 바꾸면 문턱을 다시 재야 한다.
     </p>
     <p style="font-size:14.5px; color:var(--ink-secondary)">
