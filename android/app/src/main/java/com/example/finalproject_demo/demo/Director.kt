@@ -328,9 +328,13 @@ class Director(
     fun talk(who: String, text: String) {
         if (text.isBlank()) return
         if (s.talkStartedAtMs == 0L) s.talkStartedAtMs = System.currentTimeMillis()
+        val askedText = pendingQuestion
         pendingQuestion?.let { s.talk += TalkLine("otto", it) }
         pendingQuestion = null
-        s.talk += TalkLine(who, text.trim())
+        val type = if (who == "card") ReportQuestionType.CHOICE else currentQ?.let {
+            reportQuestionType(askedText ?: it.text, it.kind == Kind.CHOICE)
+        } ?: ReportQuestionType.UNKNOWN
+        s.talk += TalkLine(who, text.trim(), questionType = type, question = askedText ?: currentQ?.text)
     }
 
     /**
