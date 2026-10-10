@@ -181,7 +181,8 @@ fun DemoState.m2Log(page: Int): String {
         isDiary -> "해결에서 나온 ${m.itemName}${eul(m.itemName)}"
         else -> "장면 10에서 말한 ${m.itemName}${eul(m.itemName)}"
     }
-    return "${page}쪽 미션 2 ($how) — $what ${friendCallName}에게"
+    // who really gets the gift — the script default (「외계인」) is nobody when no one was met (laya 5th device round)
+    return "${page}쪽 미션 2 ($how) — $what ${giveTargetName}에게"
 }
 
 /**
