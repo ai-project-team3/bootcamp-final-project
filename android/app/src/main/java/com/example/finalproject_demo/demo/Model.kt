@@ -1281,7 +1281,7 @@ class DemoState {
      * ⚠️ 앱이 아이의 하루를 추측해 **없는 친구를 그려 넣지 않는다** (일기 설계 §3-2).
      */
     val friendOrPartnerArt: Art?
-        get() = if (hasChildArt) friendArt else companionArt
+        get() = if (liveStoryWithoutFriend) null else if (hasChildArt) friendArt else companionArt
 
     /** 말로 부를 이름 — 이름 → 아이가 말한 사람 → 동화 모드의 종류 이름 */
     val friendCallName: String
@@ -1297,9 +1297,23 @@ class DemoState {
      * (일기 설계 §3-2). 미션과 자막은 이 값을 먼저 보고 문장을 고른다.
      */
     val hasCompanion: Boolean
-        get() = !isDiary ||
+        get() = !liveStoryWithoutFriend && (!isDiary ||
             !friendName.startsWith("{") ||
-            (companionKind.isNotBlank() && "혼자" !in companionKind)
+            (companionKind.isNotBlank() && "혼자" !in companionKind))
+
+    /**
+     * A live story where the child met nobody — no newcomer said, drawn or made (10-09 device · Laya v5). The script's
+     * default alien stood on the cover, mission 2 went to it, and Otto asked to make 「친구」's sound. Like the diary's
+     * rule above, the app does not make up a friend: no friend on the pages, mission 2 to the mascot, no friend sound.
+     * A reopened book keeps what it was made with.
+     */
+    val liveStoryWithoutFriend: Boolean
+        get() = mode == StoryMode.STORY && (if (readingSavedCast) savedNoFriend
+            else com.example.finalproject_demo.net.Server.liveFor(mode) &&
+                slots["newcomer"].isNullOrBlank() && drawing.isEmpty() && storyFriendDoll == null)
+
+    /** A reopened book's [liveStoryWithoutFriend] — saved with it (StoryBookVisuals.noFriend · #387 review) */
+    internal var savedNoFriend = false
 
     /** 미션 2에서 건넬 상대의 이름 — 아무도 없었던 날에는 마스코트가 받는다 (그림도 마스코트다) */
     val giveTargetName: String get() = if (hasCompanion) friendCallName else "마스코트"
@@ -1488,7 +1502,7 @@ class DemoState {
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
         generatedCharacters.clear(); characterRequests.clear(); characterAttempts.clear(); readingSavedCast = false
-        savedProblemCharacter = null
+        savedProblemCharacter = null; savedNoFriend = false
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
         heroTries.clear()

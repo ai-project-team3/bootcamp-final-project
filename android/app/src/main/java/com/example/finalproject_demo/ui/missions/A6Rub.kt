@@ -172,7 +172,8 @@ internal fun RubMission(d: Director, done: Boolean, heroArt: Art, dinoArt: Art, 
         Stand(0.14f, 0.11f) { ArtView(heroArt, Modifier.fillMaxSize().then(
             if (liveStory) Modifier.semantics { contentDescription = "미션 주인공 인형" } else Modifier,
         )) }
-        val rubFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
+        // nobody met in a live story — no script alien beside the hero (Model.kt liveStoryWithoutFriend · #387)
+        val rubFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt.takeUnless { s.liveStoryWithoutFriend }
         if (rubFriend != null) Stand(0.66f, 0.11f, 0.85f) { ArtView(rubFriend, Modifier.fillMaxSize().then(
             if (liveStory) Modifier.semantics { contentDescription = "미션 친구 인형" } else Modifier,
         )) }

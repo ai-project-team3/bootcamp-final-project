@@ -416,7 +416,8 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
         val showRide = !s.isDiary && scripted
         val showDino = !s.isDiary && scripted
         // 일기 · 협업은 아이가 그린 것 → 아이가 말한 사람 순으로 세우고, 둘 다 없으면 아무도 안 세운다 (일기 §3-2)
-        val friendShown: Art? = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
+        // a live story where the child met nobody has no friend to stand (Model.kt liveStoryWithoutFriend)
+        val friendShown: Art? = if (s.isDiary) s.friendOrPartnerArt else s.friendArt.takeUnless { s.liveStoryWithoutFriend }
 
         problemArt?.let { art ->
             val spot = com.example.finalproject_demo.demo.scene.PROBLEM_SPOT
@@ -609,7 +610,7 @@ private fun Cover(d: Director, heroArt: Art, liveStory: Boolean) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(26.dp)) {
             ArtView(heroArt, Modifier.size(96.dp, 134.dp))
             // 일기 모드 표지에는 아이가 그린 것만 선다 — 안 그렸으면 주인공만 (§2-2 · §3-2)
-            val coverFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt
+            val coverFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt.takeUnless { s.liveStoryWithoutFriend }
             if (coverFriend != null) ArtView(coverFriend, Modifier.size(120.dp))
             if (!s.isDiary && !liveStory) ArtView(Art.DinoArt(s.dinoColor, s.dinoKey), Modifier.size(130.dp, 110.dp))
         }
