@@ -62,9 +62,15 @@ fun DemoState.storyEndCondition(): String? = when {
     else -> null
 }
 
-/** 실제 아이의 답만 채운다. 빈칸을 넘긴 사실은 아이가 말했다는 기록으로 남기지 않는다. */
-fun DemoState.recordTemplateAnswer(prompt: StoryPrompt, value: String, by: String) {
-    if (!prompt.templateOnly || prompt.slot == null || value.isBlank()) return
+/**
+ * 실제 아이의 답만 채운다. 빈칸을 넘긴 사실은 아이가 말했다는 기록으로 남기지 않는다.
+ * A child's 「끝이야」 is a wish to end, not the template slot's answer (#381 re-review) — nothing is written.
+ * Returns whether the slot was written.
+ */
+fun DemoState.recordTemplateAnswer(prompt: StoryPrompt, value: String, by: String): Boolean {
+    if (!prompt.templateOnly || prompt.slot == null || value.isBlank()) return false
+    if (by == "child" && storyEndIntent(value)) return false
     slots[prompt.slot] = value.trim()
     slotBy[prompt.slot] = by
+    return true
 }

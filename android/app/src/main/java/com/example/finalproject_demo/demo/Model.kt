@@ -950,6 +950,8 @@ class DemoState {
     internal var storyAnswerOptions by mutableStateOf<StoryOptions?>(null)
     var storyStartedAtMs = 0L
     val storyUnneededSlots = mutableStateListOf<String>()
+    /** The child already asked to end once and got the closing question (StoryEndIntent.kt) */
+    var storyEndAsked = false
     val storyReady: Boolean get() = mode == StoryMode.STORY && endReason == "story_ready"
 
     // ── 함께 하는 사람
@@ -1458,7 +1460,7 @@ class DemoState {
         canUndo = false; canRedo = false
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
-        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyAnswerOptions = null; storyUnneededSlots.clear(); storyStartedAtMs = 0L
+        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyAnswerOptions = null; storyUnneededSlots.clear(); storyEndAsked = false; storyStartedAtMs = 0L
         partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY
