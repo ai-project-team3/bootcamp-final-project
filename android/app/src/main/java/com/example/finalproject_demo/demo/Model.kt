@@ -722,7 +722,8 @@ sealed interface Stage {
 data class RateItem(val id: String, val name: String, val art: Art, val keep: Boolean? = null)
 
 /** [called] = 아이가 지어 준 이름(말 · 글 · 10-02) — 있으면 이야기의 주인공 이름이 된다. 없으면 [name](모습)으로 부른다 */
-data class Hero(val name: String, val attr: HeroAttr, val image: String? = null, val rig: String? = null, val called: String? = null)
+data class Hero(val name: String, val attr: HeroAttr, val image: String? = null, val rig: String? = null, val called: String? = null,
+    val description: String = "")
 
 /** 옷 색 → 생성 그림 이름 조각 */
 fun shirtKey(c: Color): String = when (c) {
@@ -1322,6 +1323,7 @@ class DemoState {
     var heroAttr by mutableStateOf<HeroAttr?>(null)
     var storyHeroImage by mutableStateOf<String?>(null)
     var storyHeroRig by mutableStateOf<String?>(null)
+    var storyHeroDescription by mutableStateOf("")
 
     val heroes = mutableStateListOf(
         // 둘이 한눈에 달라 보여야 한다 — 안경만 다르면 도감에서 같은 아이로 보인다 (9/21)
@@ -1487,6 +1489,7 @@ class DemoState {
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
+        storyHeroCall = null; storyHeroDescription = ""
         generatedCharacters.clear(); characterRequests.clear(); characterAttempts.clear(); readingSavedCast = false
         savedProblemCharacter = null
         achievements.clear(); rewardNews.clear(); reactions = 0
