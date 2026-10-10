@@ -75,29 +75,35 @@ suspend fun Director.pictureDiary() {
 
     s.progressVisible = false        // 위쪽 별 막대는 일기 화면이 따로 그린다 (D3 별 두 개)
     if (day.phase == DiaryPhase.NEW) {
-        day.phase = if (startDrawing() == "draw") DiaryPhase.DRAWING else DiaryPhase.ASKING
+        enterPhase(day, if (startDrawing() == "draw") DiaryPhase.DRAWING else DiaryPhase.ASKING)
         if (day.phase == DiaryPhase.ASKING) log("그림 없이 말로 — D3 로 바로 간다")
     }
     if (day.phase == DiaryPhase.DRAWING) {
         if (resumed != null) s.stage = DiaryBoard()
         day.drawingTalk = true
         try { drawWhileTalking(day) } finally { day.drawingTalk = false; day.pendingTap = null }
-        day.phase = DiaryPhase.PIECE_STORIES
+        enterPhase(day, DiaryPhase.PIECE_STORIES)
     }
     if (day.phase == DiaryPhase.PIECE_STORIES) {
         askPieceStoriesAfterDrawing(day)
-        day.phase = DiaryPhase.ASKING
+        enterPhase(day, DiaryPhase.ASKING)
     }
     if (day.phase == DiaryPhase.ASKING) {
         askEmptySlots()
-        day.phase = DiaryPhase.PICKING
+        enterPhase(day, DiaryPhase.PICKING)
     }
     if (day.phase == DiaryPhase.PICKING) {
         pickLateDrawings(day)
-        day.phase = DiaryPhase.FINISHING
+        enterPhase(day, DiaryPhase.FINISHING)
     }
     finishPictureDiary(day)
     day.phase = DiaryPhase.DONE
+}
+
+/** Move the diary on and write the on-phone checkpoint (#336) — a kill before the next answer resumes this phase, not the one before */
+private fun Director.enterPhase(day: DiaryDay, phase: DiaryPhase) {
+    day.phase = phase
+    saveDraft()
 }
 
 // ── D0 ─────────────────────────────────────────────────────────
@@ -1722,7 +1728,7 @@ private suspend fun Director.finishPictureDiary(day: DiaryDay) {
         s.title = s.slots["title"]?.takeIf { it.isNotBlank() } ?: dateTitle()
         event("book", "template" to "그림일기", "pages" to pages.size, "title" to s.title)
         log("그림일기 ${pages.size}쪽 — ${pages.joinToString(" · ") { it.kind.name.lowercase() }} · 날씨 ${day.weather?.label ?: "아이가 고른다"}")
-        day.phase = DiaryPhase.READING
+        enterPhase(day, DiaryPhase.READING)
     }
 
     // D5
