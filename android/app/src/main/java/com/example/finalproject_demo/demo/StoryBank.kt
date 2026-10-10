@@ -326,7 +326,7 @@ val BANK: List<QVariant> = listOf(
             listOf(
                 Answer("${it.pn}!", it.pn, lv = 1), Answer("경찰!", "경찰 아저씨", lv = 1),
                 Answer("${it.pn}한테 말할래.", it.pn, el = setOf("시도"), lv = 2),
-                Answer("마스코트한테 도와 달라고 해.", "마스코트", el = setOf("시도"), lv = 2),
+                Answer("${MASCOT_NAME}한테 도와 달라고 해.", "마스코트", el = setOf("시도"), lv = 2),
                 Answer("${it.pn}한테! 무서울 땐 어른한테 말해야 하니까.", it.pn, el = setOf("시도"), reason = true, con = true, lv = 3),
                 Answer("${it.v} 선장님한테 알려서 고쳐 달라고 할래.", "${it.v} 선장님", el = setOf("시도", "결과"), lv = 3),
             ).filter { answer -> it.hasPartner || answer.value != it.pn }
@@ -779,7 +779,7 @@ private fun helperLine(s: DemoState): String {
         s.hasPartner && h == s.pn && s.partner.honor -> "${s.pSubj()} \"말해 줘서 고맙구나\" 하고 꼭 안아 주셨어요."
         s.hasPartner && h == s.pn && !s.partner.adult -> "친구가 \"내가 같이 있을게!\" 하고 손을 잡아 주었어요."
         s.hasPartner && h == s.pn -> "$h${ga(h)} \"말해 줘서 고마워\" 하고 꼭 안아 주었어요."
-        h == "마스코트" -> "마스코트가 \"걱정 마!\" 하고 날개를 활짝 폈어요."
+        h == "마스코트" -> "${MASCOT_NAME}가 \"걱정 마!\" 하고 두 팔을 활짝 벌렸어요."
         else -> "$h${ga(h)} \"잘했어!\" 하고 달려와 주었어요."
     }
 }
