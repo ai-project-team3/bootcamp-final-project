@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.missions
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Voice
@@ -106,6 +107,8 @@ class Director(
             if (book.soundClipId != null && storyBookStore == null) return false
             if (!s.keepStorySound(book)) return false
             storyBookStore?.save(book)
+            // the next books avoid this one's missions (#259)
+            com.example.finalproject_demo.demo.missions.MissionHistory.record(s.mode, book.id, s.missions())
             s.commitStorySound()
             savedStories.add(0, book)
             s.shelf.add(0, book.onShelf(fresh = true))
@@ -150,7 +153,7 @@ class Director(
         val saved = storyBookStore?.let { runCatching { it.imageReferences() }.getOrNull() ?: return }
             ?: savedStories.flatMap { listOfNotNull(it.bgName) + it.visuals?.images.orEmpty() }.toSet()
         val coop = CoopShelf.imageReferences(s) ?: return
-        val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground, s.generatedFriend?.image) +
+        val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground) + s.generatedCharacters.map { it.image } +
             s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName } +
             s.heroCreationDraft?.imageReferences().orEmpty()
         store.recover(saved + coop + active)
@@ -169,9 +172,10 @@ class Director(
      */
     suspend fun saveKitPicture(kit: com.example.finalproject_demo.demo.scene.SceneKitDef, seed: Long): String? {
         val store = storyImageStore ?: return null
+        val actors = s.sceneActorCapacity
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             runCatching {
-                val bmp = com.example.finalproject_demo.ui.renderKitPicture(store.appContext, kit, seed)
+                val bmp = com.example.finalproject_demo.ui.renderKitPicture(store.appContext, kit, seed, actors = actors)
                 val out = java.io.ByteArrayOutputStream()
                 bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
                 store.save(out.toByteArray())
@@ -307,6 +311,17 @@ class Director(
 
     private fun heardQuestion(text: String) {
         if ('?' in text) pendingQuestion = text.trim()
+    }
+
+    /**
+     * Otto's own line in the report transcript, written now — his answer to a child's question has no 「?」, so
+     * [heardQuestion] never keeps it (#327 §4-3). It follows the child's question, which [talk] already wrote
+     * together with the question it answered, so nothing is pending here
+     */
+    fun talkOtto(text: String) {
+        if (text.isBlank()) return
+        if (s.talkStartedAtMs == 0L) s.talkStartedAtMs = System.currentTimeMillis()
+        s.talk += TalkLine("otto", text.trim())
     }
 
     /** One answer in the report transcript, after the question it answers (demo/SessionReport.kt · rule 5) */

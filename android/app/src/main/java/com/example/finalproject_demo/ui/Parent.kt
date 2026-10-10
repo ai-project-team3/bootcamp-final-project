@@ -474,6 +474,9 @@ private fun CoopQuestionsTab(c: CoopDraft) {
             Text(if (c.hasSaved) "저장된 이야기를 고치는 중이에요" else "오늘 아이와 만들 이야기를 골라 두세요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
             Text("이야기를 고르거나 질문을 적은 뒤 아래 [저장하기]를 눌러야 확정돼요. 아이가 오또의 방에서 소파(같이 만들기)를 누르면 오또가 평소처럼 물어보되, 고른 이야기에 맞춰 묻고 적어 둔 질문도 중간에 끼워 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
         }
+        // When a child recalling asks 「엄마, 뭐였지?」, Otto gives it back to the child (#341) — one line so the adult nearby does not answer for them (⚖️7 · #347).
+        // 「옆에 계시다면」 — wording that assumed a parent nearby was once removed from the report (fdfa6d71), so it only speaks for when one is there
+        Text("ⓘ 옆에 계시다면, 아이가 \"엄마, 뭐였지?\" 하고 물어도 대신 답하지 말고 아이가 떠올려 말하도록 기다려 주세요.", fontSize = 11.sp, color = PSub)
     }
 
     CoopTemplateCards(c)
@@ -1178,6 +1181,9 @@ private fun PinViewBody(d: Director, stage: Stage.Pin) {
     val start = stage.purpose == "start"
     var mode by remember { mutableStateOf(if (com.example.finalproject_demo.ui.shell.Shell.hasPin) "check" else "create") }
     fun pass() = d.send(Reply.Tapped("pin:ok", "통과"))
+    val back: () -> Unit = { if (mode == "forgot") mode = "check" else d.send(Reply.Tapped("pin:cancel", "취소")) }
+    // 10-09 — 폰의 뒤로 가기도 ← 와 같게. 받는 곳이 없어 안드로이드 기본(앱 닫기)으로 갔다(S25+ · 0.5)
+    androidx.activity.compose.BackHandler(onBack = back)
     com.example.finalproject_demo.ui.shell.ObFrame(
         step = null,
         title = when (mode) { "forgot" -> "비밀번호를 잊었어요"; "create" -> "부모 비밀번호 정하기"; else -> if (start) "어른 확인" else "부모 영역" },
@@ -1186,7 +1192,7 @@ private fun PinViewBody(d: Director, stage: Stage.Pin) {
             "create" -> "아직 정한 비밀번호가 없어요. 부모 영역을 열 네 자리를 정해 주세요."
             else -> if (start) "이야기를 시작하려면 부모 비밀번호를 넣어 주세요." else "처음 설정에서 정한 부모 비밀번호를 넣어 주세요."
         },
-        onBack = { if (mode == "forgot") mode = "check" else d.send(Reply.Tapped("pin:cancel", "취소")) },
+        onBack = back,
         art = {
             AssetImage("pi_lock", Modifier.size(170.dp)) { Box(Modifier.size(110.dp).felt(FeltTeal, CircleShape), contentAlignment = Alignment.Center) { Text("🔒", fontSize = 48.sp) } }
         },

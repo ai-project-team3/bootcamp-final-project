@@ -5,7 +5,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.example.finalproject_demo.demo.StoryMode
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -185,7 +189,7 @@ object Server {
     // ── /story ─────────────────────────────────────────────────────
 
     /** One page of the book plan: a `PageKind` name and the mission on it (`docs/미션_구상.md` §3 id), if any. */
-    data class Page(val kind: String, val mission: String? = null, val prop: String? = null)
+    data class Page(val kind: String, val mission: String? = null, val prop: String? = null, val missionSource: String? = null)
 
     /** Title is optional for compatibility with deployed servers that return captions only. */
     data class StoryBook(val captions: List<String>, val title: String? = null)
@@ -225,7 +229,11 @@ object Server {
         stage?.map(String::trim)?.filter { it.isNotEmpty() && it.length <= 12 }?.take(5)?.takeIf(List<String>::isNotEmpty)
             ?.let { body.put("stage", JSONArray(it)) }
         if (pages != null) body.put("pages", JSONArray().apply {
-            pages.forEach { put(JSONObject().put("kind", it.kind).put("mission", it.mission ?: JSONObject.NULL).put("prop", it.prop ?: JSONObject.NULL)) }
+            pages.forEach { p ->
+                put(JSONObject().put("kind", p.kind).put("mission", p.mission ?: JSONObject.NULL).put("prop", p.prop ?: JSONObject.NULL)
+                    // child · rotated · default (#321) — only on mission pages
+                    .apply { p.missionSource?.let { put("mission_source", it) } })
+            }
         })
         val j = postJson("/story", body, readMs = 60_000) ?: return null
         return try {
@@ -402,19 +410,30 @@ object Server {
             calls.merge(path, 1, Int::plus)
             CallLimits.counted(path)
             val t0 = System.nanoTime()
-            try {
-                val c = URL(b + path).openConnection() as HttpURLConnection
-                c.connectTimeout = 6_000   // 10-01: the public https address goes through Cloudflare; 4 s was tight on mobile data
-                c.readTimeout = readMs
-                c.requestMethod = "POST"
-                c.doOutput = true
-                c.setRequestProperty("Content-Type", type)
-                c.outputStream.use { it.write(body) }
-                val code = c.responseCode
-                val bytes = (if (code in 200..299) c.inputStream else c.errorStream)?.use { it.readBytes() } ?: ByteArray(0)
-                Trace.line("server", "$path $code ${(System.nanoTime() - t0) / 1_000_000} ms")
-                code to bytes
-            } catch (e: Exception) { Trace.line("server", "$path failed ${(System.nanoTime() - t0) / 1_000_000} ms"); warn(path, e); null }
+            val c = try { URL(b + path).openConnection() as HttpURLConnection } catch (e: Exception) { warn(path, e); return@withContext null }
+            // 10-09 — a blocking read does not stop when the caller is cancelled, so leaving a scene (🏠 · ⏸ 방으로)
+            // waited for the server's answer, up to the read timeout (그림일기 화이트보드에서 「나가기」가 늦었다).
+            // Cancelling now drops the connection; a call that finished keeps it for reuse.
+            coroutineScope {
+                var done = false
+                val abort = launch(start = CoroutineStart.UNDISPATCHED) {
+                    try { awaitCancellation() } finally { if (!done) c.disconnect() }
+                }
+                try {
+                    c.connectTimeout = 6_000   // 10-01: the public https address goes through Cloudflare; 4 s was tight on mobile data
+                    c.readTimeout = readMs
+                    c.requestMethod = "POST"
+                    c.doOutput = true
+                    c.setRequestProperty("Content-Type", type)
+                    c.outputStream.use { it.write(body) }
+                    val code = c.responseCode
+                    val bytes = (if (code in 200..299) c.inputStream else c.errorStream)?.use { it.readBytes() } ?: ByteArray(0)
+                    Trace.line("server", "$path $code ${(System.nanoTime() - t0) / 1_000_000} ms")
+                    code to bytes
+                } catch (e: Exception) {
+                    Trace.line("server", "$path failed ${(System.nanoTime() - t0) / 1_000_000} ms"); warn(path, e); null
+                } finally { done = true; abort.cancel() }
+            }
         }
 
     private fun warn(what: String, e: Exception) = Log.w(TAG, "$what failed: ${e.javaClass.simpleName} ${e.message}")

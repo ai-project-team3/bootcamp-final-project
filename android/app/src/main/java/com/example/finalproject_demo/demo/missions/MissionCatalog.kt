@@ -42,5 +42,28 @@ enum class MissionId(
 /** Sensor and mic missions always keep a tap path on the same screen (design §3-6) */
 enum class MissionInput { TOUCH, MIC_LEVEL, SHAKE, TILT }
 
-/** The two missions of one book. Slot 2 is picked first — the resolution matters more (design §6-2) */
-data class BookMissions(val slot1: MissionId, val slot2: MissionId)
+/**
+ * The two missions of one book. Slot 2 is picked first — the resolution matters more (design §6-2).
+ * [slot1FromChild] · [slot2FromChild]: picked from the child's own words; false when the slot fell to the frame
+ * default or was rotated (#259) — then its prop is not the child's and the book does not say the child named it
+ */
+data class BookMissions(
+    val slot1: MissionId,
+    val slot2: MissionId,
+    val slot1FromChild: Boolean = true,
+    val slot2FromChild: Boolean = true,
+) {
+    /** 「A6:E1」 — what [MissionHistory] compares */
+    val combo: String get() = "${slot1.name}:${slot2.name}"
+
+    /** Saved with the book — 「A6-:E1-」 (+ = from the child's words) */
+    fun encode(): String = "${slot1.name}${if (slot1FromChild) "+" else "-"}:${slot2.name}${if (slot2FromChild) "+" else "-"}"
+
+    companion object {
+        fun decode(s: String?): BookMissions? = runCatching {
+            val (a, b) = s!!.split(":")
+            BookMissions(MissionId.valueOf(a.dropLast(1)), MissionId.valueOf(b.dropLast(1)), a.endsWith("+"), b.endsWith("+"))
+                .takeIf { it.slot1.built && it.slot2.built }
+        }.getOrNull()
+    }
+}
