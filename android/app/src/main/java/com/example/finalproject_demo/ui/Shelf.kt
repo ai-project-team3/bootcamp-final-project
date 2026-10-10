@@ -291,10 +291,10 @@ private fun SavedStoryBody(d: Director, stage: Stage.SavedStory) {
         val scope = rememberCoroutineScope()
         // 같이 만들기 책은 같이 만들기로 되살린다 — 쪽 구성 · 그림 재료가 동화와 다르다 (#83 · CoopBookStore.kt)
         val reader = remember(book.id) { Director(scope).apply { if (!s.restoreCoopBook(book)) s.restoreStoryBook(book) } }
-        LaunchedEffect(reader, book.id) {
+        LaunchedEffect(reader, book.id, page) {
             while (isActive) {
                 when ((reader.awaitReply() as? Reply.Tapped)?.value) {
-                    "dino", "sound" -> reader.playStorySound(book)
+                    "dino", "sound" -> d.playStorySound(book)
                 }
             }
         }
@@ -302,7 +302,7 @@ private fun SavedStoryBody(d: Director, stage: Stage.SavedStory) {
             BookPageView(reader, Stage.BookPage(page, m1Done = true, m2Done = true), savedBook = book, onReply = { reply ->
                 val action = reply as? Reply.Tapped
                 when (action?.value) {
-                    "speak" -> reader.say(if (page == 0) book.title else book.pages[page - 1].caption)
+                    "speak" -> d.send(reply)
                     "next" -> d.send(if (page == book.pages.size) Reply.Tapped("close", "책장") else reply)
                     "prev" -> d.send(reply)
                     "dino", "sound" -> reader.send(reply)
@@ -311,7 +311,7 @@ private fun SavedStoryBody(d: Director, stage: Stage.SavedStory) {
             Box(Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 12.dp)) {
                 ShelfButton("📚 책장", Sun, Ink) { d.send(Reply.Tapped("close", "책장")) }
             }
-            StorySoundReplay(reader, book, page)
+            key(book.id, page) { StorySoundReplay(d, book, page) }
         }
         return
     }
@@ -336,7 +336,9 @@ private fun SavedStoryBody(d: Director, stage: Stage.SavedStory) {
             if (page > 0) ShelfButton("◀ 앞 쪽", Sun, Ink) { d.send(Reply.Tapped("prev", "앞")) }
             if (page < book.pages.size) ShelfButton("다음 쪽 ▶", Sun, Ink) { d.send(Reply.Tapped("next", "다음")) }
         }
-        StorySoundReplay(d, book, page)
+        if (!book.id.startsWith(com.example.finalproject_demo.demo.COOP_SHELF_ID))
+            key(book.id, page) { StorySoundReplay(d, book, page) }
+        else StorySoundReplay(d, book, page)
     }
 }
 

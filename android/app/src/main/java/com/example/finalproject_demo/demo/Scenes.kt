@@ -1673,7 +1673,10 @@ private suspend fun Director.sceneBook() {
                 else { go(Scene.FRIENDS); return }
             }
             vv == "prev" -> { lateAnnounce?.cancel(); if (s.bookPage > 0) { s.bookPage--; show(); announce(); refreshButtons() } }
-            vv == "speak" -> log("🔊 자막 낭독 (CLOVA Voice, 이름 없는 문장)")
+            vv == "speak" -> {
+                if (s.mode == StoryMode.STORY) say(if (s.bookPage == 0) "『${s.title}』" else s.bookCaption(s.bookPage))
+                else log("Book narration replay requested")
+            }
             vv == "mission" && s.bookPage == rubPage && s.m1Result == null -> {
                 s.m1Result = "solo"; s.reactions++; feel(Mood.CHEER)
                 // C1 · C3 면 그 미션의 선물 · 동작 이름 — 촛불을 불었는데 「먼지 치운 손」이 나오지 않게 (#105 리뷰)
@@ -1887,23 +1890,14 @@ private suspend fun Director.sceneShelf() {
             "book" -> {
                 if (openSavedDiary(tapped.label)) { s.stage = Stage.Shelf(fromEnd); continue }   // 그림일기 다시 읽기(#37)
                 val story = savedStory(tapped.label)
-                val book = story ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
-                val key = bgmBookKey(book.title, book.pages.firstOrNull()?.caption.orEmpty())
-                var page = 0
-                s.line = ""
-                buttons()
-                while (true) {
-                    s.stage = Stage.SavedStory(book, page)
-                    // 동화 · 같이 만들기 책 모두 — 첫 읽기와 같은 쪽 · 같은 곡 (#221)
-                    Bgm.play(trackOf(moodOf(if (page == 0) PageKind.COVER else book.pages[page - 1].kind), key))
-                    val action = (awaitReply() as? Reply.Tapped)?.value ?: continue
-                    when (action) {
-                        "next" -> if (page < book.pages.size) page++
-                        "prev" -> if (page > 0) page--
-                        "close" -> break
-                    }
+                if (story != null) {
+                    readSavedStory(story)
+                    s.stage = Stage.Shelf(fromEnd)
+                    say("우리가 만든 책들이야!")
+                    continue
                 }
-                Bgm.stop()
+                val book = CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
+                readSavedStory(book, StoryMode.COOP)
                 s.stage = Stage.Shelf(fromEnd)
                 say("우리가 만든 책들이야!")
             }
