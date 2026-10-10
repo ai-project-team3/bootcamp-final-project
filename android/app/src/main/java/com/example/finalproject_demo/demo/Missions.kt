@@ -304,7 +304,18 @@ fun DemoState.m2Line(easy: Boolean): String {
     if (easy) return "${m.itemName}${eul(m.itemName)} 톡톡 누르면 ${f}에게 날아가!"
     // 일기 모드는 "미안해"를 앞세우지 않는다 — 아이가 그렇게 말하지 않았을 수 있다 (일기 설계 §3-2)
     if (isDiary) return "${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
-    return "${f}${ga(f)} ${reported(causeLine)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
+    // a cause nobody said is not voiced — a live story's causeLine is the script default until the child gives one (rule 5)
+    val cause = causeSaid ?: return "${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
+    return "${f}${ga(f)} ${reported(cause)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
 }
+
+/**
+ * The cause as told — in a live story only when the cause slot was filled; [DemoState.causeLine] keeps the script's
+ * 「친구가 없어서 심심했어」 otherwise (10-09 device: the book log and mission 2 carried a cause the child never said).
+ * A scripted story always has one (the child's pick or the scene's card).
+ */
+internal val DemoState.causeSaid: String?
+    get() = if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode) && slots["cause"].isNullOrBlank()) null
+        else causeLine
 
 fun DemoState.m2Done(): String = slot2PlayProp()?.cheer ?: "${giveTargetName}${ga(giveTargetName)} ${mission2().done}"
