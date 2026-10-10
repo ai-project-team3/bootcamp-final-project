@@ -21,7 +21,33 @@ import java.time.LocalDate
  */
 
 /** 대화 한 줄. who: otto · child(말) · card · draw · mascot(오또가 대신 채움) · adult */
-data class TalkLine(val who: String, val text: String, val tags: List<String> = emptyList())
+enum class ReportQuestionType(val key: String) {
+    OPEN("open"), REASON("reason"), CHOICE("choice"), CONFIRMATION("confirmation"), UNKNOWN("unknown");
+
+    companion object {
+        fun fromKey(key: String): ReportQuestionType = entries.firstOrNull { it.key == key } ?: UNKNOWN
+    }
+}
+
+/** Conservative classification of the question actually asked, including a changed ladder rung. */
+internal fun reportQuestionType(text: String, choice: Boolean = false): ReportQuestionType {
+    // The spoken picture ladder reads three comma-separated options before asking for a place.
+    val listedOptions = Regex("^[^,?.!]+,[^,?.!]+,[^,?.!]+[.!?]").containsMatchIn(text.trim())
+    if (choice || listedOptions || Regex("아니면|중에서|어느 쪽|어떤 쪽").containsMatchIn(text)) return ReportQuestionType.CHOICE
+    if (Regex("맞아|맞을까|맞니|맞나요|괜찮아|할래|해볼래|해 볼래").containsMatchIn(text) || text.trim().endsWith("좋아?"))
+        return ReportQuestionType.CONFIRMATION
+    if (Regex("왜|어째서|까닭|이유").containsMatchIn(text)) return ReportQuestionType.REASON
+    if (Regex("어디|누구|누굴|누가|무엇|무슨|어떤|어떻게|어땠|뭐|언제|들려줄|들려 줄").containsMatchIn(text))
+        return ReportQuestionType.OPEN
+    return ReportQuestionType.UNKNOWN
+}
+data class TalkLine(
+    val who: String,
+    val text: String,
+    val tags: List<String> = emptyList(),
+    val questionType: ReportQuestionType = ReportQuestionType.UNKNOWN,
+    val question: String? = null,
+)
 
 /** 이야기 뼈대 한 칸. by: child · card · mascot. quoted — text 가 아이가 한 말 그대로일 때만 따옴표를 친다 */
 data class ReportBone(val label: String, val text: String, val by: String, val quoted: Boolean = false)
@@ -45,6 +71,7 @@ data class SessionReport(
     val homeQuestion: String,
     /** 이번 리포트가 처음 보여 준 것 — 꽂을 때 지난 리포트들과 견줘 정한다(다른 아이가 아니라 지난번의 이 아이와만) */
     val firsts: List<String> = emptyList(),
+    val profileId: String? = null,
 ) {
     val childBones: Int get() = bones.count { it.by == "child" }
     val longest: String? get() = talk.filter { it.who == "child" }.maxByOrNull { words(it.text) }?.text
@@ -121,6 +148,7 @@ fun DemoState.buildSessionReport(bookId: String = "", now: Long = System.current
         longestWords = child.maxOfOrNull { words(it.text) } ?: 0,
         bones = bones, moments = moments, talk = lines,
         homeQuestion = homeQuestion(t, bones),
+        profileId = reportProfileId,
     )
 }
 
@@ -157,11 +185,11 @@ private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() e
 
 fun SessionReport.toJson(): JSONObject = JSONObject()
     .put("bookId", bookId).put("mode", mode).put("title", title).put("bgName", bgName).put("day", day)
-    .put("minutes", minutes ?: JSONObject.NULL).put("exchanges", exchanges).put("spoken", spoken)
+    .put("profileId", profileId ?: JSONObject.NULL).put("minutes", minutes ?: JSONObject.NULL).put("exchanges", exchanges).put("spoken", spoken)
     .put("longestWords", longestWords).put("homeQuestion", homeQuestion).put("firsts", firsts.json())
     .put("bones", JSONArray().also { a -> bones.forEach { a.put(JSONObject().put("label", it.label).put("text", it.text).put("by", it.by).put("quoted", it.quoted)) } })
     .put("moments", JSONArray().also { a -> moments.forEach { a.put(JSONObject().put("kind", it.kind).put("quote", it.quote)) } })
-    .put("talk", JSONArray().also { a -> talk.forEach { a.put(JSONObject().put("who", it.who).put("text", it.text).put("tags", it.tags.json())) } })
+    .put("talk", JSONArray().also { a -> talk.forEach { a.put(JSONObject().put("who", it.who).put("text", it.text).put("tags", it.tags.json()).put("questionType", it.questionType.key).put("question", it.question ?: JSONObject.NULL)) } })
 
 fun sessionReportOf(j: JSONObject): SessionReport {
     fun objs(name: String) = j.optJSONArray(name)?.let { a -> (0 until a.length()).map { a.getJSONObject(it) } }.orEmpty()
@@ -172,9 +200,10 @@ fun sessionReportOf(j: JSONObject): SessionReport {
         exchanges = j.optInt("exchanges"), spoken = j.optInt("spoken"), longestWords = j.optInt("longestWords"),
         bones = objs("bones").map { ReportBone(it.getString("label"), it.getString("text"), it.getString("by"), it.optBoolean("quoted")) },
         moments = objs("moments").map { ReportMoment(it.getString("kind"), it.getString("quote")) },
-        talk = objs("talk").map { TalkLine(it.getString("who"), it.getString("text"), it.optJSONArray("tags").strings()) },
+        talk = objs("talk").map { TalkLine(it.getString("who"), it.getString("text"), it.optJSONArray("tags").strings(), ReportQuestionType.fromKey(it.optString("questionType")), it.optString("question").takeUnless { value -> value.isBlank() || value == "null" }) },
         homeQuestion = j.optString("homeQuestion"),
         firsts = j.optJSONArray("firsts").strings(),
+        profileId = j.optString("profileId").takeUnless { it.isBlank() || it == "null" },
     )
 }
 
@@ -189,6 +218,7 @@ object SessionReports {
 
     fun attach(context: Context) {
         prefs = context.applicationContext.getSharedPreferences("session_reports", Context.MODE_PRIVATE)
+        AnswerHistory.attach(context)
         reload()
     }
 
@@ -208,11 +238,12 @@ object SessionReports {
     }
 
     private fun keepOrThrow(s: DemoState, bookId: String): SessionReport {
-        val r = s.buildSessionReport(bookId).withFirsts(reports.filter { it.bookId != bookId })
+        val r = s.buildSessionReport(bookId).withFirsts(reports.filter { it.bookId != bookId && it.profileId == s.reportProfileId })
         reports.removeAll { it.bookId == bookId }
         reports.add(0, r)
         while (reports.size > KEEP) reports.removeAt(reports.size - 1)
         save()
+        AnswerHistory.keep(r)
         s.lastReport = r
         return r
     }
@@ -221,13 +252,15 @@ object SessionReports {
      * The book was removed from the shelf — its report goes too. When it is the book just made, the parent
      * screen's copy and this session's transcript go with it, so 「오늘의 기록」 does not keep showing a removed book (#223)
      */
-    @Synchronized fun forget(bookId: String, s: DemoState? = null) {
+    @Synchronized fun forget(bookId: String, s: DemoState? = null, deleteBook: () -> Boolean = { true }): Boolean {
+        if (!AnswerHistory.forget(bookId, deleteBook)) return false
         if (reports.removeAll { it.bookId == bookId }) save()
         if (s != null && s.lastReport?.bookId == bookId) { s.lastReport = null; s.talk.clear() }
+        return true
     }
 
     /** 테스트 · 탈퇴 뒤 — 메모리에 든 것도 비운다 */
-    @Synchronized fun clear() { reports.clear(); prefs?.edit()?.clear()?.apply() }
+    @Synchronized fun clear() { reports.clear(); prefs?.edit()?.clear()?.apply(); AnswerHistory.clear() }
 
     private fun save() { prefs?.edit()?.putString("reports", JSONArray().also { a -> reports.forEach { a.put(it.toJson()) } }.toString())?.apply() }
 }

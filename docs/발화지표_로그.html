@@ -407,6 +407,14 @@
   <p class="source">다음 단계의 숫자는 <a href="동화_언어지표_측정계획_1008.md">사전에 정한 측정 조건</a>이며 달성 결과가 아니다.
     <a href="https://github.com/ai-project-team3/bootcamp-final-project/issues/320#issuecomment-6052235757">기준을 먼저 남긴 #320 댓글</a>.</p>
 </div></section>
+<section id="typed-answer-history-1009"><div class="wrap">
+  <h2>10-09 · 질문 유형·출처별 기록 기반</h2>
+  <h3>배경</h3><p>#343의 10-09 확정 결정에 따라 열린·까닭 질문 답과 선택 답을 섞지 않고, 같은 아이의 기록을 책 사이에서 유지할 준비가 필요했다.</p>
+  <h3>과정</h3><p>질문 원문·문구 기반 유형·답 원문·출처를 기기에 보관한다. 뒤로/앞으로의 대화 복원, 같은 책 중복 저장 방지, 호칭 변경 시 아이 확인과 명시적 기록 리셋을 연결했다. 사람 분절 50개 검수는 민우님이 직접 맡으며 정답을 AI가 채우지 않는다.</p>
+  <h3>결과</h3><p>기록·출처·복원·아이 구분·리셋·탈퇴 삭제·세 모드 책 삭제 관련 자동 검사 <strong>35개 통과</strong>. 사다리 목록과 그림카드 음성 선택도 선택 답으로 기록하고, 읽을 수 없는 누적 자료는 자동으로 덮어쓰지 않는다. 부모 설정의 정상·읽기 실패 화면을 확인했다. 최종 앱 코드 505eba11의 전체 Android 검사는 1,261개 중 1,259개 통과·실패 0·기존 조건부 건너뜀 2개이며 APK 빌드도 성공했다. 서버 전체는 275개 통과, PR의 Android 분할 검사와 backend CI도 통과했다. 관련 검사 35개는 전체에 포함된다.</p>
+  <h3>결론</h3><p>이번 결과는 <strong>기록 기반</strong>이다. Kiwi MLU-m·NDW 런타임, 또래 비교, 발달 단계 표시, 질문 수준 이월은 아직 구현하지 않았다. 공백 낱말 수를 형태소 수로 바꾸어 부르지 않는다. 실제 기기에서 새 기록 기능을 검증한 결과도 아니다.</p>
+  <p class="source"><a href="질문별_발화기록_1009.md">구현 범위·후속 검증</a> · <a href="../eval/results.md#typed-answer-history-1009">검사 기록</a> · <a href="https://github.com/ai-project-team3/bootcamp-final-project/issues/343">#343 결정</a></p>
+</div></section>
 </main>
 <footer><div class="wrap"><h3>근거와 읽는 범위</h3><ul>
   <li><a href="../eval/results.md#language-metrics-320">결과 정본 · 기존 기록 소급 정리</a></li>

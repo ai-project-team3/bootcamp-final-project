@@ -23,6 +23,7 @@ object LocalWipe {
         "coop_plan",     // 부모가 준비한 같이 만들기 질문 (demo/CoopPlanStore.kt)
         "child_call",    // 오또가 부르는 아이 이름 (net/ChildCall.kt)
         "rewards",       // 업적 보상 · 그림판 도구 (demo/Rewards.kt)
+        "answer_history", // raw answers for the current child, across books
         "session_reports", // 부모 리포트 · 아이가 한 말 그대로 (demo/SessionReport.kt)
         "sent_reports",  // 보낸 문제 신고의 접수 번호 · 날짜 · 분류 (ui/Consent.kt SentReports · #283)
         "mission_history", // past books' mission combos · book ids (demo/missions/MissionPicker.kt MissionHistory · #259)
@@ -47,6 +48,7 @@ object LocalWipe {
             ok = app.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit() && ok
             runCatching { app.deleteSharedPreferences(name) }
         }
+        com.example.finalproject_demo.demo.AnswerHistory.reload()
         com.example.finalproject_demo.demo.SessionReports.reload()   // the copy in memory goes with the file
         com.example.finalproject_demo.demo.Rewards.reload()   // the copy in memory goes with the file
         com.example.finalproject_demo.ui.SentReports.reload()   // the copy in memory goes with the file

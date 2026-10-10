@@ -133,9 +133,8 @@ class Director(
     fun deleteStoryBook(id: String): Boolean {
         if (s.scene != Scene.PARENT || savedStories.none { it.id == id }) return false
         return try {
-            if (storyBookStore != null && !storyBookStore.delete(id)) return false
+            if (!SessionReports.forget(id, s) { storyBookStore?.delete(id) ?: true }) return false
             savedStories.removeAll { it.id == id }
-            SessionReports.forget(id, s)
             s.shelf.removeAll { it.savedStoryId == id }
             runCatching { com.example.finalproject_demo.sound.ChildSound.deleteBook(id) }
             recoverStoryImages()
@@ -328,9 +327,13 @@ class Director(
     fun talk(who: String, text: String) {
         if (text.isBlank()) return
         if (s.talkStartedAtMs == 0L) s.talkStartedAtMs = System.currentTimeMillis()
+        val askedText = pendingQuestion
         pendingQuestion?.let { s.talk += TalkLine("otto", it) }
         pendingQuestion = null
-        s.talk += TalkLine(who, text.trim())
+        val type = if (who == "card" || s.stage is Stage.CardsRow) ReportQuestionType.CHOICE else currentQ?.let {
+            reportQuestionType(askedText ?: it.text, it.kind == Kind.CHOICE)
+        } ?: ReportQuestionType.UNKNOWN
+        s.talk += TalkLine(who, text.trim(), questionType = type, question = askedText ?: currentQ?.text)
     }
 
     /**
