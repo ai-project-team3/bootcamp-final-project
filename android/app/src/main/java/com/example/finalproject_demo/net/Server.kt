@@ -335,19 +335,13 @@ object Server {
     // ── /tts ───────────────────────────────────────────────────────
 
     /** The mascot's line as audio bytes (mp3; wav in mock mode). Never send a real name (it leaves for TypeCast). */
-    /**
-     * The guardian's optional consent to the TypeCast voice (10-06 · third-party provision — TypeCast may use what it
-     * gets for its own services). Kept in step by `ConsentStore`; off sends no `provider`, and the server never
-     * sends that family's lines to TypeCast.
-     */
-    @Volatile var typecastVoiceAgreed = false
-
     suspend fun tts(text: String, voiceId: String? = null, previous: String? = null, next: String? = null): ByteArray? {
         val body = JSONObject().put("text", text)
             .put("voice_id", voiceId ?: JSONObject.NULL)
             .put("previous_text", previous ?: JSONObject.NULL)
             .put("next_text", next ?: JSONObject.NULL)
-            .put("provider", if (typecastVoiceAgreed) "typecast" else JSONObject.NULL)
+            // No `provider`: the optional TypeCast consent is gone (10-08), so no family's lines go to TypeCast
+            .put("provider", JSONObject.NULL)
         val (code, bytes) = post("/tts", body.toString().toByteArray(), JSON, readMs = 20_000) ?: return null   // server gives up at 15 s
         if (code != 200) { Log.w(TAG, "/tts $code ${bytes.decodeToString()}"); return null }
         return bytes
