@@ -117,7 +117,9 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
             val looks = prompt.slot == "newcomer" && Regex("생겼|모습|생김새").containsMatchIn(prompt.text)
             if (looks && s.slots["newcomer"].isNullOrBlank()) {
                 // the one asked about, from the question itself: 「바늘괴물은 어떻게 생겼어?」 → 바늘괴물 (the child named it earlier)
-                Regex("^(.+?)(은|는|이|가) (어떻게|어떤)").find(prompt.text)?.groupValues?.get(1)?.trim()?.let {
+                // never a sentence — 「바람이 불어서 나무가 쓰러졌어는 어떻게 생겼어?」 (StoryNameGuard.kt · #375 review)
+                Regex("^(.+?)(은|는|이|가) (어떻게|어떤)").find(prompt.text)?.groupValues?.get(1)?.trim()
+                    ?.takeUnless(::storyLooksLikeSentence)?.let {
                     s.slots["newcomer"] = it; s.slotBy["newcomer"] = "child"; s.syncStoryPresentation()
                 }
             }
