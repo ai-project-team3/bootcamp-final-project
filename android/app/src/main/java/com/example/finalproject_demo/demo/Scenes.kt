@@ -391,6 +391,8 @@ private suspend fun Director.onHeroPicked(v: String) {
     s.storyHeroImage = s.heroes[idx].image
     s.storyHeroRig = s.heroes[idx].rig
     s.storyHeroCall = s.heroes[idx].called
+    // a nameless card is the hero by its card name — the same one the child says (Model.kt storyHeroCard)
+    s.storyHeroCard = s.heroes[idx].name.takeIf { s.heroes[idx].called.isNullOrBlank() }
     mark("bestiary")
     log("주인공 고름: ${s.heroes[idx].name} → 고정 스프라이트 그대로 씀 (⭐20 · ⭐26)")
     say("${s.heroes[idx].name}${ya(s.heroes[idx].name)}, 준비됐지?")
@@ -1534,7 +1536,9 @@ private suspend fun Director.sceneMaking() {
     say("${bookWord}을 만들고 있어! 조금만 기다려 줘.")
     log(
         "Template ${t.code} ${t.name} ($plannedPageCount pages) + collected slots → server LLM → captions/title JSON → " +
-            "restore placeholders on device: {주인공} → ${s.childName}, {친구1} → ${s.friendName}; keep confirmed pictures (⭐26)"
+            // the names the mask really restores — the hero card when the doll has no name (#392), no friend when none was named
+            "restore placeholders on device: {주인공} → ${s.nameMask().names.firstOrNull()?.takeIf(String::isNotBlank) ?: s.childName}, " +
+                "{친구1} → ${s.friendName.takeUnless { it.startsWith("{") } ?: "(none)"}; keep confirmed pictures (⭐26)"
     )
     if (s.isDiary) {
         val mascot = listOf("place", "problem", "cause", "solution").filter { s.slotBy[it] == "mascot" }

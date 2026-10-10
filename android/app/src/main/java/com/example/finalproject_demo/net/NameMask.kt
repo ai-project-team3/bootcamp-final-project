@@ -15,7 +15,7 @@ import com.example.finalproject_demo.demo.bat
  * `{친구n}`), so [unmask] turns those back into names with the particle fixed for the name.
  * The child is `{주인공}`; friends are `{친구1}`, `{친구2}`… in the order given.
  */
-class NameMask(child: String?, friends: List<String> = emptyList()) {
+class NameMask(child: String?, friends: List<String> = emptyList(), private val heroAlias: String? = null) {
 
     private val toName: Map<String, String>
 
@@ -36,8 +36,12 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
         names = pairs.map { it.first }.let { if (pairs.firstOrNull()?.second == HERO) it else listOf("") + it }
     }
 
-    /** Kept so callers need not change: names are no longer hidden (10-02), so text passes as is. */
-    fun mask(text: String): String = text
+    /**
+     * Names are no longer hidden (10-02), so text passes as is — except a nameless hero card ([heroAlias] · 「빨간 옷 친구」):
+     * it is written as `{주인공}` so the server keeps the child's words and its own `{주인공}` one person, and [unmask]
+     * turns both back into the card name (10-09 device · user's direction)
+     */
+    fun mask(text: String): String = heroAlias?.trim()?.takeIf { usable(it) }?.let { text.replace(it, HERO) } ?: text
 
     fun maskSlots(slots: Map<String, String?>): Map<String, String?> = slots.mapValues { (_, v) -> v?.let { mask(it) } }
 
@@ -86,11 +90,17 @@ class NameMask(child: String?, friends: List<String> = emptyList()) {
 }
 
 /** The session's names — the child's call and the friend in this story — for turning placeholders back. */
-fun DemoState.nameMask(): NameMask = NameMask(
-    storyHeroCall ?: childName,          // 아이가 인형에 이름을 지어 줬으면 그 이름이 주인공 (10-02)
-    listOfNotNull(
-        friendName.takeUnless { it.startsWith("{") },
-        // 「누구랑?」에 친구 이름으로 답했으면(「민수」) — 호칭(삼촌 · 형)은 이름이 아니다
-        partnerCall.takeIf { partnerKey == "friend" },
-    ),
-)
+fun DemoState.nameMask(): NameMask {
+    // a story hero card with no name given is the hero by its card name, both ways (Model.kt storyHeroCard)
+    val card = storyHeroCard?.takeIf { mode == com.example.finalproject_demo.demo.StoryMode.STORY &&
+        storyHeroCall.isNullOrBlank() && it.isNotBlank() }
+    return NameMask(
+        storyHeroCall ?: card ?: childName,          // 아이가 인형에 이름을 지어 줬으면 그 이름이 주인공 (10-02)
+        listOfNotNull(
+            friendName.takeUnless { it.startsWith("{") },
+            // 「누구랑?」에 친구 이름으로 답했으면(「민수」) — 호칭(삼촌 · 형)은 이름이 아니다
+            partnerCall.takeIf { partnerKey == "friend" },
+        ),
+        heroAlias = card,
+    )
+}
