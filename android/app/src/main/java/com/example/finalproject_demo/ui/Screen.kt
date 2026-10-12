@@ -1218,7 +1218,7 @@ private fun FriendRateView(d: Director, stage: Stage.FriendRate) {
                     ArtView(f.art, Modifier.fillMaxWidth().height(104.dp))
                     Text(f.name, fontSize = TextSize.KidCard, color = InkBrown)
                     Spacer(Modifier.height(8.dp))
-                    // 10-12 종훈: the labels are 「싫어요」 · 「좋아요」 (were 「안녕」 · 「또 만날래」); what a tap does is unchanged.
+                    // 10-12 종훈: the labels are 「싫어요」 · 「좋아요」 (were 「안녕」 · 「또 만날래」) — a survey on the picture.
                     // 10-05 device round: both buttons stay so a mis-tap can be changed; the picked one is
                     // marked, the other fades. Nothing is final until the arrow 「다 했어」.
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

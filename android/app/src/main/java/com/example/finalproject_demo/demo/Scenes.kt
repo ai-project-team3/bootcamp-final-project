@@ -1725,7 +1725,8 @@ private suspend fun Director.sceneBook() {
 
 /**
  * 오늘 만난 친구를 하나씩 보며 [좋아요 👍] [싫어요 👎] (10-12 종훈 — 전에는 [또 만날래] [안녕]).
- * "좋아요"로 고른 친구만 다음 이야기의 확인 카드 후보가 된다 (⭐26).
+ * 그림이 마음에 들었는지만 묻는 짧은 설문이다 — 고른 것이 다음 이야기를 바꾸지 않는다(10-12 종훈: 「또 만날래 → 다음 이야기에
+ * 다시 나옴」은 넣지 않는다). 답은 `friend_rating` 이벤트로만 남는다.
  * "싫어요"를 골라도 지워지지 않는다 — 폰에 남고, 책장에서 그 책을 열면 그대로 있다.
  */
 private suspend fun Director.sceneFriends() {
@@ -1753,7 +1754,7 @@ private suspend fun Director.sceneFriends() {
             RateItem("dino", s.dino.name, Art.DinoArt(s.dinoColor, s.dinoKey)),
         )
     }
-    say(s.coopFriendsLine() ?: "오늘 만난 친구들이야. 누구를 또 만나고 싶어?")   // 협업 곧 해요 · 좋아해요 (CoopReport.kt)
+    say(s.coopFriendsLine() ?: "오늘 만난 친구 그림이야. 어땠어?")   // 협업 곧 해요 · 좋아해요 (CoopReport.kt)
     log("친구 평가 — 고르지 않아도 넘어갈 수 있다. 지우는 선택지는 없다")
     // 10-05 device round: a mis-tap on 「안녕」 moved on at once. A tap now only marks the card (and can be
     // changed); the arrow 「다 했어」 confirms. Undecided friends' buttons come first, then the arrow, then
@@ -1790,17 +1791,16 @@ private suspend fun Director.sceneFriends() {
         }
         items[i] = items[i].copy(keep = keep)
         refresh()
-        say(if (keep) "${items[i].name}${eul(items[i].name)} 또 만나자! 다음 이야기에 나올 수 있어." else "${items[i].name}, 안녕! 오늘 고마웠어.")
+        // no promise of a next story, and no name in the line — two fixed lines that can be recorded once
+        say(if (keep) "마음에 들었구나! 알려 줘서 고마워." else "그랬구나! 알려 줘서 고마워.")
         pending = pauseOrChoice(if (interruptible) 0 else 600)
     }
     // Only the confirmed choices count — a changed mind is not two ratings.
     items.filter { it.keep != null }.forEach {
         s.reactions++
         event("friend_rating", "friend_id" to it.id, "keep" to it.keep)
-        if (it.keep == true) {
-            if (it.name !in s.keptFriends) s.keptFriends += it.name
-            log("좋아요 → ${it.name}${eun(it.name)} 다음 이야기의 확인 카드 후보 (⭐26 · 폰 소품함)")
-        } else log("싫어요 → 지우지 않는다. 폰에 남고 이 책에는 그대로 나온다")
+        log(if (it.keep == true) "좋아요 → ${it.name} · 설문으로만 남는다 (다음 이야기에 쓰지 않는다)"
+            else "싫어요 → ${it.name} · 지우지 않는다. 폰에 남고 이 책에는 그대로 나온다")
     }
     if (items.any { it.keep != null }) mark("friends")
     say("좋아! 이제 선물이 있어.")

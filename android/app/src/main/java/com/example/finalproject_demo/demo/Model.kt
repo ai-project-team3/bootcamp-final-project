@@ -1434,8 +1434,6 @@ class DemoState {
     /** 실제 완성된 책만 들어간다. 동화책은 기기 저장소에서 시작할 때 복원한다. */
     val shelf = mutableStateListOf<ShelfBook>()
 
-    /** S10에서 "좋아요"로 고른 친구 — 다음 이야기의 확인 카드 후보가 된다 (⭐26) */
-    val keptFriends = mutableStateListOf<String>()
 
     /** 시연 서랍 [그림 생성 느리게] — 8초 안내 · 15초 취소를 실제로 보여준다 (구현대본 §7) */
     var slowImages by mutableStateOf(false)
@@ -1539,7 +1537,7 @@ class DemoState {
         heroes += Hero("빨간 옷 친구", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
         shelf.clear()
         limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null
-        keptFriends.clear(); usedVariants.clear()
+        usedVariants.clear()
         partnerKey = "mom"
         partnerCall = null
         firstDay = false
