@@ -15,7 +15,7 @@ package com.example.finalproject_demo.demo
  * Copied from `DIARY_STEPS` as of `546d8ba` (eleven steps, four required).
  */
 
-/** The one asked about, as Otto says it — 「엄마, 아빠」 is 「엄마랑 아빠」 aloud ([spokenPeople]) */
+/** The one asked about, as Otto says it — 「엄마, 아빠」 is 「엄마 아빠」 aloud ([spokenPeople]) */
 private fun who(s: DemoState) = spokenPeople(s.friendCallName)
 
 /** Did the child's day go wrong somewhere — "왜 그랬을까?" if so, "왜 제일 좋았어?" if not */

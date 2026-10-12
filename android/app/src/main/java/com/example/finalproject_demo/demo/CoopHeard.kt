@@ -157,14 +157,20 @@ fun companionName(raw: String): String {
 }
 
 /**
- * 「엄마, 아빠」 said aloud — 「엄마랑 아빠」. The comma stays in the slot and on the book's pages (any particle reads after
- * it), but Otto read 「엄마, 아빠가 뭐라고 할까?」 · 「같이 갈 엄마, 아빠를 그려 줄래?」 with a pause in the middle (10-12 device review)
+ * 「엄마, 아빠」 said aloud. The comma stays in the slot and on the book's pages (any particle reads after it), but Otto read
+ * 「엄마, 아빠가 뭐라고 할까?」 · 「같이 갈 엄마, 아빠를 그려 줄래?」 with a pause in the middle (10-12 device review).
+ * Family words go side by side as a child says them — 「엄마 아빠」, which takes any particle; other names join with 「랑」
  */
 fun spokenPeople(name: String): String {
     val people = name.split(",").map(String::trim).filter(String::isNotBlank)
     if (people.size < 2) return name
+    if (people.all { it in FAMILY_WORDS }) return people.joinToString(" ")
     return people.dropLast(1).joinToString("") { it + rang(it) + " " } + people.last()
 }
+
+/** A line Otto says with the people slot in it — 「엄마, 아빠와 사자 우리에 가서」 from the server is said 「엄마 아빠와 …」 */
+fun spokenWithPeople(line: String, people: String): String =
+    if ("," in people && people in line) line.replace(people, spokenPeople(people)) else line
 
 /**
  * 「엄마 아빠」 → [엄마, 아빠] — only when **every** spaced word is a family word on its own. One non-family word makes it
