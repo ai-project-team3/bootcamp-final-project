@@ -84,8 +84,11 @@ object Server {
         val names: List<String> = emptyList(),
         /** who sits with the child — "adult" · "peer" · "none" (#303). "none": the server never asks the adult slot. Null = not sent */
         val partner: String? = null,
-        /** the session so far, oldest first (#323 · diary). Empty = not sent: the server runs the turn as before */
-        val history: List<HistoryTurn> = emptyList(),
+        /**
+         * the session so far, oldest first (#323 · diary). Null = not sent: the server runs the turn as before.
+         * An empty list is sent and turns the reading on — the diary's talk while drawing has no turns yet (10-12)
+         */
+        val history: List<HistoryTurn>? = null,
     )
 
     /** What Otto said in a finished turn: the question the child answered, then the reaction to the answer (#323). */
@@ -183,7 +186,7 @@ object Server {
             .put("reason", t.reason ?: JSONObject.NULL)
             .put("ask", ask)
         t.partner?.let { body.put("partner", it) }
-        if (t.history.isNotEmpty()) body.put("history", historyJson(t.history))
+        t.history?.let { body.put("history", historyJson(it)) }
         val j = postJson("/turn", body, readMs = 30_000) ?: return null   // server answers within 25 s (turn_deadline_s)
         return try {
             TurnResult(

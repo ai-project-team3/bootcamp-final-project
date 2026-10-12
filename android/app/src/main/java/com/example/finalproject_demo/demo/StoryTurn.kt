@@ -218,8 +218,8 @@ internal suspend fun Director.notifyStorySoundChoice(prompt: StoryPrompt) {
 
 suspend fun DemoState.exchangeTurn(
     mode: String, askedSlot: String?, question: String, utterance: String,
-    /** the session so far (#323 · diary after drawing). Empty for every other caller — the request is unchanged */
-    history: List<Server.HistoryTurn> = emptyList(),
+    /** the session so far (#323 · diary). Null for every other caller — the request is unchanged */
+    history: List<Server.HistoryTurn>? = null,
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult? {
     if (utterance.isBlank()) return null
@@ -243,7 +243,7 @@ suspend fun DemoState.exchangeTurn(
         reason = if (mode == "coop") coopStoryReason() else null,
         names = mask.names,
         partner = partnerWire(mode),
-        history = history.map { h ->
+        history = history?.map { h ->
             h.copy(
                 otto = Server.OttoSaid(h.otto.ack?.let(mask::mask), h.otto.expand?.let(mask::mask), h.otto.question?.let(mask::mask)),
                 child = mask.mask(h.child),

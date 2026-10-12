@@ -222,12 +222,16 @@ class ServerClientTest {
         assertEquals(emptyList<String>(), r.retract)
     }
 
-    /** #323: the history goes out only when there is one — every other caller's request is unchanged */
+    /** #323: the history goes out only when the caller gives one — every other caller's request is unchanged */
     @Test
     fun turnSendsTheHistoryOnlyWhenThereIsOne() = runBlocking {
         json("/turn", """{"judge":$VERDICT,"line":null}""")
         Server.turn(turn())
         assertTrue(!JSONObject(seen.getValue("/turn")).has("history"))
+
+        // an empty list is sent — it turns the reading on for talk with no turns behind it (10-12)
+        Server.turn(turn().copy(history = emptyList()))
+        assertEquals(0, JSONObject(seen.getValue("/turn")).getJSONArray("history").length())
 
         val h = Server.HistoryTurn(
             turn = 1, askedSlot = "companion",

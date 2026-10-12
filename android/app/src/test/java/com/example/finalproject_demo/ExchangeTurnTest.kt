@@ -63,7 +63,7 @@ class ExchangeTurnTest {
         val s = DemoState().apply { mode = StoryMode.DIARY }
         var sent: Server.Turn? = null
         val result = s.exchangeTurn("diary", "problem", "무슨 일이야?", "넘어졌어") { sent = it; response() }
-        assertTrue(sent!!.history.isEmpty())
+        assertNull(sent!!.history)
         assertNull(result?.act)
         assertTrue(result!!.retract.isEmpty())
     }

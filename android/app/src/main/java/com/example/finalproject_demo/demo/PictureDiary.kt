@@ -415,9 +415,12 @@ private suspend fun Director.keepUntoldStory(day: DiaryDay, r: Reply.Spoke) {
     val said = r.text.trim()
     if (Server.liveFor(s.mode)) {
         day.turnCalls++
-        val result = s.exchangeTurn("diary", null, "", said)
+        // 기록을 같이 보내 아이 말이 무엇인지 읽게 한다 — 그리는 중엔 빈 목록이어도 켜진다 (#323 · 10-12)
+        val result = s.exchangeTurn("diary", null, "", said, history = day.talk.toList())
         val v = result?.verdict
         if (v?.reason == "blocked_by_filter") { log("서버 안전 판정 — 그리는 중 한 말을 책 재료에서 뺀다"); return }
+        if (notDiaryTalk(result)) { log("그리는 중 「$said」 — 오또에게 한 말(${result?.act}) → 책 재료에 쌓지 않는다 (#323)"); return }
+        result?.retract?.forEach { gone -> restoreDiarySlot(gone, bookKeyOf(gone, ""), prevOf(day, gone)) }
         val fills = v?.fills.orEmpty().filter { (slot, value) -> slot in Server.SLOTS && value.isNotBlank() }
         if (fills.isNotEmpty()) {
             quote(said)
@@ -547,9 +550,10 @@ private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: Triple<S
     }
     if (Server.liveFor(s.mode)) {
         day.turnCalls++
-        val result = s.exchangeTurn("diary", slot, text, said)
+        val result = s.exchangeTurn("diary", slot, text, said, history = day.talk.toList())
         val v = result?.verdict
         if (v != null && v.reason != "blocked_by_filter") {
+            result.retract.forEach { gone -> restoreDiarySlot(gone, bookKeyOf(gone, key), prevOf(day, gone)) }
             fillFromVerdict(day, v, r, key)
             nameBackdrop(day, ring, key, said)
             sayReaction(result, r)
@@ -594,9 +598,15 @@ private suspend fun Director.askPieceStory(day: DiaryDay, clue: DrawnClue, text:
     }
     // 판정에도 보낸다 — 누구랑 · 결말 같은 칸이 차서 다 그린 뒤 같은 것을 또 묻지 않는다 (10-07 실기기: 「아빠는 오늘 뭐 했어?」에
     // 「모래성이 무너져서 아빠랑 같이 다시 만들었어」라고 했는데 「누구랑 같이 있었어?」 · 「그래서 어떻게 됐어?」를 또 물었다)
-    val result = if (Server.liveFor(s.mode)) { day.turnCalls++; s.exchangeTurn("diary", null, text, said) } else null
+    val result = if (Server.liveFor(s.mode)) { day.turnCalls++; s.exchangeTurn("diary", null, text, said, history = day.talk.toList()) } else null
     val v = result?.verdict
     if (v?.reason == "blocked_by_filter") { log("서버 안전 판정 — 「${clue.name}」 이야기를 책 재료에서 뺀다"); return "skip" }
+    if (notDiaryTalk(result)) {
+        // 「먹구름: 오또는 몇 살이야?」가 책에 들어가지 않게 — 조각 이야기로 남기지 않는다 (#323 · 10-12 실기기)
+        log("「${clue.name}」 이야기 자리에 오또에게 한 말(${result?.act}) → 책 재료에 쌓지 않는다")
+        if (drawing) { say("그렇구나! 계속 그려 봐."); pause(600) } else result?.let { sayReaction(it, r as Reply.Spoke) }
+        return "skip"
+    }
     day.pieceStories[clue.pieceId] = said
     quote(said)
     // 판정이 고른 칸에 덧붙인다 — 첫 칸은 아이 말 그대로, 둘째부터는 판정 값(한 말의 둘째 칸 · `fillFromVerdict` 와 같은 약속)
@@ -1353,6 +1363,12 @@ private fun Director.withClue(day: DiaryDay, q: Triple<String, String, String>):
         log("그림 실마리 → [${q.third}] 「$text」 (원래 「${q.second}」)")
         Triple(q.first, text, q.third)
     } ?: q
+
+/**
+ * 일기 이야기가 아닌 말 — 오또에게 되물음(「오또는 몇 살이야?」) · 못 알아들음(「뭐라고?」). 책 재료(`extra`)에 쌓지 않는다.
+ * 10-12 실기기: 그리는 중 한 질문이 「"오또는 몇 살이야?"라고 물었어요.」로 책에 들어갔다 (#323)
+ */
+private fun notDiaryTalk(result: Server.TurnResult?): Boolean = result?.act == "answer_back" || result?.act == "rephrase"
 
 /** 그 칸이 마지막으로 채워질 때 덮어쓴 값 — 정정이 되돌릴 값. 기록에 없으면(그리는 중에 찬 칸 등) null = 비운다 */
 private fun prevOf(day: DiaryDay, slot: String): String? =
