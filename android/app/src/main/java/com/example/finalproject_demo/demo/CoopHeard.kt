@@ -168,9 +168,15 @@ fun spokenPeople(name: String): String {
     return people.dropLast(1).joinToString("") { it + rang(it) + " " } + people.last()
 }
 
-/** A line Otto says with the people slot in it — 「엄마, 아빠와 사자 우리에 가서」 from the server is said 「엄마 아빠와 …」 */
-fun spokenWithPeople(line: String, people: String): String =
-    if ("," in people && people in line) line.replace(people, spokenPeople(people)) else line
+/**
+ * A line with the people slot in it — the server's 「엄마, 아빠와 사자 우리에 가서」 is said 「엄마 아빠와 …」.
+ * [familyOnly] for the book's written pages: 「엄마 아빠와」 reads well, 「민수랑 지호와」 does not — other names keep the comma
+ */
+fun spokenWithPeople(line: String, people: String, familyOnly: Boolean = false): String {
+    if ("," !in people || people !in line) return line
+    if (familyOnly && !people.split(",").all { it.trim() in FAMILY_WORDS }) return line
+    return line.replace(people, spokenPeople(people))
+}
 
 /**
  * 「엄마 아빠」 → [엄마, 아빠] — only when **every** spaced word is a family word on its own. One non-family word makes it

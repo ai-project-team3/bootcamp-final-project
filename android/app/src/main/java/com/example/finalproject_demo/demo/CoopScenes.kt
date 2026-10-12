@@ -1069,7 +1069,7 @@ suspend fun Director.coopWriteBook() {
         reason = s.coopStoryReason(),
         // 고른 요소 안의 자리 — 쪽 꾸밈과 keywords 에만 쓴다. 선택지 후보(무슨 일 · 까닭 · 해결)는 아이가 말한 게 아니라 안 보낸다 (#113)
         stage = s.coopStage(),
-    )?.map(mask::unmask)
+    )?.map { spokenWithPeople(mask.unmask(it), s.companionKind, familyOnly = true) }   // 「엄마, 아빠와」 → 「엄마 아빠와」
     if (s.useCoopCaptions(captions)) log("서버가 쓴 협업 책 문장 ${pages.size}쪽을 받음 (/story)")
     else log("협업 책 문장 생성 실패 또는 쪽 수 불일치 → 틀 문장 그대로")
 }

@@ -92,6 +92,9 @@ class CoopCompanionPresetTest {
         assertEquals("곰돌이랑 엄마", spokenPeople("곰돌이, 엄마"))
         assertEquals("할머니 할아버지 삼촌", spokenPeople("할머니, 할아버지, 삼촌"))
         assertEquals("엄마 아빠와 사자 우리에 가서 설렐 것 같아.", spokenWithPeople("엄마, 아빠와 사자 우리에 가서 설렐 것 같아.", "엄마, 아빠"))
+        assertEquals("a page keeps other names' comma", "민수, 지호와 놀았어요.",
+            spokenWithPeople("민수, 지호와 놀았어요.", "민수, 지호", familyOnly = true))
+        assertEquals("엄마 아빠와 갈 거예요.", spokenWithPeople("엄마, 아빠와 갈 거예요.", "엄마, 아빠", familyOnly = true))
         assertEquals("친구 엄마", spokenPeople("친구 엄마"))
 
         val s = DemoState().apply {
