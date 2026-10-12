@@ -150,7 +150,10 @@ private fun CurtainSide() {
 // ── ② 로그인 (1/5) — 카카오 · 네이버 · Google SDK · 이메일 로그인 · 이메일 회원가입 (10-05) ─────────────
 
 @Composable
-fun LoginScreen(onDone: () -> Unit, onEmail: (EmailMode) -> Unit, onSample: () -> Unit = {}, expired: Boolean = false, allowSample: Boolean = false) {
+fun LoginScreen(
+    onDone: () -> Unit, onEmail: (EmailMode) -> Unit, onSample: () -> Unit = {}, expired: Boolean = false, allowSample: Boolean = false,
+    termsChanged: Boolean = false,
+) {
     val scope = rememberCoroutineScope()
     val activity = LocalContext.current as? android.app.Activity
     var msg by remember { mutableStateOf<String?>(null) }
@@ -174,7 +177,12 @@ fun LoginScreen(onDone: () -> Unit, onEmail: (EmailMode) -> Unit, onSample: () -
     ObFrame(
         step = if (expired) null else 0,
         title = if (expired) "다시 로그인해 주세요" else "만든 책을 안전하게 보관해요",
-        sub = if (expired) "보안을 위해 로그인이 풀렸어요. 폰 안의 책은 그대로 있어요." else "아이 이름 · 사진은 받지 않아요. 보호자 계정 하나면 돼요.",
+        // 약관이 바뀌어 다시 로그인하는 것이면 그 이유를 (10-08 #319) — 「로그인이 풀렸어요」는 사실과 다르다
+        sub = when {
+            termsChanged -> "약관이 바뀌었어요. 로그인한 보호자에게 다시 동의를 받아요. 폰 안의 책은 그대로 있어요."
+            expired -> "보안을 위해 로그인이 풀렸어요. 폰 안의 책은 그대로 있어요."
+            else -> "아이 이름 · 사진은 받지 않아요. 보호자 계정 하나면 돼요."
+        },
         onBack = null,
         art = { Otto(if (expired) Pose.CALL else Pose.WAVE, Modifier.size(190.dp)) },
     ) {

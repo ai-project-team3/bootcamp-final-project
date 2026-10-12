@@ -29,8 +29,10 @@ object ChildCall {
     }
 
     /** Blank clears it (back to [DEFAULT]). Only letters and digits, at most [MAX] — it is read aloud. */
+    internal fun clean(raw: String): String? = raw.filter { it.isLetterOrDigit() || it == ' ' }.trim().take(MAX).ifBlank { null }
+
     fun set(raw: String) {
-        val clean = raw.filter { it.isLetterOrDigit() || it == ' ' }.trim().take(MAX).ifBlank { null }
+        val clean = clean(raw)
         name = clean
         ctx?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)?.edit()?.apply {
             if (clean == null) remove(KEY) else putString(KEY, clean)
