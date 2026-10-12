@@ -29,6 +29,7 @@ class TurnState internal constructor(
     private val storyBackgroundPlace: String?,
     private val sceneKit: String?, private val sceneSeed: Long,
     private val answerOptions: StoryOptions?,
+    private val whoReasked: Set<String>,
     private val talk: List<TalkLine>, private val talkStartedAtMs: Long,
     private val endAsked: Boolean,
 ) {
@@ -41,6 +42,8 @@ class TurnState internal constructor(
         s.storyUnneededSlots.clear(); s.storyUnneededSlots.addAll(unneeded)
         s.storyNextSlot = nextSlot; s.storyServerQuestion = serverQuestion; s.storyClarificationSlot = clarification
         s.storyAnswerOptions = answerOptions
+        // an undone sentence answer must get its one more ask again (StoryNameGuard.kt)
+        s.storyWhoReasked.clear(); s.storyWhoReasked.addAll(whoReasked)
         s.talk.clear(); s.talk.addAll(talk)
         s.talkStartedAtMs = talkStartedAtMs
         // an undone 「끝이야」 gets its closing question again (StoryEndIntent.kt · #381 review)
@@ -73,7 +76,7 @@ fun DemoState.captureTurn(): TurnState = TurnState(
     themeKey, placeLabel, generatedBg, place, problem, cause, reaction, causeLine, causeKind,
     newcomer, newcomerKind, friendName, solution, solutionLine, solutionKey, solutionItem,
     sound, soundLine, storyBackground, storyBackgroundPlace, sceneKit, sceneSeed,
-    storyAnswerOptions, talk.toList(), talkStartedAtMs, storyEndAsked,
+    storyAnswerOptions, storyWhoReasked.toSet(), talk.toList(), talkStartedAtMs, storyEndAsked,
 )
 
 /** 한 이야기의 차례 기록 — 되돌리기 줄과 앞으로 가기 줄 */
