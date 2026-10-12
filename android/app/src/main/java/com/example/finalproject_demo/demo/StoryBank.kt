@@ -929,9 +929,9 @@ fun chooseTemplate(level: Level, causeKind: String): Pair<String, String> {
  * Record an answer and feed eligible evidence into the existing question rule.
  * Story replies with a transcript require child speech to an open/reason question;
  * emotion, choice, confirmation and unknown replies do not supply language evidence.
- * For counted story turns, excluded replies reset both streaks without changing level.
- * In particular, repeated recorded card picks do not lower the story level in this proposal
- * (PR #409 card-accessibility policy is still awaiting the lead's decision).
+ * For counted story turns, two child card picks lower question difficulty as support,
+ * but cards never become language evidence or rising signals (lead decision, PR #409).
+ * Other excluded replies reset both streaks without changing level.
  * Script-only probes without transcripts and other modes retain their existing eligibility.
  * Eligible counted turns use the two-consecutive-signal rule: S1/S2 raises PICK to CHAIN,
  * S1 plus structure raises CHAIN to REASON; missing/short signal-free answers lower it.
@@ -952,7 +952,7 @@ fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?:
     } }
     // Live bank variants can begin as choices and be spoken as open questions. Use the actual transcript.
     // Direct script probes without a transcript retain their existing question-rule behavior.
-    val eligible = s.mode != StoryMode.STORY || (!emotion &&
+    val eligible = s.mode != StoryMode.STORY || (!emotion && r !is Reply.Tapped &&
         ((recorded == null && s.talk.isEmpty()) || (recorded?.who == "child" &&
         recorded.questionType in setOf(ReportQuestionType.OPEN, ReportQuestionType.REASON))))
     val s1 = !emotion && eligible && a?.reason == true
@@ -972,7 +972,8 @@ fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?:
     }
     if (q?.counts != true) return
     s.turn++
-    if (s.mode == StoryMode.STORY && !eligible) {
+    val cardSupport = s.mode == StoryMode.STORY && !emotion && r is Reply.Tapped && !r.byMascot
+    if (s.mode == StoryMode.STORY && !eligible && !cardSupport) {
         s.s1streak = 0; s.noAnswerStreak = 0
         if (s.turn == 3 && s.templateKey == null) decideTemplate("3턴째")
         return

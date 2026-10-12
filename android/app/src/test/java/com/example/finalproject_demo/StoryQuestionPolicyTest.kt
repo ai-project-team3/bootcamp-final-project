@@ -50,4 +50,9 @@ class StoryQuestionPolicyTest {
         assertEquals(Level.PICK, state.level)
         assertEquals(1, state.s1streak)
     }
+
+    @Test fun pastCardOnlySessionsCannotSetTheNextStoryLanguageLevel() {
+        val card = TalkLine("card", "숲", questionType = ReportQuestionType.CHOICE)
+        assertNull(questionStyleForHistory(listOf(AnswerSession("cards", "", "story", List(4) { card }))))
+    }
 }

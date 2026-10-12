@@ -66,26 +66,46 @@ class StoryLanguageSignalsTest {
         } finally { scope.cancel() }
     }
 
-    @Test fun repeatedCardOnlyAnswersKeepEachStartingLevelAndResetLanguageStreaks() {
+    @Test fun everyTwoCardOnlyAnswersLowerQuestionDifficultyWithoutLanguageEvidence() {
         val scope = CoroutineScope(SupervisorJob())
         try {
             for (initial in Level.entries) {
                 val d = Director(scope)
                 d.s.level = initial
-                d.s.s1streak = 1; d.s.noAnswerStreak = 1
+                d.s.s1streak = 1
                 repeat(4) { index ->
                     d.setListening(Question("어디로 갈까?", Kind.CHOICE))
                     d.say("어디로 갈까?")
                     d.talk("card", "숲")
                     d.judge(BANK.first { it.slot == "cause" && it.counts && !it.emotion }, Reply.Tapped("숲", "숲"))
-                    assertEquals("Card turn ${index + 1} from $initial", initial, d.s.level)
+                    val expectedRank = (initial.rank - (index + 1) / 2).coerceAtLeast(Level.PICK.rank)
+                    assertEquals("Card turn ${index + 1} from $initial", expectedRank, d.s.level.rank)
                     assertEquals(0, d.s.s1streak)
-                    assertEquals(0, d.s.noAnswerStreak)
                     assertEquals(index + 1, d.s.turn)
                 }
                 assertNotNull("The third counted turn still fixes a template", d.s.templateKey)
                 assertTrue(d.s.notes.all { !it.languageEligible && !it.s1 && !it.a1 && it.el.isEmpty() })
                 assertTrue(d.s.talk.filter { it.who == "card" }.all { it.languageEvidence == null })
+            }
+        } finally { scope.cancel() }
+    }
+
+    @Test fun mascotPicksAndSpokenConfirmationsDoNotBecomeCardSupportSignals() {
+        val scope = CoroutineScope(SupervisorJob())
+        try {
+            for (mascot in listOf(true, false)) {
+                val d = Director(scope)
+                d.s.level = Level.REASON; d.s.templateKey = "E"
+                repeat(2) {
+                    d.setListening(Question("맞아?", Kind.CHOICE))
+                    d.say("맞아?")
+                    d.talk(if (mascot) "mascot" else "child", "응")
+                    val reply = if (mascot) Reply.Tapped("응", "응", byMascot = true)
+                        else Reply.Spoke("응", answer = Answer("응"))
+                    d.judge(BANK.first { it.slot == "cause" && it.counts && !it.emotion }, reply)
+                }
+                assertEquals(Level.REASON, d.s.level)
+                assertTrue(d.s.notes.all { !it.languageEligible })
             }
         } finally { scope.cancel() }
     }
