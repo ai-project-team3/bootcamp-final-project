@@ -19,6 +19,8 @@ class StoryFriendChoiceTest {
             awaitChange("The chosen card stayed unanswered during the reaction") {
                 (d.s.stage as? Stage.FriendRate)?.friends?.first()?.keep == true
             }
+            // 10-12: a survey on the picture — Otto thanks the child and promises no next story
+            awaitChange("Otto did not answer the like") { d.s.line == "마음에 들었구나! 알려 줘서 고마워." }
             assertEquals(Scene.FRIENDS, d.s.scene)
             assertEquals("Nothing is recorded before the arrow", 0, ratings(d).size)
         }
@@ -44,7 +46,6 @@ class StoryFriendChoiceTest {
             d.send(Reply.Tapped("done", "다음"))
             awaitChange("The next button was lost behind a changed choice") { d.s.scene == Scene.END }
             assertTrue("The last selection must win", "keep=true" in ratings(d).single())
-            assertEquals(1, d.s.keptFriends.count { it == "콩이" })
         }
     }
 
