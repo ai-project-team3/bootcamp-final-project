@@ -95,8 +95,9 @@ suspend fun Director.askStory(
             currentQuestion = question.copy(text = "다른 생각도 들려줄래? ${question.text}")
             continue
         }
+        // an ending turn fills nothing (StoryEndIntent.kt) — no slot_filled for what the judge copied
         response.verdict.fills.filter { it.first in Server.SLOTS && it.second.isNotBlank() &&
-            (it.first != "adult" || s.hasPartner) }.forEach { (slot, value) ->
+            (it.first != "adult" || s.hasPartner) && !(by == "child" && storyEndIntent(utterance)) }.forEach { (slot, value) ->
             val logged = when {
                 slot == "place" -> storyPlaceFromSentence(value)
                 slot == "name" && by == "child" -> storyNameWithoutCopula(value)
@@ -275,8 +276,12 @@ suspend fun DemoState.exchangeStoryTurn(
 ): Server.TurnResult? {
     if (mode != StoryMode.STORY) return null
     return exchangeTurn("story", askedSlot, question, utterance, request = request)?.also { response ->
-        response.verdict?.let { applyStoryVerdict(it, by) }
+        // ending words are no story — the judge copied 「그만할래」 into the asked solution (10-09 device · Laya v5)
+        val ending = by == "child" && storyEndIntent(utterance)
+        response.verdict?.let { applyStoryVerdict(if (ending) it.copy(fills = emptyList()) else it, by) }
         rememberStoryQuestion(response)
+        // 「이제 끝이야」 — the judge does not always end; the child's ending words do (StoryEndIntent.kt)
+        if (response.verdict != null && response.verdict.reason != "blocked_by_filter") applyStoryEndIntent(utterance, by)
         val verdict = response.verdict
         Trace.line("story_verdict", "asked=$askedSlot by=$by ready=${verdict?.storyReady} " +
             "next=${verdict?.nextSlot} applied=$storyNextSlot unclear=${verdict?.unclear} " +

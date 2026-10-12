@@ -62,7 +62,7 @@ class StoryTurnResultTest {
 
     @Test fun rejectedFilledSlotDoesNotReturnThroughTheUnassignedQuestionFallback() = runBlocking {
         val s = settledStory()
-        s.exchangeStoryTurn(null, "더 들려줄래?", "끝났어") {
+        s.exchangeStoryTurn(null, "더 들려줄래?", "그냥 그랬어") {
             Server.TurnResult(verdict(next = "place"), Server.Line("그랬구나", null, "어디로 갈까?"))
         }
         assertNull(s.storyNextSlot)
@@ -71,7 +71,7 @@ class StoryTurnResultTest {
 
     @Test fun nullNextWithoutAQuestionStillUsesTheExistingFallback() = runBlocking {
         val s = settledStory()
-        s.exchangeStoryTurn(null, "더 들려줄래?", "끝났어") { Server.TurnResult(verdict(), null) }
+        s.exchangeStoryTurn(null, "더 들려줄래?", "그냥 그랬어") { Server.TurnResult(verdict(), null) }
         assertEquals("이야기를 조금 더 들려줄래?", s.nextStoryPrompt(s.storyServerQuestion)?.text)
     }
 
