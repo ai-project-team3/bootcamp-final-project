@@ -926,12 +926,16 @@ fun chooseTemplate(level: Level, causeKind: String): Pair<String, String> {
 // ── 발달 판단 ─────────────────────────────────────────────────
 
 /**
- * 한 턴의 답을 기록하고 신호를 센다.
- *  - 말로 답했을 때만 S1 · S2 · A1을 센다 (탭 · 그림 · 마스코트가 채운 것은 세지 않음)
- *  - 마음 질문은 신호로 쓰지 않는다
- *  - 이야기 턴(counts)만 수준 이동에 쓴다: 올림 신호 2턴 연속 → 한 칸 위 (고르며→이어: S1 또는 S2 · 이어→까닭: S1 + 구조) /
- *    내림 신호(무응답 · 카드 · 두 어절 이하에 신호 없음) 2턴 연속 → 한 칸 아래
- *  - 3턴째 템플릿이 확정되면 이후 이동은 "질문 난이도"만 바꾸고 다음 세션 시작점으로 남긴다
+ * Record an answer and feed eligible evidence into the existing question rule.
+ * Story replies with a transcript require child speech to an open/reason question;
+ * emotion, choice, confirmation and unknown replies do not supply language evidence.
+ * For counted story turns, two child card picks lower question difficulty as support,
+ * but cards never become language evidence or rising signals (lead decision, PR #409).
+ * Other excluded replies reset both streaks without changing level.
+ * Script-only probes without transcripts and other modes retain their existing eligibility.
+ * Eligible counted turns use the two-consecutive-signal rule: S1/S2 raises PICK to CHAIN,
+ * S1 plus structure raises CHAIN to REASON; missing/short signal-free answers lower it.
+ * Once the third counted turn fixes the template, only question difficulty can change.
  */
 fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?: "") {
     val a = (r as? Reply.Spoke)?.answer
@@ -942,35 +946,45 @@ fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?:
         else -> "silent"
     }
     val emotion = q?.emotion == true
-    val s1 = !emotion && a?.reason == true
-    val el = if (emotion) emptySet() else a?.el.orEmpty()
-    val a1 = !emotion && a?.con == true
+    val answerText = a?.text ?: (r as? Reply.Tapped)?.label
+    val recorded = answerText?.let { text -> s.talk.lastOrNull {
+        it.who != "otto" && it.text == text.trim()
+    } }
+    // Live bank variants can begin as choices and be spoken as open questions. Use the actual transcript.
+    // Direct script probes without a transcript retain their existing question-rule behavior.
+    val eligible = s.mode != StoryMode.STORY || (!emotion && r !is Reply.Tapped &&
+        ((recorded == null && s.talk.isEmpty()) || (recorded?.who == "child" &&
+        recorded.questionType in setOf(ReportQuestionType.OPEN, ReportQuestionType.REASON))))
+    val s1 = !emotion && eligible && a?.reason == true
+    val el = if (emotion || !eligible) emptySet() else a?.el.orEmpty()
+    val a1 = !emotion && eligible && a?.con == true
     val words = a?.words ?: 0
-    s.notes += TurnNote(label, a?.text ?: "(${mode})", mode, s1, el, a1, words)
+    s.notes += TurnNote(label, a?.text ?: "(${mode})", mode, s1, el, a1, words, eligible)
     if (s1) signal("S1", a!!.text, q?.probe ?: "")
     if (el.isNotEmpty()) signal("S2", a!!.text, el.joinToString("·"))
     a?.emo?.takeIf { it.isNotEmpty() }?.let { s.feelings += it; event("emotion_mention", "text" to it) }
     if (a != null) quote(a.text)
 
+    if (s.mode == StoryMode.STORY && q != null && recorded != null &&
+        ((eligible && recorded.who == "child" && a != null) || !q.counts)) {
+        val i = s.talk.indexOfLast { it.who == recorded.who && it.text == recorded.text }
+        if (i >= 0) s.talk[i] = s.talk[i].copy(languageEvidence = LanguageEvidence(s1, el, a1, words, q.counts))
+    }
     if (q?.counts != true) return
     s.turn++
+    val cardSupport = s.mode == StoryMode.STORY && !emotion && r is Reply.Tapped && !r.byMascot
+    if (s.mode == StoryMode.STORY && !eligible && !cardSupport) {
+        s.s1streak = 0; s.noAnswerStreak = 0
+        if (s.turn == 3 && s.templateKey == null) decideTemplate("3턴째")
+        return
+    }
     // 올림 신호: 고르며 → 이어는 S1 또는 S2 하나면 되고,
     // 이어 → 까닭은 까닭(S1)에 이야기 구조(계기 · 시도 · 결과 중 하나 또는 잇는 말)가 함께 있어야 한다 (역할1 조사2 §4 표)
-    val structure = el.any { it in setOf("계기", "시도", "결과") } || a1
-    val up = if (s.level == Level.PICK) (s1 || el.isNotEmpty()) else (s1 && structure)
-    val down = mode != "voice" || (words <= 2 && !up)
-    s.s1streak = if (up) s.s1streak + 1 else 0
-    s.noAnswerStreak = if (down) s.noAnswerStreak + 1 else 0
-    if (s.s1streak >= 2) {
-        s.s1streak = 0
-        val to = s.level.up()
-        if (to != s.level) moveLevel(to, "올림 신호 2턴 연속")
-    }
-    if (s.noAnswerStreak >= 2) {
-        s.noAnswerStreak = 0
-        val to = s.level.down()
-        if (to != s.level) moveLevel(to, "내림 신호(짧은 답 · 카드 · 무응답) 2턴 연속")
-    }
+    val style = nextQuestionStyle(QuestionStyle(s.level, s.s1streak, s.noAnswerStreak),
+        LanguageEvidence(s1, el, a1, words), missed = mode != "voice")
+    s.s1streak = style.rising; s.noAnswerStreak = style.shorter
+    if (style.level != s.level) moveLevel(style.level,
+        if (style.level.rank > s.level.rank) "올림 신호 2턴 연속" else "내림 신호(짧은 답 · 카드 · 무응답) 2턴 연속")
     // 일기 모드는 수준별 템플릿을 고르지 않는다 — 기승전결이 곧 쪽 차례다 (일기 설계 §5)
     if (s.turn == 3 && s.templateKey == null && !s.isDiary) decideTemplate("3턴째")
 }
@@ -999,7 +1013,7 @@ private fun Director.moveLevel(to: Level, why: String) {
 
 /** 세션 누적 추정 (역할1 조사2 §4 표) — 규칙이 계산한다. LLM은 요소 표시만 한다 */
 fun DemoState.ruleEstimate(): Pair<Level, String> {
-    val n = notes.filter { it.mode != "mascot" }
+    val n = notes.filter { it.mode != "mascot" && it.languageEligible }
     if (n.isEmpty()) return level to "아직 답이 없음"
     val s1 = n.count { it.s1 }
     val core = n.flatMap { it.el }.toSet().intersect(setOf("계기", "시도", "결과"))

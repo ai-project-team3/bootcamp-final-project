@@ -122,6 +122,7 @@ suspend fun Director.askStory(
             reason = verdict.s1Reason,
             el = if (verdict.s2Addition) setOf("추가") else emptySet(),
             emo = verdict.emotion.orEmpty(),
+            con = storyHasLinkingExpression(reply.text),
         ))
     }
 }
