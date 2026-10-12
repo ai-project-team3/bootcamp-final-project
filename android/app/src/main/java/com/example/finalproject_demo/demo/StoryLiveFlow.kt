@@ -167,8 +167,9 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 else -> error("Only an actual answer reaches slot filling")
             }
             if (prompt.templateOnly) {
-                s.recordTemplateAnswer(prompt, value, by)
-                event("slot_filled", "slot" to "extra", "of" to prompt.slot, "value" to value, "source" to by)
+                // an ending answer (「끝이야」) fills nothing — no slot and no slot_filled (#381 re-review)
+                if (s.recordTemplateAnswer(prompt, value, by))
+                    event("slot_filled", "slot" to "extra", "of" to prompt.slot, "value" to value, "source" to by)
             } else if (by != "child" && prompt.slot != null && s.slots[prompt.slot].isNullOrBlank()) {
                 // A visible card or an audible mascot choice is a real choice, not child speech.
                 s.slots[prompt.slot] = value

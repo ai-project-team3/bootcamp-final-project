@@ -20,4 +20,14 @@ object Trace {
         // plain JVM unit tests have no android.util.Log — never let tracing break a test
         try { Log.i("OttoTrace", "$kind | $text") } catch (_: RuntimeException) {}
     }
+
+    /**
+     * A long text (a request or response body) in numbered pieces — logcat cuts one entry near 4 KB, and Korean is
+     * three bytes a letter
+     */
+    fun long(kind: String, text: String, piece: Int = 1000) {
+        if (!on) return
+        val parts = text.chunked(piece)
+        parts.forEachIndexed { i, p -> line(kind, if (parts.size == 1) p else "[${i + 1}/${parts.size}] $p") }
+    }
 }
