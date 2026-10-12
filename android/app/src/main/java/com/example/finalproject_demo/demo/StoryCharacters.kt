@@ -8,24 +8,31 @@ import com.example.finalproject_demo.demo.scene.PROBLEM_SPOT
 internal data class CharacterRequest(val role: String, val words: String)
 
 // Conservative local recognition: uncertain names stay in the text rather than inventing a visible actor.
-private val ACTOR_NOUNS = listOf(
+internal val ACTOR_NOUNS = listOf(
     "괴물", "고양이", "강아지", "사자", "호랑이", "토끼", "곰", "늑대", "여우", "원숭이", "악어",
     "코끼리", "상어", "물고기", "공룡", "드래곤", "외계인", "도깨비", "유령", "마녀", "마법사",
     "도둑", "해적", "로봇", "공주", "왕자", "할머니", "할아버지", "엄마", "아빠", "친구",
 )
-private val ACTOR = Regex("([가-힣]*(?:${ACTOR_NOUNS.joinToString("|")}))(?:이|가|은|는)(?=\\s|$)")
+private val ACTOR = actorPattern(ACTOR_NOUNS, "이|가|은|는")
 private val BARE_ACTOR = Regex("[가-힣]*(?:${ACTOR_NOUNS.joinToString("|")})")
+
+/** An actor noun followed by one of [particles] and a space or the end — shared with co-op ([coopActorIn]) */
+internal fun actorPattern(nouns: List<String>, particles: String) =
+    Regex("([가-힣]*(?:${nouns.joinToString("|")}))(?:$particles)(?=\\s|$)")
 private val NEGATED_ACTOR = Regex("^(?:안\\s*나|안\\s*왔|없|아니)|(?:나오지|오지|있지)\\s*않|(?:사실\\s*)?없었")
 private val ACTOR_MODIFIERS = setOf("도둑", "아기", "꼬마", "거인", "빨간", "파란", "노란", "커다란", "작은", "큰", "무서운")
 
-internal fun problemActorIn(text: String): String? {
+internal fun problemActorIn(text: String): String? = actorIn(text, ACTOR, BARE_ACTOR)
+
+/** The first actor named in [text] — a bare actor, a modified one (「아기 공룡」), or a subject of a clause that is not negated */
+internal fun actorIn(text: String, actor: Regex, bare: Regex): String? {
     val cleaned = text.trim().trimEnd('.', '!', '?')
-    if (BARE_ACTOR.matches(cleaned)) return cleaned
+    if (bare.matches(cleaned)) return cleaned
     val words = cleaned.split(Regex("\\s+"))
-    if (words.size > 1 && words.dropLast(1).all { it in ACTOR_MODIFIERS } && BARE_ACTOR.matches(words.last()))
+    if (words.size > 1 && words.dropLast(1).all { it in ACTOR_MODIFIERS } && bare.matches(words.last()))
         return words.joinToString(" ")
     for (clause in cleaned.split(Regex("[.!?。\\n,]"))) {
-        for (match in ACTOR.findAll(clause)) {
+        for (match in actor.findAll(clause)) {
             val before = clause.substring(0, match.range.first).trimEnd()
             // A noun embedded in another noun (e.g. 사자 모양 과자) is not a character subject.
             if (match.range.first > 0 && !clause[match.range.first - 1].isWhitespace()) continue
@@ -38,7 +45,7 @@ internal fun problemActorIn(text: String): String? {
     return null
 }
 
-private fun sameActor(a: String, b: String): Boolean {
+internal fun sameActor(a: String, b: String): Boolean {
     val left = a.replace(" ", "").trim()
     val right = b.replace(" ", "").trim()
     return left.isNotBlank() && right.isNotBlank() &&
@@ -59,6 +66,8 @@ internal fun DemoState.storyProblemCharacter(): String? {
 internal fun DemoState.charactersToDraw(): List<CharacterRequest> = buildList {
     friendToDraw()?.let { add(CharacterRequest("friend", it)) }
     storyProblemCharacter()?.takeIf { storyPresetMatch(it) == null }?.let { add(CharacterRequest("problem", it)) }
+    // co-op's second character — only when no preset fits (CoopCharacters.kt · #339 ②)
+    coopSecondCharacter()?.takeIf { coopSecondPreset(it) == null }?.let { add(CharacterRequest(COOP_SECOND_ROLE, it)) }
 }
 
 /** Reopened books carry role/image bindings even though they have no live conversation slots. */
@@ -74,7 +83,7 @@ internal fun DemoState.storyProblemArt(): Art? {
 }
 
 /** Keep the kit stable as the newcomer and problem actor arrive asynchronously. */
-internal val DemoState.sceneActorCapacity: Int get() = if (mode == StoryMode.STORY) 3 else 2
+internal val DemoState.sceneActorCapacity: Int get() = if (mode == StoryMode.STORY || isCoop) 3 else 2
 
 internal fun DemoState.storyConversationWorld() = Stage.World(buildList {
     add(WorldItem(storyHeroArt, HERO_SPOT.x, .32f, .11f, depth = HERO_SPOT.depth))
