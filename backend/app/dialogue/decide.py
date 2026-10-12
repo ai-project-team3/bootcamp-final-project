@@ -124,8 +124,11 @@ async def decide(req: TurnRequest) -> Decision | None:
         try:
             state = jev.mask_names(state_text(req), req.names)
             answers, secs = await jev.ask(state, questions(), timeout_s=settings.dialogue_deadline_s)
-            log.info("dialogue jev %.2fs", secs)
-            return from_answers(answers)
+            d = from_answers(answers)
+            # labels only, no words — a device round can tell a decider miss from a rule's (10-12 round 3)
+            log.info("dialogue jev %.2fs · %s", secs,
+                     d and f"{d.intent} {d.intent_conf} · target {d.target} {d.target_conf} · new {d.new_value}")
+            return d
         except jev.JevError as e:
             log.warning("dialogue jev failed, plain turn: %s", e)
             return None
