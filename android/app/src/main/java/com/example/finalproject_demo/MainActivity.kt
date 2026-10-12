@@ -82,6 +82,7 @@ class MainActivity : ComponentActivity() {
     private var appUpdate: com.example.finalproject_demo.net.AppUpdate? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) com.example.finalproject_demo.ui.shell.Shell.startLaunch()
         // 동의를 기기에서 읽어 온다 — 없으면 켤 때마다 동의 화면이 다시 뜬다 (09-25)
         ConsentStore.attach(this)
         FeelPrefs.load(this)      // 효과음 · 진동 켬/끔 (부모 설정 · 09-25)

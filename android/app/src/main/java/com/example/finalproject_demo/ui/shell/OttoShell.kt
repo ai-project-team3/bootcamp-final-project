@@ -110,12 +110,10 @@ fun OttoShell(d: Director) {
         Box(Modifier.fillMaxSize().background(Wool)) {
             androidx.compose.animation.Crossfade(Shell.step, animationSpec = androidx.compose.animation.core.tween(220), label = "step") { step ->
             when (step) {
-                Step.CLAP -> SplashScreen {
-                    Shell.step = if (Shell.onboarded && Shell.openingSeen) Shell.startStep() else Step.TITLE
-                }
+                Step.CLAP -> SplashScreen { Shell.step = Step.TITLE }
                 Step.TITLE -> {
                     // Returning from re-consent must not replay the whole opening.
-                    if (Shell.onboarded && Shell.openingSeen) TitleScreen { Shell.step = Shell.startStep() }
+                    if (Shell.openingSeen) TitleScreen { Shell.step = Shell.startStep() }
                     else CurtainOpening(d) {
                         Shell.markOpeningSeen()
                         Shell.step = Shell.startStep()

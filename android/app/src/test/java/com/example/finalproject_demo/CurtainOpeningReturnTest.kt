@@ -48,7 +48,7 @@ class CurtainOpeningReturnTest {
         compose.onNodeWithText("건너뛰기").performClick()
         compose.waitUntil(5000) { Shell.step == Step.APP }
         compose.waitForIdle()
-        assertTrue("Completing or skipping the opening must persist it", Shell.openingSeen)
+        assertTrue("Completing or skipping the opening is remembered during this launch", Shell.openingSeen)
     }
 
     private fun passSplash() {
@@ -56,10 +56,21 @@ class CurtainOpeningReturnTest {
         compose.onNode(hasClickAction() and hasAnyDescendant(hasText("C")), useUnmergedTree = true).performClick()
     }
 
-    @Test fun completedOpeningIsSkippedOnTheNextLaunch() {
+    private fun finishRepeatedOpening() {
+        compose.waitUntil(5000) { compose.onAllNodesWithTag("opening-rope").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("opening-rope").assertIsDisplayed()
+        compose.onNodeWithText("건너뛰기").performClick()
+    }
+
+    @Test fun completedOpeningPlaysOnTheNextLaunchEvenWithTheLegacyPreference() {
         completeOpening()
-        compose.runOnIdle { Shell.step = Step.CLAP }
+        compose.runOnIdle {
+            compose.activity.getSharedPreferences("otto_shell", android.content.Context.MODE_PRIVATE)
+                .edit().putBoolean("opening_seen", true).apply()
+            Shell.startLaunch()
+        }
         passSplash()
+        finishRepeatedOpening()
         compose.waitUntil(5000) { Shell.step == Step.APP }
         compose.onNodeWithTag("opening-rope").assertDoesNotExist()
     }
@@ -68,9 +79,10 @@ class CurtainOpeningReturnTest {
         completeOpening()
         compose.runOnIdle {
             Shell.saveConsent("previous-version", false, 1L)
-            Shell.step = Step.CLAP
+            Shell.startLaunch()
         }
         passSplash()
+        finishRepeatedOpening()
         // #319 — a changed consent logs in first, then that guardian consents again
         compose.waitUntil(5000) { Shell.step == Step.EXPIRED }
         compose.onNodeWithText("로그인한 보호자에게 다시 동의", substring = true).assertIsDisplayed()
@@ -79,8 +91,9 @@ class CurtainOpeningReturnTest {
 
     @Test fun repeatLaunchStillRequiresAnAccount() {
         completeOpening()
-        compose.runOnIdle { Accounts.guardian = null; Shell.step = Step.CLAP }
+        compose.runOnIdle { Accounts.guardian = null; Shell.startLaunch() }
         passSplash()
+        finishRepeatedOpening()
         compose.waitUntil(5000) { Shell.step == Step.EXPIRED }
         compose.onNodeWithText("카카오로 시작하기").assertIsDisplayed()
         compose.onNodeWithTag("opening-rope").assertDoesNotExist()
@@ -94,5 +107,13 @@ class CurtainOpeningReturnTest {
         compose.onNodeWithTag("opening-rope").assertDoesNotExist()
         compose.onNodeWithText("눌러서 시작").performClick()
         compose.waitUntil(5000) { Shell.step == Step.EXPIRED }          // #319 — back through login, not straight to consent
+    }
+
+    @Test fun activityRecreationAfterOpeningDoesNotReplayIt() {
+        completeOpening()
+        compose.activityRule.scenario.recreate()
+        compose.waitForIdle()
+        org.junit.Assert.assertEquals(Step.APP, Shell.step)
+        compose.onNodeWithTag("opening-rope").assertDoesNotExist()
     }
 }
