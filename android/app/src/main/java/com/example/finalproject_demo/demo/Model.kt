@@ -695,7 +695,7 @@ sealed interface Stage {
     data class DrawPad(val forAnswer: Boolean = false) : Stage
     data class BookPage(val index: Int, val m1Done: Boolean = false, val m2Done: Boolean = false) : Stage
 
-    /** S10 친구 평가 — 오늘 만난 친구마다 [또 만날래 💛] [안녕 👋] */
+    /** S10 친구 평가 — 오늘 만난 친구마다 [좋아요 👍] [싫어요 👎] */
     data class FriendRate(val friends: List<RateItem>) : Stage
     /**
      * 선물 화면 — [shown] 은 불이 켜진 선물 수, [done] 은 **더 나올 선물이 없다**는 뜻이다.
@@ -722,7 +722,11 @@ sealed interface Stage {
 data class RateItem(val id: String, val name: String, val art: Art, val keep: Boolean? = null)
 
 /** [called] = 아이가 지어 준 이름(말 · 글 · 10-02) — 있으면 이야기의 주인공 이름이 된다. 없으면 [name](모습)으로 부른다 */
-data class Hero(val name: String, val attr: HeroAttr, val image: String? = null, val rig: String? = null, val called: String? = null)
+/** The mascot as the child knows it — every child-facing line says this name, never 「마스코트」 (10-09 user) */
+const val MASCOT_NAME = "오또"
+
+data class Hero(val name: String, val attr: HeroAttr, val image: String? = null, val rig: String? = null, val called: String? = null,
+    val description: String = "")
 
 /** 옷 색 → 생성 그림 이름 조각 */
 fun shirtKey(c: Color): String = when (c) {
@@ -950,6 +954,8 @@ class DemoState {
     internal var storyAnswerOptions by mutableStateOf<StoryOptions?>(null)
     var storyStartedAtMs = 0L
     val storyUnneededSlots = mutableStateListOf<String>()
+    /** The child already asked to end once and got the closing question (StoryEndIntent.kt) */
+    var storyEndAsked = false
     val storyReady: Boolean get() = mode == StoryMode.STORY && endReason == "story_ready"
 
     // ── 함께 하는 사람
@@ -1208,6 +1214,7 @@ class DemoState {
     var m2Result by mutableStateOf<String?>(null)
     /** Server-written story scenes. Null keeps the existing template book for the scripted demo. */
     var storyCaptions by mutableStateOf<List<String>?>(null)
+    var storyBookPages by mutableStateOf<List<PageSpec>?>(null)
     var bookPage by mutableStateOf(0)
 
     /** 책 화면 위쪽 안내 한 줄 (책은 전체 화면이라 마스코트 말풍선 대신 여기에) */
@@ -1230,9 +1237,19 @@ class DemoState {
     }
 
     /** 등장인물 칸에 맞는 그림이 없어 서버가 만든 펠트 인형 (10-06 · `FriendArt.kt`) — 책에 함께 저장된다 */
-    var generatedFriend by mutableStateOf<GeneratedFriend?>(null)
+    val generatedCharacters = mutableStateListOf<GeneratedFriend>()
+    internal var readingSavedCast by mutableStateOf(false)
+    internal var savedProblemCharacter: String? = null
+    /** Compatibility access for the existing story newcomer and co-op companion. */
+    var generatedFriend: GeneratedFriend?
+        get() = generatedCharacters.firstOrNull { it.role == "friend" }
+        set(value) {
+            generatedCharacters.removeAll { it.role == "friend" }
+            if (value != null) generatedCharacters.add(value.copy(role = "friend"))
+        }
     /** 지금 만들고 있는 낱말 — 같은 말로 두 번 부르지 않는다 (저장하지 않는다) */
-    var friendRequested: String? = null
+    internal val characterRequests = mutableMapOf<CharacterRequest, Any>()
+    internal val characterAttempts = mutableSetOf<CharacterRequest>()
 
     /** 동화의 새 친구 인형 — 아이가 그리지 않았고, 지금 새 친구 칸 그대로일 때만 */
     val storyFriendDoll: GeneratedFriend?
@@ -1256,7 +1273,7 @@ class DemoState {
 
     /** 아이가 말한 사람의 그림 — 프리셋에서 고른다. 없으면 아무도 그리지 않는다 */
     val companionArt: Art?
-        get() = companionPreset(companionKind) ?: when {
+        get() = (if (isCoop) coopCompanionPreset(companionKind) else companionPreset(companionKind)) ?: when {
             companionKind.isBlank() || "혼자" in companionKind -> null
             // 같이 만들기에서 프리셋이 없는 사람 · 동물은 서버가 만든 인형으로 (10-06 · `FriendArt.kt`)
             isCoop && generatedFriend?.words == companionKind.trim() ->
@@ -1270,7 +1287,7 @@ class DemoState {
      * ⚠️ 앱이 아이의 하루를 추측해 **없는 친구를 그려 넣지 않는다** (일기 설계 §3-2).
      */
     val friendOrPartnerArt: Art?
-        get() = if (hasChildArt) friendArt else companionArt
+        get() = if (liveStoryWithoutFriend) null else if (hasChildArt) friendArt else companionArt
 
     /** 말로 부를 이름 — 이름 → 아이가 말한 사람 → 동화 모드의 종류 이름 */
     val friendCallName: String
@@ -1286,12 +1303,27 @@ class DemoState {
      * (일기 설계 §3-2). 미션과 자막은 이 값을 먼저 보고 문장을 고른다.
      */
     val hasCompanion: Boolean
-        get() = !isDiary ||
+        get() = !liveStoryWithoutFriend && (!isDiary ||
             !friendName.startsWith("{") ||
-            (companionKind.isNotBlank() && "혼자" !in companionKind)
+            (companionKind.isNotBlank() && "혼자" !in companionKind))
+
+    /**
+     * A live story where the child met nobody — no newcomer said, drawn or made (10-09 device · Laya v5). The script's
+     * default alien stood on the cover, mission 2 went to it, and Otto asked to make 「친구」's sound. Like the diary's
+     * rule above, the app does not make up a friend: no friend on the pages, mission 2 to the mascot, no friend sound.
+     * A reopened book keeps what it was made with.
+     */
+    val liveStoryWithoutFriend: Boolean
+        get() = mode == StoryMode.STORY && (if (readingSavedCast) savedNoFriend
+            else com.example.finalproject_demo.net.Server.liveFor(mode) &&
+                slots["newcomer"].isNullOrBlank() && drawing.isEmpty() && storyFriendDoll == null)
+
+    /** A reopened book's [liveStoryWithoutFriend] — saved with it (StoryBookVisuals.noFriend · #387 review) */
+    internal var savedNoFriend = false
 
     /** 미션 2에서 건넬 상대의 이름 — 아무도 없었던 날에는 마스코트가 받는다 (그림도 마스코트다) */
-    val giveTargetName: String get() = if (hasCompanion) friendCallName else "마스코트"
+    // the child sees and hears 「오또」, not the word 「마스코트」 (10-09 user) — internal ids such as by=mascot stay
+    val giveTargetName: String get() = if (hasCompanion) friendCallName else MASCOT_NAME
 
     // ── 수준 신호 (역할 1)
     var turn by mutableStateOf(0)
@@ -1311,6 +1343,7 @@ class DemoState {
     var heroAttr by mutableStateOf<HeroAttr?>(null)
     var storyHeroImage by mutableStateOf<String?>(null)
     var storyHeroRig by mutableStateOf<String?>(null)
+    var storyHeroDescription by mutableStateOf("")
 
     val heroes = mutableStateListOf(
         // 둘이 한눈에 달라 보여야 한다 — 안경만 다르면 도감에서 같은 아이로 보인다 (9/21)
@@ -1351,11 +1384,18 @@ class DemoState {
     /** 되돌리기 · 앞으로 가기를 보일 차례인가 — `TurnHistory` 가 정한다 (10-02) */
     /** 이 이야기 주인공의 이름 — 아이가 인형에 지어 준 것. 없으면 `{주인공}` 은 아이 호칭으로 읽는다 */
     var storyHeroCall by mutableStateOf<String?>(null)
+    /**
+     * The picked card's name when the doll was given no name — 「빨간 옷 친구」 (10-09 device). The book's hero is that card:
+     * the child says 「빨간 옷 친구가 숲에서 길을 잃었어」, and restoring `{주인공}` to the child's call 「친구」 made one child two
+     * people (「친구는 빨간 옷 친구를 만났어요」). Null in other modes' terms — only a story reads it
+     */
+    var storyHeroCard: String? = null
 
     /** Who acts in the book's own lines. In a story it is the doll (삐에로), not the child's call (「친구」) —
      *  10-05 device: 「친구는 또치에게 반짝이는 돌을 건네주었어요」 in a book whose hero was 삐에로 */
     val storyActor: String get() =
-        if (mode == StoryMode.STORY) storyHeroCall?.takeIf(String::isNotBlank) ?: childName else childName
+        if (mode == StoryMode.STORY) storyHeroCall?.takeIf(String::isNotBlank) ?: storyHeroCard?.takeIf(String::isNotBlank) ?: childName
+        else childName
     /** 이름 확인 중 글 칸에서 고쳐 적은 이름 (`demo/HeroName.kt`) */
     var typedName: String? = null
     var canUndo by mutableStateOf(false)
@@ -1402,8 +1442,6 @@ class DemoState {
     /** 실제 완성된 책만 들어간다. 동화책은 기기 저장소에서 시작할 때 복원한다. */
     val shelf = mutableStateListOf<ShelfBook>()
 
-    /** S10에서 "또 만날래"로 고른 친구 — 다음 이야기의 확인 카드 후보가 된다 (⭐26) */
-    val keptFriends = mutableStateListOf<String>()
 
     /** 시연 서랍 [그림 생성 느리게] — 8초 안내 · 15초 취소를 실제로 보여준다 (구현대본 §7) */
     var slowImages by mutableStateOf(false)
@@ -1423,6 +1461,7 @@ class DemoState {
     /** Report transcript: Otto's questions and every answer with its source (demo/SessionReport.kt) */
     val talk = mutableStateListOf<TalkLine>()
     var talkStartedAtMs = 0L
+    var reportProfileId: String = AnswerHistory.profileId
     /** The last shelved book's report — the parent screen shows it once the session is reset */
     var lastReport by mutableStateOf<SessionReport?>(null)
 
@@ -1437,16 +1476,20 @@ class DemoState {
 
     /** 이야기 한 권 분량만 지운다. 책장 · 부모 설정 · 하루 별 · 도감 · 수준(다음 세션 시작점) · 쓴 질문은 남긴다 */
     fun resetStory() {
+        dropDiaryDay()                // a half-made picture diary is not resumed by a new story (#335)
         // A session left before its book still tells what it called (10-06 · per-mode call counts)
         com.example.finalproject_demo.net.Server.callSummary().takeIf { it.isNotEmpty() }
             ?.let { com.example.finalproject_demo.net.Trace.line("calls", "${mode.name.lowercase()} unfinished · $it") }
         com.example.finalproject_demo.net.Server.resetCalls()
+        // the last story's hero card is not this one's — kept, it masked 「빨간 옷 친구처럼 생긴 토끼」 into the next doll
+        // request as 「{주인공}처럼 생긴 토끼」 before a hero was picked (#392 review)
+        storyHeroCard = null
         clearStorySound()
         enteredOnStage.clear()
         canUndo = false; canRedo = false
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
-        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyAnswerOptions = null; storyUnneededSlots.clear(); storyStartedAtMs = 0L
+        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyAnswerOptions = null; storyUnneededSlots.clear(); storyEndAsked = false; storyStartedAtMs = 0L
         partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY
@@ -1469,15 +1512,18 @@ class DemoState {
         drawing.clear(); drawnPreset = 0
         sceneDrawing.clear(); sceneDrawingAspect = 1f
         friendName = "{친구1}"; causeLine = "친구가 없어서 심심했어"; soundLine = "뿌우우우웅!"
-        solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; storyCaptions = null; bookPage = 0; bookNote = ""
+        solutionLine = "같이 별을 땄어요"; m1Result = null; m2Result = null; storyCaptions = null; storyBookPages = null; bookPage = 0; bookNote = ""
         turn = 0; s1streak = 0; s1count = 0; noAnswerStreak = 0
         mood = Mood.NONE
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
-        generatedFriend = null; friendRequested = null
+        storyHeroCall = null; storyHeroDescription = ""
+        generatedCharacters.clear(); characterRequests.clear(); characterAttempts.clear(); readingSavedCast = false
+        savedProblemCharacter = null; savedNoFriend = false
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
+        reportProfileId = AnswerHistory.profileId
         heroTries.clear()
         heroCreationDraft = null
         modeVoice = 0; modeCard = 0; modeDraw = 0; modeSilent = 0
@@ -1500,7 +1546,7 @@ class DemoState {
         heroes += Hero("빨간 옷 친구", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
         shelf.clear()
         limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null
-        keptFriends.clear(); usedVariants.clear()
+        usedVariants.clear()
         partnerKey = "mom"
         partnerCall = null
         firstDay = false
@@ -1531,6 +1577,23 @@ fun ya(w: String) = if (bat(w)) "아" else "야"
 fun rang(w: String) = if (bat(w)) "이랑" else "랑"
 
 /** 아이가 말한 사람에 맞는 프리셋 그림 — 없으면 null (일기 · 같이 만들기 공통) */
+/** Endings to drop — 「엄마랑」 · 「할머니하고」 · 「동생도」 */
+private val COOP_NAME_ENDS = listOf("이랑", "하고", "한테", "에게", "랑", "와", "과", "도")
+
+/**
+ * Co-op — the **last word** of the name is who it is (#339 design §3). 「엄마 친구 강아지」 is a dog with no preset (a server doll);
+ * 「유치원 선생님」 · 「친구 엄마」 (⚖️3 user 10-08) · 「엄마랑 아빠」 take the last word's preset. The diary keeps [companionPreset] (⚖️4 · Jinwoong)
+ */
+internal fun coopCompanionPreset(kind: String): Art? {
+    val head = kind.trim().split(Regex("\\s+")).lastOrNull { it.isNotEmpty() } ?: return null
+    val bare = COOP_NAME_ENDS.firstOrNull { head.length > it.length && head.endsWith(it) }?.let { head.dropLast(it.length) } ?: head
+    val word = bare.removeSuffix("들").let { if (it != "선생님") it.removeSuffix("님") else it }
+    return if (word == "선생" || word == "선생님") companionPreset("선생님") else companionPreset(word).takeIf { word in PRESET_PEOPLE }
+}
+
+/** People with a preset — only when the last word **is** one of these (「할머니 고양이」 is a cat) */
+private val PRESET_PEOPLE = setOf("할머니", "할아버지", "엄마", "아빠", "언니", "누나", "동생")
+
 internal fun companionPreset(kind: String): Art? = when {
     "선생님" in kind -> Art.Img("dp_teacher", Art.Emoji("🧑‍🏫"))
     "할머니" in kind -> Art.Img("ic_p_grandma", Art.Emoji("👵"))

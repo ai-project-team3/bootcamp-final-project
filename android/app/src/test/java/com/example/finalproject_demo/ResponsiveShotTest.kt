@@ -66,8 +66,8 @@ abstract class ResponsiveShotTest(private val size: String) {
     @Test
     fun everyScreen() {
         // ── 처음 설정
-        waitText("눌러서 시작", 10_000); shot("01_title")
-        tap("눌러서 시작")
+        waitText("건너뛰기", 10_000); shot("01_title")
+        tap("건너뛰기")
         waitText("카카오로 시작하기"); shot("02_login")
         tap("카카오로 시작하기")
         waitText("이렇게만 써요"); shot("03_consent")

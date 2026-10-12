@@ -32,18 +32,29 @@ data class SavedStoryVisuals(
     val liveStory: Boolean? = null,
     // The felt doll made for a character slot with no preset (10-06 · FriendArt.kt); older books have none.
     val friend: GeneratedFriend? = null,
+    val characters: List<GeneratedFriend> = emptyList(),
+    val problemCharacter: String? = null,
     /** The missions and props it was made with (#259 · PinnedMissions.encode) — a re-read book plays the same ones. Older books: null */
     val missions: String? = null,
+    /** Nobody was met in this story — reopened, it still has no friend (#387 review). Older books: false, as they were */
+    val noFriend: Boolean = false,
 ) {
+    /** Old books have only friend. New role entries take precedence over that compatibility field. */
+    val cast: List<GeneratedFriend> get() = (characters + listOfNotNull(friend)).distinctBy { it.role }
     /** Server pictures this book still needs — kept when unused story images are cleared. */
-    val images: List<String> get() = listOfNotNull(hero.image, friend?.image)
+    val images: List<String> get() = listOfNotNull(hero.image) + cast.map { it.image }
 }
 
 fun DemoState.captureStoryVisuals() = SavedStoryVisuals(
-    templateKey!!, persona, Hero(childName, heroAttr ?: HeroAttr(), storyHeroImage, storyHeroRig),
+    templateKey!!, persona, Hero(storyActor, heroAttr ?: HeroAttr(), storyHeroImage, storyHeroRig,
+        called = storyHeroCall, description = storyHeroDescription),
     drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
     dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
-    newcomerKind, soundLine, causeLine, Server.liveFor(mode), generatedFriend, missionRecord(),
+    newcomerKind, soundLine, causeLine, Server.liveFor(mode), generatedFriend,
+    generatedCharacters.filter { it.role != "problem" || readingSavedCast || it.words == storyProblemCharacter() },
+    storyProblemCharacter(),
+    missionRecord(),
+    noFriend = liveStoryWithoutFriend,
 )
 
 /** Build a separate reading state; reopening a book must not overwrite the current conversation. */
@@ -59,6 +70,8 @@ fun DemoState.restoreStoryBook(book: SavedStoryBook): Boolean {
     heroAttr = visual.hero.attr
     storyHeroImage = visual.hero.image
     storyHeroRig = visual.hero.rig
+    storyHeroCall = visual.hero.called ?: visual.hero.name
+    storyHeroDescription = visual.hero.description
     drawing.clear()
     drawing.addAll(visual.drawing.map { it.copy(pts = it.pts.toList()) })
     drawnPreset = visual.drawnPreset
@@ -72,13 +85,18 @@ fun DemoState.restoreStoryBook(book: SavedStoryBook): Boolean {
     newcomerKind = visual.newcomerKind
     soundLine = visual.soundLine
     causeLine = visual.causeLine
-    generatedFriend = visual.friend
+    generatedCharacters.clear()
+    generatedCharacters.addAll(visual.cast)
+    readingSavedCast = true
+    savedProblemCharacter = visual.problemCharacter ?: visual.cast.firstOrNull { it.role == "problem" }?.words
+    savedNoFriend = visual.noFriend
     // the missions it was made with — its facts are not all stored, and the mission history has moved on (#259)
     pinMissions(com.example.finalproject_demo.demo.missions.PinnedMissions.decode(visual.missions))
     // The stored captions already include mission results. Do not append them twice.
     m1Result = null
     m2Result = null
     storyCaptions = book.pages.map { it.caption }
+    storyBookPages = book.pages.map { page -> PageSpec(page.kind) { page.caption } }
     return true
 }
 
@@ -92,6 +110,7 @@ internal fun SavedStoryVisuals.toJson(): JSONObject {
     val attr = hero.attr
     return JSONObject().put("version", 1).put("template", templateKey).put("persona", persona.name)
         .put("hero", JSONObject().put("name", hero.name).put("image", hero.image ?: JSONObject.NULL)
+            .put("called", hero.called ?: JSONObject.NULL).put("description", hero.description)
             .put("rig", hero.rig ?: JSONObject.NULL).put("hair", attr.hair).put("shirt", attr.shirt.toArgb())
             .put("eyes", attr.eyes).put("glasses", attr.glasses).put("likes", attr.likes).put("bottom", attr.bottom))
         .put("drawing", strokes).put("drawnPreset", drawnPreset).put("drawingAspect", drawingAspect)
@@ -103,7 +122,13 @@ internal fun SavedStoryVisuals.toJson(): JSONObject {
         .put("liveStory", liveStory ?: JSONObject.NULL)
         .put("friend", friend?.let { JSONObject().put("words", it.words).put("image", it.image).put("rig", it.rig ?: JSONObject.NULL) }
             ?: JSONObject.NULL)
+        .put("characters", JSONArray().apply {
+            characters.forEach { put(JSONObject().put("role", it.role).put("words", it.words)
+                .put("image", it.image).put("rig", it.rig ?: JSONObject.NULL)) }
+        })
+        .put("problemCharacter", problemCharacter ?: JSONObject.NULL)
         .put("missions", missions ?: JSONObject.NULL)
+        .put("noFriend", noFriend)
 }
 
 internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
@@ -115,7 +140,8 @@ internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
         Hero(hero.getString("name"), HeroAttr(
             hero.getString("hair"), Color(hero.getInt("shirt")), hero.getString("eyes"),
             hero.getString("glasses"), hero.getString("likes"), hero.getString("bottom")),
-            hero.nullableString("image"), hero.nullableString("rig")),
+            hero.nullableString("image"), hero.nullableString("rig"), hero.nullableString("called"),
+            hero.optString("description", "")),
         (0 until strokes.length()).map { index ->
             val stroke = strokes.getJSONObject(index)
             val points = stroke.getJSONArray("points")
@@ -132,7 +158,16 @@ internal fun storyVisualsFromJson(obj: JSONObject): SavedStoryVisuals {
         obj.optString("causeLine", "친구가 없어서 심심했어"),
         if (obj.isNull("liveStory")) null else obj.getBoolean("liveStory"),
         obj.optJSONObject("friend")?.let { GeneratedFriend(it.getString("words"), it.getString("image"), it.nullableString("rig")) },
+        if (!obj.has("characters")) emptyList() else obj.getJSONArray("characters").let { cast ->
+            (0 until cast.length()).map { index ->
+                val item = cast.getJSONObject(index)
+                GeneratedFriend(item.get("words") as String, item.get("image") as String,
+                    item.nullableString("rig"), item.get("role") as String)
+            }
+        },
+        obj.nullableString("problemCharacter"),
         if (obj.has("missions")) obj.nullableString("missions") else null,
+        obj.optBoolean("noFriend", false),
     )
 }
 

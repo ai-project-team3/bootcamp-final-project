@@ -56,7 +56,8 @@ data class StageActor(val x: Float, val depth: Float)
 /** The live story's two actors (`StoryLiveFlow.conversationWorld`) — one place for both */
 val HERO_SPOT = StageActor(0.25f, 1f)
 val FRIEND_SPOT = StageActor(0.72f, 0.9f)
-fun stageActors(n: Int): List<StageActor> = listOf(HERO_SPOT, FRIEND_SPOT).take(n.coerceIn(0, 2))
+val PROBLEM_SPOT = StageActor(0.49f, 0.65f)
+fun stageActors(n: Int): List<StageActor> = listOf(HERO_SPOT, FRIEND_SPOT, PROBLEM_SPOT).take(n.coerceIn(0, 3))
 
 /**
  * One piece on the stage.

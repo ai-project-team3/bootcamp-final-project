@@ -197,13 +197,19 @@ private val NEED_BOTTOM = imgY(345f)
 private const val WALL_TOP = 90f
 private const val WALL_BOTTOM = 545f
 
-private class Grid(w: Dp, h: Dp) {
+/** internal for RoomScreenSizesTest */
+internal class Grid(w: Dp, h: Dp) {
     /** 그림 1px 이 몇 dp 인가 · 그림 왼쪽 위가 화면 어디인가 */
     val s: Float = minOf(w.value / IMG_W, h.value / (NEED_BOTTOM - NEED_TOP))
     val ox: Float = (w.value - IMG_W * s) / 2
     val oy: Float = (IMG_H * s).let { ih ->
         if (ih <= h.value) h.value - ih
-        else ((h.value - ih) / 2).coerceIn(-NEED_TOP * s, h.value - NEED_BOTTOM * s)
+        else {
+            // 10-09 · 폴드7 바깥 화면처럼 가로로 긴 창은 세로에 맞춘 배율이라 두 한계가 이론상 같다 —
+            // float 반올림으로 아래가 위보다 커지면 coerceIn 이 빈 범위로 앱을 끈다. 그때는 창문 위를 맞춘다
+            val top = -NEED_TOP * s
+            ((h.value - ih) / 2).coerceIn(top, maxOf(top, h.value - NEED_BOTTOM * s))
+        }
     }
     /** 자리 */
     fun x(v: Float) = (ox + imgX(v) * s).dp
@@ -211,6 +217,23 @@ private class Grid(w: Dp, h: Dp) {
     /** 길이 */
     fun dx(v: Float) = (imgX(v) * s).dp
     fun dy(v: Float) = (v / 360f * REF_H / REF_S * s).dp
+}
+
+/** Locate the opening in the same fitted theater bitmap and the same mascot home as the room. */
+internal fun roomOpeningPlacement(w: Dp, h: Dp): OpeningPlacement {
+    val g = Grid(w, h)
+    val t = Thing.THEATER
+    val boxW = g.dx(t.w).value
+    val boxH = g.dy(t.h).value - 22f
+    // room_theater.webp is 587 x 760; AssetImage uses ContentScale.Fit.
+    val scale = minOf(boxW / 587f, boxH / 760f)
+    val left = g.x(t.x).value + (boxW - 587f * scale) / 2
+    val top = g.y(t.y).value + (boxH - 760f * scale) / 2
+    val stageW = 440f * scale
+    val stageLeft = left + 74f * scale
+    val stageTop = top + 228f * scale
+    return OpeningPlacement(android.graphics.RectF(stageLeft, stageTop, stageLeft + stageW, stageTop + stageW * 675f / 1200f),
+        g.x(HOME_X).value + g.dy(OTTO).value / 2, g.y(330f - OTTO).value + g.dy(OTTO).value, g.dy(OTTO).value)
 }
 
 /** 방 배경 — [Grid] 와 같은 배율 · 같은 자리. 위에 남는 곳은 가랜드는 맨 위에 두고 줄무늬 벽만 늘린다 */
@@ -240,7 +263,7 @@ private fun RoomBackground(g: Grid, fallback: @Composable () -> Unit) {
 }
 
 @Composable
-fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, onTutorialTap: () -> Unit = {}) {
+fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, opening: Boolean = false, onTutorialTap: () -> Unit = {}) {
     val s = d.s
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -257,7 +280,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
     val view = androidx.compose.ui.platform.LocalView.current
     fun pokeOtto() {
         // 걷는 중 · 묻는 중 · 튜토리얼에서는 리액션하지 않는다(해야 할 것을 가리지 않게)
-        if (moving || target != null || tutorial) return
+        if (moving || target != null || tutorial || opening) return
         idleHint = false
         val next = Poke.entries.filter { it != poke }.random()
         poke = next; pokeId++
@@ -285,10 +308,11 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
     }
 
     LaunchedEffect(target) {
-        if (target == null && !tutorial && !motionFrozen) { delay(6000); idleHint = true }
+        if (target == null && !tutorial && !motionFrozen && !opening) { delay(6000); idleHint = true }
     }
 
     fun pick(t: Thing) {
+        if (opening) return
         // 둘러보기 — 오또가 가리키는 물건만 받는다. 다 보면 마지막(무대)에서 말해 보기로
         if (tutorial) {
             if (t != focus) return
@@ -325,7 +349,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
     // 한참 아무도 안 만지면 반복 움직임(인형 숨쉬기 · 반짝이)을 쉬게 한다 — 만지는 순간 바로 다시 (#40).
     // 걷는 중 · 묻는 중 · 누름 반응 중 · 튜토리얼에서는 쉬지 않는다
     val quiet = rememberQuietRest()
-    val still = quiet.resting && !tutorial && target == null && poke == null && !moving && !walkX.isRunning
+    val still = opening || (quiet.resting && !tutorial && target == null && poke == null && !moving && !walkX.isRunning)
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Wool).wakeOnTouch(quiet)) {
         val g = Grid(maxWidth, maxHeight)
@@ -375,7 +399,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
         // 발자국
         paws.forEach { px -> Text("🐾", fontSize = 18.sp, modifier = Modifier.offset(g.x(px), g.y(318f)).alpha(0.55f)) }
         // 오또
-        Box(Modifier.offset(g.x(walkX.value), g.y(if (target != null) 330f - OTTO - 6f else 330f - OTTO)).size(g.dy(OTTO)).semantics { contentDescription = "오또" }.noRippleClickable { pokeOtto() }) {
+        if (!opening) Box(Modifier.offset(g.x(walkX.value), g.y(if (target != null) 330f - OTTO - 6f else 330f - OTTO)).size(g.dy(OTTO)).semantics { contentDescription = "오또" }.noRippleClickable { pokeOtto() }) {
             // 09-29 뼈대로 움직이는 오또 인형 — 걸을 땐 다리 · 팔을 번갈아, 물을 땐 그 물건을 가리키고,
             // 권할 땐 손을 흔들고, 평소엔 숨 쉬며 꼬리를 흔든다. 보는 방향은 가는 쪽 · 가리키는 쪽
             val walking = moving || walkX.isRunning
@@ -424,7 +448,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
             Pointer(Modifier.offset(g.x(focus.x + focus.w / 2 - 30f), g.y(focus.y + focus.h * 0.45f)))
         } else if (idleHint) SpeakBubble("무대를 눌러 봐!", Modifier.offset(g.x(240f), g.y(14f)))
 
-        if (!tutorial) {
+        if (!tutorial && !opening) {
             // 왼쪽 위 부모 문 — 누르면 부모 비밀번호
             LockDoor(Modifier.padding(12.dp)) { d.send(Reply.Tapped("parent", "부모 모드")) }
             // 오른쪽 위 오늘 만들 수 있는 책
@@ -479,7 +503,7 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
 
         // 고른 모드의 책장이 꽉 찼다 — 흐름이 `shelfFull` 을 켠다. 들어가지 않고 알린다 (#80 · guidelines/3 §3-5).
         // 아이 화면에는 결제 · 늘리기 안내가 없다. 빼기는 부모 모드에서만
-        if (!tutorial) s.shelfFull?.let { mode ->
+        if (!tutorial && !opening) s.shelfFull?.let { mode ->
             val t = Thing.entries.firstOrNull { modeOf(it.value) == mode } ?: Thing.THEATER
             Box(Modifier.fillMaxSize().background(InkBrown.copy(alpha = 0.45f)).noRippleClickable { })
             ConfirmDialog(
@@ -494,9 +518,9 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, on
         }
 
         // 하루 한도에 닿으면 — 흐름이 `notice` 를 켠다
-        if (s.notice != null && !tutorial) DailyLimit(d)
+        if (s.notice != null && !tutorial && !opening) DailyLimit(d)
         // 서버를 켰는데 인터넷이 없으면 — 막다른 화면 없이 책장 + 어른용 다시 시도
-        if (offline && !tutorial && s.notice == null) OfflineScreen(onShelf = { d.send(Reply.Tapped("shelf", "책장")) })
+        if (offline && !tutorial && !opening && s.notice == null) OfflineScreen(onShelf = { d.send(Reply.Tapped("shelf", "책장")) })
     }
 }
 
