@@ -507,7 +507,7 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         }
         // 받아주기 — 서버의 받아주기 + 되돌려주기(동화와 같게 · CoopServerLine.kt). 없거나 못 쓰면 앱의 한마디:
         // 아이 말에서 뗀 이름 하나. 「몰라」 · 「응」은 되비추지 않는다. 다음 질문과 합쳐 두 문장
-        val server = if (live == null || wild) null else coopServerReaction(track.liveTurn?.result?.line)?.let { spokenWithPeople(it, companionKind) }
+        val server = if (live == null || wild) null else coopServerReaction(track.liveTurn?.result?.line)?.let { spokenWithPeople(it, s.companionKind) }
         if (server != null) log("[$key] 받아주기 — 서버 대사 「$server」")
         // 못 썼으면 까닭을 남긴다 — 서버가 대사를 안 줬나(거절 · 실패), 앱이 버렸나를 다음 실기기에서 가른다 (#304 2)
         else if (live != null && !wild) log("[$key] 받아주기 — 서버 대사 못 씀: ${coopServerDropped(track.liveTurn?.result?.line).joinToString(" · ")}")
