@@ -3,10 +3,21 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import socket
 from pathlib import Path
 import threading
 
 from eval.child_blind_review import compare, fingerprint, validate_state
+
+
+class ReviewServer(ThreadingHTTPServer):
+    # Windows SO_REUSEADDR can route a second server's requests to the first.
+    allow_reuse_address = False
+
+    def server_bind(self):
+        if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 def write_json_atomic(path, value):
@@ -108,7 +119,7 @@ def make_server(directory: Path, port: int) -> ThreadingHTTPServer:
             except OSError:
                 return self.reply(500, {'error': '저장하지 못했습니다. 입력을 유지하고 다시 시도하세요.'})
 
-    return ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    return ReviewServer(('127.0.0.1', port), Handler)
 
 
 def serve_review(directory: Path, port: int):

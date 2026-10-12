@@ -1,6 +1,7 @@
 """Verify local blind-review boundaries using synthetic inputs and loopback HTTP."""
 from contextlib import contextmanager
 import json
+import pytest
 from threading import Thread
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -39,6 +40,13 @@ def test_api_hides_predictions_and_age_before_gold(tmp_path):
         assert 'counts' not in str(data)
         assert request(base, '/predictions.private.json')[0] == 404
         assert request(base, '/result')[0] == 409
+
+
+def test_server_rejects_an_already_bound_port(tmp_path):
+    with running(tmp_path) as (base, pack):
+        with pytest.raises(OSError):
+            other = make_server(tmp_path, int(base.rsplit(':', 1)[1]))
+            other.server_close()
 
 
 def test_save_finalize_freeze_and_origin_protection(tmp_path):
