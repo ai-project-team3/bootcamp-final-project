@@ -36,6 +36,7 @@ object LocalWipe {
         "diary_voices",  // 그림일기 쪽 목소리 (demo/DiaryBookStore.kt · #179)
         "book_voices",   // Saved story and co-op narration.
         "diary_trace",   // 그림일기 대화 기록 (demo/DiaryTrace.kt)
+        "session_draft", // 앱이 꺼졌을 때 만들던 이야기 — 칸 · 한 말 · 그림 획 (demo/SessionDraft.kt · #336)
     )
 
     /** noBackupFilesDir 아래 폴더 — 아이가 녹음한 소리 (sound/ChildSound.kt) */
