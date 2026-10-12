@@ -871,7 +871,14 @@ internal fun isNonAnswer(text: String): Boolean {
  * - 「몰라」류는 null
  */
 internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r: Reply.Spoke): String? =
-    coopLiveValueAsSaid(step, question, r)?.let { if (step.slot == "companion") companionName(it) else it }
+    coopLiveValueAsSaid(step, question, r)?.let { v ->
+        if (step.slot != "companion") return@let v
+        val who = companionName(v)
+        // 「기린한테 나뭇잎 줄 거야」 to 「누구랑 갈 거야?」 — the judge kept the asked slot for a sentence, and the next rung read
+        // 「기린한테 나뭇잎 줄 거야가 뭐라고 할까?」 (10-12 device · Laya). A sentence is not a person: asked again, not kept
+        if (coopCompanionSentence(who)) null.also { log("[${step.bookKey}] 「$who」 is a sentence, not who went → not the companion, asked again") }
+        else who
+    }
 
 private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: String, r: Reply.Spoke): String? {
     val text = r.text.trim()
@@ -926,6 +933,10 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
             } else f }
     fills.filter { (slot, _) -> slot != step.slot && slot in COOP_SKELETON && !diaryFilled(slot) }.forEach { (slot, v) ->
         val said = if (slot == "companion") companionName(v.trim()) else v.trim()
+        if (slot == "companion" && coopCompanionSentence(said)) {
+            log("[companion] 「$said」 is a sentence, not who went → not filled from another step")
+            return@forEach
+        }
         setDiarySlot(slot, slot, said, said, "child")
         log("아이 말에 [$slot] 도 들어 있었다 → 비어 있던 그 칸도 채운다 (/turn)")
     }

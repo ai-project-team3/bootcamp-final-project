@@ -36,6 +36,7 @@ import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.isNonAnswer
+import com.example.finalproject_demo.demo.coopCompanionSentence
 import com.example.finalproject_demo.demo.bookCaption
 import com.example.finalproject_demo.demo.pageCount
 import com.example.finalproject_demo.demo.coopWriteBook
@@ -226,6 +227,15 @@ class CoopLiveAnswerTest {
         withTimeoutOrNull(10_000) {
             while (!done()) { send(Reply.Spoke(text)); delay(60) }
         }
+    }
+
+    /** 10-12 device (Laya) — 「기린한테 나뭇잎 줄 거야」 went into who-went and was read back as a name. People only */
+    @Test
+    fun aSentenceIsNotWhoWent() {
+        listOf("기린한테 나뭇잎 줄 거야", "사진 찍을 거야", "엄마한테 줬어", "같이 놀았어")
+            .forEach { assertTrue(it, coopCompanionSentence(companionName(it))) }
+        listOf("엄마", "엄마, 아빠", "유치원 선생님", "친구 엄마", "할머니", "우리 반 친구들", "가을", "민수")
+            .forEach { assertFalse(it, coopCompanionSentence(companionName(it))) }
     }
 
     @Test
