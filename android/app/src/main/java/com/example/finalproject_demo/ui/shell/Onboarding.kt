@@ -348,18 +348,16 @@ fun ConsentStep(onBack: () -> Unit, onDone: () -> Unit, onDecline: () -> Unit = 
                 val now = System.currentTimeMillis()
                 // 원래 동의 저장소를 그대로 쓴다 — 거기 동의가 있어야 아이가 말할 수 있다 (개인정보보호법 제22조의2)
                 ConsentStore.agree()
-                ConsentStore.setTypecastVoice(on(TermsDoc.TYPECAST_VOICE))      // 선택 — 기본 꺼짐 (10-06)
-                Shell.saveConsent(TERMS_VERSION, news = on(TermsDoc.NEWS), at = now)
+                Shell.saveConsent(TERMS_VERSION, news = false, at = now)
                 scope.launch {
+                    // 기록의 모양은 그대로 둔다 — 보호자 · 아이 · 국외 이전은 한 항목([TermsDoc.PRIVACY])으로 받는다 (10-08)
                     Accounts.api.recordConsent(ConsentRecord(
-                        terms = on(TermsDoc.TERMS), privacy = on(TermsDoc.GUARDIAN_INFO), guardian = on(TermsDoc.CHILD_INFO),
-                        marketing = on(TermsDoc.NEWS), at = now, overseas = on(TermsDoc.OVERSEAS),
-                        typecastVoice = on(TermsDoc.TYPECAST_VOICE),
+                        terms = on(TermsDoc.TERMS), privacy = on(TermsDoc.PRIVACY), guardian = on(TermsDoc.PRIVACY),
+                        marketing = false, at = now, overseas = on(TermsDoc.PRIVACY),
+                        typecastVoice = false,
                         version = TERMS_VERSION,
                     ))
                 }
-                // 광고성 정보 수신에 동의했으면 **동의한 날을 알린다** (정보통신망법 제50조)
-                if (on(TermsDoc.NEWS)) android.widget.Toast.makeText(ctx, "${dateText(now)} 소식 알림 받기에 동의했어요. 부모 영역 → 계정에서 끌 수 있어요", android.widget.Toast.LENGTH_LONG).show()
                 onDone()
             },
             // 거절할 길 — 동의 버튼과 같은 크기 · 같은 줄 (눈속임 설계 금지). 누르면 무엇이 되는지 먼저 알려 준다
@@ -377,7 +375,7 @@ fun ConsentStep(onBack: () -> Unit, onDone: () -> Unit, onDecline: () -> Unit = 
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text("약관에 모두 동의해요", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = InkBrown)
-                    Text("선택 항목도 포함해요. 선택은 동의하지 않아도 모든 기능을 쓸 수 있어요.", fontSize = 11.sp, color = InkSoft, lineHeight = 15.sp)
+                    Text("이용약관과 개인정보 두 가지예요. 항목마다 「›」로 전문을 볼 수 있어요.", fontSize = 11.sp, color = InkSoft, lineHeight = 15.sp)
                 }
             }
             Spacer(Modifier.height(6.dp))

@@ -17,6 +17,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -109,6 +110,7 @@ class Director(
             if (book.soundClipId != null && storyBookStore == null) return false
             if (!s.keepStorySound(book)) return false
             storyBookStore?.save(book)
+            keepBookVoices(book, StoryMode.STORY)
             // the next books avoid this one's missions (#259)
             com.example.finalproject_demo.demo.missions.MissionHistory.record(s.mode, book.id, s.missions())
             s.commitStorySound()
@@ -135,9 +137,8 @@ class Director(
     fun deleteStoryBook(id: String): Boolean {
         if (s.scene != Scene.PARENT || savedStories.none { it.id == id }) return false
         return try {
-            if (storyBookStore != null && !storyBookStore.delete(id)) return false
+            if (!SessionReports.forget(id, s) { storyBookStore?.delete(id) ?: true }) return false
             savedStories.removeAll { it.id == id }
-            SessionReports.forget(id, s)
             s.shelf.removeAll { it.savedStoryId == id }
             runCatching { com.example.finalproject_demo.sound.ChildSound.deleteBook(id) }
             recoverStoryImages()
@@ -155,7 +156,7 @@ class Director(
         val saved = storyBookStore?.let { runCatching { it.imageReferences() }.getOrNull() ?: return }
             ?: savedStories.flatMap { listOfNotNull(it.bgName) + it.visuals?.images.orEmpty() }.toSet()
         val coop = CoopShelf.imageReferences(s) ?: return
-        val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground, s.generatedFriend?.image) +
+        val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground) + s.generatedCharacters.map { it.image } +
             s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName } +
             s.heroCreationDraft?.imageReferences().orEmpty()
         // a draft on the phone still owns its pictures, even before (or without) being put back into the state (#336)
@@ -215,9 +216,10 @@ class Director(
      */
     suspend fun saveKitPicture(kit: com.example.finalproject_demo.demo.scene.SceneKitDef, seed: Long): String? {
         val store = storyImageStore ?: return null
+        val actors = s.sceneActorCapacity
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             runCatching {
-                val bmp = com.example.finalproject_demo.ui.renderKitPicture(store.appContext, kit, seed)
+                val bmp = com.example.finalproject_demo.ui.renderKitPicture(store.appContext, kit, seed, actors = actors)
                 val out = java.io.ByteArrayOutputStream()
                 bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
                 store.save(out.toByteArray())
@@ -370,9 +372,13 @@ class Director(
     fun talk(who: String, text: String) {
         if (text.isBlank()) return
         if (s.talkStartedAtMs == 0L) s.talkStartedAtMs = System.currentTimeMillis()
+        val askedText = pendingQuestion
         pendingQuestion?.let { s.talk += TalkLine("otto", it) }
         pendingQuestion = null
-        s.talk += TalkLine(who, text.trim())
+        val type = if (who == "card" || s.stage is Stage.CardsRow) ReportQuestionType.CHOICE else currentQ?.let {
+            reportQuestionType(askedText ?: it.text, it.kind == Kind.CHOICE)
+        } ?: ReportQuestionType.UNKNOWN
+        s.talk += TalkLine(who, text.trim(), questionType = type, question = askedText ?: currentQ?.text)
         saveDraft()                                   // after each answer — a kill then loses only the scene's own progress (#336)
     }
 
@@ -454,6 +460,25 @@ class Director(
     /** The voice the server gave for [text] in this session, if it is still remembered */
     fun voiceOf(text: String): ByteArray? = synchronized(heardVoices) { heardVoices[s.nameMask().speakable(text)] }
 
+    internal fun keepBookVoices(book: SavedStoryBook, mode: StoryMode) {
+        (listOf("『${book.title}』") + book.pages.map { it.caption }).forEach { text ->
+            voiceOf(text)?.let { bytes ->
+                runCatching { storyBookStore?.voices?.keep(mode, book.id, s.nameMask().speakable(text), bytes) }
+            }
+        }
+    }
+
+    /** Exact spoken text is the key: changed captions fetch once; unchanged pages survive restarts. */
+    internal suspend fun savedBookVoice(book: SavedStoryBook, mode: StoryMode, line: String,
+        generate: suspend () -> ByteArray?): ByteArray? {
+        storyBookStore?.voices?.read(mode, book.id, line)?.let { return it }
+        val ready = synchronized(prefetched) { prefetched.remove(line) }
+        return (ready?.await() ?: generate())?.also { bytes ->
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            runCatching { storyBookStore?.voices?.keep(mode, book.id, line, bytes) }
+        }
+    }
+
     /** Use [mp3] the next time [text] is said instead of asking /tts — a voice kept on the phone (#179) */
     fun offerVoice(text: String, mp3: ByteArray) {
         if (!Server.liveFor(s.mode) || text.isBlank()) return
@@ -475,8 +500,13 @@ class Director(
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)          // names read as they are (10-02 · ChildCall)
         // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
-        val ready = synchronized(prefetched) { prefetched.remove(line) }
-        val audio = (ready ?: scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }).also { queueVoice(it) }
+        val saved = (s.stage as? Stage.SavedStory)?.book
+        val mode = s.mode
+        val ready = if (saved == null) synchronized(prefetched) { prefetched.remove(line) } else null
+        val audio = (ready ?: scope.async {
+            if (saved != null) savedBookVoice(saved, mode, line) { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }
+            else Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) }
+        }).also { queueVoice(it) }
         queueSpoken(if (waitForVoice) s.lineId else null) { audio.await() }
     }
 
@@ -565,6 +595,9 @@ class Director(
         voicePending = null
         Voice.stopPlaying()
     }
+
+    /** End the scoped saved-story narration, including pending server audio. */
+    internal fun stopSpeech() = hushVoice()
 
     // ── 선택 구간 (10-01 #50 · 민우 S25) ─────────────────────────────────
     //
