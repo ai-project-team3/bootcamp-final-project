@@ -67,17 +67,13 @@ fun AccountTab(d: Director) {
         Line("가입한 날", g?.let { SimpleDateFormat("yyyy년 M월 d일", Locale.KOREA).format(Date(it.since)) } ?: "—")
         Line("이용약관", "보기") { Shell.doc = TermsDoc.TERMS }
         Line("개인정보처리방침 (전체)", "웹에서 보기") { open() }
-        // 선택 동의 — 언제든 바꿀 수 있어야 한다. 소식 알림은 동의한 날을 보여 준다 (정보통신망법 제50조)
-        Line("소식 알림 받기", Shell.newsSince?.let { "${dateText(it)} 동의 · 끄기" } ?: "받지 않음 · 켜기") {
-            Shell.setNews(Shell.newsSince == null)
-        }
-        // 오또 목소리(타입캐스트) — 제3자 제공 선택 동의. 켤 때는 내용을 읽고 「동의하고 닫기」로만 켠다 (10-06)
-        Line("오또 목소리 · 타입캐스트", if (ConsentStore.typecastVoiceAgreed) "동의함 · 끄기" else "기본 목소리 · 켜기") {
-            if (ConsentStore.typecastVoiceAgreed) ConsentStore.setTypecastVoice(false) else Shell.doc = TermsDoc.TYPECAST_VOICE
-        }
+        Line("개인정보 수집 · 이용", "보기") { Shell.doc = TermsDoc.PRIVACY }
         Line("부모 비밀번호", if (Shell.hasPin) "바꾸기" else "정하기") { Shell.sheet = Sheet.PIN_CHANGE }
         Line("기능 안내 다시 보기", "동화 · 그림일기 · 같이 만들기 · 책장 · 부모 영역") { Shell.guide = true }
-        Line("처음 설정 다시 보기", "로그인 · 동의 · 맞춤 설정") { d.send(Reply.Tapped("home", "처음으로")); Shell.redoOnboarding() }
+        // 테스트 빌드만 (10-08 #319) — 처음 설정의 진행 기록만 지우고 처음부터 다시 본다. 책 · 그림 · 녹음은 그대로
+        if (Shell.redoAvailable) Line("처음 설정 다시 하기 (테스트용)", "로그인부터 튜토리얼까지") {
+            d.send(Reply.Tapped("home", "처음으로")); Shell.redoOnboarding()
+        }
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (g != null) PBtn("로그아웃", {
@@ -173,7 +169,8 @@ fun WithdrawSheet(d: Director) {
                     ConsentStore.withdraw()
                     // 고르면 폰에 저장된 책 · 그림 · 녹음 · 아이 이름까지 파일째 지운다 (10-05 — 전엔 화면 목록만 비워 다시 켜면 돌아왔다)
                     val wiped = Shell.wipeLocal
-                    if (wiped) { LocalWipe.wipe(ctx); d.s.shelf.clear() }
+                    // the unfinished book goes too — drop it in memory first so nothing writes it back (#336)
+                    if (wiped) { d.s.paused = null; d.discardDraft(wait = true); LocalWipe.wipe(ctx); d.s.shelf.clear() }
                     d.send(Reply.Tapped("home", "처음으로"))
                     Shell.resetToFirstRun()
                     // 흐름 · 책장이 메모리에 쥐고 있던 책까지 놓도록 화면을 새로 띄운다(지운 저장소에서 다시 읽는다)

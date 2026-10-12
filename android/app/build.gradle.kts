@@ -23,8 +23,11 @@ android {
         applicationId = "kr.clap.otto"
         minSdk = 24
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.5-closed"
+        versionCode = 8
+        versionName = "0.6-closed"
+        // Tester-only tools in the parent area (#319 「처음 설정 다시 하기」): on while the release is a closed-test build.
+        // Drop the "-closed" suffix for the public release and they disappear; debug builds always have them.
+        buildConfigField("boolean", "TESTER_TOOLS", "${versionName?.endsWith("-closed") == true}")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

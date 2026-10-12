@@ -37,6 +37,7 @@ import httpx
 
 from ..config import settings
 from ..schemas.judge import JudgeRequest
+from . import judge_rules
 from .jev import mask_names
 
 # word for word the training questions (the Laya eval bench, main 95f871d4)
@@ -69,10 +70,6 @@ NOUL_Q = {
     "story_ready": ("이야기 재료가 **다 찼는가**", "이야기를 만들 재료가 다 찼다", "아직 더 물어야 한다"),
 }
 SLOTS = ("place", "problem", "reaction", "cause", "newcomer", "name", "companion", "sound", "adult", "solution", "title")
-# the order the labelled questions use for 「what to ask next」 and the six a story can't end without
-ORDER = ("place", "newcomer", "problem", "cause", "reaction", "name", "sound", "solution", "adult", "title")
-REQUIRED = ("place", "problem", "cause", "newcomer", "sound", "solution")
-DIARY_ORDER = ("place", "problem", "reaction", "cause", "solution")
 
 
 class LayaError(Exception):
@@ -100,10 +97,6 @@ def state(req: JudgeRequest) -> str:
         f"아이 말: {req.utterance}", req.names)
 
 
-def _empty_after(slots: dict, filled: str | None) -> list[str]:
-    return [s for s in ORDER if not slots.get(s) and s != filled]
-
-
 def assemble(answers: dict, req: JudgeRequest) -> dict:
     """Laya's answers in the judge result's shape, with next_slot and story_ready from the rules."""
     out: dict = {"reason": "laya"}
@@ -119,20 +112,8 @@ def assemble(answers: dict, req: JudgeRequest) -> dict:
     if out.get("slot_1"):
         out["value_1"] = " ".join(mask_names(req.utterance, req.names).split()[:8])
 
-    dropped = out.get("no_longer_needed")
-    if req.mode != "story":
-        out["story_ready"] = (bool(req.slots.get("solution")) or out.get("slot_1") == "solution"
-                              or req.asked_slot in ("solution", "extra"))
-        if not out["story_ready"]:
-            empty = [s for s in DIARY_ORDER if not req.slots.get(s) and s != out.get("slot_1")]
-            out["next_slot"] = empty[0] if empty else None
-        return out
-    out["story_ready"] = all(req.slots.get(s) or s == out.get("slot_1") or s == dropped for s in REQUIRED)
-    if not out["story_ready"]:
-        empty = [s for s in _empty_after(req.slots, out.get("slot_1")) if s != "title"]
-        pick = (answers.get("next_slot") or {}).get("choice")
-        out["next_slot"] = pick if pick in empty else (empty[0] if empty else None)
-    return out
+    # story_ready and next_slot are rules, shared with the Jev path (judge_rules.py)
+    return judge_rules.apply(out, req, (answers.get("next_slot") or {}).get("choice"))
 
 
 async def judge(req: JudgeRequest, timeout_s: float = 3.0) -> dict:

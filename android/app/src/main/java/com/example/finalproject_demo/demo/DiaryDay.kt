@@ -186,6 +186,9 @@ class DiaryDay {
     /** [piece] 에 대한 오또의 이야기가 끝났다 — 처음 한 번만 적는다 */
     fun talkedAbout(piece: Int, strokesSoFar: Int) { talkedUpTo.putIfAbsent(piece, strokesSoFar) }
 
+    /** A copy of [talkedUpTo] — the on-phone checkpoint keeps it so a restored diary does not reopen talked-about pieces (#336) */
+    internal fun talkedUpToSnapshot(): Map<Int, Int> = talkedUpTo.toMap()
+
     /** [strokeAt] 번째 획을 그을 때 [piece] 가 아직 이어 그릴 수 있는 조각인가 */
     internal fun openFor(piece: Int, strokeAt: Int): Boolean = talkedUpTo[piece]?.let { strokeAt < it } ?: true
 

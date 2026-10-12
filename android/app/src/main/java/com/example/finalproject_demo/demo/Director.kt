@@ -17,6 +17,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -84,9 +85,12 @@ class Director(
     private val scope: CoroutineScope,
     private val storyBookStore: StoryBookStore? = null,
     private val storyImageStore: StoryImageStore? = null,
+    /** The unfinished book on the phone, for a process that was killed mid-story (#336). Null in most tests */
+    private val draftStore: SessionDraftStore? = null,
 ) {
 
     val s = DemoState()
+    internal val heroSetupLog = HeroSetupLog()
     private val savedStories = mutableListOf<SavedStoryBook>()
 
     init { reloadSavedStories() }
@@ -107,6 +111,7 @@ class Director(
             if (book.soundClipId != null && storyBookStore == null) return false
             if (!s.keepStorySound(book)) return false
             storyBookStore?.save(book)
+            keepBookVoices(book, StoryMode.STORY)
             // the next books avoid this one's missions (#259)
             com.example.finalproject_demo.demo.missions.MissionHistory.record(s.mode, book.id, s.missions())
             s.commitStorySound()
@@ -123,6 +128,10 @@ class Director(
     /** 꽂힌 동화 — 새 책이 앞 (#80 부모 책장 정리) */
     fun storyBooks(): List<SavedStoryBook> = savedStories.toList()
 
+    /** Re-read local metadata so a full wipe cannot leave reusable heroes in a retained screen. */
+    internal fun previousStoryHeroes(): List<Hero> = recentStoryHeroes(
+        runCatching { storyBookStore?.load() ?: savedStories.toList() }.getOrDefault(emptyList()))
+
     /** 동화 권수. 저장 정보를 읽지 못하면 null — 0권(덮어써도 되는 빈 책장)으로 보지 않는다 (민우 #78) */
     fun storyBookCount(): Int? = runCatching { storyBookStore?.count() ?: savedStories.size }.getOrNull()
 
@@ -133,9 +142,8 @@ class Director(
     fun deleteStoryBook(id: String): Boolean {
         if (s.scene != Scene.PARENT || savedStories.none { it.id == id }) return false
         return try {
-            if (storyBookStore != null && !storyBookStore.delete(id)) return false
+            if (!SessionReports.forget(id, s) { storyBookStore?.delete(id) ?: true }) return false
             savedStories.removeAll { it.id == id }
-            SessionReports.forget(id, s)
             s.shelf.removeAll { it.savedStoryId == id }
             runCatching { com.example.finalproject_demo.sound.ChildSound.deleteBook(id) }
             recoverStoryImages()
@@ -156,7 +164,48 @@ class Director(
         val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground) + s.generatedCharacters.map { it.image } +
             s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName } +
             s.heroCreationDraft?.imageReferences().orEmpty()
-        store.recover(saved + coop + active)
+        // a draft on the phone still owns its pictures, even before (or without) being put back into the state (#336)
+        val draft = draftStore?.let { runCatching { it.load() }.getOrElse { return } }?.imageReferences().orEmpty()
+        store.recover(saved + coop + active + draft)
+    }
+
+    // ── Unfinished book across a killed process (#336 · demo/SessionDraft.kt) ─────────────────────
+    //
+    // The in-app continue (`paused` → 「이어서 할까?」 → `resume`) stays the only resume path. This only writes the
+    // state behind it to the phone and, on launch, puts it back and sets `paused`. Nothing goes to the server.
+
+    /** Scenes in which the book is already made — being there never leaves an unfinished book */
+    private val afterBook = setOf(Scene.BOOK, Scene.FRIENDS, Scene.END)
+
+    /** The scene a resume would rerun now, or null when no book is being made */
+    private fun draftScene(): Scene? =
+        if (s.scene in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF) || s.scene in afterBook) s.paused else s.scene
+
+    /** Write the unfinished book now — at a scene boundary, after an answer, when the app goes to the background */
+    fun saveDraft() {
+        val store = draftStore ?: return
+        val scene = draftScene() ?: return
+        runCatching { store.save(s.captureDraft(scene)) }
+    }
+
+    /** The book was finished, discarded or replaced by a new one — nothing to resume after a restart */
+    fun discardDraft(wait: Boolean = false) { runCatching { draftStore?.clear(); if (wait) draftStore?.flush() } }
+
+    /**
+     * On launch: put a saved unfinished book back and mark it paused, so the room offers 「만들던 이야기 이어서 할까?」
+     * through the existing `resume` path. No star, no `CallLimits.bookStarted` — it is not a new book.
+     */
+    fun restoreDraft(): Boolean {
+        val draft = draftStore?.let { runCatching { it.load() }.getOrNull() } ?: return false
+        return runCatching {
+            s.applyDraft(draft)
+            s.paused = draft.scene
+            log("App relaunched — restored the unfinished book (scene ${draft.scene.name}) from the phone; the room asks whether to continue (#336)")
+            true
+        }.getOrElse {
+            // half a book is worse than none — start clean and drop the unreadable draft
+            s.resetStory(); s.paused = null; discardDraft(); false
+        }
     }
 
     fun keepStoryBackground(png: ByteArray): Boolean {
@@ -227,7 +276,7 @@ class Director(
     /** 화면을 탭할 때까지 기다린다 (대기 타이머 없는 장면용). */
     suspend fun awaitReply(): Reply {
         drain()
-        return input.receive()
+        return receiveReply()
     }
 
     /**
@@ -237,7 +286,7 @@ class Director(
     suspend fun awaitReplyShowing(show: () -> Unit): Reply {
         drain()
         show()
-        return input.receive()
+        return receiveReply()
     }
 
     /**
@@ -246,8 +295,10 @@ class Director(
      */
     suspend fun withTimeoutOrNullReply(sec: Double): Reply? {
         drain()
-        return withTimeoutOrNull((sec * 1000 * s.speed).toLong()) { input.receive() }
+        return withTimeoutOrNull((sec * 1000 * s.speed).toLong()) { receiveReply() }
     }
+
+    private suspend fun receiveReply(): Reply = input.receive().also { heroSetupLog.received(it, s) }
 
     /** 특정 값이 올 때까지 기다린다. */
     suspend fun awaitValue(vararg values: String): String {
@@ -329,9 +380,14 @@ class Director(
     fun talk(who: String, text: String) {
         if (text.isBlank()) return
         if (s.talkStartedAtMs == 0L) s.talkStartedAtMs = System.currentTimeMillis()
+        val askedText = pendingQuestion
         pendingQuestion?.let { s.talk += TalkLine("otto", it) }
         pendingQuestion = null
-        s.talk += TalkLine(who, text.trim())
+        val type = if (who == "card" || s.stage is Stage.CardsRow) ReportQuestionType.CHOICE else currentQ?.let {
+            reportQuestionType(askedText ?: it.text, it.kind == Kind.CHOICE)
+        } ?: ReportQuestionType.UNKNOWN
+        s.talk += TalkLine(who, text.trim(), questionType = type, question = askedText ?: currentQ?.text)
+        saveDraft()                                   // after each answer — a kill then loses only the scene's own progress (#336)
     }
 
     /**
@@ -412,6 +468,25 @@ class Director(
     /** The voice the server gave for [text] in this session, if it is still remembered */
     fun voiceOf(text: String): ByteArray? = synchronized(heardVoices) { heardVoices[s.nameMask().speakable(text)] }
 
+    internal fun keepBookVoices(book: SavedStoryBook, mode: StoryMode) {
+        (listOf("『${book.title}』") + book.pages.map { it.caption }).forEach { text ->
+            voiceOf(text)?.let { bytes ->
+                runCatching { storyBookStore?.voices?.keep(mode, book.id, s.nameMask().speakable(text), bytes) }
+            }
+        }
+    }
+
+    /** Exact spoken text is the key: changed captions fetch once; unchanged pages survive restarts. */
+    internal suspend fun savedBookVoice(book: SavedStoryBook, mode: StoryMode, line: String,
+        generate: suspend () -> ByteArray?): ByteArray? {
+        storyBookStore?.voices?.read(mode, book.id, line)?.let { return it }
+        val ready = synchronized(prefetched) { prefetched.remove(line) }
+        return (ready?.await() ?: generate())?.also { bytes ->
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            runCatching { storyBookStore?.voices?.keep(mode, book.id, line, bytes) }
+        }
+    }
+
     /** Use [mp3] the next time [text] is said instead of asking /tts — a voice kept on the phone (#179) */
     fun offerVoice(text: String, mp3: ByteArray) {
         if (!Server.liveFor(s.mode) || text.isBlank()) return
@@ -433,8 +508,13 @@ class Director(
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)          // names read as they are (10-02 · ChildCall)
         // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
-        val ready = synchronized(prefetched) { prefetched.remove(line) }
-        val audio = (ready ?: scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }).also { queueVoice(it) }
+        val saved = (s.stage as? Stage.SavedStory)?.book
+        val mode = s.mode
+        val ready = if (saved == null) synchronized(prefetched) { prefetched.remove(line) } else null
+        val audio = (ready ?: scope.async {
+            if (saved != null) savedBookVoice(saved, mode, line) { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }
+            else Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) }
+        }).also { queueVoice(it) }
         queueSpoken(if (waitForVoice) s.lineId else null) { audio.await() }
     }
 
@@ -524,6 +604,9 @@ class Director(
         Voice.stopPlaying()
     }
 
+    /** End the scoped saved-story narration, including pending server audio. */
+    internal fun stopSpeech() = hushVoice()
+
     // ── 선택 구간 (10-01 #50 · 민우 S25) ─────────────────────────────────
     //
     // 「안녕」 · 「또 만날래」처럼 아이가 고르는 구간은 마스코트가 말하는 중에도 바로 받는다.
@@ -542,7 +625,7 @@ class Director(
      */
     suspend fun awaitChoice(): Reply {
         drain()
-        return input.receive().also { hushVoice() }
+        return receiveReply().also { hushVoice() }
     }
 
     /**
@@ -770,7 +853,10 @@ class Director(
             job?.cancelAndJoin()
             drain()
             currentQ = null
+            // #336: the book is done when it opens (story · co-op) or when the picture diary goes onto the shelf
+            val finished = scene == Scene.BOOK || (scene == Scene.SHELF && s.scene == Scene.DIARY)
             s.scene = scene
+            if (finished) discardDraft() else saveDraft()     // scene boundary — the scene a resume reruns
             sceneMusic(scene)
             s.buttons.clear()
             s.countdown = null
@@ -851,6 +937,7 @@ class Director(
     fun holdSession() {
         if (s.holding) return
         s.holding = true
+        saveDraft()                                   // ON_STOP comes here — the process may be killed next (#336)
         hushVoice()
         Bgm.hold("pause")
         if (s.micOn) { stopMic = true; micJob?.cancel(); s.micOn = false }
@@ -873,6 +960,7 @@ class Director(
         if (s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF, Scene.BOOK)) {
             s.paused = s.scene
             log("이야기 도중 나감 — 「${s.scene.label}」을 기억해 둔다. 다시 들어오면 이어서 할지 묻는다")
+            saveDraft()
         }
     }
 
@@ -884,6 +972,7 @@ class Director(
             val speed = s.speed
             val timer = s.timerOn
             s.reset()
+            discardDraft()                            // 「처음부터」 = a freshly installed app — no book to resume
             reloadSavedStories()
             s.persona = persona
             s.speed = speed
@@ -900,18 +989,18 @@ class Director(
      */
     private suspend fun waitReply(sec: Double, keepSpoken: Boolean = false): Reply? {
         drain(keepSpoken)
-        if (!s.timerOn) return input.receive()
+        if (!s.timerOn) return receiveReply()
         var left = sec
         s.countdown = left
         while (left > 0.0) {
             if (s.holding) { delay(100); continue }   // ⏸ 동안은 세지 않는다 (#125)
             if (s.micOn) { // 마이크가 켜져 있는 동안은 세지 않는다
                 s.countdown = null
-                val r = input.receive()
+                val r = receiveReply()
                 s.countdown = null
                 return r
             }
-            val r = withTimeoutOrNull((100 * s.speed).toLong()) { input.receive() }
+            val r = withTimeoutOrNull((100 * s.speed).toLong()) { receiveReply() }
             if (r != null) {
                 s.countdown = null
                 return r
@@ -1238,7 +1327,7 @@ class Director(
                 round++
             } else {
                 val c = set.first()
-                say("그럼 마스코트가 고를게! ${c.label}!")
+                say("그럼 ${MASCOT_NAME}가 고를게! ${c.label}!")
                 log("마스코트가 골라줌: ${c.label} (벌점 · 아쉬움 표현 없음)")
                 s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = c.value) ?: s.stage
                 talk("mascot", c.label)
