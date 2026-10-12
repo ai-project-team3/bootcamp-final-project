@@ -61,7 +61,8 @@ def state_text(req: TurnRequest) -> str:
     for h in (req.history or [])[-RECENT:]:
         if h.otto.question:
             lines.append(f"오또: {h.otto.question}")
-        lines.append(f"아이: {h.child.text}")
+        if h.child.text.strip():            # empty: Otto's last words while drawing, with no reply yet (10-12)
+            lines.append(f"아이: {h.child.text}")
         if h.fills:
             lines.append("  받아 적은 칸: " + " · ".join(f"{f.slot}={f.value}" for f in h.fills))
         said = " ".join(x for x in (h.otto.ack, h.otto.expand) if x)

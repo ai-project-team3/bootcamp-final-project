@@ -103,3 +103,14 @@ def test_the_state_runs_in_the_order_it_was_said():
     order = [lines.index(x) for x in ("오또: 어디에서 놀았어?", "아이: 놀이터", "오또: 놀이터에 갔구나!",
                                       "오또: 놀이터에서 무슨 일이 있었어?", "아이(방금): 그거 아니야")]
     assert order == sorted(order)
+
+
+def test_otto_s_last_words_while_drawing_come_without_a_child_line():
+    # while drawing there is no turn yet — the app sends Otto's last words alone, so 「너는」 points at Otto (10-12)
+    r = TurnRequest.model_validate({
+        "mode": "diary", "slots": {**EMPTY}, "asked_slot": None, "question": "", "utterance": "너는 자동차 있어?",
+        "history": [{"turn": 0, "asked_slot": None, "otto": {"question": "나도 자동차를 그려볼까?"},
+                     "child": {"text": "", "by": "child"}, "fills": []}],
+    })
+    lines = state_text(r).splitlines()
+    assert lines[1:] == ["오또: 나도 자동차를 그려볼까?", "아이(방금): 너는 자동차 있어?"]
