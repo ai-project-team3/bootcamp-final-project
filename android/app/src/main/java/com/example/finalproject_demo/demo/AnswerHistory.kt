@@ -47,7 +47,8 @@ object AnswerHistory {
                             val a = answers.getJSONObject(n)
                             TalkLine(a.getString("who"), a.getString("text"),
                                 questionType = ReportQuestionType.fromKey(a.optString("questionType")),
-                                question = a.optString("question").takeUnless { it.isBlank() || it == "null" })
+                                question = a.optString("question").takeUnless { it.isBlank() || it == "null" },
+                                languageEvidence = languageEvidenceOf(a.optJSONObject("languageEvidence")))
                         })
                 }
             }.onFailure { readFailed = true }.getOrDefault(emptyList())
@@ -113,9 +114,10 @@ object AnswerHistory {
             a.put(JSONObject().put("bookId", session.bookId).put("day", session.day).put("mode", session.mode)
                 .put("answers", JSONArray().also { answers -> session.answers.forEach { line ->
                     answers.put(JSONObject().put("who", line.who).put("text", line.text)
-                        .put("questionType", line.questionType.key).put("question", line.question ?: JSONObject.NULL))
+                        .put("questionType", line.questionType.key).put("question", line.question ?: JSONObject.NULL)
+                        .put("languageEvidence", line.languageEvidence?.toJson() ?: JSONObject.NULL))
                 } }))
         } }
-        return prefs?.edit()?.putInt("schema_version", 1)?.putString("profile", id)?.putString("sessions", json.toString())?.commit() ?: true
+        return prefs?.edit()?.putInt("schema_version", 2)?.putString("profile", id)?.putString("sessions", json.toString())?.commit() ?: true
     }
 }

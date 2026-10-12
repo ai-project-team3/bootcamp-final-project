@@ -47,7 +47,24 @@ data class TalkLine(
     val tags: List<String> = emptyList(),
     val questionType: ReportQuestionType = ReportQuestionType.UNKNOWN,
     val question: String? = null,
+    val languageEvidence: LanguageEvidence? = null,
 )
+
+/** Actual question-rule inputs. Report-only expression tags are not these measured signals. */
+data class LanguageEvidence(val s1: Boolean, val elements: Set<String>, val a1: Boolean, val words: Int)
+
+internal fun LanguageEvidence.toJson(): JSONObject = JSONObject().put("s1", s1).put("a1", a1).put("words", words)
+    .put("elements", JSONArray().also { a -> elements.sorted().forEach(a::put) })
+
+/** Missing or malformed old evidence stays unknown; it is never reconstructed from an answer tag. */
+internal fun languageEvidenceOf(j: JSONObject?): LanguageEvidence? = if (j == null) null else runCatching {
+    val s1 = j.get("s1") as? Boolean ?: return null
+    val a1 = j.get("a1") as? Boolean ?: return null
+    val words = (j.get("words") as? Int)?.takeIf { it >= 0 } ?: return null
+    val raw = j.getJSONArray("elements")
+    val elements = (0 until raw.length()).map { (raw.get(it) as? String)?.takeIf(String::isNotBlank) ?: return null }.toSet()
+    LanguageEvidence(s1, elements, a1, words)
+}.getOrNull()
 
 /** 이야기 뼈대 한 칸. by: child · card · mascot. quoted — text 가 아이가 한 말 그대로일 때만 따옴표를 친다 */
 data class ReportBone(val label: String, val text: String, val by: String, val quoted: Boolean = false)
@@ -189,7 +206,7 @@ fun SessionReport.toJson(): JSONObject = JSONObject()
     .put("longestWords", longestWords).put("homeQuestion", homeQuestion).put("firsts", firsts.json())
     .put("bones", JSONArray().also { a -> bones.forEach { a.put(JSONObject().put("label", it.label).put("text", it.text).put("by", it.by).put("quoted", it.quoted)) } })
     .put("moments", JSONArray().also { a -> moments.forEach { a.put(JSONObject().put("kind", it.kind).put("quote", it.quote)) } })
-    .put("talk", JSONArray().also { a -> talk.forEach { a.put(JSONObject().put("who", it.who).put("text", it.text).put("tags", it.tags.json()).put("questionType", it.questionType.key).put("question", it.question ?: JSONObject.NULL)) } })
+    .put("talk", JSONArray().also { a -> talk.forEach { a.put(JSONObject().put("who", it.who).put("text", it.text).put("tags", it.tags.json()).put("questionType", it.questionType.key).put("question", it.question ?: JSONObject.NULL).put("languageEvidence", it.languageEvidence?.toJson() ?: JSONObject.NULL)) } })
 
 fun sessionReportOf(j: JSONObject): SessionReport {
     fun objs(name: String) = j.optJSONArray(name)?.let { a -> (0 until a.length()).map { a.getJSONObject(it) } }.orEmpty()
@@ -200,7 +217,7 @@ fun sessionReportOf(j: JSONObject): SessionReport {
         exchanges = j.optInt("exchanges"), spoken = j.optInt("spoken"), longestWords = j.optInt("longestWords"),
         bones = objs("bones").map { ReportBone(it.getString("label"), it.getString("text"), it.getString("by"), it.optBoolean("quoted")) },
         moments = objs("moments").map { ReportMoment(it.getString("kind"), it.getString("quote")) },
-        talk = objs("talk").map { TalkLine(it.getString("who"), it.getString("text"), it.optJSONArray("tags").strings(), ReportQuestionType.fromKey(it.optString("questionType")), it.optString("question").takeUnless { value -> value.isBlank() || value == "null" }) },
+        talk = objs("talk").map { TalkLine(it.getString("who"), it.getString("text"), it.optJSONArray("tags").strings(), ReportQuestionType.fromKey(it.optString("questionType")), it.optString("question").takeUnless { value -> value.isBlank() || value == "null" }, languageEvidenceOf(it.optJSONObject("languageEvidence"))) },
         homeQuestion = j.optString("homeQuestion"),
         firsts = j.optJSONArray("firsts").strings(),
         profileId = j.optString("profileId").takeUnless { it.isBlank() || it == "null" },

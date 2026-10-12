@@ -961,6 +961,10 @@ fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?:
     if (a != null) quote(a.text)
 
     if (q?.counts != true) return
+    if (s.mode == StoryMode.STORY && eligible && recorded?.who == "child" && a != null) {
+        val i = s.talk.indexOfLast { it.who == "child" && it.text == a.text.trim() }
+        if (i >= 0) s.talk[i] = s.talk[i].copy(languageEvidence = LanguageEvidence(s1, el, a1, words))
+    }
     s.turn++
     if (s.mode == StoryMode.STORY && !eligible) {
         s.s1streak = 0; s.noAnswerStreak = 0
