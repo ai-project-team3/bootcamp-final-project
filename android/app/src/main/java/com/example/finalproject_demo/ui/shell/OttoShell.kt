@@ -17,7 +17,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.finalproject_demo.demo.Director
-import com.example.finalproject_demo.demo.stopCoopByParent
+import com.example.finalproject_demo.demo.coopStopOpen
+import com.example.finalproject_demo.demo.stopCoopFromPause
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.net.Accounts
 import com.example.finalproject_demo.ui.ConsentStore
