@@ -223,3 +223,30 @@ def test_the_title_is_never_the_next_turn():
                     contradiction_with=None, s1_reason=False, s2_addition=False, emotion=None, unclear=False,
                     unclear_of=None, next_slot="title", next_reason="제목", no_longer_needed=None, story_ready=False)
     assert enforce(r, JudgeRequest(**judge_body())).next_slot is None
+
+
+def test_a_cut_off_answer_says_its_shape_not_its_words(monkeypatch):
+    """#376: 'output is not JSON' must say whether the answer was cut off — without the child's words."""
+    import asyncio
+    import httpx
+    from app.llm import client as llm
+
+    class Fake:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, url, headers, json):
+            body = {"status": "incomplete", "incomplete_details": {"reason": "max_output_tokens"},
+                    "usage": {"input_tokens": 900, "output_tokens": 768},
+                    "output": [{"type": "message", "content": [
+                        {"type": "output_text", "text": '{"line": "지우야 놀이터에서'}]}]}
+            return httpx.Response(200, json=body)
+
+    monkeypatch.setattr(settings, "openai_api_key", "test")
+    monkeypatch.setattr(llm.httpx, "AsyncClient", Fake)
+    with pytest.raises(llm.LLMError) as e:
+        asyncio.run(llm.complete("s", "u", {}, effort="none", name="line"))
+    msg = str(e.value)
+    assert msg.startswith("output is not JSON")
+    assert "reason=max_output_tokens" in msg and "out=768/768" in msg and "starts='{'" in msg and "ends=text" in msg
+    assert "지우" not in msg and "놀이터" not in msg
