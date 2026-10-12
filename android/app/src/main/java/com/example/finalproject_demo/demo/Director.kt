@@ -85,6 +85,8 @@ class Director(
     private val scope: CoroutineScope,
     private val storyBookStore: StoryBookStore? = null,
     private val storyImageStore: StoryImageStore? = null,
+    /** The unfinished book on the phone, for a process that was killed mid-story (#336). Null in most tests */
+    private val draftStore: SessionDraftStore? = null,
 ) {
 
     val s = DemoState()
@@ -162,7 +164,48 @@ class Director(
         val active = listOfNotNull(s.storyBackground, s.storyHeroImage, s.coopGeneratedBackground) + s.generatedCharacters.map { it.image } +
             s.heroes.mapNotNull { it.image } + s.shelf.map { it.bgName } +
             s.heroCreationDraft?.imageReferences().orEmpty()
-        store.recover(saved + coop + active)
+        // a draft on the phone still owns its pictures, even before (or without) being put back into the state (#336)
+        val draft = draftStore?.let { runCatching { it.load() }.getOrElse { return } }?.imageReferences().orEmpty()
+        store.recover(saved + coop + active + draft)
+    }
+
+    // ── Unfinished book across a killed process (#336 · demo/SessionDraft.kt) ─────────────────────
+    //
+    // The in-app continue (`paused` → 「이어서 할까?」 → `resume`) stays the only resume path. This only writes the
+    // state behind it to the phone and, on launch, puts it back and sets `paused`. Nothing goes to the server.
+
+    /** Scenes in which the book is already made — being there never leaves an unfinished book */
+    private val afterBook = setOf(Scene.BOOK, Scene.FRIENDS, Scene.END)
+
+    /** The scene a resume would rerun now, or null when no book is being made */
+    private fun draftScene(): Scene? =
+        if (s.scene in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF) || s.scene in afterBook) s.paused else s.scene
+
+    /** Write the unfinished book now — at a scene boundary, after an answer, when the app goes to the background */
+    fun saveDraft() {
+        val store = draftStore ?: return
+        val scene = draftScene() ?: return
+        runCatching { store.save(s.captureDraft(scene)) }
+    }
+
+    /** The book was finished, discarded or replaced by a new one — nothing to resume after a restart */
+    fun discardDraft(wait: Boolean = false) { runCatching { draftStore?.clear(); if (wait) draftStore?.flush() } }
+
+    /**
+     * On launch: put a saved unfinished book back and mark it paused, so the room offers 「만들던 이야기 이어서 할까?」
+     * through the existing `resume` path. No star, no `CallLimits.bookStarted` — it is not a new book.
+     */
+    fun restoreDraft(): Boolean {
+        val draft = draftStore?.let { runCatching { it.load() }.getOrNull() } ?: return false
+        return runCatching {
+            s.applyDraft(draft)
+            s.paused = draft.scene
+            log("App relaunched — restored the unfinished book (scene ${draft.scene.name}) from the phone; the room asks whether to continue (#336)")
+            true
+        }.getOrElse {
+            // half a book is worse than none — start clean and drop the unreadable draft
+            s.resetStory(); s.paused = null; discardDraft(); false
+        }
     }
 
     fun keepStoryBackground(png: ByteArray): Boolean {
@@ -343,6 +386,7 @@ class Director(
             reportQuestionType(askedText ?: it.text, it.kind == Kind.CHOICE)
         } ?: ReportQuestionType.UNKNOWN
         s.talk += TalkLine(who, text.trim(), questionType = type, question = askedText ?: currentQ?.text)
+        saveDraft()                                   // after each answer — a kill then loses only the scene's own progress (#336)
     }
 
     /**
@@ -808,7 +852,10 @@ class Director(
             job?.cancelAndJoin()
             drain()
             currentQ = null
+            // #336: the book is done when it opens (story · co-op) or when the picture diary goes onto the shelf
+            val finished = scene == Scene.BOOK || (scene == Scene.SHELF && s.scene == Scene.DIARY)
             s.scene = scene
+            if (finished) discardDraft() else saveDraft()     // scene boundary — the scene a resume reruns
             sceneMusic(scene)
             s.buttons.clear()
             s.countdown = null
@@ -889,6 +936,7 @@ class Director(
     fun holdSession() {
         if (s.holding) return
         s.holding = true
+        saveDraft()                                   // ON_STOP comes here — the process may be killed next (#336)
         hushVoice()
         Bgm.hold("pause")
         if (s.micOn) { stopMic = true; micJob?.cancel(); s.micOn = false }
@@ -911,6 +959,7 @@ class Director(
         if (s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF, Scene.BOOK)) {
             s.paused = s.scene
             log("이야기 도중 나감 — 「${s.scene.label}」을 기억해 둔다. 다시 들어오면 이어서 할지 묻는다")
+            saveDraft()
         }
     }
 
@@ -922,6 +971,7 @@ class Director(
             val speed = s.speed
             val timer = s.timerOn
             s.reset()
+            discardDraft()                            // 「처음부터」 = a freshly installed app — no book to resume
             reloadSavedStories()
             s.persona = persona
             s.speed = speed
