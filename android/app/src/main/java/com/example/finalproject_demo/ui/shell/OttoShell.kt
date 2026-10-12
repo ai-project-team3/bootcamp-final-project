@@ -110,9 +110,9 @@ fun OttoShell(d: Director) {
         Box(Modifier.fillMaxSize().background(Wool)) {
             androidx.compose.animation.Crossfade(Shell.step, animationSpec = androidx.compose.animation.core.tween(220), label = "step") { step ->
             when (step) {
-                Step.CLAP -> SplashScreen {
-                    Shell.step = if (Shell.onboarded && Shell.openingSeen) Shell.startStep() else Step.TITLE
-                }
+                // every launch shows the title (Otto logo · 「눌러서 시작」); only the curtain opening is skipped once seen
+                // (10-12 user — a repeat launch went from CLAP straight into Otto's room)
+                Step.CLAP -> SplashScreen { Shell.step = Step.TITLE }
                 Step.TITLE -> {
                     // Returning from re-consent must not replay the whole opening.
                     if (Shell.onboarded && Shell.openingSeen) TitleScreen { Shell.step = Shell.startStep() }

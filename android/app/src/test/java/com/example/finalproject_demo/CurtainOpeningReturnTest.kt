@@ -56,10 +56,19 @@ class CurtainOpeningReturnTest {
         compose.onNode(hasClickAction() and hasAnyDescendant(hasText("C")), useUnmergedTree = true).performClick()
     }
 
+    /** The title (logo · 「눌러서 시작」) on a repeat launch — not the curtain opening, and not straight into the room */
+    private fun passTitle() {
+        compose.waitUntil(5000) { compose.onAllNodesWithText("눌러서 시작").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("opening-rope").assertDoesNotExist()
+        compose.onNodeWithText("눌러서 시작").performClick()
+    }
+
     @Test fun completedOpeningIsSkippedOnTheNextLaunch() {
         completeOpening()
         compose.runOnIdle { Shell.step = Step.CLAP }
         passSplash()
+        compose.waitUntil(5000) { Shell.step == Step.TITLE }
+        passTitle()
         compose.waitUntil(5000) { Shell.step == Step.APP }
         compose.onNodeWithTag("opening-rope").assertDoesNotExist()
     }
@@ -71,6 +80,7 @@ class CurtainOpeningReturnTest {
             Shell.step = Step.CLAP
         }
         passSplash()
+        passTitle()
         // #319 — a changed consent logs in first, then that guardian consents again
         compose.waitUntil(5000) { Shell.step == Step.EXPIRED }
         compose.onNodeWithText("로그인한 보호자에게 다시 동의", substring = true).assertIsDisplayed()
@@ -81,6 +91,7 @@ class CurtainOpeningReturnTest {
         completeOpening()
         compose.runOnIdle { Accounts.guardian = null; Shell.step = Step.CLAP }
         passSplash()
+        passTitle()
         compose.waitUntil(5000) { Shell.step == Step.EXPIRED }
         compose.onNodeWithText("카카오로 시작하기").assertIsDisplayed()
         compose.onNodeWithTag("opening-rope").assertDoesNotExist()
