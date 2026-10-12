@@ -102,7 +102,8 @@ internal suspend fun Director.choosePreviousStoryHero(): Boolean {
             s.heroAttr = hero.attr
             s.storyHeroImage = hero.image
             s.storyHeroRig = hero.rig
-            s.storyHeroCall = hero.called ?: hero.name
+            s.storyHeroCall = hero.called
+            s.storyHeroCard = hero.name.takeIf { hero.called.isNullOrBlank() }
             s.storyHeroDescription = hero.description
             log("hero_choice choice=reuse eligible=true input=$source")
             heroSetupLog.finish("reuse")?.let(::log)

@@ -97,6 +97,37 @@ class StoryHeroReuseTest {
         } finally { scope.cancel() }
     }
 
+    @Test fun reusedCardsKeepChosenNamesSeparateFromNamelessCardIdentity() = runBlocking {
+        for (called in listOf<String?>(null, "콩이")) {
+            val scope = CoroutineScope(coroutineContext + SupervisorJob())
+            val stored = book().let { saved ->
+                saved.copy(visuals = saved.visuals!!.copy(
+                    hero = saved.visuals.hero.copy(name = "빨간 옷 친구", called = called),
+                ))
+            }
+            val d = Director(scope, object : StoryBookStore {
+                override fun load() = listOf(stored)
+                override fun save(book: SavedStoryBook) = Unit
+            }).apply {
+                s.speed = 0.01; s.timerOn = false
+                s.storyHeroCard = "지난 카드"
+                s.storyHeroCall = "지난 이름"
+            }
+            try {
+                d.go(Scene.MAKEHERO)
+                waitFor { d.s.stage is Stage.CardsRow && d.s.micEnabled }
+                d.send(Reply.Tapped("reuse:0", "빨간 옷 친구"))
+                waitFor { d.s.scene == Scene.PLACE }
+                assertEquals(called, d.s.storyHeroCall)
+                assertEquals(if (called == null) "빨간 옷 친구" else null, d.s.storyHeroCard)
+                assertEquals(if (called == null) "빨간 옷 친구" else "콩이", d.s.storyActor)
+                d.s.templateKey = "A"
+                val captured = d.s.captureStoryVisuals().hero
+                assertEquals(called, captured.called)
+                assertEquals(if (called == null) "빨간 옷 친구" else "콩이", captured.name)
+            } finally { scope.cancel() }
+        }
+    }
     @Test fun recentHeroesAreDistinctAndDeletingTheLastBookRemovesTheHero() = runBlocking {
         val books = mutableListOf(book("newest"), book("duplicate"), book("second", "별이", "local:star.png"),
             book("third", "달이", "local:moon.png"), book("fourth", "해님", "local:sun.png"))
