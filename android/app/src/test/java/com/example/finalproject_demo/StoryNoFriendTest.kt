@@ -10,11 +10,13 @@ import com.example.finalproject_demo.demo.storyVisualsFromJson
 import com.example.finalproject_demo.demo.toJson
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.StoryMode
+import com.example.finalproject_demo.demo.StorySoundHolder
 import com.example.finalproject_demo.demo.m2Line
 import com.example.finalproject_demo.demo.nextStoryPrompt
 import com.example.finalproject_demo.demo.recordStorySound
 import com.example.finalproject_demo.demo.storySoundHolder
 import com.example.finalproject_demo.demo.syncStoryPresentation
+import com.example.finalproject_demo.net.ChildCall
 import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -62,6 +64,23 @@ class StoryNoFriendTest {
         val holder = s.storySoundHolder(liveStory = true)
         assertEquals("hero", holder?.target)
         assertFalse("외계인" == holder?.name)
+    }
+
+    /** #412 review — the hero holding the sound is named as the book names it, not by the child's call */
+    @Test
+    fun theHeroHoldingTheSoundIsCalledByTheDollsName() {
+        ChildCall.set("콩이")
+        try {
+            val s = story().apply { storyHeroCall = "삐에로" }
+            assertEquals(StorySoundHolder("hero", "삐에로"), s.storySoundHolder(liveStory = true))
+            s.storyHeroCall = null
+            s.storyHeroCard = "빨간 옷 친구"
+            assertEquals(StorySoundHolder("hero", "빨간 옷 친구"), s.storySoundHolder(liveStory = true))
+            s.storyHeroCard = null
+            assertEquals(StorySoundHolder("hero", "콩이"), s.storySoundHolder(liveStory = true))
+        } finally {
+            ChildCall.reset()
+        }
     }
 
     /** 10-09 device second round — the missions still showed the alien, and mission 2 put the cause on the mascot */

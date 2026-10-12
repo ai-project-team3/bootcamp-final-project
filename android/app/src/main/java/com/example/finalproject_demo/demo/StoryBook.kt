@@ -16,8 +16,9 @@ fun DemoState.storySoundHolder(liveStory: Boolean = Server.liveFor(mode)): Story
     if (!liveStory) return StorySoundHolder("dino", dino.name)
     // nobody met: friendCallName is the script's default 「외계인」, a friend nobody saw (#387 · 10-12 device)
     val friend = friendCallName.takeIf { it.isNotBlank() && !liveStoryWithoutFriend }
+    // the hero is called as the book calls it — the doll (삐에로) or a nameless card, not the child's call (#412 review)
     return if (friend != null) StorySoundHolder("friend", friend)
-        else StorySoundHolder("hero", childName)
+        else StorySoundHolder("hero", storyActor)
 }
 
 /** The mission on a book page — the two mission slots are still the RUB and DRAG pages (design §5-1) */
