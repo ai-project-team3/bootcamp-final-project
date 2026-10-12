@@ -93,6 +93,7 @@ class StoryNameGuardTest {
         assertEquals(STORY_NEW_FRIEND, s.slots["newcomer"])
         assertEquals(STORY_NEW_FRIEND, s.newcomerKind)
         assertEquals("the app chose 「새 친구」 — not the child (rule 5)", "mascot", s.slotBy["newcomer"])
+        assertEquals("said aloud once on the next turn (guidelines/7 §3-2 · #375 re-review)", STORY_NEW_FRIEND, s.storyAppNamed)
         val input = s.storyServerInput()
         assertEquals(said, input.slots["extra"])
         assertEquals("the kept sentence is the child's", "child", input.sources["extra"])
@@ -234,5 +235,23 @@ class StoryNameGuardTest {
             Server.TurnResult(verdict("newcomer" to it.utterance, next = "cause"), Server.Line("그랬구나", null, "왜 그랬을까?"))
         }
         assertEquals("올챙이", s.slots["newcomer"])
+    }
+
+    /**
+     * #375 re-review (10-12) — the word before the verb tells how, not who (「천천히」 · 「혼자」): the subject is the one met.
+     * A final 가 after 「봤어」 may be the name's own (「우가우가」): kept whole. Checked where the verdict is applied and sent
+     */
+    @Test
+    fun anAdverbIsNotTheOneMetAndAnAmbiguousEndingIsKept() = runBlocking {
+        listOf("코알라가 천천히 나왔어" to "코알라", "엄마가 혼자 왔어" to "엄마", "곰이 갑자기 나타났어" to "곰", "우가우가 봤어" to "우가우가")
+            .forEach { (said, met) ->
+                val s = started()
+                s.exchangeStoryTurn("newcomer", "그때 누구를 만났어?", said) {
+                    Server.TurnResult(verdict("newcomer" to it.utterance, next = "cause"), Server.Line("그랬구나", null, "왜 그랬을까?"))
+                }
+                assertEquals(said, met, s.slots["newcomer"])
+                assertEquals(said, met, s.storyServerInput().slots["newcomer"])
+            }
+        assertNull("an adverb with no subject names nobody", storyNameInSentence("천천히 나왔어"))
     }
 }

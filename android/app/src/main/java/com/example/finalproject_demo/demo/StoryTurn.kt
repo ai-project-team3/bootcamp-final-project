@@ -62,7 +62,7 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String, askedSlot: 
                 if (slot != askedSlot) ""
                 else if (storyWhoReasked.add(slot)) { reask = slot; "" }
                 // the app chose 「새 친구」, the child did not say it — mascot (rule 5 · #375 review)
-                else if (slot == "newcomer") STORY_NEW_FRIEND.also { source = "mascot" } else ""
+                else if (slot == "newcomer") STORY_NEW_FRIEND.also { source = "mascot"; storyAppNamed = it } else ""
             }
             Trace.line("story_verdict", "who-slot [$slot] got a sentence → ${if (value.isEmpty()) "not filled" else "「$value」"}" +
                 if (reask == slot) " · asked again" else "")
@@ -144,6 +144,12 @@ suspend fun Director.askStory(
         val reaction = storyReaction(line?.ack, line?.expand)
         if (reaction.isNotBlank()) {
             say(reaction)
+            pause(600)
+        }
+        // the app chose a name the child did not say — the child hears it once, it is not filled silently (guidelines/7 §3-2 · #375 review)
+        s.storyAppNamed?.let { named ->
+            s.storyAppNamed = null
+            say("그럼 그 친구는 「$named」라고 부를게!")
             pause(600)
         }
         // Real STT replies carry no scripted Answer. Keep the child's exact words for the

@@ -25,6 +25,15 @@ private const val JONG_BS = 18
 private val POLITE_END = Regex("(?:어|아|해|에|예|와|워|봐|줘|여|려|가|서|세|래|대|네|내|돼|져|쳐|켜)요$|니다$")
 private val LINKING_END = Regex("(?:서|고|는데|니까|면서)$")
 private val MEETING = Regex("^(?:만났|만나|봤|보았|나타났|나왔|왔|찾았|발견했)")
+/** Verbs whose one-met is the object (을 · 를), not a 가 subject — 「봤어」 · 「만났어」 · 「찾았어」 */
+private val SEEING = Regex("^(?:만났|만나|봤|보았|찾았|발견했)")
+
+/** How, not who — 「천천히」 · 「혼자」 · 「같이」 · 「살금살금」 right before the verb */
+private val ADVERBS = setOf(
+    "혼자", "같이", "함께", "다", "또", "막", "빨리", "천천히", "갑자기", "살금살금", "엉금엉금", "깡충깡충", "조용히",
+    "몰래", "많이", "처음", "드디어", "다시", "먼저", "금방", "벌써", "정말", "진짜", "너무", "오늘", "어제",
+)
+private fun storyAdverb(w: String) = w in ADVERBS || (w.length >= 3 && w.endsWith("히"))
 /** Particles that cannot be the end of the noun itself — 이 is handled apart ([stripSubjectI]) */
 private val PARTICLE = Regex("(?:하고|을|를|와|과|가|랑)$")
 private val NOT_ADJECTIVE = setOf('은', '는', '인', '면', '던', '만')
@@ -85,15 +94,24 @@ internal fun storyLooksLikeSentence(value: String): Boolean {
 internal fun storyNameInSentence(value: String): String? {
     val words = value.trim().trimEnd('.', '!', '?', '~', '…').split(Regex("\\s+")).filter(String::isNotEmpty)
     if (words.size < 2 || !MEETING.containsMatchIn(words.last())) return null
-    val marked = words[words.size - 2]
-    val particle = PARTICLE.find(marked)?.value
+    // 「코알라가 천천히 나왔어」 · 「엄마가 혼자 왔어」 — the word before the verb tells how, not who: the marked subject
+    // before it is the one met, and with none the sentence names nobody (#375 re-review)
+    var at = words.size - 2
+    if (storyAdverb(words[at])) {
+        at -= 1
+        if (at < 0 || (PARTICLE.find(words[at]) == null && !words[at].endsWith('이'))) return null
+    }
+    val marked = words[at]
+    // 「우가우가 봤어」 — after a verb of seeing · meeting the one met takes 을 · 를, so a final 가 there may be the name's
+    // own: kept whole rather than cut to 「우가우」 (#375 re-review)
+    val particle = PARTICLE.find(marked)?.value?.takeUnless { it == "가" && SEEING.containsMatchIn(words.last()) }
     if (particle == null && NOT_BARE_NOUN.containsMatchIn(marked)) return null
     val bare = if (particle != null) marked.dropLast(particle.length) else marked
     // 「곰이랑」 → 곰이 → 곰 · 「고양이랑」 → 고양이. After 을 · 를 · 와 · 과 the 이 is the noun's own
     val noun = if (particle == null || particle == "랑") stripSubjectI(bare) else bare
     if (noun.isEmpty()) return null
     // 「하얀」 · 「큰」 — an adjective right before keeps the look; 「엄마는」 · 「숲에서」 do not
-    val adjective = words.getOrNull(words.size - 3)?.takeIf { w ->
+    val adjective = words.getOrNull(at - 1)?.takeIf { w ->
         jong(w.last()) == JONG_N && w.last() !in NOT_ADJECTIVE && w.length <= 3
     }
     return listOfNotNull(adjective, noun).joinToString(" ")
