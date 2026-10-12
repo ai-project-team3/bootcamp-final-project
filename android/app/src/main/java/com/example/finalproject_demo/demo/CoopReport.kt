@@ -168,8 +168,8 @@ fun DemoState.coopMetLabel(): String? = when (coopNotYet) {
  */
 fun DemoState.coopFriendsLine(): String? = when {
     !isCoop -> null
-    coopNotYet == null -> "오늘 함께한 사람들이야. 누구를 또 만나고 싶어?"
-    else -> "이야기에 나온 사람들이야. 누구를 또 만나고 싶어?"
+    coopNotYet == null -> "오늘 함께한 사람들 그림이야. 어땠어?"
+    else -> "이야기에 나온 사람들 그림이야. 어땠어?"
 }
 
 /**

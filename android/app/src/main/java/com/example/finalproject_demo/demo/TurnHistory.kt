@@ -30,6 +30,7 @@ class TurnState internal constructor(
     private val sceneKit: String?, private val sceneSeed: Long,
     private val answerOptions: StoryOptions?,
     private val talk: List<TalkLine>, private val talkStartedAtMs: Long,
+    private val endAsked: Boolean,
 ) {
     internal fun restoreInto(s: DemoState) {
         // 배경은 그림이 늦게 온다 — 차례를 찍은 뒤에 도착한 생성 배경을, 같은 장소로 되돌릴 때 지우지 않는다.
@@ -42,6 +43,8 @@ class TurnState internal constructor(
         s.storyAnswerOptions = answerOptions
         s.talk.clear(); s.talk.addAll(talk)
         s.talkStartedAtMs = talkStartedAtMs
+        // an undone 「끝이야」 gets its closing question again (StoryEndIntent.kt · #381 review)
+        s.storyEndAsked = endAsked
         s.endReason = endReason; s.turn = turn; s.noAnswerStreak = noAnswerStreak; s.s1streak = s1Streak; s.level = level
         while (s.notes.size > notes) s.notes.removeAt(s.notes.size - 1)
         while (s.feelings.size > feelings) s.feelings.removeAt(s.feelings.size - 1)
@@ -70,7 +73,7 @@ fun DemoState.captureTurn(): TurnState = TurnState(
     themeKey, placeLabel, generatedBg, place, problem, cause, reaction, causeLine, causeKind,
     newcomer, newcomerKind, friendName, solution, solutionLine, solutionKey, solutionItem,
     sound, soundLine, storyBackground, storyBackgroundPlace, sceneKit, sceneSeed,
-    storyAnswerOptions, talk.toList(), talkStartedAtMs,
+    storyAnswerOptions, talk.toList(), talkStartedAtMs, storyEndAsked,
 )
 
 /** 한 이야기의 차례 기록 — 되돌리기 줄과 앞으로 가기 줄 */

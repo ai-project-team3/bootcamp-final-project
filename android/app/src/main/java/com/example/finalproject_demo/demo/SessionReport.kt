@@ -113,7 +113,7 @@ const val HOME_TIP = "대답을 기다려 주고, 아이 말을 한 번 따라 �
 internal fun words(t: String) = t.trim().split(Regex("\\s+")).count { it.isNotBlank() }
 
 /** 까닭을 잇는 말 — 서버 신호가 없을 때(대본 · 받아쓰기만 된 말) 아이 말에서 직접 본다 */
-private val REASON = Regex("왜냐|때문에|니까|라서")
+internal val REPORT_REASON_EXPRESSION = Regex("왜냐|때문에|니까|라서")
 /** 마음 낱말 — 아이가 한 말에 들어 있을 때만 (지어내지 않는다) */
 private val FEEL = Regex("무서|무섭|슬퍼|슬펐|기뻐|기뻤|좋았|행복|화나|화났|속상|괜찮아|신나|신났|외로|심심|놀랐|걱정|부끄|미안|고마|싫어|아파|웃었")
 
@@ -133,7 +133,7 @@ fun DemoState.buildSessionReport(bookId: String = "", now: Long = System.current
     val lines = talk.toList().map { l ->
         if (l.who != "child") l else {
             val extra = buildList {
-                if (MOMENT_REASON !in l.tags && REASON.containsMatchIn(l.text)) add(MOMENT_REASON)
+                if (MOMENT_REASON !in l.tags && REPORT_REASON_EXPRESSION.containsMatchIn(l.text)) add(MOMENT_REASON)
                 if (MOMENT_FEEL !in l.tags && (FEEL.containsMatchIn(l.text) || feelings.any { it.isNotBlank() && it in l.text })) add(MOMENT_FEEL)
             }
             if (extra.isEmpty()) l else l.copy(tags = l.tags + extra)

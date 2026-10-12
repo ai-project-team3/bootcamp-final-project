@@ -260,4 +260,74 @@ class StoryLiveFlowTest {
             server.close()
         }
     }
+
+    /**
+     * #381 re-review — a child's 「끝이야」 on an app-owned template question (turn 4, core filled, open local 「stop」)
+     * ends the story without writing 「끝이야」 into that slot, without its slot_filled, and without sending it in extra.
+     */
+    @Test
+    fun anEndingAnswerToATemplateQuestionFillsNothing() = runBlocking {
+        val server = StoryTestServer { path, body ->
+            when (path) {
+                "/turn" -> JSONObject().put("judge", JSONObject()
+                    .put("reason", "ok")
+                    .put("slot_1", JSONObject.NULL).put("value_1", JSONObject.NULL)
+                    .put("next_slot", JSONObject.NULL)
+                    .put("story_ready", false))
+                    .put("line", JSONObject().put("ack", "그랬구나!").put("question", JSONObject.NULL))
+                "/story" -> JSONObject().put("scenes", JSONArray().apply {
+                    val pages = body.getJSONArray("pages")
+                    repeat(pages.length()) { i -> put(JSONObject().put("index", i + 1)
+                        .put("kind", pages.getJSONObject(i).getString("kind"))
+                        .put("caption", "숲에서 길을 잃었다가 돌아왔어요.")) }
+                })
+                else -> JSONObject().put("preset", true)
+            }
+        }
+        val previousBase = Server.base
+        val previousModes = Server.liveModes
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val d = Director(scope, LocalStoryBookStore(context), StoryImageStore(context))
+        d.s.apply {
+            speed = 0.01
+            turn = 4
+            templateKey = "E"
+            listOf("place", "problem", "reaction", "cause", "solution").forEach { slots[it] = "existing $it" }
+            slots["place"] = "숲"
+            storyNextSlot = null
+            storyServerQuestion = null
+        }
+        assertEquals("the question is the template's own", StoryPrompt("stop", "그다음에는 무슨 일이 있었어?", true),
+            d.s.nextStoryPrompt(null))
+        Server.base = server.base
+        Server.liveModes = setOf(StoryMode.STORY)
+        try {
+            d.go(Scene.PLACE)
+            val feeder = launch {
+                while (isActive) {
+                    if ((d.s.stage as? Stage.CardsRow)?.cards?.any { it.value == "sound:skip" } == true) {
+                        d.send(Reply.Tapped("sound:skip", "소리 없이 계속"))
+                    } else if (d.s.micEnabled) {
+                        d.send(Reply.Spoke("끝이야"))
+                    }
+                    delay(40)
+                }
+            }
+            withTimeout(10_000) { while (d.s.scene != Scene.BOOK) delay(10) }
+            feeder.cancelAndJoin()
+            assertEquals("story_ready", d.s.endReason)
+            assertNull("「끝이야」 is not the template answer", d.s.slots["stop"])
+            assertFalse(d.s.events.toString(), d.s.events.any { it.startsWith("slot_filled") && "끝이야" in it })
+            val sent = server.requests.filter { it.first == "/turn" || it.first == "/story" }
+            assertFalse("「끝이야」 never goes back as a story part",
+                sent.any { (_, body) -> body.optJSONObject("extra")?.toString()?.contains("끝이야") == true ||
+                    body.optJSONObject("slots")?.toString()?.contains("끝이야") == true })
+        } finally {
+            scope.cancel()
+            Server.base = previousBase
+            Server.liveModes = previousModes
+            server.close()
+        }
+    }
 }
