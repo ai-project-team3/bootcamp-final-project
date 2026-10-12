@@ -1218,15 +1218,16 @@ private fun FriendRateView(d: Director, stage: Stage.FriendRate) {
                     ArtView(f.art, Modifier.fillMaxWidth().height(104.dp))
                     Text(f.name, fontSize = TextSize.KidCard, color = InkBrown)
                     Spacer(Modifier.height(8.dp))
+                    // 10-12 종훈: the labels are 「싫어요」 · 「좋아요」 (were 「안녕」 · 「또 만날래」); what a tap does is unchanged.
                     // 10-05 device round: both buttons stay so a mis-tap can be changed; the picked one is
                     // marked, the other fades. Nothing is final until the arrow 「다 했어」.
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         val byeOn = f.keep == false; val keepOn = f.keep == true
                         FeltButton(FeltWhite, onClick = { d.send(Reply.Tapped("bye:${f.id}", f.name)) }, modifier = Modifier.width(104.dp).height(Touch.KidMin).alpha(if (keepOn) 0.45f else 1f), shape = RoundedCornerShape(22.dp)) {
-                            Text(if (byeOn) "✔ 안녕" else "👋 안녕", fontSize = 16.sp, color = InkBrown)
+                            Text(if (byeOn) "✔ 싫어요" else "👎 싫어요", fontSize = 16.sp, color = InkBrown)
                         }
                         FeltButton(Cheek, onClick = { d.send(Reply.Tapped("keep:${f.id}", f.name)) }, modifier = Modifier.width(104.dp).height(Touch.KidMin).alpha(if (byeOn) 0.45f else 1f), shape = RoundedCornerShape(22.dp)) {
-                            Text(if (keepOn) "✔ 또 만날래" else "💗 또 만날래", fontSize = 15.sp, color = FeltWhite)
+                            Text(if (keepOn) "✔ 좋아요" else "👍 좋아요", fontSize = 16.sp, color = FeltWhite)
                         }
                     }
                 }

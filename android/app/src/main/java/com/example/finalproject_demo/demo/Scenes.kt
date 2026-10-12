@@ -1724,9 +1724,9 @@ private suspend fun Director.sceneBook() {
 // ── 장면 13 · 친구 평가 (S10) ────────────────────────────────────
 
 /**
- * 오늘 만난 친구를 하나씩 보며 [또 만날래 💛] [안녕 👋].
- * "또 만날래"로 고른 친구만 다음 이야기의 확인 카드 후보가 된다 (⭐26).
- * "안녕"을 골라도 지워지지 않는다 — 폰에 남고, 책장에서 그 책을 열면 그대로 있다.
+ * 오늘 만난 친구를 하나씩 보며 [좋아요 👍] [싫어요 👎] (10-12 종훈 — 전에는 [또 만날래] [안녕]).
+ * "좋아요"로 고른 친구만 다음 이야기의 확인 카드 후보가 된다 (⭐26).
+ * "싫어요"를 골라도 지워지지 않는다 — 폰에 남고, 책장에서 그 책을 열면 그대로 있다.
  */
 private suspend fun Director.sceneFriends() {
     inputs(false, false)
@@ -1762,13 +1762,13 @@ private suspend fun Director.sceneFriends() {
         s.stage = Stage.FriendRate(items.toList())
         val b = mutableListOf<DemoBtn>()
         items.filter { it.keep == null }.forEach {
-            b += DemoBtn("💛 ${it.name} — 또 만날래") { send(Reply.Tapped("keep:${it.id}", it.name)) }
-            b += DemoBtn("👋 ${it.name} — 안녕") { send(Reply.Tapped("bye:${it.id}", it.name)) }
+            b += DemoBtn("👍 ${it.name} — 좋아요") { send(Reply.Tapped("keep:${it.id}", it.name)) }
+            b += DemoBtn("👎 ${it.name} — 싫어요") { send(Reply.Tapped("bye:${it.id}", it.name)) }
         }
         b += DemoBtn("➡️ 다 했어") { send(Reply.Tapped("done", "다음")) }
         items.filter { it.keep != null }.forEach {
-            b += if (it.keep == true) DemoBtn("👋 ${it.name} — 안녕으로 바꾸기") { send(Reply.Tapped("bye:${it.id}", it.name)) }
-            else DemoBtn("💛 ${it.name} — 또 만날래로 바꾸기") { send(Reply.Tapped("keep:${it.id}", it.name)) }
+            b += if (it.keep == true) DemoBtn("👎 ${it.name} — 싫어요로 바꾸기") { send(Reply.Tapped("bye:${it.id}", it.name)) }
+            else DemoBtn("👍 ${it.name} — 좋아요로 바꾸기") { send(Reply.Tapped("keep:${it.id}", it.name)) }
         }
         buttons(*b.toTypedArray())
     }
@@ -1799,8 +1799,8 @@ private suspend fun Director.sceneFriends() {
         event("friend_rating", "friend_id" to it.id, "keep" to it.keep)
         if (it.keep == true) {
             if (it.name !in s.keptFriends) s.keptFriends += it.name
-            log("또 만날래 → ${it.name}${eun(it.name)} 다음 이야기의 확인 카드 후보 (⭐26 · 폰 소품함)")
-        } else log("안녕 → 지우지 않는다. 폰에 남고 이 책에는 그대로 나온다")
+            log("좋아요 → ${it.name}${eun(it.name)} 다음 이야기의 확인 카드 후보 (⭐26 · 폰 소품함)")
+        } else log("싫어요 → 지우지 않는다. 폰에 남고 이 책에는 그대로 나온다")
     }
     if (items.any { it.keep != null }) mark("friends")
     say("좋아! 이제 선물이 있어.")

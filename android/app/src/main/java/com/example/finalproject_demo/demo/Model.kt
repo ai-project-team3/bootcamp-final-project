@@ -695,7 +695,7 @@ sealed interface Stage {
     data class DrawPad(val forAnswer: Boolean = false) : Stage
     data class BookPage(val index: Int, val m1Done: Boolean = false, val m2Done: Boolean = false) : Stage
 
-    /** S10 친구 평가 — 오늘 만난 친구마다 [또 만날래 💛] [안녕 👋] */
+    /** S10 친구 평가 — 오늘 만난 친구마다 [좋아요 👍] [싫어요 👎] */
     data class FriendRate(val friends: List<RateItem>) : Stage
     /**
      * 선물 화면 — [shown] 은 불이 켜진 선물 수, [done] 은 **더 나올 선물이 없다**는 뜻이다.
@@ -1434,7 +1434,7 @@ class DemoState {
     /** 실제 완성된 책만 들어간다. 동화책은 기기 저장소에서 시작할 때 복원한다. */
     val shelf = mutableStateListOf<ShelfBook>()
 
-    /** S10에서 "또 만날래"로 고른 친구 — 다음 이야기의 확인 카드 후보가 된다 (⭐26) */
+    /** S10에서 "좋아요"로 고른 친구 — 다음 이야기의 확인 카드 후보가 된다 (⭐26) */
     val keptFriends = mutableStateListOf<String>()
 
     /** 시연 서랍 [그림 생성 느리게] — 8초 안내 · 15초 취소를 실제로 보여준다 (구현대본 §7) */
