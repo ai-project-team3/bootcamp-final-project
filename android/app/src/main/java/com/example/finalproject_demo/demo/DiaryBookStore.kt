@@ -178,11 +178,10 @@ object DiaryShelf {
     fun delete(s: DemoState, id: String): Boolean {
         val store = stores[s] ?: return false
         if (books[s]?.none { it.id == id } != false) return false
-        if (!runCatching { store.delete(id) }.getOrDefault(false)) return false
+        if (!SessionReports.forget(DIARY_SHELF_ID + id, s) { store.delete(id) }) return false
         books[s]?.removeAll { it.id == id }
         s.diaryCovers.remove(DIARY_SHELF_ID + id)
         s.shelf.removeAll { it.savedStoryId == DIARY_SHELF_ID + id }
-        SessionReports.forget(DIARY_SHELF_ID + id, s)
         return true
     }
 }

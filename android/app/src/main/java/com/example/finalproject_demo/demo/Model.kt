@@ -1455,6 +1455,7 @@ class DemoState {
     /** Report transcript: Otto's questions and every answer with its source (demo/SessionReport.kt) */
     val talk = mutableStateListOf<TalkLine>()
     var talkStartedAtMs = 0L
+    var reportProfileId: String = AnswerHistory.profileId
     /** The last shelved book's report — the parent screen shows it once the session is reset */
     var lastReport by mutableStateOf<SessionReport?>(null)
 
@@ -1515,6 +1516,7 @@ class DemoState {
         savedProblemCharacter = null; savedNoFriend = false
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
+        reportProfileId = AnswerHistory.profileId
         heroTries.clear()
         heroCreationDraft = null
         modeVoice = 0; modeCard = 0; modeDraw = 0; modeSilent = 0
