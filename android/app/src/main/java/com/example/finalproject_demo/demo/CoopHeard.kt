@@ -157,3 +157,20 @@ private val COMPANION_JOIN = Regex("\\s*(?:랑|하고|그리고|와|과|,)(?:[\\
 
 /** 같이 간 사람 자리에 끼지 않는 꾸밈말 */
 private val NOT_COMPANIONS = setOf("같이", "함께", "다", "다같이", "다 같이", "둘이", "셋이", "넷이", "모두")
+
+/**
+ * A companion value that is a sentence, not people — 「기린한테 나뭇잎 줄 거야」 (10-12 device). Any one person in it
+ * ([companionName] joins them with 「, 」) with a 「한테 · 에게」 or a predicate ending is a sentence;
+ * 「유치원 선생님」 · 「우리 반 친구들」 · 「친구 엄마」 · 「엄마, 아빠」 are people
+ */
+internal fun coopCompanionSentence(value: String): Boolean = value.split(",").map(String::trim).filter(String::isNotBlank).any { p ->
+    val words = p.split(Regex("\\s+"))
+    words.any { w -> SENTENCE_PARTICLES.any { w.length > it.length && w.endsWith(it) } } ||
+        PREDICATE_ENDINGS.any { p.length > it.length && p.endsWith(it) }
+}
+
+/** 「기린한테」 — someone the child does something to, not someone who went along */
+private val SENTENCE_PARTICLES = listOf("한테", "에게", "께서")
+
+/** 「줄 거야」 · 「먹었어」 · 「할래」 — a person's name does not end like this */
+private val PREDICATE_ENDINGS = listOf("거야", "거예요", "했어", "했다", "었어", "았어", "였어", "할래", "줄래", "해요", "어요", "갈래", "볼래", "는데", "니까", "을래")
