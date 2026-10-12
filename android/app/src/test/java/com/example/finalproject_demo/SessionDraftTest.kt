@@ -30,6 +30,7 @@ import com.example.finalproject_demo.demo.Level
 import com.example.finalproject_demo.demo.LocalSessionDraftStore
 import com.example.finalproject_demo.demo.PieceLook
 import com.example.finalproject_demo.demo.Reply
+import com.example.finalproject_demo.demo.ReportQuestionType
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.SessionDraft
 import com.example.finalproject_demo.demo.SessionDraftStore
@@ -86,7 +87,7 @@ class SessionDraftTest {
         // one of each provenance — they must come back exactly (rule 5)
         slotBy["place"] = "child"; slotBy["problem"] = "card"; slotBy["cause"] = "mascot"; slotBy["try1"] = "child"
         storyUnneededSlots += "sound"; storyNextSlot = "solution"; endReason = null
-        talk += TalkLine("otto", "어디로 갈까?"); talk += TalkLine("child", "바닷속", listOf("reason"))
+        talk += TalkLine("otto", "어디로 갈까?"); talk += TalkLine("child", "바닷속", listOf("reason"), ReportQuestionType.OPEN, "어디로 갈까?")
         talk += TalkLine("card", "문어가 울었어"); talk += TalkLine("mascot", "친구가 없어서")
         turn = 3; reactions = 4; s1count = 1; s1streak = 1; modeVoice = 2; modeCard = 1; modeSilent = 1; mascotPicks = 1
         level = Level.REASON; levelAtStart = Level.CHAIN; templateKey = "C"

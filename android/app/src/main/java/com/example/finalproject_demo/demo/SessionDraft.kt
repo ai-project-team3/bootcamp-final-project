@@ -281,8 +281,8 @@ internal fun DemoState.captureDraftState(): JSONObject = JSONObject().apply {
     put("achievements", strings(achievements)); put("reactions", reactions)
     put("modeVoice", modeVoice); put("modeCard", modeCard); put("modeDraw", modeDraw); put("modeSilent", modeSilent)
     put("events", strings(events)); put("done", strings(done))
-    // the report transcript — `who` is the source (child · card · draw · mascot · otto · adult), kept exactly
-    put("talk", JSONArray().apply { talk.forEach { t -> put(JSONObject().put("who", t.who).put("text", t.text).put("tags", strings(t.tags))) } })
+    // the report transcript — `who` is the source (child · card · draw · mascot · otto · adult), kept exactly, with the question type #391 files answers by
+    put("talk", JSONArray().apply { talk.forEach { t -> put(JSONObject().put("who", t.who).put("text", t.text).put("tags", strings(t.tags)).put("questionType", t.questionType.key).putN("question", t.question)) } })
     put("talkStartedAtMs", talkStartedAtMs)
     // co-op: the parent's template and questions (CoopPlan keeps them too, until the book ends)
     coopPick?.let { p -> put("coopPick", JSONObject().put("kind", p.kind).put("name", p.name).putN("reason", p.reason)) }
@@ -389,7 +389,7 @@ fun DemoState.applyDraft(d: SessionDraft) {
     modeVoice = o.optInt("modeVoice"); modeCard = o.optInt("modeCard"); modeDraw = o.optInt("modeDraw"); modeSilent = o.optInt("modeSilent")
     events.addAll(o.optJSONArray("events").strings()); done.addAll(o.optJSONArray("done").strings())
     o.optJSONArray("talk")?.let { a ->
-        for (i in 0 until a.length()) a.getJSONObject(i).let { t -> talk += TalkLine(t.getString("who"), t.getString("text"), t.optJSONArray("tags").strings()) }
+        for (i in 0 until a.length()) a.getJSONObject(i).let { t -> talk += TalkLine(t.getString("who"), t.getString("text"), t.optJSONArray("tags").strings(), ReportQuestionType.fromKey(t.optString("questionType")), t.optString("question").takeUnless { q -> q.isBlank() || q == "null" }) }
     }
     talkStartedAtMs = o.optLong("talkStartedAtMs")
     // the plan the parent saved is loaded by CoopPlan at launch; the draft fills in only what is missing
