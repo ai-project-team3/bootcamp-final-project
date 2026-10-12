@@ -116,4 +116,13 @@ class CurtainOpeningReturnTest {
         org.junit.Assert.assertEquals(Step.APP, Shell.step)
         compose.onNodeWithTag("opening-rope").assertDoesNotExist()
     }
+
+    @Test fun explicitlyRedoingSetupReplaysTheOpeningWithoutClearingConsent() {
+        completeOpening()
+        compose.runOnIdle { Shell.redoOnboarding() }
+        passSplash()
+        finishRepeatedOpening()
+        compose.waitUntil(5000) { Shell.step == Step.LOGIN }
+        assertTrue(ConsentStore.guardianAgreed)
+    }
 }

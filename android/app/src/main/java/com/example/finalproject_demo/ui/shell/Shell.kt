@@ -199,7 +199,7 @@ object Shell {
         prefs?.edit()?.putBoolean("onboarded", false)?.remove("ready_accounts")?.apply()
         com.example.finalproject_demo.ui.ConsentStore.forgetMic()
         sheet = Sheet.NONE
-        step = Step.CLAP
+        startLaunch()
     }
 
     /**
