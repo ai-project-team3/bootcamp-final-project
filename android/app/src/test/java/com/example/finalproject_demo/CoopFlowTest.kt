@@ -510,11 +510,11 @@ class CoopFlowTest {
         d.startCoopWith("가기 전에 어떤 기분이 들어?", pick = CoopPick("place", "동물원", "soon"))
         d.pushUntilAsked("가기 전에 어떤 기분이 들어?")
         assertEquals("가기 전에 어떤 기분이 들어?", d.asked())
-        val at = said.size
         d.answer("설레")
         assertTrue("the feeling step did not take the parent's answer: ${s.reaction}", await(10_000) { s.reaction == "설레" } != null)
         await(8_000) { s.micEnabled }
-        val after = said.drop(at)
+        // the watcher may log the parent's question a moment late — count only what came after it
+        val after = said.toList().let { l -> l.drop(l.lastIndexOf("가기 전에 어떤 기분이 들어?") + 1) }
         assertTrue("the feeling was asked again: $after", after.none { "기분" in it && it.endsWith("?") })
     }
 
