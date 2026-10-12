@@ -1181,6 +1181,9 @@ private fun PinViewBody(d: Director, stage: Stage.Pin) {
     val start = stage.purpose == "start"
     var mode by remember { mutableStateOf(if (com.example.finalproject_demo.ui.shell.Shell.hasPin) "check" else "create") }
     fun pass() = d.send(Reply.Tapped("pin:ok", "통과"))
+    val back: () -> Unit = { if (mode == "forgot") mode = "check" else d.send(Reply.Tapped("pin:cancel", "취소")) }
+    // 10-09 — 폰의 뒤로 가기도 ← 와 같게. 받는 곳이 없어 안드로이드 기본(앱 닫기)으로 갔다(S25+ · 0.5)
+    androidx.activity.compose.BackHandler(onBack = back)
     com.example.finalproject_demo.ui.shell.ObFrame(
         step = null,
         title = when (mode) { "forgot" -> "비밀번호를 잊었어요"; "create" -> "부모 비밀번호 정하기"; else -> if (start) "어른 확인" else "부모 영역" },
@@ -1189,7 +1192,7 @@ private fun PinViewBody(d: Director, stage: Stage.Pin) {
             "create" -> "아직 정한 비밀번호가 없어요. 부모 영역을 열 네 자리를 정해 주세요."
             else -> if (start) "이야기를 시작하려면 부모 비밀번호를 넣어 주세요." else "처음 설정에서 정한 부모 비밀번호를 넣어 주세요."
         },
-        onBack = { if (mode == "forgot") mode = "check" else d.send(Reply.Tapped("pin:cancel", "취소")) },
+        onBack = back,
         art = {
             AssetImage("pi_lock", Modifier.size(170.dp)) { Box(Modifier.size(110.dp).felt(FeltTeal, CircleShape), contentAlignment = Alignment.Center) { Text("🔒", fontSize = 48.sp) } }
         },
