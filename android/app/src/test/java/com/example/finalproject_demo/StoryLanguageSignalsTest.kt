@@ -66,19 +66,27 @@ class StoryLanguageSignalsTest {
         } finally { scope.cancel() }
     }
 
-    @Test fun pickedCardsDoNotCountAsShortLanguageAnswers() {
+    @Test fun repeatedCardOnlyAnswersKeepEachStartingLevelAndResetLanguageStreaks() {
         val scope = CoroutineScope(SupervisorJob())
-        val d = Director(scope)
-        d.s.level = Level.CHAIN; d.s.templateKey = "E"
         try {
-            repeat(2) {
-                d.setListening(Question("어디로 갈까?", Kind.CHOICE))
-                d.say("어디로 갈까?")
-                d.talk("card", "숲")
-                d.judge(BANK.first { it.slot == "cause" && it.counts && !it.emotion }, Reply.Tapped("숲", "숲"))
+            for (initial in Level.entries) {
+                val d = Director(scope)
+                d.s.level = initial
+                d.s.s1streak = 1; d.s.noAnswerStreak = 1
+                repeat(4) { index ->
+                    d.setListening(Question("어디로 갈까?", Kind.CHOICE))
+                    d.say("어디로 갈까?")
+                    d.talk("card", "숲")
+                    d.judge(BANK.first { it.slot == "cause" && it.counts && !it.emotion }, Reply.Tapped("숲", "숲"))
+                    assertEquals("Card turn ${index + 1} from $initial", initial, d.s.level)
+                    assertEquals(0, d.s.s1streak)
+                    assertEquals(0, d.s.noAnswerStreak)
+                    assertEquals(index + 1, d.s.turn)
+                }
+                assertNotNull("The third counted turn still fixes a template", d.s.templateKey)
+                assertTrue(d.s.notes.all { !it.languageEligible && !it.s1 && !it.a1 && it.el.isEmpty() })
+                assertTrue(d.s.talk.filter { it.who == "card" }.all { it.languageEvidence == null })
             }
-            assertEquals(Level.CHAIN, d.s.level)
-            assertEquals(2, d.s.turn)
         } finally { scope.cancel() }
     }
 

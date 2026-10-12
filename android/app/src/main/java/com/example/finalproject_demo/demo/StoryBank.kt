@@ -926,12 +926,16 @@ fun chooseTemplate(level: Level, causeKind: String): Pair<String, String> {
 // ── 발달 판단 ─────────────────────────────────────────────────
 
 /**
- * 한 턴의 답을 기록하고 신호를 센다.
- *  - 말로 답했을 때만 S1 · S2 · A1을 센다 (탭 · 그림 · 마스코트가 채운 것은 세지 않음)
- *  - 마음 질문은 신호로 쓰지 않는다
- *  - 이야기 턴(counts)만 수준 이동에 쓴다: 올림 신호 2턴 연속 → 한 칸 위 (고르며→이어: S1 또는 S2 · 이어→까닭: S1 + 구조) /
- *    내림 신호(무응답 · 카드 · 두 어절 이하에 신호 없음) 2턴 연속 → 한 칸 아래
- *  - 3턴째 템플릿이 확정되면 이후 이동은 "질문 난이도"만 바꾸고 다음 세션 시작점으로 남긴다
+ * Record an answer and feed eligible evidence into the existing question rule.
+ * Story replies with a transcript require child speech to an open/reason question;
+ * emotion, choice, confirmation and unknown replies do not supply language evidence.
+ * For counted story turns, excluded replies reset both streaks without changing level.
+ * In particular, repeated recorded card picks do not lower the story level in this proposal
+ * (PR #409 card-accessibility policy is still awaiting the lead's decision).
+ * Script-only probes without transcripts and other modes retain their existing eligibility.
+ * Eligible counted turns use the two-consecutive-signal rule: S1/S2 raises PICK to CHAIN,
+ * S1 plus structure raises CHAIN to REASON; missing/short signal-free answers lower it.
+ * Once the third counted turn fixes the template, only question difficulty can change.
  */
 fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?: "") {
     val a = (r as? Reply.Spoke)?.answer
