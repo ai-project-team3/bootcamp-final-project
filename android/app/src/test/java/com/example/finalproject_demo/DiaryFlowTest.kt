@@ -147,6 +147,8 @@ class DiaryFlowTest {
         assertTrue("시작 화면이 안 떴다", d.tap("이야기 만들기 탭"))
         assertTrue("함께할 사람 화면이 안 떴다", await { s.scene == Scene.PARTNER } != null)
         // 함께할 사람은 **말로** 답한다 (탭 카드가 아니다)
+        // push does not wait for a button — on a slow CI runner the scene came before its 🗣 button (#412 CI shard 0)
+        await(8_000) { s.buttons.any { "🗣" in it.label } }
         assertTrue("함께할 사람을 못 골랐다 (버튼=${s.buttons.map { it.label }})", d.push("🗣"))
         assertTrue(
             "The next story must offer the saved hero",
