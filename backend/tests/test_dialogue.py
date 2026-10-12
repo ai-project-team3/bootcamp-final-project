@@ -41,9 +41,9 @@ def body(**over):
 
 # --- the contract: every new field is optional, so older apps and other modes are unchanged ---
 
-def test_history_is_optional_and_defaults_empty():
+def test_history_is_optional_and_absent_means_off():
     req = TurnRequest.model_validate(body())
-    assert req.history == []
+    assert req.history is None
 
 
 def test_history_keeps_who_said_it():
@@ -182,3 +182,16 @@ def test_the_act_survives_a_failed_line(client, monkeypatch):
     monkeypatch.setattr(turn_route, "run_line", no_line)
     out = client.post("/turn", json=body(utterance="오또는 뭐 좋아해?", history=walked_to_park())).json()
     assert out["line"] is None and out["act"] == "answer_back" and out["judge"]["next_slot"] == "place"
+
+
+# --- an empty history still turns the reading on: the diary's talk while drawing has none yet (10-12) ---
+
+def test_an_empty_history_still_reads_what_the_child_meant(client):
+    out = client.post("/turn", json=body(utterance="오또는 뭐 좋아해?", history=[])).json()
+    assert out["act"] == "answer_back"
+    assert out["judge"]["slot_1"] is None        # a question to Otto fills nothing
+
+
+def test_no_history_field_keeps_the_turn_as_before(client):
+    out = client.post("/turn", json=body(utterance="오또는 뭐 좋아해?")).json()
+    assert out["act"] is None

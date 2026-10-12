@@ -57,8 +57,9 @@ class TurnRequest(JudgeRequest):
     # coop only: why the parent picked the story (CoopTemplates.kt CoopReason) — sets the tense of
     # the question, as /story does for the book (#52 · #53 C). done · soon · dream; None = done
     reason: Optional[Literal["done", "soon", "dream"]] = None
-    # the session so far, oldest first (#323). Empty = no dialogue repair: the turn runs as before
-    history: list[HistoryTurn] = []
+    # the session so far, oldest first (#323). Absent (None) = no dialogue repair: the turn runs as before.
+    # An empty list turns it on with nothing behind it yet — the diary's talk while drawing (10-12)
+    history: Optional[list[HistoryTurn]] = None
 
 
 class Line(BaseModel):

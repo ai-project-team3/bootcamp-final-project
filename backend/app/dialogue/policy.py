@@ -43,7 +43,7 @@ def act_for(d: Decision | None) -> Optional[Act]:
 
 def _last_filled(req: TurnRequest) -> str | None:
     """The slot Otto last wrote down — what a bare 「그거 아니야」 most likely points at."""
-    for h in reversed(req.history):
+    for h in reversed(req.history or []):
         for f in reversed(h.fills):
             if req.slots.get(f.slot):
                 return f.slot

@@ -25,7 +25,7 @@ def req(utterance="그거 아니야", history=True, **over):
              "otto": {"ack": "놀이터에 갔구나!", "question": "어디에서 놀았어?"},
              "child": {"text": "놀이터", "by": "child"},
              "fills": [{"slot": "place", "value": "놀이터"}]},
-        ] if history else [],
+        ] if history else None,   # absent = off (an empty list turns it on)
     }
     b.update(over)
     return TurnRequest.model_validate(b)

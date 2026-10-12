@@ -58,7 +58,7 @@ def state_text(req: TurnRequest) -> str:
     """The short state the decider reads. Otto's words and the child's are labelled apart (rule 5)."""
     # one history turn runs: the question Otto asked → the child's answer → Otto's reaction to it
     lines = []
-    for h in req.history[-RECENT:]:
+    for h in (req.history or [])[-RECENT:]:
         if h.otto.question:
             lines.append(f"오또: {h.otto.question}")
         lines.append(f"아이: {h.child.text}")
@@ -114,8 +114,8 @@ def mock(req: TurnRequest) -> Decision:
 
 
 async def decide(req: TurnRequest) -> Decision | None:
-    """None = no opinion (no history, or the decider failed): the turn runs as before."""
-    if not req.history:
+    """None = no opinion (no history field, or the decider failed): the turn runs as before."""
+    if req.history is None:
         return None
     if settings.mock or settings.dialogue_decider == "mock":
         return mock(req)

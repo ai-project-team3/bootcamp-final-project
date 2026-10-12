@@ -138,7 +138,7 @@ async def run(variants: list[str], runs: int, mock: bool = False, sink: Path | N
                 settings.dialogue_policy = "llm" if variant == "M" else "rule"
                 body = dict(c["req"])
                 if variant == "B":
-                    body["history"] = []                   # main's /turn: no history, no repair
+                    body.pop("history", None)              # main's /turn: no history field, no repair
                 cur[0] = Meter()
                 res = await one(TurnRequest.model_validate(body), cur[0])
                 rows.append({"variant": variant, "run": r, "id": c["id"], **res})
