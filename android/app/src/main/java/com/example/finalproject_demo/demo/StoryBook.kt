@@ -14,7 +14,8 @@ data class StorySoundHolder(val target: String, val name: String)
 fun DemoState.storySoundHolder(liveStory: Boolean = Server.liveFor(mode)): StorySoundHolder? {
     if (mode != StoryMode.STORY) return null
     if (!liveStory) return StorySoundHolder("dino", dino.name)
-    val friend = friendCallName.takeIf { it.isNotBlank() }
+    // nobody met: friendCallName is the script's default 「외계인」, a friend nobody saw (#387 · 10-12 device)
+    val friend = friendCallName.takeIf { it.isNotBlank() && !liveStoryWithoutFriend }
     return if (friend != null) StorySoundHolder("friend", friend)
         else StorySoundHolder("hero", childName)
 }

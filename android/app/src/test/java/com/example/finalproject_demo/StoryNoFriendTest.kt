@@ -13,6 +13,7 @@ import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.m2Line
 import com.example.finalproject_demo.demo.nextStoryPrompt
 import com.example.finalproject_demo.demo.recordStorySound
+import com.example.finalproject_demo.demo.storySoundHolder
 import com.example.finalproject_demo.demo.syncStoryPresentation
 import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.CoroutineScope
@@ -51,6 +52,16 @@ class StoryNoFriendTest {
         assertTrue(s.liveStoryWithoutFriend)
         assertFalse(s.hasCompanion)
         assertEquals("마스코트", s.giveTargetName)
+    }
+
+    /** 10-12 device — the last page logged 「소리 대상 외계인」 on a day nobody was met */
+    @Test
+    fun nobodyMetMeansTheSoundIsNotTheAliens() {
+        val s = story()
+        assertTrue(s.liveStoryWithoutFriend)
+        val holder = s.storySoundHolder(liveStory = true)
+        assertEquals("hero", holder?.target)
+        assertFalse("외계인" == holder?.name)
     }
 
     /** 10-09 device second round — the missions still showed the alien, and mission 2 put the cause on the mascot */
