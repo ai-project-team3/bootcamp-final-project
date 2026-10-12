@@ -2,6 +2,7 @@ package com.example.finalproject_demo
 
 import android.content.Context
 import com.example.finalproject_demo.demo.*
+import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.junit.After
@@ -16,8 +17,14 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class StorySavedLanguageTest {
-    @Before fun prepare() { SessionReports.attach(RuntimeEnvironment.getApplication()); SessionReports.clear() }
-    @After fun clean() = SessionReports.clear()
+    private var previousBase: String? = null
+    private var previousModes: Set<StoryMode> = emptySet()
+    @Before fun prepare() {
+        previousBase = Server.base; previousModes = Server.liveModes
+        Server.base = null; Server.liveModes = emptySet()
+        SessionReports.attach(RuntimeEnvironment.getApplication()); SessionReports.clear()
+    }
+    @After fun clean() { SessionReports.clear(); Server.base = previousBase; Server.liveModes = previousModes }
 
     private fun saveAnswer(text: String, reason: Boolean, connected: Boolean): org.json.JSONObject {
         val scope = CoroutineScope(SupervisorJob())

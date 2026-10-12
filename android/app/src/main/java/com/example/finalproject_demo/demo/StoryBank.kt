@@ -944,12 +944,13 @@ fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?:
     val emotion = q?.emotion == true
     val answerText = a?.text ?: (r as? Reply.Tapped)?.label
     val recorded = answerText?.let { text -> s.talk.lastOrNull {
-        it.who in setOf("child", "card", "mascot") && it.text == text.trim()
+        it.who != "otto" && it.text == text.trim()
     } }
     // Live bank variants can begin as choices and be spoken as open questions. Use the actual transcript.
     // Direct script probes without a transcript retain their existing question-rule behavior.
-    val eligible = s.mode != StoryMode.STORY || (!emotion && (recorded == null ||
-        recorded.questionType in setOf(ReportQuestionType.OPEN, ReportQuestionType.REASON)))
+    val eligible = s.mode != StoryMode.STORY || (!emotion &&
+        ((recorded == null && s.talk.isEmpty()) || (recorded?.who == "child" &&
+        recorded.questionType in setOf(ReportQuestionType.OPEN, ReportQuestionType.REASON))))
     val s1 = !emotion && eligible && a?.reason == true
     val el = if (emotion || !eligible) emptySet() else a?.el.orEmpty()
     val a1 = !emotion && eligible && a?.con == true
@@ -960,11 +961,12 @@ fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?:
     a?.emo?.takeIf { it.isNotEmpty() }?.let { s.feelings += it; event("emotion_mention", "text" to it) }
     if (a != null) quote(a.text)
 
-    if (q?.counts != true) return
-    if (s.mode == StoryMode.STORY && eligible && recorded?.who == "child" && a != null) {
-        val i = s.talk.indexOfLast { it.who == "child" && it.text == a.text.trim() }
-        if (i >= 0) s.talk[i] = s.talk[i].copy(languageEvidence = LanguageEvidence(s1, el, a1, words))
+    if (s.mode == StoryMode.STORY && q != null && recorded != null &&
+        ((eligible && recorded.who == "child" && a != null) || !q.counts)) {
+        val i = s.talk.indexOfLast { it.who == recorded.who && it.text == recorded.text }
+        if (i >= 0) s.talk[i] = s.talk[i].copy(languageEvidence = LanguageEvidence(s1, el, a1, words, q.counts))
     }
+    if (q?.counts != true) return
     s.turn++
     if (s.mode == StoryMode.STORY && !eligible) {
         s.s1streak = 0; s.noAnswerStreak = 0
@@ -973,21 +975,11 @@ fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?:
     }
     // 올림 신호: 고르며 → 이어는 S1 또는 S2 하나면 되고,
     // 이어 → 까닭은 까닭(S1)에 이야기 구조(계기 · 시도 · 결과 중 하나 또는 잇는 말)가 함께 있어야 한다 (역할1 조사2 §4 표)
-    val structure = el.any { it in setOf("계기", "시도", "결과") } || a1
-    val up = if (s.level == Level.PICK) (s1 || el.isNotEmpty()) else (s1 && structure)
-    val down = mode != "voice" || (words <= 2 && !up)
-    s.s1streak = if (up) s.s1streak + 1 else 0
-    s.noAnswerStreak = if (down) s.noAnswerStreak + 1 else 0
-    if (s.s1streak >= 2) {
-        s.s1streak = 0
-        val to = s.level.up()
-        if (to != s.level) moveLevel(to, "올림 신호 2턴 연속")
-    }
-    if (s.noAnswerStreak >= 2) {
-        s.noAnswerStreak = 0
-        val to = s.level.down()
-        if (to != s.level) moveLevel(to, "내림 신호(짧은 답 · 카드 · 무응답) 2턴 연속")
-    }
+    val style = nextQuestionStyle(QuestionStyle(s.level, s.s1streak, s.noAnswerStreak),
+        LanguageEvidence(s1, el, a1, words), missed = mode != "voice")
+    s.s1streak = style.rising; s.noAnswerStreak = style.shorter
+    if (style.level != s.level) moveLevel(style.level,
+        if (style.level.rank > s.level.rank) "올림 신호 2턴 연속" else "내림 신호(짧은 답 · 카드 · 무응답) 2턴 연속")
     // 일기 모드는 수준별 템플릿을 고르지 않는다 — 기승전결이 곧 쪽 차례다 (일기 설계 §5)
     if (s.turn == 3 && s.templateKey == null && !s.isDiary) decideTemplate("3턴째")
 }

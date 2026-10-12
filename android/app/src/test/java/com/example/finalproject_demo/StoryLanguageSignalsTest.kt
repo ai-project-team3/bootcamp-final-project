@@ -5,6 +5,8 @@ import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.Before
+import org.junit.After
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -12,6 +14,13 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class StoryLanguageSignalsTest {
+    private var previousBase: String? = null
+    private var previousModes: Set<StoryMode> = emptySet()
+    @Before fun prepare() {
+        previousBase = Server.base; previousModes = Server.liveModes
+        Server.base = null; Server.liveModes = emptySet()
+    }
+    @After fun clean() { Server.base = previousBase; Server.liveModes = previousModes }
     @Test fun liveCauseAndExplicitLinkingCanReachTheExistingReasonQuestionRule() = runBlocking {
         val oldBase = Server.base
         val oldModes = Server.liveModes
@@ -36,7 +45,7 @@ class StoryLanguageSignalsTest {
                 d.judge(BANK.first { it.slot == "cause" && it.counts && !it.emotion }, reply)
             }
             assertEquals(Level.REASON, d.s.level)
-        } finally { scope.cancel(); Server.base = oldBase; Server.liveModes = oldModes }
+        } finally { scope.coroutineContext[Job]?.cancelAndJoin(); Server.base = oldBase; Server.liveModes = oldModes }
     }
 
     @Test fun spokenChoicesDoNotPromoteQuestionStyleDespiteStrongServerSignals() {
@@ -73,10 +82,53 @@ class StoryLanguageSignalsTest {
         } finally { scope.cancel() }
     }
 
+    @Test fun aKnownOtherSpeakerCannotSupplyLanguageSignalsThroughASpokenReply() {
+        val scope = CoroutineScope(SupervisorJob())
+        try {
+            for (who in listOf("adult", "draw", "mascot", "card")) {
+                val d = Director(scope)
+                d.s.level = Level.CHAIN; d.s.templateKey = "E"
+                repeat(2) {
+                    d.setListening(Question("왜 집에 갔어?", Kind.HARD))
+                    d.say("왜 집에 갔어?")
+                    d.talk(who, "추웠어. 그래서 집에 갔어")
+                    d.judge(BANK.first { it.slot == "cause" && it.counts && !it.emotion },
+                        Reply.Spoke("추웠어. 그래서 집에 갔어", answer = Answer("추웠어. 그래서 집에 갔어", reason = true, con = true)))
+                }
+                assertEquals(who, Level.CHAIN, d.s.level)
+            }
+        } finally { scope.cancel() }
+    }
+
     @Test fun connectivesNeedTheirOwnWordAndDoNotInventCauseSignals() {
         val cases = listOf("추웠어. 그래서 집에 갔어" to true, "그리고 밥을 먹었어" to true,
             "그런데 비가 왔어" to true, "숲에서 놀았어" to false, "가서 먹었어" to false,
             "그리고싶어" to false, "그래서집에갔어" to false)
         cases.forEach { (text, expected) -> assertEquals(text, expected, storyHasLinkingExpression(text)) }
+    }
+
+    @Test fun undoAndRedoRestoreTheConsecutiveQuestionSignalState() {
+        val scope = CoroutineScope(SupervisorJob())
+        val d = Director(scope)
+        d.s.level = Level.CHAIN; d.s.templateKey = "E"
+        fun reply() {
+            d.setListening(Question("왜 집에 갔어?", Kind.HARD))
+            d.say("왜 집에 갔어?")
+            d.talk("child", "추웠어. 그래서 집에 갔어")
+            d.judge(BANK.first { it.slot == "cause" && it.counts && !it.emotion },
+                Reply.Spoke("추웠어. 그래서 집에 갔어", answer = Answer("추웠어. 그래서 집에 갔어", reason = true, con = true)))
+        }
+        try {
+            reply()
+            val history = TurnHistory(d.s)
+            history.before(); reply(); history.done()
+            assertEquals(Level.REASON, d.s.level)
+            assertTrue(history.undo())
+            assertEquals(Level.CHAIN, d.s.level)
+            assertEquals("Undo must retain the first of two consecutive signals", 1, d.s.s1streak)
+            assertTrue(history.redo())
+            assertEquals(Level.REASON, d.s.level)
+            assertEquals(0, d.s.s1streak)
+        } finally { scope.cancel() }
     }
 }

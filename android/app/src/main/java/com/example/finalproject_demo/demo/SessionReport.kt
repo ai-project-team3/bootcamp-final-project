@@ -51,9 +51,9 @@ data class TalkLine(
 )
 
 /** Actual question-rule inputs. Report-only expression tags are not these measured signals. */
-data class LanguageEvidence(val s1: Boolean, val elements: Set<String>, val a1: Boolean, val words: Int)
+data class LanguageEvidence(val s1: Boolean, val elements: Set<String>, val a1: Boolean, val words: Int, val counted: Boolean = true)
 
-internal fun LanguageEvidence.toJson(): JSONObject = JSONObject().put("s1", s1).put("a1", a1).put("words", words)
+internal fun LanguageEvidence.toJson(): JSONObject = JSONObject().put("s1", s1).put("a1", a1).put("words", words).put("counted", counted)
     .put("elements", JSONArray().also { a -> elements.sorted().forEach(a::put) })
 
 /** Missing or malformed old evidence stays unknown; it is never reconstructed from an answer tag. */
@@ -61,9 +61,11 @@ internal fun languageEvidenceOf(j: JSONObject?): LanguageEvidence? = if (j == nu
     val s1 = j.get("s1") as? Boolean ?: return null
     val a1 = j.get("a1") as? Boolean ?: return null
     val words = (j.get("words") as? Int)?.takeIf { it >= 0 } ?: return null
+    // The earlier version only wrote evidence for counting questions.
+    val counted = if (!j.has("counted")) true else j.get("counted") as? Boolean ?: return null
     val raw = j.getJSONArray("elements")
     val elements = (0 until raw.length()).map { (raw.get(it) as? String)?.takeIf(String::isNotBlank) ?: return null }.toSet()
-    LanguageEvidence(s1, elements, a1, words)
+    LanguageEvidence(s1, elements, a1, words, counted)
 }.getOrNull()
 
 /** 이야기 뼈대 한 칸. by: child · card · mascot. quoted — text 가 아이가 한 말 그대로일 때만 따옴표를 친다 */
