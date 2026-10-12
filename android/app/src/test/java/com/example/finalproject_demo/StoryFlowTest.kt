@@ -64,6 +64,11 @@ class StoryFlowTest {
     private suspend fun Director.step(wait: Long = 4_000): String? {
         if (await(wait) { pick(s.buttons) != null } == null) return null
         repeat(12) {
+            if (s.stage is Stage.NameEntry) {
+                send(com.example.finalproject_demo.demo.Reply.Tapped(com.example.finalproject_demo.demo.NAME_TYPED, "콩이"))
+                if (await(600) { s.stage !is Stage.NameEntry } != null) return "Typed hero name"
+                return@repeat
+            }
             val b = pick(s.buttons) ?: return null
             val before = s.lineId
             val label = b.label

@@ -148,6 +148,9 @@ fun SessionReportView(r: SessionReport, child: String, onTalk: () -> Unit, modif
             Text("말로 하지 않아도 고르고 그린 것이 다 ${child}${ga(child)} 만든 거예요.", fontSize = 13.sp, color = RSub, modifier = Modifier.padding(top = 4.dp))
         }
 
+        if (r.mode == "story") SpeechObservationsView(
+            com.example.finalproject_demo.demo.summarizeSpeech(r.talk), "이번 동화의 말 기록")
+
         // 이야기의 뼈대 — 세로 줄 (긴 말도 깨지지 않게 · 시안 수정)
         if (r.bones.isNotEmpty()) RCard(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.Bottom) {

@@ -181,7 +181,8 @@ fun DemoState.m2Log(page: Int): String {
         isDiary -> "해결에서 나온 ${m.itemName}${eul(m.itemName)}"
         else -> "장면 10에서 말한 ${m.itemName}${eul(m.itemName)}"
     }
-    return "${page}쪽 미션 2 ($how) — $what ${friendCallName}에게"
+    // who really gets the gift — the script default (「외계인」) is nobody when no one was met (laya 5th device round)
+    return "${page}쪽 미션 2 ($how) — $what ${giveTargetName}에게"
 }
 
 /**
@@ -278,7 +279,7 @@ fun DemoState.m1Before(): String {
 
 /** 같이 만들기 · 미션 2 전 — 아직 건네지 않았다. 앞의 「그리고」 뒤에 이어도 읽히게 절로 (#98) */
 fun DemoState.m2Before(): String = slot2Prop()?.before ?:
-    if (hasCompanion) "${giveTargetName}에게 줄 선물이 있어요." else "오늘 이야기를 들어준 마스코트에게 줄 선물이 있어요."
+    if (hasCompanion) "${giveTargetName}에게 줄 선물이 있어요." else "오늘 이야기를 들어준 ${MASCOT_NAME}에게 줄 선물이 있어요."
 
 /**
  * 미션 2가 책에 남는 절 — 주어 없이. 앞의 "마침내 …" 문장에 이어 붙는다 (9/22).
@@ -288,7 +289,7 @@ fun DemoState.m2Clause(): String = slot2Prop()?.did ?:
     // 아무도 없었던 날엔 마스코트가 받는다. 그런데 마스코트는 앞쪽에 한 번도 안 나온 인물이라
     // 그냥 "마스코트에게 건네주었어요" 라고 하면 뜬금없다. 한 마디로 자리를 만들어 준다 (9/22)
     if (hasCompanion) "${giveTargetName}에게 ${mission2().give}."
-    else "오늘 이야기를 들어준 마스코트에게 ${mission2().give}."
+    else "오늘 이야기를 들어준 ${MASCOT_NAME}에게 ${mission2().give}."
 
 fun DemoState.m1Done(): String =
     slot1Prop()?.cheer ?: if (!mission1().named) mission1().done else if (isDiary) "${mission1().done} 자리가 다시 깨끗해졌어!"
@@ -305,7 +306,18 @@ fun DemoState.m2Line(easy: Boolean): String {
     // 일기 모드는 "미안해"를 앞세우지 않는다 — 아이가 그렇게 말하지 않았을 수 있다 (일기 설계 §3-2).
     // Nobody met in a live story: the mascot receives, and no cause is put on it (「마스코트가 무서워서 울었대」 · #387)
     if (isDiary || !hasCompanion) return "${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
-    return "${f}${ga(f)} ${reported(causeLine)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
+    // a cause nobody said is not voiced — a live story's causeLine is the script default until the child gives one (rule 5)
+    val cause = causeSaid ?: return "${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
+    return "${f}${ga(f)} ${reported(cause)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
 }
+
+/**
+ * The cause as told — in a live story only when the cause slot was filled; [DemoState.causeLine] keeps the script's
+ * 「친구가 없어서 심심했어」 otherwise (10-09 device: the book log and mission 2 carried a cause the child never said).
+ * A scripted story always has one (the child's pick or the scene's card).
+ */
+internal val DemoState.causeSaid: String?
+    get() = if (mode == StoryMode.STORY && com.example.finalproject_demo.net.Server.liveFor(mode) && slots["cause"].isNullOrBlank()) null
+        else causeLine
 
 fun DemoState.m2Done(): String = slot2PlayProp()?.cheer ?: "${giveTargetName}${ga(giveTargetName)} ${mission2().done}"

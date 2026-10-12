@@ -1,6 +1,7 @@
 package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.DemoState
+import com.example.finalproject_demo.demo.MASCOT_NAME
 import com.example.finalproject_demo.demo.PageKind
 import com.example.finalproject_demo.demo.SavedStoryBook
 import com.example.finalproject_demo.demo.SavedStoryPage
@@ -53,7 +54,7 @@ class StoryNoFriendTest {
         val s = story()
         assertTrue(s.liveStoryWithoutFriend)
         assertFalse(s.hasCompanion)
-        assertEquals("마스코트", s.giveTargetName)
+        assertEquals(MASCOT_NAME, s.giveTargetName)
     }
 
     /** 10-12 device — the last page logged 「소리 대상 외계인」 on a day nobody was met */

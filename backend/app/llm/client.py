@@ -56,6 +56,11 @@ def _output_text(body: dict) -> str:
     raise LLMError(f"no output_text (status={body.get('status')}, reason={why}, parts={seen})")
 
 
+def _edge(c: str) -> str:
+    """The first or last character only when it is JSON punctuation — a letter could be the child's."""
+    return repr(c) if c in '{}[]",:`' or c.isspace() else "text"
+
+
 async def complete(system: str, user: str, schema: dict, *, effort: str,
                    name: str = "judge", max_output_tokens: int = 768, timeout_s: float = 30.0) -> dict:
     """Structured output. Schema compliance is enforced (strict json_schema), not requested.
@@ -103,7 +108,14 @@ async def complete(system: str, user: str, schema: dict, *, effort: str,
     log.info("llm %s · in %d · out %d tokens", name, tin, tout)
     if on_usage:
         on_usage(name, tin, tout)
+    text = _output_text(body)
     try:
-        return json.loads(_output_text(body))
+        return json.loads(text)
     except json.JSONDecodeError as e:
-        raise LLMError("output is not JSON") from e
+        # #376: ~10 % of /turn lines died here with no clue why. Say what the answer looked like —
+        # cut off at the token budget, wrapped in a fence, or something else — but not the words.
+        why = (body.get("incomplete_details") or {}).get("reason")
+        shape = (f"status={body.get('status')}, reason={why}, out={tout}/{max_output_tokens}, "
+                 f"chars={len(text)}, starts={_edge(text[:1])}, ends={_edge(text[-1:])}, at={e.pos}")
+        log.warning("llm %s · not JSON · %s", name, shape)
+        raise LLMError(f"output is not JSON ({shape})") from e

@@ -695,7 +695,7 @@ sealed interface Stage {
     data class DrawPad(val forAnswer: Boolean = false) : Stage
     data class BookPage(val index: Int, val m1Done: Boolean = false, val m2Done: Boolean = false) : Stage
 
-    /** S10 친구 평가 — 오늘 만난 친구마다 [또 만날래 💛] [안녕 👋] */
+    /** S10 친구 평가 — 오늘 만난 친구마다 [좋아요 👍] [싫어요 👎] */
     data class FriendRate(val friends: List<RateItem>) : Stage
     /**
      * 선물 화면 — [shown] 은 불이 켜진 선물 수, [done] 은 **더 나올 선물이 없다**는 뜻이다.
@@ -722,7 +722,11 @@ sealed interface Stage {
 data class RateItem(val id: String, val name: String, val art: Art, val keep: Boolean? = null)
 
 /** [called] = 아이가 지어 준 이름(말 · 글 · 10-02) — 있으면 이야기의 주인공 이름이 된다. 없으면 [name](모습)으로 부른다 */
-data class Hero(val name: String, val attr: HeroAttr, val image: String? = null, val rig: String? = null, val called: String? = null)
+/** The mascot as the child knows it — every child-facing line says this name, never 「마스코트」 (10-09 user) */
+const val MASCOT_NAME = "오또"
+
+data class Hero(val name: String, val attr: HeroAttr, val image: String? = null, val rig: String? = null, val called: String? = null,
+    val description: String = "")
 
 /** 옷 색 → 생성 그림 이름 조각 */
 fun shirtKey(c: Color): String = when (c) {
@@ -950,6 +954,8 @@ class DemoState {
     internal var storyAnswerOptions by mutableStateOf<StoryOptions?>(null)
     var storyStartedAtMs = 0L
     val storyUnneededSlots = mutableStateListOf<String>()
+    /** The child already asked to end once and got the closing question (StoryEndIntent.kt) */
+    var storyEndAsked = false
     val storyReady: Boolean get() = mode == StoryMode.STORY && endReason == "story_ready"
 
     // ── 함께 하는 사람
@@ -1316,7 +1322,8 @@ class DemoState {
     internal var savedNoFriend = false
 
     /** 미션 2에서 건넬 상대의 이름 — 아무도 없었던 날에는 마스코트가 받는다 (그림도 마스코트다) */
-    val giveTargetName: String get() = if (hasCompanion) friendCallName else "마스코트"
+    // the child sees and hears 「오또」, not the word 「마스코트」 (10-09 user) — internal ids such as by=mascot stay
+    val giveTargetName: String get() = if (hasCompanion) friendCallName else MASCOT_NAME
 
     // ── 수준 신호 (역할 1)
     var turn by mutableStateOf(0)
@@ -1336,6 +1343,7 @@ class DemoState {
     var heroAttr by mutableStateOf<HeroAttr?>(null)
     var storyHeroImage by mutableStateOf<String?>(null)
     var storyHeroRig by mutableStateOf<String?>(null)
+    var storyHeroDescription by mutableStateOf("")
 
     val heroes = mutableStateListOf(
         // 둘이 한눈에 달라 보여야 한다 — 안경만 다르면 도감에서 같은 아이로 보인다 (9/21)
@@ -1434,8 +1442,6 @@ class DemoState {
     /** 실제 완성된 책만 들어간다. 동화책은 기기 저장소에서 시작할 때 복원한다. */
     val shelf = mutableStateListOf<ShelfBook>()
 
-    /** S10에서 "또 만날래"로 고른 친구 — 다음 이야기의 확인 카드 후보가 된다 (⭐26) */
-    val keptFriends = mutableStateListOf<String>()
 
     /** 시연 서랍 [그림 생성 느리게] — 8초 안내 · 15초 취소를 실제로 보여준다 (구현대본 §7) */
     var slowImages by mutableStateOf(false)
@@ -1455,6 +1461,7 @@ class DemoState {
     /** Report transcript: Otto's questions and every answer with its source (demo/SessionReport.kt) */
     val talk = mutableStateListOf<TalkLine>()
     var talkStartedAtMs = 0L
+    var reportProfileId: String = AnswerHistory.profileId
     /** The last shelved book's report — the parent screen shows it once the session is reset */
     var lastReport by mutableStateOf<SessionReport?>(null)
 
@@ -1482,7 +1489,7 @@ class DemoState {
         canUndo = false; canRedo = false
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
-        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyAnswerOptions = null; storyUnneededSlots.clear(); storyStartedAtMs = 0L
+        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyAnswerOptions = null; storyUnneededSlots.clear(); storyEndAsked = false; storyStartedAtMs = 0L
         partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY
@@ -1511,10 +1518,12 @@ class DemoState {
         signals.clear(); quotes.clear(); feelings.clear(); partnerTurns = 0
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
+        storyHeroCall = null; storyHeroDescription = ""
         generatedCharacters.clear(); characterRequests.clear(); characterAttempts.clear(); readingSavedCast = false
         savedProblemCharacter = null; savedNoFriend = false
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
+        reportProfileId = AnswerHistory.profileId
         heroTries.clear()
         heroCreationDraft = null
         modeVoice = 0; modeCard = 0; modeDraw = 0; modeSilent = 0
@@ -1537,7 +1546,7 @@ class DemoState {
         heroes += Hero("빨간 옷 친구", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
         shelf.clear()
         limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null
-        keptFriends.clear(); usedVariants.clear()
+        usedVariants.clear()
         partnerKey = "mom"
         partnerCall = null
         firstDay = false
