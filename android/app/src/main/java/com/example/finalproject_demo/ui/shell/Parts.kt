@@ -283,15 +283,17 @@ fun YearPad(onPass: () -> Unit, modifier: Modifier = Modifier, note: String = "ë
     var waitLeft by remember { mutableIntStateOf(0) }
     var shake by remember { mutableStateOf(false) }
     LaunchedEffect(waitLeft) { if (waitLeft > 0) { delay(1000); waitLeft-- } }
+    var misses by remember { mutableIntStateOf(0) }
+    // its own effect â€” see PinPad (#394)
+    LaunchedEffect(misses) { if (misses > 0) { shake = true; delay(500); shake = false } }
     LaunchedEffect(digits) {
         if (digits.length == 4) {
             val y = digits.toInt()
             val now = Calendar.getInstance().get(Calendar.YEAR)
             if (y in 1920..(now - 19)) onPass()
             else {
-                delay(300); shake = true; digits = ""; wrong++
+                delay(300); digits = ""; wrong++; misses++
                 if (wrong >= 3) { waitLeft = 30; wrong = 0 }
-                delay(500); shake = false
             }
         }
     }
@@ -363,13 +365,16 @@ fun PinPad(title: String, note: String, onDone: (String) -> Boolean, modifier: M
     var waitLeft by remember { mutableIntStateOf(0) }
     var shake by remember { mutableStateOf(false) }
     LaunchedEffect(waitLeft) { if (waitLeft > 0) { delay(1000); waitLeft-- } }
+    var misses by remember { mutableIntStateOf(0) }
+    // The wrong-number message has its own effect. Inside the one below, emptying the dots restarted that effect
+    // and cancelled the wait, so the message stayed up after the first miss and later misses showed nothing (#394)
+    LaunchedEffect(misses) { if (misses > 0) { shake = true; delay(600); shake = false } }
     LaunchedEffect(digits) {
         if (digits.length == 4) {
             delay(150)
             if (!onDone(digits)) {
-                shake = true; digits = ""; wrong++
+                digits = ""; wrong++; misses++
                 if (wrong >= 3) { waitLeft = 30; wrong = 0 }
-                delay(600); shake = false
             }
         }
     }
