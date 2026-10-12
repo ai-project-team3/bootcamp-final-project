@@ -150,4 +150,34 @@ class DiarySalvageTalkTest {
         assertFalse("「/」가 책에 나왔다: $text", "/" in text)
         assertTrue(text, "모래성" in text && "무너졌" in text)
     }
+
+    /** `/turn` 응답에 행동을 얹는다 (#323) */
+    private fun withAct(json: String, act: String): String = JSONObject(json).put("act", act).put("retract", org.json.JSONArray()).toString()
+
+    /** #323 · 10-12 실기기: 그리는 중 오또에게 한 질문이 「"오또는 몇 살이야?"라고 물었어요.」로 책에 들어갔다 */
+    @Test
+    fun aQuestionToOttoWhileDrawingIsNotKeptForTheBook() = drawing({ withAct(turn(emptyList()), "answer_back") }) { d, asked ->
+        d.tell("오또는 몇 살이야?") { asked.size == 1 }
+        delay(300)
+        assertTrue("기록 필드가 간다 — 그리는 중엔 지난 턴 없이 오또가 방금 한 말만", asked[0].has("history"))
+        assertTrue("오또에게 한 말은 책 재료가 아니다 — extra=${d.s.slots["extra"]}", d.s.slots["extra"] == null)
+    }
+
+    @Test
+    fun aStoryWhileDrawingIsStillKeptWhenItIsOne() = drawing({ turn(emptyList()) }) { d, asked ->
+        d.tell("나 이거 진짜 좋아해") { asked.size == 1 }
+        assertTrue(await { d.s.slots["extra"] != null } != null)
+        assertTrue(asked[0].has("history"))
+    }
+
+    /** 10-12 실기기: 「너는 자동차 있어?」 — 오또가 방금 한 말이 없으면 「너」가 오또인지 몰랐다(0.44) */
+    @Test
+    fun talkWhileDrawingCarriesOttosLastWords() = drawing({ turn(emptyList()) }) { d, asked ->
+        d.s.ottoSaid = "나도 자동차를 그려볼까?"
+        d.tell("너는 자동차 있어?") { asked.size == 1 }
+        val h = asked[0].getJSONArray("history")
+        val last = h.getJSONObject(h.length() - 1)
+        assertEquals("나도 자동차를 그려볼까?", last.getJSONObject("otto").getString("question"))
+        assertEquals("오또 말에는 아이 답이 없다", "", last.getJSONObject("child").getString("text"))
+    }
 }

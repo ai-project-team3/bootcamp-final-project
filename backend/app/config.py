@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     judge_jev_modes: str = ""
     typesafe_api_key: str = ""
     jev_model: str = "jev-latest"
+    # Dialogue repair (#323): who reads what the child meant — "jev" now, Laya once #324 measures it.
+    # Runs next to the judge, only when the app sends history. "mock" = words only (tests).
+    dialogue_decider: str = "jev"
+    dialogue_deadline_s: float = 4.0     # past this the turn runs as before; the judge is not held up
+    # Who picks the act: "rule" (decider + rule table · served) or "llm" (the line model picks it in
+    # the same call · measurement only, eval/line_act_choose.md). #323 compares the two before deciding.
+    dialogue_policy: str = "rule"
     # Modes whose judge runs on Laya, our own fine-tuned encoder on this machine (10-08 · app/llm/laya.py).
     # Checked before Jev; a Laya failure falls to Jev (if that mode is on it) and then luna. The v4 checkpoint
     # is trained on all three modes (story · diary · coop), so "story,diary,coop" is valid — start with
