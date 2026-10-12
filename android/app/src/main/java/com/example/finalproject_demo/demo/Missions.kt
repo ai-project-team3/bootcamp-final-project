@@ -302,8 +302,9 @@ fun DemoState.m2Line(easy: Boolean): String {
     // 9/22 — 아무도 없었던 날에는 "그 친구" 를 지어내지 않는다. 마스코트가 받는다 (그림도 이미 마스코트다)
     val f = giveTargetName
     if (easy) return "${m.itemName}${eul(m.itemName)} 톡톡 누르면 ${f}에게 날아가!"
-    // 일기 모드는 "미안해"를 앞세우지 않는다 — 아이가 그렇게 말하지 않았을 수 있다 (일기 설계 §3-2)
-    if (isDiary) return "${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
+    // 일기 모드는 "미안해"를 앞세우지 않는다 — 아이가 그렇게 말하지 않았을 수 있다 (일기 설계 §3-2).
+    // Nobody met in a live story: the mascot receives, and no cause is put on it (「마스코트가 무서워서 울었대」 · #387)
+    if (isDiary || !hasCompanion) return "${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
     return "${f}${ga(f)} ${reported(causeLine)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
 }
 
