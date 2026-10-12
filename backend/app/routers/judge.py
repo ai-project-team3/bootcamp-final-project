@@ -102,10 +102,17 @@ async def run(req: JudgeRequest) -> JudgeResult:
             # diary · coop: the ending and the next slot are rules, as on Laya (judge_rules.py · 12 of the 13
             # labelled mode cases) — Jev's own story_ready / next_slot there are guesses about a diary order it
             # never saw. A story keeps Jev's verdict and the #156 recovery below: its required slots depend on
-            # the template, which the fixed rule list does not know
+            # the template, which the fixed rule list does not know — only an open next slot is filled in
             if req.mode != "story":
                 raw = judge_rules.apply(raw, req, raw.get("next_slot"))
             result = enforce(JudgeResult.model_validate(raw), req)
+            if req.mode == "story" and not result.story_ready and result.next_slot is None:
+                # Jev left the next slot open or enforce() wiped it: ask the next empty beat instead of a full luna
+                # judge (2~3 s and luna's price a turn — 10-12 device, most story turns went there). Once the
+                # ending is in, whether the story is over stays with the recovery below (judge_rules.story_fill)
+                result.next_slot = judge_rules.story_fill(req, result.slot_1)
+                if result.next_slot:
+                    log.info("story judge jev: next slot by rule → %s", result.next_slot)
             if req.mode != "story" or result.story_ready or result.next_slot is not None:
                 return result
             # A dropped/invalid choice is still a successful Jev response. Without
