@@ -146,6 +146,24 @@ async def partner(utterance: str, timeout_s: float = 4.0) -> tuple[str | None, f
     return key, conf, round(time.monotonic() - t0, 2)
 
 
+async def ask(state: str, qs: dict, timeout_s: float = 4.0) -> tuple[dict, float]:
+    """Any set of choice/noul questions on one state — (answers, seconds). Raises JevError.
+
+    Names must already be masked in [state] (mask_names)."""
+    if not settings.typesafe_api_key:
+        raise JevError("missing TYPESAFE_API_KEY")
+    body = {"state": state, "model": settings.jev_model, "questions": qs}
+    t0 = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s) as http:
+            r = await http.post(API, json=body, headers={"Authorization": f"Bearer {settings.typesafe_api_key}"})
+    except httpx.HTTPError as e:
+        raise JevError(f"network: {type(e).__name__}") from e
+    if r.status_code != 200:
+        raise JevError(f"HTTP {r.status_code}")
+    return r.json().get("answers", {}) or {}, round(time.monotonic() - t0, 2)
+
+
 async def judge(system: str, user: str, utterance: str, timeout_s: float = 6.0) -> dict:
     """Raises JevError; the caller falls back to the luna judge."""
     if not settings.typesafe_api_key:

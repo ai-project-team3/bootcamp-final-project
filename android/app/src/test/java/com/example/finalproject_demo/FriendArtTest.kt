@@ -75,6 +75,7 @@ class FriendArtTest {
             companionKind = "강아지"; friend = "강아지"; slots["companion"] = "강아지와 함께 갔어요"
             problem = "길을 잃어버렸어"; slots["problem"] = "길을 잃어버렸어요"
             generatedFriend = GeneratedFriend("강아지", "local:/x/dog.png", "quad")
+            slots["parent1"] = "고양이한테 인사했어"   // the second character the doll is for (#378)
             generatedCharacters += GeneratedFriend("고양이", "local:/x/cat.png", "quad", "second")
             title = "강아지와 동물원"
         }

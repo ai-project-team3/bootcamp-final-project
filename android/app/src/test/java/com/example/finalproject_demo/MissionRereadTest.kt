@@ -100,6 +100,7 @@ class MissionRereadTest {
             coopPick = CoopPick("place", "소방서", "done")
             problem = "소방차가 달려왔어"
             generatedFriend = GeneratedFriend("고양이", "local:/cat.png", "quad")
+            slots["parent1"] = "강아지랑 놀았어"   // the second character the doll is for (#378)
             generatedCharacters.add(GeneratedFriend("강아지", "local:/dog.png", "quad", "second"))
         }
         val made = s.missions()

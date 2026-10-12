@@ -26,6 +26,15 @@ const val COOP_WHY_MAX = 2
 /** 선택지 먼저 · 질문 마지막. 말로 줄 때는 순서를 섞는다 (근거 #10 · #27) */
 private fun withChoices(options: List<String>, ask: String) = options.shuffled().joinToString(", ") + ". " + ask
 
+/**
+ * The question after the item's solution choices (「먼저 사과하기 · 선생님께 말하기 · 같이 놀기」) — the choices are ways
+ * to deal with it, so it asks how. 「…. 그다음에 뭐 했어?」 read as a new question about what came next (10-12 user)
+ */
+internal fun coopSolutionHow(reason: CoopReason) = reason.pick("그래서 어떻게 했어?", "그러면 어떻게 할까?", "그래서 어떻게 했을까?")
+
+/** A question that carries choices — 「A, B, C. 묻는 말?」 */
+internal fun hasCoopChoices(q: String) = ". " in q && "," in q
+
 /** 시제 셋 — 다녀왔어요 · 곧 해요 · 좋아해요(이유를 안 골랐으면 상상) */
 private fun CoopReason.pick(done: String, soon: String, dream: String) = when (this) {
     CoopReason.DONE -> done; CoopReason.SOON -> soon; CoopReason.DREAM -> dream
@@ -41,7 +50,7 @@ internal fun coopFollowUpCandidates(
     trouble: Boolean = true,
 ): List<String> {
     val item = pick?.let { coopItem(it.name) }
-    val ladderChoice = rungs.lastOrNull { ". " in it && "," in it }
+    val ladderChoice = rungs.lastOrNull(::hasCoopChoices)
     val whyOk = whyAsked < COOP_WHY_MAX
     return when (slot) {
         "problem" -> when (level) {
@@ -66,7 +75,7 @@ internal fun coopFollowUpCandidates(
         "solution" -> {
             val next = reason.pick("그다음에 뭐 했어?", "그다음에 뭐 할까?", "그다음에 뭐 했을까?")
             when (level) {
-                Level.PICK -> listOfNotNull(item?.let { withChoices(it.fixes, next) }, ladderChoice)
+                Level.PICK -> listOfNotNull(item?.let { withChoices(it.fixes, coopSolutionHow(reason)) }, ladderChoice)
                 Level.CHAIN -> listOf(next)
                 Level.REASON -> listOfNotNull(
                     // 가정 질문 — 까닭 짓기 + 상상에서만 (Scenes.kt 소크라틱 원칙과 같은 기준에 상상을 더한다)

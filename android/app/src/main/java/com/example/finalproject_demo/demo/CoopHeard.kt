@@ -146,14 +146,45 @@ fun companionName(raw: String): String {
         .map { p -> if (p.length >= 2 && p.endsWith("이") && bat(p.dropLast(1)) && p !in NOUNS_ENDING_IN_I) p.dropLast(1) else p }
         // 「엄마랑 아빠랑 **갔어**」 · 「…**같이**」 — 서술어 · 꾸밈말은 이름이 아니다. 그대로 두면 「엄마, 아빠와 갔어를 그려 줄래?」가 됐다(10-06 실기기)
         .filter { p -> p.isNotBlank() && p !in NOT_COMPANIONS && !looksLikeAPhrase(p) }
+        // 「엄마 아빠」 — family words side by side with only a space are two people; 「친구 엄마」 · 「친구의 엄마」 stay one (10-12 user)
+        .flatMap(::splitFamilyWords)
     if (names.isEmpty() || names == listOf(t)) return t
     // 쉼표로 잇는다 — 「와」로 이으면 뒤에 붙는 조사와 겹쳐 책에 「엄마와 아빠와 동물원에 갔어요」가 나왔다(10-06 실기기).
     // 「엄마, 아빠」는 「엄마, 아빠와 갔어요」 · 「엄마, 아빠가 뭐라고 했어?」 어디에 붙어도 읽힌다
     return names.joinToString(", ")
 }
 
+/**
+ * 「엄마 아빠」 → [엄마, 아빠] — only when **every** spaced word is a family word on its own. One non-family word makes it
+ * one person named by its last word: 「친구 엄마」 · 「친구의 엄마」 · 「우리 엄마」 · 「엄마 친구」 (10-12 user)
+ */
+internal fun splitFamilyWords(piece: String): List<String> {
+    val words = piece.trim().split(Regex("\\s+")).filter(String::isNotBlank)
+    return if (words.size >= 2 && words.all { it in FAMILY_WORDS } && words.distinct().size == words.size) words else listOf(piece)
+}
+
+/** Family words a child lists side by side — 「엄마 아빠」 · 「할머니 할아버지」 · 「삼촌 이모」 */
+internal val FAMILY_WORDS = setOf("엄마", "아빠", "할머니", "할아버지", "언니", "누나", "오빠", "형", "동생", "이모", "삼촌", "고모", "이모부", "고모부")
+
 /** 같이 간 사람을 잇는 말 — 뒤에 띄어쓰기 · 문장부호가 오거나 말끝일 때만(「과자」 · 「와플」의 「과 · 와」는 이름의 일부) */
 private val COMPANION_JOIN = Regex("\\s*(?:랑|하고|그리고|와|과|,)(?:[\\s.…,~!]+|$)")
 
 /** 같이 간 사람 자리에 끼지 않는 꾸밈말 */
 private val NOT_COMPANIONS = setOf("같이", "함께", "다", "다같이", "다 같이", "둘이", "셋이", "넷이", "모두")
+
+/**
+ * A companion value that is a sentence, not people — 「기린한테 나뭇잎 줄 거야」 (10-12 device). Any one person in it
+ * ([companionName] joins them with 「, 」) with a 「한테 · 에게」 or a predicate ending is a sentence;
+ * 「유치원 선생님」 · 「우리 반 친구들」 · 「친구 엄마」 · 「엄마, 아빠」 are people
+ */
+internal fun coopCompanionSentence(value: String): Boolean = value.split(",").map(String::trim).filter(String::isNotBlank).any { p ->
+    val words = p.split(Regex("\\s+"))
+    words.any { w -> SENTENCE_PARTICLES.any { w.length > it.length && w.endsWith(it) } } ||
+        PREDICATE_ENDINGS.any { p.length > it.length && p.endsWith(it) }
+}
+
+/** 「기린한테」 — someone the child does something to, not someone who went along */
+private val SENTENCE_PARTICLES = listOf("한테", "에게", "께서")
+
+/** 「줄 거야」 · 「먹었어」 · 「할래」 — a person's name does not end like this */
+private val PREDICATE_ENDINGS = listOf("거야", "거예요", "했어", "했다", "었어", "았어", "였어", "할래", "줄래", "해요", "어요", "갈래", "볼래", "는데", "니까", "을래")

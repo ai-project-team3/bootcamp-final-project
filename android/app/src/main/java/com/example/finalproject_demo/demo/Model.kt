@@ -816,7 +816,8 @@ sealed interface Reply {
 }
 
 /** 한 턴에 대한 판단 기록 — 시연 서랍 "발달 판단" 표 */
-data class TurnNote(val q: String, val a: String, val mode: String, val s1: Boolean, val el: Set<String>, val a1: Boolean, val words: Int)
+data class TurnNote(val q: String, val a: String, val mode: String, val s1: Boolean, val el: Set<String>, val a1: Boolean, val words: Int,
+    val languageEligible: Boolean = true)
 
 class DemoState {
     var persona by mutableStateOf(Persona.TALKER)
@@ -954,6 +955,12 @@ class DemoState {
     internal var storyAnswerOptions by mutableStateOf<StoryOptions?>(null)
     var storyStartedAtMs = 0L
     val storyUnneededSlots = mutableStateListOf<String>()
+    /** Who-slots already asked again after the judge filled them with a sentence — once each (StoryNameGuard.kt) */
+    val storyWhoReasked = mutableSetOf<String>()
+
+    /** What the app named instead of the child (「새 친구」) — said aloud once on the next turn, then cleared (guidelines/7 §3-2 · #375 review) */
+    var storyAppNamed: String? = null
+
     /** The child already asked to end once and got the closing question (StoryEndIntent.kt) */
     var storyEndAsked = false
     val storyReady: Boolean get() = mode == StoryMode.STORY && endReason == "story_ready"
@@ -1250,6 +1257,8 @@ class DemoState {
     /** 지금 만들고 있는 낱말 — 같은 말로 두 번 부르지 않는다 (저장하지 않는다) */
     internal val characterRequests = mutableMapOf<CharacterRequest, Any>()
     internal val characterAttempts = mutableSetOf<CharacterRequest>()
+    /** Co-op second-character tries that came back empty — capped at [COOP_CHARACTER_TRIES] (#339 ② §2-5) */
+    internal val coopCharacterTries = mutableMapOf<CharacterRequest, Int>()
 
     /** 동화의 새 친구 인형 — 아이가 그리지 않았고, 지금 새 친구 칸 그대로일 때만 */
     val storyFriendDoll: GeneratedFriend?
@@ -1280,6 +1289,27 @@ class DemoState {
                 generatedFriend?.let { Art.Img(it.image, Art.Img("dp_friend_b", Art.Emoji("🧒")), it.rig) }
             else -> Art.Img("dp_friend_b", Art.Emoji("🧒"))
         }
+
+    /**
+     * Everyone the child named in co-op — 「엄마, 아빠」 · 「엄마 아빠」 are two, 「친구 엄마」 · 「친구의 엄마」 one (10-12 user).
+     * Elsewhere one name, as before
+     */
+    val companionPeople: List<String>
+        get() = if (!isCoop || companionKind.isBlank() || "혼자" in companionKind) emptyList()
+            else companionName(companionKind).split(",").map(String::trim).filter(String::isNotBlank)
+
+    /**
+     * Everyone the child named, drawn — co-op stands 「엄마, 아빠」 side by side (10-12 user: only 아빠 stood).
+     * One person (or another mode) is [companionArt] as before
+     */
+    val companionArts: List<Art>
+        get() = companionPeople.takeIf { it.size >= 2 }
+            ?.map { coopCompanionPreset(it) ?: Art.Img("dp_friend_b", Art.Emoji("🧒")) }
+            ?: listOfNotNull(companionArt)
+
+    /** [friendOrPartnerArt] with everyone the child named — the book pages and cover stand them all */
+    val friendOrPartnerArts: List<Art>
+        get() = if (liveStoryWithoutFriend) emptyList() else if (hasChildArt) listOf(friendArt) else companionArts
 
     /**
      * 책과 미션 2의 상대.
@@ -1360,6 +1390,8 @@ class DemoState {
     var stage by mutableStateOf<Stage>(Stage.Empty)
     var speaker by mutableStateOf("마스코트")
     var line by mutableStateOf("")
+    /** 오또가 마지막으로 한 말 — [line] 은 아이 말도 띄워서 따로 둔다. 그림일기가 「너는 …?」의 「너」가 오또인지 읽을 맥락으로 쓴다 (#323) */
+    var ottoSaid = ""
 
     /** 말풍선 애니메이션을 다시 시작시키는 번호 — 말할 때마다 1씩 오른다 */
     var lineId by mutableStateOf(0)
@@ -1489,7 +1521,7 @@ class DemoState {
         canUndo = false; canRedo = false
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
-        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyAnswerOptions = null; storyUnneededSlots.clear(); storyEndAsked = false; storyStartedAtMs = 0L
+        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyAnswerOptions = null; storyUnneededSlots.clear(); storyWhoReasked.clear(); storyAppNamed = null; storyEndAsked = false; storyStartedAtMs = 0L
         partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY
@@ -1519,7 +1551,7 @@ class DemoState {
         images = 0; redraws = 0; dinoColor = Color(0xFF6FC276)
         heroAttr = null; storyHeroImage = null; storyHeroRig = null
         storyHeroCall = null; storyHeroDescription = ""
-        generatedCharacters.clear(); characterRequests.clear(); characterAttempts.clear(); readingSavedCast = false
+        generatedCharacters.clear(); characterRequests.clear(); characterAttempts.clear(); coopCharacterTries.clear(); readingSavedCast = false
         savedProblemCharacter = null; savedNoFriend = false
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L

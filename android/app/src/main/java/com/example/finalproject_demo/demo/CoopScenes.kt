@@ -430,7 +430,10 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
     log("[$key] ${src.label} 질문 → \"$shown\" · 수준 ${s.level.label}" + (if (src == CoopSource.HEARD) " · 들은 이름 ${track.heard}" else ""))
     if ("왜" in shown) track.whyAsked++
     if (idx != null && firstAsk) track.partQuestions[idx] = shown
-    val (r, askedLast, stillAsking) = askAnsweringChildQuestions(q, key, shown)
+    // Choices already asked — a no-answer goes to the choices again, not down to an open rung: 「…. 그래서 어떻게 했어?」 →
+    // 「그다음에 뭐 했어?」 sounded like a new question right after the choices (10-12 user · review)
+    val asking = if (hasCoopChoices(shown) && q.ladder.any(::hasCoopChoices)) q.copy(ladder = q.ladder.filter(::hasCoopChoices)) else q
+    val (r, askedLast, stillAsking) = askAnsweringChildQuestions(asking, key, shown)
     if (stillAsking) {
         // A third question in one step — the current flow (an easier question). Not into a slot or the rejected list (coopLiveValueAsSaid) · no ack
         log("[$key] third child question → no answer, the easier question as now (#327 ⚖️5)")
@@ -795,6 +798,16 @@ private fun Director.coopSessionLog() {
  *
  * 묻고 있던 질문은 **취소한다.** 탭 · 무응답 신호로 깨우면 그 값이 칸에 들어가거나 쉬운 질문으로 다시 묻는다.
  */
+/** The parent can still end the story here — the old 「그만하기」 button's condition, now the ⏸ sheet's 「마치기」 (10-12 user) */
+val DemoState.coopStopOpen: Boolean
+    get() = isCoop && scene == Scene.DIARY && (endReason == null || stage is Stage.DrawPad)
+
+/** 「마치기」 from the ⏸ sheet — the hold is lifted without replaying the cut line, then the story ends as [stopCoopByParent] */
+fun Director.stopCoopFromPause() {
+    if (s.holding) liftHold()
+    stopCoopByParent()
+}
+
 fun Director.stopCoopByParent() {
     // 그리기 단계(이야기 칸이 다 찬 뒤 · 끝난 이유가 이미 있다) — 그리기를 마치고 바로 책으로. 그린 게 있으면 그 그림으로 (#98)
     if (s.isCoop && s.scene == Scene.DIARY && s.stage is Stage.DrawPad) {
@@ -839,7 +852,10 @@ internal fun Reply.Spoke.isLiveSpeech(): Boolean = value.isEmpty() && (answer ==
 
 /** 칸에 넣지 않는 짧은 말 — 「몰라」 · 「글쎄」 · 「응」. 이때는 사다리를 한 칸 내려가 쉬운 말로 다시 묻는다 */
 private val NON_ANSWER_STARTS = listOf("몰라", "모르겠", "모름", "글쎄", "기억 안", "기억이 안", "생각 안", "생각이 안", "잘 모르")
-private val NON_ANSWER_WORDS = setOf("응", "어", "음", "아니", "네", "예", "없어", "몰라요", "싫어")
+private val NON_ANSWER_WORDS = setOf("응", "어", "음", "아니", "네", "예", "없어", "몰라요", "싫어") +
+    // 「끝」 · 「그냥」 carry nothing for the book — at the ladder's end 「끝」 became the cause (10-12 device · Laya).
+    // Ending is the parent's in co-op (#36 · ⏸ 「마치기」), so 「끝이야」 asks the easier question like 「몰라」
+    setOf("끝", "끝이야", "끝났어", "이제 끝", "이제 끝이야", "그만", "그만할래", "그냥", "그냥요", "다 했어")
 
 /** 말 앞에 붙는 망설임 — 「음… 몰라」 · 「어, 모르겠어」. 뒤에 말이 더 올 때만 뗀다(「아빠」의 「아」는 안 뗀다) */
 private val HESITATION = Regex("^(?:(?:으*음+|어+|흠+|아+|그+)[.…,~!\\s]+)+")
@@ -865,7 +881,14 @@ internal fun isNonAnswer(text: String): Boolean {
  * - 「몰라」류는 null
  */
 internal suspend fun Director.coopLiveValue(step: DiaryStep, question: String, r: Reply.Spoke): String? =
-    coopLiveValueAsSaid(step, question, r)?.let { if (step.slot == "companion") companionName(it) else it }
+    coopLiveValueAsSaid(step, question, r)?.let { v ->
+        if (step.slot != "companion") return@let v
+        val who = companionName(v)
+        // 「기린한테 나뭇잎 줄 거야」 to 「누구랑 갈 거야?」 — the judge kept the asked slot for a sentence, and the next rung read
+        // 「기린한테 나뭇잎 줄 거야가 뭐라고 할까?」 (10-12 device · Laya). A sentence is not a person: asked again, not kept
+        if (coopCompanionSentence(who)) null.also { log("[${step.bookKey}] 「$who」 is a sentence, not who went → not the companion, asked again") }
+        else who
+    }
 
 private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: String, r: Reply.Spoke): String? {
     val text = r.text.trim()
@@ -920,6 +943,10 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
             } else f }
     fills.filter { (slot, _) -> slot != step.slot && slot in COOP_SKELETON && !diaryFilled(slot) }.forEach { (slot, v) ->
         val said = if (slot == "companion") companionName(v.trim()) else v.trim()
+        if (slot == "companion" && coopCompanionSentence(said)) {
+            log("[companion] 「$said」 is a sentence, not who went → not filled from another step")
+            return@forEach
+        }
         setDiarySlot(slot, slot, said, said, "child")
         log("아이 말에 [$slot] 도 들어 있었다 → 비어 있던 그 칸도 채운다 (/turn)")
     }

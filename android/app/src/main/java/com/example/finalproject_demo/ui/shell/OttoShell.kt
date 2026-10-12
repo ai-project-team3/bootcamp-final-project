@@ -17,7 +17,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.finalproject_demo.demo.Director
-import com.example.finalproject_demo.demo.stopCoopByParent
+import com.example.finalproject_demo.demo.coopStopOpen
+import com.example.finalproject_demo.demo.stopCoopFromPause
 import com.example.finalproject_demo.demo.Stage
 import com.example.finalproject_demo.net.Accounts
 import com.example.finalproject_demo.ui.ConsentStore
@@ -79,6 +80,9 @@ fun OttoShell(d: Director) {
                     "⏸", "잠깐 쉬는 중",
                     no = "▶" to "이어 하기", yes = "🏠" to "방으로 나가기",
                     onNo = { d.resumeSession() }, onYes = { d.leaveToRoom() },
+                    // co-op: the parent's 「그만하기」 (#36) lives here now — still behind its own confirm (10-12 user)
+                    extra = if (d.s.coopStopOpen) "📖" to "마치기" else null,
+                    onExtra = { Shell.askStop = true },
                 )
             }
         }
@@ -98,7 +102,7 @@ fun OttoShell(d: Director) {
                     note = "부모님이 누르는 버튼이에요",
                     no = "▶" to "계속하기", yes = "📖" to "마치기",
                     onNo = { Shell.askStop = false },
-                    onYes = { Shell.askStop = false; d.stopCoopByParent() },
+                    onYes = { Shell.askStop = false; d.stopCoopFromPause() },
                 )
             }
         }
@@ -110,9 +114,9 @@ fun OttoShell(d: Director) {
         Box(Modifier.fillMaxSize().background(Wool)) {
             androidx.compose.animation.Crossfade(Shell.step, animationSpec = androidx.compose.animation.core.tween(220), label = "step") { step ->
             when (step) {
-                Step.CLAP -> SplashScreen {
-                    Shell.step = if (Shell.onboarded && Shell.openingSeen) Shell.startStep() else Step.TITLE
-                }
+                // every launch shows the title (Otto logo · 「눌러서 시작」); only the curtain opening is skipped once seen
+                // (10-12 user — a repeat launch went from CLAP straight into Otto's room)
+                Step.CLAP -> SplashScreen { Shell.step = Step.TITLE }
                 Step.TITLE -> {
                     // Returning from re-consent must not replay the whole opening.
                     if (Shell.onboarded && Shell.openingSeen) TitleScreen { Shell.step = Shell.startStep() }

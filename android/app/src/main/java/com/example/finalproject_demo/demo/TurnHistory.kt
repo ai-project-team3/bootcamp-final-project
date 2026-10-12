@@ -16,7 +16,7 @@ class TurnState internal constructor(
     private val slotBy: Map<String, String>,
     private val unneeded: List<String>,
     private val nextSlot: String?, private val serverQuestion: String?, private val clarification: String?,
-    private val endReason: String?, private val turn: Int, private val noAnswerStreak: Int,
+    private val endReason: String?, private val turn: Int, private val noAnswerStreak: Int, private val s1Streak: Int,
     private val level: Level, private val notes: Int, private val feelings: Int, private val templateKey: String?,
     private val mascotPicks: Int, private val reactions: Int,
     private val modeCard: Int, private val modeVoice: Int, private val modeDraw: Int, private val modeSilent: Int,
@@ -29,6 +29,7 @@ class TurnState internal constructor(
     private val storyBackgroundPlace: String?,
     private val sceneKit: String?, private val sceneSeed: Long,
     private val answerOptions: StoryOptions?,
+    private val whoReasked: Set<String>,
     private val talk: List<TalkLine>, private val talkStartedAtMs: Long,
     private val endAsked: Boolean,
 ) {
@@ -41,11 +42,13 @@ class TurnState internal constructor(
         s.storyUnneededSlots.clear(); s.storyUnneededSlots.addAll(unneeded)
         s.storyNextSlot = nextSlot; s.storyServerQuestion = serverQuestion; s.storyClarificationSlot = clarification
         s.storyAnswerOptions = answerOptions
+        // an undone sentence answer must get its one more ask again (StoryNameGuard.kt)
+        s.storyWhoReasked.clear(); s.storyWhoReasked.addAll(whoReasked)
         s.talk.clear(); s.talk.addAll(talk)
         s.talkStartedAtMs = talkStartedAtMs
         // an undone 「끝이야」 gets its closing question again (StoryEndIntent.kt · #381 review)
         s.storyEndAsked = endAsked
-        s.endReason = endReason; s.turn = turn; s.noAnswerStreak = noAnswerStreak; s.level = level
+        s.endReason = endReason; s.turn = turn; s.noAnswerStreak = noAnswerStreak; s.s1streak = s1Streak; s.level = level
         while (s.notes.size > notes) s.notes.removeAt(s.notes.size - 1)
         while (s.feelings.size > feelings) s.feelings.removeAt(s.feelings.size - 1)
         s.templateKey = templateKey; s.mascotPicks = mascotPicks; s.reactions = reactions
@@ -68,12 +71,12 @@ class TurnState internal constructor(
 fun DemoState.captureTurn(): TurnState = TurnState(
     slots.toMap(), slotBy.toMap(), storyUnneededSlots.toList(),
     storyNextSlot, storyServerQuestion, storyClarificationSlot,
-    endReason, turn, noAnswerStreak, level, notes.size, feelings.size, templateKey,
+    endReason, turn, noAnswerStreak, s1streak, level, notes.size, feelings.size, templateKey,
     mascotPicks, reactions, modeCard, modeVoice, modeDraw, modeSilent,
     themeKey, placeLabel, generatedBg, place, problem, cause, reaction, causeLine, causeKind,
     newcomer, newcomerKind, friendName, solution, solutionLine, solutionKey, solutionItem,
     sound, soundLine, storyBackground, storyBackgroundPlace, sceneKit, sceneSeed,
-    storyAnswerOptions, talk.toList(), talkStartedAtMs, storyEndAsked,
+    storyAnswerOptions, storyWhoReasked.toSet(), talk.toList(), talkStartedAtMs, storyEndAsked,
 )
 
 /** 한 이야기의 차례 기록 — 되돌리기 줄과 앞으로 가기 줄 */

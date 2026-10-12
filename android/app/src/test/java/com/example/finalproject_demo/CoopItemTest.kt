@@ -67,6 +67,10 @@ class CoopItemTest {
         assertTrue(spots, spots.endsWith("어디가 좋았어?"))
         val fire = coop(CoopPick("job", "소방관", "dream")).coopPartPack(parts[3])!!.rungs.last()
         assertTrue(fire, "사다리 타고 구하기" in fire)
+        // things to do end on 「어떻게 했…」 — not the ladder's 「어떻게 고쳤을까?」 · 「어떻게 됐어?」 (10-12 review)
+        assertTrue(fire, fire.endsWith(". 그래서 어떻게 했을까?"))
+        val school = coop(CoopPick("place", "학교", "done")).coopPartPack(parts[3])!!.rungs.last()
+        assertTrue(school, "먼저 사과하기" in school && school.endsWith(". 그래서 어떻게 했어?"))
         // 직접 쓴 요소는 원래 선택지
         assertTrue("입구" in coop(CoopPick("place", "할머니 집", "done")).coopPartPack(parts[0])!!.rungs.last())
     }

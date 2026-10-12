@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import settings
-from app.llm import jev
+from app.llm import jev, judge_rules
 from app.routers import judge, turn
 from app.schemas.judge import JudgeRequest
 from main import app
@@ -65,7 +65,10 @@ def test_turn_recovers_a_stranded_story_before_writing_another_question(monkeypa
     assert calls == ["jev", "full judge", "line"]
 
 
-def test_recovery_can_ask_for_a_missing_ending_without_forcing_completion(monkeypatch):
+def test_a_missing_ending_is_asked_by_the_rule_without_forcing_completion(monkeypatch):
+    # 10-12: before the ending is in, an open next slot is the next empty beat, not a full luna judge
+    # (judge_rules.story_fill) — the story is still never made ready by a rule
+    calls = []
     monkeypatch.setattr(settings, "mock", False)
     monkeypatch.setattr(settings, "judge_jev_modes", "story")
 
@@ -73,6 +76,7 @@ def test_recovery_can_ask_for_a_missing_ending_without_forcing_completion(monkey
         return {"reason": "jev", "story_ready": False}
 
     async def full(*args, **kwargs):
+        calls.append("full judge")
         return {"reason": "ending is missing", "story_ready": False, "next_slot": "solution"}
 
     monkeypatch.setattr(jev, "judge", fast)
@@ -81,7 +85,28 @@ def test_recovery_can_ask_for_a_missing_ending_without_forcing_completion(monkey
     result = asyncio.run(judge.run(JudgeRequest(
         slots=slots, template="E", question="그다음에는?", utterance="더 없어",
     )))
+    # template E tells no cause; the newcomer is the first empty beat, then the ending
+    assert result.reason == "jev" and result.story_ready is False and result.next_slot == "newcomer"
+    slots["newcomer"] = "문어"
+    result = asyncio.run(judge.run(JudgeRequest(
+        slots=slots, template="E", question="그다음에는?", utterance="더 없어",
+    )))
     assert result.story_ready is False and result.next_slot == "solution"
+    assert calls == []
+
+
+@pytest.mark.parametrize("template, level, slots, filled, want", [
+    ("C", None, {"place": "바다"}, None, "problem"),
+    ("C", None, {"place": "바다", "problem": "상어"}, "newcomer", "cause"),     # this turn's slot is not asked
+    ("E", None, {"place": "바다", "problem": "상어", "newcomer": "문어"}, None, "reaction"),   # E tells no cause
+    (None, "pick", {"place": "바다", "problem": "상어", "newcomer": "문어"}, None, "reaction"),  # pick → E
+    (None, "chain", {"place": "바다", "problem": "상어", "newcomer": "문어"}, None, "cause"),
+    ("C", None, {"place": "바다"}, "solution", None),                           # the ending came in: full judge
+    ("C", None, {"solution": "집에 갔어"}, None, None),
+])
+def test_story_fill_picks_the_next_empty_beat(template, level, slots, filled, want):
+    req = JudgeRequest(slots=slots, template=template, level=level, question="그다음에는?", utterance="응")
+    assert judge_rules.story_fill(req, filled) == want
 
 
 @pytest.mark.parametrize("fields", [{"next_slot": "solution"}, {"story_ready": True}])

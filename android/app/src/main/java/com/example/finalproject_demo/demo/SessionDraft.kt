@@ -221,6 +221,7 @@ fun DemoState.captureDraft(scene: Scene, now: Long = System.currentTimeMillis())
     SessionDraft(scene, mode, now, captureDraftState())
 
 internal fun DemoState.captureDraftState(): JSONObject = JSONObject().apply {
+    put("reportProfileId", reportProfileId)
     // the story's facts
     putN("place", place); putN("problem", problem); putN("cause", cause); putN("newcomer", newcomer)
     putN("friend", friend); putN("sound", sound); putN("solution", solution); putN("title", title); putN("reaction", reaction)
@@ -240,7 +241,7 @@ internal fun DemoState.captureDraftState(): JSONObject = JSONObject().apply {
     putN("templateKey", templateKey); putN("attribute", attribute); put("causeKind", causeKind); put("levelWhy", levelWhy)
     put("notes", JSONArray().apply {
         notes.forEach { n -> put(JSONObject().put("q", n.q).put("a", n.a).put("mode", n.mode).put("s1", n.s1)
-            .put("el", strings(n.el)).put("a1", n.a1).put("words", n.words)) }
+            .put("el", strings(n.el)).put("a1", n.a1).put("words", n.words).put("languageEligible", n.languageEligible)) }
     })
     put("askedThisStory", strings(askedThisStory)); put("usedVariants", strings(usedVariants))
     // the world and pictures
@@ -282,7 +283,8 @@ internal fun DemoState.captureDraftState(): JSONObject = JSONObject().apply {
     put("modeVoice", modeVoice); put("modeCard", modeCard); put("modeDraw", modeDraw); put("modeSilent", modeSilent)
     put("events", strings(events)); put("done", strings(done))
     // the report transcript — `who` is the source (child · card · draw · mascot · otto · adult), kept exactly, with the question type #391 files answers by
-    put("talk", JSONArray().apply { talk.forEach { t -> put(JSONObject().put("who", t.who).put("text", t.text).put("tags", strings(t.tags)).put("questionType", t.questionType.key).putN("question", t.question)) } })
+    put("talk", JSONArray().apply { talk.forEach { t -> put(JSONObject().put("who", t.who).put("text", t.text).put("tags", strings(t.tags)).put("questionType", t.questionType.key).putN("question", t.question)
+        .put("languageEvidence", t.languageEvidence?.toJson() ?: JSONObject.NULL)) } })
     put("talkStartedAtMs", talkStartedAtMs)
     // co-op: the parent's template and questions (CoopPlan keeps them too, until the book ends)
     coopPick?.let { p -> put("coopPick", JSONObject().put("kind", p.kind).put("name", p.name).putN("reason", p.reason)) }
@@ -315,6 +317,8 @@ internal fun DemoState.captureDraftState(): JSONObject = JSONObject().apply {
 fun DemoState.applyDraft(d: SessionDraft) {
     val o = d.state
     resetStory()
+    // An unfinished book keeps its original child. An old draft with no owner stays unknown.
+    reportProfileId = d.state.optStr("reportProfileId") ?: ""
     mode = d.mode
     place = o.optStr("place"); problem = o.optStr("problem"); cause = o.optStr("cause"); newcomer = o.optStr("newcomer")
     friend = o.optStr("friend"); sound = o.optStr("sound"); solution = o.optStr("solution"); title = o.optStr("title")
@@ -337,7 +341,7 @@ fun DemoState.applyDraft(d: SessionDraft) {
     o.optJSONArray("notes")?.let { a ->
         for (i in 0 until a.length()) a.getJSONObject(i).let { n ->
             notes += TurnNote(n.getString("q"), n.getString("a"), n.getString("mode"), n.getBoolean("s1"),
-                n.optJSONArray("el").strings().toSet(), n.getBoolean("a1"), n.getInt("words"))
+                n.optJSONArray("el").strings().toSet(), n.getBoolean("a1"), n.getInt("words"), n.optBoolean("languageEligible", true))
         }
     }
     askedThisStory.addAll(o.optJSONArray("askedThisStory").strings())
@@ -389,7 +393,7 @@ fun DemoState.applyDraft(d: SessionDraft) {
     modeVoice = o.optInt("modeVoice"); modeCard = o.optInt("modeCard"); modeDraw = o.optInt("modeDraw"); modeSilent = o.optInt("modeSilent")
     events.addAll(o.optJSONArray("events").strings()); done.addAll(o.optJSONArray("done").strings())
     o.optJSONArray("talk")?.let { a ->
-        for (i in 0 until a.length()) a.getJSONObject(i).let { t -> talk += TalkLine(t.getString("who"), t.getString("text"), t.optJSONArray("tags").strings(), ReportQuestionType.fromKey(t.optString("questionType")), t.optString("question").takeUnless { q -> q.isBlank() || q == "null" }) }
+        for (i in 0 until a.length()) a.getJSONObject(i).let { t -> talk += TalkLine(t.getString("who"), t.getString("text"), t.optJSONArray("tags").strings(), ReportQuestionType.fromKey(t.optString("questionType")), t.optString("question").takeUnless { q -> q.isBlank() || q == "null" }, languageEvidenceOf(t.optJSONObject("languageEvidence"))) }
     }
     talkStartedAtMs = o.optLong("talkStartedAtMs")
     // the plan the parent saved is loaded by CoopPlan at launch; the draft fills in only what is missing
