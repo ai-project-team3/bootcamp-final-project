@@ -84,16 +84,13 @@ class StoryCharacterTest {
             assertTrue(request.getString("description").contains("square"))
             assertFalse(request.getString("description").contains(d.s.childName))
             d.send(Reply.Tapped("ok", "좋아"))
-            // 10-02 (#87): the child names the doll before it goes to the bestiary — here typed
+            // The named story hero proceeds directly to the first question (#342).
             withTimeout(5_000) { while (d.s.stage !is Stage.NameEntry) delay(10) }
             d.send(Reply.Tapped(com.example.finalproject_demo.demo.NAME_TYPED, "콩이"))
-            withTimeout(5_000) { while (d.s.scene != Scene.BESTIARY) delay(10) }
-            assertEquals("콩이", d.s.heroes.last().called)
-            assertEquals("콩이", d.s.heroes.last().name)
-            assertEquals(art.name, d.s.heroes.last().image)
-            assertEquals("human", d.s.heroes.last().rig)
-            withTimeout(5_000) { while (d.s.stage !is Stage.Bestiary) delay(10) }
-            d.send(Reply.Tapped("hero:${d.s.heroes.lastIndex}", "Generated hero"))
+            withTimeout(5_000) { while (d.s.scene != Scene.PLACE) delay(10) }
+            assertEquals("콩이", d.s.storyHeroCall)
+            assertEquals(art.name, d.s.storyHeroImage)
+            assertEquals("human", d.s.storyHeroRig)
             withTimeout(5_000) { while (d.s.stage !is Stage.Show || !d.s.micEnabled) delay(10) }
             assertEquals("The generated hero must remain visible on the neutral first-question stage",
                 art, (d.s.stage as Stage.Show).art)

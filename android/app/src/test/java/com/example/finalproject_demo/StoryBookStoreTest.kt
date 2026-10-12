@@ -50,6 +50,8 @@ class StoryBookStoreTest {
         context.getSharedPreferences("story_books", Context.MODE_PRIVATE).edit().clear().commit()
         val state = DemoState().apply {
             templateKey = "C"
+            storyHeroCall = "콩이"
+            storyHeroDescription = "구름 머리; 노란 우비"
             storyHeroImage = "local:my-generated-hero.png"
             storyHeroRig = "human"
             heroAttr = HeroAttr(hair = "long", shirt = Color.Red, glasses = "square", bottom = "skirt")
@@ -72,6 +74,9 @@ class StoryBookStoreTest {
         assertNotNull("art is part of the saved book, not the current session", reopened.visuals)
         assertEquals("local:my-generated-hero.png", reopened.visuals!!.hero.image)
         assertEquals("human", reopened.visuals!!.hero.rig)
+        assertEquals("콩이", reopened.visuals!!.hero.name)
+        assertEquals("콩이", reopened.visuals!!.hero.called)
+        assertEquals("구름 머리; 노란 우비", reopened.visuals!!.hero.description)
         assertEquals("skirt", reopened.visuals!!.hero.attr.bottom)
         assertEquals(listOf(Offset(0.1f, 0.2f), Offset(0.5f, 0.7f)), reopened.visuals!!.drawing.single().pts)
         assertEquals(0.02f, reopened.visuals!!.drawing.single().w, 0.00001f)
@@ -81,6 +86,8 @@ class StoryBookStoreTest {
         assertEquals(book, reopened)
         val reader = DemoState()
         reader.restoreStoryBook(reopened)
+        assertEquals("콩이", reader.storyHeroCall)
+        assertEquals("구름 머리; 노란 우비", reader.storyHeroDescription)
         assertEquals(state.mission1(), reader.mission1())
         assertEquals("뽀글뽀글!", reader.soundLine)
         assertEquals("길을 잃어서", reader.causeLine)

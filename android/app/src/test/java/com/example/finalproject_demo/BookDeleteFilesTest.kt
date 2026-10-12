@@ -35,7 +35,7 @@ class BookDeleteFilesTest {
         listOf("story_images", "diary_images", "diary_voices").forEach { File(context.filesDir, it).deleteRecursively() }
         sounds = File(context.cacheDir, "sounds_test").apply { deleteRecursively(); mkdirs() }
         ChildSound.root = sounds
-        SessionReports.clear()
+        SessionReports.attach(context); SessionReports.clear()
     }
 
     @After fun done() = SessionReports.clear()
@@ -87,7 +87,10 @@ class BookDeleteFilesTest {
         val s1Sound = File(sounds, "books/s1").apply { mkdirs(); File(this, "clip-s1.wav").writeBytes(byteArrayOf(1)) }
         val s2Sound = File(sounds, "books/s2").apply { mkdirs(); File(this, "clip-s2.wav").writeBytes(byteArrayOf(1)) }
 
+        SessionReports.keep(d.s, "s1")
         assertTrue(d.removeShelfBook(StoryMode.STORY, "s1"))
+        AnswerHistory.reload()
+        assertFalse(AnswerHistory.all().any { it.bookId == "s1" })
         assertFalse("its picture stayed", exists(own))
         assertFalse("the child's recording stayed", s1Sound.exists())
         assertTrue("another book's recording went", s2Sound.exists())
@@ -111,7 +114,10 @@ class BookDeleteFilesTest {
         d.s.diaryCovers[DIARY_SHELF_ID + "d1"] = DiaryCover(emptyList(), 1f)
         fun files(dir: String, id: String) = File(context.filesDir, dir).listFiles().orEmpty().filter { it.name.startsWith("${id}_") }
 
+        SessionReports.keep(d.s, "diary:d1")
         assertTrue(d.removeShelfBook(StoryMode.DIARY, "d1"))
+        AnswerHistory.reload()
+        assertFalse(AnswerHistory.all().any { it.bookId == "diary:d1" })
         assertTrue("Otto pictures stayed", files("diary_images", "d1").isEmpty())
         assertTrue("page voices stayed", files("diary_voices", "d1").isEmpty())
         assertNull("the cover stayed", d.s.diaryCovers[DIARY_SHELF_ID + "d1"])
@@ -132,7 +138,10 @@ class BookDeleteFilesTest {
         val plan = MemoryPlan(CoopPlanExtras(before = "c1", after = listOf(after, other)))
         CoopPlan.attach(d.s, plan)
 
+        SessionReports.keep(d.s, "coop:c1")
         assertTrue(d.removeShelfBook(StoryMode.COOP, "c1"))
+        AnswerHistory.reload()
+        assertFalse(AnswerHistory.all().any { it.bookId == "coop:c1" })
         assertFalse("its picture stayed", exists(c1Bg))
         assertTrue("another book's picture went", exists(c2Bg))
         assertEquals("the box still offers the removed book", listOf(other), CoopPlan.after(d.s))
