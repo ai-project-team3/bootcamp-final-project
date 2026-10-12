@@ -41,6 +41,7 @@ class StoryLiveRubLayoutTest {
             val d = Director(scope)
             d.s.templateKey = "C"
             d.s.newcomerKind = "고양이"
+            d.s.slots["newcomer"] = "고양이"   // a live story's friend is the newcomer the child told (StoryNoFriendTest)
             val page = (1..d.s.pageCount).first { d.s.pageKind(it) == PageKind.RUB }
             compose.mainClock.autoAdvance = false
             compose.setContent { BookPageView(d, Stage.BookPage(page)) }

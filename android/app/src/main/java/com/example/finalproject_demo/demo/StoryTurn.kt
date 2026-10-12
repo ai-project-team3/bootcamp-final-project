@@ -42,7 +42,9 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
     require(by in setOf("child", "card", "mascot"))
 
     for ((slot, rawValue) in verdict.fills) {
-        val value = rawValue.trim()
+        // 「뽀뽀야」 is 뽀뽀 — the name without the child's copula (StoryNameCall.kt). Only spoken words carry one:
+        // a picked card or mascot name is kept as it is (「카구야」 · #380 review)
+        val value = if (slot == "name" && by == "child") storyNameWithoutCopula(rawValue) else rawValue.trim()
         if (slot !in Server.SLOTS || value.isEmpty() || (slot == "adult" && !hasPartner)) continue
         slots[slot] = value
         slotBy[slot] = by
@@ -90,7 +92,7 @@ suspend fun Director.askStory(
         }
         response.verdict.fills.filter { it.first in Server.SLOTS && it.second.isNotBlank() &&
             (it.first != "adult" || s.hasPartner) }.forEach { (slot, value) ->
-            event("slot_filled", "slot" to slot, "value" to value, "source" to by)
+            event("slot_filled", "slot" to slot, "value" to (if (slot == "name" && by == "child") storyNameWithoutCopula(value) else value), "source" to by)
         }
         val line = response.line
         // the question's voice is made while the ack is voiced and played, not after (10-05 trace: −2.5 s a turn)
@@ -210,6 +212,8 @@ private suspend fun Director.exchangeStoryTurnWithRetry(
 /** Notify the server of a local activity/choice, never its recording or a fabricated spoken reply. */
 internal suspend fun Director.notifyStorySoundChoice(prompt: StoryPrompt) {
     if (!Server.liveFor(s.mode) || !s.storySoundAttempted || s.storyReady) return
+    // no friend, no sound step — nothing was chosen to tell the server
+    if (s.liveStoryWithoutFriend) return
     val recorded = s.storySoundClip != null
     val utterance = if (recorded) "친구의 소리를 직접 만들었어요" else "친구의 소리는 소리 없이 넘어갈래"
     val response = exchangeStoryTurnWithRetry("sound", prompt.text, utterance, if (recorded) "child" else "card")
