@@ -1,6 +1,10 @@
 # If an LLM-written parent sentence contains any of these, drop it and use a
 # prewritten one. guidelines/8_금칙어.md §3
 # 10-09 (#343): peer comparison and level words are allowed now; diagnosis words stay.
+# 10-12: 「N세 수준」 is a label on the child, 「정상」 · 「보통 아이」 imply abnormal — both stay banned.
+세 수준
+정상
+보통 아이
 발달지수
 진단
 선별
