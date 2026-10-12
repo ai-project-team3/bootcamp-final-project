@@ -257,7 +257,8 @@ internal fun DemoState.syncStoryPresentation() {
     }
     s.newcomer = s.slots["newcomer"]
     s.newcomer?.let { s.newcomerKind = it }
-    s.slots["name"]?.takeIf(String::isNotBlank)?.let { s.friendName = it }
+    // a name names the newcomer — with nobody met it is nobody's (the book read 「뽀뽀」 as {친구1} · #387)
+    s.slots["name"]?.takeIf { it.isNotBlank() && !s.slots["newcomer"].isNullOrBlank() }?.let { s.friendName = it }
     s.solution = s.slots["solution"]
     s.solution?.let {
         s.solutionLine = it
