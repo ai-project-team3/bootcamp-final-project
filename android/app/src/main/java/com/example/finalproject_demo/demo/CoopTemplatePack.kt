@@ -95,18 +95,19 @@ private fun DemoState.rawPartPack(step: DiaryStep): CoopPartPack? {
         "sport" -> sportPart(pick.name.trim(), reason, part)
         else -> null
     } ?: return null
-    return CoopPartPack(listOf(first) + body.easier.withItemChoices(pick.name, part), body.answers, body.mascot)
+    return CoopPartPack(listOf(first) + body.easier.withItemChoices(pick.name, part, reason), body.answers, body.mascot)
 }
 
 /**
  * 목록에 있는 요소면 사다리 마지막 칸(선택지 질문)의 **선택지만** 그 요소다운 말로 바꾼다 — 묻는 말은 그대로 (10-02).
  * 「입구 · 한가운데 · 맨 안쪽」 대신 동물원이면 「사자 우리 · 기린 마당 · 원숭이 산」. 직접 쓴 요소는 그대로 둔다
  */
-private fun List<String>.withItemChoices(name: String, part: Int): List<String> {
+private fun List<String>.withItemChoices(name: String, part: Int, reason: CoopReason): List<String> {
     val item = coopItem(name) ?: return this
     val options = when (part) { 0 -> item.spots; 1 -> item.troubles; 2 -> item.causes; else -> item.fixes }
     val last = lastOrNull() ?: return this
-    val ask = last.substringAfterLast(". ", "").ifBlank { return this }
+    // fixes are things to do, so they end on 「어떻게 했어?」 — not the ladder's 「어떻게 됐어?」 · 「뭐 받았어?」 (10-12 review)
+    val ask = if (part == 3) coopSolutionHow(reason) else last.substringAfterLast(". ", "").ifBlank { return this }
     return dropLast(1) + choices(*options.toTypedArray(), ask = ask)
 }
 

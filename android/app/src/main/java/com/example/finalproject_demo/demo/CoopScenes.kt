@@ -430,7 +430,10 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
     log("[$key] ${src.label} 질문 → \"$shown\" · 수준 ${s.level.label}" + (if (src == CoopSource.HEARD) " · 들은 이름 ${track.heard}" else ""))
     if ("왜" in shown) track.whyAsked++
     if (idx != null && firstAsk) track.partQuestions[idx] = shown
-    val (r, askedLast, stillAsking) = askAnsweringChildQuestions(q, key, shown)
+    // Choices already asked — a no-answer goes to the choices again, not down to an open rung: 「…. 그래서 어떻게 했어?」 →
+    // 「그다음에 뭐 했어?」 sounded like a new question right after the choices (10-12 user · review)
+    val asking = if (hasCoopChoices(shown) && q.ladder.any(::hasCoopChoices)) q.copy(ladder = q.ladder.filter(::hasCoopChoices)) else q
+    val (r, askedLast, stillAsking) = askAnsweringChildQuestions(asking, key, shown)
     if (stillAsking) {
         // A third question in one step — the current flow (an easier question). Not into a slot or the rejected list (coopLiveValueAsSaid) · no ack
         log("[$key] third child question → no answer, the easier question as now (#327 ⚖️5)")
