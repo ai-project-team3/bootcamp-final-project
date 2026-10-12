@@ -40,3 +40,11 @@ def test_empty_reference_is_not_success(tmp_path):
     path.write_text("# no samples\n", encoding="utf-8")
     with pytest.raises(ValueError, match="no annotated"):
         evaluate_reference(path, lambda _: [])
+
+
+def test_hash_prefixed_annotated_text_is_not_a_comment(tmp_path):
+    path = tmp_path / "hash.txt"
+    path.write_text("# header without annotation\n#태그 곰\t#태그/W_HASHTAG 곰/NNG\n", encoding="utf-8")
+    result = evaluate_reference(path, lambda _: [Morpheme("곰", "NNG")])
+    assert result["lines"] == 1
+    assert result["exact_count_matches"] == 1

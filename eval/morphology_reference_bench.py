@@ -50,7 +50,9 @@ def evaluate_reference(path: Path, tokenize: Tokenizer) -> dict:
     errors, expected_counts, predicted_counts = [], [], []
     data = path.read_bytes()
     for number, line in enumerate(data.decode("utf-8-sig").splitlines(), 1):
-        if not line.strip() or line.startswith("#"):
+        # A hash-prefixed TSV row can be real hashtag text. Only an
+        # unannotated hash line is a comment.
+        if not line.strip() or (line.startswith("#") and "\t" not in line):
             continue
         try:
             text, gold, expected = parse_reference(line)
