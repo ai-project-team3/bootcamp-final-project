@@ -103,7 +103,7 @@ def test_a_usable_story_verdict_stays_on_jev_without_an_extra_call(monkeypatch, 
 
 
 @pytest.mark.parametrize("mode", ["diary", "coop"])
-def test_other_modes_keep_their_existing_jev_path(monkeypatch, mode):
+def test_other_modes_never_take_the_story_recovery(monkeypatch, mode):
     monkeypatch.setattr(settings, "mock", False)
     monkeypatch.setattr(settings, "judge_jev_modes", "story,diary,coop")
 
@@ -116,4 +116,5 @@ def test_other_modes_keep_their_existing_jev_path(monkeypatch, mode):
     monkeypatch.setattr(jev, "judge", fast)
     monkeypatch.setattr(judge, "complete", forbidden)
     result = asyncio.run(judge.run(JudgeRequest(mode=mode, slots={}, question="그다음에는?", utterance="놀았어")))
-    assert result.reason == "jev" and result.next_slot is None and not result.story_ready
+    # no luna call; the diary · coop rules ask the first empty slot (judge_rules.py · 10-12)
+    assert result.reason == "jev" and result.next_slot == "place" and not result.story_ready
