@@ -70,7 +70,11 @@ class CoopQuestionLevelTest {
     @Test
     fun theSolutionQuestionFollowsTheLevel() {
         val pick = f("solution", Level.PICK, CoopReason.DONE, emptyMap(), pick = CoopPick("job", "소방관", "done"))!!
-        assertTrue(pick, pick.endsWith(". 그다음에 뭐 했어?"))
+        // choices of what to do, then 「어떻게」 — not 「그다음에 뭐 했어?」, which asks for a new event (10-12 user)
+        assertTrue(pick, pick.endsWith(". 그래서 어떻게 했어?"))
+        assertTrue(pick, "그다음에" !in pick)
+        val school = f("solution", Level.PICK, CoopReason.SOON, emptyMap(), pick = CoopPick("place", "학교", "soon"))!!
+        assertTrue(school, school.endsWith(". 그러면 어떻게 할까?") && "먼저 사과하기" in school)
         assertEquals("그다음에 뭐 할까?", f("solution", Level.CHAIN, CoopReason.SOON, emptyMap()))
         assertEquals("불은 어떻게 됐어?", f("solution", Level.REASON, CoopReason.DONE, mapOf("thing" to "불")))
         assertEquals("그래서 어떻게 될까?", f("solution", Level.REASON, CoopReason.SOON, emptyMap()))

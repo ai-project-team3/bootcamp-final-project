@@ -65,8 +65,11 @@ internal fun coopFollowUpCandidates(
         }
         "solution" -> {
             val next = reason.pick("그다음에 뭐 했어?", "그다음에 뭐 할까?", "그다음에 뭐 했을까?")
+            // the choices are ways to deal with it (「먼저 사과하기 · 선생님께 말하기 · 같이 놀기」), so the question asks how —
+            // 「…. 그다음에 뭐 했어?」 read as a new question about what came next, not a pick (10-12 user)
+            val how = reason.pick("그래서 어떻게 했어?", "그러면 어떻게 할까?", "그래서 어떻게 했을까?")
             when (level) {
-                Level.PICK -> listOfNotNull(item?.let { withChoices(it.fixes, next) }, ladderChoice)
+                Level.PICK -> listOfNotNull(item?.let { withChoices(it.fixes, how) }, ladderChoice)
                 Level.CHAIN -> listOf(next)
                 Level.REASON -> listOfNotNull(
                     // 가정 질문 — 까닭 짓기 + 상상에서만 (Scenes.kt 소크라틱 원칙과 같은 기준에 상상을 더한다)
