@@ -420,6 +420,17 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
         // 일기 · 협업은 아이가 그린 것 → 아이가 말한 사람 순으로 세우고, 둘 다 없으면 아무도 안 세운다 (일기 §3-2)
         // a live story where the child met nobody has no friend to stand (Model.kt liveStoryWithoutFriend)
         val friendShown: Art? = if (s.isDiary) s.friendOrPartnerArt else s.friendArt.takeUnless { s.liveStoryWithoutFriend }
+        // 「엄마, 아빠」 — the second person the child named stands beside the first (10-12 user: only 아빠 stood)
+        val secondFriend: Art? = if (s.isDiary) s.friendOrPartnerArts.getOrNull(1) else null
+
+        /** The friend spot — and when two people were named, the second a body-width to the [side] (-1 left · 1 right) */
+        @Composable
+        fun Friends(xf: Float, yf: Float, wf: Float, mod: Modifier = Modifier, onHand: (() -> Unit)? = null, side: Int = -1) {
+            val first = friendShown ?: return
+            if (secondFriend != null) Char("friend", secondFriend, xf, yf, wf, 1f,
+                Modifier.graphicsLayer { translationX = side * 0.8f * size.width }.then(mod), onHand = onHand, stand = 0.85f)
+            Char("friend", first, xf, yf, wf, 1f, mod, onHand = onHand, stand = 0.85f)
+        }
 
         problemArt?.let { art ->
             val spot = com.example.finalproject_demo.demo.scene.PROBLEM_SPOT
@@ -459,14 +470,14 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                 if (showRide) Char("vehicle", s.rideArt, 0.34f, 0.16f, 0.17f, 0.62f, Modifier.offset { IntOffset(if (quaking) jolt.roundToInt() else 0, if (quaking) 0 else jolt.roundToInt()) })
                 Char("hero", heroArt, 0.18f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(if (quaking) (jolt / 2).roundToInt() else 0, if (quaking) 0 else jolt.roundToInt()) }.then(heroPose), stand = 1f, act = heroAct)
                 // "창밖에서 손을 흔들고 있었어요" — 적혀 있으면 정말 흔든다
-                if (friendShown != null) FadeIn { Char("friend", friendShown, 0.76f, 0.20f, 0.18f, 1f, waveMod, stand = 0.85f) }
+                if (friendShown != null) FadeIn { Friends(0.76f, 0.20f, 0.18f, waveMod) }
             }
             PageKind.MEET, PageKind.TALK -> {
                 Scenery()
                 if (showRide) Char("vehicle", s.rideArt, 0.40f, 0.14f, 0.15f, 0.62f)
                 Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(heroPose), stand = 1f, act = heroAct, walkIn = heroWalks)
                 // 인사하는 쪽에서는 친구도 같이 손을 흔든다 — 한쪽만 흔들면 어색하다
-                if (friendShown != null) Char("friend", friendShown, 0.74f, 0.24f, 0.18f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }.then(waveMod), stand = 0.85f)
+                Friends(0.74f, 0.24f, 0.18f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }.then(waveMod))
                 if (s.hasPartner && s.partnerHelpLine != null && page == last - 1) {
                     Layer(0.04f, 0.40f, 0.09f) { ArtView(Art.Img(s.partner.img, Art.Emoji(s.partner.emoji)), Modifier.fillMaxSize()) }
                 }
@@ -477,13 +488,13 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                 // 여정 쪽은 늘 "타고 가는 중" 이다 — 옆에 세워 두면 걸어가는 것처럼 보인다
                 if (showRide) Char("hero", heroArt, 0.405f, 0.100f, 0.075f, mod = Modifier.offset { IntOffset((wobble * 3).roundToInt(), wobble.roundToInt()) }.then(heroPose), act = heroAct)
                 else Char("hero", heroArt, 0.20f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(heroPose), stand = 1f, act = heroAct, walkIn = heroWalks)
-                if (friendShown != null) Char("friend", friendShown, 0.76f, 0.26f, 0.16f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) }, stand = 0.85f)
+                Friends(0.76f, 0.26f, 0.16f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) })
             }
             PageKind.FAIL -> {
                 Scenery()
                 Char("hero", heroArt, 0.20f, 0.32f, 0.11f, stand = 1f, act = heroAct)
                 // 풀이 죽은 친구 — 살짝 기울고 아래로
-                if (friendShown != null) Char("friend", friendShown, 0.72f, 0.34f, 0.15f, 1f, Modifier.offset { IntOffset(0, 10) }.alpha(0.85f), stand = 0.85f)
+                Friends(0.72f, 0.34f, 0.15f, Modifier.offset { IntOffset(0, 10) }.alpha(0.85f))
                 Text("…", fontSize = 40.sp, color = Color.White, fontWeight = FontWeight.Bold,
                     modifier = Modifier.align(Alignment.TopCenter).padding(top = 96.dp, start = 170.dp).alpha(twinkle))
             }
@@ -510,8 +521,8 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                 Box(Modifier.align(Alignment.TopCenter).padding(top = 76.dp).size(110.dp, 50.dp).alpha(twinkle)) { ArtView(Art.Img("prop_sparkle", Art.Emoji("⭐✨⭐")), Modifier.fillMaxSize()) }
                 Char("hero", heroArt, 0.17f, 0.32f, 0.11f, mod = Modifier.offset { IntOffset(0, bob.roundToInt()) }.then(heroPose),
                     onHand = if (replayTarget == "hero") ({ replaySound() }) else null, stand = 1f, act = heroAct)
-                if (friendShown != null) Char("friend", friendShown, 0.42f, 0.26f, 0.17f, 1f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) },
-                    onHand = if (replayTarget == "friend") ({ replaySound() }) else null, stand = 0.85f)
+                Friends(0.42f, 0.26f, 0.17f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) },
+                    onHand = if (replayTarget == "friend") ({ replaySound() }) else null, side = 1)
                 if (showDino) Char("dino", dinoArt, 0.72f, 0.20f, 0.28f, 1.35f, Modifier.offset { IntOffset(0, bob.roundToInt()) }, onHand = { onReply(Reply.Tapped("dino", s.dino.label)) }, stand = 0.92f, act = dinoAct)
                 if (s.hasPartner && s.partnerHelpLine != null) {
                     Layer(0.80f, 0.34f, 0.10f) { ArtView(Art.Img(s.partner.img, Art.Emoji(s.partner.emoji)), Modifier.fillMaxSize()) }
@@ -614,6 +625,8 @@ private fun Cover(d: Director, heroArt: Art, liveStory: Boolean) {
             // 일기 모드 표지에는 아이가 그린 것만 선다 — 안 그렸으면 주인공만 (§2-2 · §3-2)
             val coverFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt.takeUnless { s.liveStoryWithoutFriend }
             if (coverFriend != null) ArtView(coverFriend, Modifier.size(120.dp))
+            // 「엄마, 아빠」 — both on the cover too (10-12 user)
+            if (s.isDiary) s.friendOrPartnerArts.getOrNull(1)?.let { ArtView(it, Modifier.size(120.dp)) }
             if (!s.isDiary && !liveStory) ArtView(Art.DinoArt(s.dinoColor, s.dinoKey), Modifier.size(130.dp, 110.dp))
         }
         Spacer(Modifier.height(6.dp))
