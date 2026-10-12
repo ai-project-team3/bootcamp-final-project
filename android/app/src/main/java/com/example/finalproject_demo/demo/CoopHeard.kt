@@ -146,11 +146,25 @@ fun companionName(raw: String): String {
         .map { p -> if (p.length >= 2 && p.endsWith("이") && bat(p.dropLast(1)) && p !in NOUNS_ENDING_IN_I) p.dropLast(1) else p }
         // 「엄마랑 아빠랑 **갔어**」 · 「…**같이**」 — 서술어 · 꾸밈말은 이름이 아니다. 그대로 두면 「엄마, 아빠와 갔어를 그려 줄래?」가 됐다(10-06 실기기)
         .filter { p -> p.isNotBlank() && p !in NOT_COMPANIONS && !looksLikeAPhrase(p) }
+        // 「엄마 아빠」 — family words side by side with only a space are two people; 「친구 엄마」 · 「친구의 엄마」 stay one (10-12 user)
+        .flatMap(::splitFamilyWords)
     if (names.isEmpty() || names == listOf(t)) return t
     // 쉼표로 잇는다 — 「와」로 이으면 뒤에 붙는 조사와 겹쳐 책에 「엄마와 아빠와 동물원에 갔어요」가 나왔다(10-06 실기기).
     // 「엄마, 아빠」는 「엄마, 아빠와 갔어요」 · 「엄마, 아빠가 뭐라고 했어?」 어디에 붙어도 읽힌다
     return names.joinToString(", ")
 }
+
+/**
+ * 「엄마 아빠」 → [엄마, 아빠] — only when **every** spaced word is a family word on its own. One non-family word makes it
+ * one person named by its last word: 「친구 엄마」 · 「친구의 엄마」 · 「우리 엄마」 · 「엄마 친구」 (10-12 user)
+ */
+internal fun splitFamilyWords(piece: String): List<String> {
+    val words = piece.trim().split(Regex("\\s+")).filter(String::isNotBlank)
+    return if (words.size >= 2 && words.all { it in FAMILY_WORDS } && words.distinct().size == words.size) words else listOf(piece)
+}
+
+/** Family words a child lists side by side — 「엄마 아빠」 · 「할머니 할아버지」 · 「삼촌 이모」 */
+internal val FAMILY_WORDS = setOf("엄마", "아빠", "할머니", "할아버지", "언니", "누나", "오빠", "형", "동생", "이모", "삼촌", "고모", "이모부", "고모부")
 
 /** 같이 간 사람을 잇는 말 — 뒤에 띄어쓰기 · 문장부호가 오거나 말끝일 때만(「과자」 · 「와플」의 「과 · 와」는 이름의 일부) */
 private val COMPANION_JOIN = Regex("\\s*(?:랑|하고|그리고|와|과|,)(?:[\\s.…,~!]+|$)")

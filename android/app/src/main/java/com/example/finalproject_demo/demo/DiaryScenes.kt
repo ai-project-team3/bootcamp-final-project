@@ -103,8 +103,10 @@ private fun Director.diaryStage(bump: Boolean = false): Stage {
     val kit = s.isCoop && s.sceneKit != null
     val items = buildList {
         add(if (kit) WorldItem(diaryHero, HERO_SPOT.x, 0.34f, 0.11f, depth = HERO_SPOT.depth) else WorldItem(diaryHero, 0.22f, 0.34f, 0.11f))
-        s.companionArt?.let {
-            add(if (kit) WorldItem(it, FRIEND_SPOT.x, 0.32f, 0.12f, depth = FRIEND_SPOT.depth) else WorldItem(it, 0.58f, 0.32f, 0.12f))
+        // everyone the child named — 「엄마, 아빠」 stand side by side, the second a step left (10-12 user)
+        s.companionArts.take(2).forEachIndexed { i, it ->
+            val dx = -0.12f * i
+            add(if (kit) WorldItem(it, FRIEND_SPOT.x + dx, 0.32f, 0.12f, depth = FRIEND_SPOT.depth) else WorldItem(it, 0.58f + dx, 0.32f, 0.12f))
         }
     }
     return diaryWorld(items, bump)
