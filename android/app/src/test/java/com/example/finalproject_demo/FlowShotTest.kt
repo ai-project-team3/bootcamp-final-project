@@ -90,6 +90,13 @@ class FlowShotTest {
                 }
             }
             if (atEnd()) break
+            // Story creation now runs on the first book too. Confirm a stable typed name instead
+            // of repeatedly feeding different random names into the recognition confirmation.
+            if (d.s.stage is Stage.NameEntry) {
+                compose.runOnIdle { d.send(com.example.finalproject_demo.demo.Reply.Tapped(
+                    com.example.finalproject_demo.demo.NAME_TYPED, "콩이")) }
+                continue
+            }
             val b = pick(bs) ?: continue
             compose.runOnIdle { b.onClick() }
         }

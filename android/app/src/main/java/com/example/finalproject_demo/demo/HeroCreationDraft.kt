@@ -13,6 +13,8 @@ class HeroCreationDraft {
     val descriptions = mutableListOf<String>()
     val confirmedChoices = linkedMapOf<String, String>()
     val generatedTries = mutableListOf<Pair<String?, String?>>()
+    val generatedDescriptions = mutableListOf<String>()
+    var generatedDescription: String? = null
     var generatedImage: String? = null
     var generatedRig: String? = null
 
