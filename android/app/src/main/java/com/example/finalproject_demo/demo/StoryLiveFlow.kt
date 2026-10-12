@@ -7,6 +7,7 @@ import kotlinx.coroutines.*
 
 /** The live conversation enters here once; script scenes remain available with the switch off. */
 suspend fun Director.liveStoryConversation() = coroutineScope {
+    s.initializeStoryQuestionStyle()
     // Home can cancel an acknowledgement after its verdict changed slots but before presentation.
     s.syncStoryPresentation()
     var imagePlace = s.storyBackgroundPlace
