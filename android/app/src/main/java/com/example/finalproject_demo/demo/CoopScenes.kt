@@ -798,6 +798,16 @@ private fun Director.coopSessionLog() {
  *
  * 묻고 있던 질문은 **취소한다.** 탭 · 무응답 신호로 깨우면 그 값이 칸에 들어가거나 쉬운 질문으로 다시 묻는다.
  */
+/** The parent can still end the story here — the old 「그만하기」 button's condition, now the ⏸ sheet's 「마치기」 (10-12 user) */
+val DemoState.coopStopOpen: Boolean
+    get() = isCoop && scene == Scene.DIARY && (endReason == null || stage is Stage.DrawPad)
+
+/** 「마치기」 from the ⏸ sheet — the hold is lifted without replaying the cut line, then the story ends as [stopCoopByParent] */
+fun Director.stopCoopFromPause() {
+    if (s.holding) liftHold()
+    stopCoopByParent()
+}
+
 fun Director.stopCoopByParent() {
     // 그리기 단계(이야기 칸이 다 찬 뒤 · 끝난 이유가 이미 있다) — 그리기를 마치고 바로 책으로. 그린 게 있으면 그 그림으로 (#98)
     if (s.isCoop && s.scene == Scene.DIARY && s.stage is Stage.DrawPad) {
