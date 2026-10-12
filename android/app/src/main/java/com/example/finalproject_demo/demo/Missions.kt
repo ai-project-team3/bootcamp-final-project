@@ -308,7 +308,20 @@ fun DemoState.m2Line(easy: Boolean): String {
     if (isDiary || !hasCompanion) return "${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
     // a cause nobody said is not voiced — a live story's causeLine is the script default until the child gives one (rule 5)
     val cause = causeSaid ?: return "${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
+    // a live story's cause is for whoever had the problem — often the hero: 「뽀삐가 길을 잃어버렸어」 · 「너무 깜깜해서」 made
+    // 「문어가 너무 깜깜해서래」 (10-12 device review). Put on the receiver only when the problem names it
+    if (!causeIsTheReceivers()) return "${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
     return "${f}${ga(f)} ${reported(cause)}. ${m.itemName}${eul(m.itemName)} 끌어서 ${f}한테 건네줄래?"
+}
+
+/**
+ * Is the cause the mission-2 receiver's own? A scripted story's cause always is (the friend is the one in trouble). In a live
+ * story the child's problem names its owner — the cause goes with the receiver only when the problem names the receiver
+ */
+internal fun DemoState.causeIsTheReceivers(): Boolean {
+    if (mode != StoryMode.STORY || !com.example.finalproject_demo.net.Server.liveFor(mode)) return true
+    val problem = slots["problem"].orEmpty()
+    return listOfNotNull(giveTargetName, slots["newcomer"], slots["name"]).any { it.isNotBlank() && it in problem }
 }
 
 /**
