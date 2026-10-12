@@ -865,7 +865,7 @@ class CoopLiveAnswerTest {
             "토끼랑 곰돌이" to "토끼, 곰돌이",
             "곰돌이랑 토끼랑" to "곰돌이, 토끼",
             "민준이랑 형이랑" to "민준, 형",
-            "엄마 아빠" to "엄마 아빠",
+            "엄마 아빠" to "엄마, 아빠",          // two family words side by side are two people (10-12 user)
             "동생이랑 나" to "동생, 나",
         ).forEach { (said, name) -> assertEquals(said, name, companionName(said)) }
     }
