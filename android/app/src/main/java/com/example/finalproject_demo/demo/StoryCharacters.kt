@@ -52,7 +52,7 @@ internal fun DemoState.storyProblemCharacter(): String? {
         .filter { slotBy[it] == "child" }
         .mapNotNull { slots[it]?.let(::problemActorIn) }
         .firstOrNull { actor ->
-            listOfNotNull(slots["newcomer"], slots["name"], storyHeroCall, childName).none { sameActor(actor, it) }
+            listOfNotNull(slots["newcomer"], slots["name"], storyHeroCall, storyHeroCard, childName).none { sameActor(actor, it) }
         }
 }
 

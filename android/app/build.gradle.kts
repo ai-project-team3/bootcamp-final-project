@@ -23,8 +23,8 @@ android {
         applicationId = "kr.clap.otto"
         minSdk = 24
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.5-closed"
+        versionCode = 8
+        versionName = "0.6-closed"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -150,6 +150,7 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play)
     implementation(libs.googleid)
+    implementation(libs.play.app.update)   // in-app immediate update — store builds only (net/AppUpdate.kt)
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

@@ -62,6 +62,19 @@ object Shell {
         newsSince = prefs!!.getLong("news_at", 0L).takeIf { it > 0 }
     }
 
+    /** The full opening is shown once to an onboarded household. */
+    val openingSeen: Boolean get() = prefs?.getBoolean("opening_seen", false) == true
+
+    fun markOpeningSeen() { prefs?.edit()?.putBoolean("opening_seen", true)?.apply() }
+
+    /** Keep account and consent gates identical for both first and repeat launches. */
+    fun startStep(): Step = when {
+        !onboarded -> Step.LOGIN
+        com.example.finalproject_demo.net.Accounts.guardian == null -> Step.EXPIRED
+        !com.example.finalproject_demo.ui.ConsentStore.guardianAgreed || consentVersion != TERMS_VERSION -> Step.CONSENT
+        else -> Step.APP
+    }
+
     /**
      * ⑤ 맞춤 설정에서 고른 값 (09-29) — 하루에 만들 책 수(null = 제한 없음) · 그림체 · 시작할 때 어른 확인.
      * 폰에 저장하고, 켤 때마다 흐름 상태(`DemoState`)에 넣는다 — 부모 설정 탭과 같은 값이다
