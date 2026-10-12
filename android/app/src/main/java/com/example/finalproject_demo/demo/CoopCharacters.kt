@@ -78,7 +78,8 @@ internal fun DemoState.coopSecondOnPage(kind: PageKind, caption: String): Art? {
     if (kind in setOf(PageKind.COVER, PageKind.RUB, PageKind.DRAG)) return null
     val words = coopSecondCharacter() ?: coopSecondDoll()?.words ?: return null
     val noun = COOP_ACTOR_NOUNS.firstOrNull { words.endsWith(it) } ?: words
-    // the noun as a word of its own — 「양말」 · 「인형극」 are no 양 · 형 (#378 review)
-    val asWord = Regex("(?<![가-힣])${Regex.escape(noun)}(?:$COOP_PARTICLES|을|를|와|과|의|에게서)?(?![가-힣])")
-    return coopSecondArt()?.takeIf { words in caption || asWord.containsMatchIn(caption) }
+    // the words or the noun as a word of its own — 「양말」 · 「인형극」 are no 양 · 형, and the whole words get the same
+    // boundary: a plain substring let 「양」 stand on 「양말을 신고 갔어요」 once there was a doll or a dream ✨ (#378 review)
+    fun asWord(w: String) = Regex("(?<![가-힣])${Regex.escape(w)}(?:$COOP_PARTICLES|을|를|와|과|의|에게서)?(?![가-힣])")
+    return coopSecondArt()?.takeIf { asWord(words).containsMatchIn(caption) || asWord(noun).containsMatchIn(caption) }
 }

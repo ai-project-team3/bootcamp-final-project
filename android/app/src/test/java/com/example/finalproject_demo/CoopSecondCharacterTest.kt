@@ -144,6 +144,29 @@ class CoopSecondCharacterTest {
             .coopSecondOnPage(PageKind.DEPART, "인형극을 봤어요"))
     }
 
+    /**
+     * #378 review (04:01) — the boundary must hold when something really stands: a made doll, or the dream ✨.
+     * The test above had no art at all (coopSecondArt() == null), which hid the substring match
+     */
+    @Test
+    fun aShortNounInsideAWordStandsNobodyEvenWithADollOrADream() {
+        val sheepDoll = coop().apply {
+            slots["parent1"] = "양한테 풀을 줬어"
+            generatedCharacters.add(GeneratedFriend("양", "story_sheep.png", null, COOP_SECOND_ROLE))
+        }
+        assertTrue("the doll is there", sheepDoll.coopSecondArt() != null)
+        assertNull("「양말」 is no 양", sheepDoll.coopSecondOnPage(PageKind.DEPART, "양말을 신고 갔어요"))
+        assertEquals("story_sheep.png", (sheepDoll.coopSecondOnPage(PageKind.DEPART, "양한테 풀을 줬어요") as? Art.Img)?.name)
+
+        val brotherDream = coop("dream").apply { slots["parent1"] = "형이랑 놀았어" }
+        assertEquals(Art.Emoji("✨"), brotherDream.coopSecondArt())
+        assertNull("「인형극」 is no 형", brotherDream.coopSecondOnPage(PageKind.DEPART, "인형극을 봤어요"))
+        assertEquals(Art.Emoji("✨"), brotherDream.coopSecondOnPage(PageKind.DEPART, "형이랑 인형극을 봤어요"))
+
+        val sheepDream = coop("dream").apply { slots["parent1"] = "양한테 풀을 줬어" }
+        assertNull("「양말」 is no 양 in a dream either", sheepDream.coopSecondOnPage(PageKind.DEPART, "양말을 신고 갔어요"))
+    }
+
     /** #378 review — saved and reopened through the shelf: a doll made for an earlier second character is not kept */
     @Test
     fun aDollForAnEarlierSecondIsNotSaved() {
