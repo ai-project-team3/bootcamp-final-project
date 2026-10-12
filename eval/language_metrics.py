@@ -14,7 +14,7 @@ CONTENT_TAGS = frozenset({"NNG", "NNP", "NP", "NR", "VV", "VA", "MAG", "MAJ"})
 # Korean morphology, including case particles and endings. SL/SH/SN are counted
 # as analyzer tokens, but their presence is reported for manual inspection.
 MORPHEME_TAGS = CONTENT_TAGS | frozenset({
-    "NNB", "VX", "VCP", "VCN", "MM", "IC", "XPN", "XSN", "XSV", "XSA", "XR",
+    "NNB", "VX", "VCP", "VCN", "MM", "IC", "XPN", "XSN", "XSV", "XSA", "XSM", "XR",
     "JKS", "JKC", "JKG", "JKO", "JKB", "JKV", "JKQ", "JX", "JC",
     "EP", "EF", "EC", "ETN", "ETM", "SL", "SH", "SN",
 })
