@@ -1277,6 +1277,27 @@ class DemoState {
         }
 
     /**
+     * Everyone the child named in co-op — 「엄마, 아빠」 · 「엄마 아빠」 are two, 「친구 엄마」 · 「친구의 엄마」 one (10-12 user).
+     * Elsewhere one name, as before
+     */
+    val companionPeople: List<String>
+        get() = if (!isCoop || companionKind.isBlank() || "혼자" in companionKind) emptyList()
+            else companionName(companionKind).split(",").map(String::trim).filter(String::isNotBlank)
+
+    /**
+     * Everyone the child named, drawn — co-op stands 「엄마, 아빠」 side by side (10-12 user: only 아빠 stood).
+     * One person (or another mode) is [companionArt] as before
+     */
+    val companionArts: List<Art>
+        get() = companionPeople.takeIf { it.size >= 2 }
+            ?.map { coopCompanionPreset(it) ?: Art.Img("dp_friend_b", Art.Emoji("🧒")) }
+            ?: listOfNotNull(companionArt)
+
+    /** [friendOrPartnerArt] with everyone the child named — the book pages and cover stand them all */
+    val friendOrPartnerArts: List<Art>
+        get() = if (liveStoryWithoutFriend) emptyList() else if (hasChildArt) listOf(friendArt) else companionArts
+
+    /**
      * 책과 미션 2의 상대.
      * 아이가 그린 것 → 아이가 말한 사람 → (둘 다 없으면) 아무도 세우지 않는다.
      * ⚠️ 앱이 아이의 하루를 추측해 **없는 친구를 그려 넣지 않는다** (일기 설계 §3-2).

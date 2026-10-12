@@ -5,9 +5,11 @@ import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.COOP_DRAW_DECIDED
 import com.example.finalproject_demo.demo.CoopPick
+import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.Stroke
+import com.example.finalproject_demo.demo.companionName
 import com.example.finalproject_demo.demo.companionPreset
 import com.example.finalproject_demo.demo.coopCompanionPreset
 import com.example.finalproject_demo.demo.drawFriend
@@ -53,6 +55,27 @@ class CoopCompanionPresetTest {
         assertEquals("ic_p_grandma", name(coopCompanionPreset("할머니하고")))
         assertEquals("dp_friend_g", name(coopCompanionPreset("동생도")))
         assertNull(coopCompanionPreset(""))
+    }
+
+    /**
+     * 10-12 user — 「엄마 아빠」 is mom **and** dad (only 아빠 stood); 「친구 엄마」 · 「친구의 엄마」 is one person, a friend's mom
+     */
+    @Test
+    fun momAndDadAreTwoButAFriendsMomIsOne() {
+        assertEquals("엄마, 아빠", companionName("엄마 아빠"))
+        assertEquals("엄마, 아빠", companionName("엄마랑 아빠랑"))
+        assertEquals("할머니, 할아버지", companionName("할머니 할아버지랑"))
+        assertEquals("친구 엄마", companionName("친구 엄마"))
+        assertEquals("친구의 엄마", companionName("친구의 엄마"))
+        assertEquals("우리 엄마", companionName("우리 엄마"))
+        assertEquals("엄마 친구", companionName("엄마 친구"))
+
+        fun arts(said: String) = DemoState().apply { mode = StoryMode.COOP; companionKind = companionName(said) }.companionArts.map(::name)
+        assertEquals(listOf("ic_p_mom", "ic_p_dad"), arts("엄마 아빠"))
+        assertEquals(listOf("ic_p_mom", "ic_p_dad"), arts("엄마랑 아빠"))
+        assertEquals(listOf("ic_p_mom"), arts("친구의 엄마"))
+        assertEquals(listOf("ic_p_mom"), arts("친구 엄마"))
+        assertEquals(listOf("ic_p_dad"), arts("아빠"))
     }
 
     /** The diary is unchanged (⚖️4 · Jinwoong) — a name containing a preset word keeps that preset */
