@@ -26,6 +26,7 @@ data class SavedStoryBook(
 
 /** 완성된 동화만 저장한다. 진행 중인 이야기와 다른 모드의 책은 이 저장소의 범위 밖이다. */
 interface StoryBookStore {
+    val voices: BookVoiceStore? get() = null
     fun load(): List<SavedStoryBook>
     fun save(book: SavedStoryBook)
     /** Replace in one transaction. Stores without this capability leave both books untouched. */
@@ -48,6 +49,7 @@ fun DemoState.completedStoryBook(): SavedStoryBook? {
 
 /** 앱 내부 저장소에만 보관한다. 저장 시 전체 배열을 한 번에 교체해 중간 상태를 남기지 않는다. */
 class LocalStoryBookStore(context: Context) : StoryBookStore {
+    override val voices = BookVoiceStore(context)
     private val prefs = context.applicationContext.getSharedPreferences("story_books", Context.MODE_PRIVATE)
 
     init { recoverStorySounds(load()) }
@@ -120,6 +122,7 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
         val current = writableBooks()
         if (current.none { it.id == id }) return false
         write(current.filterNot { it.id == id })
+        voices.delete(StoryMode.STORY, id)
         return true
     }
 
@@ -129,6 +132,7 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
         val all = listOf(book) + current.filterNot { it.id == oldId || it.id == book.id }
         require(all.size <= STORY_SHELF_CAPACITY)
         write(all)
+        voices.delete(StoryMode.STORY, oldId)
     }
 
     /** Reading can skip damaged entries, but writing must never silently erase them. */

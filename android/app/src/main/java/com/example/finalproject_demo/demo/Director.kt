@@ -17,6 +17,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -107,6 +108,7 @@ class Director(
             if (book.soundClipId != null && storyBookStore == null) return false
             if (!s.keepStorySound(book)) return false
             storyBookStore?.save(book)
+            keepBookVoices(book, StoryMode.STORY)
             // the next books avoid this one's missions (#259)
             com.example.finalproject_demo.demo.missions.MissionHistory.record(s.mode, book.id, s.missions())
             s.commitStorySound()
@@ -411,6 +413,25 @@ class Director(
     /** The voice the server gave for [text] in this session, if it is still remembered */
     fun voiceOf(text: String): ByteArray? = synchronized(heardVoices) { heardVoices[s.nameMask().speakable(text)] }
 
+    internal fun keepBookVoices(book: SavedStoryBook, mode: StoryMode) {
+        (listOf("『${book.title}』") + book.pages.map { it.caption }).forEach { text ->
+            voiceOf(text)?.let { bytes ->
+                runCatching { storyBookStore?.voices?.keep(mode, book.id, s.nameMask().speakable(text), bytes) }
+            }
+        }
+    }
+
+    /** Exact spoken text is the key: changed captions fetch once; unchanged pages survive restarts. */
+    internal suspend fun savedBookVoice(book: SavedStoryBook, mode: StoryMode, line: String,
+        generate: suspend () -> ByteArray?): ByteArray? {
+        storyBookStore?.voices?.read(mode, book.id, line)?.let { return it }
+        val ready = synchronized(prefetched) { prefetched.remove(line) }
+        return (ready?.await() ?: generate())?.also { bytes ->
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            runCatching { storyBookStore?.voices?.keep(mode, book.id, line, bytes) }
+        }
+    }
+
     /** Use [mp3] the next time [text] is said instead of asking /tts — a voice kept on the phone (#179) */
     fun offerVoice(text: String, mp3: ByteArray) {
         if (!Server.liveFor(s.mode) || text.isBlank()) return
@@ -432,8 +453,13 @@ class Director(
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)          // names read as they are (10-02 · ChildCall)
         // 앱에 구워 둔 대사면 그 소리를, 아니면 서버에 청한다 — 앞 대사를 읽는 동안 미리 받는다
-        val ready = synchronized(prefetched) { prefetched.remove(line) }
-        val audio = (ready ?: scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }).also { queueVoice(it) }
+        val saved = (s.stage as? Stage.SavedStory)?.book
+        val mode = s.mode
+        val ready = if (saved == null) synchronized(prefetched) { prefetched.remove(line) } else null
+        val audio = (ready ?: scope.async {
+            if (saved != null) savedBookVoice(saved, mode, line) { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }
+            else Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) }
+        }).also { queueVoice(it) }
         queueSpoken(if (waitForVoice) s.lineId else null) { audio.await() }
     }
 
@@ -522,6 +548,9 @@ class Director(
         voicePending = null
         Voice.stopPlaying()
     }
+
+    /** End the scoped saved-story narration, including pending server audio. */
+    internal fun stopSpeech() = hushVoice()
 
     // ── 선택 구간 (10-01 #50 · 민우 S25) ─────────────────────────────────
     //
