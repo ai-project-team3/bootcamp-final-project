@@ -121,10 +121,24 @@ class DiaryTapAnyPieceTest {
         val first = d.s.diaryDay.pieces.first().id
         await { d.s.diaryDay.watching }
         d.tapBoard(.115f, .37f)
-        await(1_000) { !d.s.diaryDay.watching }
         d.tool("drawme")
         assertTrue("Otto did not ask what it is — 말=${d.s.line}", await { d.s.line == "우와, 지금 그리는 건 뭐야?" } != null)
         assertEquals("Otto asked about another piece than the one touched", first, d.s.diaryDay.askingPiece)
+    }
+
+    @Test
+    fun aTouchOnTheBoardDoesNotDropOttosQuestion() = run { d ->
+        d.board()
+        d.draw(.3f)
+        val id = d.s.diaryDay.pieces.single().id
+        assertTrue(await { if (d.s.diaryDay.watching) d.send(Reply.Tapped("pause", "붓 멈춤")); d.s.line == "우와, 지금 그리는 건 뭐야?" } != null)
+        await { d.s.micEnabled }
+        d.tapBoard(.315f, .37f)                                // a dot — children tap the board all the time
+        assertEquals("the touch still picks the piece", id, d.s.diaryDay.focus?.first)
+        delay(200)
+        assertEquals("the touch dropped Otto's question", "우와, 지금 그리는 건 뭐야?", d.s.line)
+        d.send(Reply.Spoke("고양이야"))
+        assertTrue("the answer after the touch was not taken — 말=${d.s.line}", await { d.s.diaryDay.pieces.single().name == "고양이" } != null)
     }
 
     // ── 3 · the same piece again ───────────────────────────────────
