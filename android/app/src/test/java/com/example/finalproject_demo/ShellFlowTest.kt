@@ -159,7 +159,7 @@ class ShellFlowTest {
     }
 
     /**
-     * 약관 동의 (10-05) — 필수 넷이 다 있어야 넘어가고, 선택은 미리 켜져 있지 않으며, 고른 그대로 저장된다.
+     * 약관 동의 (10-05 · 10-08 두 항목으로) — 필수 둘이 다 있어야 넘어가고, 고른 그대로 저장된다.
      * 전문을 열어 「동의하고 닫기」 하면 그 항목이 체크된다. 「동의하지 않음」은 바로 닫지 않고 먼저 묻는다.
      */
     @Test
@@ -168,20 +168,19 @@ class ShellFlowTest {
         tap("카카오로 시작하기")
         waitText("이렇게만 써요"); shot("03a_consent_empty")
         compose.onNode(hasText("동의하고 계속") and hasClickAction()).assertIsNotEnabled()
-        waitText("필수 항목 4개")
+        waitText("필수 항목 2개")
         // 전문 보기 → 동의하고 닫기
         compose.onNode(hasContentDescription("오또 이용약관 전문 보기")).performClick()
         waitText("제5조 만든 책의 권리"); shot("03b_terms_sheet")
         tap("동의하고 닫기")
-        waitText("필수 항목 3개")
-        compose.onNode(hasContentDescription("만 14세 미만 아동 개인정보 처리 (법정대리인 동의) 전문 보기")).performClick()
+        waitText("필수 항목 1개")
+        compose.onNode(hasContentDescription("개인정보 수집 · 이용 (보호자 · 아이 · 법정대리인 동의) 전문 보기")).performClick()
         waitText("법정대리인 확인"); shot("03c_child_sheet")
         compose.onNode(hasContentDescription("닫기")).performClick()   // 「동의하고 닫기」가 아니라 ✕
         // 동의 목록은 위아래로 민다 — 아래 줄은 보이게 한 뒤 누른다
         fun tick(t: String) = compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).onLast().performScrollTo().performClick()
-        listOf("보호자 개인정보 수집", "만 14세 미만 아동", "개인정보 국외 이전").forEach { tick(it) }
+        tick("개인정보 수집 · 이용")
         waitText("필수 항목에 모두 동의했어요")
-        tick("새 기능 · 소식 알림")          // 선택 하나만
         shot("03d_consent_required_only")
         // 거절은 먼저 묻는다 — 돌아가기를 누르면 그대로
         tap("동의하지 않음"); waitText("동의하지 않고 나갈까요?"); shot("03e_decline_ask")
@@ -190,8 +189,7 @@ class ShellFlowTest {
         tap("동의하고 계속")
         waitText("마이크")
         assertTrue(ConsentStore.guardianAgreed)
-        assertTrue("이름 부르기는 고르지 않았는데 켜졌다", !ConsentStore.nameVoiceAgreed)
-        assertTrue("소식 알림 동의 날이 저장되지 않았다", Shell.newsSince != null)
+        assertTrue("받지 않는 소식 알림 동의가 저장됐다", Shell.newsSince == null)
         assertEquals(com.example.finalproject_demo.ui.shell.TERMS_VERSION, Shell.consentVersion)
     }
 
@@ -373,7 +371,7 @@ class ShellFlowTest {
         // 10-05 판에 동의한 보호자가 앱을 다시 켠 것처럼 — Shell 이 붙은 저장소로 쓴다(object 라 앞 검사의 것일 수 있다)
         Shell.saveConsent("2026-10-05", news = Shell.newsSince != null, at = Shell.newsSince ?: 0L)
         Shell.step = Step.TITLE
-        tap("건너뛰기")
+        tap("눌러서 시작")
         waitText("약관이 바뀌었어요"); shot("25_reconsent")
         assertEquals("처음 가입 화면이 그대로 나왔다", 0, count("이렇게만 써요"))
         assertEquals("다시 동의인데 단계 점이 보인다", 0, count("/ 5"))
@@ -384,7 +382,7 @@ class ShellFlowTest {
         compose.waitUntil(5_000) { Shell.step == Step.TITLE }
         assertEquals("2026-10-05", Shell.consentVersion)
         // 다시 들어가 동의하면 방으로, 판은 지금 판
-        tap("건너뛰기")
+        tap("눌러서 시작")
         waitText("약관이 바뀌었어요")
         tap("모두 동의해요"); tap("동의하고 계속")
         compose.waitUntil(5_000) { Shell.step == Step.APP }
@@ -463,7 +461,7 @@ class ShellFlowTest {
     }
 
     /**
-     * **실제 손가락처럼** 누르고 → 잠시 뒤 떼면 넘어가는가 (09-29 실기기 — 「건너뛰기」이 안 넘어갔다).
+     * **실제 손가락처럼** 누르고 → 잠시 뒤 떼면 넘어가는가 (09-29 실기기 — 「눌러서 시작」이 안 넘어갔다).
      *
      * `performClick` 은 누름과 뗌을 한 번에 넣어서, 방패 층(`Shield`)이 터치를 처리됨으로 표시해 누름이
      * 취소되는 문제를 못 잡았다. 누름 · 조금 움직임 · 뗌을 시간을 두고 따로 넣는다(움직이지 않으면 실기기에서도 넘어갔다). 로그인 · 설정 버튼도 같은 층이다

@@ -60,14 +60,10 @@ fun OttoShell(d: Director) {
         if (Shell.guide) Shield(onBack = { Shell.guide = false }) {
             FeatureGuide(finish = "닫기", onClose = { Shell.guide = false }) { Shell.guide = false }
         }
-        // 부모 영역 → 계정에서 연 약관 전문 — 읽기만 한다. 타입캐스트 목소리는 여기서 「동의하고 닫기」를 눌러야 켜진다(제3자 제공 · 10-06)
+        // 부모 영역 → 계정에서 연 약관 전문 — 읽기만 한다(필수 두 항목은 이미 동의했다)
         Shell.doc?.let { doc ->
             Shield(onBack = { Shell.doc = null }) {
-                TermsSheet(
-                    doc, agreed = doc != TermsDoc.TYPECAST_VOICE,
-                    onAgree = if (doc == TermsDoc.TYPECAST_VOICE) ({ ConsentStore.setTypecastVoice(true); Shell.doc = null }) else null,
-                    onClose = { Shell.doc = null },
-                )
+                TermsSheet(doc, agreed = true, onAgree = null, onClose = { Shell.doc = null })
             }
         }
         // ⏸ 일시정지 (#125) — 이어 하기 · 방으로 나가기. 뒤로 가기도 이어 하기
@@ -108,14 +104,15 @@ fun OttoShell(d: Director) {
         Box(Modifier.fillMaxSize().background(Wool)) {
             androidx.compose.animation.Crossfade(Shell.step, animationSpec = androidx.compose.animation.core.tween(220), label = "step") { step ->
             when (step) {
-                Step.CLAP -> SplashScreen { Shell.step = Step.TITLE }
-                Step.TITLE -> CurtainOpening(d) {
-                    Shell.step = when {
-                        !Shell.onboarded -> Step.LOGIN
-                        Accounts.guardian == null -> Step.EXPIRED        // 예외 · 로그인이 풀렸을 때
-                        // 동의가 없거나, 약관이 바뀌어 새 판에 아직 동의하지 않았으면 다시 묻는다 (처리방침 제11조)
-                        !ConsentStore.guardianAgreed || Shell.consentVersion != TERMS_VERSION -> Step.CONSENT
-                        else -> Step.APP
+                Step.CLAP -> SplashScreen {
+                    Shell.step = if (Shell.onboarded && Shell.openingSeen) Shell.startStep() else Step.TITLE
+                }
+                Step.TITLE -> {
+                    // Returning from re-consent must not replay the whole opening.
+                    if (Shell.onboarded && Shell.openingSeen) TitleScreen { Shell.step = Shell.startStep() }
+                    else CurtainOpening(d) {
+                        Shell.markOpeningSeen()
+                        Shell.step = Shell.startStep()
                     }
                 }
                 Step.LOGIN -> LoginScreen(onDone = { afterLogin() }, onEmail = { Shell.emailMode = it; Shell.step = Step.EMAIL })

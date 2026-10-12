@@ -59,9 +59,9 @@ internal fun openingCat(t: Float, placement: OpeningPlacement): OpeningMotion.Po
 /** Bitmaps are decoded once off the UI thread, then retained only for this opening. */
 internal class OpeningArt(private val context: Context) {
     private fun asset(name: String) = context.assets.open("opening/$name").use { BitmapFactory.decodeStream(it)!! }
-    private val stage = asset("stage-premium.png")
-    private val curtain = asset("curtain-premium.png")
-    private val rope = asset("rope-premium.png")
+    private val stage = asset("stage-premium.webp")
+    private val curtain = asset("curtain-premium.webp")
+    private val rope = asset("rope-premium.webp")
     private val logo = BitmapFactory.decodeResource(context.resources, R.drawable.logo_otto_v2, BitmapFactory.Options().apply { inScaled = false })
     private val cat = BitmapFactory.decodeResource(context.resources, R.drawable.otto_pose_wave, BitmapFactory.Options().apply { inScaled = false })
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
