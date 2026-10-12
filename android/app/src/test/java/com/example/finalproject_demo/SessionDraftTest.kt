@@ -28,6 +28,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import com.example.finalproject_demo.demo.Level
 import com.example.finalproject_demo.demo.LocalSessionDraftStore
+import com.example.finalproject_demo.demo.NAME_TYPED
 import com.example.finalproject_demo.demo.PieceLook
 import com.example.finalproject_demo.demo.Reply
 import com.example.finalproject_demo.demo.ReportQuestionType
@@ -294,6 +295,12 @@ class SessionDraftTest {
     private suspend fun Director.step(): String? {
         if (await(4_000) { pick(s.buttons) != null } == null) return null
         repeat(12) {
+            // #350: the hero's name is asked on the first book too — type one, as StoryFlowTest does
+            if (s.stage is Stage.NameEntry) {
+                send(Reply.Tapped(NAME_TYPED, "콩이"))
+                if (await(600) { s.stage !is Stage.NameEntry } != null) return "Typed hero name"
+                return@repeat
+            }
             val b = pick(s.buttons) ?: return null
             val before = s.lineId
             b.onClick()
