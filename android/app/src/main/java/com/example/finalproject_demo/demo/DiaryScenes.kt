@@ -141,7 +141,7 @@ suspend fun Director.sceneDiary() {
             s.coopCoverPart(step.variant.id)
         } else askDiaryStep(step)
         drawCoopBackground()                    // 장소 칸이 찼으면 그곳으로 배경을 그린다 — 기다리지 않는다 (10-05 · CoopServerLine.kt)
-        drawFriend()                            // 같이 간 사람에 맞는 그림이 없으면 인형을 만든다 — 기다리지 않는다 (FriendArt.kt)
+        drawFriend()                            // a doll for a companion with no picture — in co-op only after the drawing choice (FriendArt.kt · #339)
         // 진행 막대는 **지나온 걸음 수**로 찬다 (9/22). 칸이 찼는지로 세면, 아이가 답하지 않은
         // 선택 질문이 하나라도 있으면 마지막 질문까지 가도 막대가 끝까지 가지 않는다
         s.stepsDone++
@@ -204,6 +204,8 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
         )
         val r = askOrCoopAsk(q)                 // 협업이면 소리 없이 부모 띠에 띄운다 (CoopScenes.kt)
         judge(v, r, q.text)
+        // A tail step's answer denied Otto's premise (「안 했어」) — the slot stays empty, on to the next step (#327 ② ⚖️3)
+        if (s.coopTailDenied(step)) return
 
         if (r is Reply.Tapped && r.byMascot) {
             if (keepChildAnswer(step)) return
@@ -235,7 +237,9 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
 
         // 말은 했는데 칸이 안 찼다 ("몰라") — 사다리에 남은 칸이 있으면 질문을 바꿔 다시 묻는다.
         // 협업에서 아이가 진짜로 답했는데 판정이 두 번 거절했으면 더 내려가지 않는다 — 다시 묻는 건 한 번까지
-        if (rungs.size <= 1 || (step.required && s.coopRejectedCount(step) >= 2)) {
+        // The premise was denied and the slot is empty — keep the ladder rung and ask the premise-free question once (#327 ② §5-1)
+        val premiseFree = s.coopPremiseFreeNext(step)
+        if (!premiseFree && (rungs.size <= 1 || (step.required && s.coopRejectedCount(step) >= 2))) {
             if (keepChildAnswer(step)) return
             val fb = if (pack != null) pack.mascot else step.mascot?.invoke(s)
             if (fb == null) {
@@ -250,8 +254,11 @@ private suspend fun Director.askDiaryStep(step: DiaryStep) {
             pause(1500)
             return
         }
-        rungs = rungs.drop(1)
-        log("말은 했지만 칸이 안 찼다 → 답을 고르게 하지 않고 사다리 한 칸 아래 질문으로 바꾼다 (일기 §4)")
+        if (premiseFree) log("[${step.bookKey}] premise denied → same ladder rung, premise-free question once (#327 ② §5-2)")
+        else {
+            rungs = rungs.drop(1)
+            log("말은 했지만 칸이 안 찼다 → 답을 고르게 하지 않고 사다리 한 칸 아래 질문으로 바꾼다 (일기 §4)")
+        }
         pause(700)
     }
 }
@@ -361,6 +368,12 @@ internal suspend fun Director.finishDiary() {
         return
     }
 
+    // Making the book · co-op — whether the child draws the companion is settled (drew · did not · was not asked). Only now
+    // is the doll asked for — asked before, it was thrown away when the child drew and only cost a request (#339 design §5). No waiting (rule 8)
+    if (s.isCoop) {
+        mark(COOP_DRAW_DECIDED)
+        drawFriend()
+    }
     // 빈 자리는 LLM이 이야기로 메운다. 메운 자리는 by: mascot 이다 (일기 §5 · §5-1)
     COOP_REQUIRED.forEach { st ->
         if (!diaryFilled(st.slot)) {

@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.missions
+import com.example.finalproject_demo.demo.missions.slot2PlayProp
 import androidx.compose.ui.graphics.Color
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
@@ -293,6 +295,7 @@ private suspend fun Director.sceneAdult() {
         return
     }
     s.paused = null          // 새 이야기 — 멈춰 둔 이야기는 버린다
+    discardDraft()           // …and its copy on the phone (#336) — the star for this new book is spent below
     s.resetStory()
     s.mode = picked
     if (Server.liveFor(picked)) com.example.finalproject_demo.net.CallLimits.bookStarted()
@@ -389,6 +392,10 @@ private suspend fun Director.onHeroPicked(v: String) {
     s.storyHeroImage = s.heroes[idx].image
     s.storyHeroRig = s.heroes[idx].rig
     s.storyHeroCall = s.heroes[idx].called
+    // a nameless card is the hero by its card name — the same one the child says (Model.kt storyHeroCard)
+    s.storyHeroCard = s.heroes[idx].name.takeIf { s.heroes[idx].called.isNullOrBlank() }
+    s.storyHeroDescription = s.heroes[idx].description
+    if (s.mode == StoryMode.STORY) heroSetupLog.finish("new")?.let(::log)
     mark("bestiary")
     log("주인공 고름: ${s.heroes[idx].name} → 고정 스프라이트 그대로 씀 (⭐20 · ⭐26)")
     say("${s.heroes[idx].name}${ya(s.heroes[idx].name)}, 준비됐지?")
@@ -400,6 +407,7 @@ private suspend fun Director.onHeroPicked(v: String) {
 // ── 장면 2↳ · 주인공 만들기 (말로 / 골라서) — 둘 다 같은 펠트 그림 ──
 
 private suspend fun Director.sceneMakeHero() {
+    if (s.mode == StoryMode.STORY && s.heroCreationDraft == null && choosePreviousStoryHero()) return
     val draft = if (s.mode == StoryMode.STORY) s.heroCreationDraft ?: HeroCreationDraft().also {
         s.heroCreationDraft = it
         s.heroTries.clear()
@@ -413,23 +421,39 @@ private suspend fun Director.sceneMakeHero() {
     var generatedImage by draft::generatedImage
     var generatedRig by draft::generatedRig
 
+    // #336 review: write the unfinished book whenever the doll's committed state moves — an answer, a reserved attempt,
+    // a finished candidate, a spent redraw, a phase change — so a kill without ON_STOP keeps the candidate and the budget
+    fun checkpoint() { if (s.heroCreationDraft === draft) saveDraft() }
+
     fun heroName(): String {
         val h = when (attr.hair) { "long" -> "긴 머리"; "tied" -> "묶은 머리"; else -> "짧은 머리" }
         val col = when (shirtKey(attr.shirt)) { "red" -> "빨간 옷"; "yellow" -> "노란 옷"; else -> "파란 옷" }
         return if (attr.glasses != "none") "$h 안경 $c" else "$h $col $c"
     }
 
+    fun appearanceDescription() = descriptions.joinToString("; ") +
+            if (confirmedChoices.isNotEmpty()) "\nLatest confirmed choices override earlier descriptions: " +
+                confirmedChoices.entries.joinToString("; ") { "${it.key}=${it.value}" } else ""
+
     suspend fun save() {
         draft.phase = HeroCreationDraft.Phase.NAME
+        checkpoint()
         val called = askHeroName(attr, generatedImage)          // 말로 · 글로 이름 짓기 (10-02 · demo/HeroName.kt)
-        s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called)
+        val description = draft.generatedDescription ?: appearanceDescription()
+        if (s.mode != StoryMode.STORY)
+            s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called, description = description)
         s.heroAttr = attr
         s.storyHeroImage = generatedImage
         s.storyHeroRig = generatedRig
+        s.storyHeroCall = called
+        s.storyHeroDescription = description
+        log("Hero confirmed; the selected local picture is retained for this story")
         draft.phase = HeroCreationDraft.Phase.COMPLETE
-        log("주인공 확정 → 고정 스프라이트로 도감에 저장. 이야기 중 다시 생성하지 않음 (⭐20 · ⭐26)")
         pause(600)
-        go(Scene.BESTIARY)
+        if (s.mode == StoryMode.STORY) {
+            heroSetupLog.finish("new")?.let(::log)
+            go(Scene.PLACE)
+        } else go(Scene.BESTIARY)
     }
 
     suspend fun presetBuilder() {
@@ -486,7 +510,9 @@ private suspend fun Director.sceneMakeHero() {
                 if (confirmedChoices.isNotEmpty()) "\nLatest confirmed choices override earlier descriptions: " +
                     confirmedChoices.entries.joinToString("; ") { "${it.key}=${it.value}" } else ""
             val mask = s.nameMask()
-            val character = withTimeoutOrNull(15_000) { Server.character(mask.mask(description), mode = "story") }
+            // felt on purpose, not the book's style: this doll goes into the 도감 and walks into later books of any style
+            // (결정 27 — the 도감 stays felt). Said out loud so the #331 audit of every picture call can see it
+            val character = withTimeoutOrNull(15_000) { Server.character(mask.mask(description), mode = "story", style = "felt") }
             if (character != null) {
                 generatedImage = saveStoryImage(character.png)
                 generatedRig = character.rig.takeIf { generatedImage != null }
@@ -527,6 +553,7 @@ private suspend fun Director.sceneMakeHero() {
         attr = tries[idx]
         generatedImage = images.getOrNull(idx)?.first
         generatedRig = images.getOrNull(idx)?.second
+        draft.generatedDescription = draft.generatedDescriptions.takeLast(3).getOrNull(idx)
         draft.phase = HeroCreationDraft.Phase.NAME
         s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = "$idx") ?: s.stage
         pause(900)
@@ -596,8 +623,10 @@ private suspend fun Director.sceneMakeHero() {
                 break
             }
             draft.questionIndex = i + 1
+            checkpoint()
         }
         draft.phase = HeroCreationDraft.Phase.GENERATE
+        checkpoint()
     }
 
     suspend fun fixFlow() {
@@ -630,6 +659,7 @@ private suspend fun Director.sceneMakeHero() {
                 else -> {}
             }
             draft.phase = HeroCreationDraft.Phase.GENERATE
+            checkpoint()
             return
         }
     }
@@ -655,6 +685,7 @@ private suspend fun Director.sceneMakeHero() {
                 draft.phase = HeroCreationDraft.Phase.QUESTIONS
             }
             s.heroTries.clear()
+            checkpoint()
         }
         HeroCreationDraft.Phase.PRESET -> { presetBuilder(); return }
         HeroCreationDraft.Phase.QUESTIONS -> voiceStep(draft.questionIndex)
@@ -665,8 +696,14 @@ private suspend fun Director.sceneMakeHero() {
             generatedRig = null
             s.heroTries += attr
             generatedTries += null to null
+            draft.generatedDescription = appearanceDescription()
+            draft.generatedDescriptions += draft.generatedDescription.orEmpty()
             draft.phase = HeroCreationDraft.Phase.CONFIRM
-            try { generate() } finally { generatedTries[generatedTries.lastIndex] = generatedImage to generatedRig }
+            checkpoint()                                   // the attempt is spent before the request goes out
+            try { generate() } finally {
+                generatedTries[generatedTries.lastIndex] = generatedImage to generatedRig
+                checkpoint()                               // the candidate PNG is owned by the draft from now on
+            }
         }
         HeroCreationDraft.Phase.CONFIRM -> {
             if (confirm() == "ok") { save(); return }
@@ -676,11 +713,18 @@ private suspend fun Director.sceneMakeHero() {
                 log("싫어 → 수정 $fixes/${s.redrawMax} · 한 번에 한 가지만")
                 draft.phase = HeroCreationDraft.Phase.REPAIR
             }
+            checkpoint()
         }
         HeroCreationDraft.Phase.REPAIR -> fixFlow()
         HeroCreationDraft.Phase.PICK -> { pickFromTries(); return }
         HeroCreationDraft.Phase.NAME -> { save(); return }
-        HeroCreationDraft.Phase.COMPLETE -> { go(Scene.BESTIARY); return }
+        HeroCreationDraft.Phase.COMPLETE -> {
+            if (s.mode == StoryMode.STORY) {
+                heroSetupLog.finish("new")?.let(::log)
+                go(Scene.PLACE)
+            } else go(Scene.BESTIARY)
+            return
+        }
     }
 }
 
@@ -775,7 +819,7 @@ private suspend fun Director.scenePartner() {
     })
     mark("partner")
     pause(1600)
-    if (s.firstDay) go(Scene.MAKEHERO) else go(Scene.BESTIARY)
+    if (s.mode == StoryMode.STORY || s.firstDay) go(Scene.MAKEHERO) else go(Scene.BESTIARY)
 }
 
 // ── 장면 3′ · 오늘 있었던 일 ────────────────────────────
@@ -1523,12 +1567,16 @@ private suspend fun Director.sceneMaking() {
     inputs(false, false)
     buttons()
     val t = s.template ?: templateOf(chooseTemplate(s.level, s.causeKind).first).also { s.templateKey = it.key }
+    if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) s.prepareStoryBookPages()
+    val plannedPageCount = s.bookPages.size
     // 같이 만들기는 동화가 아니라 같이 지은 이야기책이다 (#98)
     val bookWord = if (s.isCoop) "이야기책" else "동화책"
     say("${bookWord}을 만들고 있어! 조금만 기다려 줘.")
     log(
-        "Template ${t.code} ${t.name} (${t.pages.size} pages) + collected slots → server LLM → captions/title JSON → " +
-            "restore placeholders on device: {주인공} → ${s.childName}, {친구1} → ${s.friendName}; keep confirmed pictures (⭐26)"
+        "Template ${t.code} ${t.name} ($plannedPageCount pages) + collected slots → server LLM → captions/title JSON → " +
+            // the names the mask really restores — the hero card when the doll has no name (#392), no friend when none was named
+            "restore placeholders on device: {주인공} → ${s.nameMask().names.firstOrNull()?.takeIf(String::isNotBlank) ?: s.childName}, " +
+                "{친구1} → ${s.friendName.takeUnless { it.startsWith("{") } ?: "(none)"}; keep confirmed pictures (⭐26)"
     )
     if (s.isDiary) {
         val mascot = listOf("place", "problem", "cause", "solution").filter { s.slotBy[it] == "mascot" }
@@ -1540,16 +1588,16 @@ private suspend fun Director.sceneMaking() {
         log("아이 말은 씨앗이고 나머지는 원래 이야기다. 메운 문장은 책에만 나오고 부모 리포트 인용에는 안 들어간다 (§5 · §5-1)")
     }
     val filled = s.slots.filterValues { it.isNotEmpty() }.keys
-    log("이번 책에 들어가는 이야기 조각: ${filled.joinToString(" · ").ifEmpty { "기본 문장" }} · 까닭 \"${s.causeLine}\" · 해결 \"${s.solutionLine}\"")
+    log("이번 책에 들어가는 이야기 조각: ${filled.joinToString(" · ").ifEmpty { "기본 문장" }} · 까닭 ${s.causeSaid?.let { "\"$it\"" } ?: "(not told)"} · 해결 \"${s.solutionLine}\"")
     var p = 0f
     while (p < 1f) {
-        s.stage = Stage.Making("${bookWord}을 만드는 중… (${t.pages.size}쪽)", p)
+        s.stage = Stage.Making("${bookWord}을 만드는 중… (${plannedPageCount}쪽)", p)
         pause(120)
         p += 0.05f
     }
     s.title = s.autoTitleFor()
     if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
-        s.stage = Stage.Making("이야기 문장을 쓰는 중… (${t.pages.size}쪽)")
+        s.stage = Stage.Making("이야기 문장을 쓰는 중… (${plannedPageCount}쪽)")
         val mask = s.nameMask()
         val storyInput = s.storyServerInput()
         val book = Server.storyBook(
@@ -1570,7 +1618,7 @@ private suspend fun Director.sceneMaking() {
     s.stage = Stage.Making("『${s.title}』", 1f)
     say("다 만들었어! 제목은 『${s.title}』${if (bat(s.title!!)) "이야" else "야"}.")
     log("제목은 아이에게 묻지 않고 템플릿 · 대화로 지어 준다 → 책장에서 바꿀 수 있다")
-    event("book", "template" to "${t.code} ${t.name}", "attribute" to s.attribute, "pages" to t.pages.size, "title" to s.title)
+    event("book", "template" to "${t.code} ${t.name}", "attribute" to s.attribute, "pages" to plannedPageCount, "title" to s.title)
     mark("making")
     pause(2200)
     go(Scene.BOOK)
@@ -1628,12 +1676,16 @@ private suspend fun Director.sceneBook() {
         when {
             i == 0 -> {}
             i == rubPage && s.m1Result == null -> log(
-                // 아이 말에서 고른 미션(불기 · 소리 흉내)이면 그것을 적는다 — 화면은 「삐뽀삐뽀」인데 로그는 「문지르기 · 먼지」였다(10-06 실기기)
-                s.slot1Prop()?.let { "${i}쪽 미션 1 (쉬움 · ${it.badge}) — 아이 말에서 고른 미션 · 「${it.ask}」" }
+                // A mission picked from the child's words (blowing · sound) logs as itself — the screen said 「삐뽀삐뽀」 while
+                // the log said rub · dust (device 10-06)
+                s.slot1Prop()?.let { "page $i mission 1 (easy · ${it.badge}) — ${if (s.missions().slot1FromChild) "picked from the child's words" else "rotated (nothing in the child's words fits · #259)"} · 「${it.ask}」" }
                     ?: if (s.isDiary) "${i}쪽 미션 1 (쉬움 · 문지르기) — 뼈대는 그대로, 소품만 하루에서 나온 것으로 (${m1.blobName} · 도구 ${m1.toolName} · §7-1 ②)"
-                else "${i}쪽 미션 1 (쉬움 · 문지르기) — 장면 4의 \"${s.newcomerKind}\"에서 나온 ${m1.blobName} · 도구 ${m1.toolName}"
+                else "${i}쪽 미션 1 (쉬움 · 문지르기) — " +
+                    // nobody met: no script alien in the log either (#387)
+                    (if (s.liveStoryWithoutFriend) "no newcomer · " else "장면 4의 \"${s.newcomerKind}\"에서 나온 ") +
+                    "${m1.blobName} · 도구 ${m1.toolName}"
             )
-            i == dragPage && s.m2Result == null -> log(s.slot2Prop()?.let { "${i}쪽 미션 2 (${it.mission.name}) — 아이 말에서 고른 미션 · 「${it.ask}」" } ?: s.m2Log(i))
+            i == dragPage && s.m2Result == null -> log(s.slot2PlayProp()?.let { "page $i mission 2 (${it.mission.name}) — ${if (s.missions().slot2FromChild) "picked from the child's words" else "rotated (nothing in the child's words fits · #259)"} · 「${it.ask}」" } ?: s.m2Log(i))
             i == last && s.isDiary -> log("${i}쪽(마지막): 일기 모드도 미션 난이도 신호가 그대로 나온다 (§7-1 ②) · 공룡 소리 칸은 묻지 않았다 (§2-2)")
             i == last -> log("${i}쪽(마지막): ${if (s.hasPartner && s.partnerHelpLine != null) "${s.pn} 참여 한 줄 들어감" else "동행자 참여 문장 없음"} · 소리 대상 ${soundHolder?.name ?: "없음"}")
             else -> log("${i}쪽 [${s.pageKind(i)}] — 템플릿 ${s.template?.code} 칸으로 만든 자막")
@@ -1666,19 +1718,22 @@ private suspend fun Director.sceneBook() {
                 else { go(Scene.FRIENDS); return }
             }
             vv == "prev" -> { lateAnnounce?.cancel(); if (s.bookPage > 0) { s.bookPage--; show(); announce(); refreshButtons() } }
-            vv == "speak" -> log("🔊 자막 낭독 (CLOVA Voice, 이름 없는 문장)")
+            vv == "speak" -> {
+                if (s.mode == StoryMode.STORY) say(if (s.bookPage == 0) "『${s.title}』" else s.bookCaption(s.bookPage))
+                else log("Book narration replay requested")
+            }
             vv == "mission" && s.bookPage == rubPage && s.m1Result == null -> {
                 s.m1Result = "solo"; s.reactions++; feel(Mood.CHEER)
                 // C1 · C3 면 그 미션의 선물 · 동작 이름 — 촛불을 불었는데 「먼지 치운 손」이 나오지 않게 (#105 리뷰)
                 val p1 = s.slot1Prop()
-                s.achievements += p1?.badge ?: "${m1.blobName} 치운 손"
+                s.achievements += s.m1Badge()
                 show(); refreshButtons(); lateAnnounce = sceneScope.launch { announceAfterScene { announce() } }
                 event("mission", "id" to 1, "motion" to (p1?.motion ?: "rub"), "result" to "solo")
                 log("미션 1 완료 → mission_result: solo → 다음 미션 보통 (안치영 §7 · ⭐7) · 걸린 시간 · 시도 횟수 저장 안 함")
                 mark("book")
             }
             vv == "helped" && s.bookPage == rubPage && s.m1Result == null -> {
-                s.m1Result = "helped"; s.achievements += s.slot1Prop()?.badge ?: "${m1.blobName} 치운 손"; feel(Mood.CHEER)
+                s.m1Result = "helped"; s.achievements += s.m1Badge(); feel(Mood.CHEER)
                 show(); refreshButtons()
                 s.bookNote = "같이 하자! 슥슥~ 퐁! 다 됐어!"
                 event("mission", "id" to 1, "motion" to (s.slot1Prop()?.motion ?: "rub"), "result" to "helped")
@@ -1688,11 +1743,11 @@ private suspend fun Director.sceneBook() {
             vv == "mission" && s.bookPage == dragPage && s.m2Result == null -> {
                 s.m2Result = if (s.m1Result == "helped") "easy" else "solo"; s.reactions++; feel(Mood.CHEER)
                 // 아이 말에서 고른 미션(불 끄기 · 잠그기 …)이면 그 미션으로 남긴다 — 「별 건넨 손」 · 「별 · 하트가 퐁」은 건네주기 때만(10-06 실기기)
-                val fix = s.slot2Prop()
-                s.achievements += fix?.badge ?: "${m2.itemName} 건넨 손"
+                val fix = s.slot2PlayProp()
+                s.achievements += s.m2Badge()
                 show(); refreshButtons(); lateAnnounce = sceneScope.launch { announceAfterScene { announce() } }
                 event("mission", "id" to 2, "motion" to "drag", "result" to s.m2Result)
-                log(fix?.let { "미션 2 완료 — ${it.mission.name} · 「${it.cheer}」" } ?: "미션 2 완료 — ${s.friendCallName}에게 ${m2.itemName} · 하트가 퐁 (건네주기 연출 — 미션마다 따로 · #260)")
+                log(fix?.let { "미션 2 완료 — ${it.mission.name} · 「${it.cheer}」" } ?: "미션 2 완료 — ${s.giveTargetName}에게 ${m2.itemName} · 하트가 퐁 (건네주기 연출 — 미션마다 따로 · #260)")
                 mark("book")
             }
             vv == "dino" || vv == "sound" -> {
@@ -1707,9 +1762,10 @@ private suspend fun Director.sceneBook() {
 // ── 장면 13 · 친구 평가 (S10) ────────────────────────────────────
 
 /**
- * 오늘 만난 친구를 하나씩 보며 [또 만날래 💛] [안녕 👋].
- * "또 만날래"로 고른 친구만 다음 이야기의 확인 카드 후보가 된다 (⭐26).
- * "안녕"을 골라도 지워지지 않는다 — 폰에 남고, 책장에서 그 책을 열면 그대로 있다.
+ * 오늘 만난 친구를 하나씩 보며 [좋아요 👍] [싫어요 👎] (10-12 종훈 — 전에는 [또 만날래] [안녕]).
+ * 그림이 마음에 들었는지만 묻는 짧은 설문이다 — 고른 것이 다음 이야기를 바꾸지 않는다(10-12 종훈: 「또 만날래 → 다음 이야기에
+ * 다시 나옴」은 넣지 않는다). 답은 `friend_rating` 이벤트로만 남는다.
+ * "싫어요"를 골라도 지워지지 않는다 — 폰에 남고, 책장에서 그 책을 열면 그대로 있다.
  */
 private suspend fun Director.sceneFriends() {
     inputs(false, false)
@@ -1736,7 +1792,7 @@ private suspend fun Director.sceneFriends() {
             RateItem("dino", s.dino.name, Art.DinoArt(s.dinoColor, s.dinoKey)),
         )
     }
-    say(s.coopFriendsLine() ?: "오늘 만난 친구들이야. 누구를 또 만나고 싶어?")   // 협업 곧 해요 · 좋아해요 (CoopReport.kt)
+    say(s.coopFriendsLine() ?: "오늘 만난 친구 그림이야. 어땠어?")   // 협업 곧 해요 · 좋아해요 (CoopReport.kt)
     log("친구 평가 — 고르지 않아도 넘어갈 수 있다. 지우는 선택지는 없다")
     // 10-05 device round: a mis-tap on 「안녕」 moved on at once. A tap now only marks the card (and can be
     // changed); the arrow 「다 했어」 confirms. Undecided friends' buttons come first, then the arrow, then
@@ -1745,13 +1801,13 @@ private suspend fun Director.sceneFriends() {
         s.stage = Stage.FriendRate(items.toList())
         val b = mutableListOf<DemoBtn>()
         items.filter { it.keep == null }.forEach {
-            b += DemoBtn("💛 ${it.name} — 또 만날래") { send(Reply.Tapped("keep:${it.id}", it.name)) }
-            b += DemoBtn("👋 ${it.name} — 안녕") { send(Reply.Tapped("bye:${it.id}", it.name)) }
+            b += DemoBtn("👍 ${it.name} — 좋아요") { send(Reply.Tapped("keep:${it.id}", it.name)) }
+            b += DemoBtn("👎 ${it.name} — 싫어요") { send(Reply.Tapped("bye:${it.id}", it.name)) }
         }
         b += DemoBtn("➡️ 다 했어") { send(Reply.Tapped("done", "다음")) }
         items.filter { it.keep != null }.forEach {
-            b += if (it.keep == true) DemoBtn("👋 ${it.name} — 안녕으로 바꾸기") { send(Reply.Tapped("bye:${it.id}", it.name)) }
-            else DemoBtn("💛 ${it.name} — 또 만날래로 바꾸기") { send(Reply.Tapped("keep:${it.id}", it.name)) }
+            b += if (it.keep == true) DemoBtn("👎 ${it.name} — 싫어요로 바꾸기") { send(Reply.Tapped("bye:${it.id}", it.name)) }
+            else DemoBtn("👍 ${it.name} — 좋아요로 바꾸기") { send(Reply.Tapped("keep:${it.id}", it.name)) }
         }
         buttons(*b.toTypedArray())
     }
@@ -1773,17 +1829,16 @@ private suspend fun Director.sceneFriends() {
         }
         items[i] = items[i].copy(keep = keep)
         refresh()
-        say(if (keep) "${items[i].name}${eul(items[i].name)} 또 만나자! 다음 이야기에 나올 수 있어." else "${items[i].name}, 안녕! 오늘 고마웠어.")
+        // no promise of a next story, and no name in the line — two fixed lines that can be recorded once
+        say(if (keep) "마음에 들었구나! 알려 줘서 고마워." else "그랬구나! 알려 줘서 고마워.")
         pending = pauseOrChoice(if (interruptible) 0 else 600)
     }
     // Only the confirmed choices count — a changed mind is not two ratings.
     items.filter { it.keep != null }.forEach {
         s.reactions++
         event("friend_rating", "friend_id" to it.id, "keep" to it.keep)
-        if (it.keep == true) {
-            if (it.name !in s.keptFriends) s.keptFriends += it.name
-            log("또 만날래 → ${it.name}${eun(it.name)} 다음 이야기의 확인 카드 후보 (⭐26 · 폰 소품함)")
-        } else log("안녕 → 지우지 않는다. 폰에 남고 이 책에는 그대로 나온다")
+        log(if (it.keep == true) "좋아요 → ${it.name} · 설문으로만 남는다 (다음 이야기에 쓰지 않는다)"
+            else "싫어요 → ${it.name} · 지우지 않는다. 폰에 남고 이 책에는 그대로 나온다")
     }
     if (items.any { it.keep != null }) mark("friends")
     say("좋아! 이제 선물이 있어.")
@@ -1880,23 +1935,14 @@ private suspend fun Director.sceneShelf() {
             "book" -> {
                 if (openSavedDiary(tapped.label)) { s.stage = Stage.Shelf(fromEnd); continue }   // 그림일기 다시 읽기(#37)
                 val story = savedStory(tapped.label)
-                val book = story ?: CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
-                val key = bgmBookKey(book.title, book.pages.firstOrNull()?.caption.orEmpty())
-                var page = 0
-                s.line = ""
-                buttons()
-                while (true) {
-                    s.stage = Stage.SavedStory(book, page)
-                    // 동화 · 같이 만들기 책 모두 — 첫 읽기와 같은 쪽 · 같은 곡 (#221)
-                    Bgm.play(trackOf(moodOf(if (page == 0) PageKind.COVER else book.pages[page - 1].kind), key))
-                    val action = (awaitReply() as? Reply.Tapped)?.value ?: continue
-                    when (action) {
-                        "next" -> if (page < book.pages.size) page++
-                        "prev" -> if (page > 0) page--
-                        "close" -> break
-                    }
+                if (story != null) {
+                    readSavedStory(story)
+                    s.stage = Stage.Shelf(fromEnd)
+                    say("우리가 만든 책들이야!")
+                    continue
                 }
-                Bgm.stop()
+                val book = CoopShelf.book(s, tapped.label) ?: continue   // 같이 만들기 책(#83)
+                readSavedStory(book, StoryMode.COOP)
                 s.stage = Stage.Shelf(fromEnd)
                 say("우리가 만든 책들이야!")
             }

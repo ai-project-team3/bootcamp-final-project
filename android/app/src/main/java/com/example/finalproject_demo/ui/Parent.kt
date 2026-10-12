@@ -137,7 +137,7 @@ private val PTABS = listOf(
     PTab("ach", "pi_achieve", "🏅", "업적", "아이가 한 일로만 받는 선물과 해결 방법 도감"),
     PTab("set", "pi_settings", "⚙️", "설정", "하루 한도 · 시작할 때 확인 · 그림체 · 소리 · 동의"),
     PTab("shelf", "pi_shelf", "📚", "책장 정리", "모드마다 ${SHELF_CAPACITY}권까지 · 뺄 책을 골라요 · 아이 화면에서는 지우지 않아요"),
-    PTab("acct", "pi_account", "👤", "계정", "로그인 · 부모 비밀번호 · 처음 설정 다시 보기 · 탈퇴"),
+    PTab("acct", "pi_account", "👤", "계정", "로그인 · 부모 비밀번호 · 기능 안내 · 탈퇴"),
 )
 
 /** 탭 아이콘 — 펠트 그림을 흰 둥근 네모에 */
@@ -474,6 +474,9 @@ private fun CoopQuestionsTab(c: CoopDraft) {
             Text(if (c.hasSaved) "저장된 이야기를 고치는 중이에요" else "오늘 아이와 만들 이야기를 골라 두세요", fontSize = 16.sp, color = Ink, fontWeight = FontWeight.Bold)
             Text("이야기를 고르거나 질문을 적은 뒤 아래 [저장하기]를 눌러야 확정돼요. 아이가 오또의 방에서 소파(같이 만들기)를 누르면 오또가 평소처럼 물어보되, 고른 이야기에 맞춰 묻고 적어 둔 질문도 중간에 끼워 물어봐요. 오늘 이야기에만 쓰여요.", fontSize = 13.sp, color = PSub)
         }
+        // When a child recalling asks 「엄마, 뭐였지?」, Otto gives it back to the child (#341) — one line so the adult nearby does not answer for them (⚖️7 · #347).
+        // 「옆에 계시다면」 — wording that assumed a parent nearby was once removed from the report (fdfa6d71), so it only speaks for when one is there
+        Text("ⓘ 옆에 계시다면, 아이가 \"엄마, 뭐였지?\" 하고 물어도 대신 답하지 말고 아이가 떠올려 말하도록 기다려 주세요.", fontSize = 11.sp, color = PSub)
     }
 
     CoopTemplateCards(c)
@@ -991,6 +994,9 @@ private fun SettingRow(title: String, desc: String, checked: Boolean, onToggle: 
 @Composable
 private fun ChildCallSection() {
     var text by remember { mutableStateOf(com.example.finalproject_demo.net.ChildCall.name ?: "") }
+    var pendingCall by remember { mutableStateOf<String?>(null) }
+    var resetting by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
     PCard(Modifier.fillMaxWidth()) {
         Text("오또가 아이를 뭐라고 부를까요?", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
         Text("실명 대신 별명을 권해요 · 오또가 이야기와 목소리에서 이렇게 불러요 · 비우면 「친구」", fontSize = 12.sp, color = PSub)
@@ -1008,8 +1014,44 @@ private fun ChildCallSection() {
                 ),
             )
             Spacer(Modifier.width(8.dp))
-            PButton("저장", PAccent, Modifier.widthIn(min = 72.dp)) { com.example.finalproject_demo.net.ChildCall.set(text) }
+            PButton("저장", PAccent, Modifier.widthIn(min = 72.dp)) {
+                val clean = com.example.finalproject_demo.net.ChildCall.clean(text)
+                if (clean == com.example.finalproject_demo.net.ChildCall.name) {
+                    com.example.finalproject_demo.net.ChildCall.set(text)
+                } else { pendingCall = clean ?: ""; resetting = false; failed = false }
+            }
         }
+        pendingCall?.let { call ->
+            Text("호칭만 바꾸나요, 다른 아이가 쓰나요?", fontSize = 14.sp, color = Ink)
+            Text("다른 아이는 말 기록을 새로 시작해요. 책과 책별 리포트는 그대로 있어요.", fontSize = 12.sp, color = PSub)
+            PButton("같은 아이예요", PMint, Modifier.fillMaxWidth()) {
+                com.example.finalproject_demo.net.ChildCall.set(call); pendingCall = null
+            }
+            PButton("다른 아이가 써요", PAccent, Modifier.fillMaxWidth(), outline = true) {
+                if (com.example.finalproject_demo.demo.AnswerHistory.startNewChild()) {
+                    com.example.finalproject_demo.net.ChildCall.set(call); pendingCall = null
+                } else failed = true
+            }
+            PButton("취소", PSub, Modifier.fillMaxWidth(), outline = true) { pendingCall = null }
+        }
+        Spacer(Modifier.height(8.dp))
+        if (com.example.finalproject_demo.demo.AnswerHistory.readFailed) {
+            Text("말 기록을 읽지 못했어요. 기존 자료는 보존했고, 새 기록 저장과 책 삭제는 잠시 멈췄어요.", fontSize = 13.sp, color = Curtain)
+        } else {
+            Text("질문별 말 기록 · ${com.example.finalproject_demo.demo.AnswerHistory.all().size}권 누적", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
+            Text("열린·까닭 질문에 말한 답 ${com.example.finalproject_demo.demo.AnswerHistory.languageAnswers().size}개 · 선택 답 ${com.example.finalproject_demo.demo.AnswerHistory.choiceAnswers().size}개", fontSize = 13.sp, color = PSub)
+            StorySpeechHistoryView()
+        }
+        if (com.example.finalproject_demo.demo.AnswerHistory.writeFailed) Text("말 기록을 저장하지 못했어요. 저장 공간을 확인해 주세요.", fontSize = 13.sp, color = Curtain)
+        Text("질문 문구로 분류하며, 확인 답과 유형을 모르는 답은 언어 지표에서 빼요. 원문은 기기에만 남겨요.", fontSize = 12.sp, color = PSub)
+        if (resetting) {
+            Text("누적 말 기록을 비울까요? 책과 책별 리포트는 지우지 않아요. 다음 새 책부터 기록해요.", fontSize = 14.sp, color = Ink)
+            PButton("네, 새로 시작할게요", PAccent, Modifier.fillMaxWidth()) {
+                if (com.example.finalproject_demo.demo.AnswerHistory.startNewChild()) resetting = false else failed = true
+            }
+            PButton("그대로 둘게요", PSub, Modifier.fillMaxWidth(), outline = true) { resetting = false }
+        } else PButton("말 기록 새로 시작", PSub, Modifier.fillMaxWidth(), outline = true) { resetting = true; pendingCall = null; failed = false }
+        if (failed) Text("기기에 저장하지 못했어요. 다시 시도해 주세요.", fontSize = 13.sp, color = Curtain)
     }
 }
 
@@ -1178,6 +1220,9 @@ private fun PinViewBody(d: Director, stage: Stage.Pin) {
     val start = stage.purpose == "start"
     var mode by remember { mutableStateOf(if (com.example.finalproject_demo.ui.shell.Shell.hasPin) "check" else "create") }
     fun pass() = d.send(Reply.Tapped("pin:ok", "통과"))
+    val back: () -> Unit = { if (mode == "forgot") mode = "check" else d.send(Reply.Tapped("pin:cancel", "취소")) }
+    // 10-09 — 폰의 뒤로 가기도 ← 와 같게. 받는 곳이 없어 안드로이드 기본(앱 닫기)으로 갔다(S25+ · 0.5)
+    androidx.activity.compose.BackHandler(onBack = back)
     com.example.finalproject_demo.ui.shell.ObFrame(
         step = null,
         title = when (mode) { "forgot" -> "비밀번호를 잊었어요"; "create" -> "부모 비밀번호 정하기"; else -> if (start) "어른 확인" else "부모 영역" },
@@ -1186,7 +1231,7 @@ private fun PinViewBody(d: Director, stage: Stage.Pin) {
             "create" -> "아직 정한 비밀번호가 없어요. 부모 영역을 열 네 자리를 정해 주세요."
             else -> if (start) "이야기를 시작하려면 부모 비밀번호를 넣어 주세요." else "처음 설정에서 정한 부모 비밀번호를 넣어 주세요."
         },
-        onBack = { if (mode == "forgot") mode = "check" else d.send(Reply.Tapped("pin:cancel", "취소")) },
+        onBack = back,
         art = {
             AssetImage("pi_lock", Modifier.size(170.dp)) { Box(Modifier.size(110.dp).felt(FeltTeal, CircleShape), contentAlignment = Alignment.Center) { Text("🔒", fontSize = 48.sp) } }
         },

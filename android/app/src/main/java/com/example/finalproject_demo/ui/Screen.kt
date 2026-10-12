@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.ui
 
+import com.example.finalproject_demo.demo.sceneActorCapacity
+
 import androidx.compose.ui.draw.rotate
 
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -614,10 +616,10 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
             // 10-05 scene kit (`demo/scene` · `docs/배경_조각_목록.md`): when on, a felt floor + pieces (SceneBack)
             // replace the background picture, the actors are drawn as before, and the foreground piece (SceneFront)
             // goes over them. Hotspots and FrontGround belong to a background picture, so they are skipped.
-            // The layout always keeps room for two actors — the scene must not reshuffle when the friend appears.
+            // Reserve the mode's full cast from the start; late images must not reshuffle the kit.
             is Stage.World -> WorldBackground(
                 s.worldBg, s.bgName, framed = true,
-                backdrop = kit?.let { k -> { inset -> SceneBack(k, s.sceneSeed, 2, inset, if (inset > 0.dp) TopChrome else 0.dp) } },
+                backdrop = kit?.let { k -> { inset -> SceneBack(k, s.sceneSeed, s.sceneActorCapacity, inset, if (inset > 0.dp) TopChrome else 0.dp) } },
             ) {
                 val quake = if (stage.quake) {
                     val t = rememberInfiniteTransition(label = "quake")
@@ -640,7 +642,7 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                     if (kit == null) FrontGround(s.bgName)
                     else {
                         val inset = LocalStageBottomInset.current
-                        SceneFront(kit, s.sceneSeed, 2, inset, if (inset > 0.dp) TopChrome else 0.dp)
+                        SceneFront(kit, s.sceneSeed, s.sceneActorCapacity, inset, if (inset > 0.dp) TopChrome else 0.dp)
                     }
                 }
                 // ③ 상호작용 층
@@ -1216,15 +1218,16 @@ private fun FriendRateView(d: Director, stage: Stage.FriendRate) {
                     ArtView(f.art, Modifier.fillMaxWidth().height(104.dp))
                     Text(f.name, fontSize = TextSize.KidCard, color = InkBrown)
                     Spacer(Modifier.height(8.dp))
+                    // 10-12 종훈: the labels are 「싫어요」 · 「좋아요」 (were 「안녕」 · 「또 만날래」) — a survey on the picture.
                     // 10-05 device round: both buttons stay so a mis-tap can be changed; the picked one is
                     // marked, the other fades. Nothing is final until the arrow 「다 했어」.
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         val byeOn = f.keep == false; val keepOn = f.keep == true
                         FeltButton(FeltWhite, onClick = { d.send(Reply.Tapped("bye:${f.id}", f.name)) }, modifier = Modifier.width(104.dp).height(Touch.KidMin).alpha(if (keepOn) 0.45f else 1f), shape = RoundedCornerShape(22.dp)) {
-                            Text(if (byeOn) "✔ 안녕" else "👋 안녕", fontSize = 16.sp, color = InkBrown)
+                            Text(if (byeOn) "✔ 싫어요" else "👎 싫어요", fontSize = 16.sp, color = InkBrown)
                         }
                         FeltButton(Cheek, onClick = { d.send(Reply.Tapped("keep:${f.id}", f.name)) }, modifier = Modifier.width(104.dp).height(Touch.KidMin).alpha(if (byeOn) 0.45f else 1f), shape = RoundedCornerShape(22.dp)) {
-                            Text(if (keepOn) "✔ 또 만날래" else "💗 또 만날래", fontSize = 15.sp, color = FeltWhite)
+                            Text(if (keepOn) "✔ 좋아요" else "👍 좋아요", fontSize = 16.sp, color = FeltWhite)
                         }
                     }
                 }

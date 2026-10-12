@@ -36,12 +36,18 @@ enum class BlowProp(
         "먼지를 후~ 불어서 날려 볼래?", "후~ 먼지가 다 날아갔어!"),
     LEAF("prop_leaf", "🍂", "나뭇잎", false, "나뭇잎이 잔뜩 쌓여 있어요.", "나뭇잎이 바람에 훨훨 날아갔어요.",
         "나뭇잎을 후~ 불어서 날려 볼래?", "휘이잉~ 나뭇잎이 다 날아갔어!"),
+    /**
+     * A real day where the child only said 「바람」 — it used to be dust (「먼지를 후~ 불어서 날려 볼래?」 · device 10-08).
+     * No name the child did not say: the picture is nameless sparkle dust, the ask and done lines are the action only (as #329)
+     */
+    BREEZE("prop_sparkle_dust", "✨", "반짝이 가루", false, "후~ 불어 볼 자리가 있어요.", "후~ 하고 날려 보냈어요.",
+        "후~ 불어서 날려 볼래?", "후~ 다 날아갔어!"),
     ;
 
-    /** 「촛불을 후~ 불었어요.」 */
-    override val did: String get() = "$word${eul(word)} 후~ 불었어요."
-    /** 「촛불 끈 입김」 · 「먼지 날린 입김」 */
-    override val badge: String get() = if (flame) "$word 끈 입김" else "$word 날린 입김"
+    /** 「촛불을 후~ 불었어요.」 · the nameless sparkle dust says no name */
+    override val did: String get() = if (this == BREEZE) "후~ 하고 불었어요." else "$word${eul(word)} 후~ 불었어요."
+    /** 「촛불 끈 입김」 · 「먼지 날린 입김」 · the nameless sparkle dust is 「후~ 분 입김」 */
+    override val badge: String get() = if (flame) "$word 끈 입김" else if (this == BREEZE) "후~ 분 입김" else "$word 날린 입김"
     override val motion: String get() = "blow"
 }
 
@@ -53,17 +59,24 @@ enum class BlowProp(
  * 「불다」는 바람 · 후~ 와 묶일 때만 — 풍선 · 비눗방울 · 나팔을 분 것은 날려 보낼 것이 아니다
  */
 fun blowPropIn(said: String, realDay: Boolean): BlowProp? = when {
-    listOf("촛불", "양초").any { it in said } -> BlowProp.CANDLE
-    "민들레" in said -> BlowProp.DANDELION
-    "먼지" in said -> BlowProp.DUST
-    listOf("바람", "후~", "후우", "후 불").any { it in said } -> if (realDay) BlowProp.DUST else BlowProp.LEAF
+    // Words match only at the start of an eojeol (#259 · MissionWords.kt) — 「식초를」's 「초를」 and 「흙먼지」 do not match
+    saysAny(said, listOf("촛불", "양초")) -> BlowProp.CANDLE
+    saysAny(said, listOf("민들레", "홀씨", "꽃씨")) -> BlowProp.DANDELION
+    saysAny(said, listOf("먼지")) -> BlowProp.DUST
+    // 「넘어지는 바람에」 is a reason, not wind (#259 design §4-1 false positive)
+    saysAny(said, listOf("바람", "후~", "후우", "후 불"), ::dropCauseBaram) -> if (realDay) BlowProp.BREEZE else BlowProp.LEAF
     else -> null
 }
 
-/** 이 책의 C1 소품 — 자리 1 이 C1 일 때만 */
+/**
+ * This book's C1 prop — only when slot 1 is C1. When rotation made it C1 with nothing to blow in the child's words
+ * (#259 · imagined stories only), leaves are borrowed — an imagined story may borrow props (mission design §7-2)
+ */
 fun DemoState.blowProp(): BlowProp? {
+    pinnedMissions()?.let { return it.blow }            // a re-read book: what it was made with (#321 review)
     val f = storyFacts()
-    return if (missions().slot1 == MissionId.C1) blowPropIn(f.slot1Words, f.realDay) else null
+    if (missions().slot1 != MissionId.C1) return null
+    return blowPropIn(f.slot1Words, f.realDay) ?: if (!f.realDay) BlowProp.LEAF else null
 }
 
 /** 「촛불을」 · 「먼지를」 */

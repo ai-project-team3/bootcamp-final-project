@@ -84,6 +84,35 @@ def test_check_drops_unsafe_lines():
     assert turn_route.check(Line(ack="그랬구나", expand="{친구1}도 같이 갔대.", question="그다음엔?")) is None
 
 
+def test_a_line_keeping_the_childs_brand_or_character_name_is_not_dropped():
+    # #301: the line check is the only place a mascot line is thrown away for its words.
+    # A name the child gave stays in what Otto says — it must not send the phone to its script.
+    line = Line(ack="광대 이름은 맥도날드구나!", expand="뽀로로랑 롯데월드에 갔어.",
+                question="손흥민에게 무슨 일이 생겼을까?", options=["디즈니 성", "포켓몬", "엘사 인형"])
+    assert turn_route.check(line) is None
+    assert line.options == ["디즈니 성", "포켓몬", "엘사 인형"]
+
+
+def test_brand_examples_are_not_on_the_line_blocklist():
+    # If brands ever join block.txt, child-given names would be discarded with the line.
+    # That change needs the given-name exemption #292 built for books (eval/forbidden.py) first.
+    assert not {"뽀로로", "디즈니", "포켓몬", "맥도날드", "엘사", "손흥민"} & BLOCK
+
+
+def test_a_safety_word_is_never_exempt_even_when_the_child_gave_it_as_a_name():
+    word = next(iter(BLOCK))
+    req = TurnRequest(mode="story", slots={"name": word}, question="이름은 뭐야?", utterance=word)
+    assert turn_route.check(Line(ack=f"이름은 {word} 구나", question="무슨 일이 생겼을까?"))
+    assert word in turn_route.user(req, None)          # it is in the input, still rejected in the output
+
+
+def test_the_line_prompt_keeps_given_names_and_forbids_inventing_brands():
+    s = turn_route.system()
+    assert "브랜드·실존 인물·실존 작품 이름을 쓰지 않습니다" not in s
+    assert "먼저 지어 넣지 않습니다" in s
+    assert "그대로 부릅니다" in s
+
+
 def test_the_line_prompt_is_the_fenced_block_only():
     s = turn_route.system()
     assert s.startswith("당신은"), s[:40]

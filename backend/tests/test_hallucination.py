@@ -70,6 +70,26 @@ class HallucinationTest(unittest.TestCase):
                      "이른바 이른바 이른바 이른바 이른바"]:
             self.assertEqual(check_transcript(line).reason, "hallucination", line)
 
+    def test_the_subtitle_request_from_the_10_08_phone_is_dropped(self):
+        # #331 · 민우 동화 실기기 — 조용한 마이크로 약 1초 녹음이 이렇게 왔다. 어느 줄이 버렸는지만 남긴다
+        for line in ["자막을 키고 해줘", "자막을 키고 설정해주세요.", "자막을 켜고 봐 주세요"]:
+            v = check_transcript(line)
+            self.assertEqual(v.reason, "hallucination", line)
+            self.assertIn(v.rule, {"자막을키고*", "자막을켜고*"}, line)
+
+    def test_short_real_answers_pass_the_10_08_lines(self):
+        # 규칙 7 — 새 줄이 아이의 짧은 대답을 먹으면 안 된다. 「자막」이 낱말로 들어간 아이 말도 통째로가 아니면 산다
+        for line in ["응", "아니", "몰라", "사자", "응.", "사자!", "자막", "자막 없는 만화 봤어"]:
+            v = check_transcript(line)
+            self.assertTrue(v.keep, line)
+            self.assertIsNone(v.rule, line)
+
+    def test_the_drop_names_its_list_line_not_the_words(self):
+        self.assertEqual(check_transcript("감사합니다.").rule, "감사합니다")
+        self.assertEqual(check_transcript("MBC 뉴스 김철수입니다.").rule, "mbc뉴스*")
+        self.assertEqual(check_transcript("이른바 이른바 이른바").rule, "repeat")
+        self.assertIsNone(check_transcript("2, 3, 2, 3").rule)
+
     def test_a_word_said_twice_is_the_childs(self):
         # 같은 낱말 두 번은 아이가 한다 — 세 번부터 whisper 의 되풀이로 본다. 낱말이 섞이면 몇 번이든 아이 말이다
         for line in ["아니 아니", "엄마 엄마", "싫어 싫어!", "기린이랑 코끼리가 보였어", "엄마랑 갔어", "김치볶음밥 먹었어", "멍멍 멍멍 하고 짖었어"]:

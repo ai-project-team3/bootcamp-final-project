@@ -80,6 +80,9 @@ private fun endsInPast(word: String): Boolean {
     return (c - '가') % 28 == 20                                   // 받침 ㅆ
 }
 
+/** Ask words — a reply containing one is not echoed back */
+private val ECHO_ASK_WORDS = listOf("뭐", "뭘", "무엇", "무슨", "왜", "어떻게", "어디", "누구", "누가", "누굴", "언제", "몇", "어느")
+
 /** 이음 끝 — 이것으로 끝나는 어절이 있으면 이어진 문장이라 되비추지 않는다(「크니까 무서웠어」) */
 private val LINK_ENDS = listOf("서", "고", "니까", "는데", "면")
 
@@ -95,6 +98,8 @@ internal fun pastEcho(text: String): String? {
     if (t.isEmpty() || t.any { it in ".!?,~" }) return null           // 한 문장만
     val words = t.split(Regex("\\s+"))
     if (words.size > 5) return null
+    // A reply with an ask word is not echoed — when speech-to-text dropped the 「?」, 「뭐 먹었어」 became 「뭐 먹었구나!」 (#327)
+    if (words.any { w -> ECHO_ASK_WORDS.any { w.startsWith(it) } }) return null
     if (!endsInPast(words.last())) return null
     if (words.dropLast(1).any { w -> LINK_ENDS.any { w.endsWith(it) } }) return null
     if (words.any { FIRST_PERSON.matches(it) }) return null

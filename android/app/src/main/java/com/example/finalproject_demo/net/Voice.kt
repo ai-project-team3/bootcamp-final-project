@@ -119,7 +119,57 @@ object Voice {
     @Volatile var listen: suspend (stop: () -> Boolean) -> ByteArray? = { stop -> record(stop) }
 
     /** Audio → text. "" = nothing usable, null = the call failed. Real names still inside — mask before sending on. */
-    @Volatile var transcribe: suspend (ByteArray) -> String? = { Server.stt(it) }
+    @Volatile var transcribe: suspend (ByteArray) -> String? = { audio ->
+        val loudest = loudestDbfs(audio)
+        if (loudest != null && loudest < SILENCE_DBFS) {
+            // a level only — no audio, no words
+            Log.i(TAG, "silent recording (loudest %.0f dBFS) — not sent to /stt".format(loudest))
+            Trace.line("heard", "(empty — silent on the phone, loudest %.0f dBFS, not sent)".format(loudest))
+            ""
+        } else Server.stt(audio)
+    }
+
+    // ── silence stays on the phone (#331) ──────────────────────────
+    //
+    // 10-08 device (민우): on a quiet mic, ~1 s recordings came back as 「자막을 키고 해줘」 — whisper writes a
+    // line when it is given nothing to hear. A recording with no frame anywhere near a voice is answered here
+    // as "" (the same path as an empty transcript: 「한 번 더 말해 줄래?」), without a server call.
+    // The floor is the server's own pause gate (`backend/app/audio_level.py` GATE_DBFS: 20 ms frames quieter
+    // than -45 dBFS are pauses, not voice), and it judges the LOUDEST frame, so one syllable keeps the clip.
+    // Rule 7 — a quiet child is still an answer. Measured on the same mic source (VOICE_RECOGNITION, SM-G977N
+    // 10-07, ui/missions/BlowDetector.kt): speech at 30 cm averages 0.10~0.21 of 6,000 per 64 ms frame, i.e.
+    // about -33 dBFS RMS at its quietest — 12 dB above this line. Room noise there was 0.02~0.1 (-47~-33 dBFS),
+    // so a normal room keeps its clips and the server's phrase list stays the net for them; this catches the
+    // near-silent mic of #331. Not measured with children yet: OttoTrace keeps the level of every clip held back.
+
+    /** Below this, the loudest 20 ms frame of a recording is no voice at all (dBFS). */
+    const val SILENCE_DBFS = -45.0
+
+    /**
+     * The loudest 20 ms frame of a recording, in dBFS — or null when [wav] is not the 16-bit mono WAV [wav]
+     * writes (then nothing is judged here and the server hears it as before).
+     */
+    fun loudestDbfs(wav: ByteArray): Double? {
+        if (wav.size <= 44) return null
+        val b = ByteBuffer.wrap(wav).order(ByteOrder.LITTLE_ENDIAN)
+        fun tag(at: Int) = String(wav, at, 4, Charsets.US_ASCII)
+        if (tag(0) != "RIFF" || tag(8) != "WAVE" || tag(36) != "data" || b.getShort(22).toInt() != 1 ||
+            b.getShort(34).toInt() != 16) return null
+        val rate = b.getInt(24).takeIf { it > 0 } ?: return null
+        val samples = (wav.size - 44) / 2
+        val frame = maxOf(1, rate / 50)
+        var loudest = 0.0
+        var i = 0
+        while (i < samples) {
+            val n = minOf(frame, samples - i)
+            if (n < frame && i > 0) break                  // a few samples at the end are not a frame
+            var sum = 0.0
+            for (k in 0 until n) { val v = b.getShort(44 + (i + k) * 2).toDouble(); sum += v * v }
+            loudest = maxOf(loudest, kotlin.math.sqrt(sum / n))
+            i += n
+        }
+        return 20 * kotlin.math.log10(maxOf(loudest, 1e-3) / 32768.0)
+    }
 
     // ── in ─────────────────────────────────────────────────────────
 

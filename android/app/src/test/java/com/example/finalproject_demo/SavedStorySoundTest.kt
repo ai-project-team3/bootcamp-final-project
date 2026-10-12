@@ -2,6 +2,7 @@ package com.example.finalproject_demo
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onRoot
 import com.github.takahirom.roborazzi.RoborazziOptions
@@ -22,6 +23,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.nio.file.Files
+import com.example.finalproject_demo.net.Voice
+import org.robolectric.shadows.ShadowMediaPlayer
+import org.robolectric.shadows.util.DataSource
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -29,6 +33,71 @@ import java.nio.file.Files
 @OptIn(com.github.takahirom.roborazzi.ExperimentalRoborazziApi::class)
 class SavedStorySoundTest {
     @get:Rule val compose = createComposeRule()
+
+    @Test fun aCoopBooksSpeakerUsesTheOwningReadersVoiceQueue() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val d = Director(scope)
+        val state = DemoState().apply {
+            mode = StoryMode.COOP
+            coopPick = CoopPick("place", "동물원", "done")
+            title = "함께 만든 책"
+        }
+        val store = object : CoopBookStore {
+            var saved: SavedCoopBook? = null
+            override fun load() = listOfNotNull(saved)
+            override fun save(book: SavedCoopBook) { saved = book }
+        }
+        CoopShelf.attach(state, store)
+        assertEquals(CoopShelved.SAVED, CoopShelf.shelve(state))
+        val book = store.saved!!.book
+        val frozen = motionFrozen
+        var reply: Reply? = null
+        try {
+            motionFrozen = true
+            scope.launch { reply = d.awaitReply() }
+            compose.setContent { SavedStoryView(d, Stage.SavedStory(book, 1)) }
+            compose.onNodeWithContentDescription("이 쪽 다시 읽기").performClick()
+            compose.waitUntil(3_000) { reply != null }
+            assertEquals("speak", (reply as Reply.Tapped).value)
+        } finally { motionFrozen = frozen; scope.cancel() }
+    }
+
+    @Test fun aChildSoundWaitsForTheActualSavedStoryNarration() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val d = Director(scope)
+        val book = DemoState().apply { templateKey = "C" }.completedStoryBook()!!.copy(soundClipId = "clip")
+        val previousRoot = ChildSound.root
+        val previousFrozen = motionFrozen
+        val folder = Files.createTempDirectory("saved_story_voice_order").toFile()
+        val clip = java.io.File(folder, "books/${book.id}/clip.wav").apply {
+            parentFile!!.mkdirs(); writeBytes(Voice.wav(ShortArray(16_000)))
+        }
+        val players = mutableListOf<ShadowMediaPlayer>()
+        val narration = Job().also { d.queueVoice(it) }
+        // Match enqueue's current voice job without requiring a live TTS provider in Robolectric.
+        org.robolectric.util.ReflectionHelpers.setField(d, "voiceJob", narration)
+        try {
+            ChildSound.root = folder
+            motionFrozen = true
+            ShadowMediaPlayer.addMediaInfo(DataSource.toDataSource(clip.path), ShadowMediaPlayer.MediaInfo(60_000, 0))
+            ShadowMediaPlayer.setCreateListener { _, player -> players += player }
+            compose.setContent { SavedStoryView(d, Stage.SavedStory(book, 1)) }
+            compose.onNodeWithText("🔊 내가 만든 소리").performClick()
+            compose.waitForIdle()
+            assertTrue("the child's recording must wait for the actual narration queue", players.isEmpty())
+            compose.runOnIdle { narration.complete() }
+            compose.waitUntil(3_000) {
+                org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+                players.isNotEmpty()
+            }
+            compose.runOnIdle { players.single().invokeCompletionListener() }
+        } finally {
+            narration.cancel(); scope.cancel()
+            ShadowMediaPlayer.setCreateListener(null)
+            ChildSound.root = previousRoot; motionFrozen = previousFrozen
+            folder.deleteRecursively()
+        }
+    }
 
     @Test fun aLegacyBooksSoundButtonIsVisibleAboveItsBackground() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

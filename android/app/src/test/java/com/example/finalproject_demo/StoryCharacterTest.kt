@@ -48,6 +48,7 @@ class StoryCharacterTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val d = Director(scope, LocalStoryBookStore(context), StoryImageStore(context))
         d.s.speed = 0.01
+        d.s.bookStyle = "crayon"            // even in a crayon book the 도감 hero is drawn felt (결정 27)
         Server.base = server.base
         Server.liveModes = setOf(StoryMode.STORY)
         try {
@@ -77,21 +78,19 @@ class StoryCharacterTest {
             assertArrayEquals(png, File(art.name.removePrefix("local:")).readBytes())
             val request = server.requests.single { it.first == "/image" }.second
             assertEquals("character", request.getString("kind"))
+            assertEquals("the 도감 hero is felt in any book (결정 27 · #331 audit)", "felt", request.getString("style"))
             assertTrue(request.getString("description").contains("드레스"))
             assertTrue("the latest card choice must also reach generation", request.getString("description").contains("F9B233"))
             assertTrue(request.getString("description").contains("square"))
             assertFalse(request.getString("description").contains(d.s.childName))
             d.send(Reply.Tapped("ok", "좋아"))
-            // 10-02 (#87): the child names the doll before it goes to the bestiary — here typed
+            // The named story hero proceeds directly to the first question (#342).
             withTimeout(5_000) { while (d.s.stage !is Stage.NameEntry) delay(10) }
             d.send(Reply.Tapped(com.example.finalproject_demo.demo.NAME_TYPED, "콩이"))
-            withTimeout(5_000) { while (d.s.scene != Scene.BESTIARY) delay(10) }
-            assertEquals("콩이", d.s.heroes.last().called)
-            assertEquals("콩이", d.s.heroes.last().name)
-            assertEquals(art.name, d.s.heroes.last().image)
-            assertEquals("human", d.s.heroes.last().rig)
-            withTimeout(5_000) { while (d.s.stage !is Stage.Bestiary) delay(10) }
-            d.send(Reply.Tapped("hero:${d.s.heroes.lastIndex}", "Generated hero"))
+            withTimeout(5_000) { while (d.s.scene != Scene.PLACE) delay(10) }
+            assertEquals("콩이", d.s.storyHeroCall)
+            assertEquals(art.name, d.s.storyHeroImage)
+            assertEquals("human", d.s.storyHeroRig)
             withTimeout(5_000) { while (d.s.stage !is Stage.Show || !d.s.micEnabled) delay(10) }
             assertEquals("The generated hero must remain visible on the neutral first-question stage",
                 art, (d.s.stage as Stage.Show).art)

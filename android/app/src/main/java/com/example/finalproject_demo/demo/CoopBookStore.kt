@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.missions
+import com.example.finalproject_demo.demo.missions.missionRecord
 import android.content.Context
 import com.example.finalproject_demo.ui.CoopReason
 import com.example.finalproject_demo.ui.reasonOrNull
@@ -98,7 +100,8 @@ fun DemoState.completedCoopBook(): SavedCoopBook? {
         template?.key ?: "N", persona, Hero(childName, heroAttr ?: com.example.finalproject_demo.ui.HeroAttr(), storyHeroImage, storyHeroRig),
         drawing.map { it.copy(pts = it.pts.toList()) }, drawnPreset, drawingAspect,
         dinoKey, dinoColor, solutionKey, solutionItem, friendName, solutionLine, placeLabel,
-        newcomerKind, soundLine, causeLine, friend = generatedFriend,
+        newcomerKind, soundLine, causeLine, friend = generatedFriend, characters = generatedCharacters.toList(),
+        missions = missionRecord(),
     )
     val book = SavedStoryBook(UUID.randomUUID().toString(), title ?: autoTitleFor(), themeKey, bgName, pages, visuals,
         madeAt = java.time.LocalDate.now().toString(), artStyle = bookStyle)
@@ -150,6 +153,7 @@ fun DemoState.restoreCoopBook(book: SavedStoryBook): Boolean {
 
 /** 앱 내부 저장소에만 보관한다. 저장할 때 전체 배열을 한 번에 바꿔 중간 상태를 남기지 않는다 */
 class LocalCoopBookStore(context: Context) : CoopBookStore {
+    private val voices = BookVoiceStore(context)
     private val prefs = context.applicationContext.getSharedPreferences("coop_books", Context.MODE_PRIVATE)
 
     override fun load(): List<SavedCoopBook> {
@@ -181,6 +185,7 @@ class LocalCoopBookStore(context: Context) : CoopBookStore {
         check(current.size == JSONArray(raw).length()) { "읽지 못한 같이 만들기 책이 있어 빼지 않는다" }
         if (current.none { it.book.id == id }) return false
         check(prefs.edit().putString("books", coopBooksToJson(current.filterNot { it.book.id == id })).commit()) { "같이 만들기 책을 빼지 못했습니다" }
+        voices.delete(StoryMode.COOP, id)
         return true
     }
 
@@ -332,11 +337,10 @@ object CoopShelf {
     fun delete(s: DemoState, id: String): Boolean {
         val store = stores[s] ?: return false
         if (books[s]?.none { it.book.id == id } != false) return false
-        if (!runCatching { store.delete(id) }.getOrDefault(false)) return false
+        if (!SessionReports.forget(COOP_SHELF_ID + id, s) { store.delete(id) }) return false
         books[s]?.removeAll { it.book.id == id }
         snapshots.remove(id)
         s.shelf.removeAll { it.savedStoryId == COOP_SHELF_ID + id }
-        SessionReports.forget(COOP_SHELF_ID + id, s)
         CoopPlan.forgetBook(s, id)   // the 「다녀온 뒤」 box must not offer a book that is gone (#223)
         return true
     }
@@ -348,6 +352,8 @@ object CoopShelf {
         if (count(s) >= COOP_SHELF_CAPACITY) return CoopShelved.FULL
         return try {
             store.save(book)
+            // the next books avoid this one's missions (#259)
+            com.example.finalproject_demo.demo.missions.MissionHistory.record(s.mode, book.book.id, s.missions())
             books.getOrPut(s) { mutableListOf() }.add(0, book)
             book.snapshot?.let { snapshots[book.book.id] = it }
             s.shelf.add(0, book.book.onCoopShelf(fresh = true))
@@ -417,7 +423,10 @@ private fun SavedStoryBook.onCoopShelf(fresh: Boolean = false) =
  * - 12권이 차 있으면 아무것도 지우지 않고 꽂지 않는다 — 아이에게는 탓하지 않는 말로 알린다
  */
 fun Director.shelveCoopBook(): Boolean = when (CoopShelf.shelve(s)) {
-    CoopShelved.SAVED -> { log("책장에 꽂기 → 같이 만들기 책을 폰 안(coop_books)에 저장 · 서버에는 보내지 않음 (#83)"); true }
+    CoopShelved.SAVED -> {
+        CoopShelf.books(s).firstOrNull { it.id == CoopShelf.lastShelved(s) }?.let { keepBookVoices(it, StoryMode.COOP) }
+        log("책장에 꽂기 → 같이 만들기 책을 폰 안(coop_books)에 저장 · 서버에는 보내지 않음 (#83)"); true
+    }
     CoopShelved.NO_STORE -> {
         s.shelf.add(0, ShelfBook(s.title ?: s.autoTitleFor(), s.themeKey, s.bgName, pages = s.pageCount, fresh = true))
         log("책장에 꽂기 → 저장소가 없다 · 같이 만들기 책은 앱을 켜 둔 동안만 남는다")
