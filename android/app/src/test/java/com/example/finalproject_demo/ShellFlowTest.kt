@@ -5,7 +5,9 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -120,9 +122,12 @@ class ShellFlowTest {
         waitText("그림일기"); shot("11_room")
     }
 
-    /** 같이 만들기 도중 부모 「그만하기」 (#36) — 협업에서만 보이고, 확인 창을 거쳐야 멈춘다 */
+    /**
+     * 같이 만들기 도중 부모 「그만하기」 (#36) — 10-12 사용자: 왼쪽 위 🏠 · 「그만하기」는 오른쪽 위 ⏸ 와 하는 일이 겹쳐 뺐다.
+     * 끝내기는 ⏸ 창의 「마치기」로 옮겼고, 여전히 확인 창을 거쳐야 멈춘다
+     */
     @Test
-    fun theParentStopButtonShowsOnlyInCoopAndAsksFirst() {
+    fun theParentStopLivesInThePauseSheetAndAsksFirst() {
         onboard()
         val d = director
         compose.runOnIdle {
@@ -130,17 +135,26 @@ class ShellFlowTest {
             d.s.mode = com.example.finalproject_demo.demo.StoryMode.COOP
         }
         d.go(com.example.finalproject_demo.demo.Scene.DIARY)
-        waitText("그만하기"); shot("20_coop_stop_button")
+        compose.waitUntil(8_000) { compose.onAllNodesWithTag("pause").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals("no 「그만하기」 top left in co-op", 0, count("그만하기"))
+        assertEquals("no 🏠 top left in co-op", 0, count("🏠"))
+        shot("20_coop_top_bar")
 
-        tap("그만하기")
-        waitText("이야기를 여기서 마칠까?"); shot("21_coop_stop_ask")
-        tap("계속하기")                           // 잘못 눌렀으면 그대로 이어 간다
+        compose.onNodeWithTag("pause").performClick()
+        waitText("잠깐 쉬는 중"); shot("21_coop_pause_sheet")
+        tap("마치기")
+        waitText("이야기를 여기서 마칠까?"); shot("21b_coop_stop_ask")
+        tap("계속하기")                           // 잘못 눌렀으면 쉬는 창으로 돌아간다
         compose.waitUntil(5_000) { count("이야기를 여기서 마칠까?") == 0 }
         assertEquals(null, d.s.endReason)
+        assertTrue("still paused behind the confirm", d.s.holding)
+        tap("이어 하기")
+        compose.waitUntil(5_000) { !d.s.holding }
 
-        tap("그만하기"); tap("마치기")
+        compose.onNodeWithTag("pause").performClick()
+        tap("마치기"); tap("마치기")             // ⏸ 창의 「마치기」 → 확인 창의 「마치기」
         compose.waitUntil(8_000) { d.s.endReason == "parent_stop" }
-        compose.waitUntil(8_000) { count("그만하기") == 0 }
+        compose.waitUntil(5_000) { !d.s.holding && count("잠깐 쉬는 중") == 0 }
         shot("22_coop_stopped")
     }
 
