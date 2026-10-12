@@ -78,6 +78,33 @@ def test_an_unsure_target_falls_back_to_the_last_slot_otto_filled():
     assert policy.retract_for("repair", d("correct", target="companion", target_conf=0.4), req()) == ["place"]
 
 
+def test_a_bare_denial_leaves_a_slot_filled_before_otto_s_last_reaction():
+    # 10-12 device round 3: 「그거 아니야」 to the next question emptied an older slot — it answers the question
+    r = req(history=[*req().history, {"turn": 3, "asked_slot": "problem", "otto": {"question": "무슨 일이 있었어?"},
+                                       "child": {"text": "몰라", "by": "child"}, "fills": []}])
+    assert policy.retract_for("repair", d("correct", target="place"), r) == []
+    assert recipes.build("repair", r, d("correct", target="place"), []).question_slot == "problem"
+
+
+def test_an_older_slot_goes_back_for_its_right_value():
+    r = req("아니야 공원이야", history=[*req().history, {"turn": 3, "asked_slot": "problem",
+                                                     "otto": {"question": "무슨 일이 있었어?"},
+                                                     "child": {"text": "몰라", "by": "child"}, "fills": []}])
+    assert policy.retract_for("repair", d("correct", target="place", new_value=True), r) == ["place"]
+    v, _, back = policy.settle_repair("repair", r, JudgeResult(reason="x"), "공원", ["place"])
+    assert (v.slot_1, v.value_1, back) == ("place", "공원", ["place"])
+    # no value after all: the slot stays as it was and the question asked comes again
+    v, kept, back = policy.settle_repair("repair", r, JudgeResult(reason="x"), None, ["place"])
+    assert (back, v.next_slot, kept) == ([], "problem", False)
+
+
+def test_otto_s_words_alone_do_not_hide_the_last_answer():
+    # talk while drawing ends with Otto's last line and no child words
+    r = req(history=[*req().history, {"turn": 0, "otto": {"question": "나도 그려볼까?"},
+                                       "child": {"text": "", "by": "child"}, "fills": []}])
+    assert policy.retract_for("repair", d("correct", target="place"), r) == ["place"]
+
+
 def test_nothing_is_taken_back_from_an_empty_slot():
     r = req(slots={**EMPTY})
     assert policy.retract_for("repair", d("correct", target="place"), r) == []
@@ -142,28 +169,28 @@ def test_a_value_the_child_did_not_say_is_refused():
 
 def test_settle_puts_the_value_in_the_slot_taken_back():
     r = req("바다 아니야, 놀이공원이야")
-    v, kept = policy.settle_repair("repair", r, JudgeResult(reason="x", next_slot="problem"), "놀이공원", ["place"])
-    assert (v.slot_1, v.value_1, v.next_slot, kept) == ("place", "놀이공원", "problem", True)
+    v, kept, back = policy.settle_repair("repair", r, JudgeResult(reason="x", next_slot="problem"), "놀이공원", ["place"])
+    assert (v.slot_1, v.value_1, v.next_slot, kept, back) == ("place", "놀이공원", "problem", True, ["place"])
 
 
 def test_settle_without_a_value_asks_the_slot_again():
-    v, kept = policy.settle_repair("repair", req(), JudgeResult(reason="x", next_slot="problem"), None, ["place"])
+    v, kept, _ = policy.settle_repair("repair", req(), JudgeResult(reason="x", next_slot="problem"), None, ["place"])
     assert v.slot_1 is None and v.next_slot == "place" and kept
 
 
 def test_settle_with_an_invented_value_asks_again_and_drops_the_line_s_question():
-    v, kept = policy.settle_repair("repair", req("그거 아니야"), JudgeResult(reason="x"), "공원", ["place"])
+    v, kept, _ = policy.settle_repair("repair", req("그거 아니야"), JudgeResult(reason="x"), "공원", ["place"])
     assert v.slot_1 is None and v.next_slot == "place" and kept is False
 
 
 def test_settle_carries_the_value_even_when_the_judge_failed():
-    v, _ = policy.settle_repair("repair", req("아니야 공원이야"), None, "공원", ["place"])
+    v, _, _ = policy.settle_repair("repair", req("아니야 공원이야"), None, "공원", ["place"])
     assert v.slot_1 == "place" and v.value_1 == "공원"
 
 
 def test_settle_leaves_other_acts_alone():
     v = JudgeResult(reason="x", next_slot="problem")
-    assert policy.settle_repair("answer_back", req(), v, None, []) == (v, True)
+    assert policy.settle_repair("answer_back", req(), v, None, []) == (v, True, [])
 
 
 def test_the_same_question_comes_back_after_a_question_back():

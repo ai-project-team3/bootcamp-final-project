@@ -50,12 +50,32 @@ def _last_filled(req: TurnRequest) -> str | None:
     return None
 
 
+def _just_filled(req: TurnRequest) -> set[str]:
+    """The slots Otto's last reaction was about — what the last answered turn wrote down."""
+    for h in reversed(req.history or []):
+        if h.child.text.strip():           # Otto's words alone (talk while drawing) answer nothing
+            return {f.slot for f in h.fills}
+    return set()
+
+
+def is_stale(retract: list[str], req: TurnRequest) -> bool:
+    """A slot filled before Otto's last reaction — 「그거 아니야」 alone is not about it."""
+    return bool(retract) and retract[0] not in _just_filled(req)
+
+
 def retract_for(act: Optional[Act], d: Decision | None, req: TurnRequest) -> list[str]:
     if act != "repair" or d is None:
         return []
     sure = d.target and (d.target_conf is None or d.target_conf >= FLOOR)
     slot = d.target if sure else _last_filled(req)
-    return [slot] if slot and req.slots.get(slot) else []
+    if not slot or not req.slots.get(slot):
+        return []
+    # a bare denial answers what Otto just said; an older slot goes back only with the right value
+    # (10-12 device round 3: 「그거 아니야」 to 「혼자 있었어, 아니면 같이 있었어?」 emptied the problem slot
+    # fixed two turns before — the decider pointed there 3/3). settle_repair undoes it if no value comes
+    if slot not in _just_filled(req) and not d.new_value:
+        return []
+    return [slot]
 
 
 def trim_verdict(act: Optional[Act], d: Decision | None, v: JudgeResult | None) -> JudgeResult | None:
@@ -92,15 +112,18 @@ def from_the_child(value: str | None, utterance: str) -> bool:
 
 
 def settle_repair(act: Optional[Act], req: TurnRequest, v: JudgeResult | None, fixed_value: str | None,
-                  retract: list[str]) -> tuple[JudgeResult | None, bool]:
+                  retract: list[str]) -> tuple[JudgeResult | None, bool, list[str]]:
     """After the line: put the child's right value in the slot taken back, or ask that slot again.
 
-    Returns (verdict, kept) — kept=False means the line's question is about the wrong slot now."""
+    Returns (verdict, kept, retract) — kept=False means the line's question is about the wrong slot now."""
     if act != "repair" or not retract:
-        return v, True
+        return v, True, retract
     slot = retract[0]
     base = v or JudgeResult(reason="dialogue_repair")
     if from_the_child(fixed_value, req.utterance):
         return base.model_copy(update={"slot_1": slot, "value_1": fixed_value.strip(),
-                                       "slot_2": None, "value_2": None}), True
-    return base.model_copy(update={"next_slot": slot}), fixed_value is None
+                                       "slot_2": None, "value_2": None}), True, retract
+    if is_stale(retract, req):
+        # an older slot was taken back for its right value, and none came — it stays; the question asked stands
+        return base.model_copy(update={"next_slot": req.asked_slot}), False, []
+    return base.model_copy(update={"next_slot": slot}), fixed_value is None, retract

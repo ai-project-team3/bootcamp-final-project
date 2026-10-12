@@ -229,15 +229,15 @@ async def run_line_choosing(req: TurnRequest, v: JudgeResult | None,
 
 
 def settle(act: Act | None, req: TurnRequest, v: JudgeResult | None, line: Line | None,
-           retract: list[str]) -> tuple[JudgeResult | None, Line | None]:
+           retract: list[str]) -> tuple[JudgeResult | None, Line | None, list[str]]:
     """A repair's value: the slot the decider picked, the words the line model copied — no extra call."""
-    v, kept = policy.settle_repair(act, req, v, line.fixed_value if line else None, retract)
+    v, kept, retract = policy.settle_repair(act, req, v, line.fixed_value if line else None, retract)
     if line is not None and not kept:
         # the model wrote a value that is not the child's words: it is dropped, and so is its question,
         # which moved on as if the slot were settled — the phone asks that slot with its own words
         log.warning("repair value not in the child's words — dropped, slot asked again")
         line.question = None
-    return v, line
+    return v, line, retract
 
 
 def mock_fixed_value(req: TurnRequest) -> str | None:
@@ -264,7 +264,7 @@ async def turn(req: TurnRequest) -> TurnResult:
         v = await _judge(req)
         line, act, d = await run_line_choosing(req, v, settings.turn_deadline_s - (time.monotonic() - t0))
         v, retract, _ = apply_act(act, d, req, v)
-        v, line = settle(act, req, v, line, retract)
+        v, line, retract = settle(act, req, v, line, retract)
         if v is None and line is None:
             raise HTTPException(502, "judge and line both failed")
         return TurnResult(judge=v, line=line, act=act, retract=retract)
@@ -281,7 +281,7 @@ async def turn(req: TurnRequest) -> TurnResult:
     act = policy.act_for(d)
     v, retract, recipe = apply_act(act, d, req, v)
     line = await run_line(req, v, settings.turn_deadline_s - (time.monotonic() - t0), recipe)
-    v, line = settle(act, req, v, line, retract)
+    v, line, retract = settle(act, req, v, line, retract)
     if v is None and line is None:
         raise HTTPException(502, "judge and line both failed")
     return TurnResult(judge=v, line=line, act=act, retract=retract)
