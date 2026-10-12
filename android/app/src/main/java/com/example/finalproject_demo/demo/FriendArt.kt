@@ -49,7 +49,8 @@ internal suspend fun Director.drawFriend(onReady: () -> Unit = {}) {
     val mask = s.nameMask()
     for (request in s.charactersToDraw()) {
         if (s.generatedCharacters.any { it.role == request.role && it.words == request.words } ||
-            request in s.characterAttempts || request in s.characterRequests) continue
+            request in s.characterAttempts || request in s.characterRequests ||
+            (s.coopCharacterTries[request] ?: 0) >= COOP_CHARACTER_TRIES) continue
         val token = Any()
         s.characterRequests[request] = token
         val style = s.bookStyle
@@ -64,6 +65,9 @@ internal suspend fun Director.drawFriend(onReady: () -> Unit = {}) {
                     // Cache completed attempts only. A cancelled/stale request may be retried after undo/redo.
                     // Co-op retains its existing next-turn retry behavior.
                     if (mode == "story" && saved == null) s.characterAttempts.add(request)
+                    // co-op's second character is tried again on the next step, but twice at most (#339 ② §2-5)
+                    if (mode == "coop" && request.role == COOP_SECOND_ROLE && saved == null)
+                        s.coopCharacterTries[request] = (s.coopCharacterTries[request] ?: 0) + 1
                     if (saved != null) {
                         s.generatedCharacters.removeAll { it.role == request.role }
                         s.generatedCharacters.add(GeneratedFriend(request.words, saved, made.rig, request.role))
