@@ -351,6 +351,7 @@ class Director(
         s.parentCard = null
         s.speaker = who
         s.line = text
+        if (who == "마스코트") s.ottoSaid = text
         s.lineId++
         com.example.finalproject_demo.net.Trace.line(if (who == "마스코트") "otto" else "said:$who", text)
         if (who == "마스코트" && surprise.containsMatchIn(text)) feel(Mood.SURPRISED)

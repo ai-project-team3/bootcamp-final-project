@@ -5,9 +5,49 @@ leave the mascot something to say, and a failed line must not lose the verdict.
 """
 from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from .judge import JudgeRequest, JudgeResult
+from .judge import JudgeRequest, JudgeResult, SlotName
+
+# What the mascot does with a reply that is not a plain answer (#323). None = a plain turn.
+#   repair      — the child said Otto got it wrong: take the slot back, ask it again
+#   answer_back — the child asked Otto something: answer briefly, ask the same question again
+#   rephrase    — the child did not catch the question: ask the same slot in easier words
+# Talk off the question (「나 배고파」) and a child still telling (「근데 있잖아」) are plain turns:
+# asides were not rated better than main in the 10-09 blind check, and a child still telling
+# needs the app to keep listening, not the server to answer. A child still telling (「근데 있잖아」) is a plain turn for now: the app should keep listening, not
+# the server answer (10-08 · out of this round)
+Act = Literal["repair", "answer_back", "rephrase"]
+
+
+class OttoSaid(BaseModel):
+    ack: Optional[str] = None
+    expand: Optional[str] = None
+    question: Optional[str] = None
+
+
+class ChildSaid(BaseModel):
+    text: str
+    by: Literal["child", "card"]         # rule 5 — the mascot's words live in `otto`, never here
+
+
+class Fill(BaseModel):
+    slot: SlotName                       # rule 1: off-list names are refused, not stored
+    value: str
+    prev: Optional[str] = None           # the value it replaced — what a repair puts back
+
+
+class HistoryTurn(BaseModel):
+    """One finished turn, kept by the app and sent back whole each turn (#323).
+
+    The server keeps nothing between turns; it picks what to use from this list.
+    """
+    turn: int
+    asked_slot: Optional[str] = None
+    otto: OttoSaid = OttoSaid()
+    child: ChildSaid
+    fills: list[Fill] = []
+    act: Optional[Act] = None
 
 
 class TurnRequest(JudgeRequest):
@@ -17,6 +57,9 @@ class TurnRequest(JudgeRequest):
     # coop only: why the parent picked the story (CoopTemplates.kt CoopReason) — sets the tense of
     # the question, as /story does for the book (#52 · #53 C). done · soon · dream; None = done
     reason: Optional[Literal["done", "soon", "dream"]] = None
+    # the session so far, oldest first (#323). Absent (None) = no dialogue repair: the turn runs as before.
+    # An empty list turns it on with nothing behind it yet — the diary's talk while drawing (10-12)
+    history: Optional[list[HistoryTurn]] = None
 
 
 class Line(BaseModel):
@@ -27,9 +70,18 @@ class Line(BaseModel):
     # the app shows them as cards, then the mascot takes the first (#79 · guidelines/2 §1-1).
     # Null with no question, and in diary (what really happened today is not picked for the child).
     options: Optional[list[str]] = None
+    # repair turns only: the right value for the slot the decider picked, copied from the child's words
+    # as transcribed. Server-side — it goes out as the verdict's slot_1 once it passes the check, never here
+    fixed_value: Optional[str] = Field(default=None, exclude=True)
 
 
 class TurnResult(BaseModel):
     # Either may be null; the app fills the gap from its script (spec §3-0).
     judge: Optional[JudgeResult] = None
     line: Optional[Line] = None
+    # what this turn does with the child's reply (#323); None = a plain turn. Here, not in `line`: the
+    # rules decide it before the line is written, so a failed line must not take it along — the phone
+    # can still answer with a baked line (「앗, 내가 잘못 알았구나!」)
+    act: Optional[Act] = None
+    # slots the child said were wrong (#323): the app puts back each one's `prev` from its history
+    retract: list[SlotName] = []

@@ -7,6 +7,8 @@ The phone fills any missing half from its script (spec §3-0).
 
 The prompt is read from eval/line_prompt.md, not copied (one thing in one place).
 """
+import asyncio
+import json
 import logging
 import time
 from functools import lru_cache
@@ -14,11 +16,14 @@ from functools import lru_cache
 from fastapi import APIRouter, HTTPException
 
 from ..config import REPO, settings
+from ..dialogue import policy, recipes
+from ..dialogue.decide import Decision, decide, state_text
+from ..dialogue.decide import mock as mock_decision
 from ..filters.blocklist import eojeol, has_unknown_placeholder, is_blocked
 from ..llm.client import LLMError, complete
 from ..llm.judge_prompt import load_schema, system_block
-from ..schemas.judge import JudgeResult
-from ..schemas.turn import Line, TurnRequest, TurnResult
+from ..schemas.judge import SLOT_NAMES, JudgeResult
+from ..schemas.turn import Act, Line, TurnRequest, TurnResult
 from . import judge
 
 router = APIRouter()
@@ -36,13 +41,38 @@ def system(mode: str | None = None) -> str:
     return system_block(EVAL / "line_prompt.md", mode)
 
 
+@lru_cache(maxsize=None)
+def system_for(mode: str | None, act: Act | None) -> str:
+    """The line prompt, plus how to take in a reply that is not an answer — only on a turn with an act (#323)."""
+    if act is None:
+        return system(mode)
+    return f"{system(mode)}\n\n{system_block(EVAL / 'line_act.md')}"
+
+
 def schema() -> dict:
     return load_schema("line_schema.json")
 
 
-def user(req: TurnRequest, v: JudgeResult | None) -> str:
-    """The §3 inputs. Without a verdict, the slots are empty and the model just continues."""
+_FIXED_VALUE = {"type": ["string", "null"],
+                "description": "repair 턴만 — 고친 칸의 맞는 값을 아이 말에서 받아쓴 그대로. 아니라고만 했으면 null"}
+
+
+@lru_cache(maxsize=None)
+def repair_schema() -> dict:
+    """The line schema plus fixed_value — a repair turn only (#323). Every other turn keeps the served schema."""
+    s = json.loads(json.dumps(schema()))
+    s["properties"]["fixed_value"] = _FIXED_VALUE
+    s["required"] = [*s["required"], "fixed_value"]
+    return s
+
+
+def user(req: TurnRequest, v: JudgeResult | None, recipe: recipes.Recipe | None = None) -> str:
+    """The §3 inputs. Without a verdict, the slots are empty and the model just continues.
+
+    With a [recipe] (#323) the act and its context lines are added, and the question's slot is the
+    recipe's when it names one. A plain turn's input is byte for byte what it was."""
     values = [x for x in ((v.value_1, v.value_2) if v else ()) if x]
+    next_slot = (recipe.question_slot if recipe and recipe.question_slot else None) or (v.next_slot if v else None)
     # what the child has already settled — 10-01 #50: without it the line model asked about
     # places and characters that were not in the story, and the talk drifted
     so_far = " · ".join(f"{k}={val}" for k, val in req.slots.items() if val and str(val).strip())
@@ -57,10 +87,11 @@ def user(req: TurnRequest, v: JudgeResult | None) -> str:
         + f"question_just_asked:{req.question}\n"
         f"utterance:{req.utterance}\n"
         f"value:{' / '.join(values)}\n"
-        f"next_slot:{(v.next_slot if v else None) or ''}\n"
+        f"next_slot:{next_slot or ''}\n"
         f"next_reason:{(v.next_reason if v else None) or ''}\n"
         f"unclear_of:{(v.unclear_of if v and v.unclear else None) or ''}\n"
         f"story_ready:{'true' if v and v.story_ready else 'false'}"
+        + (f"\nact:{recipe.act}\n{recipe.context}" if recipe else "")
     )
 
 
@@ -104,16 +135,22 @@ def mock_line(req: TurnRequest, v: JudgeResult | None) -> Line:
 LINE_MIN_S = 3.0      # less than this left after the judge: send the verdict alone
 
 
-async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30.0) -> Line | None:
+async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30.0,
+                   recipe: recipes.Recipe | None = None) -> Line | None:
     if v is not None and v.reason == "blocked_by_filter":
         return None          # a blocked utterance never leaves for the LLM, here either
+    act = recipe.act if recipe else None
     if settings.mock:
-        return shape(mock_line(req, v), req, v)
+        line = shape(mock_line(req, v), req, v)
+        if act == "repair":
+            line.fixed_value = mock_fixed_value(req)
+        return line
     if budget_s < LINE_MIN_S:
         log.warning("line skipped: %.1fs left of the /turn deadline", budget_s)
         return None          # the phone asks its own next question; the verdict still counts
     try:
-        raw = await complete(system(req.mode), user(req, v), schema(), name="mascot_line",
+        raw = await complete(system_for(req.mode, act), user(req, v, recipe),
+                             repair_schema() if act == "repair" else schema(), name="mascot_line",
                              effort=settings.llm_effort_line, timeout_s=budget_s)
     except LLMError as e:
         log.warning("line failed: %s", e)
@@ -126,17 +163,125 @@ async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30
     return shape(line, req, v)
 
 
+def apply_act(act: Act | None, d: Decision | None, req: TurnRequest,
+              v: JudgeResult | None) -> tuple[JudgeResult | None, list[str], recipes.Recipe | None]:
+    """The rules after an act is known — the same whether the rules (R) or the line model (M) picked it."""
+    retract = policy.retract_for(act, d, req)
+    recipe = recipes.build(act, req, d, retract) if act else None
+    if act and v is not None and v.reason != "blocked_by_filter":
+        v = policy.trim_verdict(act, d, v)
+        # the app asks what next_slot names, so the act's slot goes there (a retracted slot is empty
+        # again on the phone once it applies `retract`)
+        if recipe.question_slot:
+            v = v.model_copy(update={"next_slot": recipe.question_slot})
+    if act:
+        log.info("dialogue act %s · retract %s", act, retract)
+    return v, retract, recipe
+
+
+# --- M: the line model picks the act itself (measurement only · #323 「규칙 대 LLM」) ---
+
+_INTENT_OF = {act: intent for intent, act in policy.ACTS.items() if act}
+
+
+@lru_cache(maxsize=None)
+def choose_schema() -> dict:
+    s = json.loads(json.dumps(schema()))
+    s["properties"]["act"] = {"type": ["string", "null"], "enum": [*_INTENT_OF, None]}
+    s["properties"]["target"] = {"type": ["string", "null"], "enum": [*SLOT_NAMES, None]}
+    s["properties"]["new_value"] = {"type": "boolean"}
+    s["properties"]["fixed_value"] = _FIXED_VALUE
+    s["required"] = [*s["required"], "act", "target", "new_value", "fixed_value"]
+    return s
+
+
+@lru_cache(maxsize=None)
+def choose_system(mode: str | None) -> str:
+    return f"{system_for(mode, 'repair')}\n\n{system_block(EVAL / 'line_act_choose.md')}"
+
+
+async def run_line_choosing(req: TurnRequest, v: JudgeResult | None,
+                            budget_s: float) -> tuple[Line | None, Act | None, Decision | None]:
+    """One line call that also picks the act. Same input as a plain turn plus the decider's [대화]."""
+    if v is not None and v.reason == "blocked_by_filter":
+        return None, None, None
+    if settings.mock:
+        d = mock_decision(req)
+        act = policy.ACTS.get(d.intent)
+        line = shape(mock_line(req, v), req, v)
+        if act == "repair":
+            line.fixed_value = mock_fixed_value(req)
+        return line, act, d
+    if budget_s < LINE_MIN_S:
+        return None, None, None
+    try:
+        raw = await complete(choose_system(req.mode), f"{user(req, v)}\n{state_text(req)}", choose_schema(),
+                             name="mascot_line_choose", effort=settings.llm_effort_line, timeout_s=budget_s)
+    except LLMError as e:
+        log.warning("choosing line failed: %s", e)
+        return None, None, None
+    act = raw.pop("act", None)
+    d = Decision(_INTENT_OF.get(act, "answer"), None, raw.pop("target", None), None, bool(raw.pop("new_value", False)))
+    line = Line.model_validate(raw)
+    if check(line):
+        return None, act, d
+    return shape(line, req, v), act, d
+
+
+def settle(act: Act | None, req: TurnRequest, v: JudgeResult | None, line: Line | None,
+           retract: list[str]) -> tuple[JudgeResult | None, Line | None, list[str]]:
+    """A repair's value: the slot the decider picked, the words the line model copied — no extra call."""
+    v, kept, retract = policy.settle_repair(act, req, v, line.fixed_value if line else None, retract)
+    if line is not None and not kept:
+        # the model wrote a value that is not the child's words: it is dropped, and so is its question,
+        # which moved on as if the slot were settled — the phone asks that slot with its own words
+        log.warning("repair value not in the child's words — dropped, slot asked again")
+        line.question = None
+    return v, line, retract
+
+
+def mock_fixed_value(req: TurnRequest) -> str | None:
+    """Mock only: the last word of a correction that carries one."""
+    d = mock_decision(req)
+    words = req.utterance.replace(",", " ").split()
+    return words[-1] if d.new_value and words else None
+
+
+async def _judge(req: TurnRequest) -> JudgeResult | None:
+    try:
+        return await judge.run(req)
+    except LLMError as e:
+        log.warning("judge failed in /turn: %s", e)
+        return None
+
+
 @router.post("/turn", response_model=TurnResult)
 async def turn(req: TurnRequest) -> TurnResult:
     # one deadline for the whole turn, under the phone's 30 s: the judge first (≤ 18 s),
     # the line gets what is left — a slow vendor costs the line, never the verdict
     t0 = time.monotonic()
-    try:
-        v = await judge.run(req)
-    except LLMError as e:
-        log.warning("judge failed in /turn: %s", e)
-        v = None
-    line = await run_line(req, v, settings.turn_deadline_s - (time.monotonic() - t0))
+    if req.history is not None and settings.dialogue_policy == "llm":
+        v = await _judge(req)
+        line, act, d = await run_line_choosing(req, v, settings.turn_deadline_s - (time.monotonic() - t0))
+        v, retract, _ = apply_act(act, d, req, v)
+        v, line, retract = settle(act, req, v, line, retract)
+        if v is None and line is None:
+            raise HTTPException(502, "judge and line both failed")
+        return TurnResult(judge=v, line=line, act=act, retract=retract)
+
+    # with history (#323) the quick decider runs next to the judge, so the turn waits for the slower
+    # of the two, not both. It never raises: no opinion = the turn runs as before
+    v, d = await asyncio.gather(_judge(req), decide(req), return_exceptions=True)
+    if isinstance(v, BaseException):
+        raise v
+    if isinstance(d, BaseException):
+        log.warning("dialogue decider raised in /turn: %s", d)
+        d = None
+
+    act = policy.act_for(d)
+    v, retract, recipe = apply_act(act, d, req, v)
+    line = await run_line(req, v, settings.turn_deadline_s - (time.monotonic() - t0), recipe)
+    v, line, retract = settle(act, req, v, line, retract)
     if v is None and line is None:
         raise HTTPException(502, "judge and line both failed")
-    return TurnResult(judge=v, line=line)
+    return TurnResult(judge=v, line=line, act=act, retract=retract)
