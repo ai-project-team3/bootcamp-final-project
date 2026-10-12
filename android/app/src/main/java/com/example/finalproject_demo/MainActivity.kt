@@ -113,7 +113,8 @@ class MainActivity : ComponentActivity() {
         com.example.finalproject_demo.net.Bgm.attach(this)    // 동화책 배경음악 (#221)
         com.example.finalproject_demo.sound.ChildSound.attach(this)   // 아이가 만든 소리 — 폰에만 (#42)
         com.example.finalproject_demo.net.ChildCall.attach(this)     // 마스코트가 아이를 부르는 말 — 부모가 정함 (10-02)
-        com.example.finalproject_demo.sound.ChildSound.discardSession()   // 책에 안 넣은 채 앱이 꺼졌던 소리
+        // Sounds left behind when the app died before they reached a book — keep only those of a resumable, unexpired draft (#336)
+        com.example.finalproject_demo.demo.discardUnusedSessionSounds(com.example.finalproject_demo.demo.LocalSessionDraftStore(this))
         WindowCompat.setDecorFitsSystemWindows(window, false)
         // 풀스크린 — 카메라 구멍(노치) 쪽까지 그린다 (09-29). 가로 화면에서 한쪽에 검은 띠가 남지 않게
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
@@ -150,11 +151,14 @@ class MainActivity : ComponentActivity() {
 fun DemoApp() {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val d = remember { Director(scope, LocalStoryBookStore(context), StoryImageStore(context)).also {
+    val d = remember { Director(scope, LocalStoryBookStore(context), StoryImageStore(context),
+        com.example.finalproject_demo.demo.LocalSessionDraftStore(context)).also {
         com.example.finalproject_demo.demo.DiaryShelf.attach(context, it.s)   // 그림일기 책장 저장(#37)
         com.example.finalproject_demo.demo.CoopShelf.attach(context, it.s)    // 같이 만들기 책장 저장(#83)
-        it.recoverStoryImages()   // 세 책장을 다 붙인 뒤 — 아무 책도 안 쓰는 서버 그림을 지운다(#61 · #80)
         com.example.finalproject_demo.demo.CoopPlan.attach(context, it.s)     // 부모가 저장한 같이 만들기 이야기 · 질문(#98)
+        // The book being made when the app died — the room offers 「이어서 할까?」 (#336). Before image cleanup, so its pictures survive
+        it.restoreDraft()
+        it.recoverStoryImages()   // after all three shelves are attached — drop server pictures no book and no draft uses (#61 · #80 · #336)
     } }
     (context as? MainActivity)?.director = d
     var drawerOpen by remember { mutableStateOf(false) }

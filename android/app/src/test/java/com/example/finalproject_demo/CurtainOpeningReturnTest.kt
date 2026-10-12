@@ -71,8 +71,9 @@ class CurtainOpeningReturnTest {
             Shell.step = Step.CLAP
         }
         passSplash()
-        compose.waitUntil(5000) { Shell.step == Step.CONSENT }
-        compose.onNodeWithText("약관이 바뀌었어요").assertIsDisplayed()
+        // #319 — a changed consent logs in first, then that guardian consents again
+        compose.waitUntil(5000) { Shell.step == Step.EXPIRED }
+        compose.onNodeWithText("로그인한 보호자에게 다시 동의", substring = true).assertIsDisplayed()
         compose.onNodeWithTag("opening-rope").assertDoesNotExist()
     }
 
@@ -92,6 +93,6 @@ class CurtainOpeningReturnTest {
         compose.onNodeWithText("눌러서 시작").assertIsDisplayed()
         compose.onNodeWithTag("opening-rope").assertDoesNotExist()
         compose.onNodeWithText("눌러서 시작").performClick()
-        compose.onNodeWithText("약관이 바뀌었어요").assertIsDisplayed()
+        compose.waitUntil(5000) { Shell.step == Step.EXPIRED }          // #319 — back through login, not straight to consent
     }
 }

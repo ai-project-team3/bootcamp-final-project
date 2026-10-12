@@ -137,7 +137,7 @@ private val PTABS = listOf(
     PTab("ach", "pi_achieve", "🏅", "업적", "아이가 한 일로만 받는 선물과 해결 방법 도감"),
     PTab("set", "pi_settings", "⚙️", "설정", "하루 한도 · 시작할 때 확인 · 그림체 · 소리 · 동의"),
     PTab("shelf", "pi_shelf", "📚", "책장 정리", "모드마다 ${SHELF_CAPACITY}권까지 · 뺄 책을 골라요 · 아이 화면에서는 지우지 않아요"),
-    PTab("acct", "pi_account", "👤", "계정", "로그인 · 부모 비밀번호 · 처음 설정 다시 보기 · 탈퇴"),
+    PTab("acct", "pi_account", "👤", "계정", "로그인 · 부모 비밀번호 · 기능 안내 · 탈퇴"),
 )
 
 /** 탭 아이콘 — 펠트 그림을 흰 둥근 네모에 */
