@@ -942,11 +942,19 @@ fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?:
         else -> "silent"
     }
     val emotion = q?.emotion == true
-    val s1 = !emotion && a?.reason == true
-    val el = if (emotion) emptySet() else a?.el.orEmpty()
-    val a1 = !emotion && a?.con == true
+    val answerText = a?.text ?: (r as? Reply.Tapped)?.label
+    val recorded = answerText?.let { text -> s.talk.lastOrNull {
+        it.who in setOf("child", "card", "mascot") && it.text == text.trim()
+    } }
+    // Live bank variants can begin as choices and be spoken as open questions. Use the actual transcript.
+    // Direct script probes without a transcript retain their existing question-rule behavior.
+    val eligible = s.mode != StoryMode.STORY || (!emotion && (recorded == null ||
+        recorded.questionType in setOf(ReportQuestionType.OPEN, ReportQuestionType.REASON)))
+    val s1 = !emotion && eligible && a?.reason == true
+    val el = if (emotion || !eligible) emptySet() else a?.el.orEmpty()
+    val a1 = !emotion && eligible && a?.con == true
     val words = a?.words ?: 0
-    s.notes += TurnNote(label, a?.text ?: "(${mode})", mode, s1, el, a1, words)
+    s.notes += TurnNote(label, a?.text ?: "(${mode})", mode, s1, el, a1, words, eligible)
     if (s1) signal("S1", a!!.text, q?.probe ?: "")
     if (el.isNotEmpty()) signal("S2", a!!.text, el.joinToString("·"))
     a?.emo?.takeIf { it.isNotEmpty() }?.let { s.feelings += it; event("emotion_mention", "text" to it) }
@@ -954,6 +962,11 @@ fun Director.judge(q: QVariant?, r: Reply, label: String = q?.text?.invoke(s) ?:
 
     if (q?.counts != true) return
     s.turn++
+    if (s.mode == StoryMode.STORY && !eligible) {
+        s.s1streak = 0; s.noAnswerStreak = 0
+        if (s.turn == 3 && s.templateKey == null) decideTemplate("3턴째")
+        return
+    }
     // 올림 신호: 고르며 → 이어는 S1 또는 S2 하나면 되고,
     // 이어 → 까닭은 까닭(S1)에 이야기 구조(계기 · 시도 · 결과 중 하나 또는 잇는 말)가 함께 있어야 한다 (역할1 조사2 §4 표)
     val structure = el.any { it in setOf("계기", "시도", "결과") } || a1
@@ -999,7 +1012,7 @@ private fun Director.moveLevel(to: Level, why: String) {
 
 /** 세션 누적 추정 (역할1 조사2 §4 표) — 규칙이 계산한다. LLM은 요소 표시만 한다 */
 fun DemoState.ruleEstimate(): Pair<Level, String> {
-    val n = notes.filter { it.mode != "mascot" }
+    val n = notes.filter { it.mode != "mascot" && it.languageEligible }
     if (n.isEmpty()) return level to "아직 답이 없음"
     val s1 = n.count { it.s1 }
     val core = n.flatMap { it.el }.toSet().intersect(setOf("계기", "시도", "결과"))

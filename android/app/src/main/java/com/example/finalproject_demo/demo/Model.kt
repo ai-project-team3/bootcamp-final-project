@@ -812,7 +812,8 @@ sealed interface Reply {
 }
 
 /** 한 턴에 대한 판단 기록 — 시연 서랍 "발달 판단" 표 */
-data class TurnNote(val q: String, val a: String, val mode: String, val s1: Boolean, val el: Set<String>, val a1: Boolean, val words: Int)
+data class TurnNote(val q: String, val a: String, val mode: String, val s1: Boolean, val el: Set<String>, val a1: Boolean, val words: Int,
+    val languageEligible: Boolean = true)
 
 class DemoState {
     var persona by mutableStateOf(Persona.TALKER)
