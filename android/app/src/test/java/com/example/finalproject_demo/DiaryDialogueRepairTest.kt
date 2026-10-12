@@ -10,6 +10,7 @@ import com.example.finalproject_demo.demo.SORRY_LINE
 import com.example.finalproject_demo.demo.Scene
 import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.VOICE_GEN_CAP
+import com.example.finalproject_demo.demo.askedOnWrongValue
 import com.example.finalproject_demo.demo.diaryDay
 import com.example.finalproject_demo.demo.requestDiaryStory
 import com.example.finalproject_demo.net.Server
@@ -244,5 +245,15 @@ class DiaryDialogueRepairTest {
             assertEquals("같은 칸을 세 번째로 묻는다 — 포기하지 않는다", "place", asked[2].getString("asked_slot"))
             assertEquals("오늘은 어디에 갔었어?", asked[2].getString("question"))
         }
+    }
+
+    @Test
+    fun slotsAskedOnAWrongValueStartOverWhenItIsFixed() {
+        fun t(asked: String?, vararg fills: String) = Server.HistoryTurn(0, asked, Server.OttoSaid(null, null, "q"), "a",
+            fills.map { Server.HistoryFill(it, "v", null) }, null)
+        // 10-12 round 3: problem filled wrong, then reaction asked on it, then companion; problem gets fixed
+        val talk = listOf(t("place", "place"), t("problem", "problem"), t("reaction"), t("extra"))
+        assertEquals(setOf("reaction", "keep"), askedOnWrongValue(talk, setOf("problem")))
+        assertEquals(emptySet<String>(), askedOnWrongValue(talk, setOf("companion")))
     }
 }

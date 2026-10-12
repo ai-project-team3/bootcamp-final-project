@@ -1426,6 +1426,13 @@ private fun Director.bakedNext(
     else -> Triple(slot, PICTURE_QUESTIONS.firstOrNull { it.key == key }?.easy ?: text, key)
 }
 
+/** 고친 칸의 틀린 값이 들어간 뒤로 물었던 다른 칸 — 물은 수를 처음으로 되돌릴 칸 (책 키 · #323) */
+internal fun askedOnWrongValue(talk: List<Server.HistoryTurn>, fixed: Set<String>): Set<String> {
+    val from = talk.indexOfLast { t -> t.fills.any { it.slot in fixed } }
+    if (from < 0) return emptySet()
+    return talk.drop(from + 1).mapNotNull { it.askedSlot }.filter { it !in fixed }.map { bookKeyOf(it, "keep") }.toSet()
+}
+
 private fun bookKeyOf(slot: String, askedKey: String): String = when (slot) {
     "extra" -> if (askedKey == "keep") "keep" else "extra"
     else -> slot
@@ -1552,6 +1559,13 @@ private suspend fun Director.askEmptySlotsLive() {
         if (v.storyReady && s.endReason == null) {
             s.endReason = "story_ready"
             log("판정 story_ready — 남은 물음은 판정이 고른 칸과 「내일」만")
+        }
+        // 칸이 고쳐지면 틀린 값을 두고 물었던 뒤 칸은 처음부터 — 10-12 실기기 3회차: 「미끄럼틀 탈 때 어떤 마음?」에 쓴
+        // 물음까지 세어 기분 칸을 한 번도 제대로 못 묻고 비웠다
+        val fixed = result.retract + if (act == "repair") filled.map { it.slot } else emptyList()
+        askedOnWrongValue(day.talk, fixed.toSet()).forEach { k ->
+            tries.remove(k); actAgain.remove(k)
+            if (easyTried == k) easyTried = null
         }
         if (act != null) {
             // 정정 · 되묻기 · 「뭐라고?」는 못 답한 게 아니다 — 칸마다 한 번은 물은 수에서 뺀다. 10-12 실기기: 「그거 아니야」에
