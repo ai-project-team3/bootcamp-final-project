@@ -159,7 +159,7 @@ class DiarySalvageTalkTest {
     fun aQuestionToOttoWhileDrawingIsNotKeptForTheBook() = drawing({ withAct(turn(emptyList()), "answer_back") }) { d, asked ->
         d.tell("오또는 몇 살이야?") { asked.size == 1 }
         delay(300)
-        assertEquals("기록 필드가 간다 — 그리는 중엔 빈 목록", 0, asked[0].getJSONArray("history").length())
+        assertTrue("기록 필드가 간다 — 그리는 중엔 지난 턴 없이 오또가 방금 한 말만", asked[0].has("history"))
         assertTrue("오또에게 한 말은 책 재료가 아니다 — extra=${d.s.slots["extra"]}", d.s.slots["extra"] == null)
     }
 
@@ -168,5 +168,16 @@ class DiarySalvageTalkTest {
         d.tell("나 이거 진짜 좋아해") { asked.size == 1 }
         assertTrue(await { d.s.slots["extra"] != null } != null)
         assertTrue(asked[0].has("history"))
+    }
+
+    /** 10-12 실기기: 「너는 자동차 있어?」 — 오또가 방금 한 말이 없으면 「너」가 오또인지 몰랐다(0.44) */
+    @Test
+    fun talkWhileDrawingCarriesOttosLastWords() = drawing({ turn(emptyList()) }) { d, asked ->
+        d.s.ottoSaid = "나도 자동차를 그려볼까?"
+        d.tell("너는 자동차 있어?") { asked.size == 1 }
+        val h = asked[0].getJSONArray("history")
+        val last = h.getJSONObject(h.length() - 1)
+        assertEquals("나도 자동차를 그려볼까?", last.getJSONObject("otto").getString("question"))
+        assertEquals("오또 말에는 아이 답이 없다", "", last.getJSONObject("child").getString("text"))
     }
 }

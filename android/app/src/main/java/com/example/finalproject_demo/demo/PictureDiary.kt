@@ -401,8 +401,9 @@ private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke, as
             return Heard.OTHER                                  // 새 조각이 아니다 — 「나도 그려볼까?」를 다시 묻지 않는다
         }
     }
+    val ottoBefore = s.ottoSaid                               // 아이가 무엇에 대고 한 말인지 — 받기 전에 (#323)
     say("그렇구나! 계속 그려 봐.")
-    if (isStoryTalk(r.text)) keepUntoldStory(day, r)
+    if (isStoryTalk(r.text)) keepUntoldStory(day, r, ottoBefore)
     return Heard.OTHER
 }
 
@@ -411,12 +412,15 @@ private suspend fun Director.heardWhileDrawing(day: DiaryDay, r: Reply.Spoke, as
  * 서버 모드면 `/turn` 판정이 고른 칸에 **덧붙이고**, 맞는 칸이 없거나 서버가 없으면 `extra` 에 쌓는다 — 모두 아이 출처.
  * 오또는 이미 구운 짧은 말로 받았다 — 서버 대사(목소리)는 쓰지 않는다(한 번 1원 안쪽 · #172 비용의 대부분이 목소리)
  */
-private suspend fun Director.keepUntoldStory(day: DiaryDay, r: Reply.Spoke) {
+private suspend fun Director.keepUntoldStory(day: DiaryDay, r: Reply.Spoke, ottoBefore: String = "") {
     val said = r.text.trim()
     if (Server.liveFor(s.mode)) {
         day.turnCalls++
         // 기록을 같이 보내 아이 말이 무엇인지 읽게 한다 — 그리는 중엔 빈 목록이어도 켜진다 (#323 · 10-12)
-        val result = s.exchangeTurn("diary", null, "", said, history = day.talk.toList())
+        // 오또가 방금 한 말을 맨 뒤에 — 「너는 자동차 있어?」의 「너」가 오또라는 걸 읽게 (10-12 실기기: 맥락 없이 0.44)
+        val last = ottoBefore.takeIf(String::isNotBlank)
+            ?.let { listOf(Server.HistoryTurn(0, null, Server.OttoSaid(null, null, it), "", emptyList(), null)) }.orEmpty()
+        val result = s.exchangeTurn("diary", null, "", said, history = day.talk.toList() + last)
         val v = result?.verdict
         if (v?.reason == "blocked_by_filter") { log("서버 안전 판정 — 그리는 중 한 말을 책 재료에서 뺀다"); return }
         if (notDiaryTalk(result)) { log("그리는 중 「$said」 — 오또에게 한 말(${result?.act}) → 책 재료에 쌓지 않는다 (#323)"); return }
@@ -1445,6 +1449,7 @@ private suspend fun Director.askEmptySlotsLive() {
     val tries = mutableMapOf<String, Int>()     // 칸마다 물은 수 — 전체 상한 없이 칸마다만 막는다 (#89)
     var easyTried: String? = null
     var pieceAsked = false
+    val actAgain = mutableSetOf<String>()        // 행동으로 다시 묻게 된 칸 — 그 턴은 칸마다 한 번만 물은 수에서 뺀다 (#323)
     while (next != null) {
         if ((tries[next.third] ?: 0) >= SLOT_TRIES) {
             gaveUp += next.third
@@ -1549,6 +1554,9 @@ private suspend fun Director.askEmptySlotsLive() {
             log("판정 story_ready — 남은 물음은 판정이 고른 칸과 「내일」만")
         }
         if (act != null) {
+            // 정정 · 되묻기 · 「뭐라고?」는 못 답한 게 아니다 — 칸마다 한 번은 물은 수에서 뺀다. 10-12 실기기: 「그거 아니야」에
+            // 「앗, 내가 잘못 알았구나!」 뒤 장소를 다시 물으려다 2번을 다 써서 다른 칸으로 넘어갔다. 한 번뿐이라 되풀이는 막힌다
+            if (actAgain.add(key)) tries[key] = (tries[key] ?: 1) - 1
             val out = answerAct(day, result, act, slot, text, key, filled.isNotEmpty(), gaveUp)
             remember(day, slot, text, r.text, filled, act, out.said)
             next = out.next?.let { withClue(day, it) }

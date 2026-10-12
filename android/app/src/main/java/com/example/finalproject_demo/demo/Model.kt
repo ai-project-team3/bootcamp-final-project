@@ -1338,6 +1338,8 @@ class DemoState {
     var stage by mutableStateOf<Stage>(Stage.Empty)
     var speaker by mutableStateOf("마스코트")
     var line by mutableStateOf("")
+    /** 오또가 마지막으로 한 말 — [line] 은 아이 말도 띄워서 따로 둔다. 그림일기가 「너는 …?」의 「너」가 오또인지 읽을 맥락으로 쓴다 (#323) */
+    var ottoSaid = ""
 
     /** 말풍선 애니메이션을 다시 시작시키는 번호 — 말할 때마다 1씩 오른다 */
     var lineId by mutableStateOf(0)

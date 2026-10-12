@@ -223,4 +223,26 @@ class DiaryDialogueRepairTest {
             assertEquals(REPAIR_VOICE_CAP, s.diaryDay.repairVoice)
         }
     }
+
+    /** 10-12 실기기: 쉬운 질문 뒤 「그거 아니야」에 사과만 하고 다른 칸으로 넘어갔다 — 행동 턴은 칸마다 한 번 물은 수에서 뺀다 */
+    @Test
+    fun anActOnTheSecondAskStillAsksTheSlotAgain() {
+        val asked = mutableListOf<JSONObject>()
+        live({ t ->
+            asked += t
+            when (asked.size) {
+                1 -> turn(emptyList(), "place", "그렇구나.", null)                          // 칸을 못 채웠다 → 쉬운 질문
+                2 -> turn(emptyList(), "place", "앗, 내가 잘못 알았구나!", "오늘은 어디에 갔었어?", act = "repair")
+                else -> end()
+            }
+        }) { d ->
+            val s = d.s
+            d.toQuestions()
+            d.answer("언니요") { asked.size == 1 }
+            d.answer("아니야 그거 아니야") { asked.size == 2 }
+            d.answer("놀이터") { asked.size == 3 }
+            assertEquals("같은 칸을 세 번째로 묻는다 — 포기하지 않는다", "place", asked[2].getString("asked_slot"))
+            assertEquals("오늘은 어디에 갔었어?", asked[2].getString("question"))
+        }
+    }
 }
