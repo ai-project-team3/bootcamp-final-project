@@ -73,6 +73,51 @@ def test_names_never_reach_jev_but_luna_keeps_them(monkeypatch):
     assert r.utterance.startswith("지우")                                         # the request itself is untouched
 
 
+def test_diary_and_coop_end_and_ask_by_the_rules_a_story_keeps_jevs_verdict(monkeypatch):
+    # 10-12: every mode back on Jev. Its own story_ready / next_slot are guesses about the diary order
+    calls = []
+    answer = {}
+
+    async def fake_jev(system, user, utterance, timeout_s=6.0):
+        calls.append("jev")
+        return {"reason": "jev", **answer, "_seconds": 0.2}
+
+    async def fake_luna(*a, **k):
+        calls.append("luna")
+        return {"reason": "luna", "story_ready": True}
+
+    monkeypatch.setattr(jev, "judge", fake_jev)
+    monkeypatch.setattr(judge, "complete", fake_luna)
+    monkeypatch.setattr(settings, "mock", False)
+    monkeypatch.setattr(settings, "judge_laya_modes", "")
+    monkeypatch.setattr(settings, "judge_jev_modes", "story,diary,coop")
+
+    # diary: the next slot is the first empty in diary order, not Jev's pick
+    answer.update(slot_1="place", next_slot="cause", story_ready=True)
+    d = asyncio.run(judge.run(JudgeRequest(mode="diary", slots={}, asked_slot="place", question="어디 갔어?",
+                                           utterance="할머니 집")))
+    assert d.reason == "jev" and d.next_slot == "problem" and d.story_ready is False
+    # the ending question answered in any way ends it, 「몰라」 too
+    answer.clear()
+    answer.update(story_ready=False)
+    end = asyncio.run(judge.run(JudgeRequest(mode="diary", slots={"place": "할머니 집", "problem": "송편 빚었어"},
+                                             asked_slot="solution", question="어떻게 됐어?", utterance="몰라")))
+    assert end.story_ready is True and end.next_slot is None
+    # coop reads the same
+    answer.update(slot_1="problem", story_ready=False)
+    c = asyncio.run(judge.run(JudgeRequest(mode="coop", slots={"place": "동물원"}, asked_slot="problem",
+                                           question="거기서 뭐 할 거야?", utterance="기린한테 먹이 줄 거야")))
+    assert c.next_slot == "reaction" and c.story_ready is False
+    assert "luna" not in calls
+
+    # a story keeps Jev's own verdict (its required slots depend on the template)
+    answer.clear()
+    answer.update(slot_1="newcomer", next_slot="sound", story_ready=False)
+    s = asyncio.run(judge.run(JudgeRequest(mode="story", slots={"place": "우주"}, asked_slot="newcomer",
+                                           question="누굴 만났어?", utterance="꼬리가 파란 용이야")))
+    assert s.reason == "jev" and s.next_slot == "sound"
+
+
 def test_mask_names_skips_blanks_and_placeholders():
     assert jev.mask_names("친구랑 놀았어", ["", "{친구1}"]) == "친구랑 놀았어"
     assert jev.mask_names("아무 이름 없음", []) == "아무 이름 없음"

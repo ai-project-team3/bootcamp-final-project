@@ -11,7 +11,7 @@ from ..config import settings
 from ..filters.blocklist import is_blocked
 import logging
 
-from ..llm import jev, judge_prompt, laya
+from ..llm import jev, judge_prompt, judge_rules, laya
 from ..llm.client import LLMError, complete
 from ..schemas.judge import JudgeRequest, JudgeResult, SLOT_NAMES
 
@@ -99,6 +99,12 @@ async def run(req: JudgeRequest) -> JudgeResult:
             raw = await jev.judge(judge_prompt.system(), jev.mask_names(judge_prompt.user(req), req.names),
                                   jev.mask_names(req.utterance, req.names))
             log.info("judge jev %.2fs", raw.pop("_seconds", 0.0))
+            # diary · coop: the ending and the next slot are rules, as on Laya (judge_rules.py · 12 of the 13
+            # labelled mode cases) — Jev's own story_ready / next_slot there are guesses about a diary order it
+            # never saw. A story keeps Jev's verdict and the #156 recovery below: its required slots depend on
+            # the template, which the fixed rule list does not know
+            if req.mode != "story":
+                raw = judge_rules.apply(raw, req, raw.get("next_slot"))
             result = enforce(JudgeResult.model_validate(raw), req)
             if req.mode != "story" or result.story_ready or result.next_slot is not None:
                 return result
