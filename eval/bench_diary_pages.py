@@ -76,7 +76,12 @@ def measure(case: dict, caps: list[str], pages: list[dict] | None) -> dict:
         "missing": [w for w in want.get("child", []) if w not in text],
         "invented_words": [w for w in want.get("no_new", []) if w in text],
         "items_ok": items,
+        "opens_na": int(bool(caps) and caps[0].lstrip().startswith("나는")),   # prompt: the first page opens 「나는 오늘」
     }
+
+
+def load(path: Path) -> list[dict]:
+    return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
 async def one(case: dict, system: str, with_pages: bool) -> dict:
@@ -106,8 +111,10 @@ async def main() -> None:
     ap.add_argument("--env", default="D:/bootcamp-final-project/.env")
     ap.add_argument("--out", default=str(EVAL / "results_diary_pages"))
     ap.add_argument("--rescore", action="store_true", help="count again from the saved captions, no model call")
+    ap.add_argument("--fixtures", default=str(EVAL / "fixtures_book_diary_pages.jsonl"),
+                    help="fixtures_diary_given_names.jsonl for #301 (names the child gave)")
     a = ap.parse_args()
-    cases = [json.loads(l) for l in (EVAL / "fixtures_book_diary_pages.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    cases = load(Path(a.fixtures))
     out = Path(a.out); out.mkdir(exist_ok=True)
     if a.rescore:
         by_id = {c["id"]: c for c in cases}
@@ -144,7 +151,8 @@ def summary(a, cases: list[dict], keep: list[dict]) -> None:
           "| pages", round(sum(r["pages"] for r in ok) / max(1, len(ok)), 1),
           "| long", sum(r["long"] for r in ok), "not_yo", sum(r["not_yo"] for r in ok),
           "wish_past", sum(r["wish_past"] for r in ok), "drama", sum(r["drama"] for r in ok),
-          "rejected", sum(bool(r["rejected"]) for r in ok))
+          "rejected", sum(bool(r["rejected"]) for r in ok),
+          "| opens 나는", f"{sum(r.get('opens_na', 0) for r in ok)}/{len(ok)}")
 
 
 if __name__ == "__main__":
