@@ -1,6 +1,7 @@
 package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.DemoState
+import com.example.finalproject_demo.demo.MASCOT_NAME
 import com.example.finalproject_demo.demo.PageKind
 import com.example.finalproject_demo.demo.SavedStoryBook
 import com.example.finalproject_demo.demo.SavedStoryPage
@@ -50,7 +51,7 @@ class StoryNoFriendTest {
         val s = story()
         assertTrue(s.liveStoryWithoutFriend)
         assertFalse(s.hasCompanion)
-        assertEquals("마스코트", s.giveTargetName)
+        assertEquals(MASCOT_NAME, s.giveTargetName)
     }
 
     /** 10-09 device second round — the missions still showed the alien, and mission 2 put the cause on the mascot */
