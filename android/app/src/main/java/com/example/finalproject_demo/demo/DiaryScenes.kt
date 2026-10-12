@@ -171,6 +171,12 @@ suspend fun Director.sceneDiary() {
         if (step.required && diaryFilled(step.slot)) {
             log("[${step.part} · ${step.bookKey}] 건너뜀 — 앞의 답에서 이미 찼다 (${s.slotBy[step.bookKey] ?: "?"}) · 같은 걸 두 번 묻지 않는다")
             s.coopCoverPart(step.variant.id)
+        } else if (!diaryFilled(step.slot) && s.coopParentCovered(step.slot) != null) {
+            // the parent's question already asked this — its answer fills the step instead of the same question again
+            val said = s.coopParentCovered(step.slot)!!
+            log("[${step.part} · ${step.bookKey}] 건너뜀 — 부모 질문이 이미 같은 걸 물었다 · 그 답 「$said」로 채운다")
+            setDiarySlot(step.slot, step.bookKey, said, said, "child")
+            s.coopCoverPart(step.variant.id)
         } else askDiaryStep(step)
         drawCoopBackground()                    // 장소 칸이 찼으면 그곳으로 배경을 그린다 — 기다리지 않는다 (10-05 · CoopServerLine.kt)
         // a doll for a companion with no picture — in co-op only after the drawing choice (FriendArt.kt · #339).
