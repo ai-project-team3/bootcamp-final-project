@@ -1170,8 +1170,9 @@ private suspend fun Director.askEmptySlots() {
             wrapOffered = true
             if (offerWrapUp()) break
         }
-        // 필수 두 칸을 물은 뒤 — 이름 없는 조각 하나를 묻는다(10-02)
-        if (!pieceAsked && queue.none { it.key in PICTURE_REQUIRED }) {
+        // 칸 질문 전에 — 이름 없는 조각 하나를 묻는다. 그림 이야기 끝에 붙여, 오또가 칸을 받은 「~구나!」 바로 뒤에
+        // 다른 화제를 끼우지 않는다(#418 · 10-12 실기기: 「아니야 그네 탔어」가 조각 이름 답으로 읽혀 버려졌다. 전에는 필수 두 칸 뒤 · 10-02)
+        if (!pieceAsked) {
             pieceAsked = true
             val unnamed = firstUnnamedPiece()
             if (unnamed != null) { askPieceOnD3(unnamed); continue }
@@ -1382,8 +1383,8 @@ private suspend fun Director.askEmptySlotsLive() {
             if (offerWrapUp()) break
         }
         val (slot, text, key) = next
-        // 필수 칸 질문이 아닌 차례가 오면 — 이름 없는 조각 하나를 먼저 묻는다(10-02)
-        if (!pieceAsked && key !in PICTURE_REQUIRED) {
+        // 칸 질문 전에 — 이름 없는 조각 하나를 먼저 묻는다(#418 · 위 대본 쪽과 같은 차례)
+        if (!pieceAsked) {
             pieceAsked = true
             val unnamed = firstUnnamedPiece()
             if (unnamed != null) { askPieceOnD3(unnamed); continue }
