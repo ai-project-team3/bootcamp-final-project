@@ -394,6 +394,8 @@ private suspend fun Director.onHeroPicked(v: String) {
     s.storyHeroCall = s.heroes[idx].called
     // a nameless card is the hero by its card name — the same one the child says (Model.kt storyHeroCard)
     s.storyHeroCard = s.heroes[idx].name.takeIf { s.heroes[idx].called.isNullOrBlank() }
+    s.storyHeroDescription = s.heroes[idx].description
+    if (s.mode == StoryMode.STORY) heroSetupLog.finish("new")?.let(::log)
     mark("bestiary")
     log("주인공 고름: ${s.heroes[idx].name} → 고정 스프라이트 그대로 씀 (⭐20 · ⭐26)")
     say("${s.heroes[idx].name}${ya(s.heroes[idx].name)}, 준비됐지?")
@@ -405,6 +407,7 @@ private suspend fun Director.onHeroPicked(v: String) {
 // ── 장면 2↳ · 주인공 만들기 (말로 / 골라서) — 둘 다 같은 펠트 그림 ──
 
 private suspend fun Director.sceneMakeHero() {
+    if (s.mode == StoryMode.STORY && s.heroCreationDraft == null && choosePreviousStoryHero()) return
     val draft = if (s.mode == StoryMode.STORY) s.heroCreationDraft ?: HeroCreationDraft().also {
         s.heroCreationDraft = it
         s.heroTries.clear()
@@ -428,18 +431,29 @@ private suspend fun Director.sceneMakeHero() {
         return if (attr.glasses != "none") "$h 안경 $c" else "$h $col $c"
     }
 
+    fun appearanceDescription() = descriptions.joinToString("; ") +
+            if (confirmedChoices.isNotEmpty()) "\nLatest confirmed choices override earlier descriptions: " +
+                confirmedChoices.entries.joinToString("; ") { "${it.key}=${it.value}" } else ""
+
     suspend fun save() {
         draft.phase = HeroCreationDraft.Phase.NAME
         checkpoint()
         val called = askHeroName(attr, generatedImage)          // 말로 · 글로 이름 짓기 (10-02 · demo/HeroName.kt)
-        s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called)
+        val description = draft.generatedDescription ?: appearanceDescription()
+        if (s.mode != StoryMode.STORY)
+            s.heroes += Hero(called ?: heroName(), attr, generatedImage, generatedRig, called = called, description = description)
         s.heroAttr = attr
         s.storyHeroImage = generatedImage
         s.storyHeroRig = generatedRig
+        s.storyHeroCall = called
+        s.storyHeroDescription = description
+        log("Hero confirmed; the selected local picture is retained for this story")
         draft.phase = HeroCreationDraft.Phase.COMPLETE
-        log("주인공 확정 → 고정 스프라이트로 도감에 저장. 이야기 중 다시 생성하지 않음 (⭐20 · ⭐26)")
         pause(600)
-        go(Scene.BESTIARY)
+        if (s.mode == StoryMode.STORY) {
+            heroSetupLog.finish("new")?.let(::log)
+            go(Scene.PLACE)
+        } else go(Scene.BESTIARY)
     }
 
     suspend fun presetBuilder() {
@@ -539,6 +553,7 @@ private suspend fun Director.sceneMakeHero() {
         attr = tries[idx]
         generatedImage = images.getOrNull(idx)?.first
         generatedRig = images.getOrNull(idx)?.second
+        draft.generatedDescription = draft.generatedDescriptions.takeLast(3).getOrNull(idx)
         draft.phase = HeroCreationDraft.Phase.NAME
         s.stage = (s.stage as? Stage.CardsRow)?.copy(picked = "$idx") ?: s.stage
         pause(900)
@@ -681,6 +696,8 @@ private suspend fun Director.sceneMakeHero() {
             generatedRig = null
             s.heroTries += attr
             generatedTries += null to null
+            draft.generatedDescription = appearanceDescription()
+            draft.generatedDescriptions += draft.generatedDescription.orEmpty()
             draft.phase = HeroCreationDraft.Phase.CONFIRM
             checkpoint()                                   // the attempt is spent before the request goes out
             try { generate() } finally {
@@ -701,7 +718,13 @@ private suspend fun Director.sceneMakeHero() {
         HeroCreationDraft.Phase.REPAIR -> fixFlow()
         HeroCreationDraft.Phase.PICK -> { pickFromTries(); return }
         HeroCreationDraft.Phase.NAME -> { save(); return }
-        HeroCreationDraft.Phase.COMPLETE -> { go(Scene.BESTIARY); return }
+        HeroCreationDraft.Phase.COMPLETE -> {
+            if (s.mode == StoryMode.STORY) {
+                heroSetupLog.finish("new")?.let(::log)
+                go(Scene.PLACE)
+            } else go(Scene.BESTIARY)
+            return
+        }
     }
 }
 
@@ -796,7 +819,7 @@ private suspend fun Director.scenePartner() {
     })
     mark("partner")
     pause(1600)
-    if (s.firstDay) go(Scene.MAKEHERO) else go(Scene.BESTIARY)
+    if (s.mode == StoryMode.STORY || s.firstDay) go(Scene.MAKEHERO) else go(Scene.BESTIARY)
 }
 
 // ── 장면 3′ · 오늘 있었던 일 ────────────────────────────
@@ -1565,7 +1588,7 @@ private suspend fun Director.sceneMaking() {
         log("아이 말은 씨앗이고 나머지는 원래 이야기다. 메운 문장은 책에만 나오고 부모 리포트 인용에는 안 들어간다 (§5 · §5-1)")
     }
     val filled = s.slots.filterValues { it.isNotEmpty() }.keys
-    log("이번 책에 들어가는 이야기 조각: ${filled.joinToString(" · ").ifEmpty { "기본 문장" }} · 까닭 \"${s.causeLine}\" · 해결 \"${s.solutionLine}\"")
+    log("이번 책에 들어가는 이야기 조각: ${filled.joinToString(" · ").ifEmpty { "기본 문장" }} · 까닭 ${s.causeSaid?.let { "\"$it\"" } ?: "(not told)"} · 해결 \"${s.solutionLine}\"")
     var p = 0f
     while (p < 1f) {
         s.stage = Stage.Making("${bookWord}을 만드는 중… (${plannedPageCount}쪽)", p)
