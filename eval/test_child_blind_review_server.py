@@ -7,6 +7,7 @@ from urllib.request import Request, urlopen
 
 from eval.child_blind_review import empty_state, fingerprint
 from eval.child_blind_review_server import make_server
+from eval import child_blind_review_server as server_module
 
 
 @contextmanager
@@ -54,3 +55,42 @@ def test_save_finalize_freeze_and_origin_protection(tmp_path):
         assert request(base, '/result')[1]['exact_count_agreement'] == 1
         s['revision'] = 2
         assert request(base, '/save', s)[0] == 409
+
+
+def test_failed_freeze_does_not_publish_comparison(tmp_path, monkeypatch):
+    with running(tmp_path) as (base, pack):
+        s = empty_state(pack)
+        s.update(reviewer='QA', independent=True, criteria_accepted=True,
+                 reviews={'B001': {'status': 'gold', 'parts': ['곰', '이', '자', '았', '어'], 'reason': ''}})
+        original = server_module.os.replace
+        def fail_state(source, target):
+            if target.name == 'review.local.json':
+                raise OSError('Synthetic disk failure')
+            original(source, target)
+        with monkeypatch.context() as patch:
+            patch.setattr(server_module.os, 'replace', fail_state)
+            assert request(base, '/finalize', s)[0] == 500
+        assert not (tmp_path / 'comparison.local.json').exists()
+        assert not request(base, '/data')[1]['state']['finalized']
+        assert request(base, '/result')[0] == 409
+        assert request(base, '/save', s)[0] == 200
+
+
+def test_failed_comparison_export_keeps_frozen_state_and_can_retry(tmp_path, monkeypatch):
+    with running(tmp_path) as (base, pack):
+        s = empty_state(pack)
+        s.update(reviewer='QA', independent=True, criteria_accepted=True,
+                 reviews={'B001': {'status': 'gold', 'parts': ['곰', '이', '자', '았', '어'], 'reason': ''}})
+        original = server_module.os.replace
+        def fail_export(source, target):
+            if target.name == 'comparison.local.json':
+                raise OSError('Synthetic export failure')
+            original(source, target)
+        with monkeypatch.context() as patch:
+            patch.setattr(server_module.os, 'replace', fail_export)
+            assert request(base, '/finalize', s)[0] == 200
+            assert request(base, '/result')[0] == 500
+        assert request(base, '/data')[1]['state']['finalized']
+        assert request(base, '/save', s)[0] == 409
+        assert request(base, '/result')[1]['exact_count_agreement'] == 1
+        assert json.loads((tmp_path / 'comparison.local.json').read_text(encoding='utf-8'))['exact_count_agreement'] == 1

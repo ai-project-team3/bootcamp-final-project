@@ -9,6 +9,15 @@ import threading
 from eval.child_blind_review import compare, fingerprint, validate_state
 
 
+def write_json_atomic(path, value):
+    temp = path.with_suffix('.tmp')
+    with temp.open('w', encoding='utf-8') as stream:
+        json.dump(value, stream, ensure_ascii=False, indent=2)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temp, path)
+
+
 def make_server(directory: Path, port: int) -> ThreadingHTTPServer:
     pack = json.loads((directory / 'pack.local.json').read_text(encoding='utf-8'))
     prediction = json.loads((directory / 'predictions.private.json').read_text(encoding='utf-8'))
@@ -52,7 +61,12 @@ def make_server(directory: Path, port: int) -> ThreadingHTTPServer:
                     return self.reply(200, {'items': [{k:r[k] for k in ('id','text')} for r in pack['items']], 'state': state})
                 if self.path == '/result':
                     if not state['finalized']: return self.reply(409, {'error': '정답 확정 전에는 자동 결과를 공개하지 않습니다.'})
-                    return self.reply(200, compare(pack, state, prediction['counts']))
+                    result = compare(pack, state, prediction['counts'])
+                    try:
+                        write_json_atomic(directory / 'comparison.local.json', result)
+                    except OSError:
+                        return self.reply(500, {'error': '정답은 확정됐지만 비교 보고서 저장에 실패했습니다. 새로고침으로 다시 시도하세요.'})
+                    return self.reply(200, result)
             return self.reply(404, {'error': 'Not found'})
 
         def do_POST(self):
@@ -80,10 +94,14 @@ def make_server(directory: Path, port: int) -> ThreadingHTTPServer:
                                  finalized=finalize, updated_at=datetime.now(timezone.utc).isoformat())
                     if finalize:
                         result = compare(pack, state, prediction['counts'])
-                        (directory / 'comparison.local.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
-                    temp = state_path.with_suffix('.tmp')
-                    temp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding='utf-8')
-                    os.replace(temp, state_path)
+                    # Freeze durably before any private counts reach an export file.
+                    write_json_atomic(state_path, state)
+                    if finalize:
+                        try:
+                            write_json_atomic(directory / 'comparison.local.json', result)
+                        except OSError:
+                            # The human decision stays frozen; GET /result retries export.
+                            pass
                 return self.reply(200, state)
             except (ValueError, TypeError, KeyError):
                 return self.reply(400, {'error': '검수자·분절·보류 사유를 확인하세요. 최종 확정에는 전체 항목과 두 확인란이 필요합니다.'})
