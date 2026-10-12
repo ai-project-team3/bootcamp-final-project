@@ -839,7 +839,10 @@ internal fun Reply.Spoke.isLiveSpeech(): Boolean = value.isEmpty() && (answer ==
 
 /** 칸에 넣지 않는 짧은 말 — 「몰라」 · 「글쎄」 · 「응」. 이때는 사다리를 한 칸 내려가 쉬운 말로 다시 묻는다 */
 private val NON_ANSWER_STARTS = listOf("몰라", "모르겠", "모름", "글쎄", "기억 안", "기억이 안", "생각 안", "생각이 안", "잘 모르")
-private val NON_ANSWER_WORDS = setOf("응", "어", "음", "아니", "네", "예", "없어", "몰라요", "싫어")
+private val NON_ANSWER_WORDS = setOf("응", "어", "음", "아니", "네", "예", "없어", "몰라요", "싫어") +
+    // 「끝」 · 「그냥」 carry nothing for the book — at the ladder's end 「끝」 became the cause (10-12 device · Laya).
+    // Ending is the parent's in co-op (#36 · ⏸ 「마치기」), so 「끝이야」 asks the easier question like 「몰라」
+    setOf("끝", "끝이야", "끝났어", "이제 끝", "이제 끝이야", "그만", "그만할래", "그냥", "그냥요", "다 했어")
 
 /** 말 앞에 붙는 망설임 — 「음… 몰라」 · 「어, 모르겠어」. 뒤에 말이 더 올 때만 뗀다(「아빠」의 「아」는 안 뗀다) */
 private val HESITATION = Regex("^(?:(?:으*음+|어+|흠+|아+|그+)[.…,~!\\s]+)+")

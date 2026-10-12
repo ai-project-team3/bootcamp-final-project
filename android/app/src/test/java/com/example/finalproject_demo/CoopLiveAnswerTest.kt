@@ -234,6 +234,13 @@ class CoopLiveAnswerTest {
         listOf("놀이터", "친구가 없어서 슬펐어", "몰래 숨었어", "모래놀이 했어").forEach { assertFalse(it, isNonAnswer(it)) }
     }
 
+    /** 10-12 device (Laya) — 「끝」 at the ladder's end became the cause. Words with nothing for the book are not answers */
+    @Test
+    fun anEndingWordIsNotAnAnswer() {
+        listOf("끝", "끝.", "이제 끝이야", "끝났어", "그냥", "음… 끝", "그만할래").forEach { assertTrue(it, isNonAnswer(it)) }
+        listOf("끝까지 올라갔어", "그냥 놀았어", "그만 울었어").forEach { assertFalse(it, isNonAnswer(it)) }
+    }
+
     @Test
     fun withoutTheServerTheChildsWordsGoIntoTheSlotAsSaid() = run { d ->
         d.toFirstQuestion()
