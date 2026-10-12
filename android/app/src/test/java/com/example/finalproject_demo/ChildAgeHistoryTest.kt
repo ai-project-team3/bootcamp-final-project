@@ -70,4 +70,16 @@ class ChildAgeHistoryTest {
         assertFalse(AnswerHistory.setChildAge(ChildAge(4, 0)))
         assertEquals("not-json", prefs.getString("sessions", null))
     }
+
+    @Test fun withdrawingConsentErasesAgeEvenWhenUnrelatedHistoryIsUnreadable() {
+        AnswerHistory.setChildAge(ChildAge(4, 0))
+        val prefs = RuntimeEnvironment.getApplication().getSharedPreferences("answer_history", Context.MODE_PRIVATE)
+        prefs.edit().putString("sessions", "not-json").commit()
+        AnswerHistory.reload()
+        com.example.finalproject_demo.ui.ConsentStore.withdraw()
+        AnswerHistory.reload()
+        assertNull(AnswerHistory.childAge)
+        assertFalse(prefs.contains("child_age"))
+        assertEquals("not-json", prefs.getString("sessions", null))
+    }
 }

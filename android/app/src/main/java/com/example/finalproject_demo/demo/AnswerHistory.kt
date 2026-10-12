@@ -76,6 +76,13 @@ object AnswerHistory {
 
     /** Explicit guardian choice; no network upload or implicit age inference. */
     @Synchronized fun setChildAge(age: ChildAge?): Boolean {
+        if (age == null) {
+            // Erasure must remain possible even when an unrelated history record is corrupt.
+            writeFailed = !(prefs?.edit()?.remove("child_age")?.commit() ?: true)
+            if (writeFailed) return false
+            childAge = null; revision++
+            return true
+        }
         if (readFailed) return false
         writeFailed = !save(sessions, profileId, age)
         if (writeFailed) return false
