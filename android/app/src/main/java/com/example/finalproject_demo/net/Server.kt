@@ -235,7 +235,11 @@ object Server {
                     .apply { p.missionSource?.let { put("mission_source", it) } })
             }
         })
-        val j = postJson("/story", body, readMs = 60_000) ?: return null
+        // debug builds only, logcat only (Trace): what the book was asked with and what came back before unmask —
+        // a bare 「주인공」 on the pages (10-12 device) is the server's or the app's only once the raw answer is seen
+        Trace.long("story_request", body.toString())
+        val j = postJson("/story", body, readMs = 60_000) ?: return null.also { Trace.line("story_response", "(none)") }
+        Trace.long("story_response", j.toString())
         return try {
             val a = j.getJSONArray("scenes")
             val caps = List(a.length()) { a.getJSONObject(it).getString("caption") }
