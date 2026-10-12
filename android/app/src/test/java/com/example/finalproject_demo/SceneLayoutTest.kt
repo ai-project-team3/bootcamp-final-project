@@ -15,6 +15,22 @@ import org.junit.Test
 
 /** The kit layout (`demo/scene/SceneLayout.kt`) — pure, so plain JVM tests */
 class SceneLayoutTest {
+    @Test fun aThirdActorHasItsOwnProtectedPlace() {
+        val actors = com.example.finalproject_demo.demo.scene.stageActors(3)
+        assertEquals(3, actors.size)
+        assertEquals(3, actors.map { it.x }.distinct().size)
+        for (f in listOf(phone, tabletFrame)) {
+            val bounds = actors.map { com.example.finalproject_demo.demo.scene.actorBox(f, it) }
+            for (i in bounds.indices) for (j in 0 until i) {
+                assertEquals("Actor footprints must not overlap", 0f, bounds[i].inter(bounds[j]), .001f)
+            }
+            for (seed in 0L until 15L) {
+                layoutScene(PARK_KIT, seed, 3, f).filter { it.piece.role in hard }.forEach { piece ->
+                    assertTrue("${piece.piece.name} covers an actor", bounds.none { it.inter(piece.box) > 0f })
+                }
+            }
+        }
+    }
     /** Landscape phone 807 × 393 dp, with Screen.kt's FEET_* / TALL_* and the chrome (top 72 · bottom 116) */
     private val phone = frame(807f, 393f, bottomInset = 116f, top = 72f)
     /** Portrait tablet: the stage is a 1344:768 frame above the chrome — no insets inside it */

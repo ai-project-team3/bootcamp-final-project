@@ -118,22 +118,8 @@ object ConsentStore {
     var micNoticeShown by mutableStateOf(false)
         private set
 
-    /**
-     * **선택 동의 — 마스코트가 아이 이름을 소리로 불러도 되는가** (09-29 조장 · 규칙 6 개정).
-     * 켜면 이름이 든 대사가 목소리 업체(TypeCast)로 간다 — 제3자 제공이라 **따로, 기본 꺼짐**으로 받는다.
-     * 끄면 목소리에서 아이 이름은 「너」, 친구 이름은 「그 친구」로 바뀐다(10-01 #50)(`NameMask.speakable`). 화면 · 책에는 어느 쪽이든 실명이다.
-     * ⚠️ 동의 화면에 체크 칸은 아직 없다 — UI(치영)에 붙인다
-     */
-    var nameVoiceAgreed by mutableStateOf(false)
-        private set
-
-    /**
-     * **선택 동의 — 오또 목소리를 타입캐스트로** (10-06 조장). 타입캐스트는 받은 글자를 자기 서비스 개선 · 새 서비스에 쓸 수 있어
-     * 위탁이 아니라 **제3자 제공**이다 → 따로, 기본 꺼짐. 끄면 이 집의 대사는 타입캐스트로 가지 않고 기본 목소리(OpenAI)로 읽는다.
-     * 서버로는 `Server.typecastVoiceAgreed` 가 같이 움직인다.
-     */
-    var typecastVoiceAgreed by mutableStateOf(false)
-        private set
+    // 10-08 종훈 — 선택 동의 둘(이름 읽기 · 타입캐스트 목소리)을 없앴다. 이름 읽기는 10-02 규칙 6 개정으로 뜻이 없어졌고,
+    // 타입캐스트는 쓰지 않는다(오또 목소리는 OpenAI · CLAUDE.md 모델 표). 다시 쓰게 되면 그때 선택 동의를 넣는다(`Terms.kt` 머리말).
 
     // ⚠️ **기기에 저장한다 (09-25).** 전에는 메모리뿐이라 앱을 켤 때마다 동의 화면이 다시 떴다.
     //    `SharedPreferences` 를 쓴다 — 값 둘(참/거짓)이라 DataStore 의존성을 들일 까닭이 없다.
@@ -143,6 +129,7 @@ object ConsentStore {
     private const val PREFS = "consent"
     private const val KEY_AGREED = "guardian_agreed"
     private const val KEY_MIC = "mic_notice_shown"
+    // 예전 선택 동의 열쇠 — 읽지 않는다. 철회 · 탈퇴 때 남은 값을 지우려고만 둔다
     private const val KEY_NAME_VOICE = "name_voice_agreed"
     private const val KEY_TYPECAST_VOICE = "typecast_voice_agreed"
 
@@ -152,23 +139,7 @@ object ConsentStore {
         prefs = p
         guardianAgreed = p.getBoolean(KEY_AGREED, false)
         micNoticeShown = p.getBoolean(KEY_MIC, false)
-        nameVoiceAgreed = p.getBoolean(KEY_NAME_VOICE, false)
-        typecastVoiceAgreed = p.getBoolean(KEY_TYPECAST_VOICE, false)
-        com.example.finalproject_demo.net.Server.typecastVoiceAgreed = typecastVoiceAgreed
         SentReports.attach(context)
-    }
-
-    /** 타입캐스트 목소리 선택 동의를 켜고 끈다 — 부모 영역 → 계정에서 언제든 바꿀 수 있다 */
-    fun setTypecastVoice(on: Boolean) {
-        typecastVoiceAgreed = on
-        com.example.finalproject_demo.net.Server.typecastVoiceAgreed = on
-        prefs?.edit()?.putBoolean(KEY_TYPECAST_VOICE, on)?.apply()
-    }
-
-    /** 이름 읽기 선택 동의를 켜고 끈다 — 부모 설정에서 언제든 바꿀 수 있어야 한다 */
-    fun setNameVoice(on: Boolean) {
-        nameVoiceAgreed = on
-        prefs?.edit()?.putBoolean(KEY_NAME_VOICE, on)?.apply()
     }
 
     fun agree() {
@@ -179,9 +150,6 @@ object ConsentStore {
     /** 동의 철회 — 정책상 **언제든 물릴 수 있어야** 한다. 물리면 다음 화면부터 동의를 다시 받는다 */
     fun withdraw() {
         guardianAgreed = false
-        nameVoiceAgreed = false      // 본 동의를 물리면 선택 동의도 같이 물린다
-        typecastVoiceAgreed = false
-        com.example.finalproject_demo.net.Server.typecastVoiceAgreed = false
         micNoticeShown = false       // 마이크도 다시 묻는다 — 탈퇴 · 다른 보호자 계정 (10-05 치영 · ui/shell/Shell.kt)
         prefs?.edit()?.putBoolean(KEY_AGREED, false)?.putBoolean(KEY_NAME_VOICE, false)?.putBoolean(KEY_TYPECAST_VOICE, false)
             ?.putBoolean(KEY_MIC, false)?.apply()

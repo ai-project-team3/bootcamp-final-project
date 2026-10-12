@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.ui
 
+import com.example.finalproject_demo.demo.sceneActorCapacity
+
 import androidx.compose.ui.draw.rotate
 
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -614,10 +616,10 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
             // 10-05 scene kit (`demo/scene` · `docs/배경_조각_목록.md`): when on, a felt floor + pieces (SceneBack)
             // replace the background picture, the actors are drawn as before, and the foreground piece (SceneFront)
             // goes over them. Hotspots and FrontGround belong to a background picture, so they are skipped.
-            // The layout always keeps room for two actors — the scene must not reshuffle when the friend appears.
+            // Reserve the mode's full cast from the start; late images must not reshuffle the kit.
             is Stage.World -> WorldBackground(
                 s.worldBg, s.bgName, framed = true,
-                backdrop = kit?.let { k -> { inset -> SceneBack(k, s.sceneSeed, 2, inset, if (inset > 0.dp) TopChrome else 0.dp) } },
+                backdrop = kit?.let { k -> { inset -> SceneBack(k, s.sceneSeed, s.sceneActorCapacity, inset, if (inset > 0.dp) TopChrome else 0.dp) } },
             ) {
                 val quake = if (stage.quake) {
                     val t = rememberInfiniteTransition(label = "quake")
@@ -640,7 +642,7 @@ fun StageView(d: Director, modifier: Modifier = Modifier) {
                     if (kit == null) FrontGround(s.bgName)
                     else {
                         val inset = LocalStageBottomInset.current
-                        SceneFront(kit, s.sceneSeed, 2, inset, if (inset > 0.dp) TopChrome else 0.dp)
+                        SceneFront(kit, s.sceneSeed, s.sceneActorCapacity, inset, if (inset > 0.dp) TopChrome else 0.dp)
                     }
                 }
                 // ③ 상호작용 층
