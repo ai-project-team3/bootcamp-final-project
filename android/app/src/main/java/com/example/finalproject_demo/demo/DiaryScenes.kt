@@ -348,7 +348,7 @@ private suspend fun Director.diaryDrawStep() {
     val f = s.friendCallName
     if (s.companionKind.isBlank() || "혼자" in s.companionKind || s.newcomer != null) return
     s.stage = Stage.DrawPad()
-    say(s.coopDrawLine(f) ?: "오늘 만난 $f${eul(f)} 그려 줄래?")   // 협업 곧 해요 · 좋아해요는 「오늘 만난」이 아니다 (CoopReport.kt)
+    say(s.coopDrawLine(f) ?: spokenPeople(f).let { "오늘 만난 $it${eul(it)} 그려 줄래?" })   // 협업 곧 해요 · 좋아해요는 「오늘 만난」이 아니다 (CoopReport.kt)
     inputs(false, false)
     buttons(
         DemoBtn("✅ 지금 그린 그림으로 완료") { send(Reply.Tapped("done", "완료")) },

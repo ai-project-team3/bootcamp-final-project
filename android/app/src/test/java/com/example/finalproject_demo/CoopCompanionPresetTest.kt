@@ -11,6 +11,10 @@ import com.example.finalproject_demo.demo.StoryMode
 import com.example.finalproject_demo.demo.Stroke
 import com.example.finalproject_demo.demo.companionName
 import com.example.finalproject_demo.demo.companionPreset
+import com.example.finalproject_demo.demo.coopDrawLine
+import com.example.finalproject_demo.demo.coopFill
+import com.example.finalproject_demo.demo.m2Line
+import com.example.finalproject_demo.demo.spokenPeople
 import com.example.finalproject_demo.demo.coopCompanionPreset
 import com.example.finalproject_demo.demo.drawFriend
 import com.example.finalproject_demo.demo.finishDiary
@@ -76,6 +80,27 @@ class CoopCompanionPresetTest {
         assertEquals(listOf("ic_p_mom"), arts("친구의 엄마"))
         assertEquals(listOf("ic_p_mom"), arts("친구 엄마"))
         assertEquals(listOf("ic_p_dad"), arts("아빠"))
+    }
+
+    /** 10-12 device review — 「엄마, 아빠」 stays in the slot, but Otto reads it 「엄마랑 아빠」, not with a pause */
+    @Test
+    fun momAndDadAreReadAloudWithRang() {
+        assertEquals("엄마랑 아빠", spokenPeople("엄마, 아빠"))
+        assertEquals("동생이랑 형", spokenPeople("동생, 형"))
+        assertEquals("할머니랑 할아버지랑 삼촌", spokenPeople("할머니, 할아버지, 삼촌"))
+        assertEquals("친구 엄마", spokenPeople("친구 엄마"))
+
+        val s = DemoState().apply {
+            mode = StoryMode.COOP; companionKind = companionName("엄마 아빠"); coopPick = CoopPick("place", "동물원", "soon")
+        }
+        assertEquals("엄마, 아빠", s.companionKind)
+        assertEquals("같이 갈 엄마랑 아빠를 그려 줄래?", s.coopDrawLine(s.companionKind))
+        val give = s.m2Line(easy = false)
+        assertTrue(give, "엄마랑 아빠한테" in give && "," !in give)
+        assertEquals("the people slot is read with 랑", "엄마랑 아빠가 뭐라고 했어?",
+            coopFill("{who:가} 뭐라고 했어?", mapOf("who" to s.companionKind)))
+        assertEquals("a place keeps its comma", "사자 우리, 기린 마당에서 놀았어?",
+            coopFill("{place:에서} 놀았어?", mapOf("place" to "사자 우리, 기린 마당")))
     }
 
     /** The diary is unchanged (⚖️4 · Jinwoong) — a name containing a preset word keeps that preset */

@@ -456,6 +456,11 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                     }
                 }
                 if (showRide) Char("vehicle", s.rideArt, 0.40f, 0.16f, 0.17f, 0.62f, Modifier.offset { IntOffset(0, wobble.roundToInt()) })
+                // diary · co-op: who went along leaves with the child — 「엄마와 아빠랑 동물원에 갈 거예요」 stood nobody (10-12 device review).
+                // A story's friend is met later and does not stand here
+                if (s.isDiary && s.companionKind.isNotBlank() && "혼자" !in s.companionKind) {
+                    Friends(0.33f, 0.30f, 0.12f, Modifier.offset { IntOffset(0, bob.roundToInt()) }, side = 1)
+                }
                 if (showRide && riding) {
                     // 탈것 위 — 탈것과 같은 흔들림으로 함께 움직여야 "타고 있다"로 보인다.
                     // 발이 탈것 몸통에 **겹쳐야** 올라탄 것으로 보인다. 띄우면 위에 떠 있는 것처럼 보였다 (9/21)
