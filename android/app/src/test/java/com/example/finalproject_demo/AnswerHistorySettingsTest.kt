@@ -51,6 +51,19 @@ class AnswerHistorySettingsTest {
                 taskType = com.github.takahirom.roborazzi.RoborazziTaskType.Record))
     }
 
+    @Test fun ageCanBeErasedWithoutResettingUnreadableHistory() {
+        AnswerHistory.setChildAge(ChildAge(4, 1))
+        val prefs = RuntimeEnvironment.getApplication().getSharedPreferences("answer_history", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("sessions", "not-json").commit()
+        AnswerHistory.reload()
+        compose.setContent { ParentView(Director(scope), "set") }
+        compose.onNodeWithText("나이 정보 지우기").performScrollTo().performClick()
+        assertNull(AnswerHistory.childAge)
+        assertFalse(prefs.contains("child_age"))
+        assertEquals("not-json", prefs.getString("sessions", null))
+        assertTrue(AnswerHistory.readFailed)
+    }
+
     @Test fun unreadableHistoryIsShownAndRequiresAnExplicitReset() {
         val context = RuntimeEnvironment.getApplication()
         context.getSharedPreferences("answer_history", android.content.Context.MODE_PRIVATE)

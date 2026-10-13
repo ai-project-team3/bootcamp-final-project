@@ -1,0 +1,254 @@
+{
+  "schema": 1,
+  "comparison": "history_absent_vs_reloaded_history",
+  "data": "synthetic_fixed_responses",
+  "measures_child_effect": false,
+  "rows": [
+    {
+      "scenario": "short",
+      "before": {
+        "levels": [
+          "chain",
+          "chain",
+          "chain",
+          "chain"
+        ],
+        "round_trips": 4,
+        "counted_turns": 4,
+        "report_exchanges": 4,
+        "filled_requests": 3,
+        "fill_rate": 0.75,
+        "extra_judge_calls": 0,
+        "final_slots": {
+          "cause": "추웠어. 그래서 집에 갔어",
+          "place": "도서관",
+          "solution": "공원"
+        }
+      },
+      "after": {
+        "levels": [
+          "pick",
+          "pick",
+          "pick",
+          "pick"
+        ],
+        "round_trips": 4,
+        "counted_turns": 4,
+        "report_exchanges": 4,
+        "filled_requests": 3,
+        "fill_rate": 0.75,
+        "extra_judge_calls": 0,
+        "final_slots": {
+          "cause": "추웠어. 그래서 집에 갔어",
+          "place": "도서관",
+          "solution": "공원"
+        }
+      }
+    },
+    {
+      "scenario": "cause_link",
+      "before": {
+        "levels": [
+          "chain",
+          "chain",
+          "chain",
+          "chain"
+        ],
+        "round_trips": 4,
+        "counted_turns": 4,
+        "report_exchanges": 4,
+        "filled_requests": 3,
+        "fill_rate": 0.75,
+        "extra_judge_calls": 0,
+        "final_slots": {
+          "cause": "추웠어. 그래서 집에 갔어",
+          "place": "도서관",
+          "solution": "공원"
+        }
+      },
+      "after": {
+        "levels": [
+          "reason",
+          "reason",
+          "reason",
+          "reason"
+        ],
+        "round_trips": 4,
+        "counted_turns": 4,
+        "report_exchanges": 4,
+        "filled_requests": 3,
+        "fill_rate": 0.75,
+        "extra_judge_calls": 0,
+        "final_slots": {
+          "cause": "추웠어. 그래서 집에 갔어",
+          "place": "도서관",
+          "solution": "공원"
+        }
+      }
+    },
+    {
+      "scenario": "link_only",
+      "before": {
+        "levels": [
+          "chain",
+          "chain",
+          "chain",
+          "chain"
+        ],
+        "round_trips": 4,
+        "counted_turns": 4,
+        "report_exchanges": 4,
+        "filled_requests": 3,
+        "fill_rate": 0.75,
+        "extra_judge_calls": 0,
+        "final_slots": {
+          "cause": "추웠어. 그래서 집에 갔어",
+          "place": "도서관",
+          "solution": "공원"
+        }
+      },
+      "after": {
+        "levels": [
+          "chain",
+          "chain",
+          "chain",
+          "chain"
+        ],
+        "round_trips": 4,
+        "counted_turns": 4,
+        "report_exchanges": 4,
+        "filled_requests": 3,
+        "fill_rate": 0.75,
+        "extra_judge_calls": 0,
+        "final_slots": {
+          "cause": "추웠어. 그래서 집에 갔어",
+          "place": "도서관",
+          "solution": "공원"
+        }
+      }
+    },
+    {
+      "scenario": "single",
+      "before": {
+        "levels": [
+          "chain",
+          "chain",
+          "chain",
+          "chain"
+        ],
+        "round_trips": 4,
+        "counted_turns": 4,
+        "report_exchanges": 4,
+        "filled_requests": 3,
+        "fill_rate": 0.75,
+        "extra_judge_calls": 0,
+        "final_slots": {
+          "cause": "추웠어. 그래서 집에 갔어",
+          "place": "도서관",
+          "solution": "공원"
+        }
+      },
+      "after": {
+        "levels": [
+          "chain",
+          "chain",
+          "chain",
+          "chain"
+        ],
+        "round_trips": 4,
+        "counted_turns": 4,
+        "report_exchanges": 4,
+        "filled_requests": 3,
+        "fill_rate": 0.75,
+        "extra_judge_calls": 0,
+        "final_slots": {
+          "cause": "추웠어. 그래서 집에 갔어",
+          "place": "도서관",
+          "solution": "공원"
+        }
+      }
+    },
+    {
+      "scenario": "choice",
+      "before": {
+        "levels": [
+          "chain",
+          "chain",
+          "chain",
+          "chain"
+        ],
+        "round_trips": 4,
+        "counted_turns": 4,
+        "report_exchanges": 4,
+        "filled_requests": 3,
+        "fill_rate": 0.75,
+        "extra_judge_calls": 0,
+        "final_slots": {
+          "cause": "추웠어. 그래서 집에 갔어",
+          "place": "도서관",
+          "solution": "공원"
+        }
+      },
+      "after": {
+        "levels": [
+          "chain",
+          "chain",
+          "chain",
+          "chain"
+        ],
+        "round_trips": 4,
+        "counted_turns": 4,
+        "report_exchanges": 4,
+        "filled_requests": 3,
+        "fill_rate": 0.75,
+        "extra_judge_calls": 0,
+        "final_slots": {
+          "cause": "추웠어. 그래서 집에 갔어",
+          "place": "도서관",
+          "solution": "공원"
+        }
+      }
+    },
+    {
+      "scenario": "other_child",
+      "before": {
+        "levels": [
+          "chain",
+          "chain",
+          "chain",
+          "chain"
+        ],
+        "round_trips": 4,
+        "counted_turns": 4,
+        "report_exchanges": 4,
+        "filled_requests": 3,
+        "fill_rate": 0.75,
+        "extra_judge_calls": 0,
+        "final_slots": {
+          "cause": "추웠어. 그래서 집에 갔어",
+          "place": "도서관",
+          "solution": "공원"
+        }
+      },
+      "after": {
+        "levels": [
+          "chain",
+          "chain",
+          "chain",
+          "chain"
+        ],
+        "round_trips": 4,
+        "counted_turns": 4,
+        "report_exchanges": 4,
+        "filled_requests": 3,
+        "fill_rate": 0.75,
+        "extra_judge_calls": 0,
+        "final_slots": {
+          "cause": "추웠어. 그래서 집에 갔어",
+          "place": "도서관",
+          "solution": "공원"
+        }
+      }
+    }
+  ]
+}
