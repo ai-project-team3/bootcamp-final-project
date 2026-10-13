@@ -126,10 +126,27 @@ private val COOP_STEP_TOPIC = mapOf(
     "cause" to Regex("왜"),
 )
 
-/** The child's answer to a parent question that already asked what [slot]'s step asks — null when none did */
-internal fun DemoState.coopParentCovered(slot: String): String? {
+/** A parent question's answer that covers a later step — the answer and where it came from (`child` · `card`) */
+internal data class CoopParentCover(val said: String, val by: String)
+
+/**
+ * The answer to a parent question that already asked what [slot]'s step asks — null when none did.
+ * Also null when that answer is not one the step can use: one Otto filled at the ladder's end (`mascot` — #439 review,
+ * the step asks as usual then) or a non-answer like 「몰라」 (#460 ⑤)
+ */
+internal fun DemoState.coopParentCovered(slot: String): CoopParentCover? =
+    coopParentCover(slot, coopTrack.parentQuestionOf, slots, slotBy)
+
+/** [coopParentCovered] on plain maps — parent question per book key (`parent1` …), book text and source per key */
+internal fun coopParentCover(
+    slot: String, questionOf: Map<String, String>, slots: Map<String, String>, slotBy: Map<String, String>,
+): CoopParentCover? {
     val topic = COOP_STEP_TOPIC[slot] ?: return null
-    return coopParentAnswers.firstOrNull { (question, _) -> topic.containsMatchIn(question) }?.second
+    val book = questionOf.entries.sortedBy { it.key.removePrefix(COOP_PARENT_KEY).toIntOrNull() ?: 0 }
+        .firstOrNull { (book, question) -> topic.containsMatchIn(question) && !slots[book].isNullOrBlank() }?.key ?: return null
+    val said = slots.getValue(book)
+    val by = slotBy[book] ?: "child"
+    return CoopParentCover(said, by).takeIf { by != "mascot" && !isNonAnswer(said) }
 }
 
 /** 부모 질문을 끼우는 꼬리 자리 — 하던 일 · 한 말 · 해 본 것 · 집에 와서. 답의 뜻이 정해지지 않은 자리들이다 */
