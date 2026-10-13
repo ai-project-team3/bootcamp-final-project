@@ -144,12 +144,10 @@ class ShellFlowTest {
         waitText("잠깐 쉬는 중"); shot("21_coop_pause_sheet")
         tap("마치기")
         waitText("이야기를 여기서 마칠까?"); shot("21b_coop_stop_ask")
-        tap("계속하기")                           // 잘못 눌렀으면 쉬는 창으로 돌아간다
-        compose.waitUntil(5_000) { count("이야기를 여기서 마칠까?") == 0 }
+        tap("계속하기")                           // 「계속하기」는 이야기로 바로 돌아간다 (10-12 실기기 검토)
+        compose.waitUntil(5_000) { count("이야기를 여기서 마칠까?") == 0 && !d.s.holding }
         assertEquals(null, d.s.endReason)
-        assertTrue("still paused behind the confirm", d.s.holding)
-        tap("이어 하기")
-        compose.waitUntil(5_000) { !d.s.holding }
+        assertEquals("the ⏸ sheet closes with it", 0, count("잠깐 쉬는 중"))
 
         compose.onNodeWithTag("pause").performClick()
         tap("마치기"); tap("마치기")             // ⏸ 창의 「마치기」 → 확인 창의 「마치기」

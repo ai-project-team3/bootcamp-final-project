@@ -101,7 +101,8 @@ fun OttoShell(d: Director) {
                     detail = "지금까지 한 이야기로 책을 만들어요",
                     note = "부모님이 누르는 버튼이에요",
                     no = "▶" to "계속하기", yes = "📖" to "마치기",
-                    onNo = { Shell.askStop = false },
+                    // 「계속하기」 means the story goes on — not back to the ⏸ sheet (10-12 device review). Back still steps back one sheet
+                    onNo = { Shell.askStop = false; if (d.s.holding) d.resumeSession() },
                     onYes = { Shell.askStop = false; d.stopCoopFromPause() },
                 )
             }
