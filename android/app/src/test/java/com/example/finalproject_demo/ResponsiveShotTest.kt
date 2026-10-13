@@ -77,7 +77,7 @@ abstract class ResponsiveShotTest(private val size: String) {
         waitText("부모 비밀번호를 정해요"); shot("05_pin_make")
         repeat(2) { "1234".forEach { tap(it.toString()) }; compose.mainClock.advanceTimeBy(600); compose.waitForIdle() }
         waitText("우리 아이에게 맞춰요")
-        tap("2권"); tap("양모"); tap("받지 않아요")
+        tap("2권"); tap("펠트"); tap("받지 않아요")
         shot("06_setup")
         tap("설정 끝")
         // ⑥ 기능 안내 (10-05) — 여섯 장을 넘긴다
