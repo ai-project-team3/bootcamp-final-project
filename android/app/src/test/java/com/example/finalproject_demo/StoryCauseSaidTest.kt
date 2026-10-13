@@ -47,4 +47,22 @@ class StoryCauseSaidTest {
         assertEquals("a scripted story keeps its scene cause", "배가 고파서", s.causeSaid)
         assertTrue(DemoState().causeSaid != null)
     }
+
+    /** 10-12 device review — 「뽀삐가 길을 잃어버렸어」 · 「너무 깜깜해서」 is 뽀삐's cause, not the octopus's (「문어가 너무 깜깜해서래」) */
+    @Test
+    fun theCauseGoesWithWhoeverHadTheProblem() {
+        val lost = DemoState().apply {
+            slots["problem"] = "뽀삐가 길을 잃어버렸어"; slots["cause"] = "너무 깜깜해서"; slots["newcomer"] = "문어"
+        }
+        lost.syncStoryPresentation()
+        val line = lost.m2Line(easy = false)
+        assertFalse(line, "깜깜" in line)
+        assertTrue(line, "문어한테 건네줄래?" in line)
+
+        val hurt = DemoState().apply {
+            slots["problem"] = "문어가 다리를 다쳤어"; slots["cause"] = "바위에 부딪혀서"; slots["newcomer"] = "문어"
+        }
+        hurt.syncStoryPresentation()
+        assertTrue(hurt.m2Line(easy = false), "문어가 바위에 부딪혀서래." in hurt.m2Line(easy = false))
+    }
 }
