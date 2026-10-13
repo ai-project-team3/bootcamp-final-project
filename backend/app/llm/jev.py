@@ -50,6 +50,22 @@ CHOICE_Q = {
     "next_slot": "다음에 물어야 하는 칸은 어디인가",
     "no_longer_needed": "아이 말 때문에 더 이상 물을 필요가 없어진 칸이 있는가",
 }
+# Diary · coop only (#440): a child there often answers another slot than the one asked, and Jev found 9 of those
+# 57 on the lines above (10-13 server PC) — 23 with these, asked-slot copies 7 → 5. A story keeps the lines above:
+# there the same wording lowered Jev's confidence on the asked slot and cost 10 of the labelled 100
+MODE_SLOT_CRITERIA = {
+    **SLOT_CRITERIA,
+    # 「아빠」 was not a 「friend」; a feeling, a 「~해서」 reason and an ending had no shape to match
+    "companion": "같이 간 사람 — 엄마 · 아빠 · 할머니 같은 가족, 친구, 캐릭터 · 실존 인물 (「아빠랑 갔어」 · 「친구랑」)",
+    "reaction": "그래서 어떻게 됐나 · 그때 마음 (「무서웠어」 · 「재밌었어」 · 「깜짝 놀랐어」)",
+    "cause": "왜 그랬나 — 까닭 (「~해서」 · 「~라서 그랬대」처럼 이유를 대는 말)",
+    "solution": "어떻게 풀었나 · 끝에 어떻게 됐나 (「인사하고 집에 왔어」)",
+}
+MODE_CHOICE_Q = {
+    **CHOICE_Q,
+    "slot_1": ("아이가 방금 한 말이 채운 칸은 어디인가. 물은 칸(asked)과 달라도 된다 — 질문과 다른 것을 "
+               "말했으면 그 말의 뜻에 맞는 칸을 고른다. 물은 칸에 억지로 넣지 않는다"),
+}
 NOUL_Q = {
     "s1_reason": ("묻지 않았는데 **왜 그랬는지**를 스스로 붙였는가", "까닭을 스스로 말했다", "까닭을 말하지 않았다"),
     "s2_addition": ("묻지 않은 것을 **한 가지 더 얹어** 문장을 늘렸는가", "묻지 않은 것을 덧붙였다", "물은 것에만 답했다"),
@@ -79,8 +95,9 @@ def mask_names(text: str, names: list[str]) -> str:
     return text
 
 
-def questions() -> dict:
-    qs = {f: {"type": "choice", "instructions": t, "criteria": SLOT_CRITERIA} for f, t in CHOICE_Q.items()}
+def questions(mode: str = "story") -> dict:
+    choice, criteria = (CHOICE_Q, SLOT_CRITERIA) if mode == "story" else (MODE_CHOICE_Q, MODE_SLOT_CRITERIA)
+    qs = {f: {"type": "choice", "instructions": t, "criteria": criteria} for f, t in choice.items()}
     qs.update({f: {"type": "noul", "instructions": t, "criteria": {"true": y, "false": n}}
                for f, (t, y, n) in NOUL_Q.items()})
     return qs
@@ -164,11 +181,11 @@ async def ask(state: str, qs: dict, timeout_s: float = 4.0) -> tuple[dict, float
     return r.json().get("answers", {}) or {}, round(time.monotonic() - t0, 2)
 
 
-async def judge(system: str, user: str, utterance: str, timeout_s: float = 6.0) -> dict:
+async def judge(system: str, user: str, utterance: str, timeout_s: float = 6.0, mode: str = "story") -> dict:
     """Raises JevError; the caller falls back to the luna judge."""
     if not settings.typesafe_api_key:
         raise JevError("missing TYPESAFE_API_KEY")
-    body = {"state": f"{system}\n\n{user}", "model": settings.jev_model, "questions": questions()}
+    body = {"state": f"{system}\n\n{user}", "model": settings.jev_model, "questions": questions(mode)}
     t0 = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=timeout_s) as http:

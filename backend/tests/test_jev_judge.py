@@ -30,7 +30,7 @@ def test_choices_under_the_floor_stay_empty_and_value_is_eight_eojeol():
 def test_only_switched_on_modes_use_jev_and_a_failure_falls_back(monkeypatch):
     calls = []
 
-    async def fake_jev(system, user, utterance, timeout_s=6.0):
+    async def fake_jev(system, user, utterance, timeout_s=6.0, mode="story"):
         calls.append("jev")
         return {"reason": "jev", "slot_1": "place", "value_1": utterance,
                 "next_slot": "problem", "_seconds": 0.2}
@@ -57,7 +57,7 @@ def test_only_switched_on_modes_use_jev_and_a_failure_falls_back(monkeypatch):
 def test_names_never_reach_jev_but_luna_keeps_them(monkeypatch):
     sent = {}
 
-    async def fake_jev(system, user, utterance, timeout_s=6.0):
+    async def fake_jev(system, user, utterance, timeout_s=6.0, mode="story"):
         sent["user"], sent["utterance"] = user, utterance
         return {"reason": "jev", "slot_1": "companion", "value_1": utterance, "next_slot": "problem"}
 
@@ -78,7 +78,7 @@ def test_diary_and_coop_end_and_ask_by_the_rules_a_story_keeps_jevs_verdict(monk
     calls = []
     answer = {}
 
-    async def fake_jev(system, user, utterance, timeout_s=6.0):
+    async def fake_jev(system, user, utterance, timeout_s=6.0, mode="story"):
         calls.append("jev")
         return {"reason": "jev", **answer, "_seconds": 0.2}
 
@@ -116,6 +116,31 @@ def test_diary_and_coop_end_and_ask_by_the_rules_a_story_keeps_jevs_verdict(monk
     s = asyncio.run(judge.run(JudgeRequest(mode="story", slots={"place": "우주"}, asked_slot="newcomer",
                                            question="누굴 만났어?", utterance="꼬리가 파란 용이야")))
     assert s.reason == "jev" and s.next_slot == "sound"
+
+
+def test_diary_and_coop_ask_for_another_slot_a_story_keeps_its_wording(monkeypatch):
+    # #440: the off-slot wording found 23 of 57 diary · coop answers to another slot (9 before) but cost a
+    # story 10 of its labelled 100, so it goes to diary · coop only
+    story, coop = jev.questions(), jev.questions("coop")
+    assert story["slot_1"]["instructions"] == jev.CHOICE_Q["slot_1"]
+    assert story["slot_1"]["criteria"]["companion"] == jev.SLOT_CRITERIA["companion"]
+    assert "달라도 된다" in coop["slot_1"]["instructions"]
+    assert "아빠" in coop["slot_1"]["criteria"]["companion"] and "아빠" in coop["next_slot"]["criteria"]["companion"]
+    assert coop.keys() == story.keys()
+
+    seen = []
+
+    async def fake_jev(system, user, utterance, timeout_s=6.0, mode="story"):
+        seen.append(mode)
+        return {"reason": "jev", "slot_1": "companion", "_seconds": 0.2}
+
+    monkeypatch.setattr(jev, "judge", fake_jev)
+    monkeypatch.setattr(settings, "mock", False)
+    monkeypatch.setattr(settings, "judge_laya_modes", "")
+    monkeypatch.setattr(settings, "judge_jev_modes", "story,diary,coop")
+    asyncio.run(judge.run(JudgeRequest(mode="coop", slots={"place": "동물원"}, asked_slot="companion",
+                                       question="누구랑 갔어?", utterance="아빠")))
+    assert seen == ["coop"]
 
 
 def test_mask_names_skips_blanks_and_placeholders():
