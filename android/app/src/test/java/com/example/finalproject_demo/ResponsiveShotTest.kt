@@ -5,6 +5,8 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -76,6 +78,10 @@ abstract class ResponsiveShotTest(private val size: String) {
         tap("마이크 켜기")
         waitText("부모 비밀번호를 정해요"); shot("05_pin_make")
         repeat(2) { "1234".forEach { tap(it.toString()) }; compose.mainClock.advanceTimeBy(600); compose.waitForIdle() }
+        waitText("아이 소개"); shot("05b_child_introduction")
+        compose.onNodeWithText("다음").assertIsDisplayed()
+        compose.onNodeWithText("건너뛰기").assertIsDisplayed()
+        tap("건너뛰기")
         waitText("우리 아이에게 맞춰요")
         tap("펠트"); tap("받지 않아요")
         shot("06_setup")

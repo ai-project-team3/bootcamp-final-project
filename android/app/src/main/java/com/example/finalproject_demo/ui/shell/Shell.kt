@@ -10,7 +10,7 @@ import androidx.compose.runtime.setValue
  *
  * 대화 흐름(`demo/Director` · `Model`)은 **건드리지 않는다**(조장 요청 09-29). 이 틀은 흐름 **바깥**을 맡는다:
  *
- *   켤 때마다   ⓪ CLAP → ① 타이틀 ─┬─ 처음이면  ② 로그인(1/5) → ③ 동의(2/5) → ④ 마이크(3/5) → 부모 비밀번호(4/5) → 맞춤 설정(5/5)
+ *   켤 때마다   ⓪ CLAP → ① 타이틀 ─┬─ 처음이면  로그인(1/6) → 동의(2/6) → 마이크(3/6) → 비밀번호(4/6) → 아이 소개(5/6) → 맞춤 설정(6/6)
  *                                  │            → ⑥ 기능 안내(보호자) → ⑦ 건네기 → ⑧ 방 둘러보기(아이) → ⑨ 말해 보기 ─┐
  *                                  ├─ 로그인이 풀렸거나 약관 판이 바뀌었으면  다시 로그인 → (판이 바뀌었으면) 다시 동의 ─┤
  *                                  └─ 아니면 ──────────────────────────────────────────────────→ ⑨ 오또의 방
@@ -21,7 +21,7 @@ import androidx.compose.runtime.setValue
  *
  * 기억(폰 안): 처음 설정을 끝냈나 · 튜토리얼을 봤나. 계정은 `net/Account.kt`, 동의는 `ConsentStore`(원래 것 그대로).
  */
-enum class Step { CLAP, TITLE, LOGIN, EMAIL, CONSENT, MIC, PIN, SETUP, HANDOFF, TUTORIAL_TAP, TUTORIAL_TALK, FEATURES, EXPIRED, APP }
+enum class Step { CLAP, TITLE, LOGIN, EMAIL, CONSENT, MIC, PIN, CHILD_INTRODUCTION, SETUP, HANDOFF, TUTORIAL_TAP, TUTORIAL_TALK, FEATURES, EXPIRED, APP }
 
 /** 부모 영역에서 여는 큰 창 */
 enum class Sheet { NONE, WITHDRAW_INFO, WITHDRAW_VERIFY, WITHDRAW_CONFIRM, PIN_CHANGE, STAR_GATE, STAR_SHOP }

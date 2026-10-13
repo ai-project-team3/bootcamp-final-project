@@ -4,6 +4,8 @@ import com.example.finalproject_demo.demo.scene.FRIEND_SPOT
 import com.example.finalproject_demo.demo.scene.HERO_SPOT
 import com.example.finalproject_demo.demo.scene.PROBLEM_SPOT
 import com.example.finalproject_demo.ui.HeroAttr
+import com.example.finalproject_demo.ui.reasonOrNull
+import com.example.finalproject_demo.ui.CoopReason
 
 /*
  * 장면 3′ — 오늘 있었던 일 (일기 모드 · 부모 협업 모드).
@@ -162,7 +164,11 @@ suspend fun Director.sceneDiary() {
         // 자리가 모자라 남은 부모 질문은 맺음(내일 바람) 앞에서 묻는다 — 부모 질문은 자유 꼬리 자리에만 들어간다 (10-05)
         if (step.bookKey == "keep") askLeftoverParentQuestions()
         if (diaryEnded()) break
-        if (!step.ask(s)) {
+        val cover = s.coopParentCovered(step.slot)
+        // the parent's own feeling question wins over a feeling picked up on the way (#460 ⑤ — user's decision):
+        // the feeling step runs even though an earlier answer filled the slot, so the parent's answer can take it
+        val parentFeeling = step.slot == "reaction" && cover != null
+        if (!parentFeeling && !step.ask(s)) {
             log("[${step.part} · ${step.bookKey}] 건너뜀 — 앞의 답에 물을 데가 없다 (소크라틱: 아이가 한 말에서 다음 질문이 나온다)")
             continue
         }
@@ -171,11 +177,13 @@ suspend fun Director.sceneDiary() {
         if (step.required && diaryFilled(step.slot)) {
             log("[${step.part} · ${step.bookKey}] 건너뜀 — 앞의 답에서 이미 찼다 (${s.slotBy[step.bookKey] ?: "?"}) · 같은 걸 두 번 묻지 않는다")
             s.coopCoverPart(step.variant.id)
-        } else if (!diaryFilled(step.slot) && s.coopParentCovered(step.slot) != null) {
+        } else if (cover != null && (parentFeeling || !diaryFilled(step.slot))) {
             // the parent's question already asked this — its answer fills the step instead of the same question again
-            val said = s.coopParentCovered(step.slot)!!
-            log("[${step.part} · ${step.bookKey}] 건너뜀 — 부모 질문이 이미 같은 걸 물었다 · 그 답 「$said」로 채운다")
-            setDiarySlot(step.slot, step.bookKey, said, said, "child")
+            log("[${step.part} · ${step.bookKey}] 건너뜀 — 부모 질문이 이미 같은 걸 물었다 · 그 답 「${cover.said}」(${cover.by})로 채운다" +
+                (s.reaction?.takeIf { parentFeeling }?.let { " · 앞 답의 마음 「$it」은 책에서 빼고 리포트 마음 말하기에만 남는다" } ?: ""))
+            val line = if (parentFeeling) coopParentFeelingLine(cover.said) else cover.said
+            setDiarySlot(step.slot, step.bookKey, cover.said, line, cover.by)
+            if (parentFeeling) noteFeeling(cover.said)
             s.coopCoverPart(step.variant.id)
         } else askDiaryStep(step)
         drawCoopBackground()                    // 장소 칸이 찼으면 그곳으로 배경을 그린다 — 기다리지 않는다 (10-05 · CoopServerLine.kt)
@@ -317,14 +325,42 @@ private fun Director.keepChildAnswer(step: DiaryStep): Boolean {
     return true
 }
 
+/** An answer that only expects or supposes — 「그럼 속상할 거야」 · 「무서울 것 같아」 · 「비가 오면 …」 */
+private val EXPECTED_FEELING = Regex("거야|거예요|것 같|까 봐|겠어|면\\s")
+
+/**
+ * The book's feeling line from the answer to a parent's feeling question — 「설레」 → 「친구는 설레는 마음이었어요」.
+ * An answer this cannot read as a short feeling is quoted as said (「친구는 ‘동물 본다’라는 마음이었어요」) (#460 ⑤)
+ */
+private fun Director.coopParentFeelingLine(said: String): String {
+    val c = s.childName
+    val t = said.trim().trimEnd('.', '!', '?', '~', ' ')
+    val felt = feelingNow(t) ?: "‘$t’${if (bat(t)) "이라는" else "라는"}"
+    return "$c${eun(c)} $felt 마음이었어요"
+}
+
+/** A feeling the child said in answer to a parent's question — counted in the report's 마음 말하기 like any other (#460 ⑤) */
+private fun Director.noteFeeling(said: String) {
+    val word = said.trim().trimEnd('.', '!', '?', '~', ' ').removeSuffix("요").ifBlank { return }
+    s.feelings += word
+    event("emotion_mention", "text" to word)
+}
+
 /** 말로 답했을 때 따라오는 것들 — 마음 · 이름 사전 · 같이 있던 사람 · 순차 답 함정 */
 private fun Director.afterDiaryAnswer(step: DiaryStep, a: Answer) {
     val c = s.childName
 
     // 마음을 말했으면 선택 칸 reaction 이 찬다. 마음 말하기는 수준 판단에 쓰지 않는다 (일기 §2-2 · 안치영 #4)
     if (a.emo.isNotEmpty() && s.reaction == null && step.slot != "reaction") {
+        // a feeling the child only expects (「그럼 속상할 거야」 · a 「곧 해요」 story) is not told as one that was (#460 ⑤)
+        val ahead = s.isCoop && (s.coopPick?.reasonOrNull() == CoopReason.SOON || EXPECTED_FEELING.containsMatchIn(a.text))
         val felt = feelingPhrase(a.emo)                 // 서버 판정은 「신나다」 · 「떨려」 꼴도 준다 — 「신나다던」이 되지 않게 (CoopReport.kt)
-        setDiarySlot("reaction", "reaction", "$felt 마음", "$c${eun(c)} $felt 마음이 한참 남았어요", "child")
+        val will = feelingAhead(a.emo)
+        when {
+            !ahead -> setDiarySlot("reaction", "reaction", "$felt 마음", "$c${eun(c)} $felt 마음이 한참 남았어요", "child")
+            will != null -> setDiarySlot("reaction", "reaction", "$will 것 같은 마음", "$c${eun(c)} $will 것 같았어요", "child")
+            else -> setDiarySlot("reaction", "reaction", "$felt 마음", "$c${eun(c)} $felt 마음이 들 것 같았어요", "child")
+        }
         log("묻지 않았는데 마음을 말했다 → 선택 칸 reaction 이 찼고, 그 걸음은 건너뛴다 (같은 걸 두 번 묻지 않는다)")
     }
 

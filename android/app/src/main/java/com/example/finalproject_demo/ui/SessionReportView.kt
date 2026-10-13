@@ -107,7 +107,8 @@ private fun SourcePill(by: String, child: String) = when (by) {
 /** 오늘의 기록 — 한 권의 리포트. [onTalk] 은 「대화 전체 보기」 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SessionReportView(r: SessionReport, child: String, onTalk: () -> Unit, modifier: Modifier = Modifier) {
+fun SessionReportView(r: SessionReport, child: String, onTalk: () -> Unit, modifier: Modifier = Modifier,
+                      afterSpeech: @Composable () -> Unit = {}) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         // 머리 — 표지 · 날짜 · 오늘 만든 책
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -150,6 +151,7 @@ fun SessionReportView(r: SessionReport, child: String, onTalk: () -> Unit, modif
 
         if (r.mode == "story") SpeechObservationsView(
             com.example.finalproject_demo.demo.summarizeSpeech(r.talk), "이번 동화의 말 기록")
+        afterSpeech()
 
         // 이야기의 뼈대 — 세로 줄 (긴 말도 깨지지 않게 · 시안 수정)
         if (r.bones.isNotEmpty()) RCard(Modifier.fillMaxWidth()) {
