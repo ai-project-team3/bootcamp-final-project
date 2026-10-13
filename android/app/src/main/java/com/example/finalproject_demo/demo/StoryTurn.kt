@@ -322,8 +322,8 @@ suspend fun DemoState.exchangeTurn(
             it.options?.map { option -> mask.unmask(option).trim() }?.filter(String::isNotBlank)?.take(3)
                 ?.takeIf(List<String>::isNotEmpty))
     }
-    // act · retract (#323) ride along — the result is rebuilt here, so they must be carried over
-    return Server.TurnResult(verdict, line, response.act, response.retract)
+    // act · retract (#323) · refused (#405) ride along — the result is rebuilt here, so they must be carried over
+    return Server.TurnResult(verdict, line, response.act, response.retract, response.refused)
 }
 
 /** Story owns how to apply the result; other modes use exchangeTurn without changing their state. */
