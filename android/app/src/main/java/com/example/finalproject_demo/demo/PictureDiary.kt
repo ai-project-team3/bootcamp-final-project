@@ -1312,13 +1312,6 @@ private suspend fun Director.askPictureSlot(pq: PictureQuestion): String? {
         // 대본 답은 값이 붙어 온다(빈 값 = 「몰라」 · 「그냥」). 서버 모드의 답에는 값이 없다 — 글자를 읽는다
         val raw = r.answer?.value?.takeIf { it.isNotBlank() }
         val said = if (r.answer != null) raw.orEmpty() else r.text.trim().takeUnless { dontKnow(it) }.orEmpty()
-        // 「내일」에 「없어」 — 하고 싶은 게 없다는 답이다. 다시 묻지 않고 칸을 비워 둔다 (10-05 실기기 · 「없어」가 내일 칸에 들어갔다)
-        if (pq.key == "keep" && r.answer == null && saysNothing(r.text)) {
-            log("[keep] 「${r.text.trim()}」 — 하고 싶은 게 없다 → 비워 둔다. 다시 묻지 않는다")
-            say("그렇구나!")
-            pause(700)
-            return null
-        }
         if (said.isEmpty()) {
             if (tries == 0) { log("「몰라」 → 한 번만 쉽게 바꿔 묻는다"); text = pq.easy; continue }
             log("[${pq.key}] 또 모른다 → 비워 둔다. 마스코트가 대신 채우지 않는다")
@@ -1571,16 +1564,6 @@ private suspend fun Director.askEmptySlotsLive() {
             next = afterGivingUp(gaveUp + key)
             continue
         }
-        // 「내일」에 「없어」 — 판정에 보내면 「없어」가 내일 칸에 들어간다. 비워 두고 다시 묻지 않는다 (10-05 실기기)
-        if (key == "keep" && saysNothing(r.text)) {
-            judge(step?.variant, r, q.text)
-            log("[keep] 「${r.text.trim()}」 — 하고 싶은 게 없다 → 비워 둔다. 다시 묻지 않는다")
-            say("그렇구나!")
-            pause(700)
-            gaveUp += key
-            next = firstEmptyQuestion(gaveUp)?.let { withClue(day, it) }
-            continue
-        }
         day.turnCalls++                            // #30 — 세기만 한다
         // 요청 함수를 넘기지 않는다 — 넘기면 Kotlin IR 백엔드가 StoryTurn.kt 에서 죽는다(AddContinuationLowering · 10-01)
         // 지난 턴들을 같이 보낸다 — 「그거 아니야」가 무엇을 아니라고 하는지 서버가 알게 (#323)
@@ -1608,6 +1591,18 @@ private suspend fun Director.askEmptySlotsLive() {
             el = if (v.s2Addition) setOf("추가") else emptySet(),
             emo = v.emotion.orEmpty(),
         )), q.text)
+        // 「내일」에 「없어」 — 판단기가 거부로 확신하면 비워 두고 다시 묻지 않는다. 판정이 채운 「없어」는 쓰지 않는다
+        // (10-05 실기기 · #405 — 전에는 낱말 정규식이었다. 아이 말을 낱말로 맞추지 않는다)
+        if (key == "keep" && result.refused) {
+            log("[keep] 판단기 — 하고 싶은 게 없다 → 비워 둔다. 다시 묻지 않는다 (#405)")
+            say("그렇구나!")
+            pause(700)
+            gaveUp += key
+            // 이야기가 다 모였으면(판정 ready) 「내일」 뒤에 빈 「누구랑」을 다시 묻지 않는다 — 다른 칸을 비워 둘 때와 같다
+            if (v.storyReady && s.endReason == null) s.endReason = "story_ready"
+            next = afterGivingUp(gaveUp)?.let { withClue(day, it) }
+            continue
+        }
         // 아이가 틀렸다고 한 칸부터 되돌린다 — 같은 턴의 새 값은 그 뒤에 채운다 (#323)
         result.retract.forEach { gone -> restoreDiarySlot(gone, bookKeyOf(gone, key), prevOf(day, gone)) }
         val filled = v.fills.filter { (fs, value) -> fs in Server.SLOTS && value.isNotBlank() }
@@ -2201,6 +2196,17 @@ private suspend fun Director.askTitle() {
     val r = ask(q)
     val t = (r as? Reply.Spoke)?.text?.trim()?.trimEnd('.', '!', '?', '~')?.trim()
     if (t.isNullOrEmpty() || dontKnow(t)) { log("제목을 못 들었다 → 지금 제목 그대로"); return }
+    // 「없어」 · 「안 지을래」가 제목이 되지 않게 — 판단기가 거부로 확신하면 지금 제목 그대로 (#405 · 10-12 실기기).
+    // 거부 신호만 쓴다: 판정이 채운 다른 칸 · 오또 대사는 버리고, 이 턴은 대화 기록(talk)에 넣지 않는다. 서버가 없으면 지금처럼 아이 말 그대로
+    if (Server.liveFor(s.mode)) {
+        s.diaryDay.turnCalls++                      // #30 — 세기만 한다
+        if (s.exchangeTurn("diary", "title", q.text, t, history = s.diaryDay.talk.toList())?.refused == true) {
+            log("제목 「$t」 — 판단기가 거부로 봤다 → 지금 제목 그대로 (#405)")
+            say("그렇구나!")
+            pause(700)
+            return
+        }
+    }
     s.slots["title"] = t
     s.slotBy["title"] = "child"
     s.title = t
@@ -2248,11 +2254,6 @@ private fun saysWhatWasDrawn(text: String): Boolean {
     val t = text.trim().trimEnd('.', '!', '?', '~', '…', ' ')
     return DREW.containsMatchIn(t) && !NEW_ONE.containsMatchIn(t) && t.split(Regex("\\s+")).size <= 4
 }
-private val NOTHING = Regex("(없어|없어요|없는데|없다|없을걸)[.!~ ]*$|^(음+ )?(아니|아니요|아니야)[.!~ ]*$")
-
-/** 「내일 또 하고 싶은 거 있어?」에 「없어」 · 「아니」 — 하고 싶은 게 없다. 칸을 채우지 않는다 */
-internal fun saysNothing(text: String): Boolean = NOTHING.containsMatchIn(text.trim())
-
 
 /**
  * 「우리 집이야!」 → 「우리 집」 · 「아니, 블록이야」 → 「블록」 · 「이건 강아지야」 → 「강아지」. 대본 답에는 값이 붙어 있어 그대로 쓴다.
