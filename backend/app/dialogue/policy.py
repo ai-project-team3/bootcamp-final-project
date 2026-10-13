@@ -41,6 +41,13 @@ def act_for(d: Decision | None) -> Optional[Act]:
     return ACTS.get(d.intent)
 
 
+def refused(d: Decision | None) -> bool:
+    """The child would rather not answer — at the costly floor, like a correction (#405). No act follows."""
+    if d is None or d.intent != "refuse":
+        return False
+    return d.intent_conf is None or d.intent_conf >= FLOOR_COSTLY
+
+
 def _last_filled(req: TurnRequest) -> str | None:
     """The slot Otto last wrote down — what a bare 「그거 아니야」 most likely points at."""
     for h in reversed(req.history or []):

@@ -51,6 +51,18 @@ def test_refusal_is_left_to_the_modes_own_ladder():
     assert policy.act_for(d("refuse")) is None
 
 
+def test_a_sure_refusal_is_signalled_but_takes_no_act():
+    # 「없어」 to 「내일 또 하고 싶은 거 있어?」 — the phone leaves that slot empty (#405); the verdict stays as it is
+    assert policy.refused(d("refuse")) and policy.act_for(d("refuse")) is None
+
+
+def test_a_refusal_needs_the_costly_floor_to_be_signalled():
+    # taking a real answer for 「I'd rather not」 throws the child's words away — same 0.8 as a correction
+    assert not policy.refused(d("refuse", conf=0.7))
+    assert policy.refused(d("refuse", conf=0.8))
+    assert not policy.refused(d("answer")) and not policy.refused(None)
+
+
 def test_a_child_still_telling_is_a_plain_turn_this_round():
     assert policy.act_for(d("continue")) is None
 
