@@ -325,12 +325,12 @@ fun YearPad(onPass: () -> Unit, modifier: Modifier = Modifier, note: String = "�
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     row.forEach { k ->
                         if (k.isEmpty()) Spacer(Modifier.width(54.dp)) else Box(
-                            Modifier.width(54.dp).height(44.dp).clip(RoundedCornerShape(12.dp)).background(WoolCream)
+                            Modifier.width(54.dp).height(48.dp).clip(RoundedCornerShape(12.dp)).background(WoolCream)
                                 .clickable(enabled = waitLeft == 0) {
                                     digits = if (k == "⌫") digits.dropLast(1) else if (digits.length < 4) digits + k else digits
                                 },
                             contentAlignment = Alignment.Center,
-                        ) { Text(k, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = InkBrown) }
+                        ) { Text(k, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = InkBrown) }
                     }
                 }
             }
@@ -378,15 +378,16 @@ fun PinPad(title: String, note: String, onDone: (String) -> Boolean, modifier: M
             }
         }
     }
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = InkBrown)
             Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.scale(if (shake) 0.97f else 1f)) {
+            // four dots must fit beside the keypad on a 640dp-wide phone — at 22dp · 12dp apart the fourth was cut off
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.scale(if (shake) 0.97f else 1f)) {
                 repeat(4) { i ->
                     val filled = i < digits.length
                     Box(
-                        Modifier.size(22.dp).clip(CircleShape)
+                        Modifier.size(20.dp).clip(CircleShape)
                             .background(if (filled) FeltCoral else FeltWhite)
                             .border(2.dp, if (filled) FeltCoral else if (i == digits.length) FeltCoral.copy(alpha = 0.6f) else InkBrown.copy(alpha = 0.18f), CircleShape),
                     )
@@ -407,12 +408,12 @@ fun PinPad(title: String, note: String, onDone: (String) -> Boolean, modifier: M
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     row.forEach { k ->
                         if (k.isEmpty()) Spacer(Modifier.width(58.dp)) else Box(
-                            Modifier.width(58.dp).height(46.dp).clip(RoundedCornerShape(14.dp)).background(WoolCream)
+                            Modifier.width(58.dp).height(48.dp).clip(RoundedCornerShape(14.dp)).background(WoolCream)
                                 .clickable(enabled = waitLeft == 0) {
                                     digits = if (k == "⌫") digits.dropLast(1) else if (digits.length < 4) digits + k else digits
                                 },
                             contentAlignment = Alignment.Center,
-                        ) { Text(k, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = InkBrown) }
+                        ) { Text(k, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = InkBrown) }
                     }
                 }
             }
