@@ -2,6 +2,7 @@ package com.example.finalproject_demo
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.finalproject_demo.demo.ART_STYLES
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.Director
 import com.example.finalproject_demo.demo.LocalStoryBookStore
@@ -29,6 +30,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.File
 
 /**
  * 책의 그림체 (10-07 종훈 · 크레용 아이 그림체 · 결정 27) — 다음 책부터, 세계 그림만, 구운 그림이 없으면 펠트.
@@ -59,6 +61,26 @@ class WorldStyleTest {
         assertFalse(WorldStyle.kitReady(park, "crayon") { false })
         assertFalse("one felt piece left", WorldStyle.kitReady(park, "crayon") { n -> n.removeSuffix("_crayon") in pieces.drop(1) })
         assertTrue(WorldStyle.kitReady(park, "crayon") { n -> n.removeSuffix("_crayon") in pieces })
+    }
+
+    /**
+     * A style the parent can pick is baked for the whole world (10-13 · crayon turned on) — else a book would mix felt
+     * and crayon on one stage. Kit grounds are left out on purpose: a crayon book has colour + fibre only (#265 review)
+     */
+    @Test fun aStyleTheParentCanPickHasEveryWorldPictureBaked() {
+        val res = listOf("src/main/res/drawable-nodpi", "src/main/res/drawable").map(::File)
+        assertTrue("res folder not found: ${res[0].absolutePath}", res[0].isDirectory)
+        val names = res.flatMap { it.list().orEmpty().map { f -> f.substringBeforeLast('.') } }.toSet()
+        val others = ART_STYLES.map { "_${it.key}" }
+        val world = names.filter { n -> others.none(n::endsWith) && WorldStyle.isWorld(n) && !(n.startsWith("kit_") && n.endsWith("_ground")) }
+        assertTrue("no world pictures found", world.size > 100)
+        ART_STYLES.filter { it.ready && it.key != "felt" }.forEach { st ->
+            val missing = world.filter { "${it}_${st.key}" !in names }
+            assertTrue("${st.name} is ready but these are not baked: $missing", missing.isEmpty())
+            SceneKits.all.values.forEach { kit -> assertTrue("${kit.key} kit not in ${st.key}", WorldStyle.kitReady(kit, st.key) { it in names }) }
+            assertTrue("no sample picture for ${st.key}", st.img in names)
+        }
+        assertEquals("the parent can pick felt and crayon", listOf("felt", "crayon"), ART_STYLES.filter { it.ready }.map { it.key })
     }
 
     @Test fun theStyleIsTakenWhenABookStartsAndKeptForThatBook() {

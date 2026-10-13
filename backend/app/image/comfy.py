@@ -29,11 +29,12 @@ NEG = ("text, letters, words, watermark, signature, photo, photorealistic, 3d re
 W, H = 1344, 768
 
 # Crayon (10-07 종훈 picked 「크레용 아이 그림체」 from four candidates: thick hand-drawn outlines, waxy fill).
-# ⚠️ Not measured yet — the app keeps it off (ART_STYLES ready=false) until PC2 timing / cut-out / moderation
-# numbers are in eval/results.md, as felt's were (eval/bench_felt_style.py · bench_felt_character.py).
-CRAYON_BG_STYLE = (", wide landscape, no characters, no people, no animals, children's crayon drawing illustration, "
-                   "thick dark brown hand-drawn outlines, waxy crayon texture fill, simple flat rounded shapes, "
-                   "bright warm colors, on white paper, cute, no text, no letters")
+# Measured 10-13 on PC2 (eval/bench_crayon_style.py · eval/results.md): same time as felt, characters cut out 8/8.
+# The first background words came out as grey pencil sketches on SDXL Lightning (3 of 4 places) — 「crayon」 alone
+# reads as a sketch, and at cfg 1.0 the negative barely counts. Naming the colours and 「oil pastel」 keeps them coloured
+CRAYON_BG_STYLE = (", wide landscape, no characters, no people, no animals, bright colorful oil pastel and crayon drawing "
+                   "by a child, thick waxy strokes, bold dark brown outlines, simple big rounded shapes, saturated sky blue, "
+                   "grass green, sunny yellow and coral, cute naive picture book art, white paper, no text, no letters")
 CRAYON_NEG = ("text, letters, words, watermark, signature, photo, photorealistic, 3d render, 3d, felt, wool, fabric, "
               "plastic, glossy, blurry, ugly, scary, dark, horror, "
               "nudity, blood, weapon, gore")

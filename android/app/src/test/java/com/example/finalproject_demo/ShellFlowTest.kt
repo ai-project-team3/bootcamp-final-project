@@ -90,7 +90,7 @@ class ShellFlowTest {
         repeat(2) { "1234".forEach { tap(it.toString()) }; compose.mainClock.advanceTimeBy(600); compose.waitForIdle() }
         waitText("우리 아이에게 맞춰요"); shot("05_setup_empty")
         compose.onNode(hasText("설정 끝") and hasClickAction()).assertIsNotEnabled()
-        tap("2권"); tap("양모"); tap("받지 않아요")
+        tap("2권"); tap("펠트"); tap("받지 않아요")
         shot("06_setup_done")
         tap("설정 끝")
         guideAndTutorial()

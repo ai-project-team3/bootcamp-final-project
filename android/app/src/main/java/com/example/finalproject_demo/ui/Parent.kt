@@ -1107,7 +1107,7 @@ private fun SettingsTab(d: Director) {
                     .weight(1f)
                     .felt(FeltWhite, RoundedCornerShape(16.dp), lift = if (on) 4.dp else 1.dp, texture = false, stitch = false)
                     .border(if (on) 3.dp else 0.dp, if (on) PAccent else Color.Transparent, RoundedCornerShape(16.dp))
-                    .clickable { d.send(Reply.Tapped("set:style:${st.key}", st.name)) }
+                    .clickable { d.send(Reply.Tapped("set:style:${st.key}", st.name)); com.example.finalproject_demo.ui.shell.Shell.saveStyle(st.key) }
                     .padding(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
