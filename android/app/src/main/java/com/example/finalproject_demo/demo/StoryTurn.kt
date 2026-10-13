@@ -36,23 +36,45 @@ private fun DemoState.rememberStoryQuestion(response: Server.TurnResult) {
 }
 
 /** 서버 판정을 동화 모드의 자료와 다음 질문에 반영한다. 서버 호출과 이름 가리기는 공통 경로가 담당한다. */
-fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
-    if (mode != StoryMode.STORY) return
-    if (verdict.reason == "blocked_by_filter") return
+/** What [applyStoryVerdict] did with who-slot sentences — the slot to ask once more, and the sentences it turned away */
+data class StoryWhoGuard(val reask: String? = null, val rejected: List<String> = emptyList())
+
+fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String, askedSlot: String? = null): StoryWhoGuard {
+    if (mode != StoryMode.STORY) return StoryWhoGuard()
+    if (verdict.reason == "blocked_by_filter") return StoryWhoGuard()
     require(by in setOf("child", "card", "mascot"))
 
+    var reask: String? = null
+    val rejected = mutableListOf<String>()
     for ((slot, rawValue) in verdict.fills) {
         // 「숲속에 갔어」 is 숲속 — the place without the child's sentence around it (StoryPlaceWords.kt).
         // 「뽀뽀야」 is 뽀뽀 — the name without the child's copula (StoryNameCall.kt). Only spoken words carry one:
         // a picked card or mascot name is kept as it is (「카구야」 · #380 review)
-        val value = when {
+        var value = when {
             slot == "place" -> storyPlaceFromSentence(rawValue)
             slot == "name" && by == "child" -> storyNameWithoutCopula(rawValue)
             else -> rawValue.trim()
         }
+        var source = by
         if (slot !in Server.SLOTS || value.isEmpty() || (slot == "adult" && !hasPartner)) continue
+        if (slot in STORY_WHO_SLOTS && storyLooksLikeSentence(value)) {
+            val said = value
+            rejected += said
+            value = (if (slot == "newcomer") storyNameInSentence(said) else null) ?: run {
+                keepWhoSentence(said, by)
+                // asked once more; after that the newcomer is just 「새 친구」 and a name stays empty.
+                // Filled while another slot was asked, it is left empty — no friend is made up
+                if (slot != askedSlot) ""
+                else if (storyWhoReasked.add(slot)) { reask = slot; "" }
+                // the app chose 「새 친구」, the child did not say it — mascot (rule 5 · #375 review)
+                else if (slot == "newcomer") STORY_NEW_FRIEND.also { source = "mascot"; storyAppNamed = it } else ""
+            }
+            Trace.line("story_verdict", "who-slot [$slot] got a sentence → ${if (value.isEmpty()) "not filled" else "「$value」"}" +
+                if (reask == slot) " · asked again" else "")
+            if (value.isEmpty()) continue
+        }
         slots[slot] = value
-        slotBy[slot] = by
+        slotBy[slot] = source
     }
 
     verdict.noLongerNeeded?.takeIf { it in Server.SLOTS }?.let {
@@ -62,10 +84,27 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String) {
     if (verdict.storyReady) endReason = "story_ready"
     storyNextSlot = verdict.nextSlot?.takeIf {
         !storyReady && it in Server.SLOTS &&
-            it !in storyUnneededSlots && (slots[it].isNullOrBlank() || verdict.unclear)
+            it !in storyUnneededSlots && (slots[it].isNullOrBlank() || verdict.unclear) &&
+            // a who-slot already asked once more is not asked again — the judge kept choosing an empty name (#375 review)
+            !(it in STORY_WHO_SLOTS && it in storyWhoReasked && it != reask)
     }
     storyClarificationSlot = storyNextSlot?.takeIf { verdict.unclear }
+    return StoryWhoGuard(reask, rejected)
 }
+
+/** A turned-away sentence stays in the story as something that happened, with its own source — unless a slot holds it */
+private fun DemoState.keepWhoSentence(said: String, by: String) {
+    if (slots.values.any { said in it }) return
+    val key = WHO_SAID_PREFIX + "%02d".format(slots.keys.count { it.startsWith(WHO_SAID_PREFIX) } + 1)
+    slots[key] = said
+    slotBy[key] = by
+}
+
+/** The question for a who-slot the child answered with a sentence — no server question names that sentence */
+private val WHO_REASK = mapOf(
+    "newcomer" to "그때 만난 친구는 누구였어?",
+    "name" to "그 친구 이름은 뭐라고 부를까?",
+)
 
 suspend fun Director.askStory(
     question: Question, askedSlot: String?,
@@ -98,12 +137,14 @@ suspend fun Director.askStory(
         // an ending turn fills nothing (StoryEndIntent.kt) — no slot_filled for what the judge copied
         response.verdict.fills.filter { it.first in Server.SLOTS && it.second.isNotBlank() &&
             (it.first != "adult" || s.hasPartner) && !(by == "child" && storyEndIntent(utterance)) }.forEach { (slot, value) ->
-            val logged = when {
-                slot == "place" -> storyPlaceFromSentence(value)
-                slot == "name" && by == "child" -> storyNameWithoutCopula(value)
-                else -> value
+            // a who-slot keeps what the guard put there (StoryNameGuard.kt) — nothing when it is asked again,
+            // and the app's 「새 친구」 with its mascot source
+            if (slot !in STORY_WHO_SLOTS) {
+                val logged = if (slot == "place") storyPlaceFromSentence(value) else value
+                event("slot_filled", "slot" to slot, "value" to logged, "source" to by)
+            } else s.slots[slot]?.takeIf(String::isNotBlank)?.let {
+                event("slot_filled", "slot" to slot, "value" to it, "source" to (s.slotBy[slot] ?: by))
             }
-            event("slot_filled", "slot" to slot, "value" to logged, "source" to by)
         }
         val line = response.line
         // the question's voice is made while the ack is voiced and played, not after (10-05 trace: −2.5 s a turn)
@@ -111,6 +152,12 @@ suspend fun Director.askStory(
         val reaction = storyReaction(line?.ack, line?.expand)
         if (reaction.isNotBlank()) {
             say(reaction)
+            pause(600)
+        }
+        // the app chose a name the child did not say — the child hears it once, it is not filled silently (guidelines/7 §3-2 · #375 review)
+        s.storyAppNamed?.let { named ->
+            s.storyAppNamed = null
+            say("그럼 그 친구는 「$named」라고 부를게!")
             pause(600)
         }
         // Real STT replies carry no scripted Answer. Keep the child's exact words for the
@@ -122,6 +169,7 @@ suspend fun Director.askStory(
             reason = verdict.s1Reason,
             el = if (verdict.s2Addition) setOf("추가") else emptySet(),
             emo = verdict.emotion.orEmpty(),
+            con = storyHasLinkingExpression(reply.text),
         ))
     }
 }
@@ -233,6 +281,8 @@ internal suspend fun Director.notifyStorySoundChoice(prompt: StoryPrompt) {
 
 suspend fun DemoState.exchangeTurn(
     mode: String, askedSlot: String?, question: String, utterance: String,
+    /** the session so far (#323 · diary). Null for every other caller — the request is unchanged */
+    history: List<Server.HistoryTurn>? = null,
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult? {
     if (utterance.isBlank()) return null
@@ -256,6 +306,13 @@ suspend fun DemoState.exchangeTurn(
         reason = if (mode == "coop") coopStoryReason() else null,
         names = mask.names,
         partner = partnerWire(mode),
+        history = history?.map { h ->
+            h.copy(
+                otto = Server.OttoSaid(h.otto.ack?.let(mask::mask), h.otto.expand?.let(mask::mask), h.otto.question?.let(mask::mask)),
+                child = mask.mask(h.child),
+                fills = h.fills.map { f -> f.copy(value = mask.mask(f.value), prev = f.prev?.let(mask::mask)) },
+            )
+        },
     )) ?: return null
     val verdict = response.verdict?.copy(
         fills = response.verdict.fills.map { (slot, value) -> slot to mask.unmask(value) },
@@ -265,7 +322,8 @@ suspend fun DemoState.exchangeTurn(
             it.options?.map { option -> mask.unmask(option).trim() }?.filter(String::isNotBlank)?.take(3)
                 ?.takeIf(List<String>::isNotEmpty))
     }
-    return Server.TurnResult(verdict, line)
+    // act · retract (#323) ride along — the result is rebuilt here, so they must be carried over
+    return Server.TurnResult(verdict, line, response.act, response.retract)
 }
 
 /** Story owns how to apply the result; other modes use exchangeTurn without changing their state. */
@@ -278,8 +336,20 @@ suspend fun DemoState.exchangeStoryTurn(
     return exchangeTurn("story", askedSlot, question, utterance, request = request)?.also { response ->
         // ending words are no story — the judge copied 「그만할래」 into the asked solution (10-09 device · Laya v5)
         val ending = by == "child" && storyEndIntent(utterance)
-        response.verdict?.let { applyStoryVerdict(if (ending) it.copy(fills = emptyList()) else it, by) }
+        val guard = response.verdict?.let { applyStoryVerdict(if (ending) it.copy(fills = emptyList()) else it, by, askedSlot) }
+            ?: StoryWhoGuard()
         rememberStoryQuestion(response)
+        val reask = guard.reask
+        if (reask != null) {
+            storyNextSlot = reask; storyClarificationSlot = null
+            storyServerQuestion = WHO_REASK.getValue(reask); storyAnswerOptions = null
+        } else if (guard.rejected.any { said -> storyServerQuestion?.contains(said) == true }) {
+            // the server's next question names a turned-away sentence (「바람이 불어서 나무가 쓰러졌어는 어떻게 생겼어?」) —
+            // never asked: the appearance path would write its head back into the newcomer (#375 review P1)
+            Trace.line("story_verdict", "next question names a turned-away sentence → app question")
+            storyServerQuestion = storyNextSlot?.let(WHO_REASK::get); storyAnswerOptions = null
+            if (storyServerQuestion == null) storyClarificationSlot = null
+        }
         // 「이제 끝이야」 — the judge does not always end; the child's ending words do (StoryEndIntent.kt)
         if (response.verdict != null && response.verdict.reason != "blocked_by_filter") applyStoryEndIntent(utterance, by)
         val verdict = response.verdict

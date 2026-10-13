@@ -351,6 +351,7 @@ class Director(
         s.parentCard = null
         s.speaker = who
         s.line = text
+        if (who == "마스코트") s.ottoSaid = text
         s.lineId++
         com.example.finalproject_demo.net.Trace.line(if (who == "마스코트") "otto" else "said:$who", text)
         if (who == "마스코트" && surprise.containsMatchIn(text)) feel(Mood.SURPRISED)
@@ -941,6 +942,14 @@ class Director(
         Bgm.hold("pause")
         if (s.micOn) { stopMic = true; micJob?.cancel(); s.micOn = false }
         log("⏸ 일시정지 — 목소리 · 녹음을 멈추고 흐름을 세운다")
+    }
+
+    /** The hold ends without the replay — for leaving the pause by ending the story (CoopScenes.kt stopCoopFromPause) */
+    fun liftHold() {
+        if (!s.holding) return
+        s.holding = false
+        Bgm.resume("pause")
+        log("⏸ 일시정지에서 「마치기」")
     }
 
     /** ▶ 이어 하기 — 멈출 때 말하던 대사를 다시 들려준다(끊겼으니) */

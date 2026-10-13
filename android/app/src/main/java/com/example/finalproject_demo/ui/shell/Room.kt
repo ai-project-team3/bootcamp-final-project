@@ -683,6 +683,8 @@ fun ConfirmDialog(
     art: String? = null,
     /** 모드 색 — 테두리 · 제목 띠 */
     accent: Color = FeltMustard,
+    /** an optional third button between [no] and [yes] (⏸ in a co-op story: 「마치기」 · 10-12 user) */
+    extra: Pair<String, String>? = null, onExtra: () -> Unit = {},
 ) {
     val top = if (art != null) 70.dp else 34.dp
     // 창 안을 눌러도 뒤로 새지 않게 — 버튼 말고는 아무 일도 없다
@@ -699,9 +701,12 @@ fun ConfirmDialog(
                 if (detail != null) ParentText { Text(detail, fontSize = 13.sp, color = InkSoft, modifier = Modifier.padding(top = 4.dp), maxLines = 1) }
                 if (note != null) ParentText { Text(note, fontSize = 11.sp, color = InkSoft.copy(alpha = 0.8f), maxLines = 1) }
                 Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(if (extra != null) 12.dp else 22.dp)) {
                     if (no != null) FeltButton(WoolCream, onClick = onNo, modifier = Modifier.width(120.dp).height(76.dp), shape = RoundedCornerShape(26.dp)) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(no.first, fontSize = 26.sp, color = InkBrown); Text(no.second, fontSize = 16.sp, color = InkBrown) }
+                    }
+                    if (extra != null) FeltButton(WoolCream, onClick = onExtra, modifier = Modifier.width(120.dp).height(76.dp), shape = RoundedCornerShape(26.dp)) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(extra.first, fontSize = 26.sp, color = InkBrown); Text(extra.second, fontSize = 16.sp, color = InkBrown) }
                     }
                     FeltButton(FeltTeal, onClick = onYes, modifier = Modifier.width(120.dp).height(76.dp), shape = RoundedCornerShape(26.dp)) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(yes.first, fontSize = 26.sp, color = FeltWhite); Text(yes.second, fontSize = 16.sp, color = FeltWhite) }
@@ -802,31 +807,15 @@ fun KidTopBar(d: Director, modifier: Modifier = Modifier, lock: Boolean = true) 
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         // 「방으로 갈까?」 확인은 화면 전체를 덮어야 해서 앱 틀(OttoShell)이 그린다
         // 보이는 크기 48dp · 누르는 자리 56dp — 자리 사이 4dp 라 보이는 버튼 사이는 12dp (10-01 — 56dp 원이 바짝 붙어 답답했다)
-        TopSlot({ Shell.askHome = true }, Modifier.size(TopSlot)) {
+        // co-op has neither 🏠 nor 「그만하기」 up here: the ⏸ top right already leaves to the room and now also ends the story
+        // (10-12 user — the two corners did the same things)
+        if (!d.s.isCoop) TopSlot({ Shell.askHome = true }, Modifier.size(TopSlot)) {
             FeltButton(WoolCream, onClick = { Shell.askHome = true }, modifier = Modifier.size(TopFace), shape = CircleShape) { Text("🏠", fontSize = 21.sp) }
         }
         // 🔒 부모 문 — 그림일기 화면에는 없다(판을 넓게 · 10-05 진웅). 방 · 다른 모드는 그대로
         if (lock) {
             Spacer(Modifier.width(4.dp))
             LockDoor { d.openParent() }
-        }
-        // 같이 만들기 중에만 — 부모 「그만하기」 (#36). 누르면 확인 창을 한 번 더 거친다(아이가 잘못 누르지 않게).
-        // 10-01 — 옆 🏠 · 🔒 와 같은 펠트 버튼(크림 펠트 · 바느질 · 같은 높이 · 누르면 꾹)에 ComfyUI 펠트 손바닥 그림.
-        // 글씨는 어른용 고딕 그대로 — 어른이 누르는 버튼이다
-        val s = d.s
-        // 그리기 단계에도 둔다 — 이야기 칸이 다 차 끝난 이유가 정해진 뒤라 전에는 사라졌다 (#98)
-        if (s.isCoop && s.scene == com.example.finalproject_demo.demo.Scene.DIARY &&
-            (s.endReason == null || s.stage is com.example.finalproject_demo.demo.Stage.DrawPad)) {
-            Spacer(Modifier.width(4.dp))
-            TopSlot({ Shell.askStop = true }, Modifier.height(TopSlot).padding(horizontal = 4.dp)) {
-                FeltButton(WoolCream, onClick = { Shell.askStop = true }, modifier = Modifier.height(TopFace), shape = RoundedCornerShape(Radius.Round)) {
-                    Row(Modifier.padding(start = 8.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        AssetImage("ic_parent_stop", Modifier.size(32.dp)) { Text("✋", fontSize = 20.sp) }
-                        Spacer(Modifier.width(5.dp))
-                        ParentText { Text("그만하기", fontSize = 14.sp, color = InkBrown, fontWeight = FontWeight.Bold) }
-                    }
-                }
-            }
         }
     }
 }

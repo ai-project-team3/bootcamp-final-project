@@ -58,8 +58,10 @@ def styles(style: str) -> dict:
     return {"bg": BG_STYLE, "neg": NEG, "char": CHAR_STYLE, "char_neg": CHAR_NEG}
 
 
-def workflow(scene: str, seed: int, style: str = "felt") -> dict:
+def workflow(scene: str, seed: int, style: str = "felt", mode: str = "story") -> dict:
     st = styles(style)
+    if mode == "diary":                  # the diary keeps colored pencil whatever the book's style (#264)
+        st = {**st, "bg": DIARY_BG_STYLE, "neg": DIARY_BG_NEG}
     return {
         "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": settings.image_ckpt}},
         "8": {"class_type": "LoraLoaderModelOnly", "inputs": {
@@ -93,9 +95,9 @@ async def _cancel(base: str, pid: str) -> None:
         pass
 
 
-async def background(scene: str, style: str = "felt") -> bytes:
+async def background(scene: str, style: str = "felt", mode: str = "story") -> bytes:
     """PNG bytes. Raises ComfyError; the caller owns the deadline and cancelling cancels the job."""
-    return await run(workflow(scene, random.randrange(2 ** 31), style), front=True)
+    return await run(workflow(scene, random.randrange(2 ** 31), style, mode), front=True)
 
 
 # ── characters: img2img from a posed mannequin (docs/캐릭터_생성_규격.md §8) ──────────

@@ -54,6 +54,9 @@ data class DiaryPiece(
     override fun hashCode() = id
 }
 
+/** 아이 획 없이 오또가 깐 배경 (#264) — 아이가 그린 것 목록 · 조각 질문 · 리포트 횟수에서 빠진다 */
+val DiaryPiece.byOtto: Boolean get() = strokes.isEmpty() && ottoPng != null
+
 /**
  * 날씨 — **지어내지 않는다.** 아이가 해 · 구름 · 비 · 눈을 그리고 그렇게 이름 붙였으면 저절로,
  * 아니면 그림일기 쪽에서 아이가 누른다.
@@ -206,6 +209,16 @@ class DiaryDay {
 
     fun canCallTurn(): Boolean = turnBudget.let { it == null || turnCalls < it }
 
+    /**
+     * 다 그린 뒤 묻고 답한 기록 — 턴마다 하나, `/turn` 에 통째로 다시 보낸다 (#323 · 서버는 턴 사이에 아무것도 갖지 않는다).
+     * 그리는 중 말은 넣지 않는다(2단계 책 만들기에서 더한다). `prev` 는 정정(`retract`)이 되돌릴 값이다
+     */
+    val talk = mutableListOf<com.example.finalproject_demo.net.Server.HistoryTurn>()
+    /** 되묻기 · 못 알아들음 · 값 없는 정정에서 서버 대사(새 음성)를 쓴 수 — [VOICE_GEN_CAP] 넘으면 구운 대사 (#323 · #389) */
+    var voiceGen = 0
+    /** 값을 함께 말한 정정에서 서버 대사(되받기)를 쓴 수 — [REPAIR_VOICE_CAP] 넘으면 구운 앞말만, 칸은 계속 고친다 */
+    var repairVoice = 0
+
     /** 「나도 그려볼까?」에 응한 수 — 그리는 중과 다 그린 뒤를 합쳐 [OTTO_OFFERS] 까지 (#281) */
     var ottoOffers = 0
     /** 다 그린 뒤 이름이 붙어 주문한 오또 그림 — 조각 id → 그림(대본이면 null). D3 가 끝나면 고르게 한다 (#281) */
@@ -213,8 +226,18 @@ class DiaryDay {
     /** D3 에서 새로 나온 물건을 그리러 그림판을 다시 올린 수 — [BOARD_AGAIN_MAX] 까지 (#281) */
     var boardAgain = 0
 
-    /** 이름 붙은 조각의 이름 — 그린 차례대로, 뒤에 [alsoDrawn]. 같은 이름은 한 번만 */
-    val pieceNames: List<String> get() = (pieces.mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) } + alsoDrawn).distinct()
+    /** 이름 붙은 조각의 이름 — 그린 차례대로, 뒤에 [alsoDrawn]. 같은 이름은 한 번만. 오또가 깐 배경([byOtto])은 아이가 그린 것이 아니다(규칙 5) */
+    val pieceNames: List<String> get() = (pieces.filterNot { it.byOtto }.mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) } + alsoDrawn).distinct()
+
+    /** 장소 배경 — 아이가 배경을 안 그렸고 장소를 말하면 묻지 않고 뒤에서 그린다. 책 만들기 전에 거둔다 (#264 · 10-08 종훈 결정) */
+    var placeBg: kotlinx.coroutines.Deferred<ByteArray?>? = null
+
+    /** [placeBg] 를 주문한 장소 · 다시 주문한 수(장소가 바뀌면 한 번만) */
+    var placeBgFor: String? = null
+    var placeBgReorders = 0
+
+    /** 장소 배경을 그리는 자리 — 일기 흐름 전체(그리는 중이 끝나도 이어 그린다). [pictureDiary] 가 정한다 */
+    var placeBgScope: kotlinx.coroutines.CoroutineScope? = null
 
     /**
      * 이름 붙은 조각에 이어 그리고 아이가 말한 것 — 「조개 그렸어」(바다에 붙여 그렸다). 조각은 하나로 두고 그린 것 이름에만 더한다.

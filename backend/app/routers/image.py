@@ -41,8 +41,12 @@ _MOCK_PNG = base64.b64decode(
 _ORDER = {"background": "image", "character": "character", "redraw": "redraw"}
 
 
-@lru_cache(maxsize=3)
-def system(kind: str = "background") -> str:
+@lru_cache(maxsize=4)
+def system(kind: str = "background", mode: str = "story") -> str:
+    # a diary place: the same prompt plus one rule — nothing people ride or hold (#264 · 10-08);
+    # story and co-op keep the measured one word for word
+    if kind == "background" and mode == "diary":
+        return system_block(EVAL / "image_diary_prompt.md")
     return system_block(EVAL / f"{_ORDER[kind]}_prompt.md")
 
 
@@ -66,7 +70,7 @@ _uploaded: dict[str, str] = {}          # rig → name in ComfyUI's input folder
 
 async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
     if req.kind == "background":
-        return await comfy.background(scene, req.style)
+        return await comfy.background(scene, req.style, req.mode)
     if req.kind == "redraw":
         # the child's drawing lives only in this call: decoded, sent to ComfyUI through
         # memory (comfy_nodes/otto_memory.py), history entry deleted in comfy.run
@@ -101,7 +105,7 @@ async def _draw(req: ImageRequest) -> ImageResult:
     field = "place" if req.kind == "background" else "description"
     # the order LLM gets only the words — never the child's drawing
     try:
-        raw = await complete(system(req.kind), f"mode:{req.mode}\n{field}:{req.words}", schema(req.kind),
+        raw = await complete(system(req.kind, req.mode), f"mode:{req.mode}\n{field}:{req.words}", schema(req.kind),
                              name=f"image_{req.kind}", effort=settings.llm_effort_judge, max_output_tokens=200)
     except LLMError as e:
         return preset(f"scene llm: {e}")
