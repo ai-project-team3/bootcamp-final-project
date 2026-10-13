@@ -1,0 +1,44 @@
+{
+  "status": "existing_data_offline_reaggregation",
+  "registered_criteria": "https://github.com/ai-project-team3/bootcamp-final-project/issues/462#issuecomment-6141999428",
+  "source_commit": "0e0a2c64ded8254530f66211c3ed5e5e6ed8eed1",
+  "source_file": "eval/baselines/adaptive-history-ablation-1013.json",
+  "source_sha256": "cda39ee17bf08b10511fd778589d0e93cfd248d7093d2c6f026e17deb287039b",
+  "synthetic_fixed_inputs": true,
+  "measures_child_effect": false,
+  "condition_pairs": 6,
+  "runs": 12,
+  "requests": {
+    "before": 24,
+    "after": 24
+  },
+  "filled_requests": {
+    "before": 18,
+    "after": 18
+  },
+  "fill_rate": {
+    "before": 0.75,
+    "after": 0.75
+  },
+  "total_local_http_requests": 48,
+  "report_exchanges": {
+    "before": 24,
+    "after": 24
+  },
+  "counted_turns": {
+    "before": 24,
+    "after": 24
+  },
+  "extra_judge_calls": {
+    "before": 0,
+    "after": 0
+  },
+  "changed_paired_requests": 8,
+  "book_rewrite_evaluation": {
+    "status": "not_measurable",
+    "matched_books": 0,
+    "pass_rate": null,
+    "preservation_rate": null,
+    "reason": "No linked story raw utterance + generated/final caption records found in inspected checkout or prior source folder. Diary outputs and story fixtures are not eligible child-utterance/book pairs."
+  }
+}
