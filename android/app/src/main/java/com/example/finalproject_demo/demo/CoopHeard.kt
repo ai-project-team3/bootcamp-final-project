@@ -124,7 +124,9 @@ private fun particle(name: String, p: String): String = when (p) {
 fun coopFill(template: String, heard: Map<String, String>): String? {
     var missing = false
     val out = SLOT.replace(template) { m ->
-        val name = heard[m.groupValues[1]]?.takeIf(String::isNotBlank)
+        val key = m.groupValues[1]
+        // only the people slot reads its comma as 「랑」 — a place or thing keeps what it holds
+        val name = heard[key]?.takeIf(String::isNotBlank)?.let { if (key == "who") spokenPeople(it) else it }
         if (name == null) { missing = true; "" }
         else name + (m.groupValues[2].takeIf(String::isNotEmpty)?.let { particle(name, it) } ?: "")
     }
@@ -152,6 +154,28 @@ fun companionName(raw: String): String {
     // 쉼표로 잇는다 — 「와」로 이으면 뒤에 붙는 조사와 겹쳐 책에 「엄마와 아빠와 동물원에 갔어요」가 나왔다(10-06 실기기).
     // 「엄마, 아빠」는 「엄마, 아빠와 갔어요」 · 「엄마, 아빠가 뭐라고 했어?」 어디에 붙어도 읽힌다
     return names.joinToString(", ")
+}
+
+/**
+ * 「엄마, 아빠」 said aloud. The comma stays in the slot and on the book's pages (any particle reads after it), but Otto read
+ * 「엄마, 아빠가 뭐라고 할까?」 · 「같이 갈 엄마, 아빠를 그려 줄래?」 with a pause in the middle (10-12 device review).
+ * Family words go side by side as a child says them — 「엄마 아빠」, which takes any particle; other names join with 「랑」
+ */
+fun spokenPeople(name: String): String {
+    val people = name.split(",").map(String::trim).filter(String::isNotBlank)
+    if (people.size < 2) return name
+    if (people.all { it in FAMILY_WORDS }) return people.joinToString(" ")
+    return people.dropLast(1).joinToString("") { it + rang(it) + " " } + people.last()
+}
+
+/**
+ * A line with the people slot in it — the server's 「엄마, 아빠와 사자 우리에 가서」 is said 「엄마 아빠와 …」.
+ * [familyOnly] for the book's written pages: 「엄마 아빠와」 reads well, 「민수랑 지호와」 does not — other names keep the comma
+ */
+fun spokenWithPeople(line: String, people: String, familyOnly: Boolean = false): String {
+    if ("," !in people || people !in line) return line
+    if (familyOnly && !people.split(",").all { it.trim() in FAMILY_WORDS }) return line
+    return line.replace(people, spokenPeople(people))
 }
 
 /**

@@ -149,10 +149,13 @@ private val DemoState.coopNotYet: CoopReason?
     get() = if (!isCoop) null else bookPick?.let { it.reasonOrNull() ?: CoopReason.DREAM }?.takeIf { it != CoopReason.DONE }
 
 /** 그리기 안내 — 「오늘 만난 엄마와 아빠를 그려 줄래?」 대신 */
-fun DemoState.coopDrawLine(who: String): String? = when (coopNotYet) {
-    CoopReason.SOON -> "같이 갈 $who${eul(who)} 그려 줄래?"
-    CoopReason.DREAM -> "이야기 속 $who${eul(who)} 그려 줄래?"
-    else -> null
+fun DemoState.coopDrawLine(said: String): String? {
+    val who = spokenPeople(said)
+    return when (coopNotYet) {
+        CoopReason.SOON -> "같이 갈 $who${eul(who)} 그려 줄래?"
+        CoopReason.DREAM -> "이야기 속 $who${eul(who)} 그려 줄래?"
+        else -> null
+    }
 }
 
 /** 책 등장 쪽의 이름표 — 「오늘 만난 사람」 대신 */
