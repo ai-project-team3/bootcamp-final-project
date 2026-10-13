@@ -48,13 +48,20 @@ internal fun SpeechObservationsView(summary: SpeechObservations, title: String, 
 
 /** Read only the current child's story records. Other mode owners connect their own metrics. */
 @Composable
-internal fun StorySpeechHistoryView() {
+internal fun StorySpeechHistoryView(onSettings: () -> Unit = {}) {
+    AnswerHistoryNotice()
     if (!AnswerHistory.readFailed) {
         val lines = AnswerHistory.all().filter { it.mode == "story" }.flatMap { it.answers }
         val summary = summarizeSpeech(lines)
         Column {
             SpeechObservationsView(summary, "동화 말 기록")
-            AgeResearchView(summary.recordedAnswers)
+            AgeResearchView(summary.recordedAnswers, onSettings)
         }
     }
+}
+
+@Composable
+internal fun AnswerHistoryNotice() {
+    if (AnswerHistory.readFailed) Text("말 기록을 읽지 못했어요. 기존 자료는 보존했고, 새 기록 저장과 책 삭제는 잠시 멈췄어요.", fontSize = 13.sp, color = Curtain)
+    if (AnswerHistory.writeFailed) Text("말 기록을 저장하지 못했어요. 저장 공간을 확인해 주세요.", fontSize = 13.sp, color = Curtain)
 }

@@ -224,6 +224,8 @@ fun ObFrame(
     onCta: () -> Unit = {},
     cta2: String? = null,
     onCta2: () -> Unit = {},
+    /** Optional entry must give skipping the same visible action size as continuing. */
+    equalActions: Boolean = false,
     /** 오른쪽 조작부가 길면(약관 · 회원가입) 위아래로 밀어 본다 — 이때 안에서 `weight` 는 쓰지 않는다 */
     scroll: Boolean = false,
     right: @Composable ColumnScope.() -> Unit,
@@ -243,9 +245,11 @@ fun ObFrame(
                 content = right,
             )
             if (step != null) StepDots(step, Modifier.align(Alignment.TopEnd).padding(top = 20.dp, end = 28.dp))
-            Row(Modifier.align(Alignment.BottomEnd).padding(end = 32.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (cta2 != null) PBtn(cta2, onCta2, Modifier.width(150.dp), primary = false, height = 56.dp)
-                if (cta != null) PBtn(cta, onCta, Modifier.width(204.dp), enabled = ctaEnabled, height = 56.dp)
+            Row(Modifier.align(Alignment.BottomEnd)
+                .then(if (equalActions) Modifier.fillMaxWidth().padding(start = 32.dp) else Modifier)
+                .padding(end = 32.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (cta2 != null) PBtn(cta2, onCta2, if (equalActions) Modifier.weight(1f) else Modifier.width(150.dp), primary = false, height = 56.dp)
+                if (cta != null) PBtn(cta, onCta, if (equalActions) Modifier.weight(1f) else Modifier.width(204.dp), enabled = ctaEnabled, height = 56.dp)
             }
         }
     }
@@ -256,7 +260,7 @@ fun ObFrame(
     }
 } }
 
-private val STEPS = listOf("로그인", "동의", "마이크", "비밀번호", "맞춤 설정")
+private val STEPS = listOf("로그인", "동의", "마이크", "비밀번호", "아이 소개", "맞춤 설정")
 
 @Composable
 private fun StepDots(step: Int, modifier: Modifier) {

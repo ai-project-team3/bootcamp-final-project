@@ -88,6 +88,9 @@ class ShellFlowTest {
         // ④ 부모 비밀번호 — 네 자리 두 번 (09-29 · 태어난 해 대신 직접 정한다)
         waitText("부모 비밀번호를 정해요"); shot("04b_pin")
         repeat(2) { "1234".forEach { tap(it.toString()) }; compose.mainClock.advanceTimeBy(600); compose.waitForIdle() }
+        waitText("아이 소개"); shot("04c_child_introduction")
+        assertEquals("맞춤 설정이 먼저 나왔다", 0, count("우리 아이에게 맞춰요"))
+        tap("건너뛰기")
         waitText("우리 아이에게 맞춰요"); shot("05_setup_empty")
         compose.onNode(hasText("설정 끝") and hasClickAction()).assertIsNotEnabled()
         tap("2권"); tap("펠트"); tap("받지 않아요")
