@@ -66,7 +66,10 @@ class ShellFlowTest {
     /** 그 글자를 가진 **누를 수 있는** 것 가운데 맨 위(나중에 그려진 것)를 누른다 — 창 뒤의 흐름 화면 글자와 헷갈리지 않게 */
     private fun tap(t: String) {
         compose.waitUntil(8_000) { compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
-        compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).onLast().performClick()
+        compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).onLast().apply {
+            // Settings can scroll on a short landscape screen; a real tap needs the choice in view.
+            runCatching { performScrollTo() }
+        }.performClick()
     }
 
     private fun count(t: String) = compose.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().size
@@ -90,7 +93,7 @@ class ShellFlowTest {
         repeat(2) { "1234".forEach { tap(it.toString()) }; compose.mainClock.advanceTimeBy(600); compose.waitForIdle() }
         waitText("우리 아이에게 맞춰요"); shot("05_setup_empty")
         compose.onNode(hasText("설정 끝") and hasClickAction()).assertIsNotEnabled()
-        tap("2권"); tap("양모"); tap("받지 않아요")
+        tap("2회"); tap("양모"); tap("받지 않아요")
         shot("06_setup_done")
         tap("설정 끝")
         guideAndTutorial()

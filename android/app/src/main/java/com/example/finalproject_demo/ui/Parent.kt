@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.ui
 
+import com.example.finalproject_demo.demo.newStoryAllowance
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1071,19 +1073,25 @@ private fun SettingsTab(d: Director) {
     ConsentWithdrawSection()
     Spacer(Modifier.height(10.dp))
     PCard(Modifier.fillMaxWidth()) {
-        SettingRow("하루 한도", "하루에 만들 수 있는 이야기 수를 정해요 · 끄면 별을 쓰지 않아요", s.limitOn) { d.send(Reply.Tapped("set:limit", "한도")) }
+        SettingRow("하루 한도", "보호자가 정하는 새 이야기 시작 횟수예요", s.limitOn) { d.send(Reply.Tapped("set:limit", "한도")) }
         if (s.limitOn) {
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("하루에", fontSize = 14.sp, color = Ink)
                 Spacer(Modifier.width(10.dp))
                 Stepper("−") { d.send(Reply.Tapped("set:limit-", "−")) }
-                Text("${s.dailyLimit}권", fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                Text("${s.dailyLimit}회", fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
                 Stepper("＋") { d.send(Reply.Tapped("set:limit+", "＋")) }
                 Spacer(Modifier.weight(1f))
-                Chip("오늘 남은 이야기 ${s.dayStars}권", Sun)
+                Chip("보호자 설정: ${s.dayStars}회 남음", Sun)
             }
         }
+        Text("새로 시작할 때 1회를 사용해요. 중간에 나가도 되돌려지지 않으며, 같은 이야기 이어하기는 추가로 사용하지 않아요.", fontSize = 11.sp, color = PSub, modifier = Modifier.padding(top = 8.dp))
+        val allowance = s.newStoryAllowance()
+        if (allowance.service != null) {
+            Text("서비스 이용 한도: 오늘 새 시작 ${allowance.service}/${com.example.finalproject_demo.net.CallLimits.BOOKS_PER_DAY}회 남음", fontSize = 12.sp, color = Ink, modifier = Modifier.padding(top = 8.dp))
+            Text("위의 보호자 제한을 꺼도 서비스 이용 한도는 적용돼요. 메인 숫자는 두 제한 중 실제로 남은 새 시작 횟수예요.", fontSize = 11.sp, color = PSub)
+        } else if (!s.limitOn) Text("보호자 시작 횟수 제한이 꺼져 있어요.", fontSize = 11.sp, color = PSub)
     }
     Spacer(Modifier.height(10.dp))
     PCard(Modifier.fillMaxWidth()) {

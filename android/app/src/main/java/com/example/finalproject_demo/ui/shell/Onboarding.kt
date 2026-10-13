@@ -638,12 +638,15 @@ fun SetupStep(onBack: () -> Unit, onDone: () -> Unit) {
         step = 4, title = "우리 아이에게 맞춰요", sub = "나중에 부모 설정에서 언제든 바꿀 수 있어요.", onBack = onBack,
         art = { Otto(Pose.THINK, Modifier.size(190.dp)) },
         cta = "설정 끝", ctaEnabled = limit != null && style != null && pin != null,
+        scroll = true,
         onCta = { Shell.saveSetup(limit!!.takeIf { it > 0 }, style!!, pin!!); onDone() },
     ) {
-        SetupLabel("하루에 만들 책")
+        SetupLabel("보호자가 정하는 하루 새 이야기 시작 횟수")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(1 to "1권", 2 to "2권", 3 to "3권", 0 to "제한 없음").forEach { (v, t) -> Choice(t, limit == v) { limit = v } }
+            listOf(1 to "1회", 2 to "2회", 3 to "3회", 0 to "제한 없음").forEach { (v, t) -> Choice(t, limit == v) { limit = v } }
         }
+        Text("새로 시작하면 1회를 사용해요.\n중간에 나가도 되돌려지지 않아요.\n이어서 하기는 추가로 사용하지 않아요.", fontSize = 11.sp, color = InkSoft, modifier = Modifier.padding(top = 6.dp))
+        if (com.example.finalproject_demo.net.CallLimits.enabled) Text("서비스 새 시작은 하루 ${com.example.finalproject_demo.net.CallLimits.BOOKS_PER_DAY}회까지예요.\n보호자 제한을 꺼도 적용돼요.", fontSize = 11.sp, color = InkSoft)
         Spacer(Modifier.height(14.dp))
         SetupLabel("그림체")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
