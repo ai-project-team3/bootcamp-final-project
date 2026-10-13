@@ -85,3 +85,6 @@ class TurnResult(BaseModel):
     act: Optional[Act] = None
     # slots the child said were wrong (#323): the app puts back each one's `prev` from its history
     retract: list[SlotName] = []
+    # the decider is sure the child would rather not answer (#405 · 「없어」 to 「내일 또 하고 싶은 거 있어?」).
+    # A signal only: no act, the verdict is left as the judge wrote it — the phone decides what a slot does with it
+    refused: bool = False

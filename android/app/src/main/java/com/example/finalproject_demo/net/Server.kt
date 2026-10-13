@@ -169,8 +169,12 @@ object Server {
      * Either half may be null — fill it from the script. [question] is null when [ask] was false or the story is ready.
      * [act] (#323): what this turn does with a reply that is not an answer — "repair" · "answer_back" · "rephrase", null =
      * a plain turn. Outside [line] so a failed line keeps it. [retract]: slots the child said were wrong — put back their prev.
+     * [refused] (#405): the decider is sure the child would rather not answer — a signal only, the verdict is as the judge wrote it.
      */
-    data class TurnResult(val verdict: Verdict?, val line: Line?, val act: String? = null, val retract: List<String> = emptyList())
+    data class TurnResult(
+        val verdict: Verdict?, val line: Line?, val act: String? = null, val retract: List<String> = emptyList(),
+        val refused: Boolean = false,
+    )
 
     /**
      * One turn: the verdict, then the mascot's three pieces, in one round trip (~3.3s, 09-29).
@@ -201,6 +205,7 @@ object Server {
                 },
                 act = str(j, "act"),
                 retract = j.optJSONArray("retract")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).takeIf { s -> s in SLOTS } } }.orEmpty(),
+                refused = j.optBoolean("refused", false),
             )
         } catch (e: Exception) { warn("/turn parse", e); null }
     }

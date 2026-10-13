@@ -12,6 +12,7 @@ import com.example.finalproject_demo.demo.DiaryPaper
 import com.example.finalproject_demo.demo.buildDiaryBook
 import com.example.finalproject_demo.demo.diaryBookInput
 import com.example.finalproject_demo.demo.requestDiaryStory
+import com.example.finalproject_demo.demo.dateTitle
 import com.example.finalproject_demo.net.Server
 import kotlinx.coroutines.CoroutineScope
 import org.json.JSONObject
@@ -48,12 +49,13 @@ class DiaryLiveTurnTest {
     }
 
     /** `/turn` 응답 JSON — 서버 명세(guidelines/3 §3-2-1)의 judge 16필드 중 쓰는 것만 */
-    private fun turn(fills: List<Pair<String, String>>, next: String?, ack: String, question: String?, ready: Boolean = false, s1: Boolean = false): String {
+    private fun turn(fills: List<Pair<String, String>>, next: String?, ack: String, question: String?, ready: Boolean = false, s1: Boolean = false,
+                     refused: Boolean = false): String {
         val judge = JSONObject().put("reason", "ok").put("next_slot", next ?: JSONObject.NULL)
             .put("story_ready", ready).put("s1_reason", s1)
         fills.forEachIndexed { i, (slot, value) -> judge.put("slot_${i + 1}", slot).put("value_${i + 1}", value) }
         val line = JSONObject().put("ack", ack).put("expand", JSONObject.NULL).put("question", question ?: JSONObject.NULL)
-        return JSONObject().put("judge", judge).put("line", line).toString()
+        return JSONObject().put("judge", judge).put("line", line).put("refused", refused).toString()
     }
 
     /** 「내일」 답 — 판정이 ready 를 줘도 앱은 「내일」을 한 번 묻는다([tomorrowIsStillAskedWhenTheVerdictSaysReady]) */
@@ -185,6 +187,135 @@ class DiaryLiveTurnTest {
             d.answer("또 그네 타고 싶어") { s.stage is DiaryPaper }
             assertEquals("extra", asked[2].getString("asked_slot"))
             d.slotBecomes("keep", "또 그네 타고 싶어")
+        }
+    }
+
+    /**
+     * 「내일」에 「없어」 — 판단기가 거부로 확신하면(`refused`) 판정이 채운 값을 쓰지 않고 비워 둔 채 책으로 간다. 다시 묻지 않는다.
+     * 앱은 아이 말을 낱말로 맞추지 않는다 — 신호는 서버의 판단기다 (#405 · 전에는 「없어」 정규식)
+     */
+    @Test
+    fun nothingForTomorrowLeavesTheSlotEmptyWhenTheDeciderIsSure() {
+        val asked = mutableListOf<JSONObject>()
+        live({ t ->
+            asked += t
+            when (t.getString("asked_slot")) {
+                "place" -> turn(listOf("place" to "놀이터", "problem" to "그네 탔다"), "solution", "그네 탔구나!", "그래서 어떻게 됐어?")
+                "solution" -> turn(listOf("solution" to "집에 왔다"), null, "그랬구나!", null, ready = true)
+                else -> turn(listOf("extra" to "없어"), null, "없구나!", null, ready = true, refused = true)
+            }
+        }) { d ->
+            val s = d.s
+            d.toQuestions()
+            assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+            d.answer("놀이터 가서 그네 탔어") { s.line == "그래서 어떻게 됐어?" }
+            d.answer("집에 왔어") { asked.size == 2 && s.line != "그래서 어떻게 됐어?" }
+            assertTrue(await { s.line == "내일 또 하고 싶은 거 있어?" } != null)
+            d.answer("없어") { s.stage is DiaryPaper }
+            assertTrue("「없어」가 내일 칸에 들어갔다 — ${s.slots["keep"]}", s.slots["keep"].isNullOrBlank())
+            assertEquals("「내일」을 다시 물었다", listOf("place", "solution", "extra"), asked.map { it.getString("asked_slot") })
+        }
+    }
+
+    /** 같은 「없어」라도 판단기가 확신하지 않으면(`refused` 없음) 지금처럼 판정을 따른다 — 앱은 낱말을 보지 않는다 */
+    @Test
+    fun withoutTheDecidersSignalTomorrowFollowsTheVerdict() {
+        live({ t ->
+            when (t.getString("asked_slot")) {
+                "place" -> turn(listOf("place" to "놀이터", "problem" to "그네 탔다"), "solution", "그네 탔구나!", "그래서 어떻게 됐어?")
+                "solution" -> turn(listOf("solution" to "집에 왔다"), null, "그랬구나!", null, ready = true)
+                else -> turn(listOf("extra" to "놀이터 없어도 돼"), null, "그렇구나!", null, ready = true)
+            }
+        }) { d ->
+            val s = d.s
+            d.toQuestions()
+            assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+            d.answer("놀이터 가서 그네 탔어") { s.line == "그래서 어떻게 됐어?" }
+            d.answer("집에 왔어") { s.line == "내일 또 하고 싶은 거 있어?" }
+            d.answer("놀이터 없어도 돼") { s.stage is DiaryPaper }
+            d.slotBecomes("keep", "놀이터 없어도 돼")
+        }
+    }
+
+    /** 책까지 간다 — 서버 모드 · 책 문장은 앱 것 */
+    private suspend fun Director.toTheBook(asked: MutableList<JSONObject>) {
+        toQuestions()
+        assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+        answer("놀이터 가서 그네 탔어") { s.line == "그래서 어떻게 됐어?" }
+        answer("집에 왔어") { s.line == "내일 또 하고 싶은 거 있어?" }
+        answer("또 타고 싶어") { s.stage is DiaryPaper }
+        asked.clear()
+    }
+
+    /** 쪽을 펼쳐 놓고 기다릴 때 제목을 한 번 누른다 — 여러 번 누르면 남은 누름이 제목 질문의 답으로 들어간다 */
+    private suspend fun Director.tapTitle() {
+        assertTrue(await { s.stage is DiaryPaper && s.buttons.isNotEmpty() } != null)
+        send(Reply.Tapped("title", "제목"))
+        assertTrue("제목을 묻지 않았다 — 말=${s.line}", await { s.line == "이 일기 제목은 뭐로 할까?" } != null)
+    }
+
+    private fun bookTurn(t: JSONObject, title: String): String = when (t.getString("asked_slot")) {
+        "place" -> turn(listOf("place" to "놀이터", "problem" to "그네 탔다"), "solution", "그네 탔구나!", "그래서 어떻게 됐어?")
+        "solution" -> turn(listOf("solution" to "집에 왔다"), null, "그랬구나!", null, ready = true)
+        "title" -> title
+        else -> wish()
+    }
+
+    /**
+     * 제목에 「없어」 — 판단기가 거부로 확신하면 날짜 제목 그대로 (#405 · 10-12 실기기에서 「없어」가 제목이 됐다).
+     * 거부 신호만 쓴다: 판정이 채운 칸은 받지 않고, 제목 턴은 대화 기록에 넣지 않는다
+     */
+    @Test
+    fun aTitleTheDeciderReadsAsNoneLeavesTheDateTitle() {
+        val asked = mutableListOf<JSONObject>()
+        live({ t ->
+            asked += t
+            bookTurn(t, turn(listOf("title" to "없어", "place" to "학교"), null, "없구나!", null, refused = true))
+        }) { d ->
+            val s = d.s
+            d.toTheBook(asked)
+            val talked = s.diaryDay.talk.size
+            val place = s.slots["place"]
+            d.tapTitle()
+            d.answer("없어") { asked.any { it.getString("asked_slot") == "title" } && s.line != "이 일기 제목은 뭐로 할까?" }
+            assertEquals("제목 턴이 /turn 으로 가지 않았다", "title", asked.single().getString("asked_slot"))
+            assertTrue("제목 턴도 대화 기록을 보낸다(판단기가 켜진다)", asked.single().has("history"))
+            assertEquals("「없어」가 제목이 됐다", dateTitle(), s.title)
+            assertTrue(s.slots["title"].isNullOrBlank())
+            assertEquals("제목 턴의 판정이 다른 칸을 채웠다", place, s.slots["place"])
+            assertEquals("제목 턴이 대화 기록에 들어갔다", talked, s.diaryDay.talk.size)
+        }
+    }
+
+    /** 판단기가 거부로 보지 않으면 지금처럼 아이 말 그대로 제목 — 서버의 대사 · 다른 칸은 쓰지 않는다 */
+    @Test
+    fun aTitleTheDeciderDoesNotRefuseIsTheChildsWords() {
+        val asked = mutableListOf<JSONObject>()
+        live({ t ->
+            asked += t
+            bookTurn(t, turn(listOf("title" to "그네 탄 날"), null, "멋진 제목이야!", null))
+        }) { d ->
+            val s = d.s
+            d.toTheBook(asked)
+            d.tapTitle()
+            d.answer("그네 탄 날") { s.title == "그네 탄 날" }
+            assertEquals("child", s.slotBy["title"])
+            assertEquals("『그네 탄 날』! 좋은 제목이다!", s.line)
+        }
+    }
+
+    /** 서버가 답하지 않으면 지금처럼 아이 말 그대로 제목 — 앱은 멈추지 않는다 */
+    @Test
+    fun withoutTheServerTheTitleIsTheChildsWords() {
+        val asked = mutableListOf<JSONObject>()
+        live({ t ->
+            asked += t
+            if (t.getString("asked_slot") == "title") null else bookTurn(t, "")
+        }) { d ->
+            val s = d.s
+            d.toTheBook(asked)
+            d.tapTitle()
+            d.answer("그네 탄 날") { s.title == "그네 탄 날" }
         }
     }
 
