@@ -961,6 +961,9 @@ class DemoState {
     /** Who-slots already asked again after the judge filled them with a sentence — once each (StoryNameGuard.kt) */
     val storyWhoReasked = mutableSetOf<String>()
 
+    /** The story so far as the server reads it (#323) — the child's spoken turns only (rule 5), sent with each spoken answer */
+    val storyTalk = mutableListOf<com.example.finalproject_demo.net.Server.HistoryTurn>()
+
     /** What the app named instead of the child (「새 친구」) — said aloud once on the next turn, then cleared (guidelines/7 §3-2 · #375 review) */
     var storyAppNamed: String? = null
 
@@ -1524,7 +1527,7 @@ class DemoState {
         canUndo = false; canRedo = false
         place = null; problem = null; cause = null; newcomer = null
         friend = null; sound = null; solution = null; title = null; reaction = null
-        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyAnswerOptions = null; storyUnneededSlots.clear(); storyWhoReasked.clear(); storyAppNamed = null; storyEndAsked = false; storyStartedAtMs = 0L
+        slots.clear(); slotBy.clear(); storyNextSlot = null; storyClarificationSlot = null; storyServerQuestion = null; storyAnswerOptions = null; storyUnneededSlots.clear(); storyWhoReasked.clear(); storyTalk.clear(); storyAppNamed = null; storyEndAsked = false; storyStartedAtMs = 0L
         partnerHelp = null; partnerHelpLine = null
         // 모드는 첫 화면에서 다시 고른다 — 지난 이야기의 모드를 물려받지 않는다
         mode = StoryMode.STORY
