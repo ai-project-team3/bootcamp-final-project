@@ -105,6 +105,7 @@ class TurnHistory(private val s: DemoState) {
         forward.addLast(s.captureTurn())
         to.restoreInto(s)
         publish()
+        StoryEvaluation.state(s, "turn_restored") { org.json.JSONObject().put("status", "undo") }
         return true
     }
 
@@ -114,6 +115,7 @@ class TurnHistory(private val s: DemoState) {
         back.addLast(s.captureTurn())
         to.restoreInto(s)
         publish()
+        StoryEvaluation.state(s, "turn_restored") { org.json.JSONObject().put("status", "redo") }
         return true
     }
 

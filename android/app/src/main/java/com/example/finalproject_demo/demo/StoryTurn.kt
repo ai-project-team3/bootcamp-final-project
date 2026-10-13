@@ -333,7 +333,16 @@ suspend fun DemoState.exchangeStoryTurn(
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult? {
     if (mode != StoryMode.STORY) return null
-    return exchangeTurn("story", askedSlot, question, utterance, request = request)?.also { response ->
+    StoryEvaluation.state(this, "turn_before") {
+        org.json.JSONObject().put("asked_slot", askedSlot ?: org.json.JSONObject.NULL)
+            .put("question", question).put("raw_text", utterance).put("who", by)
+    }
+    val result = exchangeTurn("story", askedSlot, question, utterance, request = request)
+    if (result == null) {
+        StoryEvaluation.state(this, "turn_after") { org.json.JSONObject().put("status", "no_response").put("who", by) }
+        return null
+    }
+    return result.also { response ->
         // ending words are no story — the judge copied 「그만할래」 into the asked solution (10-09 device · Laya v5)
         val ending = by == "child" && storyEndIntent(utterance)
         val guard = response.verdict?.let { applyStoryVerdict(if (ending) it.copy(fills = emptyList()) else it, by, askedSlot) }
@@ -352,6 +361,14 @@ suspend fun DemoState.exchangeStoryTurn(
         }
         // 「이제 끝이야」 — the judge does not always end; the child's ending words do (StoryEndIntent.kt)
         if (response.verdict != null && response.verdict.reason != "blocked_by_filter") applyStoryEndIntent(utterance, by)
+        StoryEvaluation.state(this, "turn_after") {
+            org.json.JSONObject().put("route", "judge").put("who", by)
+                .put("who_guard", org.json.JSONObject().put("reask", guard.reask ?: org.json.JSONObject.NULL).put("rejected", org.json.JSONArray(guard.rejected)))
+                .put("verdict_unmasked", response.verdict?.let { v ->
+                    org.json.JSONObject().put("reason", v.reason).put("ready", v.storyReady)
+                        .put("fills", org.json.JSONArray(v.fills.map { (slot, value) -> org.json.JSONObject().put("slot", slot).put("value", value) }))
+                } ?: org.json.JSONObject.NULL)
+        }
         val verdict = response.verdict
         Trace.line("story_verdict", "asked=$askedSlot by=$by ready=${verdict?.storyReady} " +
             "next=${verdict?.nextSlot} applied=$storyNextSlot unclear=${verdict?.unclear} " +
