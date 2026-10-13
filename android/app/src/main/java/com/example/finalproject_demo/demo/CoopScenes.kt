@@ -116,6 +116,22 @@ internal fun DemoState.coopUseGeneratedBackground(path: String, forPlace: String
 /** 지금 같이 만드는 이야기에 서버가 그린 배경 — 그림 정리가 지우지 않게 (`Director.recoverStoryImages` · #80) */
 internal val DemoState.coopGeneratedBackground: String? get() = coopTrack.generatedBg
 
+/**
+ * What a later step asks, as words a parent's question may already have asked it with. 10-12 device review: the parent's
+ * 「가기 전에 어떤 기분이 들어?」 was answered 「설레」, and the feeling step asked 「가기 전에 어떤 기분이야?」 right after —
+ * then a third time when the child said 「아까 말했잖아」
+ */
+private val COOP_STEP_TOPIC = mapOf(
+    "reaction" to Regex("기분|마음|느낌"),
+    "cause" to Regex("왜"),
+)
+
+/** The child's answer to a parent question that already asked what [slot]'s step asks — null when none did */
+internal fun DemoState.coopParentCovered(slot: String): String? {
+    val topic = COOP_STEP_TOPIC[slot] ?: return null
+    return coopParentAnswers.firstOrNull { (question, _) -> topic.containsMatchIn(question) }?.second
+}
+
 /** 부모 질문을 끼우는 꼬리 자리 — 하던 일 · 한 말 · 해 본 것 · 집에 와서. 답의 뜻이 정해지지 않은 자리들이다 */
 internal val COOP_PARENT_STEPS = setOf("detail", "said", "try", "after")
 
