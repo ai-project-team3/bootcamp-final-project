@@ -88,7 +88,7 @@ def test_laya_first_then_jev_then_luna(monkeypatch):
         return {"reason": "laya", "slot_1": "place", "value_1": r.utterance, "next_slot": "newcomer",
                 "_seconds": 0.05}
 
-    async def fake_jev(system, user, utterance, timeout_s=6.0):
+    async def fake_jev(system, user, utterance, timeout_s=6.0, mode="story"):
         calls.append("jev")
         return {"reason": "jev", "slot_1": "place", "value_1": utterance, "next_slot": "problem"}
 

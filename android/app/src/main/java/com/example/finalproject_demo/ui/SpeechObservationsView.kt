@@ -51,6 +51,10 @@ internal fun SpeechObservationsView(summary: SpeechObservations, title: String, 
 internal fun StorySpeechHistoryView() {
     if (!AnswerHistory.readFailed) {
         val lines = AnswerHistory.all().filter { it.mode == "story" }.flatMap { it.answers }
-        SpeechObservationsView(summarizeSpeech(lines), "동화 말 기록")
+        val summary = summarizeSpeech(lines)
+        Column {
+            SpeechObservationsView(summary, "동화 말 기록")
+            AgeResearchView(summary.recordedAnswers)
+        }
     }
 }

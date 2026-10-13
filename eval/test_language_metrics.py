@@ -75,6 +75,16 @@ def test_symbols_do_not_count_as_content_words_and_foreign_text_is_flagged():
     assert result.ndw == 0
 
 
+def test_adverb_derivational_suffix_counts_without_becoming_a_content_word():
+    # A supplied POS annotation isolates counting from analyzer segmentation.
+    tokens = [Morpheme("건강", "NNG"), Morpheme("히", "XSM")]
+    result = measure([answer("건강히")], lambda _: tokens)
+    assert result.morphemes == 2
+    assert result.mlu_m == 2
+    assert result.content_tokens == 1
+    assert result.ndw == 1
+
+
 @pytest.mark.parametrize("by,kind", [("parent", "open"), ("child", "guess")])
 def test_unknown_provenance_or_question_type_is_rejected(by, kind):
     with pytest.raises(ValueError):

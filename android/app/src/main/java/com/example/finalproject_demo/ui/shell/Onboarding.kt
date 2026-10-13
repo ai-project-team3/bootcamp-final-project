@@ -636,6 +636,7 @@ fun SetupStep(onBack: () -> Unit, onDone: () -> Unit) {
     var pin by remember { mutableStateOf<Boolean?>(null) }
     ObFrame(
         step = 4, title = "우리 아이에게 맞춰요", sub = "나중에 부모 설정에서 언제든 바꿀 수 있어요.", onBack = onBack,
+        scroll = true,
         art = { Otto(Pose.THINK, Modifier.size(190.dp)) },
         cta = "설정 끝", ctaEnabled = limit != null && style != null && pin != null,
         scroll = true,
@@ -661,6 +662,7 @@ fun SetupStep(onBack: () -> Unit, onDone: () -> Unit) {
             Choice("받지 않아요", pin == false) { pin = false }
             Choice("비밀번호로 확인", pin == true) { pin = true }
         }
+        com.example.finalproject_demo.ui.ChildAgeSection()
     }
 }
 

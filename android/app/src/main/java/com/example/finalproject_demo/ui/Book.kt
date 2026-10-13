@@ -421,7 +421,10 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
         val showDino = !s.isDiary && scripted
         // 일기 · 협업은 아이가 그린 것 → 아이가 말한 사람 순으로 세우고, 둘 다 없으면 아무도 안 세운다 (일기 §3-2)
         // a live story where the child met nobody has no friend to stand (Model.kt liveStoryWithoutFriend)
-        val friendShown: Art? = if (s.isDiary) s.friendOrPartnerArt else s.friendArt.takeUnless { s.liveStoryWithoutFriend }
+        // 「엄마, 아빠」 — the first of everyone named: [DemoState.friendOrPartnerArt] picks one picture for the whole name
+        // (dad), so the pages stood dad twice (10-12 device review)
+        val friendShown: Art? = if (s.isDiary) s.friendOrPartnerArts.firstOrNull() ?: s.friendOrPartnerArt
+            else s.friendArt.takeUnless { s.liveStoryWithoutFriend }
         // 「엄마, 아빠」 — the second person the child named stands beside the first (10-12 user: only 아빠 stood)
         val secondFriend: Art? = if (s.isDiary) s.friendOrPartnerArts.getOrNull(1) else null
 
@@ -456,6 +459,11 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                     }
                 }
                 if (showRide) Char("vehicle", s.rideArt, 0.40f, 0.16f, 0.17f, 0.62f, Modifier.offset { IntOffset(0, wobble.roundToInt()) })
+                // diary · co-op: who went along leaves with the child — 「엄마와 아빠랑 동물원에 갈 거예요」 stood nobody (10-12 device review).
+                // A story's friend is met later and does not stand here
+                if (s.isDiary && s.companionKind.isNotBlank() && "혼자" !in s.companionKind) {
+                    Friends(0.74f, 0.24f, 0.18f, Modifier.offset { IntOffset(0, (-bob).roundToInt()) })
+                }
                 if (showRide && riding) {
                     // 탈것 위 — 탈것과 같은 흔들림으로 함께 움직여야 "타고 있다"로 보인다.
                     // 발이 탈것 몸통에 **겹쳐야** 올라탄 것으로 보인다. 띄우면 위에 떠 있는 것처럼 보였다 (9/21)
@@ -625,7 +633,8 @@ private fun Cover(d: Director, heroArt: Art, liveStory: Boolean) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(26.dp)) {
             ArtView(heroArt, Modifier.size(96.dp, 134.dp))
             // 일기 모드 표지에는 아이가 그린 것만 선다 — 안 그렸으면 주인공만 (§2-2 · §3-2)
-            val coverFriend = if (s.isDiary) s.friendOrPartnerArt else s.friendArt.takeUnless { s.liveStoryWithoutFriend }
+            val coverFriend = if (s.isDiary) s.friendOrPartnerArts.firstOrNull() ?: s.friendOrPartnerArt
+                else s.friendArt.takeUnless { s.liveStoryWithoutFriend }
             if (coverFriend != null) ArtView(coverFriend, Modifier.size(120.dp))
             // 「엄마, 아빠」 — both on the cover too (10-12 user)
             if (s.isDiary) s.friendOrPartnerArts.getOrNull(1)?.let { ArtView(it, Modifier.size(120.dp)) }

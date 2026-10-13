@@ -500,6 +500,25 @@ class CoopFlowTest {
     }
 
     /**
+     * 10-12 실기기 검토 — 부모 질문 「가기 전에 어떤 기분이 들어?」에 답했는데 바로 기분 걸음이 「가기 전에 어떤 기분이야?」를 또
+     * 물었다. 부모 질문이 이미 물은 걸음은 그 답으로 채우고 건너뛴다
+     */
+    @Test
+    fun aParentFeelingQuestionCoversTheFeelingStep() = run { d ->
+        val s = d.s
+        val said = watchLines(d)
+        d.startCoopWith("가기 전에 어떤 기분이 들어?", pick = CoopPick("place", "동물원", "soon"))
+        d.pushUntilAsked("가기 전에 어떤 기분이 들어?")
+        assertEquals("가기 전에 어떤 기분이 들어?", d.asked())
+        d.answer("설레")
+        assertTrue("the feeling step did not take the parent's answer: ${s.reaction}", await(10_000) { s.reaction == "설레" } != null)
+        await(8_000) { s.micEnabled }
+        // the watcher may log the parent's question a moment late — count only what came after it
+        val after = said.toList().let { l -> l.drop(l.lastIndexOf("가기 전에 어떤 기분이 들어?") + 1) }
+        assertTrue("the feeling was asked again: $after", after.none { "기분" in it && it.endsWith("?") })
+    }
+
+    /**
      * 부모 모드에서 넣은 질문이 **[아이 모드로] → [같이 만들기]** 를 지나 살아남는가.
      *
      * 실제 경로 그대로다: 부모 모드를 나가는 버튼이 `goHome()` 이고, 그다음 첫 화면에서 모드를 고른다.

@@ -83,7 +83,7 @@ private fun DemoState.rawPartPack(step: DiaryStep): CoopPartPack? {
     if (!isCoop) return null
     val pick = coopPick ?: return null
     val reason = pick.reasonOrNull() ?: CoopReason.DREAM
-    if (!step.required) return tailPack(step.bookKey, reason, childName, friendCallName)?.let { p ->
+    if (!step.required) return tailPack(step.bookKey, reason, childName, spokenPeople(friendCallName))?.let { p ->
         // 집은 「같이 갔어」가 아니다 — 「우리 집 거실에 누구랑 같이 갔어?」(10-06 실기기 · #222 키트 확인) → 「거기서 누구랑 같이 있었어?」
         if (step.bookKey == "companion" && coopAtHome()) CoopPartPack(p.rungs.map(::atHome), p.answers, p.mascot) else p
     }
