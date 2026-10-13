@@ -523,7 +523,7 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         }
         // 받아주기 — 서버의 받아주기 + 되돌려주기(동화와 같게 · CoopServerLine.kt). 없거나 못 쓰면 앱의 한마디:
         // 아이 말에서 뗀 이름 하나. 「몰라」 · 「응」은 되비추지 않는다. 다음 질문과 합쳐 두 문장
-        val server = if (live == null || wild) null else coopServerReaction(track.liveTurn?.result?.line)
+        val server = if (live == null || wild) null else coopServerReaction(track.liveTurn?.result?.line)?.let { spokenWithPeople(it, s.companionKind) }
         if (server != null) log("[$key] 받아주기 — 서버 대사 「$server」")
         // 못 썼으면 까닭을 남긴다 — 서버가 대사를 안 줬나(거절 · 실패), 앱이 버렸나를 다음 실기기에서 가른다 (#304 2)
         else if (live != null && !wild) log("[$key] 받아주기 — 서버 대사 못 씀: ${coopServerDropped(track.liveTurn?.result?.line).joinToString(" · ")}")
@@ -1093,7 +1093,7 @@ suspend fun Director.coopWriteBook() {
         reason = s.coopStoryReason(),
         // 고른 요소 안의 자리 — 쪽 꾸밈과 keywords 에만 쓴다. 선택지 후보(무슨 일 · 까닭 · 해결)는 아이가 말한 게 아니라 안 보낸다 (#113)
         stage = s.coopStage(),
-    )?.map(mask::unmask)
+    )?.map { spokenWithPeople(mask.unmask(it), s.companionKind, familyOnly = true) }   // 「엄마, 아빠와」 → 「엄마 아빠와」
     if (s.useCoopCaptions(captions)) log("서버가 쓴 협업 책 문장 ${pages.size}쪽을 받음 (/story)")
     else log("협업 책 문장 생성 실패 또는 쪽 수 불일치 → 틀 문장 그대로")
 }
