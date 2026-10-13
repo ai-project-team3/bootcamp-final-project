@@ -649,10 +649,10 @@ fun SetupStep(onBack: () -> Unit, onDone: () -> Unit) {
         SetupLabel("그림체")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             com.example.finalproject_demo.demo.ART_STYLES.forEach { a ->
-                Choice(a.name.substringBefore(' '), style == a.key, enabled = a.ready) { style = a.key }
+                Choice(a.short, style == a.key, enabled = a.ready) { style = a.key }
             }
         }
-        Text("지금은 양모 펠트만 쓸 수 있어요", fontSize = 11.sp, color = InkSoft, modifier = Modifier.padding(top = 4.dp))
+        Text("전래동화 · 수채화는 준비 중이에요 · 부모 모드 설정에서 언제든 바꿀 수 있어요", fontSize = 11.sp, color = InkSoft, modifier = Modifier.padding(top = 4.dp))
         Spacer(Modifier.height(12.dp))
         SetupLabel("이야기를 시작할 때 어른 확인")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
