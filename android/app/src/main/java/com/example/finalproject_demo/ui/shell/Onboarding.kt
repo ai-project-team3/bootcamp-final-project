@@ -627,15 +627,42 @@ fun PinStep(onBack: () -> Unit, onDone: () -> Unit) {
     }
 }
 
-// ── ⑤ 맞춤 설정 (5/5) — 하루 책 수 · 그림체 · 시작할 때 어른 확인. **셋 다 골라야** 넘어간다 (09-29) ──────
+// ── Optional child introduction (5/6) ──────────────────────────────────────
 
+/** Optional nickname and age, kept separate from the required setup choices. */
+@Composable
+fun ChildIntroductionStep(onBack: () -> Unit, onDone: () -> Unit) {
+    var call by remember { mutableStateOf(com.example.finalproject_demo.net.ChildCall.name ?: "") }
+    ObFrame(
+        step = 4, title = "아이 소개", sub = "호칭과 나이는 선택이에요. 비워 두어도 오또를 쓸 수 있어요.", onBack = onBack,
+        scroll = true, art = { Otto(Pose.WAVE, Modifier.size(170.dp)) },
+        cta = "다음", onCta = { com.example.finalproject_demo.net.ChildCall.set(call); onDone() },
+        cta2 = "건너뛰기", onCta2 = onDone, equalActions = true,
+    ) {
+        SetupLabel("오또가 아이를 뭐라고 부를까요?")
+        Text("실명 대신 별명을 권해요", modifier = Modifier.fillMaxWidth(), fontSize = 12.sp, color = InkSoft)
+        Text("비우면 「친구」로 불러요", modifier = Modifier.fillMaxWidth(), fontSize = 12.sp, color = InkSoft)
+        androidx.compose.material3.TextField(
+            value = call, onValueChange = { call = it.take(10) }, singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).semantics { contentDescription = "아이 호칭" },
+            placeholder = { Text("예: 콩이 · 별님 · 꼬마공룡", fontSize = 13.sp) },
+            colors = androidx.compose.material3.TextFieldDefaults.colors(
+                focusedContainerColor = FeltWhite, unfocusedContainerColor = FeltWhite,
+                focusedIndicatorColor = FeltTeal, unfocusedIndicatorColor = InkSoft,
+            ),
+        )
+        com.example.finalproject_demo.ui.ChildAgeSection()
+    }
+}
+
+// ── Required setup choices (6/6) ──────────────────────────────────────────
 @Composable
 fun SetupStep(onBack: () -> Unit, onDone: () -> Unit) {
     var limit by remember { mutableStateOf<Int?>(null) }        // 0 = 제한 없음
     var style by remember { mutableStateOf<String?>(null) }
     var pin by remember { mutableStateOf<Boolean?>(null) }
     ObFrame(
-        step = 4, title = "우리 아이에게 맞춰요", sub = "나중에 부모 설정에서 언제든 바꿀 수 있어요.", onBack = onBack,
+        step = 5, title = "우리 아이에게 맞춰요", sub = "나중에 부모 설정에서 언제든 바꿀 수 있어요.", onBack = onBack,
         scroll = true,
         art = { Otto(Pose.THINK, Modifier.size(190.dp)) },
         cta = "설정 끝", ctaEnabled = limit != null && style != null && pin != null,
@@ -659,7 +686,6 @@ fun SetupStep(onBack: () -> Unit, onDone: () -> Unit) {
             Choice("받지 않아요", pin == false) { pin = false }
             Choice("비밀번호로 확인", pin == true) { pin = true }
         }
-        com.example.finalproject_demo.ui.ChildAgeSection()
     }
 }
 

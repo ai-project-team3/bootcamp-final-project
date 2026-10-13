@@ -508,8 +508,12 @@ class CoopFlowTest {
         val s = d.s
         val said = watchLines(d)
         d.startCoopWith("가기 전에 어떤 기분이 들어?", pick = CoopPick("place", "동물원", "soon"))
-        d.pushUntilAsked("가기 전에 어떤 기분이 들어?")
-        assertEquals("가기 전에 어떤 기분이 들어?", d.asked())
+        // Random demo answers can already fill reaction (e.g. "속상할 거야"), so this case must begin without one.
+        d.answer("사자 우리")
+        d.answer("엄마랑")
+        d.answer("사자를 만날 거야")
+        assertTrue(await { d.asked() == "가기 전에 어떤 기분이 들어?" } != null)
+        assertNull("Earlier answers must not prefill the feeling", s.reaction)
         d.answer("설레")
         assertTrue("the feeling step did not take the parent's answer: ${s.reaction}", await(10_000) { s.reaction == "설레" } != null)
         await(8_000) { s.micEnabled }
