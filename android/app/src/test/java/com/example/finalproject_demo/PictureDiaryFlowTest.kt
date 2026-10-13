@@ -218,7 +218,8 @@ class PictureDiaryFlowTest {
         assertTrue(s.stage is DiaryBoard)
 
         assertTrue(d.push("다 그렸어"))
-        assertTrue("다 그린 뒤 빈 칸을 묻지 않았다", await { s.line == "오늘 어디 갔었어?" } != null)
+        // 이름 없는 두 번째 조각부터 묻는다 — 칸 질문은 그 뒤 (#418)
+        assertTrue("다 그린 뒤 이름 없는 조각을 묻지 않았다", await { s.line == "이건 뭐 그린 거야?" } != null)
         assertTrue("그림이 책에 쓸 자리로 옮겨지지 않았다", s.sceneDrawing.size == 2 && s.drawing.isEmpty())
         assertTrue("D3 에 그림판이 그대로 떠 있다 — 엎드린 오또와 그림 카드여야 한다", s.stage is DiaryAsk)
     }
@@ -303,7 +304,8 @@ class PictureDiaryFlowTest {
         assertTrue("마이크가 열리지 않았다 — 말로 답할 길이 없다", s.micEnabled)
         // 서버 모드처럼 값 없는 말로 답한다
         assertTrue(await { d.send(Reply.Spoke("응, 다 그렸어")); s.stage is DiaryAsk } != null)
-        assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
+        // 이름 못 들은 조각부터 묻는다 — 칸 질문은 그 뒤 (#418)
+        assertTrue(await { s.line == "이건 뭐 그린 거야?" } != null)
     }
 
     @Test
@@ -1011,21 +1013,15 @@ class PictureDiaryFlowTest {
         assertEquals("뒤에 그린 조각은 앞 이름을 받지 않는다", null, splitAcross("해랑 구름", sun, listOf(sun, cloud)))
     }
 
-    /** D3 — 필수 두 칸 다음에 이름 없는 조각 하나를 「이건 뭐 그린 거야?」로 묻는다. 카드에는 그 조각만 (프로토타입 nextD3) */
+    /** D3 — 칸 질문 전에 이름 없는 조각 하나를 「이건 뭐 그린 거야?」로 묻는다. 카드에는 그 조각만 (#418 · 전에는 필수 두 칸 뒤 · 프로토타입 nextD3) */
     @Test
-    fun afterTheRequiredTwoOttoAsksAboutOneUnnamedPiece() = run { d ->
+    fun beforeTheSlotQuestionsOttoAsksAboutOneUnnamedPiece() = run { d ->
         val s = d.s
         d.go(Scene.DIARY)
         assertTrue(d.push("그릴래"))
         s.drawing += stroke(0.2f)
         assertTrue(d.push("✅ 다 그렸어"))
-        assertTrue(await { s.line == "오늘 어디 갔었어?" } != null)
-        assertTrue(d.push("🎬 오늘 이야기 시연 답"))
-        assertTrue(await { s.line == "누구랑 같이 있었어?" } != null)
-        assertTrue(d.push("🎬 오늘 이야기 시연 답"))
-        assertTrue(await { "무슨 일이" in s.line } != null)
-        assertTrue(d.push("🎬 오늘 이야기 시연 답"))
-        assertTrue("필수 두 칸 다음에 조각을 묻지 않았다 — 말=${s.line}", await { s.line == "이건 뭐 그린 거야?" } != null)
+        assertTrue("칸 질문 전에 조각을 묻지 않았다 — 말=${s.line}", await { s.line == "이건 뭐 그린 거야?" } != null)
         assertTrue("카드가 그 조각만 꽂지 않았다", s.diaryDay.focusPiece != null)
         assertTrue(d.push("우리 집이야"))
         assertTrue(await { s.diaryDay.pieces.single().name == "우리 집" } != null)
@@ -1033,8 +1029,8 @@ class PictureDiaryFlowTest {
         assertTrue(await { s.line == "나도 우리 집을 그려볼까?" } != null)
         assertTrue(d.push("아니"))
         assertTrue(await { s.diaryDay.focusPiece == null } != null)
-        // 그림 질문은 칸 채우기 질문 수를 깎지 않는다 — 다음 칸 질문(일어난 일 뒤의 기분 · 10-07)이 그대로 온다 (10-02)
-        assertTrue("조각 질문이 칸 질문 한 번을 썼다 — 말=${s.line}", await { s.line == "그때 기분이 어땠어?" } != null)
+        // 그림 질문은 칸 채우기 질문 수를 깎지 않는다 — 첫 칸 질문부터 그대로 온다 (10-02)
+        assertTrue("조각 질문이 칸 질문 한 번을 썼다 — 말=${s.line}", await { s.line == "오늘 어디 갔었어?" } != null)
     }
 
     @Test
