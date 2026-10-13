@@ -217,6 +217,7 @@ suspend fun Director.pinGate(purpose: String): Boolean {
 private suspend fun Director.sceneAdult() {
     s.stage = Stage.Adult
     s.notice = null
+    s.noticeMode = null
     buttons(
         DemoBtn("🖐 이야기 만들기 탭 (동화 모드)") { send(Reply.Tapped("start", "이야기 만들기")) },
         DemoBtn("🌙 오늘 있었던 일로 탭 (일기 모드)") { send(Reply.Tapped("diary", "오늘 있었던 일로")) },
@@ -269,13 +270,14 @@ private suspend fun Director.sceneAdult() {
     }
     // ⭐ 0이면 오늘은 여기까지 — 누를 때 한 번만 말해 준다 (결정 2)
     if (s.limitOn && s.dayStars <= 0) {
-        s.notice = "오늘 만들 이야기는 다 썼어요! 책장에서 지난 이야기를 볼까요?"
+        s.noticeMode = picked
+        s.notice = "오늘 정한 횟수를\n다 썼어.\n" + startLimitNextAction()
         log("하루 별 0 → 시작을 막고 책장을 권한다. 누를 때 한 번만 말하고 재촉하지 않는다 (결정 2 · ⭐2)")
         buttons(
             DemoBtn("📚 책장 보기") { send(Reply.Tapped("notice:shelf", "책장")) },
             DemoBtn("🙂 괜찮아") { send(Reply.Tapped("notice:ok", "괜찮아")) },
         )
-        if (awaitValue("notice:shelf", "notice:ok") == "notice:shelf") go(Scene.SHELF) else go(Scene.ADULT)
+        finishStartLimitNotice()
         return
     }
     // 부모 설정 — 시작할 때 비밀번호 (아이 혼자 별을 써 버리거나 계속 만드는 것을 막는다)
@@ -285,13 +287,14 @@ private suspend fun Director.sceneAdult() {
     }
     // 서버 연결판 하루 한도 (10-06 팀 합의 · CallLimits) — 부모의 하루 별과 따로, 부모가 풀 수 없다(비용 상한)
     if (Server.liveFor(picked) && com.example.finalproject_demo.net.CallLimits.booksLeftToday() <= 0) {
-        s.notice = "오늘은 오또랑 책을 두 권이나 만들었어! 새 이야기는 내일 같이 하자. 책장에서 만든 책을 볼까?"
+        s.noticeMode = picked
+        s.notice = "오늘 시작 횟수를\n다 썼어.\n" + startLimitNextAction()
         log("서버 연결 하루 ${com.example.finalproject_demo.net.CallLimits.BOOKS_PER_DAY}권을 다 썼다 → 새 이야기를 막고 책장을 권한다")
         buttons(
             DemoBtn("📚 책장 보기") { send(Reply.Tapped("notice:shelf", "책장")) },
             DemoBtn("🙂 괜찮아") { send(Reply.Tapped("notice:ok", "괜찮아")) },
         )
-        if (awaitValue("notice:shelf", "notice:ok") == "notice:shelf") go(Scene.SHELF) else go(Scene.ADULT)
+        finishStartLimitNotice()
         return
     }
     s.paused = null          // 새 이야기 — 멈춰 둔 이야기는 버린다
@@ -341,6 +344,24 @@ private suspend fun Director.sceneAdult() {
 }
 
 // ── 장면 2 · 도감 (⭐8 주인공 4칸 + 점선 ＋ 버튼) ──────────────────
+
+/** A refused new start must keep the old draft reachable without spending another start. */
+private fun Director.startLimitNextAction() =
+    if (s.paused != null) "만들던 건 이어서 해!" else "책장에서 다시 볼까?"
+
+private suspend fun Director.finishStartLimitNotice() {
+    val action = awaitValue("notice:shelf", "notice:ok", "resume")
+    s.notice = null; s.noticeMode = null
+    when (action) {
+        "notice:shelf" -> go(Scene.SHELF)
+        "resume" -> {
+            val scene = s.paused
+            s.paused = null
+            go(scene ?: Scene.ADULT)
+        }
+        else -> go(Scene.ADULT)
+    }
+}
 
 private suspend fun Director.sceneBestiary() {
     while (true) {

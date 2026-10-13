@@ -641,10 +641,11 @@ fun SetupStep(onBack: () -> Unit, onDone: () -> Unit) {
         cta = "설정 끝", ctaEnabled = limit != null && style != null && pin != null,
         onCta = { Shell.saveSetup(limit!!.takeIf { it > 0 }, style!!, pin!!); onDone() },
     ) {
-        SetupLabel("하루에 만들 책")
+        SetupLabel("하루에 시작할 이야기")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(1 to "1권", 2 to "2권", 3 to "3권", 0 to "제한 없음").forEach { (v, t) -> Choice(t, limit == v) { limit = v } }
+            listOf(1 to "1회", 2 to "2회", 3 to "3회", 0 to "제한 없음").forEach { (v, t) -> Choice(t, limit == v) { limit = v } }
         }
+        Text("새 이야기를 시작할 때 1회를 써요", fontSize = 11.sp, color = InkSoft, modifier = Modifier.padding(top = 6.dp))
         Spacer(Modifier.height(14.dp))
         SetupLabel("그림체")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
