@@ -67,7 +67,7 @@ def test_history_rejects_an_invented_slot_name():
 
 
 def test_result_defaults_take_nothing_back():
-    assert TurnResult().retract == []
+    assert TurnResult().retract == [] and TurnResult().refused is False
 
 
 def test_a_turn_without_history_answers_as_before(client):
@@ -190,6 +190,18 @@ def test_an_empty_history_still_reads_what_the_child_meant(client):
     out = client.post("/turn", json=body(utterance="오또는 뭐 좋아해?", history=[])).json()
     assert out["act"] == "answer_back"
     assert out["judge"]["slot_1"] is None        # a question to Otto fills nothing
+
+
+def test_a_refusal_with_history_is_signalled_and_the_verdict_is_kept(client):
+    out = client.post("/turn", json=body(utterance="몰라", history=walked_to_park())).json()
+    assert out["refused"] is True and out["act"] is None
+    assert out["judge"] is not None
+
+
+def test_a_refusal_without_history_is_not_signalled(client):
+    # no history = no decider (other modes, older apps): nothing new in the answer
+    out = client.post("/turn", json=body(utterance="몰라")).json()
+    assert out["refused"] is False
 
 
 def test_no_history_field_keeps_the_turn_as_before(client):
