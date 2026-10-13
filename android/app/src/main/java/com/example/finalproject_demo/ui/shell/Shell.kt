@@ -64,10 +64,17 @@ object Shell {
         newsSince = prefs!!.getLong("news_at", 0L).takeIf { it > 0 }
     }
 
-    /** The full opening is shown once to an onboarded household. */
-    val openingSeen: Boolean get() = prefs?.getBoolean("opening_seen", false) == true
+    /** Only suppress replays while navigating within this launch; ignore the old persisted flag. */
+    var openingSeen by mutableStateOf(false)
+        private set
 
-    fun markOpeningSeen() { prefs?.edit()?.putBoolean("opening_seen", true)?.apply() }
+    fun markOpeningSeen() { openingSeen = true }
+
+    /** A fresh activity launch replays the opening; resuming or recreating the activity does not. */
+    fun startLaunch() {
+        openingSeen = false
+        step = Step.CLAP
+    }
 
     /** Keep account and consent gates identical for both first and repeat launches. */
     fun startStep(): Step = when {
@@ -192,7 +199,7 @@ object Shell {
         prefs?.edit()?.putBoolean("onboarded", false)?.remove("ready_accounts")?.apply()
         com.example.finalproject_demo.ui.ConsentStore.forgetMic()
         sheet = Sheet.NONE
-        step = Step.CLAP
+        startLaunch()
     }
 
     /**
@@ -205,6 +212,7 @@ object Shell {
 
     /** 탈퇴 끝 — 처음 설치한 상태로 (⓪ CLAP 부터) */
     fun resetToFirstRun() {
+        openingSeen = false
         onboarded = false
         newsSince = null
         doc = null
