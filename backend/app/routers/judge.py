@@ -98,7 +98,8 @@ async def run(req: JudgeRequest) -> JudgeResult:
             # names stay with us — TypeSafe gets placeholders (10-06); the app unmasks value_1
             raw = await jev.judge(judge_prompt.system(), jev.mask_names(judge_prompt.user(req), req.names),
                                   jev.mask_names(req.utterance, req.names), mode=req.mode)
-            log.info("judge jev %.2fs", raw.pop("_seconds", 0.0))
+            # labels only, no words
+            log.info("judge jev %.2fs · %s · slot_1 %s", raw.pop("_seconds", 0.0), req.mode, raw.pop("_slot_1", "-"))
             # diary · coop: the ending and the next slot are rules, as on Laya (judge_rules.py · 12 of the 13
             # labelled mode cases) — Jev's own story_ready / next_slot there are guesses about a diary order it
             # never saw. A story keeps Jev's verdict and the #156 recovery below: its required slots depend on

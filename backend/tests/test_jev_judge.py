@@ -132,15 +132,15 @@ def test_diary_and_coop_ask_for_another_slot_a_story_keeps_its_wording(monkeypat
 
     async def fake_jev(system, user, utterance, timeout_s=6.0, mode="story"):
         seen.append(mode)
-        return {"reason": "jev", "slot_1": "companion", "_seconds": 0.2}
+        return {"reason": "jev", "slot_1": "companion", "_seconds": 0.2, "_slot_1": "companion 0.91"}
 
     monkeypatch.setattr(jev, "judge", fake_jev)
     monkeypatch.setattr(settings, "mock", False)
     monkeypatch.setattr(settings, "judge_laya_modes", "")
     monkeypatch.setattr(settings, "judge_jev_modes", "story,diary,coop")
-    asyncio.run(judge.run(JudgeRequest(mode="coop", slots={"place": "동물원"}, asked_slot="companion",
-                                       question="누구랑 갔어?", utterance="아빠")))
-    assert seen == ["coop"]
+    v = asyncio.run(judge.run(JudgeRequest(mode="coop", slots={"place": "동물원"}, asked_slot="companion",
+                                           question="누구랑 갔어?", utterance="아빠")))
+    assert seen == ["coop"] and v.slot_1 == "companion"   # the logged raw pick never reaches the result
 
 
 def test_mask_names_skips_blanks_and_placeholders():

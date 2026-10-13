@@ -194,6 +194,11 @@ async def judge(system: str, user: str, utterance: str, timeout_s: float = 6.0, 
         raise JevError(f"network: {type(e).__name__}") from e
     if r.status_code != 200:
         raise JevError(f"HTTP {r.status_code}")
-    out = assemble(r.json().get("answers", {}) or {}, utterance)
+    answers = r.json().get("answers", {}) or {}
+    out = assemble(answers, utterance)
     out["_seconds"] = round(time.monotonic() - t0, 2)
+    # Jev's own slot_1 pick before the floor: 「chose none」 and 「under 0.6」 both reach the phone as no fill
+    # (#440 · 10-13 device 「아빠」 — the server log could not tell which)
+    s1 = answers.get("slot_1") or {}
+    out["_slot_1"] = f"{s1.get('choice')} {s1.get('confidence')}"
     return out
