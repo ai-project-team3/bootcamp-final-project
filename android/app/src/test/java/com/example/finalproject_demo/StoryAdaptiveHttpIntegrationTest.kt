@@ -133,7 +133,8 @@ class StoryAdaptiveHttpIntegrationTest {
             val restored = firstStoryRequest(server)
             assertEquals(expectedRequests.last(), restored.getString("level"))
             assertFalse("Previous book text must stay local", restored.toString().contains(text))
-            assertFalse(restored.has("history"))
+            // a new story starts with no story so far (#323) — nothing of the last book goes with it
+            assertEquals(0, restored.optJSONArray("history")?.length() ?: 0)
             assertEquals("Two story-entry probes and three direct answers", 5, turnRequests(server).size)
             assertFalse("Adaptive rules must not add a separate model request", server.requests.any { it.first == "/judge" })
             turnRequests(server).forEach { request ->
