@@ -941,7 +941,7 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
             f.map { if (it.first == "solution") "problem" to it.second else it }.also { m ->
                 if (m != f) log("[problem] 곧 해요 · 직업 — 판정이 해결 칸에 넣은 「할 일」을 사건 칸으로 옮긴다(이 틀의 사건 = 그 직업이 할 일)")
             } else f }
-    fills.filter { (slot, _) -> slot != step.slot && slot in COOP_SKELETON && !diaryFilled(slot) }.forEach { (slot, v) ->
+    fills.filter { (slot, _) -> slot != step.slot && slot in COOP_CARRIED && !diaryFilled(slot) }.forEach { (slot, v) ->
         val said = if (slot == "companion") companionName(v.trim()) else v.trim()
         if (slot == "companion" && coopCompanionSentence(said)) {
             log("[companion] 「$said」 is a sentence, not who went → not filled from another step")
@@ -953,7 +953,8 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
     if (asked == null) return text
     return fills.firstOrNull { it.first == step.slot }?.second?.trim().also {
         if (it != null) return@also
-        log("[${step.slot}] /turn 이 이 칸을 못 찾았다 — 질문에 맞는 답이 아니었다 → 사다리")
+        // The judge's own fills ride along — whether the judge or the app dropped another slot shows in the next device run (#440 d)
+        log("[${step.slot}] /turn 이 이 칸을 못 찾았다 — 질문에 맞는 답이 아니었다 → 사다리 · 판정 fills=${verdict.fills.joinToString(", ", "[", "]") { (k, v) -> "$k=「$v」" }} · reason=${verdict.reason}")
         // 우리가 물은 걸음에 아이가 진짜로 한 답 — 사다리가 끝나면 마스코트가 짓는 대신 이 말을 넣는다.
         // 빼는 것은 상상 낱말이 든 그 말 하나뿐 — 「진짜로는」 뒤의 진짜 답은 받는다 (#99 리뷰 2)
         // 「딴 얘기」(「쉬 마려」)도 아이 말로 지킨다 — 다시 물었는데 같은 말을 하면 하고 싶은 말이다(10-06 조장 · #100 · 딴 얘기 필드는 만들지 않음)
@@ -961,7 +962,11 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
         val reason = s.bookPick?.reasonOrNull() ?: CoopReason.DREAM
         val denied = s.coopTrack.notRejectedAt == step.bookKey   // premise denied · another slot corrected (#327 ②)
         if (denied) log("[${step.bookKey}] a negation is not kept as a rejected answer — so it never becomes the slot value at the ladder's end")
-        if (id !in s.coopTrack.parentSteps && !denied && !isWildForReality(text, reason)) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
+        // An answer the judge put in another slot answered that slot, not this one — 「아빠랑 동물원에 갔어」 must not become this
+        // slot's value at the ladder's end. The asked slot is still asked once more on the next rung (#440 b)
+        val elsewhere = fills.map { it.first }.filter { it != step.slot }
+        if (elsewhere.isNotEmpty()) log("[${step.bookKey}] the answer went to ${elsewhere.joinToString(" · ")} — not kept as a rejected answer for this slot")
+        if (id !in s.coopTrack.parentSteps && !denied && elsewhere.isEmpty() && !isWildForReality(text, reason)) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
         // 판정이 이 칸 답이 아니라고 한 말에서 뗀 이름은 다음 질문에 끼우지 않는다 — 「친구들」이 곳 이름으로 끼어
         // 「친구들에 누구랑 같이 갔어?」 · 「친구들에서 뭐 봤어?」가 세 번 나왔다(10-06 실기기 · 학교 다녀왔어요)
         roleOf(step.bookKey)?.let { (slot, _) -> s.coopTrack.heard.remove(slot)?.let { n -> log("[${step.bookKey}] 들은 이름 $slot=「$n」 뺌 — 판정이 이 칸 답이 아니라고 했다") } }
@@ -996,6 +1001,9 @@ internal fun DemoState.coopRejectedCount(step: DiaryStep): Int =
     if (!isCoop) 0 else trackByState[this]?.rejected?.get(step.variant.id)?.size ?: 0
 
 private val COOP_SKELETON = setOf("place", "problem", "cause", "solution")
+
+/** Slots another step's answer may fill — the skeleton plus companion · reaction, which are book slots too (#440 a) */
+private val COOP_CARRIED = COOP_SKELETON + setOf("companion", "reaction")
 
 /**
  * 「곧 체험해요 · 직업」은 사건 칸이 **그 직업이 할 일**이다 — 「불이 나면 소방관은 무슨 일을 할까?」 · 「왜 그 일이 필요할까?」.

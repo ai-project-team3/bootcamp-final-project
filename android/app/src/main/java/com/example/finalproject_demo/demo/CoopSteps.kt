@@ -55,6 +55,8 @@ val COOP_STEPS: List<DiaryStep> = listOf(
     DiaryStep(
         slot = "companion", part = "기", required = false, kind = Kind.EASY,
         probe = "누구와 있었나 — 뒤의 질문이 물을 데를 얻는다",
+        // Already filled by the place answer (「아빠랑 동물원 갔어」) — 「누구랑 있었어?」 again breaks the flow (#440 c)
+        ask = { it.friend == null },
         rungs = {
             val p = it.placeName
             listOf(
