@@ -150,6 +150,7 @@ object ConsentStore {
     /** 동의 철회 — 정책상 **언제든 물릴 수 있어야** 한다. 물리면 다음 화면부터 동의를 다시 받는다 */
     fun withdraw() {
         guardianAgreed = false
+        com.example.finalproject_demo.demo.AnswerHistory.setChildAge(null)
         micNoticeShown = false       // 마이크도 다시 묻는다 — 탈퇴 · 다른 보호자 계정 (10-05 치영 · ui/shell/Shell.kt)
         prefs?.edit()?.putBoolean(KEY_AGREED, false)?.putBoolean(KEY_NAME_VOICE, false)?.putBoolean(KEY_TYPECAST_VOICE, false)
             ?.putBoolean(KEY_MIC, false)?.apply()

@@ -1023,7 +1023,7 @@ private fun ChildCallSection() {
         }
         pendingCall?.let { call ->
             Text("호칭만 바꾸나요, 다른 아이가 쓰나요?", fontSize = 14.sp, color = Ink)
-            Text("다른 아이는 말 기록을 새로 시작해요. 책과 책별 리포트는 그대로 있어요.", fontSize = 12.sp, color = PSub)
+            Text("다른 아이는 말 기록과 나이 정보를 새로 시작해요. 책과 책별 리포트는 그대로 있어요.", fontSize = 12.sp, color = PSub)
             PButton("같은 아이예요", PMint, Modifier.fillMaxWidth()) {
                 com.example.finalproject_demo.net.ChildCall.set(call); pendingCall = null
             }
@@ -1035,6 +1035,7 @@ private fun ChildCallSection() {
             PButton("취소", PSub, Modifier.fillMaxWidth(), outline = true) { pendingCall = null }
         }
         Spacer(Modifier.height(8.dp))
+        ChildAgeSection()
         if (com.example.finalproject_demo.demo.AnswerHistory.readFailed) {
             Text("말 기록을 읽지 못했어요. 기존 자료는 보존했고, 새 기록 저장과 책 삭제는 잠시 멈췄어요.", fontSize = 13.sp, color = Curtain)
         } else {
@@ -1045,7 +1046,7 @@ private fun ChildCallSection() {
         if (com.example.finalproject_demo.demo.AnswerHistory.writeFailed) Text("말 기록을 저장하지 못했어요. 저장 공간을 확인해 주세요.", fontSize = 13.sp, color = Curtain)
         Text("질문 문구로 분류하며, 확인 답과 유형을 모르는 답은 언어 지표에서 빼요. 원문은 기기에만 남겨요.", fontSize = 12.sp, color = PSub)
         if (resetting) {
-            Text("누적 말 기록을 비울까요? 책과 책별 리포트는 지우지 않아요. 다음 새 책부터 기록해요.", fontSize = 14.sp, color = Ink)
+            Text("누적 말 기록과 나이 정보를 비울까요? 책과 책별 리포트는 지우지 않아요. 다음 새 책부터 기록해요.", fontSize = 14.sp, color = Ink)
             PButton("네, 새로 시작할게요", PAccent, Modifier.fillMaxWidth()) {
                 if (com.example.finalproject_demo.demo.AnswerHistory.startNewChild()) resetting = false else failed = true
             }

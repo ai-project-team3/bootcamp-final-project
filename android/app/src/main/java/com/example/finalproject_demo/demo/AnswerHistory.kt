@@ -20,6 +20,9 @@ object AnswerHistory {
     var revision by mutableIntStateOf(0)
         private set
 
+    var childAge by androidx.compose.runtime.mutableStateOf<ChildAge?>(null)
+        private set
+
     var readFailed by androidx.compose.runtime.mutableStateOf(false)
         private set
     var writeFailed by androidx.compose.runtime.mutableStateOf(false)
@@ -33,6 +36,10 @@ object AnswerHistory {
     @Synchronized fun reload() {
         val id = prefs?.getString("profile", null)
         profileId = id ?: UUID.randomUUID().toString()
+        childAge = prefs?.getString("child_age", null)?.let { raw -> runCatching {
+            val age = JSONObject(raw)
+            ChildAge(age.getInt("years"), if (age.isNull("half")) null else age.getInt("half"))
+        }.getOrNull() }
         sessions.clear()
         readFailed = false; writeFailed = false
         val raw = prefs?.getString("sessions", null)
@@ -67,6 +74,22 @@ object AnswerHistory {
         it.who in setOf("child", "card") && it.questionType == ReportQuestionType.CHOICE
     }
 
+    /** Explicit guardian choice; no network upload or implicit age inference. */
+    @Synchronized fun setChildAge(age: ChildAge?): Boolean {
+        if (age == null) {
+            // Erasure must remain possible even when an unrelated history record is corrupt.
+            writeFailed = !(prefs?.edit()?.remove("child_age")?.commit() ?: true)
+            if (writeFailed) return false
+            childAge = null; revision++
+            return true
+        }
+        if (readFailed) return false
+        writeFailed = !save(sessions, profileId, age)
+        if (writeFailed) return false
+        childAge = age; revision++
+        return true
+    }
+
     @Synchronized fun keep(report: SessionReport) {
         // A paused book for a previous child must not enter the new child's history.
         if (readFailed || report.bookId.isBlank() || report.profileId != profileId) return
@@ -96,20 +119,20 @@ object AnswerHistory {
     /** A different child or an explicit guardian reset starts a fresh history; books stay on the shelf. */
     @Synchronized fun startNewChild(): Boolean {
         val id = UUID.randomUUID().toString()
-        writeFailed = !save(emptyList(), id)
+        writeFailed = !save(emptyList(), id, null)
         if (writeFailed) return false
         readFailed = false
-        sessions.clear(); profileId = id; revision++
+        sessions.clear(); profileId = id; childAge = null; revision++
         return true
     }
 
     @Synchronized fun clear() {
-        sessions.clear(); profileId = UUID.randomUUID().toString(); revision++
+        sessions.clear(); profileId = UUID.randomUUID().toString(); childAge = null; revision++
         readFailed = false; writeFailed = false
         prefs?.edit()?.clear()?.commit()
     }
 
-    private fun save(next: List<AnswerSession>, id: String): Boolean {
+    private fun save(next: List<AnswerSession>, id: String, age: ChildAge? = childAge): Boolean {
         val json = JSONArray().also { a -> next.forEach { session ->
             a.put(JSONObject().put("bookId", session.bookId).put("day", session.day).put("mode", session.mode)
                 .put("answers", JSONArray().also { answers -> session.answers.forEach { line ->
@@ -118,6 +141,11 @@ object AnswerHistory {
                         .put("languageEvidence", line.languageEvidence?.toJson() ?: JSONObject.NULL))
                 } }))
         } }
-        return prefs?.edit()?.putInt("schema_version", 2)?.putString("profile", id)?.putString("sessions", json.toString())?.commit() ?: true
+        return prefs?.edit()?.putInt("schema_version", 2)?.putString("profile", id)?.putString("sessions", json.toString())
+            ?.apply {
+                if (age == null) remove("child_age")
+                else putString("child_age", JSONObject().put("years", age.years)
+                    .put("half", age.half ?: JSONObject.NULL).toString())
+            }?.commit() ?: true
     }
 }

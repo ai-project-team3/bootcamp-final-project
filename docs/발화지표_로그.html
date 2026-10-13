@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="653명의 말에서 나이 차이를 확인하지 못한 결과, 질문별 기록 구현, 발화 관찰과 맞춤 질문 PR의 현재 상태를 구분합니다.">
-<title>발화 지표 로그 — 653명 분석과 질문 기록 · 10-12</title>
+<title>발화 지표 로그 — 653명 분석과 연령 연구 참고 · 10-13</title>
 <style>
   :root{
     --surface-page:#F7F3E9;
@@ -306,6 +306,15 @@
     기록을 보여 주는 <a href="https://github.com/ai-project-team3/bootcamp-final-project/pull/407">#407</a>과 다음 동화 질문에 잇는 <a href="https://github.com/ai-project-team3/bootcamp-final-project/pull/409">#409</a>도 병합됐다. 10-13에는 50개 보조 검토와 고정 입력 전후 비교·연령 근거 정리를 마쳤다. <a href="#completion-1013">최신 결과와 범위</a>.</p>
 </div></header>
 <main>
+<section id="age-reference-1013"><div class="wrap">
+  <h2>10-13 · 선택 나이와 출처 있는 연구 참고, 맞춤 질문 연결 검증</h2>
+  <p><b>배경:</b> 단위가 다른 앱 답변 길이와 논문 MLUe를 같은 점수처럼 비교하지 않으면서, 확보한 연령별 연구 자료를 실제 부모 화면에 연결했다.</p>
+  <p><b>구현:</b> 보호자가 만 나이와 6개월 구간을 선택해 기기에 저장·삭제한다. 현재 아이의 동화 직접 답 50개부터 해당 연령의 문헌 평균·표준편차·표본·출처를 별도 카드로 보여 준다. 6~7세나 구간 미상은 숫자를 만들지 않는다. 약관·동의·다른 아이 초기화·탈퇴 삭제도 연결했다.</p>
+  <p><b>검증:</b> 실제 로컬 HTTP 응답 → 신호 해석 → 규칙 단계 → 기기 저장·재로드 → 다음 책 요청까지 세 합성 사례로 검사한다. 까닭+연결 신호는 까닭 질문으로, 까닭 신호 없는 연결어는 유지, 짧은 직접 답은 고르기로 이어진다. 별도 판정 호출과 나이 업로드는 추가하지 않는다.</p>
+  <p><b>검수 후속:</b> 사람이 남긴 45승인·5보류는 그대로 보존했다. 보류 5개에 후속 판단을 달았으며 자동 분석 설정을 바꿔 숫자를 높이지 않았다. 자세한 결과는 <a href="https://github.com/ai-project-team3/bootcamp-final-project/pull/437">#437</a>에 있다.</p>
+  <p><b>한계:</b> 참고 카드 구현은 검증된 직접 또래 비교나 실제 아동 효과가 아니다. AI-Hub에서 뚜렷한 연령 차이를 확인하지 못한 결과도 유지한다. 최종 자동 검사 수는 결과 정본에 기록한다.</p>
+  <p class="source"><a href="연령_연구참고_1013.md">방법·수치·표시 조건</a> · <a href="../eval/results.md#age-reference-1013">검증 결과</a></p>
+</div></section>
 <section id="배경"><div class="wrap">
   <div class="sec-head"><div class="sec-eyebrow">배경 · 왜 시작했나</div>
     <h2>짧게 답했다는 사실만으로 판단해도 될까?</h2>
@@ -447,6 +456,7 @@
   <p><b>설정 대조:</b> 같은 답변 50개에서 기본 설정은 평균 5.40토큰, 이형태 표시만 바꿔도 5.40이었다. 세부 분절을 켜면 36개의 개수가 바뀌어 평균 6.26이 됐다. 이는 단위 변화이며 정확도 개선이나 아이 말의 증가가 아니다.</p>
   <p><b>판정:</b> 사용자 검토와 보류 사유 분석은 완료했다. <strong>45/50을 정확도 90%로 쓰지 않는다.</strong> 앱 말 기록·맞춤 질문은 병합됐고, 독립 아동 정답 및 실제 사용 효과는 별도 근거가 필요하다.</p>
   <p class="source"><a href="../eval/results.md#assisted-review-1013">검토·측정 근거</a> · <a href="아동발화_검토결과_1013.md">보류 처리와 설정 기준</a></p>
+</div></section>
 <section id="completion-1013"><div class="wrap">
   <h2>10-13 · 전후 비교와 검수·연령 근거 정리</h2>
   <p><b>질문 연결:</b> 이전 책의 이력 없음/재로드 있음 6쌍, 48개 로컬 HTTP 요청. 짧은 답 이력은 고르기, 까닭·연결 이력은 까닭 묻기로 시작했다. 한 번의 답·선택·연결만·다른 아이 이력은 승격시키지 않았다.</p>
