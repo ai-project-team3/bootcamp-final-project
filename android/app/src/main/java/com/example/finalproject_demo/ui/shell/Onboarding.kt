@@ -639,7 +639,6 @@ fun SetupStep(onBack: () -> Unit, onDone: () -> Unit) {
         scroll = true,
         art = { Otto(Pose.THINK, Modifier.size(190.dp)) },
         cta = "설정 끝", ctaEnabled = limit != null && style != null && pin != null,
-        scroll = true,
         onCta = { Shell.saveSetup(limit!!.takeIf { it > 0 }, style!!, pin!!); onDone() },
     ) {
         SetupLabel("보호자가 정하는 하루 새 이야기 시작 횟수")
