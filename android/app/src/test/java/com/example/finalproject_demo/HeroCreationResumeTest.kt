@@ -2,6 +2,7 @@ package com.example.finalproject_demo
 
 import com.example.finalproject_demo.demo.*
 import com.example.finalproject_demo.net.Server
+import com.example.finalproject_demo.net.CallLimits
 import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Test
@@ -101,6 +102,35 @@ class HeroCreationResumeTest {
             assertTrue("A deliberately new hero still starts a separate creation",
                 (d.s.stage as Stage.CardsRow).cards.any { it.value == "voice" })
         }
+    }
+
+    @Config(sdk = [26])
+    @Test fun repeatedHomeResumeKeepsTheCandidateEvenWhenBothStartAllowancesAreExhausted() = runBlocking {
+        val wasEnabled = CallLimits.enabled
+        try {
+            CallLimits.reset()
+            CallLimits.enabled = true
+            repeat(CallLimits.BOOKS_PER_DAY) { CallLimits.bookStarted() }
+            withHero { d ->
+                d.s.limitOn = true
+                d.s.usedToday = d.s.dailyLimit
+                d.s.pinToStart = true
+                createFirst(d)
+                val beforeImages = d.s.images
+                val beforeCandidate = d.s.heroCreationDraft!!.generatedTries.toList()
+                val beforeEvents = d.s.events.count { it.startsWith("story_start") }
+                repeat(3) {
+                    resume(d)
+                    assertTrue("Continue must restore the same generated candidate", d.s.stage is Stage.Confirm)
+                    assertEquals(beforeImages, d.s.images)
+                    assertEquals(beforeCandidate, d.s.heroCreationDraft!!.generatedTries)
+                    assertEquals(0, d.s.heroCreationDraft!!.fixes)
+                    assertEquals(d.s.dailyLimit, d.s.usedToday)
+                    assertEquals(0, CallLimits.booksLeftToday())
+                    assertEquals(beforeEvents, d.s.events.count { it.startsWith("story_start") })
+                }
+            }
+        } finally { CallLimits.reset(); CallLimits.enabled = wasEnabled }
     }
 
     @Test fun leavingDuringGenerationDoesNotBuyAnotherAttempt() = runBlocking {
