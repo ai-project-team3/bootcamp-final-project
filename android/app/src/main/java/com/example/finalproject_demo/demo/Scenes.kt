@@ -285,11 +285,12 @@ private suspend fun Director.sceneAdult() {
         log("부모 설정: 이야기를 시작하려면 비밀번호 → 어른이 함께 있을 때만 시작")
         if (!pinGate("start")) { go(Scene.ADULT); return }
     }
-    // 서버 연결판 하루 한도 (10-06 팀 합의 · CallLimits) — 부모의 하루 별과 따로, 부모가 풀 수 없다(비용 상한)
-    if (Server.liveFor(picked) && com.example.finalproject_demo.net.CallLimits.booksLeftToday() <= 0) {
+    // 별이 없다 (#445 · CallLimits) — 서버 책 한 권은 별 하나. 부모의 「하루에 쓸 수 있는 별」과 따로다.
+    // 오또는 별을 사 달라는 말을 하지 않는다 — 구매는 어른 길(부모 비밀번호 뒤)에만 있다
+    if (Server.liveFor(picked) && com.example.finalproject_demo.net.CallLimits.starsLeft() <= 0) {
         s.noticeMode = picked
-        s.notice = "오늘 시작 횟수를\n다 썼어.\n" + startLimitNextAction()
-        log("서버 연결 하루 ${com.example.finalproject_demo.net.CallLimits.BOOKS_PER_DAY}권을 다 썼다 → 새 이야기를 막고 책장을 권한다")
+        s.notice = "별을 다 썼어.\n내일 또 생겨!\n" + startLimitNextAction()
+        log("별 0 → 새 이야기를 막고 책장을 권한다 (내일 무료 별 ${com.example.finalproject_demo.net.CallLimits.FREE_STARS_PER_DAY}개)")
         buttons(
             DemoBtn("📚 책장 보기") { send(Reply.Tapped("notice:shelf", "책장")) },
             DemoBtn("🙂 괜찮아") { send(Reply.Tapped("notice:ok", "괜찮아")) },
@@ -301,7 +302,7 @@ private suspend fun Director.sceneAdult() {
     discardDraft()           // …and its copy on the phone (#336) — the star for this new book is spent below
     s.resetStory()
     s.mode = picked
-    if (Server.liveFor(picked)) com.example.finalproject_demo.net.CallLimits.bookStarted()
+    if (Server.liveFor(picked)) com.example.finalproject_demo.net.CallLimits.starSpent()
     if (s.isDiary) {
         s.diaryStart = System.currentTimeMillis()
         mark("diaryentry")
@@ -2007,7 +2008,7 @@ private suspend fun Director.sceneParent() {
             }
             v == "set:limit" -> {
                 s.limitOn = !s.limitOn
-                log("하루 한도 ${if (s.limitOn) "켬 — 하루 ${s.dailyLimit}권" else "끔 — 별을 쓰지 않음"}")
+                log("하루에 쓸 수 있는 별 ${if (s.limitOn) "켬 — 하루 ${s.dailyLimit}개" else "끔"}")
             }
             v == "set:limit+" -> { s.dailyLimit = (s.dailyLimit + 1).coerceAtMost(5); log("하루 ${s.dailyLimit}권") }
             v == "set:limit-" -> { s.dailyLimit = (s.dailyLimit - 1).coerceAtLeast(1); log("하루 ${s.dailyLimit}권") }

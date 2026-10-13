@@ -62,6 +62,8 @@ fun OttoShell(d: Director) {
         if (!ConsentStore.guardianAgreed && !Shell.sampleOnly) Shell.step = Step.CONSENT
         else if (d.s.stage == Stage.Adult) OttoRoom(d, sample = Shell.sampleOnly)
         if (Shell.sheet == Sheet.PIN_CHANGE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { PinChangeSheet() }
+        // 별 구매하기 (#445) — 방의 「+」는 부모 비밀번호부터, 부모 설정에서는 바로
+        else if (Shell.sheet == Sheet.STAR_GATE || Shell.sheet == Sheet.STAR_SHOP) Shield(onBack = { Shell.sheet = Sheet.NONE }) { StarShopSheet() }
         else if (Shell.sheet != Sheet.NONE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { WithdrawSheet(d) }
         // 부모 영역 → 계정 → 기능 안내 다시 보기
         if (Shell.guide) Shield(onBack = { Shell.guide = false }) {

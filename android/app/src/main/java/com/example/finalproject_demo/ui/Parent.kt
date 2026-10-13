@@ -1074,25 +1074,40 @@ private fun SettingsTab(d: Director) {
     ConsentWithdrawSection()
     Spacer(Modifier.height(10.dp))
     PCard(Modifier.fillMaxWidth()) {
-        SettingRow("하루 한도", "보호자가 정하는 새 이야기 시작 횟수예요", s.limitOn) { d.send(Reply.Tapped("set:limit", "한도")) }
+        SettingRow("하루에 쓸 수 있는 별", "별이 남아 있어도 하루에 이만큼만 새 이야기를 시작해요", s.limitOn) { d.send(Reply.Tapped("set:limit", "한도")) }
         if (s.limitOn) {
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("하루에", fontSize = 14.sp, color = Ink)
                 Spacer(Modifier.width(10.dp))
                 Stepper("−") { d.send(Reply.Tapped("set:limit-", "−")) }
-                Text("${s.dailyLimit}회", fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                Text("${s.dailyLimit}개", fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
                 Stepper("＋") { d.send(Reply.Tapped("set:limit+", "＋")) }
                 Spacer(Modifier.weight(1f))
-                Chip("보호자 설정: ${s.dayStars}회 남음", Sun)
+                Chip("오늘 ${s.dayStars}개 남음", Sun)
             }
         }
-        Text("새로 시작할 때 1회를 사용해요. 중간에 나가도 되돌려지지 않으며, 같은 이야기 이어하기는 추가로 사용하지 않아요.", fontSize = 11.sp, color = PSub, modifier = Modifier.padding(top = 8.dp))
-        val allowance = s.newStoryAllowance()
-        if (allowance.service != null) {
-            Text("서비스 이용 한도: 오늘 새 시작 ${allowance.service}/${com.example.finalproject_demo.net.CallLimits.BOOKS_PER_DAY}회 남음", fontSize = 12.sp, color = Ink, modifier = Modifier.padding(top = 8.dp))
-            Text("위의 보호자 제한을 꺼도 서비스 이용 한도는 적용돼요. 메인 숫자는 두 제한 중 실제로 남은 새 시작 횟수예요.", fontSize = 11.sp, color = PSub)
-        } else if (!s.limitOn) Text("보호자 시작 횟수 제한이 꺼져 있어요.", fontSize = 11.sp, color = PSub)
+    }
+    Spacer(Modifier.height(10.dp))
+    // 별 (#445) — 책 한 권이 별 하나. 금액과 구매는 이 부모 영역 안에만 있다
+    PCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("별", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
+                val stars = s.newStoryAllowance().service
+                Text(
+                    if (stars != null) "지금 가진 별 ${stars}개 · 매일 ${com.example.finalproject_demo.net.CallLimits.FREE_STARS_PER_DAY}개를 새로 받아요"
+                    else "별 하나로 책 한 권을 만들어요 · 매일 ${com.example.finalproject_demo.net.CallLimits.FREE_STARS_PER_DAY}개를 새로 받아요",
+                    fontSize = 12.sp, color = PSub,
+                )
+            }
+            Box(
+                Modifier.height(38.dp).clip(RoundedCornerShape(19.dp)).background(PAccent)
+                    .clickable { com.example.finalproject_demo.ui.shell.Shell.sheet = com.example.finalproject_demo.ui.shell.Sheet.STAR_SHOP }.padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text("별 구매하기", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold) }
+        }
+        Text("새 이야기를 시작할 때 별 하나를 써요. 중간에 나가도 돌아오지 않고, 만들던 이야기를 이어서 할 때는 쓰지 않아요.", fontSize = 11.sp, color = PSub, modifier = Modifier.padding(top = 8.dp))
     }
     Spacer(Modifier.height(10.dp))
     PCard(Modifier.fillMaxWidth()) {

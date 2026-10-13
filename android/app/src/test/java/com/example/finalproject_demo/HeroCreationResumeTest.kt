@@ -110,7 +110,7 @@ class HeroCreationResumeTest {
         try {
             CallLimits.reset()
             CallLimits.enabled = true
-            repeat(CallLimits.BOOKS_PER_DAY) { CallLimits.bookStarted() }
+            repeat(CallLimits.FREE_STARS_PER_DAY + CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
             withHero { d ->
                 d.s.limitOn = true
                 d.s.usedToday = d.s.dailyLimit
@@ -126,7 +126,7 @@ class HeroCreationResumeTest {
                     assertEquals(beforeCandidate, d.s.heroCreationDraft!!.generatedTries)
                     assertEquals(0, d.s.heroCreationDraft!!.fixes)
                     assertEquals(d.s.dailyLimit, d.s.usedToday)
-                    assertEquals(0, CallLimits.booksLeftToday())
+                    assertEquals(0, CallLimits.starsLeft())
                     assertEquals(beforeEvents, d.s.events.count { it.startsWith("story_start") })
                 }
             }

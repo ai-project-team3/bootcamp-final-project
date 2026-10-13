@@ -11,6 +11,8 @@ import com.example.finalproject_demo.net.CallLimits
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.ui.shell.OttoRoom
 import com.example.finalproject_demo.ui.shell.SetupStep
+import com.example.finalproject_demo.ui.shell.Sheet
+import com.example.finalproject_demo.ui.shell.Shell
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.RoborazziTaskType
@@ -19,6 +21,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import androidx.compose.ui.text.TextLayoutResult
@@ -41,16 +44,16 @@ class DailyStartLimitViewTest {
         oldBase = Server.base; oldModes = Server.liveModes
         Server.base = "http://127.0.0.1:1"; Server.liveModes = setOf(StoryMode.STORY)
         CallLimits.reset(); CallLimits.enabled = true
-        repeat(CallLimits.BOOKS_PER_DAY) { CallLimits.bookStarted() }
+        repeat(CallLimits.FREE_STARS_PER_DAY + CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
         compose.mainClock.autoAdvance = false
     }
 
-    @After fun clean() { scope.cancel(); CallLimits.reset(); Server.base = oldBase; Server.liveModes = oldModes }
+    @After fun clean() { scope.cancel(); Shell.sheet = Sheet.NONE; CallLimits.reset(); Server.base = oldBase; Server.liveModes = oldModes }
 
     private fun draw(notice: Boolean = true, paused: Boolean = false): Director {
         val d = Director(scope).apply {
             s.limitOn = false
-            s.notice = if (notice) "오늘 시작 횟수를\n다 썼어.\n만들던 건 이어서 해!" else null
+            s.notice = if (notice) "별을 다 썼어.\n내일 또 생겨!\n만들던 건 이어서 해!" else null
             if (paused) s.paused = Scene.MAKEHERO
         }
         compose.setContent { Box(Modifier.size(640.dp, 360.dp)) { OttoRoom(d) } }
@@ -74,7 +77,7 @@ class DailyStartLimitViewTest {
 
     @Test fun serviceLimitShowsItsActualNoticeInsteadOfTheGenericGoodbye() {
         draw()
-        val node = compose.onNodeWithText("오늘 시작 횟수를\n다 썼어.\n만들던 건 이어서 해!", useUnmergedTree = true)
+        val node = compose.onNodeWithText("별을 다 썼어.\n내일 또 생겨!\n만들던 건 이어서 해!", useUnmergedTree = true)
         node.assertIsDisplayed()
         val layouts = mutableListOf<TextLayoutResult>()
         node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
@@ -93,8 +96,11 @@ class DailyStartLimitViewTest {
         compose.onNodeWithText("어른").performClick()
         compose.mainClock.advanceTimeBy(100)
         compose.waitForIdle()
-        compose.onNodeWithText("서비스 이용 한도").assertIsDisplayed()
-        compose.onNodeWithText("오늘 한 권 더 만들기").assertDoesNotExist()
+        compose.onNodeWithText("별이 없어요").assertIsDisplayed()
+        compose.onNodeWithText("새 이야기 한 번 더 시작하기").assertDoesNotExist()
+        // the only way on is the shop — and it opens the grown-up check first, not the prices (#445)
+        compose.onNodeWithText("별 구매하기").performClick()
+        assertEquals(Sheet.STAR_GATE, Shell.sheet)
         capture("service-explanation")
     }
 
@@ -109,7 +115,9 @@ class DailyStartLimitViewTest {
         compose.mainClock.autoAdvance = true
         compose.setContent { Box(Modifier.size(640.dp, 360.dp)) { SetupStep({}, {}) } }
         compose.mainClock.advanceTimeBy(200)
-        compose.onNodeWithText("3회").performScrollTo().assertIsDisplayed()
+        // no daily limit choice in the setup any more — the stars are the limit (#445)
+        compose.onNodeWithText("3회").assertDoesNotExist()
+        compose.onNodeWithText("제한 없음").assertDoesNotExist()
         capture("setup-limits")
         compose.onNodeWithText("비밀번호로 확인").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("설정 끝").assertIsDisplayed()

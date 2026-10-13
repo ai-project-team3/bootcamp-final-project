@@ -457,7 +457,8 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, op
             LockDoor(Modifier.padding(12.dp)) { d.send(Reply.Tapped("parent", "부모 모드")) }
             // 오른쪽 위 오늘 만들 수 있는 책
             val left = s.newStoryAllowance().remaining
-            StarWallet(left ?: 0, unlimited = left == null, modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 64.dp), flightSource = true)
+            StarWallet(left ?: 0, unlimited = left == null, modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 64.dp), flightSource = true,
+                onPlus = if (sample) null else ({ Shell.sheet = Sheet.STAR_GATE }))
         }
 
         if (asking) target?.let { t ->
@@ -764,13 +765,19 @@ private fun DailyLimit(d: Director) {
             ParentText {
                 Column(Modifier.width(560.dp).felt(Wool, RoundedCornerShape(28.dp), lift = 10.dp, texture = false).padding(24.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (allowance.parentCanAllowExtra) "새 이야기 한 번 더 시작하기" else "서비스 이용 한도", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = InkBrown, modifier = Modifier.weight(1f))
+                        Text(if (allowance.parentCanAllowExtra) "새 이야기 한 번 더 시작하기" else "별이 없어요", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = InkBrown, modifier = Modifier.weight(1f))
                         Text("닫기", fontSize = 14.sp, color = InkSoft, modifier = Modifier.clickable { adult = false }.padding(8.dp))
                     }
                     Spacer(Modifier.height(14.dp))
                     if (!allowance.parentCanAllowExtra) {
-                        Text("오늘 서비스의 새 이야기 시작 한도를 사용했어요.\n보호자 하루 한도를 바꿔도 이 제한은 풀리지 않아요.", color = InkBrown, fontSize = 14.sp)
-                        Text("중간에 그만둔 시작도 포함해요.\n만들던 이야기 이어하기와 책장 읽기는 계속할 수 있어요.", color = InkSoft, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                        // no stars left (#445) — the only way on is the shop, behind the parent PIN. Tomorrow's free star needs nothing
+                        Text("별 하나로 책 한 권을 만들어요. 내일이면 별 ${com.example.finalproject_demo.net.CallLimits.FREE_STARS_PER_DAY}개가 새로 생겨요.", color = InkBrown, fontSize = 14.sp)
+                        Text("만들던 이야기 이어하기와 책장 읽기는 별 없이 할 수 있어요.", color = InkSoft, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                        Spacer(Modifier.height(14.dp))
+                        Box(
+                            Modifier.height(44.dp).clip(RoundedCornerShape(22.dp)).background(FeltCoral).clickable { adult = false; Shell.sheet = Sheet.STAR_GATE }.padding(horizontal = 22.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Text("별 구매하기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FeltWhite) }
                     } else if (Shell.hasPin) PinPad("부모 비밀번호", "한 번 더 시작하려면 비밀번호를 넣어 주세요", onDone = { ok -> Shell.checkPin(ok).also { if (it && d.s.allowExtraParentStart()) {
                         adult = false
                         d.send(Reply.Tapped("notice:ok", "한 권 더"))

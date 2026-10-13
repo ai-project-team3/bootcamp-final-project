@@ -27,12 +27,27 @@ class CallLimitsTest {
     @After fun off() { CallLimits.reset(); Server.resetCalls() }
 
     @Test
-    fun twoServerBooksADayThenTomorrowAgain() {
-        assertEquals(2, CallLimits.booksLeftToday())
-        CallLimits.bookStarted(); CallLimits.bookStarted()
-        assertEquals("세 번째 이야기는 시작하지 않는다", 0, CallLimits.booksLeftToday())
+    fun aNewDeviceHasTheWelcomeStarsAndOneFreeStarADay() {
+        // #445 — one star starts one server book: three welcome stars once, one free star a day
+        assertEquals(4, CallLimits.starsLeft())
+        CallLimits.starSpent()
+        assertEquals("오늘의 무료 별이 먼저 나간다", 3, CallLimits.starsLeft())
+        repeat(3) { CallLimits.starSpent() }
+        assertEquals("별이 없으면 새 이야기를 시작하지 않는다", 0, CallLimits.starsLeft())
+        CallLimits.starSpent()
+        assertEquals("없는 별은 더 줄지 않는다", 0, CallLimits.starsLeft())
         day = "2026-10-07"
-        assertEquals("날짜가 바뀌면 다시 두 권", 2, CallLimits.booksLeftToday())
+        assertEquals("날짜가 바뀌면 무료 별 하나만 — 처음 받은 별은 다시 생기지 않는다", 1, CallLimits.starsLeft())
+    }
+
+    @Test
+    fun anUnusedFreeStarIsNotCarriedOverButTheBankIs() {
+        assertEquals(4, CallLimits.starsLeft())
+        day = "2026-10-07"
+        assertEquals("안 쓴 무료 별은 쌓이지 않는다", 4, CallLimits.starsLeft())
+        CallLimits.starSpent(); CallLimits.starSpent()
+        day = "2026-10-08"
+        assertEquals("남겨 둔 별 2 + 오늘 무료 1", 3, CallLimits.starsLeft())
     }
 
     @Test
@@ -50,8 +65,8 @@ class CallLimitsTest {
     @Test
     fun theTeamsDevAppIsNotLimited() {
         CallLimits.enabled = false
-        repeat(5) { CallLimits.bookStarted() }
-        assertEquals(CallLimits.BOOKS_PER_DAY, CallLimits.booksLeftToday())
+        repeat(5) { CallLimits.starSpent() }
+        assertEquals(CallLimits.FREE_STARS_PER_DAY + CallLimits.WELCOME_STARS, CallLimits.starsLeft())
         assertNull(CallLimits.blocks("/tts", mapOf("/tts" to 1_000)))
     }
 

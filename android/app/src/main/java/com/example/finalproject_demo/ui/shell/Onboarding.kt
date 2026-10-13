@@ -627,26 +627,20 @@ fun PinStep(onBack: () -> Unit, onDone: () -> Unit) {
     }
 }
 
-// ── ⑤ 맞춤 설정 (5/5) — 하루 책 수 · 그림체 · 시작할 때 어른 확인. **셋 다 골라야** 넘어간다 (09-29) ──────
+// ── ⑤ 맞춤 설정 (5/5) — 그림체 · 시작할 때 어른 확인. **둘 다 골라야** 넘어간다 (09-29 · 하루 책 수는 10-13 에 뺐다 #445) ──────
 
 @Composable
 fun SetupStep(onBack: () -> Unit, onDone: () -> Unit) {
-    var limit by remember { mutableStateOf<Int?>(null) }        // 0 = 제한 없음
     var style by remember { mutableStateOf<String?>(null) }
     var pin by remember { mutableStateOf<Boolean?>(null) }
     ObFrame(
         step = 4, title = "우리 아이에게 맞춰요", sub = "나중에 부모 설정에서 언제든 바꿀 수 있어요.", onBack = onBack,
         scroll = true,
         art = { Otto(Pose.THINK, Modifier.size(190.dp)) },
-        cta = "설정 끝", ctaEnabled = limit != null && style != null && pin != null,
-        onCta = { Shell.saveSetup(limit!!.takeIf { it > 0 }, style!!, pin!!); onDone() },
+        cta = "설정 끝", ctaEnabled = style != null && pin != null,
+        // no daily limit here (#445): the stars are the limit. A guardian who wants a daily brake sets it in the parent settings
+        onCta = { Shell.saveSetup(null, style!!, pin!!); onDone() },
     ) {
-        SetupLabel("하루에 시작할 이야기")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(1 to "1회", 2 to "2회", 3 to "3회", 0 to "제한 없음").forEach { (v, t) -> Choice(t, limit == v) { limit = v } }
-        }
-        Text("새 이야기를 시작할 때 1회를 써요", fontSize = 11.sp, color = InkSoft, modifier = Modifier.padding(top = 6.dp))
-        Spacer(Modifier.height(14.dp))
         SetupLabel("그림체")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             com.example.finalproject_demo.demo.ART_STYLES.forEach { a ->
