@@ -52,7 +52,7 @@ def test_missing_parts_and_conflicting_duplicate_are_quarantined():
     ({"schema_version": 2}, "unsupported_schema"),
     ({"parts": 300}, "invalid_envelope"),
     ({"part": True}, "invalid_envelope"),
-    ({"truncated": True}, "payload_limit"),
+    ({"truncated": True}, "truncated_event"),
 ])
 def test_incomplete_transport_cannot_become_complete_evidence(change, reason):
     collector = load_collector()
@@ -210,3 +210,86 @@ def test_live_decode_error_preserves_prior_events_as_incomplete(monkeypatch, tmp
     assert manifest["issues"][0]["reason"] == "stream_decode_failed"
     assert manifest["summary"]["sessions"][0]["source_start_available"] is False
     assert len(json.loads((target / "events.json").read_text(encoding="utf8"))) == 1
+
+
+def test_private_capture_refuses_a_folder_inside_the_repository(tmp_path):
+    collector = load_collector()
+    collector.REPOSITORY = tmp_path / "repo"
+    target = collector.REPOSITORY / "eval" / "capture"
+    with pytest.raises(ValueError, match="outside"):
+        collector.write_bundle(collector.collect_lines([]), target)
+    assert not target.exists()
+
+
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_unexpected_live_eof_is_marked_even_with_prior_valid_events(monkeypatch, tmp_path, exit_code):
+    collector = load_collector()
+    class FakeProcess:
+        stdout = iter(chunks("session_started", 1, attempt=None, data={"started_mid_session": False, "missing_source": False}))
+        def terminate(self):
+            pass
+        def wait(self, timeout):
+            return exit_code
+    monkeypatch.setattr(collector.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+    target = tmp_path / "ended-run"
+    collector.main(["--adb", "fake-adb", "--serial", "fake-device", "--out", str(target)])
+    manifest = json.loads((target / "manifest.json").read_text(encoding="utf8"))
+    assert manifest["issues"][0]["reason"] == "stream_ended"
+    assert manifest["issues"][0]["exit_code"] == exit_code
+    assert manifest["summary"]["sessions"][0]["source_start_available"] is False
+
+
+def test_user_ctrl_c_finishes_bundle_without_inventing_an_io_failure(monkeypatch, tmp_path):
+    collector = load_collector()
+    def stopped_stream():
+        yield from chunks("session_started", 1, attempt=None, data={"started_mid_session": False, "missing_source": False})
+        raise KeyboardInterrupt()
+    class FakeProcess:
+        stdout = stopped_stream()
+        def terminate(self):
+            pass
+        def wait(self, timeout):
+            return -15
+    monkeypatch.setattr(collector.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+    target = tmp_path / "stopped-run"
+    collector.main(["--adb", "fake-adb", "--serial", "fake-device", "--out", str(target)])
+    manifest = json.loads((target / "manifest.json").read_text(encoding="utf8"))
+    assert manifest["issues"] == []
+    assert manifest["summary"]["sessions"][0]["needs_content_review"] is True
+
+
+@pytest.mark.parametrize("reason", ["payload_limit", "observation_failed"])
+def test_incomplete_event_keeps_the_fixed_omission_reason(reason):
+    collector = load_collector()
+    envelope = json.loads(chunks("generation_started", 1)[0].split(" | ", 1)[1])
+    envelope.update(truncated=True, omission_reason=reason)
+    result = collector.collect_lines(["story_eval | " + json.dumps(envelope)])
+    assert not result["events"]
+    assert result["issues"][0]["reason"] == reason
+
+
+def test_runtime_only_books_are_not_counted_as_persisted_storage():
+    collector = load_collector()
+    lines = chunks("book_saved", 1, data={"book_id": "runtime-book", "status": "runtime_only"})
+    lines += chunks("book_saved", 2, attempt="attempt-2", data={"book_id": "stored-book", "status": "stored"})
+    summary = collector.collect_lines(lines)["summary"]
+    assert summary["books_saved"] == 2
+    assert summary["books_persisted"] == 1
+    assert summary["runtime_books_only"] == 1
+
+
+def test_other_trace_messages_cannot_spoof_an_evaluation_envelope():
+    collector = load_collector()
+    spoof = chunks("session_started", 1, attempt=None, data={"started_mid_session": False})
+    spoof = [line.replace("I/OttoTrace: story_eval", "I/OttoTrace: child | story_eval") for line in spoof]
+    result = collector.collect_lines(spoof)
+    assert result["events"] == []
+    assert result["summary"]["sessions"] == []
+
+
+def test_raw_and_threadtime_frames_keep_marker_words_inside_utterances():
+    collector = load_collector()
+    raw = [line.removeprefix("I/OttoTrace: ") for line in chunks("utterance", 1, data={"raw_text": "story_eval | 는 합성 문자열"})]
+    threadtime = ["10-13 22:00:01.123 123 456 I OttoTrace: " + line for line in raw]
+    assert collector.collect_lines(threadtime)["events"][0]["data"]["raw_text"] == "story_eval | 는 합성 문자열"
+    assert collector.collect_lines(raw)["events"][0]["data"]["raw_text"] == "story_eval | 는 합성 문자열"

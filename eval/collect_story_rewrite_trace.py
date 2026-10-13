@@ -18,6 +18,12 @@ MAX_PAYLOAD_BYTES = 65_536
 MAX_PARTS = 256
 MAX_RECORDS = 50_000
 MAX_CAPTURE_BYTES = 32 * 1024 * 1024
+REPOSITORY = Path(__file__).resolve().parents[1]
+TRACE_FRAME = re.compile(
+    r"^(?:(?:[VDIWEFA]/OttoTrace(?:\(\s*\d+\s*\))?\s*:\s*)|"
+    r"(?:\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+\s+\d+\s+\d+\s+[VDIWEFA]\s+OttoTrace\s*:\s*))?"
+    r"story_eval \| (.*)$"
+)
 EVENTS = frozenset({
     "session_started", "session_reset", "session_paused", "session_resumed",
     "session_restored", "utterance", "turn_before", "turn_after", "turn_restored",
@@ -56,9 +62,9 @@ def _unsafe_field(value):
 def collect_lines(lines):
     """Reassemble complete JSON events; quarantine inconsistent/lost evidence."""
     groups, issues, capture_bytes = {}, [], 0
-    marker = "story_eval | "
     for line in lines:
-        if marker not in line:
+        frame = TRACE_FRAME.match(line.strip())
+        if not frame:
             continue
         capture_bytes += len(line.encode("utf-8", errors="replace"))
         if capture_bytes > MAX_CAPTURE_BYTES:
@@ -68,7 +74,7 @@ def collect_lines(lines):
             issues.append({"reason": "line_limit"})
             continue
         try:
-            envelope = json.loads(line.split(marker, 1)[1])
+            envelope = json.loads(frame.group(1))
         except (json.JSONDecodeError, ValueError, RecursionError):
             issues.append({"reason": "invalid_envelope"})
             continue
@@ -87,7 +93,8 @@ def collect_lines(lines):
               or type(envelope.get("truncated")) is not bool):
             reason = "invalid_envelope"
         elif envelope["truncated"]:
-            reason = "payload_limit"
+            omission = envelope.get("omission_reason")
+            reason = omission if omission in ("payload_limit", "observation_failed") else "truncated_event"
         if key not in groups and len(groups) >= MAX_RECORDS:
             issues.append({"reason": "record_limit"})
             break
@@ -173,6 +180,12 @@ def _summary(events, issues, session_ids):
                 "save_failed": "book_save_failed" in names,
                 "book_ids": sorted({event["data"]["book_id"] for event in stages
                                     if event["event"] == "book_saved" and isinstance(event["data"].get("book_id"), str)}),
+                "stored_book_ids": sorted({event["data"]["book_id"] for event in stages
+                                           if event["event"] == "book_saved" and event["data"].get("status") == "stored"
+                                           and isinstance(event["data"].get("book_id"), str)}),
+                "runtime_book_ids": sorted({event["data"]["book_id"] for event in stages
+                                            if event["event"] == "book_saved" and event["data"].get("status") == "runtime_only"
+                                            and isinstance(event["data"].get("book_id"), str)}),
                 "outcome_observed": bool(names & {"generation_adopted", "generation_fallback", "generation_cancelled"}),
                 "required_events_observed": bool(source_start_available and {
                     "generation_started", "generation_request", "generation_response",
@@ -188,6 +201,8 @@ def _summary(events, issues, session_ids):
         "fallbacks": sum(item["fallback"] for item in attempts),
         "cancelled": sum(item["cancelled"] for item in attempts),
         "books_saved": sum(len(item["book_ids"]) for item in attempts),
+        "books_persisted": sum(len(item["stored_book_ids"]) for item in attempts),
+        "runtime_books_only": sum(len(set(item["runtime_book_ids"]) - set(item["stored_book_ids"])) for item in attempts),
         "save_failed": sum(item["save_failed"] for item in attempts),
         "attempts_without_outcome": sum(item["started"] and not item["outcome_observed"] for item in attempts),
         "generation_success_rate": None,
@@ -198,6 +213,8 @@ def _summary(events, issues, session_ids):
 def write_bundle(result, destination):
     """Create a new bundle only; an existing destination is never replaced."""
     destination = Path(destination)
+    if destination.resolve().is_relative_to(REPOSITORY.resolve()):
+        raise ValueError("Private capture must be outside the repository")
     if destination.exists():
         raise FileExistsError("Capture destination already exists")
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -232,6 +249,8 @@ def main(argv=None):
     parser.add_argument("--serial", help="Currently verified device serial (live capture only)")
     parser.add_argument("--out", required=True, type=Path, help="New private folder outside the repository")
     args = parser.parse_args(argv)
+    if args.out.resolve().is_relative_to(REPOSITORY.resolve()):
+        parser.error("Private capture must be outside the repository")
     if args.out.exists():
         parser.error("Output folder already exists; use a new run folder")
     if args.adb and not args.serial:
@@ -243,11 +262,11 @@ def main(argv=None):
         # No shell, no log clearing, no app launch/install, no UI or permission writes.
         process = subprocess.Popen(adb_command(args.adb, args.serial), stdout=subprocess.PIPE,
                                    stderr=subprocess.DEVNULL, text=True, encoding="utf-8", errors="strict")
-        lines, live_bytes, limit_reached, read_problem = [], 0, False, None
+        lines, live_bytes, limit_reached, read_problem, ended_early = [], 0, False, None, False
         print("Local private capture started. Stop with Ctrl+C after the demo.")
         try:
             for line in process.stdout:
-                if "story_eval | " in line:
+                if TRACE_FRAME.match(line.strip()):
                     live_bytes += len(line.encode("utf-8"))
                     if live_bytes > MAX_CAPTURE_BYTES:
                         limit_reached = True
@@ -256,6 +275,8 @@ def main(argv=None):
                 if len(lines) >= MAX_RECORDS * 4:
                     limit_reached = True
                     break
+            else:
+                ended_early = True
         except KeyboardInterrupt:
             pass
         except UnicodeError:
@@ -265,13 +286,16 @@ def main(argv=None):
         finally:
             process.terminate()
             try:
-                process.wait(timeout=3)
+                exit_code = process.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 process.kill()
-                process.wait(timeout=3)
+                exit_code = process.wait(timeout=3)
         result = collect_lines(lines)
-        if limit_reached or read_problem:
-            result["issues"].append({"reason": read_problem or "capture_limit"})
+        if limit_reached or read_problem or ended_early:
+            if ended_early:
+                result["issues"].append({"reason": "stream_ended", "exit_code": exit_code})
+            else:
+                result["issues"].append({"reason": read_problem or "capture_limit"})
             result["summary"] = _summary(result["events"], result["issues"],
                                          [session["session_id"] for session in result["summary"]["sessions"]])
     write_bundle(result, args.out)
