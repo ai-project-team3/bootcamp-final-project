@@ -101,7 +101,8 @@ fun OttoShell(d: Director) {
                     detail = "지금까지 한 이야기로 책을 만들어요",
                     note = "부모님이 누르는 버튼이에요",
                     no = "▶" to "계속하기", yes = "📖" to "마치기",
-                    onNo = { Shell.askStop = false },
+                    // 「계속하기」 means the story goes on — not back to the ⏸ sheet (10-12 device review). Back still steps back one sheet
+                    onNo = { Shell.askStop = false; if (d.s.holding) d.resumeSession() },
                     onYes = { Shell.askStop = false; d.stopCoopFromPause() },
                 )
             }
@@ -114,12 +115,10 @@ fun OttoShell(d: Director) {
         Box(Modifier.fillMaxSize().background(Wool)) {
             androidx.compose.animation.Crossfade(Shell.step, animationSpec = androidx.compose.animation.core.tween(220), label = "step") { step ->
             when (step) {
-                // every launch shows the title (Otto logo · 「눌러서 시작」); only the curtain opening is skipped once seen
-                // (10-12 user — a repeat launch went from CLAP straight into Otto's room)
                 Step.CLAP -> SplashScreen { Shell.step = Step.TITLE }
                 Step.TITLE -> {
                     // Returning from re-consent must not replay the whole opening.
-                    if (Shell.onboarded && Shell.openingSeen) TitleScreen { Shell.step = Shell.startStep() }
+                    if (Shell.openingSeen) TitleScreen { Shell.step = Shell.startStep() }
                     else CurtainOpening(d) {
                         Shell.markOpeningSeen()
                         Shell.step = Shell.startStep()

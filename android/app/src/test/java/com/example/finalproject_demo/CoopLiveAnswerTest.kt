@@ -473,6 +473,78 @@ class CoopLiveAnswerTest {
     }
 
     /**
+     * #440 a · c — 「아빠랑 갔어」 to 「어디 갔어?」: the judge put it in companion, not place. Companion · reaction are book slots,
+     * so another step's answer fills them like the skeleton — and the filled companion step is not asked again
+     */
+    @Test
+    fun aCompanionOrFeelingInAnotherStepsAnswerFillsThatSlotAndIsNotAskedAgain() = run { d ->
+        val server = StoryTestServer { path, body ->
+            if (path != "/turn") JSONObject() else {
+                val said = body.optString("utterance")
+                val judge = JSONObject().put("reason", "ok")
+                when {
+                    "아빠" in said -> judge.put("slot_1", "companion").put("value_1", "아빠").put("slot_2", "reaction").put("value_2", "신났어")
+                    else -> body.optString("asked_slot").takeIf { it.isNotBlank() && it != "null" }?.let { judge.put("slot_1", it).put("value_1", said) }
+                }
+                JSONObject().put("judge", judge)
+            }
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestion()
+            d.answer("아빠랑 가서 신났어")
+            assertEquals("another step's companion was dropped", "아빠", d.s.friend)
+            assertEquals("another step's feeling was dropped", "신났어", d.s.reaction)
+            assertNull("an answer for another slot went into place", d.s.place)
+            assertTrue("the judge's fills were not logged", d.s.log.any { "못 찾았다" in it && "companion=「아빠」" in it })
+            d.speakUntil("동물원") { d.s.place != null }
+            assertEquals("동물원", d.s.place)
+            val asked = mutableListOf<String>()
+            withTimeoutOrNull(10_000) {
+                while (d.s.problem == null && d.s.scene == Scene.DIARY) {
+                    if (d.s.micEnabled && asked.lastOrNull() != d.s.line) asked += d.s.line
+                    d.send(Reply.Spoke("사자가 울었어")); delay(60)
+                }
+            }
+            assertTrue("the filled companion was asked again: $asked", asked.none { "누구" in it || "혼자" in it })
+            assertEquals(0, server.requests.count { it.first == "/turn" && it.second.optString("asked_slot") == "companion" })
+        } finally { server.close() }
+    }
+
+    /**
+     * #440 b — an answer the judge put in another slot is not this slot's rejected answer. Said twice, 「아빠랑 동물원에 갔어」 is not
+     * taken as 「the child wants this in the slot」 and never becomes the problem at the ladder's end
+     */
+    @Test
+    fun anAnswerForAnotherSlotNeverBecomesTheAskedSlotsValue() = run { d ->
+        val server = StoryTestServer { path, body ->
+            if (path != "/turn") JSONObject() else {
+                val said = body.optString("utterance")
+                val judge = JSONObject().put("reason", "ok")
+                when {
+                    "아빠랑" in said -> judge.put("slot_1", "companion").put("value_1", "아빠")
+                    else -> body.optString("asked_slot").takeIf { it.isNotBlank() && it != "null" && it != "problem" }?.let { judge.put("slot_1", it).put("value_1", said) }
+                }
+                JSONObject().put("judge", judge)
+            }
+        }
+        try {
+            Server.base = server.base
+            Server.liveModes = setOf(StoryMode.COOP)
+            d.toFirstQuestion()
+            d.answer("동물원")
+            assertEquals("동물원", d.s.place)
+            withTimeoutOrNull(20_000) {
+                while (d.s.problem == null && d.s.scene == Scene.DIARY) { d.send(Reply.Spoke("아빠랑 동물원에 갔어")); delay(60) }
+            }
+            assertEquals("아빠", d.s.friend)
+            assertTrue("an answer for another slot became the problem: ${d.s.problem}", d.s.problem != "아빠랑 동물원에 갔어")
+            assertTrue("not logged as kept out of the rejected list", d.s.log.any { "the answer went to companion" in it })
+        } finally { server.close() }
+    }
+
+    /**
      * 실기기(10-03) — 판정이 우리 질문에 한 아이 답을 거절해도 쉬운 질문으로 **한 번만** 더 묻고,
      * 또 거절되면 마스코트가 「아직 못 들은 ○○」로 짓지 않고 아이가 마지막에 한 말을 그 칸에 넣는다
      */

@@ -15,7 +15,8 @@ package com.example.finalproject_demo.demo
  * Copied from `DIARY_STEPS` as of `546d8ba` (eleven steps, four required).
  */
 
-private fun who(s: DemoState) = s.friendCallName
+/** The one asked about, as Otto says it — 「엄마, 아빠」 is 「엄마 아빠」 aloud ([spokenPeople]) */
+private fun who(s: DemoState) = spokenPeople(s.friendCallName)
 
 /** Did the child's day go wrong somewhere — "왜 그랬을까?" if so, "왜 제일 좋았어?" if not */
 private fun DemoState.hadTrouble(): Boolean {
@@ -55,6 +56,8 @@ val COOP_STEPS: List<DiaryStep> = listOf(
     DiaryStep(
         slot = "companion", part = "기", required = false, kind = Kind.EASY,
         probe = "누구와 있었나 — 뒤의 질문이 물을 데를 얻는다",
+        // Already filled by the place answer (「아빠랑 동물원 갔어」) — 「누구랑 있었어?」 again breaks the flow (#440 c)
+        ask = { it.friend == null },
         rungs = {
             val p = it.placeName
             listOf(

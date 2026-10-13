@@ -261,6 +261,38 @@ class DiaryLiveTurnTest {
     }
 
     /**
+     * #418 — 이름 없는 조각은 칸 질문 전에 묻는다. 전에는 「무슨 일」 답의 「~구나!」 바로 뒤에 끼어,
+     * 그 말을 고치려던 「아니야 그네 탔어」가 조각 이름 답으로 읽혀 버려졌다 (10-12 실기기)
+     */
+    @Test
+    fun anUnnamedPieceIsAskedBeforeTheSlotQuestionsNotAfterOttosReaction() {
+        val asked = mutableListOf<JSONObject>()
+        live({ t ->
+            asked += t
+            when (asked.size) {
+                1 -> turn(listOf("place" to "놀이터"), "problem", "놀이터에 갔구나!", "놀이터에서 무슨 일이 있었어?")
+                2 -> turn(listOf("problem" to "미끄럼틀 탔다"), "reaction", "미끄럼틀 탔구나!", "미끄럼틀 탈 때 어떤 마음이었어?")
+                else -> turn(emptyList(), null, "그랬구나!", null, ready = true)
+            }
+        }) { d ->
+            val s = d.s
+            d.go(Scene.DIARY)
+            assertTrue(await { s.stage is DiaryStart } != null)
+            assertTrue(await { if (s.stage is DiaryStart) d.send(Reply.Tapped("draw", "그릴래")); s.stage is com.example.finalproject_demo.demo.DiaryBoard } != null)
+            s.drawing += com.example.finalproject_demo.demo.Stroke(androidx.compose.ui.graphics.Color.Blue,
+                listOf(androidx.compose.ui.geometry.Offset(.1f, .3f), androidx.compose.ui.geometry.Offset(.2f, .6f)))
+            s.diaryDay.catchUp(s.drawing)
+            assertTrue(await { if (s.diaryDay.watching) d.send(Reply.Tapped("done", "완료")); s.stage is DiaryAsk } != null)
+            assertTrue("칸 질문 전에 조각을 묻지 않았다 — 말=${s.line}", await { s.line == "이건 뭐 그린 거야?" } != null)
+            assertTrue("조각 질문 전에 칸을 물었다", asked.isEmpty())
+            d.answer("몰라") { s.line == "오늘 어디 갔었어?" }
+            d.answer("놀이터 갔어") { s.line == "놀이터에서 무슨 일이 있었어?" }
+            d.answer("미끄럼틀 탔어") { asked.size == 2 && s.line != "놀이터에서 무슨 일이 있었어?" }
+            assertTrue("「~구나!」 뒤에 조각 질문이 끼었다 — 말=${s.line}", await { s.line == "미끄럼틀 탈 때 어떤 마음이었어?" } != null)
+        }
+    }
+
+    /**
      * 필수 칸에 아이가 진짜로 답했는데 판정이 두 번 못 받으면 — 비우지 않고 아이 말 그대로(아이 출처). 협업과 같다 (10-05 진웅).
      * 「몰라」였다면 넣지 않는다(다른 테스트)
      */

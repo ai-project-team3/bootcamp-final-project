@@ -171,6 +171,12 @@ suspend fun Director.sceneDiary() {
         if (step.required && diaryFilled(step.slot)) {
             log("[${step.part} · ${step.bookKey}] 건너뜀 — 앞의 답에서 이미 찼다 (${s.slotBy[step.bookKey] ?: "?"}) · 같은 걸 두 번 묻지 않는다")
             s.coopCoverPart(step.variant.id)
+        } else if (!diaryFilled(step.slot) && s.coopParentCovered(step.slot) != null) {
+            // the parent's question already asked this — its answer fills the step instead of the same question again
+            val said = s.coopParentCovered(step.slot)!!
+            log("[${step.part} · ${step.bookKey}] 건너뜀 — 부모 질문이 이미 같은 걸 물었다 · 그 답 「$said」로 채운다")
+            setDiarySlot(step.slot, step.bookKey, said, said, "child")
+            s.coopCoverPart(step.variant.id)
         } else askDiaryStep(step)
         drawCoopBackground()                    // 장소 칸이 찼으면 그곳으로 배경을 그린다 — 기다리지 않는다 (10-05 · CoopServerLine.kt)
         // a doll for a companion with no picture — in co-op only after the drawing choice (FriendArt.kt · #339).
@@ -348,7 +354,7 @@ private suspend fun Director.diaryDrawStep() {
     val f = s.friendCallName
     if (s.companionKind.isBlank() || "혼자" in s.companionKind || s.newcomer != null) return
     s.stage = Stage.DrawPad()
-    say(s.coopDrawLine(f) ?: "오늘 만난 $f${eul(f)} 그려 줄래?")   // 협업 곧 해요 · 좋아해요는 「오늘 만난」이 아니다 (CoopReport.kt)
+    say(s.coopDrawLine(f) ?: spokenPeople(f).let { "오늘 만난 $it${eul(it)} 그려 줄래?" })   // 협업 곧 해요 · 좋아해요는 「오늘 만난」이 아니다 (CoopReport.kt)
     inputs(false, false)
     buttons(
         DemoBtn("✅ 지금 그린 그림으로 완료") { send(Reply.Tapped("done", "완료")) },

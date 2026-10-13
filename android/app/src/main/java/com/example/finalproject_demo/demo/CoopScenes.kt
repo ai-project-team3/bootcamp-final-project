@@ -116,6 +116,22 @@ internal fun DemoState.coopUseGeneratedBackground(path: String, forPlace: String
 /** 지금 같이 만드는 이야기에 서버가 그린 배경 — 그림 정리가 지우지 않게 (`Director.recoverStoryImages` · #80) */
 internal val DemoState.coopGeneratedBackground: String? get() = coopTrack.generatedBg
 
+/**
+ * What a later step asks, as words a parent's question may already have asked it with. 10-12 device review: the parent's
+ * 「가기 전에 어떤 기분이 들어?」 was answered 「설레」, and the feeling step asked 「가기 전에 어떤 기분이야?」 right after —
+ * then a third time when the child said 「아까 말했잖아」
+ */
+private val COOP_STEP_TOPIC = mapOf(
+    "reaction" to Regex("기분|마음|느낌"),
+    "cause" to Regex("왜"),
+)
+
+/** The child's answer to a parent question that already asked what [slot]'s step asks — null when none did */
+internal fun DemoState.coopParentCovered(slot: String): String? {
+    val topic = COOP_STEP_TOPIC[slot] ?: return null
+    return coopParentAnswers.firstOrNull { (question, _) -> topic.containsMatchIn(question) }?.second
+}
+
 /** 부모 질문을 끼우는 꼬리 자리 — 하던 일 · 한 말 · 해 본 것 · 집에 와서. 답의 뜻이 정해지지 않은 자리들이다 */
 internal val COOP_PARENT_STEPS = setOf("detail", "said", "try", "after")
 
@@ -507,7 +523,7 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         }
         // 받아주기 — 서버의 받아주기 + 되돌려주기(동화와 같게 · CoopServerLine.kt). 없거나 못 쓰면 앱의 한마디:
         // 아이 말에서 뗀 이름 하나. 「몰라」 · 「응」은 되비추지 않는다. 다음 질문과 합쳐 두 문장
-        val server = if (live == null || wild) null else coopServerReaction(track.liveTurn?.result?.line)
+        val server = if (live == null || wild) null else coopServerReaction(track.liveTurn?.result?.line)?.let { spokenWithPeople(it, s.companionKind) }
         if (server != null) log("[$key] 받아주기 — 서버 대사 「$server」")
         // 못 썼으면 까닭을 남긴다 — 서버가 대사를 안 줬나(거절 · 실패), 앱이 버렸나를 다음 실기기에서 가른다 (#304 2)
         else if (live != null && !wild) log("[$key] 받아주기 — 서버 대사 못 씀: ${coopServerDropped(track.liveTurn?.result?.line).joinToString(" · ")}")
@@ -941,7 +957,7 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
             f.map { if (it.first == "solution") "problem" to it.second else it }.also { m ->
                 if (m != f) log("[problem] 곧 해요 · 직업 — 판정이 해결 칸에 넣은 「할 일」을 사건 칸으로 옮긴다(이 틀의 사건 = 그 직업이 할 일)")
             } else f }
-    fills.filter { (slot, _) -> slot != step.slot && slot in COOP_SKELETON && !diaryFilled(slot) }.forEach { (slot, v) ->
+    fills.filter { (slot, _) -> slot != step.slot && slot in COOP_CARRIED && !diaryFilled(slot) }.forEach { (slot, v) ->
         val said = if (slot == "companion") companionName(v.trim()) else v.trim()
         if (slot == "companion" && coopCompanionSentence(said)) {
             log("[companion] 「$said」 is a sentence, not who went → not filled from another step")
@@ -953,7 +969,8 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
     if (asked == null) return text
     return fills.firstOrNull { it.first == step.slot }?.second?.trim().also {
         if (it != null) return@also
-        log("[${step.slot}] /turn 이 이 칸을 못 찾았다 — 질문에 맞는 답이 아니었다 → 사다리")
+        // The judge's own fills ride along — whether the judge or the app dropped another slot shows in the next device run (#440 d)
+        log("[${step.slot}] /turn 이 이 칸을 못 찾았다 — 질문에 맞는 답이 아니었다 → 사다리 · 판정 fills=${verdict.fills.joinToString(", ", "[", "]") { (k, v) -> "$k=「$v」" }} · reason=${verdict.reason}")
         // 우리가 물은 걸음에 아이가 진짜로 한 답 — 사다리가 끝나면 마스코트가 짓는 대신 이 말을 넣는다.
         // 빼는 것은 상상 낱말이 든 그 말 하나뿐 — 「진짜로는」 뒤의 진짜 답은 받는다 (#99 리뷰 2)
         // 「딴 얘기」(「쉬 마려」)도 아이 말로 지킨다 — 다시 물었는데 같은 말을 하면 하고 싶은 말이다(10-06 조장 · #100 · 딴 얘기 필드는 만들지 않음)
@@ -961,7 +978,11 @@ private suspend fun Director.coopLiveValueAsSaid(step: DiaryStep, question: Stri
         val reason = s.bookPick?.reasonOrNull() ?: CoopReason.DREAM
         val denied = s.coopTrack.notRejectedAt == step.bookKey   // premise denied · another slot corrected (#327 ②)
         if (denied) log("[${step.bookKey}] a negation is not kept as a rejected answer — so it never becomes the slot value at the ladder's end")
-        if (id !in s.coopTrack.parentSteps && !denied && !isWildForReality(text, reason)) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
+        // An answer the judge put in another slot answered that slot, not this one — 「아빠랑 동물원에 갔어」 must not become this
+        // slot's value at the ladder's end. The asked slot is still asked once more on the next rung (#440 b)
+        val elsewhere = fills.map { it.first }.filter { it != step.slot }
+        if (elsewhere.isNotEmpty()) log("[${step.bookKey}] the answer went to ${elsewhere.joinToString(" · ")} — not kept as a rejected answer for this slot")
+        if (id !in s.coopTrack.parentSteps && !denied && elsewhere.isEmpty() && !isWildForReality(text, reason)) s.coopTrack.rejected.getOrPut(id) { mutableListOf() } += text
         // 판정이 이 칸 답이 아니라고 한 말에서 뗀 이름은 다음 질문에 끼우지 않는다 — 「친구들」이 곳 이름으로 끼어
         // 「친구들에 누구랑 같이 갔어?」 · 「친구들에서 뭐 봤어?」가 세 번 나왔다(10-06 실기기 · 학교 다녀왔어요)
         roleOf(step.bookKey)?.let { (slot, _) -> s.coopTrack.heard.remove(slot)?.let { n -> log("[${step.bookKey}] 들은 이름 $slot=「$n」 뺌 — 판정이 이 칸 답이 아니라고 했다") } }
@@ -996,6 +1017,9 @@ internal fun DemoState.coopRejectedCount(step: DiaryStep): Int =
     if (!isCoop) 0 else trackByState[this]?.rejected?.get(step.variant.id)?.size ?: 0
 
 private val COOP_SKELETON = setOf("place", "problem", "cause", "solution")
+
+/** Slots another step's answer may fill — the skeleton plus companion · reaction, which are book slots too (#440 a) */
+private val COOP_CARRIED = COOP_SKELETON + setOf("companion", "reaction")
 
 /**
  * 「곧 체험해요 · 직업」은 사건 칸이 **그 직업이 할 일**이다 — 「불이 나면 소방관은 무슨 일을 할까?」 · 「왜 그 일이 필요할까?」.
@@ -1069,7 +1093,7 @@ suspend fun Director.coopWriteBook() {
         reason = s.coopStoryReason(),
         // 고른 요소 안의 자리 — 쪽 꾸밈과 keywords 에만 쓴다. 선택지 후보(무슨 일 · 까닭 · 해결)는 아이가 말한 게 아니라 안 보낸다 (#113)
         stage = s.coopStage(),
-    )?.map(mask::unmask)
+    )?.map { spokenWithPeople(mask.unmask(it), s.companionKind, familyOnly = true) }   // 「엄마, 아빠와」 → 「엄마 아빠와」
     if (s.useCoopCaptions(captions)) log("서버가 쓴 협업 책 문장 ${pages.size}쪽을 받음 (/story)")
     else log("협업 책 문장 생성 실패 또는 쪽 수 불일치 → 틀 문장 그대로")
 }
