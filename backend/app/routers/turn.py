@@ -267,7 +267,7 @@ async def turn(req: TurnRequest) -> TurnResult:
         v, line, retract = settle(act, req, v, line, retract)
         if v is None and line is None:
             raise HTTPException(502, "judge and line both failed")
-        return TurnResult(judge=v, line=line, act=act, retract=retract)
+        return TurnResult(judge=v, line=line, act=act, retract=retract, refused=policy.refused(d))
 
     # with history (#323) the quick decider runs next to the judge, so the turn waits for the slower
     # of the two, not both. It never raises: no opinion = the turn runs as before
@@ -284,4 +284,4 @@ async def turn(req: TurnRequest) -> TurnResult:
     v, line, retract = settle(act, req, v, line, retract)
     if v is None and line is None:
         raise HTTPException(502, "judge and line both failed")
-    return TurnResult(judge=v, line=line, act=act, retract=retract)
+    return TurnResult(judge=v, line=line, act=act, retract=retract, refused=policy.refused(d))
