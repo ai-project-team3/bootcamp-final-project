@@ -1,20 +1,24 @@
-"""Diary: does telling the line model what the child drew make Otto's questions better? (10-05)
+"""Diary: does Otto's line invent things the child never said? (10-05 · re-run on the split prompt 10-13)
 
-Three arms on the same diary turns, alternating so drift hits all:
-  A  now        — the prompt on --before (origin/main), no drawing sent (what the app sends today)
-  B  drawn only — the same prompt, template "그린 것: …" sent, no rule about it
-  C  drawn+rule — the working eval/line_prompt.md (diary rule: the drawing is a clue, never a fact), template sent
+The diary line piece (eval/prompt_modes/line_diary.md) against the one on --before, alternating so
+drift hits both arms:
+  A  before — the common prompt + diary piece on --before (origin/main)
+  B  now    — the working tree (what the server would send)
+
+The app sends no drawing to /turn in a diary, so neither arm does. --drawn sends the drawing as the
+template 「그린 것: …」 in both arms — the 10-05 question (does knowing the drawing help?) whose answer
+was the app's fixed clue frames (demo/DiaryClue.kt · bench_diary_clue_frames.py).
 
 Scored per line:
   rules      — question present · one 「?」 · no 「언제」 · not future tense · short (22 chars; 40 with choices)
-  clue       — the line names something the child drew but has not said yet (the drawing used as a clue)
-  presumes   — a grader call: does the line say something happened that the child never said?
-               (e.g. 「미끄럼틀 탔구나!」 when the child only drew a slide). Lower is better
-  choices    — pick-level cases: every choice spoken comes from the drawing (C only claims this)
+  invents    — a grader call: does the line say something happened that the child never said?
+               (「조개가 반짝였구나」 when the child said 「조개 주웠어」). Lower is better
+  expand     — the line has an expand at all (an expand of null is allowed)
+  clue       — the line names something the child drew but has not said yet (--drawn only)
 
-  py eval/bench_diary_drawing.py [--rounds 3] [--before origin/main] --yes-spend
+  py eval/bench_diary_drawing.py [--rounds 3] [--before origin/main] [--drawn] --yes-spend
 
-Costs about a hundred won (gpt-6-luna · 2 calls × 3 arms × rounds × cases).
+Costs about fifty won (gpt-6-luna · line + grader × 2 arms × rounds × 12 scenes).
 """
 import asyncio
 import json
@@ -26,14 +30,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 from app.llm.client import complete  # noqa: E402
-from app.llm.judge_prompt import _blocks  # noqa: E402
 from app.routers import turn  # noqa: E402
 from app.schemas.judge import JudgeResult  # noqa: E402
 from app.schemas.turn import TurnRequest  # noqa: E402
 
 ROUNDS = int(sys.argv[sys.argv.index("--rounds") + 1]) if "--rounds" in sys.argv else 3
 BEFORE = sys.argv[sys.argv.index("--before") + 1] if "--before" in sys.argv else "origin/main"
-OUT = ROOT / "eval" / "raw" / "diary_drawing_1005.jsonl"
+DRAWN = "--drawn" in sys.argv
+OUT = ROOT / "eval" / "raw" / f"diary_line_{'drawn_' if DRAWN else ''}{BEFORE.replace('/', '_')}.jsonl"
+sys.path.insert(0, str(ROOT / "eval"))
+from prompt_block import MODE_SLOT, system_block  # noqa: E402
 
 # (id, drawn, slots, question just asked, child's words, asked slot, judge's next slot, level)
 CASES = [
@@ -73,10 +79,14 @@ def git_file(rev: str, path: str) -> str:
 
 
 def before_system() -> str:
+    """The diary line prompt as --before had it: its common prompt with its own diary piece put in."""
+    text = git_file(BEFORE, "eval/line_prompt.md")
+    if MODE_SLOT in text:
+        text = text.replace(MODE_SLOT, git_file(BEFORE, "eval/prompt_modes/line_diary.md").rstrip("\n"))
     tmp = ROOT / "eval" / "_line_prompt_before.md"
-    tmp.write_text(git_file(BEFORE, "eval/line_prompt.md"), encoding="utf-8")
+    tmp.write_text(text, encoding="utf-8")
     try:
-        return _blocks.system_block(tmp)
+        return system_block(tmp)
     finally:
         tmp.unlink()
 
@@ -141,16 +151,16 @@ async def one(system: str, case, drawn_sent: bool) -> dict | None:
 
 async def main() -> None:
     if "--yes-spend" not in sys.argv:
-        sys.exit("costs about a hundred won — pass --yes-spend")
-    old, new = before_system(), turn.system()
-    arms = {"A": (old, False), "B": (old, True), "C": (new, True)}
+        sys.exit("costs about fifty won — pass --yes-spend")
+    arms = {"A": before_system(), "B": turn.system("diary")}
+    if arms["A"] == arms["B"]:
+        sys.exit(f"the diary line prompt is the same as on {BEFORE} — nothing to compare")
     rows = []
     for r in range(ROUNDS):
-        order = list(arms.items())
-        order = order[r % 3:] + order[:r % 3]
+        order = list(arms.items()) if r % 2 == 0 else list(arms.items())[::-1]
         for case in CASES:
-            for arm, (system, drawn_sent) in order:
-                line = await one(system, case, drawn_sent)
+            for arm, system in order:
+                line = await one(system, case, DRAWN)
                 if line is None:
                     rows.append({"round": r, "arm": arm, "id": case[0], "failed": True})
                     continue
@@ -158,29 +168,28 @@ async def main() -> None:
                 ok, why = rules_ok(q)
                 spoken = " ".join(x for x in (line.get("ack"), line.get("expand"), q) if x)
                 g = await grade(case, line)
-                choices = spoken_choices(q or "") if case[7] == "pick" else []
                 rows.append({
                     "round": r, "arm": arm, "id": case[0], "line": line, "rules_ok": ok, "rules_why": why,
-                    "clue": any(w in spoken and w not in said_so_far(case) for w in case[1]),"presumes": g.get("presumes"), "presumes_what": g.get("what"),
-                    "choices": choices, "choices_from_drawing": (all(any(w in c or c in w for w in case[1]) for c in choices) if choices else None),
+                    "expand": bool(line.get("expand")),
+                    "clue": any(w in spoken and w not in said_so_far(case) for w in case[1]) if DRAWN else None,
+                    "invents": g.get("presumes"), "invents_what": g.get("what"),
                 })
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("\n".join(json.dumps(x, ensure_ascii=False) for x in rows) + "\n", encoding="utf-8")
 
     def share(arm, key, want=True):
         xs = [x for x in rows if x["arm"] == arm and not x.get("failed") and x.get(key) is not None]
-        return f"{sum(1 for x in xs if x[key] == want)}/{len(xs)}"
+        return f"{sum(1 for x in xs if x[key] == want)}/{len(xs)}" if xs else "-"
 
-    print(f"\n{'arm':<14}{'rules ok':>10}{'clue':>15}{'presumes':>10}{'choices∈drawing':>17}{'failed':>8}")
-    for arm, label in (("A", "A now"), ("B", "B drawn only"), ("C", "C drawn+rule")):
+    print(f"\n{'arm':<12}{'rules ok':>10}{'invents':>10}{'expand':>10}{'clue':>8}{'failed':>8}")
+    for arm, label in (("A", "A before"), ("B", "B now")):
         failed = sum(1 for x in rows if x["arm"] == arm and x.get("failed"))
-        print(f"{label:<14}{share(arm, 'rules_ok'):>10}{share(arm, 'clue'):>15}{share(arm, 'presumes'):>10}{share(arm, 'choices_from_drawing'):>17}{failed:>8}")
-    print("\nround 0 lines:")
+        print(f"{label:<12}{share(arm, 'rules_ok'):>10}{share(arm, 'invents'):>10}{share(arm, 'expand'):>10}{share(arm, 'clue'):>8}{failed:>8}")
+    print("\ninvented:")
     for x in rows:
-        if x["round"] == 0 and not x.get("failed"):
+        if x.get("invents"):
             ln = x["line"]
-            flag = ("" if x["rules_ok"] else f" [rules: {x['rules_why']}]") + (" [PRESUMES: " + str(x["presumes_what"]) + "]" if x["presumes"] else "")
-            print(f"{x['id']} {x['arm']}  {ln.get('ack')} / {ln.get('expand')} / {ln.get('question')}{flag}")
+            print(f"{x['id']} r{x['round']} {x['arm']}  {ln.get('ack')} / {ln.get('expand')} / {ln.get('question')}  ← {x['invents_what']}")
     print(f"\n→ {OUT}")
 
 
