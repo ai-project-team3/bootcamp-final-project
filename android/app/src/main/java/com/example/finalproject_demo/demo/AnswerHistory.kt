@@ -41,7 +41,10 @@ object AnswerHistory {
             ChildAge(age.getInt("years"), if (age.isNull("half")) null else age.getInt("half"))
         }.getOrNull() }
         sessions.clear()
-        readFailed = false; writeFailed = false
+        readFailed = false
+        // Drafts keep this ID before the first book or optional age is saved.
+        // Persist only the missing ID; never rewrite history while loading it.
+        writeFailed = id == null && !(prefs?.edit()?.putString("profile", profileId)?.commit() ?: true)
         val raw = prefs?.getString("sessions", null)
         if (raw != null) {
             val loaded = runCatching {
