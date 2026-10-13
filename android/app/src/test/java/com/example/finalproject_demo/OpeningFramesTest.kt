@@ -1,6 +1,9 @@
 package com.example.finalproject_demo
 
 import androidx.compose.runtime.*
+import androidx.compose.material3.MaterialTheme
+import com.example.finalproject_demo.ui.FitScreen
+import com.example.finalproject_demo.ui.PuppetTypography
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.example.finalproject_demo.demo.Director
@@ -33,9 +36,11 @@ class OpeningFramesTest {
             val scope = rememberCoroutineScope()
             val director = remember { Director(scope) }
             val art = remember { OpeningArt(context) }
-            OpeningScene(director, art, time.floatValue)
+            MaterialTheme(typography = PuppetTypography) {
+                FitScreen { OpeningScene(director, art, time.floatValue) }
+            }
         }
-        for (t in listOf(0f, 2920f, 5200f, 6400f, 8000f, 9800f)) {
+        for (t in listOf(0f, 2920f, 4250f, 5200f, 6400f, 8000f, 9800f)) {
             compose.runOnIdle { time.floatValue = t }
             compose.waitForIdle()
             val path = File("build/opening/$device-${t.toInt()}.png")
@@ -49,6 +54,28 @@ class OpeningFramesTest {
     fun tabletFrames() = frames("tablet")
     @Test @Config(sdk = [34], qualifiers = "w800dp-h1280dp-port-mdpi")
     fun portraitFrames() = frames("portrait")
+    @Test @Config(sdk = [34], qualifiers = "w915dp-h412dp-land-420dpi")
+    fun widePhoneFrames() = frames("wide-phone")
+    @Test @Config(sdk = [34], qualifiers = "w768dp-h640dp-land-320dpi")
+    fun foldInnerFrames() = frames("fold-inner")
+
+    @Test @Config(sdk = [34])
+    fun theVisibleStageNeverLosesItsEdgesDuringTheCameraPullback() {
+        for ((w, h) in listOf(640f to 360f, 915f to 412f, 940f to 360f,
+            768f to 640f, 1280f to 800f, 1024f to 768f, 800f to 1280f)) {
+            val placement = roomOpeningPlacement(w.dp, h.dp)
+            val stage = placement.stage
+            for (t in 0..4848 step 16) {
+                val camera = openingCamera(t.toFloat(), w, h, placement)
+                val left = stage.left * camera.scale + camera.x
+                val right = stage.right * camera.scale + camera.x
+                val top = stage.top * camera.scale + camera.y
+                val bottom = stage.bottom * camera.scale + camera.y
+                assertTrue("stage clipped at $w/$h time=$t bounds=$left,$top,$right,$bottom",
+                    left >= -.01f && right <= w + .01f && top >= -.01f && bottom <= h + .01f)
+            }
+        }
+    }
 
     @Test @Config(sdk = [34])
     fun theRopeAndEveryJumpStayInsideAllThreeViewports() {
