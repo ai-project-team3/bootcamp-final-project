@@ -89,7 +89,7 @@ class AgeResearchViewTest {
         var finished = false
         compose.setContent { com.example.finalproject_demo.ui.shell.SetupStep({}, { finished = true }) }
         compose.onNodeWithText("2회").performScrollTo().performClick()
-        compose.onNodeWithText("양모").performScrollTo().performClick()
+        compose.onNodeWithText("펠트").performScrollTo().performClick()
         compose.onNodeWithText("받지 않아요").performScrollTo().performClick()
         compose.onNodeWithText("만 4세").performScrollTo().assertIsDisplayed()
         compose.onRoot().captureRoboImage(File("build/report/age-setup-small.png").path,

@@ -94,14 +94,20 @@ object Shell {
         prefs?.edit()?.putInt("limit", limit ?: 0)?.putString("style", style)?.putBoolean("pinStart", pinToStart)?.putBoolean("setup", true)?.apply()
     }
 
+    /** The art style picked in the parent settings tab — kept like the setup's, so it survives a restart (10-13) */
+    fun saveStyle(style: String) {
+        prefs?.edit()?.putString("style", style)?.apply()
+    }
+
     /** 저장해 둔 맞춤 설정을 흐름 상태에 넣는다 (설정한 적이 없으면 그대로) */
     fun applySetup(s: com.example.finalproject_demo.demo.DemoState) {
         val p = prefs ?: return
+        // the style may come from the parent tab without the setup step — a style no longer ready falls back to felt
+        p.getString("style", null)?.let { saved -> s.artStyle = saved.takeIf { k -> com.example.finalproject_demo.demo.ART_STYLES.any { it.key == k && it.ready } } ?: "felt" }
         if (!p.getBoolean("setup", false)) return
         val limit = p.getInt("limit", 3)
         s.limitOn = limit > 0
         if (limit > 0) s.dailyLimit = limit
-        s.artStyle = p.getString("style", "felt") ?: "felt"
         s.pinToStart = p.getBoolean("pinStart", false)
     }
 

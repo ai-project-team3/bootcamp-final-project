@@ -639,14 +639,17 @@ data class ShelfBook(val title: String, val themeKey: String, val bgName: String
     /** The cover is drawn in the book's own art style (demo/WorldStyle.kt) */
     val artStyle: String = "felt")
 
-/** 부모 모드 그림체 견본 4종 (결정안건 부록 6) */
-data class ArtStyle(val key: String, val name: String, val img: String, val ready: Boolean)
+/** 부모 모드 그림체 견본 4종 (결정안건 부록 6) · [short] = 첫 설정의 짧은 이름 */
+data class ArtStyle(val key: String, val name: String, val img: String, val ready: Boolean, val short: String)
 
+// Crayon is ready since 10-13: every world picture is baked (#291 · #307 · #326) and the server's crayon pictures were
+// measured on PC2 — same time as felt, characters cut out (eval/bench_crayon_style.py · eval/results.md).
+// hanji · water have only their sample picture
 val ART_STYLES = listOf(
-    ArtStyle("felt", "양모 펠트 3D", "style_felt", true),
-    ArtStyle("crayon", "아이 크레용", "style_crayon", false),
-    ArtStyle("hanji", "전래동화 수채 · 색연필", "style_hanji", false),
-    ArtStyle("water", "수채화 캐릭터", "style_water", false),
+    ArtStyle("felt", "양모 펠트 3D", "style_felt", true, "펠트"),
+    ArtStyle("crayon", "아이 크레용", "style_crayon", true, "크레용"),
+    ArtStyle("hanji", "전래동화 수채 · 색연필", "style_hanji", false, "전래동화"),
+    ArtStyle("water", "수채화 캐릭터", "style_water", false, "수채화"),
 )
 
 /** 무대(화면 가운데)에 지금 무엇이 있는가. 화면의 모든 손짓은 Reply로 감독에게 간다. */
