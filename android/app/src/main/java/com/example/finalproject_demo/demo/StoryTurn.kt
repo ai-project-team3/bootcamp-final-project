@@ -39,6 +39,8 @@ private fun DemoState.rememberStoryQuestion(response: Server.TurnResult) {
 /** What [applyStoryVerdict] did with who-slot sentences — the slot to ask once more, and the sentences it turned away */
 data class StoryWhoGuard(val reask: String? = null, val rejected: List<String> = emptyList())
 
+private val STORY_NARRATIVE_SLOTS = setOf("problem", "reaction", "cause", "solution", "adult", "extra")
+
 fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String, askedSlot: String? = null): StoryWhoGuard {
     if (mode != StoryMode.STORY) return StoryWhoGuard()
     if (verdict.reason == "blocked_by_filter") return StoryWhoGuard()
@@ -72,6 +74,31 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String, askedSlot: 
             Trace.line("story_verdict", "who-slot [$slot] got a sentence → ${if (value.isEmpty()) "not filled" else "「$value」"}" +
                 if (reask == slot) " · asked again" else "")
             if (value.isEmpty()) continue
+        }
+        val previous = slots[slot]?.takeIf(String::isNotBlank)
+        // A follow-up can add an event to an already settled slot. A direct clarification
+        // or explicit contradiction still replaces it; names and places are identities.
+        if (previous != null && slot in STORY_NARRATIVE_SLOTS && slot != askedSlot && !verdict.contradiction) {
+            if (value in previous.split(" / ")) continue
+            if (slotBy[slot] == source) {
+                value = (previous.split(" / ") + value.split(" / ")).distinct().joinToString(" / ")
+            } else {
+                // A slot has one source. Keep differently sourced additions separately,
+                // projecting them into extra only for /story instead of relabelling child speech.
+                val prefix = "$STORY_SUPPLEMENT_PREFIX$slot:"
+                var index = 1
+                while (slots.containsKey(prefix + index)) index++
+                slots[prefix + index] = value
+                slotBy[prefix + index] = source
+                continue
+            }
+        }
+        if (slot in STORY_NARRATIVE_SLOTS && (slot == askedSlot || verdict.contradiction)) {
+            // A correction supersedes both the primary value and its sourced supplements.
+            slots.keys.filter { it.startsWith("$STORY_SUPPLEMENT_PREFIX$slot:") }.toList().forEach {
+                slots.remove(it)
+                slotBy.remove(it)
+            }
         }
         slots[slot] = value
         slotBy[slot] = source

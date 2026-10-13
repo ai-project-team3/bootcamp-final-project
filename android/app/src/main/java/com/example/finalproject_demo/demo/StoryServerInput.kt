@@ -2,14 +2,18 @@ package com.example.finalproject_demo.demo
 
 data class StoryServerInput(val slots: Map<String, String>, val sources: Map<String, String>)
 
+/** App-local provenance keys; the HTTP request still uses only the twelve slots. */
+internal const val STORY_SUPPLEMENT_PREFIX = "storySupplement:"
+
 /** Project template answers into extra only for a request; never replace the original slot or its source. */
 fun DemoState.storyServerInput(): StoryServerInput {
     // template answers, then sentences kept from a guarded who-slot (StoryNameGuard.kt) — each with its own source
     val localKeys = template?.let { it.plot + it.ending }.orEmpty().filter { it !in com.example.finalproject_demo.net.Server.SLOTS } +
-        slots.keys.filter { it.startsWith(WHO_SAID_PREFIX) }.sorted()
+        slots.keys.filter { it.startsWith(WHO_SAID_PREFIX) }.sorted() +
+        slots.keys.filter { it.startsWith(STORY_SUPPLEMENT_PREFIX) }
     val original = slots["extra"].orEmpty()
     val additions = localKeys.mapNotNull { key -> slots[key]?.takeIf(String::isNotBlank)?.let { key to it } }
-    val extra = (listOf(original).filter(String::isNotBlank) + additions.map { it.second }.filterNot { it in original })
+    val extra = (listOf(original).filter(String::isNotBlank) + additions.map { it.second })
         .distinct().joinToString("\n")
     val values = slots.toMutableMap()
     val sources = slotBy.toMutableMap()
