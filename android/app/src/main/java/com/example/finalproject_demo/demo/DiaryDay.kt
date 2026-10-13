@@ -319,6 +319,7 @@ suspend fun <T> DemoState.withSavedDiary(book: SavedDiaryBook, block: suspend (D
     val before = dayByState[this]
     val title0 = title
     val aspect0 = drawingAspect
+    val authorCall0 = sessionAuthorCall
     val day = DiaryDay().apply {
         pieces.addAll(book.pieces)
         weather = book.weather
@@ -331,6 +332,7 @@ suspend fun <T> DemoState.withSavedDiary(book: SavedDiaryBook, block: suspend (D
     readingDiary = book.input
     title = book.title
     drawingAspect = book.aspect
+    sessionAuthorCall = book.authorCall
     // its place picture in the style it was made in, not the style of the next book (#253 review)
     val reading0 = WorldStyle.reading
     WorldStyle.reading = book.artStyle
@@ -340,5 +342,6 @@ suspend fun <T> DemoState.withSavedDiary(book: SavedDiaryBook, block: suspend (D
         if (before != null) dayByState[this] = before else dayByState.remove(this)
         title = title0
         drawingAspect = aspect0
+        sessionAuthorCall = authorCall0
     }
 }

@@ -107,7 +107,7 @@ fun DemoState.completedCoopBook(): SavedCoopBook? {
         missions = missionRecord(),
     )
     val book = SavedStoryBook(UUID.randomUUID().toString(), title ?: autoTitleFor(), themeKey, bgName, pages, visuals,
-        madeAt = java.time.LocalDate.now().toString(), artStyle = bookStyle)
+        madeAt = java.time.LocalDate.now().toString(), artStyle = bookStyle, authorCall = sessionAuthorCall)
     val snapshot = CoopBookSnapshot(
         childName, slots.toMap(), placeLabel, companionKind, friendName,
         sceneDrawing.map { it.copy(pts = it.pts.toList()) }, sceneDrawingAspect,
@@ -237,6 +237,7 @@ internal fun coopBooksToJson(books: List<SavedCoopBook>): String {
         val snap = s?.let { snapshotToJson(it) } ?: JSONObject.NULL
         array.put(JSONObject().put("id", b.id).put("title", b.title).put("madeAt", b.madeAt).put("artStyle", b.artStyle).put("themeKey", b.themeKey)
             .put("bgName", b.bgName).put("pages", pages)
+            .put("authorCall", b.authorCall ?: JSONObject.NULL)
             .put("visuals", b.visuals?.toJson() ?: JSONObject.NULL).put("coop", snap))
     }
     return array.toString()
@@ -271,7 +272,12 @@ internal fun coopBooksFromJson(raw: String): List<SavedCoopBook> = runCatching {
             if (pages.isEmpty() || pages.any { it.caption.isBlank() }) return@runCatching null
             val visuals = o.optJSONObject("visuals")?.let(::storyVisualsFromJson)
             val book = SavedStoryBook(o.getString("id"), o.getString("title"), o.getString("themeKey"), o.getString("bgName"), pages, visuals,
-                madeAt = o.optString("madeAt", ""), artStyle = o.optString("artStyle", "felt"))
+                madeAt = o.optString("madeAt", ""), artStyle = o.optString("artStyle", "felt"),
+                // Only a missing field can inherit the explicit call stored by older co-op books.
+                // A new null field is an unknown author, even if the scene snapshot has today's call.
+                authorCall = if (o.has("authorCall")) {
+                    if (o.isNull("authorCall")) null else o.getString("authorCall")
+                } else o.optJSONObject("coop")?.optString("childName")?.takeIf(String::isNotBlank))
             // 앞 빌드(10-02 c68b857 전)가 남긴 책은 다시 그리는 재료가 없다 — 글자 책으로 남긴다(지우지 않는다)
             val c = o.optJSONObject("coop") ?: return@runCatching SavedCoopBook(book, null)
             val sl = c.getJSONObject("slots")
