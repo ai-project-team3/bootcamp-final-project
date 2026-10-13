@@ -204,6 +204,69 @@ fun feelingThatWas(emo: String): String? {
 fun feelingPhrase(emo: String): String =
     feelingThatWas(emo) ?: emo.trim().let { "‘$it’${if (bat(it)) "이라는" else "라는"}" }
 
+// Hangul syllable parts (initial · vowel · final) for the two feeling forms below
+private fun parts(c: Char): Triple<Int, Int, Int>? =
+    if (c !in '가'..'힣') null else (c - '가').let { Triple(it / 588, it / 28 % 21, it % 28) }
+private fun syllable(cho: Int, jung: Int, jong: Int): Char = '가' + (cho * 21 + jung) * 28 + jong
+private val CHO_LABIAL = setOf(8, 17)                       // ㅃ · ㅍ — 기쁘다 · 슬프다 · 아프다 drop their ㅡ
+private const val CHO_NG = 11
+private const val CHO_H = 18
+private const val V_A = 0; private const val V_AE = 1; private const val V_EO = 4; private const val V_YEO = 6
+private const val V_WAE = 10; private const val V_OE = 11; private const val V_U = 13; private const val V_WO = 14
+private const val V_EU = 18; private const val V_I = 20
+private const val F_N = 4; private const val F_L = 8; private const val F_SS = 20
+
+/**
+ * An app-script feeling (past stem, final ㅆ like [feelingThatWas]) put ahead in time — 「속상했」 → 「속상할」,
+ * 「무서웠」 → 「무서울」, 「기뻤」 → 「기쁠」, 「아팠」 → 「아플」, 「좋았」 → 「좋을」, 「신났」 → 「신날」.
+ * Null for any other form — server words are not conjugated by guess (see [feelingThatWas]); the caller quotes them.
+ * For a feeling the child only expects (「그럼 속상할 거야」): the book must not tell it as one that was (#460 ⑤)
+ */
+fun feelingAhead(emo: String): String? {
+    val e = emo.trim()
+    val (cho, jung, jong) = e.lastOrNull()?.let(::parts) ?: return null
+    if (jong != F_SS) return null
+    val head = e.dropLast(1)
+    val headHasFinal = head.lastOrNull()?.let(::parts)?.third?.let { it != 0 } == true
+    return head + when {
+        cho == CHO_H && jung == V_AE -> "${syllable(CHO_H, V_A, F_L)}"                       // 했 → 할
+        jung == V_WO -> "${syllable(cho, V_U, F_L)}"                                          // 웠 → 울
+        jung == V_WAE -> "${syllable(cho, V_OE, F_L)}"                                        // 됐 → 될
+        jung == V_YEO -> "${syllable(cho, if (cho in CHO_LABIAL) V_EU else V_I, F_L)}"        // 기뻤 → 기쁠 · 떨렸 → 떨릴
+        jung != V_A && jung != V_EO -> return null
+        cho in CHO_LABIAL -> "${syllable(cho, V_EU, F_L)}"                                   // 아팠 → 아플
+        cho == CHO_NG && headHasFinal -> "을"                                                // 좋았 → 좋을
+        else -> "${syllable(cho, jung, F_L)}"                                                // 신났 → 신날
+    }
+}
+
+/**
+ * A short feeling answer said now, as the word before 「마음」 — 「설레」 → 「설레는」, 「궁금해요」 → 「궁금한」,
+ * 「무서워」 → 「무서운」, 「슬퍼」 → 「슬픈」, 「떨려」 → 「떨리는」, 「기대돼」 → 「기대되는」, 「재밌어」 → 「재밌는」,
+ * 「신났어」 → 「신났던」. Null for a longer answer or any other ending — the caller quotes the child's words (#460 ⑤)
+ */
+fun feelingNow(said: String): String? {
+    val w = said.trim().trimEnd('.', '!', '?', '~', ' ').removeSuffix("요")
+    if (w.isEmpty() || ' ' in w) return null
+    val last = w.last()
+    val head = w.dropLast(1)
+    val (cho, jung, jong) = parts(last) ?: return null
+    // 있 · 밌 also end in ㅆ but are not past — 재밌어 → 재밌는
+    if (w.endsWith("있어") || w.endsWith("밌어")) return "${head}는"
+    // a past form 「신났어」 · 「좋았다」 — the same 「…던」 the feeling step writes
+    if ((last == '어' || last == '다') && head.lastOrNull()?.let(::parts)?.third == F_SS) return feelingThatWas(head)
+    return when {
+        w == "좋아" -> "좋은"
+        last == '해' -> "${head}한"                                                          // 궁금해 → 궁금한
+        last == '돼' -> "${head}되는"                                                        // 기대돼 → 기대되는
+        last == '워' -> "${head}운"                                                          // 무서워 → 무서운
+        last == '려' -> "${head}리는"                                                        // 떨려 → 떨리는
+        cho in CHO_LABIAL && (jung == V_A || jung == V_EO) && jong == 0 -> head + syllable(cho, V_EU, F_N)  // 슬퍼 → 슬픈
+        last == '나' || last == '레' -> "${w}는"                                            // 신나 · 설레 → 신나는 · 설레는
+        else -> null
+    }
+}
+
 /**
  * 리포트 「마음 말하기」 — 다 대본 꼴이면 「신났던, 기뻤던 마음을 말했어요」,
  * 서버 낱말이 섞이면 들은 그대로 「마음을 말했어요 — ‘무섭다’ · ‘신나다’ · ‘떨려’」
