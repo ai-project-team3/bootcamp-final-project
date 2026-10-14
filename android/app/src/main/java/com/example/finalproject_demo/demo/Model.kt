@@ -235,6 +235,15 @@ sealed interface Art {
     data class Img(val name: String, val fallback: Art, val rig: String? = null) : Art
 }
 
+/**
+ * A head-and-shoulders portrait (the parent screen's 「ic_p_」 people) standing in for a doll with no full-body art.
+ * Drawn doll-sized it fills the figure box — a huge torso cut at the waist (10-14 device: 아빠 on the co-op stage)
+ */
+val Art.isBust: Boolean get() = this is Art.Img && name.startsWith("ic_p_")
+
+/** How much smaller a [Art.isBust] stands than a full doll — its head then matches the dolls' heads */
+const val BUST_SCALE = 0.45f
+
 data class Card(val label: String, val art: Art, val value: String)
 
 /**
@@ -1635,12 +1644,16 @@ internal fun coopCompanionPreset(kind: String): Art? {
 /** People with a preset — only when the last word **is** one of these (「할머니 고양이」 is a cat) */
 private val PRESET_PEOPLE = setOf("할머니", "할아버지", "엄마", "아빠", "언니", "누나", "동생")
 
+/** The full-body doll 「dp_<who>」 once it is baked, else the parent screen's portrait (a [Art.isBust]) */
+private fun familyDoll(who: String, emoji: String): Art =
+    Art.Img("ic_p_$who", Art.Emoji(emoji)).let { bust -> if (WorldStyle.has("dp_$who")) Art.Img("dp_$who", bust) else bust }
+
 internal fun companionPreset(kind: String): Art? = when {
     "선생님" in kind -> Art.Img("dp_teacher", Art.Emoji("🧑‍🏫"))
-    "할머니" in kind -> Art.Img("ic_p_grandma", Art.Emoji("👵"))
-    "할아버지" in kind -> Art.Img("ic_p_grandpa", Art.Emoji("👴"))
-    "엄마" in kind -> Art.Img("ic_p_mom", Art.Emoji("👩"))
-    "아빠" in kind -> Art.Img("ic_p_dad", Art.Emoji("👨"))
+    "할머니" in kind -> familyDoll("grandma", "👵")
+    "할아버지" in kind -> familyDoll("grandpa", "👴")
+    "엄마" in kind -> familyDoll("mom", "👩")
+    "아빠" in kind -> familyDoll("dad", "👨")
     "언니" in kind || "누나" in kind || "동생" in kind -> Art.Img("dp_friend_g", Art.Emoji("👧"))
     else -> null
 }

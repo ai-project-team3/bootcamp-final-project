@@ -76,6 +76,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.Art
+import com.example.finalproject_demo.demo.isBust
+import com.example.finalproject_demo.demo.BUST_SCALE
 import com.example.finalproject_demo.demo.DemoState
 import com.example.finalproject_demo.demo.PageKind
 import com.example.finalproject_demo.demo.pageCount
@@ -434,9 +436,15 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
         @Composable
         fun Friends(xf: Float, yf: Float, wf: Float, mod: Modifier = Modifier, onHand: (() -> Unit)? = null, side: Int = -1) {
             val first = friendShown ?: return
+            // a portrait with no full-body doll stands smaller, feet kept on the ground (Model.kt isBust · 10-14 device).
+            // Scaled here, not through wf — a cast spot replaces wf, and the stand's square root barely moves it
+            fun small(a: Art) = if (!a.isBust) Modifier else Modifier.graphicsLayer {
+                scaleX = BUST_SCALE + 0.1f; scaleY = BUST_SCALE + 0.1f
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.93f)
+            }
             if (secondFriend != null) Char("friend", secondFriend, xf, yf, wf, 1f,
-                Modifier.graphicsLayer { translationX = side * 0.8f * size.width }.then(mod), onHand = onHand, stand = 0.85f)
-            Char("friend", first, xf, yf, wf, 1f, mod, onHand = onHand, stand = 0.85f)
+                Modifier.graphicsLayer { translationX = side * 0.8f * size.width }.then(mod).then(small(secondFriend)), onHand = onHand, stand = 0.85f)
+            Char("friend", first, xf, yf, wf, 1f, mod.then(small(first)), onHand = onHand, stand = 0.85f)
         }
 
         problemArt?.let { art ->
