@@ -1102,6 +1102,10 @@ class Director(
                 send(Reply.Tapped(c.value, c.label))
             }
             log("모호한 말 확인: 뜻이 여럿인 말이라 그림 카드 3장을 바로 띄움 · 말로 답해도 됨 (구현대본 §0-1)")
+        } else if (s.isCoop && hasCoopChoices(q.text)) {
+            // co-op's 고르며 · 이어 짓기 attach the item's choices to the 「왜 · 어떻게」 (CoopQuestions.kt) — the log said
+            // 「선택지를 말하지 않고」 over a line that read three choices (10-14 demo review)
+            log("선택지를 붙인 질문 — 고르며 · 이어 짓기 수준이라 후보 셋을 먼저 들려준다. 말로 다르게 답해도 된다 (협업 질문 §5 · CoopQuestions.kt)")
         } else {
             log("소크라틱 열린 질문 — 선택지를 말하지 않고 아이가 떠올리게 한다 (v0.8 · 결정 30)")
         }
