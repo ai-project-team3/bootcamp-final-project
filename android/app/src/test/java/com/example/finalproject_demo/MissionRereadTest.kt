@@ -149,6 +149,7 @@ class MissionRereadTest {
     @Test
     fun anImaginedPageOnARealDayClosesInImagination() {
         MissionHistory.record(StoryMode.COOP, "e1", BookMissions(MissionId.A6, MissionId.E1, false, false))
+        MissionHistory.record(StoryMode.COOP, "e2", BookMissions(MissionId.C1, MissionId.E1, false, false))
         val s = DemoState().apply {
             mode = StoryMode.COOP; coopPick = CoopPick("place", "놀이공원", "done"); problem = "풍선을 놓쳤어"; solution = "괜찮다고 했어"
         }

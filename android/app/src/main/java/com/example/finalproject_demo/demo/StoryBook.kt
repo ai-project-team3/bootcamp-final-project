@@ -38,7 +38,7 @@ fun DemoState.storyPagePlan(): List<Server.Page> {
         val prop = when (page.kind) {
             // the co-op missions too (10-06): what is blown (촛불) · whose sound (소방차) · what is fixed (불 · 수도꼭지)
             PageKind.RUB -> when (val p = slot1Prop()) {
-                is BlowProp -> p.word
+                is BlowProp -> p.serverWord
                 is SoundProp -> SOUND_THING[p]
                 // a default dust is not sent — the page set up dust the child never said (#259 §4-3 4 · picture-book M8)
                 else -> mission1().blobName.takeIf { !defaultRub() }

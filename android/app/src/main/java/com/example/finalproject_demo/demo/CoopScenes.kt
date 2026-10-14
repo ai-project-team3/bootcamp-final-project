@@ -1178,7 +1178,7 @@ internal fun DemoState.coopPageMission(kind: PageKind): String? = missionFor(kin
  */
 internal fun DemoState.coopMissionProp(kind: PageKind): String? = when (kind) {
     PageKind.RUB -> when (val p = slot1Prop()) {
-        is BlowProp -> p.word
+        is BlowProp -> p.serverWord
         is SoundProp -> SOUND_THING[p]
         else -> if (missionFor(kind) == MissionId.A6 && mission1FromChildWords()) mission1().blobName else null
     }

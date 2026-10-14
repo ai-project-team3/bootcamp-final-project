@@ -156,11 +156,14 @@ class MissionRotationTest {
     fun aRealDayRotatesOnlyWhatItCanPlayWithoutInventing() {
         val f = coopDay("동물원에 갔어", "기린을 봤어")
         val combos = (0 until 6).map { n -> pickMissions(f, MissionHistory.recent(f.mode)).also { MissionHistory.record(f.mode, "d$n", it) } }
-        assertTrue("실제 하루는 자리 1 이 늘 문지르기", combos.all { it.slot1 == MissionId.A6 })
+        // slot 1 turns too: rubbing · blowing the nameless breeze (coop book check A1 · 10-14)
+        assertEquals("실제 하루 자리 1 은 문지르기 · 불기", setOf(MissionId.A6, MissionId.C1), combos.map { it.slot1 }.toSet())
         assertTrue(combos.map { it.slot2 }.toSet().size >= 3)
+        assertEquals("네 권 연속 다른 조합 ${combos.map { it.combo }}", 4, combos.take(4).map { it.combo }.toSet().size)
 
         MissionHistory.detach(); MissionHistory.attach(ApplicationProvider.getApplicationContext())
         MissionHistory.record(StoryMode.COOP, "e1", BookMissions(MissionId.A6, MissionId.E1, false, false))
+        MissionHistory.record(StoryMode.COOP, "e2", BookMissions(MissionId.C1, MissionId.E1, false, false))
         val s = DemoState().apply { mode = StoryMode.COOP; problem = "동물원에 갔어"; solution = "기린을 봤어" }
         assertEquals(MissionId.A5, s.missions().slot2)
         assertNull("책 문장에는 없다 — 아이가 블록을 말하지 않았다", s.slot2Prop())
