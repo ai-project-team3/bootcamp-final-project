@@ -150,4 +150,28 @@ class DiaryBookVoiceTest {
             assertTrue("둘째 줄 글자가 소리보다 먼저 풀렸다 — ${held}ms", held >= 300)
         } finally { scope.cancel() }
     }
+
+    /**
+     * 10-14 — 책장에서 다시 읽다 중간에 나가도, 이번에 받은 쪽 목소리는 책 옆에 남는다. 전에는 「다 읽었어」에서만 남겨
+     * 첫 쪽만 보고 나간 아이가 다음에 또 읽으면 같은 쪽을 /tts 로 다시 샀다
+     */
+    @Test
+    fun leavingARereadHalfwayStillKeepsTheVoicesItGot() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val d = Director(scope)
+        d.s.speed = 0.01
+        d.s.mode = StoryMode.DIARY
+        Server.base = "http://127.0.0.1:9"; Server.liveModes = setOf(StoryMode.DIARY)
+        val store = MemoryStore(mutableListOf(book))
+        val lines = buildDiaryBook(book.input).map(::diaryPageCaption).distinct()
+        store.voices["t1" to lines[0]] = byteArrayOf(0)                       // 첫 쪽만 남아 있었다
+        lines.drop(1).forEachIndexed { i, l -> d.rememberVoice(l, byteArrayOf((i + 1).toByte())) }   // 이번에 /tts 로 받았다
+        DiaryShelf.attach(d.s, store)
+        try {
+            val reading = scope.async { d.openSavedDiary(DIARY_SHELF_ID + "t1") }
+            assertTrue(await { d.s.stage is DiaryPaper } != null)
+            reading.cancel()                                                  // 첫 쪽에서 방으로 나갔다
+            assertTrue(await { lines.all { store.voices["t1" to it] != null } } != null)
+        } finally { scope.cancel() }
+    }
 }
