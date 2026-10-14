@@ -27,6 +27,13 @@ object CallLimits {
     @Volatile var enabled = false
 
     const val WELCOME_STARS = 5
+
+    /**
+     * ⚠️ Closed testing only (10-14 lead): neither payment nor ads are wired, so a tester would stop for good after
+     * five books. While this is on, a new day tops the stars back up to [WELCOME_STARS] (never above it).
+     * The screens still describe the real rule. Turn it off in the release that wires payment or ads.
+     */
+    @Volatile var testerDailyRefill = true
     const val SESSION_TTS = 60
     const val SESSION_TURN = 40
     const val DAY_TTS = 120
@@ -49,17 +56,23 @@ object CallLimits {
 
     @Synchronized private fun roll() {
         val now = today()
-        if (day != now) { day = now; tts = 0; save() }
+        if (day != now) {
+            val first = day.isEmpty()
+            day = now; tts = 0
+            if (testerDailyRefill && !first && bank < WELCOME_STARS) bank = WELCOME_STARS
+            save()
+        }
     }
 
     private fun save() { prefs?.edit()?.putString("day", day)?.putInt("tts", tts)?.putInt("bank", bank)?.apply() }
 
     /** Stars this device can still start a server book with */
-    @Synchronized fun starsLeft(): Int = if (!enabled) WELCOME_STARS else bank
+    @Synchronized fun starsLeft(): Int { if (!enabled) return WELCOME_STARS; roll(); return bank }
 
     /** A server book started — one star, taken at the start as the parent's are */
     @Synchronized fun starSpent() {
         if (!enabled) return
+        roll()
         if (bank > 0) bank--
         save()
     }
@@ -83,5 +96,5 @@ object CallLimits {
     @Synchronized fun counted(path: String) { if (enabled && path == "/tts") { roll(); tts++; save() } }
 
     /** Tests: a fresh day with no phone storage */
-    @Synchronized fun reset() { enabled = false; prefs = null; day = ""; bank = WELCOME_STARS; tts = 0; today = { LocalDate.now().toString() } }
+    @Synchronized fun reset() { enabled = false; prefs = null; day = ""; bank = WELCOME_STARS; testerDailyRefill = true; tts = 0; today = { LocalDate.now().toString() } }
 }

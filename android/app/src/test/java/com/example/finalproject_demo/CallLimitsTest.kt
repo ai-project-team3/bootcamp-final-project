@@ -29,6 +29,7 @@ class CallLimitsTest {
     @Test
     fun aNewDeviceHasFiveStarsOnceAndNoneComeBackWithTheDay() {
         // #445 · 10-14 — one star starts one server book: five stars at install, none per day
+        CallLimits.testerDailyRefill = false     // the real rule, once payment or ads are wired
         assertEquals(5, CallLimits.starsLeft())
         CallLimits.starSpent()
         assertEquals(4, CallLimits.starsLeft())
@@ -40,6 +41,18 @@ class CallLimitsTest {
         assertEquals("없는 별은 더 줄지 않는다", 0, CallLimits.starsLeft())
         day = "2026-10-08"
         assertEquals("날짜가 바뀌어도 별은 새로 생기지 않는다", 0, CallLimits.starsLeft())
+    }
+
+    @Test
+    fun whileTestingANewDayTopsTheStarsBackUpToFiveAndNeverAbove() {
+        // closed testing: payment and ads are not wired, so a tester must not stop for good after five books
+        repeat(5) { CallLimits.starSpent() }
+        assertEquals(0, CallLimits.starsLeft())
+        day = "2026-10-07"
+        assertEquals("새 날에는 다섯 개로 다시 채운다", 5, CallLimits.starsLeft())
+        CallLimits.starSpent()
+        day = "2026-10-08"
+        assertEquals("쌓이지 않는다 — 다섯 개까지만", 5, CallLimits.starsLeft())
     }
 
     @Test
