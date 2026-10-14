@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.*
 import java.util.Locale
 
-internal const val UNSUPPORTED_AGE_NOTICE = "만 6~7세는 아직 연구 자료가 없어요. 말 기록은 그대로 볼 수 있어요."
+internal const val UNSUPPORTED_AGE_NOTICE = "만 6~7세는 이 화면에서 제공하는 연구 참고값이 아직 없어요. 말 기록은 그대로 볼 수 있어요."
 
 /** Optional local data entry, shared by guardian setup and protected settings. */
 @OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)

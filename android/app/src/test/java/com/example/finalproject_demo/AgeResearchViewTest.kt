@@ -78,7 +78,7 @@ class AgeResearchViewTest {
     @Test fun unsupportedAgeDoesNotBorrowAFiveYearOldReference() {
         AnswerHistory.setChildAge(ChildAge(6, null))
         compose.setContent { AgeResearchView(0) }
-        compose.onNodeWithText("만 6~7세는 아직 연구 자료가 없어요. 말 기록은 그대로 볼 수 있어요.").assertExists()
+        compose.onNodeWithText("만 6~7세는 이 화면에서 제공하는 연구 참고값이 아직 없어요. 말 기록은 그대로 볼 수 있어요.").assertExists()
         compose.onNodeWithText("기록 쌓는 중", substring = true).assertDoesNotExist()
         compose.onNodeWithText("연구 대화의 발화당 평균", substring = true).assertDoesNotExist()
     }
@@ -111,7 +111,7 @@ class AgeResearchViewTest {
         compose.setContent { ChildAgeSection() }
         compose.onNodeWithText("만 7세").performClick()
         assertEquals(ChildAge(7, null), AnswerHistory.childAge)
-        compose.onNodeWithText("만 6~7세는 아직 연구 자료가 없어요. 말 기록은 그대로 볼 수 있어요.").assertExists()
+        compose.onNodeWithText("만 6~7세는 이 화면에서 제공하는 연구 참고값이 아직 없어요. 말 기록은 그대로 볼 수 있어요.").assertExists()
     }
 
     @Test
@@ -119,9 +119,9 @@ class AgeResearchViewTest {
     fun smallLandscapeIntroductionCanReachSevenAndItsNoticeAboveBothActions() {
         compose.setContent { com.example.finalproject_demo.ui.shell.ChildIntroductionStep({}, {}) }
         compose.onNodeWithText("만 7세").performScrollTo().assertIsDisplayed().performClick()
-        compose.onNodeWithText("만 6~7세는 아직 연구 자료가 없어요. 말 기록은 그대로 볼 수 있어요.")
+        compose.onNodeWithText("만 6~7세는 이 화면에서 제공하는 연구 참고값이 아직 없어요. 말 기록은 그대로 볼 수 있어요.")
             .assertIsDisplayed()
-        val notice = compose.onNodeWithText("만 6~7세는 아직 연구 자료가 없어요. 말 기록은 그대로 볼 수 있어요.").getUnclippedBoundsInRoot()
+        val notice = compose.onNodeWithText("만 6~7세는 이 화면에서 제공하는 연구 참고값이 아직 없어요. 말 기록은 그대로 볼 수 있어요.").getUnclippedBoundsInRoot()
         val next = compose.onNodeWithText("다음").getUnclippedBoundsInRoot()
         assertTrue("안내가 진행 버튼에 가렸다", notice.bottom <= next.top)
         compose.onNodeWithText("다음").assertIsDisplayed()
