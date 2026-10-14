@@ -29,6 +29,22 @@ import org.json.JSONObject
 @Config(sdk = [34])
 class StoryBookStoreTest {
     @Test
+    fun completedBookStoresTheCallFromSessionStartAfterTheCurrentChildChanges() {
+        val before = com.example.finalproject_demo.net.ChildCall.name
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("story_books", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        try {
+            com.example.finalproject_demo.net.ChildCall.set("단아")
+            val state = DemoState().apply { resetStory(); templateKey = "C"; title = "저장할 책" }
+            com.example.finalproject_demo.net.ChildCall.set("보람")
+            LocalStoryBookStore(context).save(state.completedStoryBook()!!)
+            val raw = JSONArray(prefs.getString("books", null)).getJSONObject(0)
+            assertEquals("단아", raw.optString("authorCall"))
+        } finally { com.example.finalproject_demo.net.ChildCall.set(before.orEmpty()) }
+    }
+
+    @Test
     fun reopenedBookKeepsItsLocalSoundReferenceWhenStoredAgain() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefs = context.getSharedPreferences("story_books", Context.MODE_PRIVATE)
