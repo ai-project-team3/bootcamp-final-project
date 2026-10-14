@@ -39,7 +39,13 @@ enum class FixProp(
     /** A4 돌려 잠그기 — 수도꼭지 손잡이를 빙글빙글 돌리면 물이 멈춘다 */
     FAUCET(MissionId.A4, "prop_faucet", "🚰", "수도꼭지에서 물이 졸졸 새고 있어요.", "수도꼭지를 빙글빙글 돌려 꽉 잠갔어요.", "물이 딱 멈췄어요.",
         "수도꼭지를 빙글빙글 돌려서 잠가 볼래?", "꽉! 물이 딱 멈췄어!"),
-    /** D4 기울여 굴리기 — 폰을 살살 기울여 공을 골대로. 센서가 없으면 끌어서 */
+    /**
+     * D4 기울여 굴리기 · 구슬 — 폰을 살살 기울여 구슬을 구멍에. 아이가 「구슬」이라고 했을 때, 그리고 **순서로 돌아온 D4 의 기본 소품**:
+     * 축구공 · 골대는 「공놀이를 했다」는 이야기를 세우지만 구슬과 구멍은 어떤 하루에도 끼어들지 않는다([forMission] 이 이것을 먼저 고른다)
+     */
+    MARBLE(MissionId.D4, "", "🔵", "구슬이 구멍에서 멀리 떨어져 있어요.", "구슬을 데굴데굴 굴려 구멍에 쏙 넣었어요.", "구슬이 구멍에 쏙 들어갔어요.",
+        "폰을 살살 기울여서 구슬을 구멍에 넣어 볼래? 손으로 끌어도 돼!", "데굴데굴 쏙! 들어갔어!"),
+    /** D4 기울여 굴리기 · 공 — 폰을 살살 기울여 공을 골대로. 센서가 없으면 끌어서 */
     BALL(MissionId.D4, "coop_el_soccer", "⚽", "공이 골대에서 멀리 떨어져 있어요.", "공을 데굴데굴 굴려 골대에 넣었어요.", "공이 골대에 쏙 들어갔어요.",
         "폰을 살살 기울여서 공을 골대로 굴려 볼래? 손으로 끌어도 돼!", "데굴데굴 쏙! 골인!"),
     /**
@@ -51,6 +57,9 @@ enum class FixProp(
     /** A5 쌓기 — 흩어진 블록을 위로 끌어 올려 탑을 쌓는다 */
     BLOCKS(MissionId.A5, "", "🧱", "블록이 바닥에 흩어져 있어요.", "블록을 하나씩 다시 쌓았어요.", "블록 탑이 높이 섰어요.",
         "블록을 하나씩 끌어 올려서 탑을 쌓아 볼래?", "우와, 높은 탑이 됐어!"),
+    /** D4 기울여 굴리기 · 눈덩이 — 굴릴수록 커지는 눈덩이를 눈사람 몸 위로 굴려 머리를 얹는다 */
+    SNOWBALL(MissionId.D4, "", "⛄", "눈사람이 머리 없이 서 있어요.", "눈덩이를 데굴데굴 굴려 눈사람 머리를 얹었어요.", "눈사람이 다 만들어졌어요.",
+        "폰을 살살 기울여서 눈덩이를 굴려 볼래? 눈사람 머리 자리까지! 손으로 끌어도 돼!", "데굴데굴 쑥! 눈사람 완성!"),
     ;
 
     companion object
@@ -59,9 +68,11 @@ enum class FixProp(
     val badge: String get() = when (this) {
         FIRE -> "불 끈 물대포"
         FAUCET -> "수도꼭지 잠근 손"
+        MARBLE -> "구슬 굴린 손"
         BALL -> "공 굴린 손"
         PIECES -> "조각 맞춘 손"
         BLOCKS -> "블록 쌓은 손"
+        SNOWBALL -> "눈사람 만든 손"
     }
 }
 
@@ -74,6 +85,9 @@ fun fixPropIn(solution: String, problem: String): FixProp? = when {
     // alone would still match 「끄덕였어」, so only with fire (「불을 끄 · 꺼 줬」) or 「껐」
     saysAny(solution, listOf("껐", "불을 끄", "불 끄", "불을 꺼", "물을 뿌", "물 뿌", "물대포", "소방")) -> FixProp.FIRE
     saysAny(solution, listOf("잠갔", "잠궜", "잠가", "잠그", "잠궈", "수도꼭지", "꼭지")) -> FixProp.FAUCET
+    // the rolled thing before the ball — 「구슬을 굴렸어」 · 「눈덩이를 굴렸어」 must not fall to the ball's 「굴렸」
+    saysAny(solution, listOf("구슬")) -> FixProp.MARBLE
+    saysAny(solution, listOf("눈덩이", "눈사람", "눈을 굴", "눈 굴")) -> FixProp.SNOWBALL
     saysAny(solution, listOf("굴렸", "굴려", "데굴", "골인", "공을 넣", "공 넣", "골을 넣", "공을 찼", "공 찼", "공놀이", "축구")) -> FixProp.BALL
     saysAny(solution, listOf("고쳤", "고쳐", "붙였", "테이프", "맞췄", "꿰맸")) -> FixProp.PIECES
     saysAny(solution, listOf("쌓았", "쌓아", "다시 쌓", "탑을")) -> FixProp.BLOCKS
@@ -81,13 +95,18 @@ fun fixPropIn(solution: String, problem: String): FixProp? = when {
     saysAny(problem, listOf("불이 났", "불났", "불이 붙", "연기가", "연기 나", "불이 나")) -> FixProp.FIRE
     // 「기쁨이 넘쳤어」 is not water — only water that overflowed (#259 design §4-1 false positive)
     saysAny(problem, listOf("샜", "새서", "새고", "물이 새", "물이 넘", "물이 졸졸", "물이 콸콸", "수도꼭지")) -> FixProp.FAUCET
+    saysAny(problem, listOf("구슬")) -> FixProp.MARBLE
+    saysAny(problem, listOf("눈사람", "눈덩이")) -> FixProp.SNOWBALL
     saysAny(problem, listOf("공이 굴러", "공이 데굴", "공을 놓쳤", "공이 멀리", "공이 날아")) -> FixProp.BALL
     saysAny(problem, listOf("무너", "와르르", "넘어뜨")) -> FixProp.BLOCKS
     saysAny(problem, listOf("부서", "망가", "깨졌", "깨져", "고장", "찢어", "부러")) -> FixProp.PIECES
     else -> null
 }
 
-/** That mission's prop — the screen and ask of a rotated slot 2 use it (#259). Giving · puzzle have no prop */
+/**
+ * That mission's prop — the screen and ask of a rotated slot 2 use it (#259). Giving · puzzle have no prop.
+ * The first entry of the mission wins: D4 rotates in with the marble, which claims nothing about the day
+ */
 fun FixProp.Companion.forMission(m: MissionId): FixProp? = FixProp.entries.firstOrNull { it.mission == m }
 
 /**

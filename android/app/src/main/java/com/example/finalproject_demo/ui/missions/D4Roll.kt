@@ -25,6 +25,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -32,6 +35,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.finalproject_demo.demo.Art
 import com.example.finalproject_demo.demo.Director
+import com.example.finalproject_demo.demo.missions.FixProp
 import com.example.finalproject_demo.ui.ArtView
 import com.example.finalproject_demo.ui.AssetImage
 import androidx.compose.ui.graphics.graphicsLayer
@@ -54,9 +58,12 @@ internal const val TILT_DEAD = 0.06f
  * 오른쪽 골대 안에 들어가면 끝난다. 화면 가장자리에 닿으면 튕긴다.
  * - **탭 길(원칙 6)** — 공을 손가락으로 끌어다 골대에 넣어도 된다. 기울기 센서가 없는 기기에서는 이 길뿐이다
  * - 8초 진전이 없으면 손이 공을 골대 쪽으로 끌어 보인다. 기울기는 그 자리에서 쓰고 버린다(`Tilt.kt`)
+ *
+ * 굴리는 것은 [prop] 이 정한다(10-14) — 공은 골대로, 구슬은 구멍으로, 눈덩이는 굴릴수록 커져 눈사람 머리 자리로.
+ * 출발점 · 도착점 · 물리는 셋이 같다
  */
 @Composable
-internal fun RollMission(d: Director, done: Boolean, heroArt: Art) {
+internal fun RollMission(d: Director, done: Boolean, heroArt: Art, prop: FixProp = FixProp.BALL) {
     val density = LocalDensity.current.density
     var ball by remember { mutableStateOf<Offset?>(null) }
     var vel by remember { mutableStateOf(Offset.Zero) }
@@ -82,7 +89,11 @@ internal fun RollMission(d: Director, done: Boolean, heroArt: Art) {
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wpx = constraints.maxWidth.toFloat(); val hpx = constraints.maxHeight.toFloat()
-        val r = 0.045f * wpx
+        val r0 = 0.045f * wpx
+        // a snowball grows as it nears the snowman — 0.65× at the start, 1.15× at the head spot
+        val r = if (prop == FixProp.SNOWBALL) r0 * (0.65f + 0.05f * near) else r0
+        // the marble's hole · the snowman's head spot — a round target the thing must reach the middle of
+        val holeR = 0.055f * wpx
         val start = Offset(0.36f * wpx, 0.56f * hpx)
         val goal = Offset(0.82f * wpx, 0.50f * hpx)
         val goalW = 0.10f * wpx; val goalH = 0.30f * hpx
@@ -98,7 +109,9 @@ internal fun RollMission(d: Director, done: Boolean, heroArt: Art) {
             }
             val dist = hypot(goal.x - at.x, goal.y - at.y)
             near = ((1f - dist / (goal.x - start.x)).coerceIn(0f, 1f) * 10).roundToInt().toFloat()
-            if (!inGoal && kotlin.math.abs(at.x - goal.x) < goalW * 0.5f && kotlin.math.abs(at.y - goal.y) < goalH * 0.45f) inGoal = true
+            val reached = if (prop == FixProp.BALL) kotlin.math.abs(at.x - goal.x) < goalW * 0.5f && kotlin.math.abs(at.y - goal.y) < goalH * 0.45f
+                else dist < holeR
+            if (!inGoal && reached) inGoal = true
         }
 
         // 기울인 쪽으로 구른다 — 속도에 마찰을 두고, 가장자리에서 튕긴다
@@ -127,8 +140,26 @@ internal fun RollMission(d: Director, done: Boolean, heroArt: Art) {
             trail.forEachIndexed { k, q -> drawCircle(Ink.copy(alpha = 0.10f + 0.18f * k / trail.size.coerceAtLeast(1)), r * 0.13f, q) }
         }
 
+        // 구슬의 구멍 · 눈사람 몸과 머리 자리 — 들어가면 골대처럼 한 번 출렁
+        if (prop != FixProp.BALL) Canvas(Modifier.fillMaxSize().graphicsLayer { scaleX = net.value; scaleY = 2f - net.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(goal.x / wpx, goal.y / hpx) }) {
+            if (prop == FixProp.MARBLE) {
+                drawCircle(Ink.copy(alpha = 0.18f), holeR * 1.25f, goal)
+                drawCircle(Ink.copy(alpha = 0.55f), holeR, goal)
+                drawCircle(Ink.copy(alpha = 0.45f), holeR * 1.25f, goal, style = Stroke(holeR * 0.12f))
+            } else {
+                val bodyR = 0.085f * wpx
+                val body = Offset(goal.x, goal.y + holeR + bodyR * 0.85f)
+                drawCircle(SnowShade, bodyR, body)
+                drawCircle(FeltWhite, bodyR * 0.93f, body - Offset(bodyR * 0.05f, bodyR * 0.05f))
+                drawCircle(Ink.copy(alpha = 0.5f), bodyR, body, style = Stroke(bodyR * 0.05f))
+                for (k in 0..1) drawCircle(Ink.copy(alpha = 0.7f), bodyR * 0.07f, body + Offset(0f, (k - 0.6f) * bodyR * 0.45f))
+                if (!inGoal) drawCircle(Ink.copy(alpha = 0.4f), holeR, goal,
+                    style = Stroke(holeR * 0.08f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(holeR * 0.25f, holeR * 0.18f))))
+            }
+        }
+
         // 골대 — 펠트 그물 그림(prop_goal_net). 없으면 펠트 테두리를 그린다. 공이 들어가면 출렁
-        Box(
+        if (prop == FixProp.BALL) Box(
             Modifier
                 .offset { IntOffset((goal.x - goalW * 0.75f).roundToInt(), (goal.y - goalH * 0.6f).roundToInt()) }
                 .size((goalW * 1.5f / density).dp, (goalH * 1.2f / density).dp)
@@ -153,7 +184,7 @@ internal fun RollMission(d: Director, done: Boolean, heroArt: Art) {
             Modifier
                 .offset { IntOffset((shown.x - r).roundToInt(), (shown.y - r).roundToInt()) }
                 .size((2 * r / density).dp)
-                .rotate(spin)
+                .rotate(if (inGoal && prop == FixProp.SNOWBALL) 0f else spin)
                 .pointerInput(inGoal) {
                     if (inGoal) return@pointerInput
                     detectDragGestures { change, drag ->
@@ -163,13 +194,13 @@ internal fun RollMission(d: Director, done: Boolean, heroArt: Art) {
                     }
                 },
         ) {
-            Box(Modifier.fillMaxSize().touchOutline(!inGoal)) { ArtView(Art.Img("coop_el_soccer", Art.Emoji("⚽")), Modifier.fillMaxSize()) }
+            Box(Modifier.fillMaxSize().touchOutline(!inGoal)) { RolledThing(prop, face = inGoal) }
         }
 
         // 15초 흐릿한 예시 — 공이 반투명으로 골대까지 굴러갔다 사라진다(진짜 공은 그대로 · 넣는 것은 아이)
         if (hint != null && !inGoal) {
             val g = ghostAlong(listOf(p, goal), hint)
-            Ghost(g, 2 * r, hint) { ArtView(Art.Img("coop_el_soccer", Art.Emoji("⚽")), Modifier.fillMaxSize()) }
+            Ghost(g, 2 * r, hint) { RolledThing(prop) }
             GhostHand(g, wpx * 0.06f, hint)
         } else if (idle && !inGoal) {
             val slide by rememberInfiniteTransition(label = "d4hint").animateFloat(
@@ -184,4 +215,30 @@ internal fun RollMission(d: Director, done: Boolean, heroArt: Art) {
             ArtView(Art.Img("prop_sparkle", Art.Emoji("✨")), Modifier.fillMaxSize())
         }
     }
+}
+
+private val SnowShade = Color(0xFFD6E4F0)
+private val MarbleBlue = Color(0xFF4F86E8)
+
+/** What rolls — the felt soccer ball art, or a drawn marble · snowball (no baked art for these yet) */
+@Composable
+private fun RolledThing(prop: FixProp, face: Boolean = false) = when (prop) {
+    FixProp.MARBLE -> Canvas(Modifier.fillMaxSize()) {
+        val c = Offset(size.width / 2, size.height / 2); val rr = size.minDimension / 2
+        drawCircle(Brush.radialGradient(listOf(Color.White, MarbleBlue, MarbleBlue.copy(alpha = 0.9f)), c - Offset(rr * 0.35f, rr * 0.35f), rr * 1.4f), rr, c)
+        drawCircle(Ink.copy(alpha = 0.55f), rr, c, style = Stroke(rr * 0.08f))
+        drawCircle(Color.White.copy(alpha = 0.8f), rr * 0.18f, c - Offset(rr * 0.38f, rr * 0.38f))
+    }
+    FixProp.SNOWBALL -> Canvas(Modifier.fillMaxSize()) {
+        val c = Offset(size.width / 2, size.height / 2); val rr = size.minDimension / 2
+        drawCircle(SnowShade, rr, c)
+        drawCircle(FeltWhite, rr * 0.9f, c - Offset(rr * 0.07f, rr * 0.07f))
+        drawCircle(Ink.copy(alpha = 0.5f), rr, c, style = Stroke(rr * 0.08f))
+        // the head's face shows once it sits — two eyes are enough to read 「눈사람」
+        if (face) {
+            drawCircle(Ink.copy(alpha = 0.75f), rr * 0.09f, c + Offset(-rr * 0.3f, -rr * 0.15f))
+            drawCircle(Ink.copy(alpha = 0.75f), rr * 0.09f, c + Offset(rr * 0.3f, -rr * 0.15f))
+        }
+    }
+    else -> ArtView(Art.Img("coop_el_soccer", Art.Emoji("⚽")), Modifier.fillMaxSize())
 }
