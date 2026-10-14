@@ -36,6 +36,7 @@ TAILS = [
     "더 그린 거야, 새로 그린 거야?",
     # sentences of their own in lines whose other sentence changes (round 3: 5.0 on 8 lines)
     "다 만들었어!",                 # 「다 만들었어! 제목은 『…』이야.」 (Scenes · the book is made)
+    "다 그렸구나!",                 # 「다 그렸구나! {그린 것} 멋지다!」 (PictureDiary · every diary)
     "천천히 생각해 봐.",             # 「천천히 생각해 봐. {the question just asked}」 (silence ladder)
     "이 중에서 골라 볼까?",          # 「이 중에서 골라 볼까? {options}.」 (story options)
     "그럼 오또가 고를게!",           # 「그럼 오또가 고를게! {option}!」
