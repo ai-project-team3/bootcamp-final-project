@@ -80,3 +80,20 @@ def test_the_text_itself_is_not_kept(monkeypatch):
     _say("민준이가 모래성을 만들었구나.")
     assert all("민준" not in k for k in tts_route._cache._d)
 
+
+def test_a_cached_line_is_not_counted_against_the_daily_cap(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    from app import limits
+    from main import app
+    calls = _fake(monkeypatch)
+    monkeypatch.setattr(tts_route.settings, "daily_cap_state", str(tmp_path / "cap.json"))
+    monkeypatch.setattr(tts_route.settings, "daily_cap_krw", 100.0)
+    limits.reset()
+    try:
+        c = TestClient(app)
+        assert c.post("/tts", json={"text": "안녕!"}).status_code == 200
+        assert c.post("/tts", json={"text": "안녕!"}).headers["X-Otto-TTS-Cache"] == "hit"
+        assert len(calls) == 1
+        assert limits.today()["spent_krw"] == pytest.approx(limits.PRICES["/tts"], abs=0.1)   # one paid line, not two
+    finally:
+        limits.reset()

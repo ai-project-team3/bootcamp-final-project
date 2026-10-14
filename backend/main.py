@@ -144,7 +144,7 @@ async def _count(request: Request, call_next):
         response = await call_next(request)
     finally:
         vendor_errors.current.reset(token)
-    if response.status_code == 200:
+    if response.status_code == 200 and response.headers.get("X-Otto-TTS-Cache") != "hit":   # a cached line cost nothing
         limits.spent(request.url.path)
     ms = (time.monotonic() - t0) * 1000
     # The route template, not the raw path: an unmatched path (bots probe "/" and worse on the
