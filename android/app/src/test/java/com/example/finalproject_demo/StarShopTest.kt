@@ -26,7 +26,7 @@ import java.io.File
 
 /**
  * 별 구매하기 (#445 · 10-13 종훈). 아이에게 결제가 보이지 않아야 한다: 방의 「+」는 어른 확인만 열고,
- * 금액과 구매 버튼은 그 뒤에만 있다. 결제는 아직 붙지 않아 구매 버튼은 「준비 중입니다」를 띄우고 별은 그대로다.
+ * 금액 · 구매 버튼 · 「광고 보고 별 받기」는 그 뒤에만 있다. 결제도 광고도 아직 붙지 않아 버튼은 「준비 중입니다」를 띄우고 별은 그대로다.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -54,6 +54,7 @@ class StarShopTest {
         compose.onNodeWithText("어른 확인").assertIsDisplayed()
         STAR_PACKS.forEach { compose.onNodeWithText(it.price).assertDoesNotExist() }
         compose.onNodeWithText(STAR_SUBSCRIPTION.price).assertDoesNotExist()
+        compose.onNodeWithText(STAR_AD.title).assertDoesNotExist()
         capture("gate")
         // closing says nothing and goes back
         compose.onNodeWithText("닫기").performClick()
@@ -65,8 +66,8 @@ class StarShopTest {
         Shell.sheet = Sheet.STAR_SHOP
         compose.setContent { Box(Modifier.size(640.dp, 360.dp)) { if (Shell.sheet != Sheet.NONE) StarShopSheet() } }
         compose.waitForIdle()
-        compose.onNodeWithText("지금 가진 별 4개").assertIsDisplayed()
-        (STAR_PACKS + STAR_SUBSCRIPTION).forEach {
+        compose.onNodeWithText("지금 가진 별 5개").assertIsDisplayed()
+        (STAR_PACKS + STAR_SUBSCRIPTION + STAR_AD).forEach {
             compose.onNodeWithText(it.title).performScrollTo().assertIsDisplayed()
             compose.onNodeWithText(it.price).performScrollTo().assertIsDisplayed()
         }
@@ -81,6 +82,12 @@ class StarShopTest {
         compose.onAllNodesWithText("구매하기")[0].performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("준비 중입니다").assertIsDisplayed()
-        assertEquals("아직 결제가 없으니 별이 늘면 안 된다", 4, CallLimits.starsLeft())
+        compose.onNodeWithText("확인").performClick()
+        compose.waitForIdle()
+        // the free way is the ad — not wired either, so it says the same and gives nothing
+        compose.onNodeWithText("광고 보기").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("준비 중입니다").assertIsDisplayed()
+        assertEquals("아직 결제도 광고도 없으니 별이 늘면 안 된다", 5, CallLimits.starsLeft())
     }
 }

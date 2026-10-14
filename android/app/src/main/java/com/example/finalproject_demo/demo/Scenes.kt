@@ -289,8 +289,8 @@ private suspend fun Director.sceneAdult() {
     // 오또는 별을 사 달라는 말을 하지 않는다 — 구매는 어른 길(부모 비밀번호 뒤)에만 있다
     if (Server.liveFor(picked) && com.example.finalproject_demo.net.CallLimits.starsLeft() <= 0) {
         s.noticeMode = picked
-        s.notice = "별을 다 썼어.\n내일 또 생겨!\n" + startLimitNextAction()
-        log("별 0 → 새 이야기를 막고 책장을 권한다 (내일 무료 별 ${com.example.finalproject_demo.net.CallLimits.FREE_STARS_PER_DAY}개)")
+        s.notice = "별을 다 썼어.\n" + startLimitNextAction()
+        log("별 0 → 새 이야기를 막고 책장을 권한다 (매일 주는 별은 없다 — 구매 · 광고는 어른 길에만)")
         buttons(
             DemoBtn("📚 책장 보기") { send(Reply.Tapped("notice:shelf", "책장")) },
             DemoBtn("🙂 괜찮아") { send(Reply.Tapped("notice:ok", "괜찮아")) },

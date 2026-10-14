@@ -110,7 +110,7 @@ class HeroCreationResumeTest {
         try {
             CallLimits.reset()
             CallLimits.enabled = true
-            repeat(CallLimits.FREE_STARS_PER_DAY + CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
+            repeat(CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
             withHero { d ->
                 d.s.limitOn = true
                 d.s.usedToday = d.s.dailyLimit

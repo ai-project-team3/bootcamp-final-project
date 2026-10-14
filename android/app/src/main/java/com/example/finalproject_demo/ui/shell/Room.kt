@@ -770,8 +770,8 @@ private fun DailyLimit(d: Director) {
                     }
                     Spacer(Modifier.height(14.dp))
                     if (!allowance.parentCanAllowExtra) {
-                        // no stars left (#445) — the only way on is the shop, behind the parent PIN. Tomorrow's free star needs nothing
-                        Text("별 하나로 책 한 권을 만들어요. 내일이면 별 ${com.example.finalproject_demo.net.CallLimits.FREE_STARS_PER_DAY}개가 새로 생겨요.", color = InkBrown, fontSize = 14.sp)
+                        // no stars left (#445) — the only way on is the shop (buy, or watch an ad), behind the parent PIN
+                        Text("별 하나로 책 한 권을 만들어요. 별은 구매하거나 광고를 보고 받을 수 있어요.", color = InkBrown, fontSize = 14.sp)
                         Text("만들던 이야기 이어하기와 책장 읽기는 별 없이 할 수 있어요.", color = InkSoft, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
                         Spacer(Modifier.height(14.dp))
                         Box(

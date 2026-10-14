@@ -44,7 +44,7 @@ class DailyStartLimitViewTest {
         oldBase = Server.base; oldModes = Server.liveModes
         Server.base = "http://127.0.0.1:1"; Server.liveModes = setOf(StoryMode.STORY)
         CallLimits.reset(); CallLimits.enabled = true
-        repeat(CallLimits.FREE_STARS_PER_DAY + CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
+        repeat(CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
         compose.mainClock.autoAdvance = false
     }
 
@@ -53,7 +53,7 @@ class DailyStartLimitViewTest {
     private fun draw(notice: Boolean = true, paused: Boolean = false): Director {
         val d = Director(scope).apply {
             s.limitOn = false
-            s.notice = if (notice) "별을 다 썼어.\n내일 또 생겨!\n만들던 건 이어서 해!" else null
+            s.notice = if (notice) "별을 다 썼어.\n만들던 건 이어서 해!" else null
             if (paused) s.paused = Scene.MAKEHERO
         }
         compose.setContent { Box(Modifier.size(640.dp, 360.dp)) { OttoRoom(d) } }
@@ -77,7 +77,7 @@ class DailyStartLimitViewTest {
 
     @Test fun serviceLimitShowsItsActualNoticeInsteadOfTheGenericGoodbye() {
         draw()
-        val node = compose.onNodeWithText("별을 다 썼어.\n내일 또 생겨!\n만들던 건 이어서 해!", useUnmergedTree = true)
+        val node = compose.onNodeWithText("별을 다 썼어.\n만들던 건 이어서 해!", useUnmergedTree = true)
         node.assertIsDisplayed()
         val layouts = mutableListOf<TextLayoutResult>()
         node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }

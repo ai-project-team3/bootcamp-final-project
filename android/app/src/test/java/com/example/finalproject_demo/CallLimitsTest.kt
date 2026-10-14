@@ -27,27 +27,19 @@ class CallLimitsTest {
     @After fun off() { CallLimits.reset(); Server.resetCalls() }
 
     @Test
-    fun aNewDeviceHasTheWelcomeStarsAndOneFreeStarADay() {
-        // #445 — one star starts one server book: three welcome stars once, one free star a day
-        assertEquals(4, CallLimits.starsLeft())
+    fun aNewDeviceHasFiveStarsOnceAndNoneComeBackWithTheDay() {
+        // #445 · 10-14 — one star starts one server book: five stars at install, none per day
+        assertEquals(5, CallLimits.starsLeft())
         CallLimits.starSpent()
-        assertEquals("오늘의 무료 별이 먼저 나간다", 3, CallLimits.starsLeft())
-        repeat(3) { CallLimits.starSpent() }
+        assertEquals(4, CallLimits.starsLeft())
+        day = "2026-10-07"
+        assertEquals("남겨 둔 별은 날이 바뀌어도 그대로다", 4, CallLimits.starsLeft())
+        repeat(4) { CallLimits.starSpent() }
         assertEquals("별이 없으면 새 이야기를 시작하지 않는다", 0, CallLimits.starsLeft())
         CallLimits.starSpent()
         assertEquals("없는 별은 더 줄지 않는다", 0, CallLimits.starsLeft())
-        day = "2026-10-07"
-        assertEquals("날짜가 바뀌면 무료 별 하나만 — 처음 받은 별은 다시 생기지 않는다", 1, CallLimits.starsLeft())
-    }
-
-    @Test
-    fun anUnusedFreeStarIsNotCarriedOverButTheBankIs() {
-        assertEquals(4, CallLimits.starsLeft())
-        day = "2026-10-07"
-        assertEquals("안 쓴 무료 별은 쌓이지 않는다", 4, CallLimits.starsLeft())
-        CallLimits.starSpent(); CallLimits.starSpent()
         day = "2026-10-08"
-        assertEquals("남겨 둔 별 2 + 오늘 무료 1", 3, CallLimits.starsLeft())
+        assertEquals("날짜가 바뀌어도 별은 새로 생기지 않는다", 0, CallLimits.starsLeft())
     }
 
     @Test
@@ -66,7 +58,7 @@ class CallLimitsTest {
     fun theTeamsDevAppIsNotLimited() {
         CallLimits.enabled = false
         repeat(5) { CallLimits.starSpent() }
-        assertEquals(CallLimits.FREE_STARS_PER_DAY + CallLimits.WELCOME_STARS, CallLimits.starsLeft())
+        assertEquals(CallLimits.WELCOME_STARS, CallLimits.starsLeft())
         assertNull(CallLimits.blocks("/tts", mapOf("/tts" to 1_000)))
     }
 

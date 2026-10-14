@@ -1118,8 +1118,8 @@ private fun SettingsTab(d: Director) {
                 Text("별", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
                 val stars = s.newStoryAllowance().service
                 Text(
-                    if (stars != null) "지금 가진 별 ${stars}개 · 매일 ${com.example.finalproject_demo.net.CallLimits.FREE_STARS_PER_DAY}개를 새로 받아요"
-                    else "별 하나로 책 한 권을 만들어요 · 매일 ${com.example.finalproject_demo.net.CallLimits.FREE_STARS_PER_DAY}개를 새로 받아요",
+                    if (stars != null) "지금 가진 별 ${stars}개 · 구매하거나 광고를 보고 받을 수 있어요"
+                    else "별 하나로 책 한 권을 만들어요 · 구매하거나 광고를 보고 받을 수 있어요",
                     fontSize = 12.sp, color = PSub,
                 )
             }

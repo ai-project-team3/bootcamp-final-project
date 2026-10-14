@@ -27,21 +27,21 @@ class DailyStartAllowanceTest {
     @After fun clean() { CallLimits.reset(); Server.base = oldBase; Server.liveModes = oldModes }
 
     @Test fun aParentAllowanceAboveTheStarsDoesNotPromiseMoreThanTheStars() {
-        val s = DemoState().apply { dailyLimit = 5; usedToday = 0 }
-        assertEquals(4, s.newStoryAllowance().remaining)
-        repeat(4) { CallLimits.starSpent(); s.usedToday++ }
-        assertEquals(1, s.dayStars)
+        val s = DemoState().apply { dailyLimit = 7; usedToday = 0 }
+        assertEquals(5, s.newStoryAllowance().remaining)
+        repeat(5) { CallLimits.starSpent(); s.usedToday++ }
+        assertEquals(2, s.dayStars)
         assertEquals(0, s.newStoryAllowance().remaining)
     }
 
     @Test fun theParentsDailyBrakeHoldsEvenWithStarsLeft() {
         val s = DemoState().apply { dailyLimit = 1; usedToday = 1 }
-        assertEquals(4, CallLimits.starsLeft())
+        assertEquals(5, CallLimits.starsLeft())
         assertEquals(0, s.newStoryAllowance().remaining)
     }
 
     @Test fun parentUnlimitedCannotOverrideTheServiceLimit() {
-        repeat(CallLimits.FREE_STARS_PER_DAY + CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
+        repeat(CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
         val s = DemoState().apply { limitOn = false }
         assertEquals(0, s.newStoryAllowance().remaining)
         assertFalse(s.allowExtraParentStart())
@@ -60,12 +60,12 @@ class DailyStartAllowanceTest {
         val s = DemoState().apply { dailyLimit = 1; usedToday = 1; noticeMode = StoryMode.STORY }
         assertTrue(s.allowExtraParentStart())
         assertEquals(0, s.usedToday)
-        assertEquals(3, CallLimits.starsLeft())
+        assertEquals(4, CallLimits.starsLeft())
         assertEquals(1, s.newStoryAllowance().remaining)
     }
 
     @Test fun anExhaustedServiceCannotBeExtendedEvenWhenTheParentLimitIsAlsoZero() {
-        repeat(CallLimits.FREE_STARS_PER_DAY + CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
+        repeat(CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
         val s = DemoState().apply { dailyLimit = 1; usedToday = 1; noticeMode = StoryMode.STORY }
         assertFalse(s.allowExtraParentStart())
         assertEquals(1, s.usedToday)
@@ -73,7 +73,7 @@ class DailyStartAllowanceTest {
     }
 
     @Test fun aNonLiveModeUsesOnlyItsParentAllowance() {
-        repeat(CallLimits.FREE_STARS_PER_DAY + CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
+        repeat(CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
         val s = DemoState().apply { dailyLimit = 1; usedToday = 1; noticeMode = StoryMode.DIARY }
         assertTrue(s.allowExtraParentStart())
         assertEquals(1, s.newStoryAllowance(StoryMode.DIARY).remaining)
@@ -81,7 +81,7 @@ class DailyStartAllowanceTest {
     }
 
     @Test fun refusingANewStartKeepsTheDraftAndTheNoticeCanResumeItWithoutAnotherDebit() = runBlocking {
-        repeat(CallLimits.FREE_STARS_PER_DAY + CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
+        repeat(CallLimits.WELCOME_STARS) { CallLimits.starSpent() }
         val scope = CoroutineScope(SupervisorJob())
         val d = Director(scope).apply {
             s.limitOn = false; s.speed = 0.01
