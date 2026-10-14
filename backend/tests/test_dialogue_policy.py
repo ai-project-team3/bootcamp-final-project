@@ -90,6 +90,11 @@ def test_an_unsure_target_falls_back_to_the_last_slot_otto_filled():
     assert policy.retract_for("repair", d("correct", target="companion", target_conf=0.4), req()) == ["place"]
 
 
+def test_a_sure_target_that_is_still_empty_falls_back_to_the_last_slot_otto_filled():
+    # 10-13 story bench c02: 「그거 아니야」 pointed at the question asked, which holds nothing yet
+    assert policy.retract_for("repair", d("correct", target="problem", target_conf=0.75), req()) == ["place"]
+
+
 def test_a_bare_denial_leaves_a_slot_filled_before_otto_s_last_reaction():
     # 10-12 device round 3: 「그거 아니야」 to the next question emptied an older slot — it answers the question
     r = req(history=[*req().history, {"turn": 3, "asked_slot": "problem", "otto": {"question": "무슨 일이 있었어?"},
