@@ -233,6 +233,7 @@ private suspend fun Director.sceneAdult() {
         "resume" -> {
             val sc = s.paused
             s.paused = null
+            StoryEvaluation.state(s, "session_resumed")
             if (sc != null) { log("만들던 이야기 이어서 — 「${sc.label}」부터 (별은 이미 썼다)"); go(sc); return }
         }
         "parent" -> {
@@ -302,6 +303,7 @@ private suspend fun Director.sceneAdult() {
     discardDraft()           // …and its copy on the phone (#336) — the star for this new book is spent below
     s.resetStory()
     s.mode = picked
+    StoryEvaluation.begin(s)
     if (Server.liveFor(picked)) com.example.finalproject_demo.net.CallLimits.starSpent()
     if (s.isDiary) {
         s.diaryStart = System.currentTimeMillis()
@@ -1618,24 +1620,32 @@ private suspend fun Director.sceneMaking() {
         p += 0.05f
     }
     s.title = s.autoTitleFor()
+    val evaluationAttempt = StoryEvaluation.generation(s)
     if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
         s.stage = Stage.Making("이야기 문장을 쓰는 중… (${plannedPageCount}쪽)")
         val mask = s.nameMask()
         val storyInput = s.storyServerInput()
-        val book = Server.storyBook(
+        val book = try { Server.storyBook(
             mode = "story",
             slots = mask.maskSlots(storyInput.slots),
             slotBy = storyInput.sources,
             template = t.key,
             level = s.level.name.lowercase(),
             pages = s.storyPagePlan(),
-        )
-        if (s.useGeneratedStory(book?.captions?.map(mask::unmask))) {
+            diagnostic = StoryEvaluation.diagnostic(s, evaluationAttempt),
+        ) } catch (e: kotlinx.coroutines.CancellationException) {
+            StoryEvaluation.cancelled(s, evaluationAttempt)
+            throw e
+        }
+        val restoredCaptions = book?.captions?.map(mask::unmask)
+        val accepted = s.useGeneratedStory(restoredCaptions)
+        StoryEvaluation.generated(s, evaluationAttempt, book, restoredCaptions, accepted)
+        if (accepted) {
             book?.title?.let { s.title = mask.unmask(it) }
             log("서버가 쓴 동화 ${s.pageCount}쪽을 받음")
             completeStoryBackgroundFromBook()
         } else log("동화 생성 실패 또는 쪽 목록 불일치 → 템플릿 책 사용")
-    }
+    } else StoryEvaluation.generated(s, evaluationAttempt, null, null, false, "live_disabled")
     coopWriteBook()                             // 협업 책 문장 — 서버를 켰을 때만 (CoopScenes.kt · #47)
     s.stage = Stage.Making("『${s.title}』", 1f)
     say("다 만들었어! 제목은 『${s.title}』${if (bat(s.title!!)) "이야" else "야"}.")

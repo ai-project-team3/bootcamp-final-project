@@ -311,10 +311,10 @@ private fun RecordTab(d: Director) {
         return
     }
     if (talkOpen) {
-        SessionTalkView(r, s.childName, onBack = { talkOpen = false })
+        SessionTalkView(r, r.authorCall?.takeIf(String::isNotBlank) ?: "아이", onBack = { talkOpen = false })
         return
     }
-    SessionReportView(r, s.childName, onTalk = { talkOpen = true }, afterSpeech = {
+    SessionReportView(r, r.authorCall?.takeIf(String::isNotBlank) ?: "아이", onTalk = { talkOpen = true }, afterSpeech = {
         StorySpeechHistoryView { d.send(Reply.Tapped("tab:set", "설정")) }
     })
     // 협업 칸은 지금 세션의 것 — 지난 책을 고른 동안은 보이지 않는다

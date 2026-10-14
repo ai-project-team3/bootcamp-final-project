@@ -220,16 +220,17 @@ private fun RoundBtn(text: String, bg: Color, size: Int = 64, onClick: () -> Uni
 
 /** 도구별 반응 글자 — 누른 것 바로 위에 뜬다 (HTML 데모와 같은 방식) */
 internal fun reactionFor(s: DemoState, tool: String, target: String, objName: String? = null, objTap: String? = null,
-    liveStory: Boolean = com.example.finalproject_demo.net.Server.liveFor(s.mode)): String {
+    liveStory: Boolean = com.example.finalproject_demo.net.Server.liveFor(s.mode),
+    authorCall: String = s.sessionAuthorCall?.takeIf(String::isNotBlank) ?: "아이"): String {
     val f = s.friendName
     return when (tool) {
         "hammer" -> "간지러워!"
         "feather" -> "깔깔깔!"
         "glass" -> when (target) {
             "hero" -> when {
-                s.isDiary -> "${s.childName}의 오늘 이야기!"
-                liveStory -> "${s.childName}의 이야기!"   // 서버 모드엔 기본 탈것이 없다(10-02)
-                else -> "${s.childName}${eun(s.childName)} ${s.th.vehicle} 선장!"
+                s.isDiary -> "${authorCall}의 오늘 이야기!"
+                liveStory -> "${authorCall}의 이야기!"   // 서버 모드엔 기본 탈것이 없다(10-02)
+                else -> "${authorCall}${eun(authorCall)} ${s.th.vehicle} 선장!"
             }
             "dino" -> "${s.dino.label} · ${s.dino.look}"
             "friend" -> if (s.isDiary) "${s.friendCallName} · ${s.coopMetLabel() ?: "오늘 만난 사람"}" else "$f · ${s.newcomerKind} 친구"
@@ -257,6 +258,7 @@ internal fun reactionFor(s: DemoState, tool: String, target: String, objName: St
 fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? = null, onReply: (Reply) -> Unit = d::send) {
     val s = d.s
     val page = stage.index
+    val authorCall = (if (savedBook != null) savedBook.authorCall else s.sessionAuthorCall)?.takeIf(String::isNotBlank) ?: "아이"
     val liveStory = savedBook?.visuals?.liveStory ?: com.example.finalproject_demo.net.Server.liveFor(s.mode)
     var tool by remember { mutableStateOf("hand") }
     val heroArt = s.storyHeroArt
@@ -302,7 +304,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
         val walkMod = if (walkIn) Modifier.graphicsLayer { translationX = -walk.value * screenW * (xf + 0.12f) } else Modifier
         val body: @Composable () -> Unit = {
             Tappable(
-                text = { reactionFor(s, tool, target, liveStory = liveStory) },
+                text = { reactionFor(s, tool, target, liveStory = liveStory, authorCall = authorCall) },
                 modifier = Modifier.fillMaxSize(),
                 onTap = { if (tool == "hand" && onHand != null) onHand() else react(target) },
             ) { ArtView(art, Modifier.fillMaxSize(), if (walking) RigMotion.WALK else act) }
@@ -445,7 +447,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
         }
 
         when (kind) {
-            PageKind.COVER -> Cover(d, heroArt, liveStory)
+            PageKind.COVER -> Cover(d, heroArt, liveStory, authorCall)
             PageKind.DEPART -> {
                 Scenery()
                 // 일기 화이트보드는 배경이나 친구 그림으로 바꾸지 않고 첫 쪽에 원본 획을 붙인다.
@@ -615,7 +617,7 @@ private fun FadeIn(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Cover(d: Director, heroArt: Art, liveStory: Boolean) {
+private fun Cover(d: Director, heroArt: Art, liveStory: Boolean, authorCall: String) {
     val s = d.s
     Box(Modifier.fillMaxSize().background(Color(0x55000000)))
     Column(
@@ -644,7 +646,7 @@ private fun Cover(d: Director, heroArt: Art, liveStory: Boolean) {
         // 지은이는 **아이 이름만** 쓴다 (9/22).
         // 전에는 "· 함께 {어른}" 이 늘 붙었다. 어른이 지은 자리가 하나도 없는 날에도 붙어서
         // 아이가 혼자 지은 책에 어른 이름이 올라갔다. 이 책의 지은이는 아이다.
-        Text("글 · 그림 ${s.childName}", fontSize = 13.sp, color = Color.White)
+        Text("글 · 그림 $authorCall", fontSize = 13.sp, color = Color.White)
         s.template?.let { Text("${s.pageCount}쪽", fontSize = 11.sp, color = Color.White.copy(alpha = 0.75f)) }
     }
 }
