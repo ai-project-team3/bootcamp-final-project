@@ -45,6 +45,8 @@ enum class BlowProp(
     ;
 
     /** 「촛불을 후~ 불었어요.」 · the nameless sparkle dust says no name */
+    /** What goes to the server as the page's prop — the breeze has no name the child said, so none (the page is imagined · #340) */
+    val serverWord: String? get() = if (this == BREEZE) null else word
     override val did: String get() = if (this == BREEZE) "후~ 하고 불었어요." else "$word${eul(word)} 후~ 불었어요."
     /** 「촛불 끈 입김」 · 「먼지 날린 입김」 · the nameless sparkle dust is 「후~ 분 입김」 */
     override val badge: String get() = if (flame) "$word 끈 입김" else if (this == BREEZE) "후~ 분 입김" else "$word 날린 입김"
@@ -69,14 +71,15 @@ fun blowPropIn(said: String, realDay: Boolean): BlowProp? = when {
 }
 
 /**
- * This book's C1 prop — only when slot 1 is C1. When rotation made it C1 with nothing to blow in the child's words
- * (#259 · imagined stories only), leaves are borrowed — an imagined story may borrow props (mission design §7-2)
+ * This book's C1 prop — only when slot 1 is C1. When rotation made it C1 with nothing to blow in the child's words,
+ * an imagined story borrows leaves (mission design §7-2) and a real day blows the nameless breeze — no name the
+ * child never said goes into the book (#259 §4-3 · coop book check A1 · 10-14)
  */
 fun DemoState.blowProp(): BlowProp? {
     pinnedMissions()?.let { return it.blow }            // a re-read book: what it was made with (#321 review)
     val f = storyFacts()
     if (missions().slot1 != MissionId.C1) return null
-    return blowPropIn(f.slot1Words, f.realDay) ?: if (!f.realDay) BlowProp.LEAF else null
+    return blowPropIn(f.slot1Words, f.realDay) ?: if (!f.realDay) BlowProp.LEAF else BlowProp.BREEZE
 }
 
 /** 「촛불을」 · 「먼지를」 */

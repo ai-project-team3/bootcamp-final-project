@@ -193,6 +193,9 @@ class CoopBookCheckTest {
             .filter { only == null || it.id in only }
         out.mkdirs()
 
+        // the missions turn like on a phone: each shelved book is recorded and the next one avoids it (MainActivity attaches it)
+        com.example.finalproject_demo.demo.missions.MissionHistory.detach()
+        com.example.finalproject_demo.demo.missions.MissionHistory.attach(androidx.test.core.app.ApplicationProvider.getApplicationContext())
         val shown = mutableStateOf<Stage.SavedStory?>(null)
         val viewScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val viewer = Director(viewScope)
@@ -236,6 +239,7 @@ class CoopBookCheckTest {
             }
         } finally {
             motionFrozen = frozenBefore
+            com.example.finalproject_demo.demo.missions.MissionHistory.detach()
             Server.base = baseBefore
             Server.liveModes = modesBefore
             viewScope.cancel()
