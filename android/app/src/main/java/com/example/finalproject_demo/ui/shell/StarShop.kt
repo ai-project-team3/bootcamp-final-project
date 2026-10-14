@@ -54,13 +54,21 @@ import com.example.finalproject_demo.ui.noRippleClickable
  */
 data class StarOffer(val key: String, val title: String, val detail: String, val price: String)
 
-/** ⚠️ 금액 · 개수는 화면을 채우려고 둔 값이다 — 종훈이 정하면 여기 한 곳만 고친다 (책 한 권 원가 약 150원 · `CallLimits`) */
-val STAR_SUBSCRIPTION = StarOffer("sub", "오또 구독", "매달 별 30개 · 언제든 해지할 수 있어요", "월 14,900원")
+/**
+ * 구독료는 고정이다(10-14 종훈): 별 하나에 약 497 · 332 · 277원.
+ * 별 묶음은 「모자랄 때 채우는 길」이라 별 하나 값이 가장 싼 묶음도 스탠다드 구독보다 20% 비싸다(700 · 650 · 597원) —
+ * 묶음이 구독보다 싸면 구독할 이유가 없다. 금액을 바꿀 때는 이 순서를 지킨다 (`StarShopTest`).
+ */
+val STAR_SUBSCRIPTIONS = listOf(
+    StarOffer("sub30", "스탠다드", "매달 별 30개", "월 14,900원"),
+    StarOffer("sub60", "프리미엄", "매달 별 60개", "월 19,900원"),
+    StarOffer("sub90", "플래티넘", "매달 별 90개", "월 24,900원"),
+)
 val STAR_AD = StarOffer("ad", "광고 보고 별 받기", "광고 한 편에 별 1개", "무료")
 val STAR_PACKS = listOf(
-    StarOffer("pack5", "별 5개", "책 다섯 권", "2,900원"),
-    StarOffer("pack12", "별 12개", "책 열두 권", "5,900원"),
-    StarOffer("pack30", "별 30개", "책 서른 권", "12,900원"),
+    StarOffer("pack5", "별 5개", "책 다섯 권", "3,500원"),
+    StarOffer("pack10", "별 10개", "책 열 권", "6,500원"),
+    StarOffer("pack30", "별 30개", "책 서른 권", "17,900원"),
 )
 
 @Composable
@@ -94,8 +102,10 @@ fun StarShopSheet() {
             ShopLabel("무료로 받기")
             OfferRow(STAR_AD, "광고 보기", strong = false) { soon = true }
             Spacer(Modifier.height(14.dp))
-            ShopLabel("구독")
-            OfferRow(STAR_SUBSCRIPTION, "구독하기", strong = true) { soon = true }
+            ShopLabel("구독 · 언제든 해지할 수 있어요")
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                STAR_SUBSCRIPTIONS.forEach { OfferRow(it, "구독하기", strong = true) { soon = true } }
+            }
             Spacer(Modifier.height(14.dp))
             ShopLabel("별만 더 사기")
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

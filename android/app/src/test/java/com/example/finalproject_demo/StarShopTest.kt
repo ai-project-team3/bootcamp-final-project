@@ -53,7 +53,7 @@ class StarShopTest {
         assertEquals(Sheet.STAR_GATE, Shell.sheet)
         compose.onNodeWithText("어른 확인").assertIsDisplayed()
         STAR_PACKS.forEach { compose.onNodeWithText(it.price).assertDoesNotExist() }
-        compose.onNodeWithText(STAR_SUBSCRIPTION.price).assertDoesNotExist()
+        STAR_SUBSCRIPTIONS.forEach { compose.onNodeWithText(it.price).assertDoesNotExist() }
         compose.onNodeWithText(STAR_AD.title).assertDoesNotExist()
         capture("gate")
         // closing says nothing and goes back
@@ -67,12 +67,12 @@ class StarShopTest {
         compose.setContent { Box(Modifier.size(640.dp, 360.dp)) { if (Shell.sheet != Sheet.NONE) StarShopSheet() } }
         compose.waitForIdle()
         compose.onNodeWithText("지금 가진 별 5개").assertIsDisplayed()
-        (STAR_PACKS + STAR_SUBSCRIPTION + STAR_AD).forEach {
+        (STAR_PACKS + STAR_SUBSCRIPTIONS + STAR_AD).forEach {
             compose.onNodeWithText(it.title).performScrollTo().assertIsDisplayed()
             compose.onNodeWithText(it.price).performScrollTo().assertIsDisplayed()
         }
         capture("shop")
-        compose.onNodeWithText("구독하기").performScrollTo().performClick()
+        compose.onAllNodesWithText("구독하기")[0].performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("준비 중입니다").assertIsDisplayed()
         capture("soon")
@@ -89,5 +89,19 @@ class StarShopTest {
         compose.waitForIdle()
         compose.onNodeWithText("준비 중입니다").assertIsDisplayed()
         assertEquals("아직 결제도 광고도 없으니 별이 늘면 안 된다", 5, CallLimits.starsLeft())
+    }
+
+    /** 묶음이 구독보다 싸면 구독할 이유가 없다 — 별 하나 값은 어느 묶음이든 어느 구독보다 비싸고, 많이 살수록 싸진다 */
+    @Test fun aStarInAPackAlwaysCostsMoreThanAStarInASubscription() {
+        fun perStar(o: StarOffer): Double {
+            val won = o.price.filter { it.isDigit() }.toInt()
+            val stars = Regex("별 (\\d+)개").find(o.title + " " + o.detail)!!.groupValues[1].toInt()
+            return won.toDouble() / stars
+        }
+        val subs = STAR_SUBSCRIPTIONS.map(::perStar)
+        val packs = STAR_PACKS.map(::perStar)
+        assertEquals("구독은 단계가 오를수록 별 하나가 싸진다", subs.sortedDescending(), subs)
+        assertEquals("묶음은 클수록 별 하나가 싸진다", packs.sortedDescending(), packs)
+        assert(packs.min() >= subs.max() * 1.2) { "가장 싼 묶음 ${packs.min()}원이 스탠다드 ${subs.max()}원의 1.2배보다 싸다" }
     }
 }
