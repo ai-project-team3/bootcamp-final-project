@@ -1,0 +1,15 @@
+{
+  "name": "dp_grandpa",
+  "kind": "cut",
+  "text": "cute felt doll of a kind grandfather, short light grey hair, grey eyebrows, gentle smile, rosy cheeks, beige cardigan over a white collared shirt, brown trousers, brown shoes, chibi proportions with a big round head and a short body, standing straight, arms down at the sides, whole body visible from head to shoes",
+  "style": "felt",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 1989992790,
+  "prompt": "cute felt doll of a kind grandfather, short light grey hair, grey eyebrows, gentle smile, rosy cheeks, beige cardigan over a white collared shirt, brown trousers, brown shoes, chibi proportions with a big round head and a short body, standing straight, arms down at the sides, whole body visible from head to shoes, single subject centered, full body, front view, isolated on plain pure white background, no shadow, soft felt fabric and paper-craft 3D children's picture book illustration, cute, rounded shapes, warm pastel colors, clean, gentle lighting, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-14",
+  "placed": "dp_teacher canvas 640, head-to-feet 44..597, centred"
+}
