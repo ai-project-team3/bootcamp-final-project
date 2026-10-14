@@ -491,9 +491,12 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
     }
     if (r is Reply.Spoke) {
         // Negation — did the child deny the premise of Otto's question (「아니, 안 줬어」) or correct an answer (「놀이터 말고 수영장」) (#327 ② §5). Live speech only
-        val negation = if (r.isLiveSpeech()) classifyCoopReply(r.text, text).takeIf { it is CoopReply.PremiseDenied || it is CoopReply.Corrected } else null
         val step = COOP_STEPS.firstOrNull { "diary_${it.bookKey}" == q.id }
         val parentStep = src == CoopSource.PARENT || q.id in track.parentSteps
+        val negation = if (!r.isLiveSpeech()) null
+            else classifyCoopReply(r.text, text).takeIf { it is CoopReply.PremiseDenied || it is CoopReply.Corrected }
+                // a tail step takes no empty negation, whatever it asked — 「아니 안 했어」 to 「그때 뭐 하고 있었어?」 went into the book (10-14)
+                ?: bareNegation(r.text).takeIf { step != null && !step.required && !parentStep }
         if (negation != null) {
             val label = if (negation is CoopReply.PremiseDenied) "premise_denied" else "corrected"
             log("[$key] reply kind — $label · 「${r.text.trim()}」 ← 「$text」")
