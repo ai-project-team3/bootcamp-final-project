@@ -56,7 +56,9 @@ import java.io.File
  * `build/review/coopcheck/books.json` page by page (kind · caption · mission · who stands · background source) and
  * every page is captured. Template captions only — the server's sentences are the server run's job (bench_coop_book.py).
  *
- * Opt-in (it plays 18 sessions): `COOP_CHECK=1 ./gradlew :app:testDebugUnitTest --tests '*CoopBookCheckTest*'`.
+ * Opt-in (it plays 18 sessions): `COOP_CHECK=1 ./gradlew :app:testDebugUnitTest --rerun --tests '*CoopBookCheckTest*'`.
+ * With `COOP_CHECK_SERVER=<backend url>` the same scripts run with co-op live (judge · line · /story · /image · /character)
+ * and land in `build/review/coopcheck_server`.
  * It fails only on regressions of the app layer: a script that never reaches the book, a blank page, a mission twice.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -66,7 +68,12 @@ import java.io.File
 class CoopBookCheckTest {
     @get:Rule val compose = createComposeRule()
 
-    private val out = File("build/review/coopcheck")
+    /** The server run (design review 10-14 step 4): `COOP_CHECK_SERVER=http://host:port` — the same scripts with co-op live */
+    private val server: String? = System.getenv("COOP_CHECK_SERVER")?.takeIf { it.isNotBlank() }
+    private val out = File(if (server != null) "build/review/coopcheck_server" else "build/review/coopcheck")
+    /** a live turn waits on the judge and the line (~6 s each) and the book on /story — the template run is quick */
+    private val flowMs = if (server != null) 600_000L else 90_000L
+    private val bookMs = if (server != null) 180_000L else 30_000L
 
     private class Memory : CoopBookStore {
         val books = mutableListOf<SavedCoopBook>()
@@ -108,7 +115,7 @@ class CoopBookCheckTest {
         assertTrue("${sc.id}: no card", tap("카드를 탭"))
         assertTrue(await(5_000) { s.scene == Scene.DIARY })
         var answered = -1
-        val end = System.currentTimeMillis() + 90_000
+        val end = System.currentTimeMillis() + flowMs
         while (s.scene == Scene.DIARY && System.currentTimeMillis() < end) {
             val skipDrawing = s.buttons.firstOrNull { "안 그릴래" in it.label }
             if (skipDrawing != null) { skipDrawing.onClick(); delay(50); continue }
@@ -119,14 +126,14 @@ class CoopBookCheckTest {
             said += "[$key] 「$line」 → 「$text」"
             answered = s.lineId
             // a send can land before the mic is really open — send again until the line moves on
-            withTimeoutOrNull(10_000) { while (s.lineId == answered && s.scene == Scene.DIARY) { send(Reply.Spoke(text)); delay(80) } }
+            withTimeoutOrNull(if (server != null) 60_000L else 10_000L) { while (s.lineId == answered && s.scene == Scene.DIARY) { send(Reply.Spoke(text)); delay(80) } }
         }
         if (await(4_000) { s.buttons.any { "안 그릴래" in it.label || "오늘은 여기까지" in it.label } }) {
             // no seed from the child at all — finishDiary offers 끝내기 · 동화 모드 instead of a book (일기 §7-4, undecided)
             if (s.buttons.any { "오늘은 여기까지" in it.label }) return said + NO_SEED
             tap("안 그릴래")
         }
-        assertTrue("${sc.id}: never reached the book · ${s.scene} · ${s.line}", await(30_000) { s.scene == Scene.BOOK })
+        assertTrue("${sc.id}: never reached the book · ${s.scene} · ${s.line}", await(bookMs) { s.scene == Scene.BOOK })
         return said
     }
 
@@ -160,7 +167,7 @@ class CoopBookCheckTest {
         }
         missions.groupingBy { it }.eachCount().filterValues { it > 1 }.keys.forEach { problems += "mission $it twice" }
         return JSONObject().put("id", sc.id).put("note", sc.note)
-            .put("pick", "${sc.pick.kind} · ${sc.pick.name} · ${sc.pick.reason}")
+            .put("pick", "${sc.pick.kind} · ${sc.pick.name} · ${sc.pick.reason}").put("server", server != null)
             .put("title", title ?: JSONObject.NULL).put("end", endReason ?: JSONObject.NULL)
             .put("background", backgroundSource()).put("bgName", bgName)
             .put("slots", JSONObject(slots.toMap())).put("by", JSONObject(slotBy.toMap()))
@@ -172,7 +179,10 @@ class CoopBookCheckTest {
     @Test
     fun coopBooksFromTheFixedScripts() {
         assumeTrue("opt-in: COOP_CHECK=1", System.getenv("COOP_CHECK") == "1")
-        assumeTrue("server must be off for the template run", !Server.liveFor(com.example.finalproject_demo.demo.StoryMode.COOP))
+        val baseBefore = Server.base
+        val modesBefore = Server.liveModes
+        if (server != null) { Server.base = server; Server.liveModes = setOf(com.example.finalproject_demo.demo.StoryMode.COOP) }
+        else assumeTrue("server must be off for the template run", !Server.liveFor(com.example.finalproject_demo.demo.StoryMode.COOP))
         val fixtures = File("../../eval/fixtures_coop_check.jsonl")
         val only = System.getenv("COOP_CHECK_ONLY")?.split(',')?.toSet()
         val scripts = fixtures.readLines().filter { it.isNotBlank() }.map { Script(JSONObject(it)) }
@@ -222,6 +232,8 @@ class CoopBookCheckTest {
             }
         } finally {
             motionFrozen = frozenBefore
+            Server.base = baseBefore
+            Server.liveModes = modesBefore
             viewScope.cancel()
             File(out, "books.json").writeText(books.toString(1), Charsets.UTF_8)
         }
