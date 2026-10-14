@@ -1447,6 +1447,15 @@ private fun notDiaryTalk(result: Server.TurnResult?): Boolean = result?.act == "
 private fun prevOf(day: DiaryDay, slot: String): String? =
     day.talk.asReversed().firstNotNullOfOrNull { h -> h.fills.lastOrNull { it.slot == slot } }?.prev
 
+/** 서버가 쓴 받아 주기 — 기록에 남길 「오또가 한 말」 */
+private fun ottoAck(result: Server.TurnResult): String? =
+    listOfNotNull(result.line?.ack, result.line?.expand).filter(String::isNotBlank).joinToString(" ").ifBlank { null }
+
+/** 판정이 채울 칸과 그 칸의 지금 값 — 칸을 채우기 **전에** 잡는다. 정정이 되돌릴 값(`prev`)이다 (#323) */
+private fun Director.historyFills(v: Server.Verdict, key: String): List<Server.HistoryFill> =
+    v.fills.filter { (fs, value) -> fs in Server.SLOTS && value.isNotBlank() }
+        .map { (fs, value) -> Server.HistoryFill(fs, value.trim(), s.slots[bookKeyOf(fs, key)]) }
+
 /** 한 턴을 기록에 — 물은 질문 → 아이 말 → 오또가 실제로 한 말 순서 (#323 · 아이 말과 오또 말을 섞지 않는다 · 규칙 5) */
 private fun remember(day: DiaryDay, slot: String, question: String, child: String,
                      fills: List<Server.HistoryFill>, act: String?, said: String?) {
@@ -1605,8 +1614,7 @@ private suspend fun Director.askEmptySlotsLive() {
         }
         // 아이가 틀렸다고 한 칸부터 되돌린다 — 같은 턴의 새 값은 그 뒤에 채운다 (#323)
         result.retract.forEach { gone -> restoreDiarySlot(gone, bookKeyOf(gone, key), prevOf(day, gone)) }
-        val filled = v.fills.filter { (fs, value) -> fs in Server.SLOTS && value.isNotBlank() }
-            .map { (fs, value) -> Server.HistoryFill(fs, value.trim(), s.slots[bookKeyOf(fs, key)]) }
+        val filled = historyFills(v, key)
         fillFromVerdict(day, v, r, key)
         val act = result.act
         // 정정의 새 값은 아이 말에서 옮긴 그 낱말로 책에 — 「바다 아니야, 수영장이야」 통째면 「아니야」가 책에 들어간다
@@ -1650,8 +1658,7 @@ private suspend fun Director.askEmptySlotsLive() {
             continue
         }
         sayReaction(result, r, key)
-        remember(day, slot, text, r.text, filled, null,
-            listOfNotNull(result.line?.ack, result.line?.expand).filter(String::isNotBlank).joinToString(" ").ifBlank { null })
+        remember(day, slot, text, r.text, filled, null, ottoAck(result))
         drawNewThing(day, r.text)
         next = (serverNext(result) ?: if (v.storyReady) tomorrowQuestion(gaveUp) else firstEmptyQuestion(gaveUp))?.let { withClue(day, it) }
     }
