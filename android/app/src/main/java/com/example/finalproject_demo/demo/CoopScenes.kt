@@ -289,6 +289,14 @@ private fun roleOf(stepKey: String): Pair<String, CoopRole>? = when (stepKey) {
  * 홀더에 자리·답 칸이 들어오면(조장) 이 보조 기록은 홀더 쪽으로 옮긴다.
  */
 private val trackByState = java.util.WeakHashMap<DemoState, CoopTrack>()
+/**
+ * 대사 조각의 머리가 될 수 있는 낱말 (10-14 · #502 · `net/VoiceSplice.kt`) — 앞 답에서 뗀 곳 · 사람 · 물건(이어 받기 질문에 끼우는 그 이름),
+ * 고른 이야기 이름, 아이 호칭. 「소방서에서 | 뭐 봤어?」처럼 이 낱말(+조사)로 시작하고 나머지가 구운 꼬리일 때만 나눠 낸다
+ */
+internal fun DemoState.coopSpliceWords(): List<String> =
+    (coopTrack.heard.map { (k, v) -> if (k == "who") spokenPeople(v) else v } + listOfNotNull(coopPick?.name, childName))
+        .map(String::trim).filter(String::isNotEmpty).distinct()
+
 private val DemoState.coopTrack: CoopTrack
     get() = trackByState[this] ?: CoopTrack().also { trackByState[this] = it }
 

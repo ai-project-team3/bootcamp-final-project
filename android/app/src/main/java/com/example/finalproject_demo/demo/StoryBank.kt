@@ -28,6 +28,13 @@ private val DemoState.f get() = friendName
 private val DemoState.d get() = dino.name
 private fun DemoState.slot(k: String, def: String = "") = slots[k] ?: def
 
+/**
+ * 대사 조각의 머리가 될 수 있는 낱말 (10-14 · #502 · `net/VoiceSplice.kt`) — 아이 호칭 · 장소 · 탈것 · 새 친구 · 친구 이름 · 같이 하는 사람.
+ * 「콩이가 | 뭘 원했을까?」처럼 이 낱말(+조사)로 시작하고 나머지가 구운 꼬리일 때만 나눠 낸다. 아니면 통째로 `/tts`
+ */
+internal fun DemoState.storySpliceWords(): List<String> =
+    listOf(c, p, v, nk, f, pn).map(String::trim).filter(String::isNotEmpty).distinct()
+
 /** 지나가는 곳 · 도착하는 곳 — 새로 만든 눈 배경이면 눈 나라 것으로 (공룡 나라 뼈대를 빌려도 장소 말은 눈에 맞춘다) */
 private val DemoState.stops: List<String> get() = if (generatedBg) listOf("하얀 눈꽃 다리", "폭신폭신 눈밭", "반짝반짝 얼음 호수") else th.stops
 private val DemoState.goals: List<String> get() = if (generatedBg) listOf("눈사람 마을", "오로라 언덕") else th.goals

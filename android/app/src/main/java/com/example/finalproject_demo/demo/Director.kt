@@ -472,8 +472,12 @@ class Director(
         Voice.baked(line) ?: synchronized(heardVoices) { heardVoices[line] } ?: splicedVoice(line)
             ?: Server.tts(line)?.also { heard(line, it) }
 
-    /** The words a line may start a piece with — the diary's heard place, companion and drawn pieces (#502: story · co-op next) */
-    private fun spliceWords(): List<String> = if (s.mode == StoryMode.DIARY) s.diarySpliceWords() else emptyList()
+    /** The words a line may start a piece with — what this mode has heard (diary · story · co-op, #502) */
+    private fun spliceWords(): List<String> = when (s.mode) {
+        StoryMode.DIARY -> s.diarySpliceWords()
+        StoryMode.STORY -> s.storySpliceWords()
+        StoryMode.COOP -> s.coopSpliceWords()
+    }
 
     /**
      * The line in pieces when that saves a `/tts` call ([VoiceSplice.plan]) — baked pieces are free, a piece already voiced
