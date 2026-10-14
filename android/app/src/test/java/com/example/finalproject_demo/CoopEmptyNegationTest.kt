@@ -28,14 +28,14 @@ class CoopEmptyNegationTest {
 
     @Test
     fun aNegationWithNothingInItIsNoTailAnswer() {
-        listOf("안 했어", "아니 안 했어", "아무것도 안 했어", "아무 말도 안 했어", "안 하고 있었어", "아니요, 안 했어요.")
+        listOf("안 했어", "아니 안 했어", "아무것도 안 했어", "아무 말도 안 했어", "안 하고 있었어", "아니요, 안 했어요.", "안 했었어")
             .forEach { assertNotNull(it, bareNegation(it)) }
     }
 
     @Test
     fun aNegationThatSaysSomethingStaysAnAnswer() {
         listOf("안 무서웠어", "안 울었어", "안 무서울 거야", "안 했어, 대신 사자 봤어", "기린 없었어, 사자 봤어", "우유를 쏟았어", "몰라",
-            "없어", "아무도 없었어")
+            "없어", "아무도 없었어", "할머니 안 했어", "하늘 안 봤어")
             .forEach { assertNull(it, bareNegation(it)) }
         // the correction path is untouched
         assertTrue(classifyCoopReply("기린 말고 사자 봤어", "기린 봤어?") is CoopReply.Corrected)

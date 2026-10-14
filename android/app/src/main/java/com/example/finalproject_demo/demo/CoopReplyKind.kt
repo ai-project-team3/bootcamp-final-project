@@ -176,7 +176,8 @@ private fun verbStem(word: String): String {
     return bare.take(2)
 }
 
-private val DO_FORMS = Regex("^(?:했|해|하|한|할)[가-힣]{0,3}$")
+// narrow on purpose: 하늘 · 하마 · 할머니 · 한강 · 해님 are no 하다 (#490 review)
+private val DO_FORMS = Regex("^(?:했|해)(?:어|어요|었어|다|지|서|도|야|요)?$|^하(?:고|는|지|기|면|니|려|다)[가-힣]{0,2}$|^(?:한|할)$")
 
 /** Words around a negation that carry nothing of their own — 「아니 아무것도 안 했어」 */
 private val EMPTY_AROUND = setOf("아니", "아니야", "아니요", "응", "음", "그냥", "아무것도", "아무", "말도", "그때는", "그땐", "나는", "난", "진짜", "정말", "안", "못")
