@@ -73,7 +73,9 @@ def is_stale(retract: list[str], req: TurnRequest) -> bool:
 def retract_for(act: Optional[Act], d: Decision | None, req: TurnRequest) -> list[str]:
     if act != "repair" or d is None:
         return []
-    sure = d.target and (d.target_conf is None or d.target_conf >= FLOOR)
+    # an empty slot holds nothing to deny — the decider then pointed at the question asked, not at what
+    # Otto wrote down (10-13 story bench c02: 「그거 아니야」 → target `problem` 0.71–0.75, 3/3)
+    sure = d.target and req.slots.get(d.target) and (d.target_conf is None or d.target_conf >= FLOOR)
     slot = d.target if sure else _last_filled(req)
     if not slot or not req.slots.get(slot):
         return []
