@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     # same voice into the app (eval/bake_lines.py), so the live ones must match it.
     tts_provider: str = "openai"         # openai | typecast | elevenlabs
     tts_fallback: str = ""               # "" = no fallback
+    # 10-14 (#461): the same words in the same voice are bought once — in memory only, never on disk (routers/tts.py)
+    tts_cache_items: int = 2000          # ~15 KB a line → ~30 MB at most · 0 = off
+    tts_cache_ttl_s: float = 86400.0     # a day
     # 10-06 조장: TypeCast only for families who gave the optional consent (third-party provision · in-app
     # terms TYPECAST_VOICE). Off until the paid plan and the re-baked lines are ready — the terms say so.
     typecast_opt_in: bool = False
