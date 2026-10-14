@@ -217,3 +217,28 @@ def test_the_same_question_comes_back_after_a_question_back():
 
 def test_every_act_has_a_recipe():
     assert set(recipes.RECIPES) == {"repair", "answer_back", "rephrase"}
+
+
+# --- what Otto may say after a correction (10-14) ---
+
+def _older_place_req(utterance):
+    # the place was filled before Otto's last reaction — 10-14 re-measure c03 「놀이터 아니고 공원이야」
+    return req(utterance, history=[*req().history, {"turn": 3, "asked_slot": "problem", "otto": {"question": "무슨 일이 있었어?"},
+                                                     "child": {"text": "몰라", "by": "child"}, "fills": []}])
+
+
+def test_a_correction_that_changed_no_slot_sends_no_line():
+    from app.routers.turn import settle
+    from app.schemas.turn import Line
+    line = Line(ack="앗, 내가 장소를 잘못 알았구나!", expand="공원이었구나.", question="공원에서 무슨 일이 있었어?")
+    # nothing taken back: the line was written for a correction that did not happen — it must not go out
+    v, out, back = settle("repair", _older_place_req("놀이터 아니고 공원이야"), JudgeResult(reason="x"), line, [])
+    assert out is None and back == []
+
+
+def test_a_correction_that_took_its_value_keeps_its_line():
+    from app.routers.turn import settle
+    from app.schemas.turn import Line
+    line = Line(ack="앗, 내가 잘못 알았구나!", expand="공원이었구나.", question="공원에서 무슨 일이 있었어?", fixed_value="공원")
+    v, out, back = settle("repair", _older_place_req("놀이터 아니고 공원이야"), JudgeResult(reason="x"), line, ["place"])
+    assert out is not None and out.expand == "공원이었구나." and (v.slot_1, v.value_1, back) == ("place", "공원", ["place"])

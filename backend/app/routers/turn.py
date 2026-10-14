@@ -233,6 +233,13 @@ def settle(act: Act | None, req: TurnRequest, v: JudgeResult | None, line: Line 
            retract: list[str]) -> tuple[JudgeResult | None, Line | None, list[str]]:
     """A repair's value: the slot the decider picked, the words the line model copied — no extra call."""
     v, kept, retract = policy.settle_repair(act, req, v, line.fixed_value if line else None, retract)
+    if line is not None and act == "repair" and not retract:
+        # 10-14: no slot changed, so the line must not say one did — it was written for a correction
+        # (「공원이었구나. 공원에서 무슨 일이 있었어?」 while the place stayed 「놀이터」, re-measure c03 · c06).
+        # No line: the phone says its baked 「앗, 내가 잘못 알았구나!」 and asks on with the slot as it is,
+        # so the child hears the old value again and can say it once more
+        log.warning("repair changed no slot — the line is not sent")
+        return v, None, retract
     if line is not None and not kept:
         # the model wrote a value that is not the child's words: it is dropped, and so is its question,
         # which moved on as if the slot were settled — the phone asks that slot with its own words
