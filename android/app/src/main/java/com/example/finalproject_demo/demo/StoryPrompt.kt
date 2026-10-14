@@ -72,7 +72,9 @@ fun DemoState.storyEndCondition(): String? = when {
 fun DemoState.recordTemplateAnswer(prompt: StoryPrompt, value: String, by: String): Boolean {
     if (!prompt.templateOnly || prompt.slot == null || value.isBlank()) return false
     if (by == "child" && storyEndIntent(value)) return false
+    StoryEvaluation.state(this, "turn_before") { org.json.JSONObject().put("route", "template_answer").put("raw_text", value).put("who", by) }
     slots[prompt.slot] = value.trim()
     slotBy[prompt.slot] = by
+    StoryEvaluation.state(this, "turn_after") { org.json.JSONObject().put("route", "template_answer").put("who", by) }
     return true
 }

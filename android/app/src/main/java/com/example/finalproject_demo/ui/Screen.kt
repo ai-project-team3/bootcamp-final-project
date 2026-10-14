@@ -1,6 +1,7 @@
 package com.example.finalproject_demo.ui
 
 import com.example.finalproject_demo.demo.sceneActorCapacity
+import com.example.finalproject_demo.demo.StoryEvaluation
 
 import androidx.compose.ui.draw.rotate
 
@@ -1437,6 +1438,13 @@ private fun DrawerControls(d: Director) {
 @Composable
 private fun DrawerEvents(d: Director) {
     val s = d.s
+    if (com.example.finalproject_demo.BuildConfig.DEBUG) {
+        DrawerChip(if (StoryEvaluation.enabled) "윤문 평가 기록 끄기 (DEV)" else "윤문 평가 기록 켜기 (DEV)", StoryEvaluation.enabled) {
+            StoryEvaluation.setEnabled(s, !StoryEvaluation.enabled)
+        }
+        Text("기본 꺼짐 · 원문과 책 문장을 USB 개발 기록으로 남겨요. 음성·그림은 수집하지 않아요.", fontSize = 11.sp, color = Muted)
+        Spacer(Modifier.height(8.dp))
+    }
     Text("남는 이벤트 ${s.events.size}건", fontSize = 14.sp, color = Sun, fontWeight = FontWeight.Bold)
     Text("실제 앱에서는 폰 로컬 DB에 쌓이고, 부모 모드가 이것만 읽어 문장을 만든다", fontSize = 11.sp, color = Muted)
     Spacer(Modifier.height(6.dp))
