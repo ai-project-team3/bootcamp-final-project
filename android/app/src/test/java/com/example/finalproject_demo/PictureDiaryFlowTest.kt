@@ -164,7 +164,7 @@ class PictureDiaryFlowTest {
         d.speak("친구랑")
         assertTrue(await { s.line == "놀이터에서 무슨 일이 있었어?" } != null)
         d.speak("몰라")
-        assertTrue("「몰라」에 쉬운 말로 한 번 더 묻지 않았다", await { s.line == "거기서 뭐 했어?" } != null)
+        assertTrue("「몰라」에 쉬운 말로 한 번 더 묻지 않았다 — 「거기서」 대신 들은 곳으로", await { s.line == "놀이터에서 뭐 했어?" } != null)
         d.speak("몰라")
         assertTrue(await { s.line == "괜찮아, 생각 안 나도 돼." } != null)
 

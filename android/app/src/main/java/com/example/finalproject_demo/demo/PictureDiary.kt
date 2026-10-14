@@ -1308,7 +1308,7 @@ private suspend fun Director.askPictureSlot(pq: PictureQuestion): String? {
             text = text,
             kind = step.kind,
             noCards = true,
-            ladder = if (tries == 0) listOf(pq.easy) else emptyList(),
+            ladder = if (tries == 0) listOf(pq.easyAt(s)) else emptyList(),
             spoken = step.answers(s),
             extra = buildList {
                 step.demoAnswer(s)?.let { a -> add(DemoBtn("🎬 오늘 이야기 시연 답 — \"${a.text}\"") { send(Reply.Spoke(a.text, a.value, a)) }) }
@@ -1323,7 +1323,7 @@ private suspend fun Director.askPictureSlot(pq: PictureQuestion): String? {
         val raw = r.answer?.value?.takeIf { it.isNotBlank() }
         val said = if (r.answer != null) raw.orEmpty() else r.text.trim().takeUnless { dontKnow(it) }.orEmpty()
         if (said.isEmpty()) {
-            if (tries == 0) { log("「몰라」 → 한 번만 쉽게 바꿔 묻는다"); text = pq.easy; continue }
+            if (tries == 0) { log("「몰라」 → 한 번만 쉽게 바꿔 묻는다"); text = pq.easyAt(s); continue }
             log("[${pq.key}] 또 모른다 → 비워 둔다. 마스코트가 대신 채우지 않는다")
             say("괜찮아, 생각 안 나도 돼.")
             pause(700)
@@ -1511,7 +1511,7 @@ private fun Director.bakedNext(
         ?.let { gone -> PICTURE_QUESTIONS.firstOrNull { it.key == askedKeyOf(gone) } }
         ?.let { Triple(judgeSlotOf(it.key), it.ask(s), it.key) } ?: firstEmptyQuestion(gaveUp)
     act == "repair" -> firstEmptyQuestion(gaveUp)
-    else -> Triple(slot, PICTURE_QUESTIONS.firstOrNull { it.key == key }?.easy ?: text, key)
+    else -> Triple(slot, PICTURE_QUESTIONS.firstOrNull { it.key == key }?.easyAt(s) ?: text, key)
 }
 
 /** 고친 칸의 틀린 값이 들어간 뒤로 물었던 다른 칸 — 물은 수를 처음으로 되돌릴 칸 (책 키 · #323) */
@@ -1633,7 +1633,7 @@ private suspend fun Director.askEmptySlotsLive() {
         if (v.fills.isEmpty() && act == null) {
             if (easyTried != key && step != null) {
                 easyTried = key
-                val easy = PICTURE_QUESTIONS.firstOrNull { it.key == key }?.easy
+                val easy = PICTURE_QUESTIONS.firstOrNull { it.key == key }?.easyAt(s)
                 if (easy != null) { log("[$key] 채운 칸이 없다 → 한 번만 쉽게 바꿔 묻는다"); next = Triple(slot, easy, key); continue }
             }
             gaveUp += key
@@ -1926,7 +1926,10 @@ private suspend fun Director.offerWrapUp(): Boolean {
     return wrap
 }
 
-internal class PictureQuestion(val key: String, val ask: (DemoState) -> String, val easy: String, val askIf: (DemoState) -> Boolean = { true })
+internal class PictureQuestion(val key: String, val ask: (DemoState) -> String, val easy: String, val askIf: (DemoState) -> Boolean = { true }) {
+    /** 쉬운 말 — 「거기서 …」는 들은 곳으로(「놀이터에서 뭐 했어?」 · [atPlace]). 곳을 못 떼면 「거기서 …」 그대로 (10-14) */
+    fun easyAt(s: DemoState): String = if (easy.startsWith("거기서 ")) atPlace(s, easy.removePrefix("거기서 ")) else easy
+}
 
 /**
  * 아이가 말한 곳의 낱말 — 「놀이터 갔어」 · 「할머니 집에 다녀왔어」 → 놀이터 · 할머니 집. 못 떼면 null.
