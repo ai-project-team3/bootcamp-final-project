@@ -79,11 +79,11 @@ def retract_for(act: Optional[Act], d: Decision | None, req: TurnRequest) -> lis
     slot = d.target if sure else _last_filled(req)
     if not slot or not req.slots.get(slot):
         return []
-    # a bare denial answers what Otto just said; an older slot goes back only with the right value
-    # (10-12 device round 3: 「그거 아니야」 to 「혼자 있었어, 아니면 같이 있었어?」 emptied the problem slot
-    # fixed two turns before — the decider pointed there 3/3). settle_repair undoes it if no value comes
-    if slot not in _just_filled(req) and not d.new_value:
-        return []
+    # An older slot is taken back for now: the line model is asked to copy its right value, and settle_repair
+    # keeps the change only when that value is in the child's words — otherwise the slot stays as it was
+    # (10-12 device round 3: 「그거 아니야」 to the next question must not empty a slot fixed two turns before).
+    # 10-14: this used to wait for the decider's `new_value`, which it missed on 「놀이터 아니고 공원이야」
+    # 1 run in 3 — the slot stayed 「놀이터」 while Otto said 「공원이었구나」 (re-measure 27/30)
     return [slot]
 
 

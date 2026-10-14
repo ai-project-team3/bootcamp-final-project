@@ -96,11 +96,19 @@ def test_a_sure_target_that_is_still_empty_falls_back_to_the_last_slot_otto_fill
 
 
 def test_a_bare_denial_leaves_a_slot_filled_before_otto_s_last_reaction():
-    # 10-12 device round 3: 「그거 아니야」 to the next question emptied an older slot — it answers the question
+    # 10-12 device round 3: 「그거 아니야」 to the next question emptied an older slot — it answers the question.
+    # 10-14: the older slot is taken back only for now (the line is asked for its right value); with no value
+    # in the child's words it stays as it was, the question asked comes again, and no line goes out
+    from app.routers.turn import settle
+    from app.schemas.turn import Line
     r = req(history=[*req().history, {"turn": 3, "asked_slot": "problem", "otto": {"question": "무슨 일이 있었어?"},
                                        "child": {"text": "몰라", "by": "child"}, "fills": []}])
-    assert policy.retract_for("repair", d("correct", target="place"), r) == []
-    assert recipes.build("repair", r, d("correct", target="place"), []).question_slot == "problem"
+    assert policy.retract_for("repair", d("correct", target="place"), r) == ["place"]
+    v, kept, back = policy.settle_repair("repair", r, JudgeResult(reason="x"), None, ["place"])
+    assert (back, v.next_slot, kept) == ([], "problem", False)
+    line = Line(ack="앗, 내가 잘못 알았구나!", expand="놀이터가 아니었구나.", question="어디에 갔었어?")
+    _, out, back = settle("repair", r, JudgeResult(reason="x"), line, ["place"])
+    assert out is None and back == []
 
 
 def test_an_older_slot_goes_back_for_its_right_value():
@@ -242,3 +250,13 @@ def test_a_correction_that_took_its_value_keeps_its_line():
     line = Line(ack="앗, 내가 잘못 알았구나!", expand="공원이었구나.", question="공원에서 무슨 일이 있었어?", fixed_value="공원")
     v, out, back = settle("repair", _older_place_req("놀이터 아니고 공원이야"), JudgeResult(reason="x"), line, ["place"])
     assert out is not None and out.expand == "공원이었구나." and (v.slot_1, v.value_1, back) == ("place", "공원", ["place"])
+
+
+def test_an_older_slot_is_fixed_even_when_the_decider_missed_the_new_value():
+    # 10-14 re-measure c03 run 1: Jev said new_value False for 「놀이터 아니고 공원이야」 — the value is still in the
+    # child's words, so the slot is fixed (it used to stay 「놀이터」 while Otto said 「공원이었구나」)
+    r = _older_place_req("놀이터 아니고 공원이야")
+    back = policy.retract_for("repair", d("correct", target="place", new_value=False), r)
+    assert back == ["place"]
+    v, kept, back = policy.settle_repair("repair", r, JudgeResult(reason="x"), "공원", back)
+    assert (v.slot_1, v.value_1, back, kept) == ("place", "공원", ["place"], True)
