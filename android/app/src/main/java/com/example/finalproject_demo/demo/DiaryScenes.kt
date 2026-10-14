@@ -414,7 +414,8 @@ private suspend fun Director.diaryDrawStep() {
 /** Empties what the steps filled — before another story in the same session */
 private fun Director.clearDiarySlots() {
     s.place = null; s.problem = null; s.cause = null; s.solution = null; s.reaction = null; s.friend = null
-    listOf("place", "problem", "cause", "solution", "reaction", "companion", "detail", "said", "after", "keep")
+    // the child's drawing too — left over, it would still count against the next story's second character (#492 review)
+    listOf("place", "problem", "cause", "solution", "reaction", "companion", "detail", "said", "after", "keep", "whiteboard")
         .forEach { s.slots.remove(it); s.slotBy.remove(it) }
     s.slots.keys.filter { it.startsWith("parent") }.forEach { s.slots.remove(it); s.slotBy.remove(it) }
     s.placeLabel = null; s.mascotPicks = 0; s.companionKind = ""
@@ -431,8 +432,13 @@ internal suspend fun Director.finishDiary() {
 
     // 필수 네 칸을 못 채워도 꼬리질문에 아이의 답이 있으면 그 말을 재료로 책을 만든다 (일기 §5 · §7-4).
     if (!hasChildSeed) {
-        say("오늘은 여기까지 하고 잘까? 아니면 우리 이야기를 하나 지어 볼까?")
-        log("⚠️ 씨앗이 0개다 — §5(모인 답변으로 만들기)를 쓸 수 없는 유일한 경우. 끝낼지 동화 모드로 넘길지는 **아직 안 정했다** (일기 §7-4 · 남은 일 §9-4)")
+        if (s.isCoop) {
+            say("오늘은 여기까지 할까? 아니면 다른 이야기를 골라 볼까?")
+            log("⚠️ 씨앗이 0개다 — 협업은 끝내기 · 다른 이야기 고르기 (10-14 사용자 결정)")
+        } else {
+            say("오늘은 여기까지 하고 잘까? 아니면 우리 이야기를 하나 지어 볼까?")
+            log("⚠️ 씨앗이 0개다 — §5(모인 답변으로 만들기)를 쓸 수 없는 유일한 경우. 끝낼지 동화 모드로 넘길지는 **아직 안 정했다** (일기 §7-4 · 남은 일 §9-4)")
+        }
         // co-op: the parent picked this story, so the way on is another story of theirs, not the child's story mode (coop book check k17 · 10-14)
         buttons(
             DemoBtn("🌙 오늘은 여기까지 — 끝내기") { send(Reply.Tapped("home", "끝내기")) },

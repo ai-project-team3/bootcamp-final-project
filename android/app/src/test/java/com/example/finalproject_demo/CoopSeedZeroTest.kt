@@ -62,14 +62,16 @@ class CoopSeedZeroTest {
         val labels = d.s.buttons.map { it.label }
         assertTrue(labels.toString(), labels.none { "동화 모드" in it })
         assertTrue(labels.toString(), labels.any { "다른 이야기" in it })
+        assertTrue("Otto says what the buttons do: ${d.s.line}", "다른 이야기" in d.s.line && "지어 볼까" !in d.s.line)
     }
 
     @Test
     fun anotherStoryEmptiesTheStepsAndGoesBackToTheParent() = run { d ->
         d.toTheFork()
+        d.s.slots["whiteboard"] = "기린"; d.s.slotBy["whiteboard"] = "draw"
         assertTrue(d.tap("다른 이야기"))
         assertTrue("not back at the parent: ${d.s.scene}", await { d.s.scene == Scene.ADULT })
-        assertTrue(d.s.slots.toString(), d.s.slots.keys.none { it in setOf("place", "problem", "cause", "solution", "companion") || it.startsWith("parent") })
+        assertTrue(d.s.slots.toString(), d.s.slots.keys.none { it in setOf("place", "problem", "cause", "solution", "companion", "whiteboard") || it.startsWith("parent") })
         assertNull(d.s.coopPick)
         assertNull(d.s.endReason)
         assertEquals(0, d.s.parentQuestions.size)
