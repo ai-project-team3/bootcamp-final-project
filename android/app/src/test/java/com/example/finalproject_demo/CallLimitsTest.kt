@@ -27,12 +27,32 @@ class CallLimitsTest {
     @After fun off() { CallLimits.reset(); Server.resetCalls() }
 
     @Test
-    fun twoServerBooksADayThenTomorrowAgain() {
-        assertEquals(2, CallLimits.booksLeftToday())
-        CallLimits.bookStarted(); CallLimits.bookStarted()
-        assertEquals("세 번째 이야기는 시작하지 않는다", 0, CallLimits.booksLeftToday())
+    fun aNewDeviceHasFiveStarsOnceAndNoneComeBackWithTheDay() {
+        // #445 · 10-14 — one star starts one server book: five stars at install, none per day
+        CallLimits.testerDailyRefill = false     // the real rule, once payment or ads are wired
+        assertEquals(5, CallLimits.starsLeft())
+        CallLimits.starSpent()
+        assertEquals(4, CallLimits.starsLeft())
         day = "2026-10-07"
-        assertEquals("날짜가 바뀌면 다시 두 권", 2, CallLimits.booksLeftToday())
+        assertEquals("남겨 둔 별은 날이 바뀌어도 그대로다", 4, CallLimits.starsLeft())
+        repeat(4) { CallLimits.starSpent() }
+        assertEquals("별이 없으면 새 이야기를 시작하지 않는다", 0, CallLimits.starsLeft())
+        CallLimits.starSpent()
+        assertEquals("없는 별은 더 줄지 않는다", 0, CallLimits.starsLeft())
+        day = "2026-10-08"
+        assertEquals("날짜가 바뀌어도 별은 새로 생기지 않는다", 0, CallLimits.starsLeft())
+    }
+
+    @Test
+    fun whileTestingANewDayTopsTheStarsBackUpToFiveAndNeverAbove() {
+        // closed testing: payment and ads are not wired, so a tester must not stop for good after five books
+        repeat(5) { CallLimits.starSpent() }
+        assertEquals(0, CallLimits.starsLeft())
+        day = "2026-10-07"
+        assertEquals("새 날에는 다섯 개로 다시 채운다", 5, CallLimits.starsLeft())
+        CallLimits.starSpent()
+        day = "2026-10-08"
+        assertEquals("쌓이지 않는다 — 다섯 개까지만", 5, CallLimits.starsLeft())
     }
 
     @Test
@@ -50,8 +70,8 @@ class CallLimitsTest {
     @Test
     fun theTeamsDevAppIsNotLimited() {
         CallLimits.enabled = false
-        repeat(5) { CallLimits.bookStarted() }
-        assertEquals(CallLimits.BOOKS_PER_DAY, CallLimits.booksLeftToday())
+        repeat(5) { CallLimits.starSpent() }
+        assertEquals(CallLimits.WELCOME_STARS, CallLimits.starsLeft())
         assertNull(CallLimits.blocks("/tts", mapOf("/tts" to 1_000)))
     }
 

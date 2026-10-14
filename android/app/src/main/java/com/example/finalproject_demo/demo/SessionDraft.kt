@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicReference
  * This file writes the same thing to the phone: the scene the story stopped in plus the book's state, at every
  * scene boundary and after each answer. On the next launch the draft is put back into `DemoState` and
  * `paused` is set, so the room offers the existing 「만들던 이야기 이어서 할까?」 and the existing `resume` path
- * (`Scenes.sceneAdult`) runs it — no new start, so no star, no `CallLimits.bookStarted`, no new book count.
+ * (`Scenes.sceneAdult`) runs it — no new start, so no star, no `CallLimits.starSpent`, no new book count.
  *
  * Contract:
  *  - **Local only.** App-private `files/session_draft/draft.json`, never sent to the server. `LocalWipe` deletes it.

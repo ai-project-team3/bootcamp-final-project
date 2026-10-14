@@ -351,7 +351,7 @@ class SessionDraftTest {
             assertEquals("출처가 바뀌었다", by, e.s.slotBy.toMap())
             assertEquals(talk, e.s.talk.toList())
             assertEquals(turn to reactions, e.s.turn to e.s.reactions)
-            val booksLeft = CallLimits.booksLeftToday()
+            val booksLeft = CallLimits.starsLeft()
             val startEvents = e.s.events.count { it.startsWith("story_start") }
             e.go(Scene.ADULT)
             assertNotNull(await { e.s.scene == Scene.ADULT && e.s.buttons.isNotEmpty() })
@@ -359,7 +359,7 @@ class SessionDraftTest {
             e.send(Reply.Tapped("resume", "이어서"))
             assertNotNull("「이어서」로 멈춘 장면에 안 갔다", await { e.s.scene == Scene.CAUSE })
             assertEquals("이어 가는데 하루 별을 썼다", 0, e.s.usedToday)
-            assertEquals("이어 가는데 새 책으로 셌다", booksLeft, CallLimits.booksLeftToday())
+            assertEquals("이어 가는데 새 책으로 셌다", booksLeft, CallLimits.starsLeft())
             assertEquals("이어 가는데 별이 날아갔다", 0, e.s.starFlights)
             assertEquals("이어 가는데 story_start 가 또 찍혔다", startEvents, e.s.events.count { it.startsWith("story_start") })
             assertEquals(slots, e.s.slots.filterKeys { it in slots }.toMap())

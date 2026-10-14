@@ -66,7 +66,10 @@ class ShellFlowTest {
     /** 그 글자를 가진 **누를 수 있는** 것 가운데 맨 위(나중에 그려진 것)를 누른다 — 창 뒤의 흐름 화면 글자와 헷갈리지 않게 */
     private fun tap(t: String) {
         compose.waitUntil(8_000) { compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).fetchSemanticsNodes().isNotEmpty() }
-        compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).onLast().performClick()
+        compose.onAllNodes(hasText(t, substring = true) and hasClickAction()).onLast().apply {
+            // Settings can scroll on a short landscape screen; a real tap needs the choice in view.
+            runCatching { performScrollTo() }
+        }.performClick()
     }
 
     private fun count(t: String) = compose.onAllNodesWithText(t, substring = true).fetchSemanticsNodes().size
@@ -93,7 +96,7 @@ class ShellFlowTest {
         tap("건너뛰기")
         waitText("우리 아이에게 맞춰요"); shot("05_setup_empty")
         compose.onNode(hasText("설정 끝") and hasClickAction()).assertIsNotEnabled()
-        tap("2권"); tap("펠트"); tap("받지 않아요")
+        tap("펠트"); tap("받지 않아요")
         shot("06_setup_done")
         tap("설정 끝")
         guideAndTutorial()
@@ -221,8 +224,8 @@ class ShellFlowTest {
         assertTrue("처음 설정에서 정한 비밀번호가 저장되지 않았다", Shell.checkPin("1234"))
         assertTrue(!Shell.checkPin("0000"))
         val s = director.s
-        assertEquals("맞춤 설정의 하루 책 수가 흐름에 안 들어갔다", 2, s.dailyLimit)
-        assertTrue(s.limitOn)
+        // the setup no longer asks for a daily number (#445) — the stars are the limit; the daily brake starts off
+        assertTrue("처음 설정이 하루 한도를 켜 두었다", !s.limitOn)
         assertEquals(false, s.pinToStart)
     }
 

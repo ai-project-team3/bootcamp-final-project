@@ -88,7 +88,6 @@ class AgeResearchViewTest {
     fun smallLandscapeSetupHasOnlyRequiredPreferencesAndCanFinish() {
         var finished = false
         compose.setContent { com.example.finalproject_demo.ui.shell.SetupStep({}, { finished = true }) }
-        compose.onNodeWithText("2권").performScrollTo().performClick()
         compose.onNodeWithText("펠트").performScrollTo().performClick()
         compose.onNodeWithText("받지 않아요").performScrollTo().performClick()
         compose.onNodeWithText("만 4세").assertDoesNotExist()

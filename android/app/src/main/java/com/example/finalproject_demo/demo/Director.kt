@@ -196,7 +196,7 @@ class Director(
 
     /**
      * On launch: put a saved unfinished book back and mark it paused, so the room offers 「만들던 이야기 이어서 할까?」
-     * through the existing `resume` path. No star, no `CallLimits.bookStarted` — it is not a new book.
+     * through the existing `resume` path. No star, no `CallLimits.starSpent` — it is not a new book.
      */
     fun restoreDraft(): Boolean {
         val draft = draftStore?.let { runCatching { it.load() }.getOrNull() } ?: return false

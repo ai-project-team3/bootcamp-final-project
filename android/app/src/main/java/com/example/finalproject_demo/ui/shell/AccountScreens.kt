@@ -203,7 +203,7 @@ fun WithdrawSheet(d: Director) {
                 }
             }
         }
-        Sheet.NONE, Sheet.PIN_CHANGE -> {}
+        Sheet.NONE, Sheet.PIN_CHANGE, Sheet.STAR_GATE, Sheet.STAR_SHOP -> {}
     }
 }
 

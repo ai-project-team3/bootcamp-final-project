@@ -1465,6 +1465,8 @@ class DemoState {
 
     /** 시작 화면에 한 번 띄우는 안내 (하루 별 0 등) */
     var notice by mutableStateOf<String?>(null)
+    /** The mode whose new start was refused; UI-only, not part of a saved book or server contract. */
+    var noticeMode by mutableStateOf<StoryMode?>(null)
 
     /** 고른 모드의 책장이 꽉 찼다 — 방이 「책장이 꽉 찼어!」 알림을 띄운다 (#80 · `Shelves.kt`) */
     var shelfFull by mutableStateOf<StoryMode?>(null)
@@ -1584,7 +1586,7 @@ class DemoState {
         heroes += Hero("안경 쓴 친구", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9)))
         heroes += Hero("빨간 옷 친구", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
         shelf.clear()
-        limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null
+        limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null; noticeMode = null
         usedVariants.clear()
         partnerKey = "mom"
         partnerCall = null

@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.ui
 
+import com.example.finalproject_demo.demo.newStoryAllowance
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1094,19 +1096,40 @@ private fun SettingsTab(d: Director) {
     ConsentWithdrawSection()
     Spacer(Modifier.height(10.dp))
     PCard(Modifier.fillMaxWidth()) {
-        SettingRow("하루 한도", "하루에 만들 수 있는 이야기 수를 정해요 · 끄면 별을 쓰지 않아요", s.limitOn) { d.send(Reply.Tapped("set:limit", "한도")) }
+        SettingRow("하루에 쓸 수 있는 별", "별이 남아 있어도 하루에 이만큼만 새 이야기를 시작해요", s.limitOn) { d.send(Reply.Tapped("set:limit", "한도")) }
         if (s.limitOn) {
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("하루에", fontSize = 14.sp, color = Ink)
                 Spacer(Modifier.width(10.dp))
                 Stepper("−") { d.send(Reply.Tapped("set:limit-", "−")) }
-                Text("${s.dailyLimit}권", fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                Text("${s.dailyLimit}개", fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
                 Stepper("＋") { d.send(Reply.Tapped("set:limit+", "＋")) }
                 Spacer(Modifier.weight(1f))
-                Chip("오늘 남은 이야기 ${s.dayStars}권", Sun)
+                Chip("오늘 ${s.dayStars}개 남음", Sun)
             }
         }
+    }
+    Spacer(Modifier.height(10.dp))
+    // 별 (#445) — 책 한 권이 별 하나. 금액과 구매는 이 부모 영역 안에만 있다
+    PCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("별", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
+                val stars = s.newStoryAllowance().service
+                Text(
+                    if (stars != null) "지금 가진 별 ${stars}개 · 구매하거나 광고를 보고 받을 수 있어요"
+                    else "별 하나로 책 한 권을 만들어요 · 구매하거나 광고를 보고 받을 수 있어요",
+                    fontSize = 12.sp, color = PSub,
+                )
+            }
+            Box(
+                Modifier.height(38.dp).clip(RoundedCornerShape(19.dp)).background(PAccent)
+                    .clickable { com.example.finalproject_demo.ui.shell.Shell.sheet = com.example.finalproject_demo.ui.shell.Sheet.STAR_SHOP }.padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text("별 구매하기", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold) }
+        }
+        Text("새 이야기를 시작할 때 별 하나를 써요. 중간에 나가도 돌아오지 않고, 만들던 이야기를 이어서 할 때는 쓰지 않아요.", fontSize = 11.sp, color = PSub, modifier = Modifier.padding(top = 8.dp))
     }
     Spacer(Modifier.height(10.dp))
     PCard(Modifier.fillMaxWidth()) {
