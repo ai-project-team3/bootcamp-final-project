@@ -168,10 +168,30 @@ private fun negatedWord(core: String): Pair<String, String?>? {
 /** 「줬어」 → 줬 · 「만났어」 → 만났 · 「없었어」 → 없 — the ending dropped, up to the first two letters */
 private fun verbStem(word: String): String {
     if (word.startsWith("없")) return "없"
+    // 하다 in any form is one stem — 「안 했어」 ↔ 「뭐 하고 있었어?」 · 「제일 먼저 한 게 뭐야?」 (coop book check k04 · 10-14)
+    if (DO_FORMS.matches(word)) return "하"
     val bare = listOf("었어요", "았어요", "어요", "아요", "었어", "았어", "어", "아", "요", "다", "지").fold(word) { acc, e ->
         if (acc.length > e.length && acc.endsWith(e) && acc == word) acc.dropLast(e.length) else acc
     }
     return bare.take(2)
+}
+
+private val DO_FORMS = Regex("^(?:했|해|하|한|할)[가-힣]{0,3}$")
+
+/** Words around a negation that carry nothing of their own — 「아니 아무것도 안 했어」 */
+private val EMPTY_AROUND = setOf("아니", "아니야", "아니요", "응", "음", "그냥", "아무것도", "아무", "말도", "그때는", "그땐", "나는", "난", "진짜", "정말", "안", "못")
+
+/**
+ * A negation with nothing in it — 「안 했어」 · 「아니 아무것도 안 했어」 · 「아무 말도 안 했어」 · 「안 하고 있었어」: only 하다 · 있다 negated.
+ * Whatever Otto asked, it is no answer for a tail step (#327 ⚖️3). 「안 무서웠어」 · 「안 울었어」 say something and stay answers
+ */
+internal fun bareNegation(said: String): CoopReply.PremiseDenied? {
+    val core = said.trim().trimEnd('.', '!', '?', '~', ' ', '…')
+    negatedWord(core) ?: return null
+    val left = eojeolsOf(core).filter { it !in EMPTY_AROUND }
+    if (left.isEmpty() || left.size > 2) return null
+    // 없다 is left out — 「없어」 to 「누구랑 갔어?」 is an answer: the child went alone (#327 §3-4)
+    return if (left.all { DO_FORMS.matches(it) || it.startsWith("있") }) CoopReply.PremiseDenied("하", null) else null
 }
 
 private fun premiseDenied(core: String, question: String): CoopReply.PremiseDenied? {
