@@ -39,6 +39,8 @@ private fun DemoState.rememberStoryQuestion(response: Server.TurnResult) {
 /** What [applyStoryVerdict] did with who-slot sentences — the slot to ask once more, and the sentences it turned away */
 data class StoryWhoGuard(val reask: String? = null, val rejected: List<String> = emptyList())
 
+private val STORY_NARRATIVE_SLOTS = setOf("problem", "reaction", "cause", "solution", "adult", "extra")
+
 fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String, askedSlot: String? = null): StoryWhoGuard {
     if (mode != StoryMode.STORY) return StoryWhoGuard()
     if (verdict.reason == "blocked_by_filter") return StoryWhoGuard()
@@ -72,6 +74,31 @@ fun DemoState.applyStoryVerdict(verdict: Server.Verdict, by: String, askedSlot: 
             Trace.line("story_verdict", "who-slot [$slot] got a sentence → ${if (value.isEmpty()) "not filled" else "「$value」"}" +
                 if (reask == slot) " · asked again" else "")
             if (value.isEmpty()) continue
+        }
+        val previous = slots[slot]?.takeIf(String::isNotBlank)
+        // A follow-up can add an event to an already settled slot. A direct clarification
+        // or explicit contradiction still replaces it; names and places are identities.
+        if (previous != null && slot in STORY_NARRATIVE_SLOTS && slot != askedSlot && !verdict.contradiction) {
+            if (value in previous.split(" / ")) continue
+            if (slotBy[slot] == source) {
+                value = (previous.split(" / ") + value.split(" / ")).distinct().joinToString(" / ")
+            } else {
+                // A slot has one source. Keep differently sourced additions separately,
+                // projecting them into extra only for /story instead of relabelling child speech.
+                val prefix = "$STORY_SUPPLEMENT_PREFIX$slot:"
+                var index = 1
+                while (slots.containsKey(prefix + index)) index++
+                slots[prefix + index] = value
+                slotBy[prefix + index] = source
+                continue
+            }
+        }
+        if (slot in STORY_NARRATIVE_SLOTS && (slot == askedSlot || verdict.contradiction)) {
+            // A correction supersedes both the primary value and its sourced supplements.
+            slots.keys.filter { it.startsWith("$STORY_SUPPLEMENT_PREFIX$slot:") }.toList().forEach {
+                slots.remove(it)
+                slotBy.remove(it)
+            }
         }
         slots[slot] = value
         slotBy[slot] = source
@@ -333,7 +360,16 @@ suspend fun DemoState.exchangeStoryTurn(
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult? {
     if (mode != StoryMode.STORY) return null
-    return exchangeTurn("story", askedSlot, question, utterance, request = request)?.also { response ->
+    StoryEvaluation.state(this, "turn_before") {
+        org.json.JSONObject().put("asked_slot", askedSlot ?: org.json.JSONObject.NULL)
+            .put("question", question).put("raw_text", utterance).put("who", by)
+    }
+    val result = exchangeTurn("story", askedSlot, question, utterance, request = request)
+    if (result == null) {
+        StoryEvaluation.state(this, "turn_after") { org.json.JSONObject().put("status", "no_response").put("who", by) }
+        return null
+    }
+    return result.also { response ->
         // ending words are no story — the judge copied 「그만할래」 into the asked solution (10-09 device · Laya v5)
         val ending = by == "child" && storyEndIntent(utterance)
         val guard = response.verdict?.let { applyStoryVerdict(if (ending) it.copy(fills = emptyList()) else it, by, askedSlot) }
@@ -352,6 +388,14 @@ suspend fun DemoState.exchangeStoryTurn(
         }
         // 「이제 끝이야」 — the judge does not always end; the child's ending words do (StoryEndIntent.kt)
         if (response.verdict != null && response.verdict.reason != "blocked_by_filter") applyStoryEndIntent(utterance, by)
+        StoryEvaluation.state(this, "turn_after") {
+            org.json.JSONObject().put("route", "judge").put("who", by)
+                .put("who_guard", org.json.JSONObject().put("reask", guard.reask ?: org.json.JSONObject.NULL).put("rejected", org.json.JSONArray(guard.rejected)))
+                .put("verdict_unmasked", response.verdict?.let { v ->
+                    org.json.JSONObject().put("reason", v.reason).put("ready", v.storyReady)
+                        .put("fills", org.json.JSONArray(v.fills.map { (slot, value) -> org.json.JSONObject().put("slot", slot).put("value", value) }))
+                } ?: org.json.JSONObject.NULL)
+        }
         val verdict = response.verdict
         Trace.line("story_verdict", "asked=$askedSlot by=$by ready=${verdict?.storyReady} " +
             "next=${verdict?.nextSlot} applied=$storyNextSlot unclear=${verdict?.unclear} " +

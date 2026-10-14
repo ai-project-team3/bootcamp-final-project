@@ -1497,6 +1497,8 @@ class DemoState {
     val talk = mutableStateListOf<TalkLine>()
     var talkStartedAtMs = 0L
     var reportProfileId: String = AnswerHistory.profileId
+    /** Display-only author captured for this session; null means an older record has no known call. */
+    var sessionAuthorCall by mutableStateOf<String?>(com.example.finalproject_demo.net.ChildCall.call)
     /** The last shelved book's report — the parent screen shows it once the session is reset */
     var lastReport by mutableStateOf<SessionReport?>(null)
 
@@ -1511,6 +1513,7 @@ class DemoState {
 
     /** 이야기 한 권 분량만 지운다. 책장 · 부모 설정 · 하루 별 · 도감 · 수준(다음 세션 시작점) · 쓴 질문은 남긴다 */
     fun resetStory() {
+        StoryEvaluation.reset(this)
         dropDiaryDay()                // a half-made picture diary is not resumed by a new story (#335)
         // A session left before its book still tells what it called (10-06 · per-mode call counts)
         com.example.finalproject_demo.net.Server.callSummary().takeIf { it.isNotEmpty() }
@@ -1559,6 +1562,7 @@ class DemoState {
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
         reportProfileId = AnswerHistory.profileId
+        sessionAuthorCall = childName
         heroTries.clear()
         heroCreationDraft = null
         modeVoice = 0; modeCard = 0; modeDraw = 0; modeSilent = 0

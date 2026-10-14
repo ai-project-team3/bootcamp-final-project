@@ -60,6 +60,22 @@ fun DemoState.useGeneratedStory(captions: List<String>?): Boolean {
     return valid
 }
 
+/** The fallback must read the answers the template actually collected. Quotes keep
+ * compound events, negation and wishes intact without guessing grammar or an actor. */
+internal fun DemoState.storyFallbackEnding(): String? {
+    if (mode != StoryMode.STORY) return null
+    // The scripted path keeps its answer in solutionLine, not these live answer slots.
+    // A lone goal/reflect must not hide that solution or the partner's scripted contribution.
+    if (slots["solution"].isNullOrBlank() && slots["resolve"].isNullOrBlank()) return null
+    val keys = listOf("solution") + template?.ending.orEmpty() + listOf("extra") +
+        slots.keys.filter { it.startsWith("${STORY_SUPPLEMENT_PREFIX}solution:") ||
+            it.startsWith("${STORY_SUPPLEMENT_PREFIX}extra:") }
+    val lines = keys.mapNotNull { slots[it]?.takeIf(String::isNotBlank) }
+        .flatMap { it.split(" / ", "\n") }.map(String::trim).filter(String::isNotBlank).distinct()
+    if (lines.isEmpty()) return null
+    return "이야기는 이렇게 끝났어요. " + lines.joinToString(" ") { "「$it」" }
+}
+
 /** Slot 1 rubs the nameless default (NAMELESS_RUB · was 「먼지」) — nothing the child said (#321 review · #329) */
 internal fun DemoState.defaultRub(): Boolean = slot1Prop() == null && !mission1().named
 

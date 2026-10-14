@@ -222,6 +222,7 @@ fun DemoState.captureDraft(scene: Scene, now: Long = System.currentTimeMillis())
 
 internal fun DemoState.captureDraftState(): JSONObject = JSONObject().apply {
     put("reportProfileId", reportProfileId)
+    putN("sessionAuthorCall", sessionAuthorCall)
     // the story's facts
     putN("place", place); putN("problem", problem); putN("cause", cause); putN("newcomer", newcomer)
     putN("friend", friend); putN("sound", sound); putN("solution", solution); putN("title", title); putN("reaction", reaction)
@@ -319,6 +320,7 @@ fun DemoState.applyDraft(d: SessionDraft) {
     resetStory()
     // An unfinished book keeps its original child. An old draft with no owner stays unknown.
     reportProfileId = d.state.optStr("reportProfileId") ?: ""
+    sessionAuthorCall = o.optStr("sessionAuthorCall")
     mode = d.mode
     place = o.optStr("place"); problem = o.optStr("problem"); cause = o.optStr("cause"); newcomer = o.optStr("newcomer")
     friend = o.optStr("friend"); sound = o.optStr("sound"); solution = o.optStr("solution"); title = o.optStr("title")

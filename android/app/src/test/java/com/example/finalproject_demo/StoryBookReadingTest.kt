@@ -4,7 +4,12 @@ import com.example.finalproject_demo.demo.*
 import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [26])
 class StoryBookReadingTest {
     private suspend fun waitFor(predicate: () -> Boolean) {
         withTimeout(3_000) { while (!predicate()) delay(5) }
@@ -41,11 +46,14 @@ class StoryBookReadingTest {
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
         val d = Director(scope, store).apply {
             s.speed = 0.01; s.timerOn = false; s.mode = StoryMode.COOP
+            s.title = "진행 중인 책"; s.sessionAuthorCall = "진행작성자"; s.slots["place"] = "바닷속"
         }
+        val currentCall = com.example.finalproject_demo.net.ChildCall.call
         try {
             d.go(Scene.SHELF)
             waitFor { d.s.stage is Stage.Shelf }
             delay(30)
+            val stateBeforeReading = d.s.captureDraft(Scene.CAUSE, 1).toJson().toString()
             d.send(Reply.Tapped("book", book.id))
             waitFor { d.s.stage is Stage.SavedStory }
             assertEquals("the reopened story needs its own voice mode", StoryMode.STORY, d.s.mode)
@@ -64,6 +72,8 @@ class StoryBookReadingTest {
             waitFor { d.s.stage is Stage.Shelf }
             assertFalse("closing the reader must stop its narration", queuedVoice.isActive)
             assertEquals("reading must restore the previous conversation mode", StoryMode.COOP, d.s.mode)
+            assertEquals(stateBeforeReading, d.s.captureDraft(Scene.CAUSE, 1).toJson().toString())
+            assertEquals(currentCall, com.example.finalproject_demo.net.ChildCall.call)
             assertEquals(book, d.savedStory(book.id))
         } finally { scope.cancel() }
     }

@@ -24,6 +24,31 @@ class StoryLanguageDraftTest {
         applyDraft(SessionDraft.fromJson(JSONObject(draft.toJson().toString()))!!)
     }
 
+    @Test fun firstBookResumedWithoutAnAgeStillEntersTheSameChildsHistory() {
+        val context = RuntimeEnvironment.getApplication()
+        // No saved age, earlier completed book or explicit child switch has persisted an ID.
+        AnswerHistory.attach(context)
+        assertNull(AnswerHistory.childAge)
+        val original = DemoState().apply {
+            mode = StoryMode.STORY
+            storyStartedAtMs = 1
+            talk += TalkLine("child", "추웠어. 그래서 집에 갔어", questionType = ReportQuestionType.REASON,
+                languageEvidence = LanguageEvidence(true, emptySet(), true, 4))
+        }
+        val draft = original.captureDraft(Scene.EVENT)
+
+        // MainActivity attaches reports before constructing the restored Director.
+        SessionReports.attach(context)
+        val restored = roundTrip(draft)
+        SessionReports.keep(restored, "first-resumed-book")
+
+        assertEquals(listOf("first-resumed-book"), AnswerHistory.all().map { it.bookId })
+        assertEquals(original.reportProfileId, AnswerHistory.profileId)
+        assertEquals(original.talk.toList(), AnswerHistory.languageAnswers())
+        assertNull(AnswerHistory.childAge)
+        assertNotNull(SessionReports.of("first-resumed-book"))
+    }
+
     @Test fun resumedAnswersKeepMeasuredSignalsAndExplicitNonCountingQuestions() {
         val strong = TalkLine("child", "추웠어. 그래서 집에 갔어", questionType = ReportQuestionType.REASON,
             languageEvidence = LanguageEvidence(true, setOf("결과"), true, 4))

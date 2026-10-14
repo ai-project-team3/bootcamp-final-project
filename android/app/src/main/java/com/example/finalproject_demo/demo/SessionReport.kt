@@ -91,6 +91,7 @@ data class SessionReport(
     /** 이번 리포트가 처음 보여 준 것 — 꽂을 때 지난 리포트들과 견줘 정한다(다른 아이가 아니라 지난번의 이 아이와만) */
     val firsts: List<String> = emptyList(),
     val profileId: String? = null,
+    val authorCall: String? = null,
 ) {
     val childBones: Int get() = bones.count { it.by == "child" }
     val longest: String? get() = talk.filter { it.who == "child" }.maxByOrNull { words(it.text) }?.text
@@ -168,12 +169,13 @@ fun DemoState.buildSessionReport(bookId: String = "", now: Long = System.current
         bones = bones, moments = moments, talk = lines,
         homeQuestion = homeQuestion(t, bones),
         profileId = reportProfileId,
+        authorCall = sessionAuthorCall,
     )
 }
 
 /** 집에서 이어 갈 질문 한 개 — 미리 쓴 틀에 오늘 책의 말만 넣는다 (LLM 없음 · 규칙 9) */
 private fun DemoState.homeQuestion(t: String, bones: List<ReportBone>): String {
-    val n = childName
+    val n = sessionAuthorCall?.takeIf(String::isNotBlank) ?: "아이"
     val problem = bones.firstOrNull { it.label == "무슨 일" && it.by == "child" }
     return when {
         isCoop -> "“오늘 만든 『$t』에서 제일 좋았던 장면은 어디야? 한 번 더 들려줄래?”"
@@ -205,6 +207,7 @@ private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() e
 fun SessionReport.toJson(): JSONObject = JSONObject()
     .put("bookId", bookId).put("mode", mode).put("title", title).put("bgName", bgName).put("day", day)
     .put("profileId", profileId ?: JSONObject.NULL).put("minutes", minutes ?: JSONObject.NULL).put("exchanges", exchanges).put("spoken", spoken)
+    .put("authorCall", authorCall ?: JSONObject.NULL)
     .put("longestWords", longestWords).put("homeQuestion", homeQuestion).put("firsts", firsts.json())
     .put("bones", JSONArray().also { a -> bones.forEach { a.put(JSONObject().put("label", it.label).put("text", it.text).put("by", it.by).put("quoted", it.quoted)) } })
     .put("moments", JSONArray().also { a -> moments.forEach { a.put(JSONObject().put("kind", it.kind).put("quote", it.quote)) } })
@@ -223,6 +226,7 @@ fun sessionReportOf(j: JSONObject): SessionReport {
         homeQuestion = j.optString("homeQuestion"),
         firsts = j.optJSONArray("firsts").strings(),
         profileId = j.optString("profileId").takeUnless { it.isBlank() || it == "null" },
+        authorCall = if (j.isNull("authorCall")) null else j.getString("authorCall"),
     )
 }
 

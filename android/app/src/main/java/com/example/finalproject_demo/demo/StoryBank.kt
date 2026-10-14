@@ -1064,4 +1064,6 @@ fun DemoState.bookCaption(i: Int): String =
     // A co-op mission in a story (10-06): the template's 「건네주었어요」 would not be what the child did
     else if (mode == StoryMode.STORY && pageKind(i) == PageKind.DRAG && slot2Prop() != null)
         slot2Prop()!!.let { if (m2Result == null) it.before else "${storyActor}${eun(storyActor)} ${it.did} ${it.result}" }
+    else if (mode == StoryMode.STORY && pageKind(i) == PageKind.TOGETHER && i == pageCount)
+        storyFallbackEnding() ?: bookPages.getOrNull(i - 1)?.text?.invoke(this).orEmpty()
     else bookPages.getOrNull(i - 1)?.text?.invoke(this) ?: ""
