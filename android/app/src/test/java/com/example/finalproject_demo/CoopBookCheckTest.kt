@@ -181,7 +181,11 @@ class CoopBookCheckTest {
         assumeTrue("opt-in: COOP_CHECK=1", System.getenv("COOP_CHECK") == "1")
         val baseBefore = Server.base
         val modesBefore = Server.liveModes
-        if (server != null) { Server.base = server; Server.liveModes = setOf(com.example.finalproject_demo.demo.StoryMode.COOP) }
+        if (server != null) {
+            Server.base = server.trimEnd('/')
+            Server.liveModes = setOf(com.example.finalproject_demo.demo.StoryMode.COOP)
+            org.robolectric.shadows.ShadowLog.stream = System.out   // the server calls log through android.util.Log
+        }
         else assumeTrue("server must be off for the template run", !Server.liveFor(com.example.finalproject_demo.demo.StoryMode.COOP))
         val fixtures = File("../../eval/fixtures_coop_check.jsonl")
         val only = System.getenv("COOP_CHECK_ONLY")?.split(',')?.toSet()
