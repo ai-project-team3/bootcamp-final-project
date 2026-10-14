@@ -122,6 +122,12 @@ private val STORY_ONLY = setOf(
  */
 private fun Director.seedDiary(order: Int) {
     if (order <= Scene.entries.indexOf(Scene.DIARY)) return
+    // A book the child answered (a resumed co-op · a diary) is never seeded — the demo playground line
+    // 「선생님과 함께 블록을 다시 쌓았어요」 landed on a resumed zoo book's page 7 as the child's words (10-14 device run)
+    if (s.slotBy.isNotEmpty()) {
+        if (order > Scene.entries.indexOf(Scene.MAKING) && s.title == null) s.title = s.autoTitleFor()
+        return
+    }
     if (s.place == null) {
         s.placeLabel = "놀이터"; s.place = "놀이터"; s.slots["place"] = "놀이터에 갔어요"
         s.slotBy["place"] = "child"
