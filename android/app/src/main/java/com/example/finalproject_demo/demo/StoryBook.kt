@@ -40,6 +40,7 @@ fun DemoState.storyPagePlan(): List<Server.Page> {
             PageKind.RUB -> when (val p = slot1Prop()) {
                 is BlowProp -> p.word
                 is SoundProp -> SOUND_THING[p]
+                is com.example.finalproject_demo.demo.missions.SaidSound -> p.word
                 // a default dust is not sent — the page set up dust the child never said (#259 §4-3 4 · picture-book M8)
                 else -> mission1().blobName.takeIf { !defaultRub() }
             }

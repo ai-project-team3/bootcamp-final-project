@@ -82,4 +82,50 @@ fun DemoState.soundProp(): SoundProp? = pinnedMissions()?.sound            // a 
     ?: if (pinnedMissions() == null && missions().slot1 == MissionId.C3) soundPropIn(storyFacts().slot1Words) else null
 
 /** 이 책 자리 1 의 소품 말 — C1 · C3 면 그 소품, 아니면 null(A6 문지르기 · `Missions.kt` 원래 문장) */
-fun DemoState.slot1Prop(): Slot1Prop? = blowProp() ?: soundProp()
+fun DemoState.slot1Prop(): Slot1Prop? = blowProp() ?: soundProp()?.let { p ->
+    // a re-read book has no words left — the word it was made with is pinned (#491 review)
+    pinnedMissions()?.let { pin -> pin.soundWord?.let { namedSound(p, it) } } ?: saidSound(p, storyFacts().slot1Words) ?: p
+}
+
+/** The thing each sound prop names in its lines, and the other things the child may have said for the same sound */
+private val SOUND_NAMES = mapOf(
+    SoundProp.SIREN to ("소방차" to listOf("구급차", "경찰차")),
+    SoundProp.CAR to ("자동차" to listOf("버스", "트럭", "택시", "오토바이")),
+    SoundProp.TRAIN to ("기차" to listOf("지하철")),
+    SoundProp.LION to ("사자" to listOf("호랑이")),
+)
+
+/**
+ * The sound prop under the child's own word — 「호랑이」 roars like the lion prop, but the book and Otto say 호랑이, not 사자
+ * (coop book check k18 · 10-14: a taekwondo story with a tiger master got 「매트 옆 사자는 눈을 감고 있었어요」). Null when the
+ * child said the prop's own word, or none of the others
+ */
+internal fun saidSound(p: SoundProp, said: String): SaidSound? {
+    val (own, others) = SOUND_NAMES[p] ?: return null
+    if (saysAny(said, listOf(own))) return null
+    return others.firstOrNull { saysAny(said, listOf(it)) }?.let { SaidSound(p, own, it) }
+}
+
+/** [p] under [word] — a pinned word read back */
+internal fun namedSound(p: SoundProp, word: String): SaidSound? = SOUND_NAMES[p]?.let { (own, _) -> SaidSound(p, own, word) }
+
+class SaidSound(val prop: SoundProp, private val own: String, val word: String) : Slot1Prop {
+    private fun named(line: String) = line.replace(own, word).let { fixParticles(it, word) }
+    override val before get() = named(prop.before)
+    override val result get() = named(prop.result)
+    override val did get() = named(prop.did)
+    override val ask get() = named(prop.ask)
+    override val cheer get() = named(prop.cheer)
+    override val badge get() = prop.badge
+    override val motion get() = prop.motion
+}
+
+/** 「사자가」 → 「호랑이가」 is fine, but 「버스가」 after 「자동차가」 needs its particle checked — 이/가 · 은/는 · 을/를 follow the new word */
+private fun fixParticles(line: String, word: String): String {
+    val last = word.last()
+    val bat = last in '가'..'힣' && (last - '가') % 28 != 0
+    return line.replace(Regex("${Regex.escape(word)}(이|가|은|는|을|를)(?![가-힣])")) { m ->
+        val p = m.groupValues[1]
+        word + when (p) { "이", "가" -> if (bat) "이" else "가"; "은", "는" -> if (bat) "은" else "는"; else -> if (bat) "을" else "를" }
+    }
+}

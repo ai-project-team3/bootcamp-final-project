@@ -103,9 +103,11 @@ data class PinnedMissions(
     val sound: SoundProp? = null,
     val fix: FixProp? = null,
     val fixInBook: Boolean = false,
+    /** the child's word for [sound] when it was not the prop's own (「호랑이」 for LION · [SaidSound]) */
+    val soundWord: String? = null,
 ) {
     /** 「A6-:E1-|blow=LEAF|sound=|fix=BLOCKS|book=0」 — the first part is the pre-review format, still read alone */
-    fun encode(): String = listOf(missions.encode(), "blow=${blow?.name.orEmpty()}", "sound=${sound?.name.orEmpty()}",
+    fun encode(): String = listOf(missions.encode(), "blow=${blow?.name.orEmpty()}", "sound=${sound?.name.orEmpty()}${soundWord?.let { ":$it" }.orEmpty()}",
         "fix=${fix?.name.orEmpty()}", "book=${if (fixInBook) 1 else 0}").joinToString("|")
 
     companion object {
@@ -116,9 +118,10 @@ data class PinnedMissions(
             return PinnedMissions(
                 m,
                 kv["blow"]?.takeIf(String::isNotEmpty)?.let { n -> BlowProp.entries.firstOrNull { it.name == n } },
-                kv["sound"]?.takeIf(String::isNotEmpty)?.let { n -> SoundProp.entries.firstOrNull { it.name == n } },
+                kv["sound"]?.substringBefore(':')?.takeIf(String::isNotEmpty)?.let { n -> SoundProp.entries.firstOrNull { it.name == n } },
                 kv["fix"]?.takeIf(String::isNotEmpty)?.let { n -> FixProp.entries.firstOrNull { it.name == n } },
                 kv["book"] == "1",
+                kv["sound"]?.substringAfter(':', "")?.takeIf(String::isNotEmpty),
             )
         }
     }
@@ -129,7 +132,7 @@ internal fun DemoState.pinnedMissions(): PinnedMissions? = synchronized(picked) 
 
 /** This book's missions and props as they are now — saved with the book */
 fun DemoState.missionRecord(): String =
-    PinnedMissions(missions(), blowProp(), soundProp(), slot2PlayProp(), slot2Prop() != null).encode()
+    PinnedMissions(missions(), blowProp(), soundProp(), slot2PlayProp(), slot2Prop() != null, (slot1Prop() as? SaidSound)?.word).encode()
 
 /**
  * This book's two missions. While a book is being made they follow its facts and this mode's history; a saved
