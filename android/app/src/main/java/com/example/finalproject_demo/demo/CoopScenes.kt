@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.SaidSound
 import com.example.finalproject_demo.demo.missions.soundProp
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
@@ -1180,6 +1181,7 @@ internal fun DemoState.coopMissionProp(kind: PageKind): String? = when (kind) {
     PageKind.RUB -> when (val p = slot1Prop()) {
         is BlowProp -> p.word
         is SoundProp -> SOUND_THING[p]
+        is SaidSound -> p.word
         else -> if (missionFor(kind) == MissionId.A6 && mission1FromChildWords()) mission1().blobName else null
     }
     PageKind.DRAG -> slot2Prop()?.let { FIX_THING[it] }
