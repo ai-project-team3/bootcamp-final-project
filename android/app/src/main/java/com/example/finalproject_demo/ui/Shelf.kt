@@ -68,6 +68,10 @@ import androidx.compose.ui.semantics.semantics
 import com.example.finalproject_demo.demo.restoreStoryBook
 import com.example.finalproject_demo.demo.restoreCoopBook
 import com.example.finalproject_demo.demo.playStorySound
+import com.example.finalproject_demo.demo.DemoState
+import com.example.finalproject_demo.demo.PageKind
+import com.example.finalproject_demo.demo.SavedStoryBook
+import com.example.finalproject_demo.demo.storyMissionResult
 import kotlinx.coroutines.isActive
 import kotlin.math.roundToInt
 
@@ -276,7 +280,7 @@ private fun ShelfBookView(d: Director, b: ShelfBook, fresh: Boolean) {
     }
 }
 
-/** 저장 당시의 자막을 그대로 보여 주는 읽기 전용 책. 미션 결과도 이미 자막에 포함되어 있다. */
+/** 저장 당시의 자막을 그대로 보여 주는 책 — 미션은 다시 할 수 있고, 건너뛰고 읽어도 된다 (J1) */
 @Composable
 fun SavedStoryView(d: Director, stage: Stage.SavedStory) {
     // a saved book is read in the art style it was made in, not the style of the book being made now (#253 review)
@@ -291,15 +295,23 @@ private fun SavedStoryBody(d: Director, stage: Stage.SavedStory) {
         val scope = rememberCoroutineScope()
         // 같이 만들기 책은 같이 만들기로 되살린다 — 쪽 구성 · 그림 재료가 동화와 다르다 (#83 · CoopBookStore.kt)
         val reader = remember(book.id) { Director(scope).apply { if (!s.restoreCoopBook(book)) s.restoreStoryBook(book) } }
+        // Re-reading plays the missions again (앱_품질향상_설계 ⑤-1 J1) — done once in this reading, they stay done when
+        // the child pages back. ▶ is never locked on a re-read, so a child who only wants the story reads on
+        var m1Done by remember(book.id) { mutableStateOf(false) }
+        var m2Done by remember(book.id) { mutableStateOf(false) }
         LaunchedEffect(reader, book.id, page) {
             while (isActive) {
-                when ((reader.awaitReply() as? Reply.Tapped)?.value) {
+                val tap = reader.awaitReply() as? Reply.Tapped
+                when (tap?.value) {
                     "dino", "sound" -> d.playStorySound(book)
+                    "mission" -> when (tap.label) { "미션1" -> m1Done = true; "미션2" -> m2Done = true }
                 }
             }
         }
         Box(Modifier.fillMaxSize()) {
-            BookPageView(reader, Stage.BookPage(page, m1Done = true, m2Done = true), savedBook = book, onReply = { reply ->
+            // the saved caption ends with the mission's result — not yet true while the mission is open again
+            val shown = remember(book, m1Done, m2Done) { book.withOpenMissions(reader.s, m1Done, m2Done) }
+            BookPageView(reader, Stage.BookPage(page, m1Done = m1Done, m2Done = m2Done), savedBook = shown, onReply = { reply ->
                 val action = reply as? Reply.Tapped
                 when (action?.value) {
                     "speak" -> d.send(reply)
@@ -342,3 +354,22 @@ private fun SavedStoryBody(d: Director, stage: Stage.SavedStory) {
     }
 }
 
+/**
+ * The saved book as read again with its missions open — a mission page not yet played in this reading shows its
+ * caption without the result sentence the first reading added (「… 상상 속에서 「삐뽀삐뽀!」 소리가 울렸어!」).
+ * The result is worked out from the restored state; when it does not match the caption's end, the caption stays whole
+ */
+internal fun SavedStoryBook.withOpenMissions(s: DemoState, m1Done: Boolean, m2Done: Boolean): SavedStoryBook {
+    if (m1Done && m2Done) return this
+    val results = runCatching {
+        val keep = Triple(s.storyCaptions, s.m1Result, s.m2Result)
+        s.storyCaptions = s.storyCaptions ?: pages.map { it.caption }
+        s.m1Result = s.m1Result ?: "solo"; s.m2Result = s.m2Result ?: "solo"
+        pages.indices.map { s.storyMissionResult(it + 1) }.also { s.storyCaptions = keep.first; s.m1Result = keep.second; s.m2Result = keep.third }
+    }.getOrNull() ?: return this
+    return copy(pages = pages.mapIndexed { i, p ->
+        val open = (p.kind == PageKind.RUB && !m1Done) || (p.kind == PageKind.DRAG && !m2Done)
+        val r = results.getOrNull(i)
+        if (open && r != null && p.caption.endsWith(" $r")) p.copy(caption = p.caption.removeSuffix(" $r")) else p
+    })
+}

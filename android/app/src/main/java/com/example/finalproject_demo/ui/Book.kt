@@ -596,13 +596,19 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
             if (page > 0) RoundBtn("◀", Wool) { onReply(Reply.Tapped("prev", "앞")) }
         }
         Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)) {
-            val canNext = when (kind) { PageKind.RUB -> stage.m1Done; PageKind.DRAG -> stage.m2Done; else -> true }
+            val missionOpen = when (kind) { PageKind.RUB -> !stage.m1Done; PageKind.DRAG -> !stage.m2Done; else -> false }
+            // a re-read from the shelf never locks the page — the mission can be played or skipped (J1 「▶ 그냥 읽기」)
+            val canNext = !missionOpen || savedBook != null
             if (page == last) {
                 FeltButton(FeltMustard, onClick = { onReply(Reply.Tapped("next", "다음")) }, modifier = Modifier.size(Touch.KidMin), shape = CircleShape) {
                     ArtView(Art.Img("ic_books", Art.Emoji("📚")), Modifier.size(40.dp))
                 }
             } else {
                 RoundBtn("▶", if (canNext) FeltCoral else WoolCream.copy(alpha = 0.6f)) { if (canNext) onReply(Reply.Tapped("next", "다음")) }
+            }
+            if (missionOpen && savedBook != null && page != last) {
+                Text("그냥 읽기", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.BottomCenter).offset(y = 22.dp))
             }
         }
     }
