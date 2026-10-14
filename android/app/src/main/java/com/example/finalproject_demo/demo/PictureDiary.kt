@@ -441,8 +441,12 @@ private suspend fun Director.keepUntoldStory(day: DiaryDay, r: Reply.Spoke, otto
         val result = s.exchangeTurn("diary", null, "", said, history = day.talk.toList() + last)
         val v = result?.verdict
         if (v?.reason == "blocked_by_filter") { log("서버 안전 판정 — 그리는 중 한 말을 책 재료에서 뺀다"); return }
-        if (notDiaryTalk(result)) { log("그리는 중 「$said」 — 오또에게 한 말(${result?.act}) → 책 재료에 쌓지 않는다 (#323)"); return }
+        // 오또는 이미 구운 말로 받았다 — 기록에는 아이가 대고 한 말([ottoBefore])과 그 받은 말로 (#494)
+        fun keep(filled: List<Server.HistoryFill>) =
+            result?.let { remember(day, "", ottoBefore, said, filled, it.act, "그렇구나! 계속 그려 봐.") }
+        if (notDiaryTalk(result)) { log("그리는 중 「$said」 — 오또에게 한 말(${result?.act}) → 책 재료에 쌓지 않는다 (#323)"); keep(emptyList()); return }
         result?.retract?.forEach { gone -> restoreDiarySlot(gone, bookKeyOf(gone, ""), prevOf(day, gone)) }
+        keep(v?.let { historyFills(it, "") }.orEmpty())               // 채우기 전에 — 덧붙인 칸의 앞 값이 `prev`
         val fills = v?.fills.orEmpty().filter { (slot, value) -> slot in Server.SLOTS && value.isNotBlank() }
         if (fills.isNotEmpty()) {
             quote(said)
@@ -577,9 +581,11 @@ private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: Triple<S
         val v = result?.verdict
         if (v != null && v.reason != "blocked_by_filter") {
             result.retract.forEach { gone -> restoreDiarySlot(gone, bookKeyOf(gone, key), prevOf(day, gone)) }
+            val filled = historyFills(v, key)
             fillFromVerdict(day, v, r, key)
             nameBackdrop(day, ring, key, said)
             sayReaction(result, r)
+            remember(day, slot, text, said, filled, result.act, ottoAck(result))      // 다음 턴의 정정이 이 칸을 짚게 (#494)
             day.nextStory = serverNext(result)
             log("그리는 중 이야기 [$key] — 판정이 칸을 채웠다 · 다음 이야기 ${day.nextStory?.second ?: "없음(D3)"}")
             return "ok"
@@ -628,8 +634,11 @@ private suspend fun Director.askPieceStory(day: DiaryDay, clue: DrawnClue, text:
         // 「먹구름: 오또는 몇 살이야?」가 책에 들어가지 않게 — 조각 이야기로 남기지 않는다 (#323 · 10-12 실기기)
         log("「${clue.name}」 이야기 자리에 오또에게 한 말(${result?.act}) → 책 재료에 쌓지 않는다")
         if (drawing) { say("그렇구나! 계속 그려 봐."); pause(600) } else result?.let { sayReaction(it, r as Reply.Spoke) }
+        result?.let { remember(day, "", text, said, emptyList(), it.act, if (drawing) "그렇구나! 계속 그려 봐." else ottoAck(it)) }
         return "skip"
     }
+    // 채우기 전에 잡는다 — 다음 턴의 「X가 아니라 Y」가 이 칸을 짚고 앞 값으로 되돌리게 (#494 · 10-14 실기기)
+    val filled = v?.let { historyFills(it, "") }.orEmpty()
     day.pieceStories[clue.pieceId] = said
     quote(said)
     // 판정이 고른 칸에 덧붙인다 — 첫 칸은 아이 말 그대로, 둘째부터는 판정 값(한 말의 둘째 칸 · `fillFromVerdict` 와 같은 약속)
@@ -645,6 +654,7 @@ private suspend fun Director.askPieceStory(day: DiaryDay, clue: DrawnClue, text:
         result != null -> sayReaction(result, r as Reply.Spoke)          // 판정이 쓴 받아 주기 — 아이 말에 대한 대답
         else -> { say("그랬구나!"); pause(600) }
     }
+    result?.let { remember(day, "", text, said, filled, it.act, if (drawing) "그렇구나! 계속 그려 봐." else ottoAck(it)) }
     log("「${clue.name}」 이야기 = 「$said」 (child · extra 에 쌓음${if (v != null) " · 판정 ${v.fills.joinToString { it.first }}" else ""} · #220)")
     if (!drawing) drawNewThing(day, said)
     return "ok"
