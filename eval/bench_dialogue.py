@@ -180,6 +180,7 @@ def judge_row(row: dict, case: dict) -> dict:
     d = row["decision"] or {}
     filled = {s for s, v in req["slots"].items() if v}
     wrong = req["slots"].get(g["target"]) if g["target"] else None
+    quiet = act == "repair" and not row["retract"]        # no slot changed → no line, by design (turn.settle)
     out = {
         "act_ok": act == g["act"],
         "intent_ok": (d.get("intent") == g["intent"]) if d else None,
@@ -190,10 +191,13 @@ def judge_row(row: dict, case: dict) -> dict:
         # no act at all (the phone has nothing to answer with) — and, as #323 first counted it, no act
         # reaching the child in a line (a failed line counts; before 10-09 act lived inside the line)
         "ignored": g["intent"] in ("correct", "ask_back", "not_heard") and act is None,
-        "ignored_in_line": g["intent"] in ("correct", "ask_back", "not_heard") and (act is None or row["line"] is None),
+        # 10-14: a repair that changed no slot sends no line on purpose — the phone says its baked sorry (not ignored)
+        "ignored_in_line": g["intent"] in ("correct", "ask_back", "not_heard") and (act is None or (row["line"] is None and not quiet)),
+        # 10-14: Otto spoke a correction's line though no slot changed — what it said is not in the book
+        "false_ack": quiet and row["line"] is not None,
         "reasked": bool(row["next_slot"] and row["next_slot"] in filled and row["next_slot"] not in row["retract"]),
-        "broken": row["line"] is None or act not in ALLOWED or (
-            act in NEEDS_QUESTION and not (row["line"] or {}).get("question")) or not (row["line"] or {}).get("ack"),
+        "broken": (row["line"] is None and not quiet) or act not in ALLOWED or (
+            act in NEEDS_QUESTION and row["line"] is not None and not row["line"].get("question")) or (row["line"] is not None and not row["line"].get("ack")),
     }
     if g["intent"] == "correct":
         out["retracted"] = g["target"] in row["retract"]
@@ -230,7 +234,7 @@ def score(rows: list[dict]) -> dict:
             "false_pos_per_run": per_run("false_pos"), "of_answers": n_answer,
             "words_dropped_per_run": per_run("words_dropped"),
             "retracted_per_run": per_run("retracted"), "repaired_per_run": per_run("repaired"), "of_corrections": n_correct,
-            "ignored_per_run": per_run("ignored"), "ignored_in_line_per_run": per_run("ignored_in_line"),
+            "ignored_per_run": per_run("ignored"), "ignored_in_line_per_run": per_run("ignored_in_line"), "false_ack_per_run": per_run("false_ack"),
             "of_non_answers": n_ign,
             "reasked_per_run": per_run("reasked"),
             "act_acc": round(act_ok / len(items), 3), "act_acc_ci": [round(x, 3) for x in wilson(act_ok, len(items))],
