@@ -411,6 +411,15 @@ private suspend fun Director.diaryDrawStep() {
     pause(1500)
 }
 
+/** Empties what the steps filled — before another story in the same session */
+private fun Director.clearDiarySlots() {
+    s.place = null; s.problem = null; s.cause = null; s.solution = null; s.reaction = null; s.friend = null
+    listOf("place", "problem", "cause", "solution", "reaction", "companion", "detail", "said", "after", "keep")
+        .forEach { s.slots.remove(it); s.slotBy.remove(it) }
+    s.slots.keys.filter { it.startsWith("parent") }.forEach { s.slots.remove(it); s.slotBy.remove(it) }
+    s.placeLabel = null; s.mascotPicks = 0; s.companionKind = ""
+}
+
 /** 모인 답변으로 책을 만든다 — **책은 언제나 나온다** (일기 §5 · 구현대본 §5) */
 internal suspend fun Director.finishDiary() {
     buttons()
@@ -424,17 +433,23 @@ internal suspend fun Director.finishDiary() {
     if (!hasChildSeed) {
         say("오늘은 여기까지 하고 잘까? 아니면 우리 이야기를 하나 지어 볼까?")
         log("⚠️ 씨앗이 0개다 — §5(모인 답변으로 만들기)를 쓸 수 없는 유일한 경우. 끝낼지 동화 모드로 넘길지는 **아직 안 정했다** (일기 §7-4 · 남은 일 §9-4)")
+        // co-op: the parent picked this story, so the way on is another story of theirs, not the child's story mode (coop book check k17 · 10-14)
         buttons(
             DemoBtn("🌙 오늘은 여기까지 — 끝내기") { send(Reply.Tapped("home", "끝내기")) },
-            DemoBtn("📖 동화 모드로 넘기기") { send(Reply.Tapped("story", "동화 모드")) },
+            if (s.isCoop) DemoBtn("📚 다른 이야기 골라 볼까?") { send(Reply.Tapped("other", "다른 이야기")) }
+            else DemoBtn("📖 동화 모드로 넘기기") { send(Reply.Tapped("story", "동화 모드")) },
         )
-        if (awaitValue("home", "story") == "story") {
+        val choice = awaitValue("home", "story", "other")
+        if (choice == "other") {
+            s.endReason = null
+            clearDiarySlots()
+            s.clearParentQuestions()
+            log("다른 이야기 — 칸을 비우고 부모 화면에서 새 이야기를 고른다 (협업 씨앗 0 · 10-14)")
+            go(Scene.ADULT)
+        } else if (choice == "story") {
             s.mode = StoryMode.STORY
             s.endReason = null
-            s.place = null; s.problem = null; s.cause = null; s.solution = null; s.reaction = null; s.friend = null
-            listOf("place", "problem", "cause", "solution", "reaction", "companion", "detail", "said", "after", "keep")
-                .forEach { s.slots.remove(it); s.slotBy.remove(it) }
-            s.placeLabel = null; s.mascotPicks = 0; s.companionKind = ""
+            clearDiarySlots()
             log("동화 모드로 넘어간다 — 같은 세션 안에서 재료만 상상으로 바꾼다")
             go(Scene.PLACE)
         } else {
