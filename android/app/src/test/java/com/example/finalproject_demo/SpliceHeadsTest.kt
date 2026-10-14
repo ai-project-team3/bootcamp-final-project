@@ -40,4 +40,14 @@ class SpliceHeadsTest {
             "강아지는 어떻게 됐어?", "아빠가 뭐라고 했어?", "소방서에서 만난 사람 있어?",
         ).forEach { assertSpliced(it, words) }
     }
+
+    /** 보기 순서는 일부러 섞는다(근거 #10 · #27) — 순서는 그대로 두고, 뒤 질문 문장만 구운 소리로 */
+    @Test
+    fun theQuestionAfterShuffledChoicesIsBaked() {
+        listOf("바다, 구름 위, 숲. 어디부터 갈까?", "놀이터, 할머니 집, 어린이집. 오늘은 어디 있었어?", "울었어, 웃었어, 화났어. 어떤 마음이었을까?")
+            .forEach { line ->
+                val plan = VoiceSplice.plan(line, emptyList(), ::baked)
+                assertTrue("「$line」 — 질문 문장이 안 구워졌다: $plan", plan != null && plan.last() is VoiceSplice.Tail && plan.first() is Live)
+            }
+    }
 }
