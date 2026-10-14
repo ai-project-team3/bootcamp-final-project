@@ -82,7 +82,10 @@ fun DemoState.soundProp(): SoundProp? = pinnedMissions()?.sound            // a 
     ?: if (pinnedMissions() == null && missions().slot1 == MissionId.C3) soundPropIn(storyFacts().slot1Words) else null
 
 /** 이 책 자리 1 의 소품 말 — C1 · C3 면 그 소품, 아니면 null(A6 문지르기 · `Missions.kt` 원래 문장) */
-fun DemoState.slot1Prop(): Slot1Prop? = blowProp() ?: soundProp()?.let { p -> saidSound(p, storyFacts().slot1Words) ?: p }
+fun DemoState.slot1Prop(): Slot1Prop? = blowProp() ?: soundProp()?.let { p ->
+    // a re-read book has no words left — the word it was made with is pinned (#491 review)
+    pinnedMissions()?.let { pin -> pin.soundWord?.let { namedSound(p, it) } } ?: saidSound(p, storyFacts().slot1Words) ?: p
+}
 
 /** The thing each sound prop names in its lines, and the other things the child may have said for the same sound */
 private val SOUND_NAMES = mapOf(
@@ -102,6 +105,9 @@ internal fun saidSound(p: SoundProp, said: String): SaidSound? {
     if (saysAny(said, listOf(own))) return null
     return others.firstOrNull { saysAny(said, listOf(it)) }?.let { SaidSound(p, own, it) }
 }
+
+/** [p] under [word] — a pinned word read back */
+internal fun namedSound(p: SoundProp, word: String): SaidSound? = SOUND_NAMES[p]?.let { (own, _) -> SaidSound(p, own, word) }
 
 class SaidSound(val prop: SoundProp, private val own: String, val word: String) : Slot1Prop {
     private fun named(line: String) = line.replace(own, word).let { fixParticles(it, word) }

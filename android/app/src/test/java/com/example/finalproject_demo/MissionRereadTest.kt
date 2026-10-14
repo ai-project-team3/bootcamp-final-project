@@ -75,6 +75,17 @@ class MissionRereadTest {
         assertEquals(SoundProp.SIREN, again.slot1Prop())
     }
 
+    /** A tiger story keeps 호랑이 on re-reading — the words are gone, the pinned word is not (#491 review) */
+    @Test
+    fun aTigerBookIsReReadWithTheTiger() {
+        val s = DemoState().apply { mode = StoryMode.STORY; templateKey = "C"; problem = "호랑이가 어흥 하고 나타났어" }
+        assertEquals(MissionId.C3, s.missions().slot1)
+        assertEquals("호랑이처럼 「어흥!」 크게 소리 내 볼래?", s.slot1Prop()!!.ask)
+        val again = reread(s, StoryMode.STORY)
+        assertEquals(SoundProp.LION, again.soundProp())
+        assertEquals("다시 읽어도 호랑이", "호랑이가 졸고 있어요.", again.slot1Prop()!!.before)
+    }
+
     @Test
     fun storyCastAndProblemActorSurviveAlongsideSavedMissions() {
         val s = DemoState().apply {
