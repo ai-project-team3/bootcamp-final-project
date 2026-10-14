@@ -4,12 +4,14 @@ import com.example.finalproject_demo.demo.missions.missions
 import com.example.finalproject_demo.net.Server
 import com.example.finalproject_demo.net.Bgm
 import com.example.finalproject_demo.net.Voice
+import com.example.finalproject_demo.net.VoiceSplice
 import com.example.finalproject_demo.net.nameMask
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
@@ -20,6 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withContext
 
 enum class Kind { EASY, HARD, CHOICE }
 
@@ -461,12 +464,45 @@ class Director(
     }
 
     /**
-     * A line's voice: baked into the app · already heard this session ([heardVoices]) · or `/tts`.
+     * A line's voice: baked into the app · already heard this session ([heardVoices]) · in pieces ([VoiceSplice]) · or `/tts`.
      * 10-14: a line said again (Otto's face tapped · ◀ back a page · 「말하기」 · a page re-read after its mission ·
      * a prefetch that fell out of [prefetched]) went to `/tts` again and was paid again, though its voice was kept
      */
     internal suspend fun lineVoice(line: String): ByteArray? =
-        Voice.baked(line) ?: synchronized(heardVoices) { heardVoices[line] } ?: Server.tts(line)?.also { heard(line, it) }
+        Voice.baked(line) ?: synchronized(heardVoices) { heardVoices[line] } ?: splicedVoice(line)
+            ?: Server.tts(line)?.also { heard(line, it) }
+
+    /** The words a line may start a piece with — the diary's heard place, companion and drawn pieces (#502: story · co-op next) */
+    private fun spliceWords(): List<String> = if (s.mode == StoryMode.DIARY) s.diarySpliceWords() else emptyList()
+
+    /**
+     * The line in pieces when that saves a `/tts` call ([VoiceSplice.plan]) — baked pieces are free, a piece already voiced
+     * this session is reused, the rest is bought and kept in [heardVoices] for the next line that has it. Null (the whole
+     * line goes to `/tts`) when it does not split, a piece cannot be had, or a head was read too slowly alone.
+     */
+    private suspend fun splicedVoice(line: String): ByteArray? {
+        if (!VoiceSplice.on) return null
+        fun known(t: String) = synchronized(heardVoices) { heardVoices[t] }
+        val plan = VoiceSplice.plan(line, spliceWords(), { VoiceSplice.baked(it) != null }, { known(it) != null }) ?: return null
+        val started = System.currentTimeMillis()
+        val bought = mutableListOf<String>()
+        val pieces = plan.map { seg ->
+            val mp3 = (if (seg is VoiceSplice.Tail) VoiceSplice.baked(seg.text)
+                else known(seg.text) ?: Server.tts(seg.text)?.also { heard(seg.text, it); bought += seg.text })
+                ?: return null.also { com.example.finalproject_demo.net.Trace.line("splice", "「$line」 — no voice for 「${seg.text}」, whole line") }
+            val pcm = withContext(Dispatchers.Default) { VoiceSplice.decode(mp3) }
+                ?: return null.also { com.example.finalproject_demo.net.Trace.line("splice", "「$line」 — could not decode 「${seg.text}」, whole line") }
+            if (seg is VoiceSplice.Head && VoiceSplice.tooSlow(seg.text, pcm))
+                return null.also { com.example.finalproject_demo.net.Trace.line("splice", "「$line」 — 「${seg.text}」 read too slowly alone, whole line") }
+            pcm to seg.gapMs
+        }
+        val joined = withContext(Dispatchers.Default) { VoiceSplice.join(pieces) } ?: return null
+        com.example.finalproject_demo.net.Trace.line("splice", "「$line」 = " + plan.joinToString(" + ") { seg ->
+            val how = when { seg is VoiceSplice.Tail -> "구움"; seg.text in bought -> "/tts ${seg.text.length}자"; else -> "다시 씀" }
+            "${if (seg.gapMs > 0) "${seg.gapMs}ms " else ""}「${seg.text}」($how)"
+        } + " · /tts ${bought.sumOf { it.length }}자 (통째면 ${line.length}자) · ${System.currentTimeMillis() - started} ms")
+        return Voice.wav(joined.samples, joined.rate).also { heard(line, it) }
+    }
 
     /**
      * Server voices of this session's last lines, by spoken text (#179). A diary keeps its page voices with the book

@@ -1949,6 +1949,14 @@ internal fun atPlace(s: DemoState, rest: String): String =
         ?.let { coopGuard(it, CoopReason.DONE, CoopSource.HEARD).text }
         ?: "거기서 $rest"
 
+/**
+ * 대사 조각의 머리가 될 수 있는 낱말 (10-14 · `net/VoiceSplice.kt`) — 들은 곳 · 같이 있던 사람 · 이름 붙은 그림 조각.
+ * 오또 말이 이 낱말(+조사)로 시작하고 나머지가 구운 꼬리일 때만 나눠 낸다(「놀이터에서」 + 「뭐 했어?」), 아니면 통째로 `/tts`
+ */
+internal fun DemoState.diarySpliceWords(): List<String> =
+    (listOfNotNull(diaryPlaceWord(slots["place"]), slots["companion"]?.trim()?.takeIf(String::isNotEmpty)) +
+        diaryDay.pieces.mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) }).distinct()
+
 /** 필수 칸 — `DemoState.reqSlots`(일기 = place · problem, #29)와 같은 둘. 여기는 책 문장 키로 본다 */
 internal val PICTURE_REQUIRED = listOf("place", "problem")
 
