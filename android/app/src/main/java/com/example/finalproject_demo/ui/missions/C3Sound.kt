@@ -87,7 +87,7 @@ internal const val SOUND_TAP = 0.34f
  * - 소품 그림 `prop_firetruck` · `prop_car` · `prop_lion` · `prop_puppy`(10-04 · `gen_room.py` 파이프라인) · 기차는 있던 `train`
  */
 @Composable
-internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundProp) {
+internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundProp, art: String? = null) {
     val view = LocalView.current
     val ctx = LocalContext.current
     val density = LocalDensity.current.density
@@ -158,7 +158,8 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
                 },
         ) {
             // 다 하면 동물이 대답하듯 입을 벌린다(사자 어흥 · 강아지 멍멍 그림 · 없으면 원래 그림)
-            val base = Art.Img(prop.art, Art.Emoji(prop.emoji))
+            // the child's own maker's picture first (경찰차 · 구급차), else the prop's
+            val base = Art.Img(prop.art, Art.Emoji(prop.emoji)).let { own -> art?.let { Art.Img(it, own) } ?: own }
             val art = when {
                 finished && prop == SoundProp.LION -> Art.Img("prop_lion_roar", base)
                 finished && prop == SoundProp.DOG -> Art.Img("prop_puppy_bark", base)
