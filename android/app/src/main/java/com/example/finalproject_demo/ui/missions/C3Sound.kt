@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.input.pointer.pointerInput
@@ -165,7 +166,10 @@ internal fun SoundMission(d: Director, done: Boolean, heroArt: Art, prop: SoundP
                 finished && prop == SoundProp.DOG -> Art.Img("prop_puppy_bark", base)
                 else -> base
             }
-            Box(Modifier.fillMaxSize().touchOutline(!finished)) { ArtView(art, Modifier.fillMaxSize()) }
+            // the siren vehicles are drawn facing left but drive off to the right — mirror them so they go forward
+            Box(Modifier.fillMaxSize().touchOutline(!finished)) {
+                ArtView(art, Modifier.fillMaxSize().graphicsLayer { scaleX = if (vehicle) -1f else 1f })
+            }
         }
 
         // 따라 할 소리 — 크게 띄운다. 소리를 낼 때마다 한 번씩 톡 커진다
