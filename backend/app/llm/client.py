@@ -116,7 +116,14 @@ async def complete(system: str, user: str, schema: dict, *, effort: str,
         on_cached(name, cached)
     text = _output_text(body)
     try:
-        return json.loads(text)
+        # #376 (10-13 raw outputs): the failing lines were one whole object with text after its `}` —
+        # leaked tokens, notes to itself, the object written twice. The first object is the answer;
+        # the callers' schema checks still apply to it. Only the tail's length is logged, never its words
+        start = len(text) - len(text.lstrip())
+        out, end = json.JSONDecoder().raw_decode(text, start)
+        if text[end:].strip():
+            log.warning("llm %s · text after the JSON dropped · %d chars", name, len(text[end:].strip()))
+        return out
     except json.JSONDecodeError as e:
         # #376: ~10 % of /turn lines died here with no clue why. Say what the answer looked like —
         # cut off at the token budget, wrapped in a fence, or something else — but not the words.
