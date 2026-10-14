@@ -176,7 +176,7 @@ private fun placePart(x: String, r: CoopReason, part: Int, spots: List<String>? 
     }
     1 -> when (r) {
         CoopReason.DONE -> Body(
-            listOf("거기서 뭐 하고 놀았어?", choices("신났던 일", "깜짝 놀란 일", "속상했던 일", ask = "어떤 일이 있었어?")),
+            listOf("거기서 어떤 일이 기억나?", choices("신났던 일", "깜짝 놀란 일", "속상했던 일", ask = "어떤 일이 있었어?")),
             listOf(
                 a("사진 찍었어.", "사진 찍기", "${x}에서 사진을 찍었어요", lv = 1),
                 a("구경했어!", "구경", "$x 여기저기를 구경했어요", lv = 1),
@@ -187,7 +187,7 @@ private fun placePart(x: String, r: CoopReason, part: Int, spots: List<String>? 
             notHeard("일", "${x}에서 있었던 일은 아직 다 듣지 못했어요"),
         )
         CoopReason.SOON -> Body(
-            listOf("거기 가면 뭐 하고 놀까?", choices("신나는 일", "깜짝 놀랄 일", "곤란한 일", ask = "어떤 일이 생길까?")),
+            listOf("거기 가면 무슨 일이 생길 것 같아?", choices("신나는 일", "깜짝 놀랄 일", "곤란한 일", ask = "어떤 일이 생길까?")),
             listOf(
                 a("사진 찍을 거야.", "사진 찍기", "${x}에서 사진을 찍을 거예요", lv = 1),
                 a("구경할 거야!", "구경", "$x 여기저기를 구경할 거예요", lv = 1),
@@ -246,7 +246,7 @@ private fun placePart(x: String, r: CoopReason, part: Int, spots: List<String>? 
     }
     else -> when (r) {
         CoopReason.DONE -> Body(
-            listOf("그다음에 뭐 했어?", choices("엄마가 도와줬어", "혼자 해냈어", "집에 왔어", ask = "어떻게 됐어?")),
+            listOf("그래서 어떻게 했어?", choices("엄마가 도와줬어", "혼자 해냈어", "집에 왔어", ask = "어떻게 됐어?")),
             listOf(
                 a("엄마 찾았어!", "엄마를 찾음", "다시 엄마를 찾았어요", lv = 1),
                 a("집에 왔어.", "집에 돌아옴", "재미있게 놀고 집에 돌아왔어요", con = true, lv = 1),
@@ -257,7 +257,7 @@ private fun placePart(x: String, r: CoopReason, part: Int, spots: List<String>? 
             notHeard("뒷이야기", "그 뒤에 어떻게 되었는지는 아직 듣지 못했어요"),
         )
         CoopReason.SOON -> Body(
-            listOf("그다음엔 뭐 할까?", choices("엄마가 도와줄 거야", "혼자 해낼 거야", "집에 올 거야", ask = "어떻게 끝날까?")),
+            listOf("그러면 어떻게 할까?", choices("엄마가 도와줄 거야", "혼자 해낼 거야", "집에 올 거야", ask = "어떻게 끝날까?")),
             listOf(
                 a("재밌게 놀고 올 거야!", "재밌게 놀고 옴", "재미있게 놀고 집에 돌아올 거예요", lv = 1),
                 a("엄마가 도와줄 거야.", "엄마가 도와줌", "엄마가 도와줄 거예요", lv = 1),
@@ -268,7 +268,7 @@ private fun placePart(x: String, r: CoopReason, part: Int, spots: List<String>? 
             notHeard("뒷이야기", "어떻게 끝날지는 다녀와서 들려주기로 했어요"),
         )
         CoopReason.DREAM -> Body(
-            listOf("그다음에 무슨 일이 생겼을까?", choices("요정이 도와줬어", "혼자 해냈어", "모두 같이 했어", ask = "어떻게 됐을까?")),
+            listOf("그래서 어떻게 됐을까?", choices("요정이 도와줬어", "혼자 해냈어", "모두 같이 했어", ask = "어떻게 됐을까?")),
             listOf(
                 a("상자가 열렸어!", "상자가 열림", "드디어 보물 상자가 열렸어요", lv = 1),
                 a("요정이 도와줬어.", "요정이 도와줌", "작은 요정이 나타나 도와주었어요", lv = 1),
