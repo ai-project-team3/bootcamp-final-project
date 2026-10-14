@@ -1915,12 +1915,17 @@ internal fun echoBack(raw: String): String {
 
 /** 30분쯤 — 마무리를 **한 번** 제안한다. 더 하고 싶다면 계속한다. 되묻지 않는다 */
 private suspend fun Director.offerWrapUp(): Boolean {
+    val back = s.stage
     say("오늘 이야기 정말 많이 했다! 이제 그림일기로 만들어 볼까?")
+    inputs(mic = false, next = false)                   // 말이 아니라 화면 버튼으로 받는다 — 아이 말을 뜻으로 읽지 않는다
+    s.stage = DiaryWrapUp
     buttons(
         DemoBtn("🗣 \"응, 만들자\"") { send(Reply.Tapped("wrap", "응")) },
         DemoBtn("🗣 \"더 할래\"") { send(Reply.Tapped("more", "더 할래")) },
     )
     val wrap = awaitValue("wrap", "more") == "wrap"
+    buttons()
+    s.stage = back
     log(if (wrap) "30분 — 마무리 제안에 응 → 책으로" else "30분 — 더 하고 싶다 → 계속한다 (다시 제안하지 않는다)")
     if (!wrap) { say("좋아, 더 이야기해 줘!"); pause(600) }
     return wrap

@@ -539,6 +539,18 @@ class DiaryViewsTest {
         assertEquals("skip", (d.replyTo { compose.onNodeWithTag("diary-talk").performClick() } as? Reply.Tapped)?.value)
     }
 
+    /** 30분쯤 마무리 제안 — 화면에 [응, 만들자!] · [더 할래]. 10-14 실기기: 시연 서랍에만 있어 판이 멈췄다 */
+    @Test
+    fun theWrapUpIsAnsweredOnScreen() {
+        val d = director()
+        d.s.newDiaryDay()
+        d.s.stage = com.example.finalproject_demo.demo.DiaryWrapUp
+        d.say("오늘 이야기 정말 많이 했다! 이제 그림일기로 만들어 볼까?")
+        show(d)
+        assertEquals("wrap", (d.replyTo { compose.onNodeWithTag("diary-wrap").performClick() } as? Reply.Tapped)?.value)
+        assertEquals("more", (d.replyTo { compose.onNodeWithTag("diary-more").performClick() } as? Reply.Tapped)?.value)
+    }
+
     /** D4 — 흐린 아이 그림 위 「그림일기를 꿰매는 중…」 */
     @Test
     fun theBookIsStitchedOverTheDrawing() {
