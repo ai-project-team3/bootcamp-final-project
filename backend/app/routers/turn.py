@@ -179,6 +179,10 @@ def apply_act(act: Act | None, d: Decision | None, req: TurnRequest,
         # again on the phone once it applies `retract`)
         if recipe.question_slot:
             v = v.model_copy(update={"next_slot": recipe.question_slot})
+        # an act asks again (the slot taken back, the question after an answer back or 「뭐라고?」), so the story is not done on
+        # this turn — `story_ready` would also make shape() drop that question (#482: coop q05 · q06 · h05 · h06, 12 broken)
+        if v.story_ready:
+            v = v.model_copy(update={"story_ready": False})
     if act:
         log.info("dialogue act %s · retract %s", act, retract)
     return act, v, retract, recipe
