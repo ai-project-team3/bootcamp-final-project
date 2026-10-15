@@ -122,6 +122,9 @@ class DiaryDrawingTurnHistoryTest {
         assertEquals("오또가 실제로 한 말", "강아지가 공을 물고 도망갔구나.", piece.getJSONObject("otto").getString("ack"))
         assertEquals("빨간 공도 그렸네! 빨간 공 이야기 해 줄래?", piece.getJSONObject("otto").getString("question"))
         assertTrue(await { s.slots["problem"] == "고양이" } != null)
+        // the piece story also went to the book's `extra` as 「빨간 공: …」 — taken back with the slot, or 「강아지」 came back
+        // on another page (#494 · 10-14 device book)
+        assertTrue("고친 이야기가 책 재료에 남았다 — extra=${s.slots["extra"]}", "강아지" !in s.slots["extra"].orEmpty())
     }
 
     /** 그리는 중 붓을 멈췄을 때 물은 조각 이야기 — 오또는 구운 말로 받지만 기록에는 남는다 */
