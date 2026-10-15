@@ -9,6 +9,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.After
+import org.junit.Before
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -20,6 +22,11 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class FriendArtTest {
+    // The family dolls are baked (#520); pin it so the result does not depend on whether a MainActivity test ran first
+    private val hadArt = WorldStyle.has
+    @Before fun bakedDolls() { WorldStyle.has = { it.startsWith("dp_") } }
+    @After fun restoreArt() { WorldStyle.has = hadArt }
+
 
     private fun story(newcomer: String) = DemoState().apply {
         mode = StoryMode.STORY
@@ -61,7 +68,7 @@ class FriendArtTest {
         val c = coop("강아지").apply { generatedFriend = GeneratedFriend("강아지", "local:/x/dog.png", "quad") }
         assertEquals("local:/x/dog.png", (c.companionArt as Art.Img).name)
         c.companionKind = "할머니"
-        assertEquals("ic_p_grandma", (c.companionArt as Art.Img).name)
+        assertEquals("dp_grandma", (c.companionArt as Art.Img).name)
     }
 
     @Test
