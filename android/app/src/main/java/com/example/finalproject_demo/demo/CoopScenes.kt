@@ -203,6 +203,9 @@ private class CoopTrack {
     var lastAck: String? = null
     /** 받아주기 전에 한 번 부른 `/turn` — 수준 신호와 칸 값이 같이 쓴다(두 번 부르지 않는다). 아이 말이 키 */
     var liveTurn: LiveTurn? = null
+    /** The child's spoken turns that went to `/turn` — sent back as `history`, so the server can tell 「그거 아니야」 ·
+     *  「오또는 뭐 좋아해?」 · 「뭐라고?」 from an answer (#323). The app's own negations and child questions never get here */
+    val talk = mutableListOf<Server.HistoryTurn>()
     /** 지금 방식 · 바뀐 방식을 견주는 이야기 하나의 수치 (§11) — 끝날 때 `coop_session` 으로 남긴다 */
     val stats = CoopSessionStats()
     /** What the child asked Otto — never into a slot or the rejected list (#327 §1, the two bugs) */
@@ -261,6 +264,21 @@ internal class CoopSessionStats(val startedAt: Long = System.currentTimeMillis()
 
 /** 이 이야기의 수치 — 검사가 읽는다 */
 internal val DemoState.coopStats: CoopSessionStats? get() = trackByState[this]?.stats
+
+/** The value a slot held before the child's last turn that filled it — what a correction puts back. Null = empty it (#323) */
+private fun coopPrevOf(track: CoopTrack, slot: String): String? =
+    track.talk.asReversed().firstNotNullOfOrNull { h -> h.fills.lastOrNull { it.slot == slot } }?.prev
+
+/** One spoken turn for the history — the question, the child's words, Otto's reaction, the slots the judge filled and what they held (rule 5) */
+private fun Director.rememberCoopTurn(track: CoopTrack, asked: String?, question: String, said: String, turn: Server.TurnResult) {
+    val fills = turn.verdict?.fills.orEmpty().filter { (slot, v) -> slot in Server.SLOTS && slot != "extra" && v.isNotBlank() }
+        .map { (slot, v) -> Server.HistoryFill(slot, v.trim(), s.slots[slot]?.takeIf(String::isNotBlank)) }
+    track.talk += Server.HistoryTurn(
+        turn = track.talk.size + 1, askedSlot = asked?.takeIf { it in Server.SLOTS && it != "extra" },
+        otto = Server.OttoSaid(ack = coopServerReaction(turn.line), expand = null, question = question),
+        child = said.trim(), fills = fills, act = turn.act,
+    )
+}
 
 /** 진짜 마이크 답 하나에 부른 `/turn` 결과 — 서버가 꺼졌거나 응답이 없으면 [result] 가 null */
 private class LiveTurn(val utterance: String, val result: Server.TurnResult?)
@@ -540,7 +558,25 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
         }
         // 진짜 마이크 답이면 /turn 을 받아주기보다 먼저 부른다 — 받아주기에 서버 대사를 쓰려고 (10-05).
         // 수준 신호도 여기서 단다 — 공용 판정이 신호 없는 답을 늘 「내림」으로 세던 것 (CoopSignals.kt)
-        val live = if (r.isLiveSpeech()) coopLiveSignals(q, text, said.text, wild) else null
+        val live = if (r.isLiveSpeech()) coopLiveSignals(q, text, said.text, wild, history = negation == null) else null
+        // The server read it as no answer to this question (#323): a correction of a slot Otto wrote down, a question to Otto, or
+        // 「뭐라고?」. What the app catches itself (negations · child questions above) never sends history, so one place handles each
+        val act = if (live != null && negation == null) track.liveTurn?.result?.takeIf { it.act != null } else null
+        if (act != null) {
+            act.retract.filter { it in Server.SLOTS }.forEach { gone -> restoreDiarySlot(gone, gone, coopPrevOf(track, gone)) }
+            rememberCoopTurn(track, step?.slot, text, said.text, act)
+            // not this step's answer — never kept as a rejected answer (it would become the slot value at the ladder's end)
+            track.notRejectedAt = key
+            // a question to Otto or 「뭐라고?」 is not a slot answer either — the step is asked again on the next rung
+            if (act.act != "repair") track.childAsked += said.text.trim()
+            val opener = when (act.act) { "repair" -> SORRY_LINE; "rephrase" -> ASK_AGAIN_LINE; else -> null }
+            val reply = coopServerReaction(act.line)?.let { spokenWithPeople(it, s.companionKind) } ?: opener ?: "그렇구나!"
+            log("[$key] /turn act ${act.act} · retract ${act.retract} → 「$reply」 (#323)")
+            event("coop_dialogue_act", "act" to act.act.orEmpty(), "retract" to act.retract.joinToString("|"))
+            track.lastAck = reply; say(reply); pause(700)
+            return said.copy(answer = live)
+        }
+        if (live != null && negation == null) track.liveTurn?.result?.let { rememberCoopTurn(track, step?.slot, text, said.text, it) }
         // A correction of a filled slot overwrites it — only when the denied name is that slot's value and the judge filled the same slot (⚖️4)
         val fixed = (negation as? CoopReply.Corrected)?.denied?.let { coopOverwriteCorrected(key, it) }
         if (fixed != null) track.notRejectedAt = key
@@ -682,14 +718,14 @@ private fun coopAnswerChildQuestion(kind: CoopReply, asked: String, ladder: List
  * 진짜 마이크 답의 수준 신호. 서버를 켰으면 `/turn` 을 **여기서 한 번** 부르고(받아주기 전 — 서버의 받아주기 · 되돌려주기를 말하려고, 10-05)
  * 그 결과를 [coopLiveValue] 가 칸 값에 다시 쓴다. 「몰라」 · 되돌릴 엉뚱한 답이면 전처럼 부르지 않는다.
  */
-private suspend fun Director.coopLiveSignals(q: Question, question: String, said: String, wild: Boolean): Answer {
+private suspend fun Director.coopLiveSignals(q: Question, question: String, said: String, wild: Boolean, history: Boolean = false): Answer {
     val text = said.trim()
     val step = COOP_STEPS.firstOrNull { "diary_${it.bookKey}" == q.id }
     // 한 번 거절된 말을 똑같이 다시 했으면 판정을 다시 부르지 않는다 — coopLiveValueAsSaid 가 아이 말로 받는다 (10-06 조장)
     val repeated = step != null && s.coopRejectedAnswer(step)?.let { sameSyllables(it, text) } == true
     val turn = if (step != null && !wild && !repeated && !isNonAnswer(text) && Server.liveFor(s.mode)) {
         val asked = step.slot.takeIf { it in Server.SLOTS && it != "extra" }
-        s.exchangeTurn("coop", asked, question, text)
+        s.exchangeTurn("coop", asked, question, text, history = if (history) s.coopTrack.talk.toList() else null)
     } else null
     s.coopTrack.liveTurn = LiveTurn(text, turn)
     val a = coopSignals(text, question, turn?.verdict)
