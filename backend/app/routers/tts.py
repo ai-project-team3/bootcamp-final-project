@@ -8,9 +8,12 @@ Nothing sent here may contain a real name: names are masked on the phone and
 the mascot's lines are written not to say the child's name (0928 agenda §4-1).
 """
 import asyncio
+import hashlib
+import json
 import logging
 import struct
 import time
+from collections import OrderedDict
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -34,6 +37,51 @@ class TtsRequest(BaseModel):
     # 10-06: "typecast" only when the guardian gave the optional consent (third-party provision).
     # Without it this family's lines never go to TypeCast, whatever TTS_PROVIDER says.
     provider: str | None = None
+
+
+class _VoiceCache:
+    """The same words in the same voice are bought once (10-14 · #461).
+
+    Lines repeat across children — the judge's common questions, an app line not baked yet, 「앗, 오또 귀가…」 —
+    and each one went to the vendor again. Kept **in memory only**: never written to disk, gone on a restart,
+    each entry dropped after `tts_cache_ttl_s` and the oldest first past `tts_cache_items`. The key is a hash of
+    the text and every voice setting, so a changed voice never plays an old clip; the text itself is not kept.
+    """
+
+    def __init__(self) -> None:
+        self._d: OrderedDict[str, tuple[float, bytes, str]] = OrderedDict()
+
+    @staticmethod
+    def key(req: "TtsRequest", order: list[str]) -> str:
+        voice = [settings.openai_tts_model, settings.openai_tts_voice, settings.openai_tts_instructions,
+                 settings.typecast_voice_id, settings.typecast_model, settings.typecast_emotion, settings.typecast_tempo,
+                 settings.elevenlabs_model, settings.elevenlabs_voice_id]
+        raw = json.dumps([order, voice, req.voice_id, req.previous_text, req.next_text, req.text], ensure_ascii=False)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def get(self, k: str) -> tuple[bytes, str] | None:
+        hit = self._d.get(k)
+        if hit is None:
+            return None
+        if time.monotonic() - hit[0] > settings.tts_cache_ttl_s:
+            del self._d[k]
+            return None
+        self._d.move_to_end(k)
+        return hit[1], hit[2]
+
+    def put(self, k: str, audio: bytes, provider: str) -> None:
+        if settings.tts_cache_items <= 0:
+            return
+        self._d[k] = (time.monotonic(), audio, provider)
+        self._d.move_to_end(k)
+        while len(self._d) > settings.tts_cache_items:
+            self._d.popitem(last=False)
+
+    def clear(self) -> None:
+        self._d.clear()
+
+
+_cache = _VoiceCache()
 
 
 def _silence_wav(seconds: float = 0.3, rate: int = 16000) -> bytes:
@@ -60,6 +108,12 @@ async def speak(req: TtsRequest) -> Response:
     if not consented:
         order = [p for p in order if p != "typecast"] or ["openai"]       # no consent, nothing to TypeCast
     t0 = time.monotonic()
+    key = _cache.key(req, order)
+    if (hit := _cache.get(key)) is not None:
+        audio, provider = hit
+        log.info("tts cache hit · %d chars", len(req.text))
+        # X-Otto-TTS-Cache: the spend cap (app/limits.py) does not count a line it did not buy
+        return Response(audio, media_type="audio/mpeg", headers={"X-Otto-TTS": provider, "X-Otto-TTS-Cache": "hit"})
     last: HTTPException | None = None
     for i, provider in enumerate(order):
         left = settings.tts_deadline_s - (time.monotonic() - t0)
@@ -77,6 +131,7 @@ async def speak(req: TtsRequest) -> Response:
                 provider, req.voice_id or settings.typecast_voice_id)
             log.info("tts %s · voice %s · %.2fs · %d chars%s", provider, voice, time.monotonic() - t0,
                      len(req.text), " · after a fallback" if i else "")
+            _cache.put(key, audio, provider)
             return Response(audio, media_type="audio/mpeg", headers={"X-Otto-TTS": provider})
         except HTTPException as e:
             log.warning("tts %s failed: %s", provider, e.detail)
