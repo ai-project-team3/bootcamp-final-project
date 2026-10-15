@@ -445,7 +445,7 @@ private suspend fun Director.keepUntoldStory(day: DiaryDay, r: Reply.Spoke, otto
         fun keep(filled: List<Server.HistoryFill>) =
             result?.let { remember(day, "", ottoBefore, said, filled, it.act, "그렇구나! 계속 그려 봐.") }
         if (notDiaryTalk(result)) { log("그리는 중 「$said」 — 오또에게 한 말(${result?.act}) → 책 재료에 쌓지 않는다 (#323)"); keep(emptyList()); return }
-        result?.retract?.forEach { gone -> restoreDiarySlot(gone, bookKeyOf(gone, ""), prevOf(day, gone)) }
+        result?.retract?.forEach { gone -> retractDiarySlot(day, gone, bookKeyOf(gone, "")) }
         keep(v?.let { historyFills(it, "") }.orEmpty())               // 채우기 전에 — 덧붙인 칸의 앞 값이 `prev`
         val fills = v?.fills.orEmpty().filter { (slot, value) -> slot in Server.SLOTS && value.isNotBlank() }
         if (fills.isNotEmpty()) {
@@ -580,7 +580,7 @@ private suspend fun Director.askStoryWhileDrawing(day: DiaryDay, story: Triple<S
         val result = s.exchangeTurn("diary", slot, text, said, history = day.talk.toList())
         val v = result?.verdict
         if (v != null && v.reason != "blocked_by_filter") {
-            result.retract.forEach { gone -> restoreDiarySlot(gone, bookKeyOf(gone, key), prevOf(day, gone)) }
+            result.retract.forEach { gone -> retractDiarySlot(day, gone, bookKeyOf(gone, key)) }
             val filled = historyFills(v, key)
             fillFromVerdict(day, v, r, key)
             nameBackdrop(day, ring, key, said)
@@ -1457,6 +1457,22 @@ private fun notDiaryTalk(result: Server.TurnResult?): Boolean = result?.act == "
 private fun prevOf(day: DiaryDay, slot: String): String? =
     day.talk.asReversed().firstNotNullOfOrNull { h -> h.fills.lastOrNull { it.slot == slot } }?.prev
 
+/**
+ * 아이가 틀렸다고 한 칸을 되돌린다 — 그 칸을 채운 턴이 책 재료(`extra`)에도 같은 말을 쌓았으면(조각 이야기 「이름: 말」) 그 줄도 뺀다.
+ * 10-14 실기기 책: 문제 칸은 고쳤는데 「빨간 공: 강아지가 공을 물고 도망갔어」가 남아 다른 쪽에 「강아지」가 다시 나왔다 (#494).
+ * 아이 말을 읽는 게 아니라 그 턴에 우리가 쌓은 줄을 그대로 찾는다
+ */
+private fun Director.retractDiarySlot(day: DiaryDay, slot: String, bookKey: String) {
+    val said = day.talk.lastOrNull { h -> h.fills.any { it.slot == slot } }?.child?.trim().orEmpty()
+    restoreDiarySlot(slot, bookKey, prevOf(day, slot))
+    val extra = s.slots["extra"]?.takeIf { said.isNotEmpty() } ?: return
+    val lines = extra.split(" / ")
+    val kept = lines.filterNot { it == said || it.endsWith(": $said") }
+    if (kept.size == lines.size) return
+    if (kept.isEmpty()) { s.slots.remove("extra"); s.slotBy.remove("extra") } else s.slots["extra"] = kept.joinToString(" / ")
+    log("칸 [$slot] 을 되돌리며 같은 턴에 책 재료에 쌓은 「$said」도 뺐다 (#494)")
+}
+
 /** 서버가 쓴 받아 주기 — 기록에 남길 「오또가 한 말」 */
 private fun ottoAck(result: Server.TurnResult): String? =
     listOfNotNull(result.line?.ack, result.line?.expand).filter(String::isNotBlank).joinToString(" ").ifBlank { null }
@@ -1623,7 +1639,7 @@ private suspend fun Director.askEmptySlotsLive() {
             continue
         }
         // 아이가 틀렸다고 한 칸부터 되돌린다 — 같은 턴의 새 값은 그 뒤에 채운다 (#323)
-        result.retract.forEach { gone -> restoreDiarySlot(gone, bookKeyOf(gone, key), prevOf(day, gone)) }
+        result.retract.forEach { gone -> retractDiarySlot(day, gone, bookKeyOf(gone, key)) }
         val filled = historyFills(v, key)
         fillFromVerdict(day, v, r, key)
         val act = result.act
