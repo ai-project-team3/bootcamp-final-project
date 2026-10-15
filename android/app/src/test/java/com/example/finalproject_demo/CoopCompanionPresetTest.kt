@@ -118,7 +118,7 @@ class CoopCompanionPresetTest {
             coopFill("{place:에서} 놀았어?", mapOf("place" to "사자 우리, 기린 마당")))
     }
 
-    /** The diary keeps its matching rule (⚖️4 · Jinwoong) — a name containing a preset word keeps that preset; family now draws the baked doll like dp_teacher */
+    /** The non-co-op matching rule is unchanged (⚖️4 · Jinwoong) — a name containing a preset word keeps that preset. Only the data value is dp_ now: the picture diary (sceneDiary → pictureDiary) never draws a companion doll */
     @Test
     fun theDiaryKeepsItsPresets() {
         assertEquals("dp_mom", name(companionPreset("엄마 친구 강아지")))
