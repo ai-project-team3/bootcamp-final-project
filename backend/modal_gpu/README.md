@@ -1,23 +1,41 @@
-# 다시 그리기 GPU (Modal) — #460 ⑥
+# 그림 GPU (Modal) — #460 ⑥
 
-그림일기 「오또가 그려 줘」(`/image` `kind: redraw`)를 PC2 대신 **우리 계정의 Modal L4**에서 그린다. **기본은 꺼져 있다.** `REDRAW_MODAL_URL`이 비어 있으면 지금처럼 PC2 ComfyUI로 간다. 배경과 인물은 이 설정과 상관없이 늘 PC2로 간다.
+그림을 PC2 대신 **우리 계정의 Modal L4**에서 그린다. **기본은 꺼져 있다.** `REDRAW_MODAL_URL`이 비어 있으면 지금처럼 모든 그림이 PC2 ComfyUI로 간다.
+
+켜면 어떤 그림을 Modal로 보낼지 `MODAL_KINDS`로 고른다(쉼표로 구분).
+
+| `MODAL_KINDS` | Modal로 가는 그림 | 나머지 |
+|---|---|---|
+| `redraw` (기본) | 「오또가 그려 줘」(`/image` `kind: redraw`) — #471 그대로 | 배경 · 인물은 PC2 |
+| `redraw,background,character` | 세 가지 모두 | 없음 — 서버 시작할 때 PC2 데우기도 안 한다 |
+
+이름이 `REDRAW_…`인 것은 다시 그리기가 먼저 들어왔기 때문이다(#471). 주소 · 키 하나로 세 가지를 다 그린다.
 
 | 파일 | 하는 일 |
 |---|---|
 | `otto_redraw_modal.py` | Modal 앱. Server 방식(`@app.server`), L4, 메모리 스냅샷. ComfyUI 노드를 같은 프로세스에서 부르고, 모델 볼륨은 읽기 전용 |
-| `web.py` | `/wake` · `/draw`. 본문을 로그에 남기지 않고, 실패해도 예외 이름만 돌려준다. `modal` 없이 돌아서 백엔드 테스트(`tests/test_redraw_modal.py`)가 바로 부른다 |
+| `web.py` | `/wake` · `/draw`. 컨테이너 하나에서 한 장씩 그린다. 본문을 로그에 남기지 않고, 실패해도 예외 이름만 돌려준다. `modal` 없이 돌아서 백엔드 테스트(`tests/test_redraw_modal.py`)가 바로 부른다 |
 
 ## 왜 Server 방식인가
 Modal은 `@modal.fastapi_endpoint`(Web Function)의 입력과 출력을 **최대 7일 보관**한다. Server 방식은 요청을 **저장하지 않고 컨테이너로 바로 넘긴다**(10-13 확인, `docs/그림생성_API_조사_410.md` §0-5 ④). 아이 그림 원본이 Modal에 남지 않게 하려고 Server 방식을 쓴다.
 
-## 켜는 법
-1. `modal run backend/modal_gpu/otto_redraw_modal.py::download_models`: 모델을 볼륨에 받는다. 한 번만 하면 된다
-2. `modal deploy backend/modal_gpu/otto_redraw_modal.py`: 출력의 Server 주소를 적어 둔다
-3. Modal 대시보드에서 Proxy Auth Token을 만든다
-4. 서버 `.env`에 `REDRAW_MODAL_URL` · `REDRAW_MODAL_KEY` · `REDRAW_MODAL_SECRET`를 넣고 백엔드를 다시 띄운다
+배경 · 인물도 같은 길로 간다. 백엔드가 그래프의 `SaveImage`를 `OttoReturnImageB64`로 바꾸고(`comfy.memory_graph`), 인물의 자세 틀(마네킹)은 업로드하지 않고 그래프 안에 넣어 보낸다. 그래서 Modal 쪽은 파일을 하나도 쓰지 않는다.
+
+## 처음 켜는 법 (계정마다 한 번)
+돈이 드는 단계(★)는 무료 크레딧 안에서 한다. 토큰 · 키는 채팅이나 이슈에 붙이지 않는다.
+
+1. **계정과 CLI**: modal.com에 가입하고 `pip install modal` → `modal token new`. 브라우저로 로그인하면 토큰이 내 PC의 `~/.modal.toml`에 저장된다
+2. ★ **모델 받기**: `modal run backend/modal_gpu/otto_redraw_modal.py::download_models`. 내 계정에 `otto-models` 볼륨을 만들고 SDXL base와 Lightning 8-step(약 7GB)을 받는다. 공개 모델이라 Hugging Face 토큰은 필요 없다. 계정마다 한 번만 하면 된다
+3. ★ **배포**: `modal deploy backend/modal_gpu/otto_redraw_modal.py`. 출력에 나오는 Server 주소를 적어 둔다. 배포 직후 첫 컨테이너는 스냅샷을 만드느라 약 5분 걸린다
+4. **인증 토큰**: Modal 대시보드 Settings → Proxy Auth Tokens에서 새 토큰을 만든다. Server 방식은 이 토큰이 없는 요청을 기본으로 거절한다(401)
+5. **백엔드 `.env`**: `REDRAW_MODAL_URL`(3번 주소) · `REDRAW_MODAL_KEY` · `REDRAW_MODAL_SECRET`(4번 토큰) · `MODAL_KINDS`를 넣고 백엔드를 다시 띄운다
+
+계정을 바꿀 때는 새 계정에서 1~5번을 다시 한다. 앱 이름(`otto-redraw`)을 바꿀 때는 `otto_redraw_modal.py`의 `modal.App(...)` 이름을 바꿔 다시 배포하고, 새 주소를 `REDRAW_MODAL_URL`에 넣는다. 볼륨 이름은 그대로라 모델을 다시 받지 않는다.
 
 ## 동작
-- 그림일기 `/turn`이 올 때마다 백엔드가 `/wake`를 부른다(10초에 한 번까지). 그래서 아이가 그리는 동안 GPU가 켜져 있다
-- 그림일기가 끝나면 1분 뒤(`scaledown_window=60`) GPU가 꺼진다. 켜져 있던 시간만 과금된다
-- 실측(10-13): 켜져 있을 때 한 장에 3.0~3.3초, 책 내내 켜 두면 4/4가 45초 안에 들었다. 권당 약 150~180원이다
-- 컨테이너가 아직 없으면 프록시가 503을 돌려준다. 백엔드는 45초 기한 안에서 다시 시도하고, 기한을 넘기면 프리셋을 쓴다(규칙 8)
+- `/turn`이 올 때마다 백엔드가 `/wake`를 부른다(10초에 한 번까지). 그래서 책을 만드는 동안 GPU가 켜져 있다. 다시 그리기만 켰으면 그림일기에서만 깨우고, 배경이나 인물을 켰으면 모든 모드에서 깨운다
+- 책이 끝나면 1분 뒤(`scaledown_window=60`) GPU가 꺼진다. 켜져 있던 시간만 과금된다
+- 최대 대수는 2대(`max_containers=2`), 상시 켜 두는 대수는 0대다
+- 실측(10-13): 켜져 있을 때 다시 그리기 한 장 3.0~3.3초, 배경 p50 5.26초, 인물 p50 4.75초(한국에서 보낸 왕복 포함). 책 내내 켜 두면 다시 그리기 4/4가 45초 안에 들었다. 그림일기 권당 약 150~180원이다
+- 컨테이너가 아직 없으면 프록시가 503을 돌려준다. 백엔드는 기한(배경 · 인물 13초, 다시 그리기 45초) 안에서 다시 시도하고, 넘기면 프리셋을 쓴다(규칙 8)
+- ⚠️ 꺼진 데서 첫 배경 · 인물은 13초를 거의 못 지킨다(1/8, §0-5 ①). 첫 `/turn` 전에 필요한 그림(협업 첫 장소 · 동화 주인공)은 프리셋이 나올 수 있다. 책을 시작할 때 미리 깨우면 첫 배경 전에 6/8이 준비됐다(§7-2 ②). 이건 앱이 책 시작에 서버를 불러야 해서 이번에는 넣지 않았다
