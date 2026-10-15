@@ -258,20 +258,29 @@
 
 <header class="cover">
   <div class="wrap wide">
-    <div class="eyebrow">쉽게 풀어쓴 버전 · 2026-10-07 ~ 10-12 · 치영 · #324 · 숫자 정본 <code>eval/results.md</code></div>
+    <div class="eyebrow">쉽게 풀어쓴 버전 · 2026-10-07 ~ 10-15 · 치영 · #324 · 숫자 정본 <code>eval/results.md</code></div>
     <h1>아이 말을 듣고 「어느 칸을 채웠나」 판정하는 AI를 우리 컴퓨터로 옮겨봤다</h1>
     <p class="lede">
-      지금 판정은 미국 회사 AI(Jev)를 빌려 쓴다. 이걸 <b>우리 서버에서 돌아가는 작은 AI(라야)</b>로 바꾸려고,
-      학습 데이터를 직접 만들어 여섯 번(v1~v6) 가르쳤다. 결과는 <b>Jev와 같거나 나은 정확도</b> — 그런데 대조군을 돌려 보니
+      판정은 미국 회사 AI(Jev)를 빌려 쓴다. 이걸 <b>우리 서버에서 돌아가는 작은 AI(라야)</b>로 바꾸려고,
+      학습 데이터를 직접 만들어 본 모델을 여섯 번(v1~v6), 그래픽카드 없이 도는 작은 모델을 한 번(s6) 가르쳤다. 결과는 <b>같은 조건으로 맞추면 Jev와 비기는 정확도</b> — 그런데 대조군을 돌려 보니
       <b>정확도를 만든 건 모델이 아니라 우리가 만든 데이터</b>였다.
       서버에 켜고 폰으로 해 보니 <b>질문만 보고 답하는 지름길</b>이 드러나, 다섯 번째(v5)로 고쳐 10-09부터 10-12까지 썼다.
-      그리고 10-12, 앱이 클라우드로 가면 그래픽카드를 늘 켜 두기 어려워서 <b>판정을 다시 Jev로 되돌렸다</b> — 라야는 설정 하나로 다시 켤 수 있게 남겨 두었다.
+      그리고 10-12, 앱이 클라우드로 가면 그래픽카드를 늘 켜 두기 어려워서 <b>판정을 다시 Jev → 루나로 되돌렸다</b>.
+      라야 코드와 서버 옆 컨테이너(사이드카)는 지우지 않아, 그래픽카드가 생기면 설정으로 다시 켠다.
+      되돌린 뒤에는 라야에서 배운 것을 <b>Jev 쪽에 옮겨</b> 고쳤다 — 다음 칸 규칙, 물은 칸과 다른 답, 부하 시험, 인형 · 동물 동행(10-12 ~ 10-15).
     </p>
     <div class="stat-row">
       <div class="stat"><div class="n">19.1%</div><div class="l">가르치기 전 라야 (9필드)</div></div>
-      <div class="stat"><div class="n accent">96.0%</div><div class="l">라야 v5 (같은 100문항) · 같은 조건(문턱 · 규칙)으로 맞추면 Jev와 비김(+0.8점)</div></div>
-      <div class="stat"><div class="n">88.6%</div><div class="l">Jev (같은 100문항)</div></div>
-      <div class="stat"><div class="n">0바이트</div><div class="l">라야로 판정할 때 밖으로 나가는 아이 말 (이야기 모드 · 판정 단계)</div></div>
+      <div class="stat"><div class="n accent">96.0%</div><div class="l">라야 v5 (같은 100문항 · 문턱 없이). 같은 조건이면 비김 — 라야 v3 문턱 0.9 95.1% 대 Jev+규칙 94.3%(+0.8점)</div></div>
+      <div class="stat"><div class="n">88.6%</div><div class="l">Jev (같은 100문항 · 규칙 없이)</div></div>
+      <div class="stat"><div class="n">0바이트</div><div class="l">라야로 판정할 때 밖으로 나가는 아이 말 (이야기 모드 · 판정 단계). 지금 출시 구성(Jev)은 해당 없음</div></div>
+    </div>
+    <p class="cite" style="margin:18px 0 8px">10-12 이후 — 지금 쓰는 Jev 쪽</p>
+    <div class="stat-row">
+      <div class="stat"><div class="n accent">10 → 0</div><div class="l">동화 24번 중 루나로 넘어간 판정 (다음 칸 규칙 #430)</div></div>
+      <div class="stat"><div class="n accent">9 → 23</div><div class="l">물은 칸과 다른 답 57문항 중 찾음 (그림일기 · 같이 만들기 #444)</div></div>
+      <div class="stat"><div class="n">0 / 1,565</div><div class="l">Jev 단독 부하 실패 (초당 15번까지 · p95 0.26초)</div></div>
+      <div class="stat"><div class="n">꺼짐</div><div class="l">확신 낮은 턴 루나 두 번째 의견 (#500 · 기본 꺼짐)</div></div>
     </div>
   </div>
 </header>
@@ -390,7 +399,7 @@
           <div class="tl-date">10-08</div>
           <h3 class="tl-title">공정하게 다시 비교 — Jev에도 같은 규칙을 붙이면?</h3>
           <div class="tl-body">
-            <p>라야는 「다음에 물을 칸」 · 「이야기 다 찼나」를 <b>규칙</b>으로 정한다. 조장이 올린 Jev 원본(#330)에 같은 규칙을 붙이니 <b>운영 중인 Jev도 87.0% → 94.3%</b>. 운영 조건끼리 비교하면 라야 95.1% — 차이 +0.8점, 95% 구간 [−0.9, +2.6]으로 <b>비김</b>. 덤으로 「규칙만 붙여도 지금 Jev가 7점 오른다」는 걸 알았다.</p>
+            <p>라야는 「다음에 물을 칸」 · 「이야기 다 찼나」를 <b>규칙</b>으로 정한다. 조장이 올린 Jev 원본(#330)에 같은 규칙을 붙이니 <b>운영 중인 Jev도 87.0% → 94.3%</b>. 운영 조건끼리 비교하면 라야(v3 · 문턱 0.9) 95.1% — 차이 +0.8점, 95% 구간 [−0.9, +2.6]으로 <b>비김</b>. 덤으로 「규칙만 붙여도 지금 Jev가 7점 오른다」는 걸 알았다.</p>
             <span class="chip ref">참고 — 팀 전체에 쓸 이득</span>
           </div>
         </div>
@@ -524,9 +533,101 @@
           <div class="tl-date">10-12 오후</div>
           <h3 class="tl-title">판정을 다시 Jev로 — 클라우드에서는 그래픽카드를 늘 켜 둘 수 없다</h3>
           <div class="tl-body">
-            <p>앱은 결국 클라우드 서버로 옮긴다. 라야는 그래픽카드가 있어야 빠른데(없으면 한 번에 약 2초), 그래픽카드를 늘 켜 두는 서버는 비싸다. 정확도는 세 모드 모두 Jev와 비기고 속도도 비슷하니, <b>출시 구성은 Jev → 루나</b>로 맞추기로 했다(멘토 권장). 서버에서 라야를 끄고 그래픽카드 메모리 1.7GB를 돌려놓았다. <b>지우지는 않았다</b> — 설정 한 줄과 명령 하나로 다시 켜진다. 그래픽카드 없이도 도는 작은 라야를 따로 가르치는 중이고, 합격선을 넘으면 다시 켠다.</p>
-            <p>되돌리고 나서 본 것: 같은 이야기 문장을 Jev에게 5번 보내면 <b>2번은 「다음에 뭘 물을지」를 못 정해 큰 AI(루나)로 넘어갔다</b>(2.3~3.5초). 라야 쪽은 이걸 규칙으로 정해서 10-09 ~ 10-12 폰 76턴에 1번뿐이었다. ⑦에서 본 「규칙만 붙여도 Jev가 7점 오른다」는 아직 Jev 쪽에 안 들어가 있다.</p>
+            <p>앱은 결국 클라우드 서버로 옮긴다. 라야는 그래픽카드가 있어야 빠른데(없으면 한 번에 약 2초), 그래픽카드를 늘 켜 두는 서버는 비싸다. 정확도는 세 모드 모두 Jev와 비기고 속도도 비슷하니, <b>출시 구성은 Jev → 루나</b>로 맞추기로 했다(멘토 권장). 서버에서 라야를 끄고 그래픽카드 메모리 1.7GB를 돌려놓았다. <b>지우지는 않았다</b> — 설정 한 줄과 명령 하나로 다시 켜진다. 같은 날 그래픽카드 없이도 도는 작은 라야를 따로 가르쳤다(아래).</p>
+            <p><b>CPU용 작은 라야(s6 · 크기 약 1/4)</b>: v6와 같은 데이터로 테스트 PC에서 가르쳐 10-12 16:24에 끝났다. 동화 시험 100문항 <b>95.2%</b>(v5 96.0%) · 질문과 다른 답 맞힘 80% · 베끼기 11%(v5 79% · 15%) · 그림일기 · 같이 만들기 203문항 70.9%(v5 73.9%) · CPU 4스레드 한 번 0.40초 · 메모리 약 1.3GB · 파일 289MB. 미리 정한 합격선(CPU 0.4초 이하 · p95 0.8초 이하 · 동화 94.3 이상 · 다른 답 79% 이상 · 모드 약속 깨짐 0) 중 <b>모드 약속 깨짐이 2라 미달</b>이다(p95는 기록이 없다). 10-13 출시 구성을 Jev → 루나로 확정하면서 s6는 CPU 대비용으로 보관만 하고 서버에는 올리지 않았다. 그림일기 · 같이 만들기의 「물은 칸과 다른 칸」 41문항은 v5 7 · s6 1 · Jev 5로, 학습 데이터에 그런 줄이 거의 없던 탓이다.</p>
+            <p>되돌리고 나서 본 것: 같은 이야기 문장을 Jev에게 5번 보내면 <b>2번은 「다음에 뭘 물을지」를 못 정해 큰 AI(루나)로 넘어갔다</b>(2.3~3.5초). 라야 쪽은 이걸 규칙으로 정해서 10-09 ~ 10-12 폰 76턴에 1번뿐이었다. 그래서 ⑦에서 본 「규칙만 붙여도 Jev가 7점 오른다」를 그날 Jev 쪽에 옮겼다(⑲).</p>
             <span class="chip good">지금 쓰는 것 — Jev → 루나 (라야는 꺼 둠)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-item verdict-good">
+        <div class="tl-rail"><div class="tl-dot">19</div><div class="tl-line"></div></div>
+        <div>
+          <div class="tl-date">10-12 저녁 (#411 · #430 병합 · 21:13 서버 배포)</div>
+          <h3 class="tl-title">라야가 쓰던 「다음에 물을 칸」 규칙을 Jev에도 붙임</h3>
+          <div class="tl-body">
+            <p>라야는 「이야기가 끝났나」 · 「다음에 뭘 물을까」를 모델 대신 <b>규칙</b>으로 정했다. 이 규칙을 따로 떼어 Jev 경로에도 붙였다 — 그림일기 · 같이 만들기는 끝과 다음 칸을 모두 규칙으로(#411), 동화는 Jev가 다음 칸을 비웠을 때만 규칙이 채운다(#430). 동화는 템플릿마다 필수 칸이 달라서 규칙을 다 씌우지 않았다.</p>
+            <p>바닷속 동화 8턴을 턴마다 3번, 모두 24번 보내 보니 <b>루나로 넘어간 판정이 10번 → 0번</b>이 됐다(넘어가면 한 턴이 2.7~4.8초 늦었다 · 배포 뒤 판정 0.24~0.56초). 폰으로 동화 한 판을 다시 하니 루나로 넘어간 턴이 6 → 1(결말 턴 · 설계대로)이고, 결말 턴을 뺀 서버 한 턴 처리 시간 가운데 값이 <b>5.5초 → 3.1초</b>로 줄었다.</p>
+            <span class="chip good">서버에 반영 — 루나로 넘어가는 턴이 거의 사라짐</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-item verdict-good">
+        <div class="tl-rail"><div class="tl-dot">20</div><div class="tl-line"></div></div>
+        <div>
+          <div class="tl-date">10-13 (#444 병합 · 19:22 서버 배포)</div>
+          <h3 class="tl-title">물은 칸과 다른 답 — Jev 질문 문구를 바꿔 찾게 함 (그림일기 · 같이 만들기)</h3>
+          <div class="tl-body">
+            <p>⑰에서 Jev도 라야도 못 푼 「물은 칸과 다른 답」을 Jev 쪽에서 다시 봤다. 같은 203문항(이번 나눔: 다른 칸 답 57 · 물은 칸 답 126 · 정답 없음 20)을 운영 컨테이너 안에서 문구만 바꿔 다섯 갈래로 풀렸다. 「물은 칸과 달라도 된다」 한 줄에 칸 설명(같이 간 사람에 가족, 마음 · 까닭 · 결말에 아이 말 예시)을 더한 문구가 <b>다른 칸 답 9 → 23</b>(57 중), 전체 맞음 153 → 160, 물은 칸으로 잘못 넣음 7 → 5. 실기기에서 모은 아이 말 11개는 4 → 7개 맞음.</p>
+            <p>같은 문구를 동화에 쓰면 78 → 68로 떨어져서(확신이 문턱 아래로 내려감) <b>그림일기 · 같이 만들기에만</b> 썼다. 루나는 같은 시험에서 41/57이었지만 루나 프롬프트는 고치지 않았다. 문턱은 0.6 그대로 — 0.5로 낮추면 다른 칸을 30까지 찾지만 틀린 칸이 8 → 13으로 는다.</p>
+            <span class="chip good">서버에 반영 — 그림일기 · 같이 만들기만</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-item verdict-ref">
+        <div class="tl-rail"><div class="tl-dot">21</div><div class="tl-line"></div></div>
+        <div>
+          <div class="tl-date">10-13 저녁 · 10-14 (#459 · #470 · #501)</div>
+          <h3 class="tl-title">배포 뒤 폰으로 — 실제 대화 간격의 Jev 판정 · 첫 목소리까지</h3>
+          <div class="tl-body">
+            <p>#444 배포 뒤 같이 만들기 한 판(9턴)에서 다른 칸으로 답한 4개 중 <b>3개를 찾았다</b>(까닭 · 마음 · 결말). 10-13 새벽에 놓쳤던 「아빠」는 확신 0.95로 들어갔다. 빈 칸이 된 두 턴은 Jev가 「해당 없음」을 고른 게 아니라 <b>문턱 바로 아래</b>(0.49 · 0.51)였다 — 한 말에 두 칸을 담은 경우와 물은 칸 답이다.</p>
+            <p>이번엔 Jev 판정 시간을 <b>실제 대화 간격으로</b> 처음 쟀다 — 9번 모두 0.22~0.28초(라야 v5의 10-09 ~ 10-12 실기기 판마다 가운데 값은 0.33~0.37초). 아이 대답이 앱에 들어온 때부터 첫 대사 목소리가 나올 때까지는 이 판 앞 6턴이 <b>4.0~6.1초</b>(발표 덱 숫자), 10-14 다섯 판을 더한 56턴은 가운데 5.0초 · 90%가 6.0초 이하였다. 대답을 글자로 넣어 받아쓰기는 빠진 값이다 — 받아쓰기까지 넣은 한 판은 말 끝 → 첫 목소리 7.1~9.5초, 가운데 약 8.3초(계산)였다.</p>
+            <span class="chip ref">참고 — 발표 덱 「첫 목소리까지」의 근거</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-item verdict-good">
+        <div class="tl-rail"><div class="tl-dot">22</div><div class="tl-line"></div></div>
+        <div>
+          <div class="tl-date">10-13 밤 ~ 10-14 (#474 · #483 · #487)</div>
+          <h3 class="tl-title">여러 집이 한꺼번에 써도 버티나 — 부하 시험</h3>
+          <div class="tl-body">
+            <p><b>루나 쪽</b>(테스트 PC · 운영 서버는 안 부름 · Jev는 0.25초짜리 가짜): 같이 만들기를 동시에 10 · 20 · 30세션 돌려도 거절(429) · 서버 오류(502) · 판정 빔은 <b>모두 0</b>. 모든 세션이 같은 순간에 몰리면 한 턴 가운데 값이 6.4초까지 늘었다. Jev가 다 실패해 루나가 판정까지 하는 가장 나쁜 경우도 거절 0. 대사가 「JSON이 아님」으로 빠진 턴은 동시 수와 상관없이 약 11%(700턴 중 75)였고, 원문을 보니 <b>대사는 온전한데 끝에 군더더기가 붙은 것</b>이라 첫 덩어리만 읽으면 8개 모두 정상이었다(#483 · 고치는 일은 #376).</p>
+            <p><b>Jev 단독</b>(서버 PC · 운영 컨테이너 안에서 Jev만 직접): 「가정당 한 달 12권 · 저녁 2시간에 몰림」 가정으로 속도를 정했다 — 초당 0.3번 ≈ 1,000가정, 초당 3번 ≈ 10,000가정. <b>초당 15번(그 5배)까지 1,565번 불러 실패 0 · 거절 0</b>, 가운데 0.23초 · p95 0.26초로 부하에 따라 느려지지 않았다. 30개를 한꺼번에 보낸 「발표 날」 단계만 가운데 0.41초.</p>
+            <p><b>값</b>(#460 치영 댓글 · 계산 · 추정): Jev 판정 1회 약 0.29원 · 루나 판정 1회 약 0.68원(넘어갈 때만) → <b>판정은 책 한 권 3~4원</b>, 오또 대사는 2~3.5원, 합쳐 약 5~7.5원. 판정 몫 월 고정비는 Jev → 루나면 0원(쓴 만큼), 라야를 백엔드에 같이 얹으면 월 +13~17만 원(추정). 백엔드 1대(2코어 · 4GB) + Jev + 루나 한 단위가 받는 <b>적정 인원은 약 2~3만 가정</b>(저녁 동시 약 170~250세션)으로, 먼저 닿는 곳은 루나 분당 토큰 한도와 백엔드 CPU다.</p>
+            <span class="chip good">통과 — 판정이 병목이 아님 · OpenAI 계정 한도는 확인 안 함</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-item verdict-ref">
+        <div class="tl-rail"><div class="tl-dot">23</div><div class="tl-line"></div></div>
+        <div>
+          <div class="tl-date">10-14 측정 · 10-15 병합 (#500)</div>
+          <h3 class="tl-title">Jev가 자신 없는 턴에 루나에게 두 번째 의견 — 넣었지만 꺼 둠</h3>
+          <div class="tl-body">
+            <p>Jev가 칸을 골랐는데 확신이 0.6 아래면 지금은 칸을 비우고 앱이 아이에게 다시 묻는다. 이 턴을 루나에게 맡기면? 203문항에서 <b>다시 묻기 33 → 14</b>(루나가 Jev와 같은 칸을 고를 때만 채움) · 8(루나 판정을 그대로 씀)로 줄지만, <b>틀린 값이 7 → 12 · 14</b>로 늘었다. 확신 낮은 턴(35턴)은 루나를 부르느라 p95 3.0초.</p>
+            <p>다시 물으면 아이가 한 번 더 말하면 되지만, 틀린 값은 <b>책에 조용히 남는다</b>. 시험 문항이 만든 문장이고 실기기 문장은 15개뿐이라, 설정 하나(<code>JEV_LOW_CONFIDENCE</code>)로만 켜지게 넣고 <b>기본은 꺼 두었다</b> — 실제 아이 말로 다시 잰 뒤 켤지 정한다.</p>
+            <span class="chip ref">참고 — 코드는 있음 · 기본 꺼짐</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-item verdict-good">
+        <div class="tl-rail"><div class="tl-dot">24</div><div class="tl-line"></div></div>
+        <div>
+          <div class="tl-date">10-14 측정 · 10-15 병합 (#518)</div>
+          <h3 class="tl-title">인형 · 동물도 「같이 간 이」로 (B1) · 다시 묻는 까닭은 질문 쪽 (B5)</h3>
+          <div class="tl-body">
+            <p>같이 만들기 그림책 점검(#484)에서 「뽀로로 인형」 · 「문어」를 Jev가 같이 간 이로 받지 않아 동행 없는 책이 나왔다. 그림일기 · 같이 만들기의 칸 설명에 「동물 · 인형 · 장난감도 아이가 같이 갔다고 하면 같이 간 이」 한 문장을 더하니 사람 아닌 동행 7문항 × 3번이 <b>11 → 16 / 21</b>, 「곰 인형 들고 갔어」가 엉뚱한 칸에 들어가던 것 3 → 0. 장소 · 사건 · 마음이 같이 간 이로 바뀐 문항은 0. 203문항은 162 → 160인데, 바뀐 문항이 모두 문턱 근처(0.44~0.69)라 Jev가 부를 때마다 흔들리는 폭으로 본다. 동화 질문은 바이트 단위로 그대로다.</p>
+            <p>같은 점검의 B5(이미 답한 칸을 또 물음)는 칸 설명 문제가 아니었다. 같은 답을 「무슨 일이 있었어?」로 물으면 Jev가 0.76~0.88로 맞히는데, <b>앱이 실제로 낸 질문</b>(「롯데월드에서 뭐 봤어?」 · 보기 셋을 단 결말 질문)으로 물으면 0.37~0.64로 문턱 아래였다. 그래서 고칠 자리를 앱의 질문 문구로 넘겼다(㉕).</p>
+            <span class="chip good">B1 병합 · 「뽀로로 인형」 한 마디는 여전히 6번 중 1번만 통과</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tl-item verdict-good">
+        <div class="tl-rail"><div class="tl-dot">25</div><div class="tl-line"></div></div>
+        <div>
+          <div class="tl-date">10-14 저녁 측정 · 10-15 병합 (#522)</div>
+          <h3 class="tl-title">질문을 묻는 칸에 맞게 고치니 다시 묻기가 사라짐 (B5)</h3>
+          <div class="tl-body">
+            <p>판정은 그대로 두고 앱의 같이 만들기 질문만 바꿨다 — 사건 칸은 「뭐 봤어?」 → 「무슨 일이 있었어?」, 결말 칸 첫 질문은 보기 셋을 빼고 「그래서 어떻게 했어?」만. 운영 서버로 대본 네 개를 돌리니 문제 대본(k06)에서 <b>「몰라」 뒤 다시 물음이 4번 → 0번</b>(문구만 바꾸고 보기를 남기면 2번). 다른 대본 셋은 전후 모두 첫 답에 칸이 찼다. 서버 PC에서 같은 아이 말을 질문만 바꿔 5번씩 판정하니 Jev 확신이 <b>결말 칸 0.27~0.45(5번 모두 버려짐) → 0.74~0.82</b>, 사건 칸 0.61~0.64(문턱 바로 위) → 0.72~0.79였다. 판정 모델이 아니라 <b>질문이 판정을 흔들었다</b>는 걸 보여 준 사례다.</p>
+            <span class="chip good">병합 — 대본마다 한 판씩 잰 값</span>
           </div>
         </div>
       </div>
@@ -609,6 +710,50 @@
       </div>
       <div class="bars-scroll"><div class="bars" id="chart7"></div></div>
     </div>
+
+    <h3 style="font-size:17px; margin:40px 0 4px">⑦ 동화 — Jev가 다음 칸을 못 정해 루나로 넘어간 판정 (⑲)</h3>
+    <p class="sec-dek" style="margin-bottom:4px">바닷속 동화 8턴 × 3번 = 24번을 운영 <code>/judge</code>로 · 배포 전(10-12 20:40) · 배포 뒤(#430 · 10-12 21:13 배포)</p>
+    <div class="chart-card">
+      <div class="chart-title">24번 중 어디서 끝났나 (번)</div>
+      <div class="chart-sub">규칙이 다음 칸을 채운 9번 덕에 루나로 넘어간 판정이 0이 됐다</div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--series-v3)"></span>Jev에서 끝남</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--series-turbo)"></span>루나로 넘어감</div>
+      </div>
+      <div class="bars-scroll"><div class="bars" id="chart8"></div></div>
+    </div>
+
+    <h3 style="font-size:17px; margin:40px 0 4px">⑧ 그림일기 · 같이 만들기 — 물은 칸과 다른 답을 찾은 수 (⑳)</h3>
+    <p class="sec-dek" style="margin-bottom:4px"><code>fixtures_modetest</code> 203문항 중 다른 칸 답 57 · 10-13 서버 PC 운영 컨테이너 안 · A 지금 · B 「달라도 된다」 · C B + 칸 설명(채택) · D 물은 칸 비움 · L 루나</p>
+    <div class="chart-card">
+      <div class="chart-title">57문항 중 찾음 (높을수록 좋음)</div>
+      <div class="chart-sub">C를 그림일기 · 같이 만들기에만 씀 — 전체 맞음 153 → 160 · 동화에 쓰면 78 → 68이라 동화는 그대로</div>
+      <div class="bars-scroll"><div class="bars" id="chart9"></div></div>
+    </div>
+
+    <h3 style="font-size:17px; margin:40px 0 4px">⑨ Jev 단독 부하 — 부르는 빈도별 판정 시간 (㉒)</h3>
+    <p class="sec-dek" style="margin-bottom:4px">10-14 서버 PC · 운영 컨테이너 안에서 Jev만 직접 · 단계마다 60초 · 가정당 한 달 12권 · 저녁 2시간 몰림 가정 · 1,565번 실패 0 · 거절 0</p>
+    <div class="chart-card">
+      <div class="chart-title">판정 시간 (초, 낮을수록 좋음)</div>
+      <div class="chart-sub">초당 15번까지 느려지지 않았다 · 30개를 한꺼번에 보낸 단계만 조금 늘었다</div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--series-lora1)"></span>가운데(p50)</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--series-lora2)"></span>p95</div>
+      </div>
+      <div class="bars-scroll"><div class="bars" id="chart10"></div></div>
+    </div>
+
+    <h3 style="font-size:17px; margin:40px 0 4px">⑩ Jev가 자신 없는 턴을 어떻게 할까 (㉓)</h3>
+    <p class="sec-dek" style="margin-bottom:4px"><code>fixtures_modetest</code> 203문항 · 10-14 서버 PC · 맞음은 지금 163 · 두 번째 의견 177 · 루나가 대신 181 · 「틀린 값」 = 물은 칸 베낌 + 다른 칸 틀림</p>
+    <div class="chart-card">
+      <div class="chart-title">다시 묻기 · 틀린 값 (문항, 낮을수록 좋음)</div>
+      <div class="chart-sub">다시 묻기는 줄지만 책에 조용히 남는 틀린 값이 늘어 기본은 꺼 둠(#500)</div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--series-turbo)"></span>다시 묻기</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--series-v3)"></span>틀린 값</div>
+      </div>
+      <div class="bars-scroll"><div class="bars" id="chart11"></div></div>
+    </div>
   </div>
 </section>
 
@@ -619,10 +764,14 @@
       <h2>그래서 지금 뭘 쓰고 있나?</h2>
     </div>
     <p>
-      <b>지금 운영 서버의 판정은 다시 Jev다</b>(10-12 오후부터 · Jev가 못 하면 루나). 라야는 10-08에 이야기 모드에 켜서(v4 → 10-09 v5) 10-12에는 그림일기 · 같이 만들기까지 넓혔다가, 같은 날 껐다(⑱).
-      끈 까닭은 정확도가 아니다 — <b>세 모드 모두 Jev와 비기고</b>(⑦ · ⑰) 실제 대화 간격에서는 <b>속도도 비슷하다</b>(⑫ · ⑯). 앱이 클라우드로 가면 그래픽카드를 늘 켜 두는 값이 크기 때문이다.
-      라야로 얻는 건 <b>아이 말이 밖으로 안 나감 · 업체 비용 0원 · 업체가 멈춰도 판정이 됨</b>이고, 이건 그대로 남아 있다 — 그래픽카드 없이 도는 작은 라야가 합격선을 넘으면 설정 한 줄로 다시 켠다.
+      <b>출시 구성의 판정은 Jev → 루나다</b>(10-12 오후부터 · Jev가 못 하면 루나). 라야는 10-08에 이야기 모드에 켜서(v4 → 10-09 v5) 10-12에는 그림일기 · 같이 만들기까지 넓혔다가, 같은 날 껐다(⑱).
+      끈 까닭은 정확도가 아니다 — <b>세 모드 모두 Jev와 비기고</b>(⑦ · ⑰) 실제 대화 간격에서는 <b>속도도 비슷하다</b>(⑫ · ⑯ · ㉑). 앱이 클라우드로 가면 그래픽카드를 늘 켜 두는 값이 크기 때문이다.
+      라야 코드와 사이드카는 지우지 않아서, <b>그래픽카드가 생기면 설정으로 다시 켠다</b>. 라야로 얻는 <b>아이 말이 밖으로 안 나감 · 업체 비용 0원 · 업체가 멈춰도 판정이 됨</b>은 그때 다시 얻는다.
       그리고 대조군이 보여 줬듯 <b>점수를 만든 건 데이터</b>라, 같은 데이터면 한국어 전용 AI로도 된다.
+    </p>
+    <p>
+      되돌린 뒤 사흘(10-12 ~ 10-15)은 라야에서 배운 것을 <b>Jev 쪽에 옮긴</b> 시간이었다. 다음 칸 규칙으로 루나로 넘어가는 판정이 거의 사라졌고(⑲), 그림일기 · 같이 만들기의 물은 칸과 다른 답을 9 → 23개 찾게 됐고(⑳), 인형 · 동물도 같이 간 이로 받는다(㉔).
+      부하 시험에서 Jev는 초당 15번까지 실패 0이라 판정이 병목이 아니다(㉒). Jev가 자신 없는 턴을 루나에게 묻는 설정은 넣었지만 틀린 값이 늘어 <b>기본은 꺼 두었다</b>(㉓). 그리고 같은 답도 <b>앱이 어떻게 묻느냐</b>에 따라 판정이 흔들린다는 걸 B5에서 봤다(㉔ · ㉕).
     </p>
     <div class="pill-row">
       <span class="pill">학습 데이터(v4 기준): 합성 3,400 생성 → 정답 모르는 판정과 맞은 3,042 · v5는 3,777줄</span>
@@ -634,14 +783,17 @@
     <p style="font-size:14.5px; color:var(--ink-secondary)">
       실제 아이 말로는 한 번도 안 쟀다(예측 85~90%) · 시험 100문항이 쉬워서(아이 말을 지워도 88%) 모델 차이를 잘 못 가른다 ·
       학습 라벨과 시험 1차 라벨이 둘 다 Claude 손을 거쳐 습관이 닮았을 수 있다 ·
-      질문과 다른 답에서 「어떻게 풀었나」 · 사건 칸끼리의 구분이 아직 약하다(⑮) · 그림일기 · 같이 만들기의 「질문과 다른 답」은 Jev도 라야도 거의 못 맞힌다(⑰) ·
-      Jev의 속도는 연달아 보낸 값뿐이고 실제 대화 간격으로는 안 쟀다 · Jev가 루나로 넘어가는 비율은 문장 하나를 5번 보낸 게 전부다(⑱) ·
-      쉬었다 오는 라야 판정이 느려지는 정확한 자리는 못 찾았다(⑯) ·
-      운영 경로는 「둘째 칸」을 버려서 그림일기에서 약간 손해 · 「확신 낮으면 루나로」 곡선은 루나 원본이 없어 못 그렸다.
+      라야는 질문과 다른 답에서 「어떻게 풀었나」 · 사건 칸끼리의 구분이 아직 약하다(⑮) · 그림일기 · 같이 만들기의 「질문과 다른 답」은 Jev가 57개 중 23개를 찾게 됐지만 루나(41개)에는 못 미친다(⑳) ·
+      Jev를 실제 대화 간격으로 잰 건 같이 만들기 한 판(9턴)뿐이고 그림일기는 #444 뒤에 폰으로 안 쟀다(㉑) · 동화에서 Jev가 루나로 넘어가는 비율은 한 동화 24번과 폰 한 판이다(⑲) ·
+      Jev 답은 부를 때마다 조금씩 흔들려 같은 203문항이 ±3쯤 달라진다(㉓ · ㉔) · 「뽀로로 인형」처럼 한 마디 동행은 아직 문턱 근처다(㉔) · B5 고친 뒤는 대본마다 한 판씩 잰 값이다(㉕) ·
+      ⑰과 ⑳은 같은 203문항을 다르게 나눴다(다른 답 51 대 다른 칸 답 57) · 이 시험지 정답과 실기기 사례 정답은 사람이 검수하지 않았다 ·
+      쉬었다 오는 라야 판정이 느려지는 정확한 자리는 못 찾았다(⑯) · 그래픽카드 없이 도는 작은 라야(s6)는 모드 약속 깨짐 2로 합격선 미달이고 CPU p95는 기록이 없다(⑱) ·
+      운영 경로는 「둘째 칸」을 버려서 그림일기에서 약간 손해 · 루나 쪽 부하는 OpenAI 계정 한도를 확인하지 않았다(㉒).
     </p>
     <p style="font-size:14.5px; color:var(--ink-secondary)">
-      다음에 해 보면 좋을 것 — <b>정한 것</b>: 그래픽카드 없이 도는 작은 라야를 가르쳐 합격선을 넘으면 다시 켜기 · 출시 전에 개인정보 처리방침과 동의에 Jev 업체(미국) 국외 이전을 넣기.
-      <b>안 정한 것</b>: Jev 쪽에도 「다음에 물을 칸」 규칙 붙이기(⑦ · ⑱) · 어려운 시험셋(팀원 역할극) · 「누구랑 같이 해?」 판정도 가르치기 · 둘째 칸 값 나누기 · 보호자 동의를 받은 실제 아이 말로 최종 확인.
+      다음에 해 보면 좋을 것 — <b>한 것</b>: Jev 쪽에 「다음에 물을 칸」 규칙 붙이기(⑲ · 10-12) · 물은 칸과 다른 답(⑳) · 부하 시험(㉒).
+      <b>정한 것</b>: 그래픽카드가 생기면 라야를 설정으로 다시 켜기 · 출시 전에 개인정보 처리방침과 동의에 Jev 업체(미국) 국외 이전을 넣기 · 확신 낮은 턴 두 번째 의견(#500)은 실제 아이 말 시험셋으로 다시 잰 뒤 켤지 정하기.
+      <b>안 정한 것</b>: 어려운 시험셋(팀원 역할극) · 「누구랑 같이 해?」 판정도 라야에 가르치기 · 둘째 칸 값 나누기 · 대사 「JSON이 아님」 고치기(#376) · 보호자 동의를 받은 실제 아이 말로 최종 확인.
     </p>
   </div>
 </section>
@@ -654,6 +806,7 @@
       <li>⑪ 서버 숫자 — 서버 PC 10-08 저녁: 백엔드 로그 <code>judge laya N.NNs</code> · 사이드카 <code>/health</code>의 <code>this_process_mib</code> · <code>judge_examples.ps1</code></li>
       <li>⑫~⑮ — <code>eval/results.md</code> 「2026-10-08 ~ 10-09 · 판정 Laya — 속도 바로잡기 · 질문과 다른 답 · v5 · v6」 절 · 로컬 <code>D:\dev\laya_eval</code>의 <code>eval_offq.py</code> · <code>data/fixtures_offq*.jsonl</code></li>
       <li>⑯~⑱ — <code>eval/results.md</code> 「2026-10-09 ~ 10-12 · 판정 Laya — 속도 실험 · 그림일기 · 같이 만들기 시험 · 켰다가 Jev 로 되돌림」 절 · 서버 PC 백엔드 로그 · 깃에 올리지 않은 <code>fixtures_modetest.jsonl</code> · <code>run_modetest_served.py</code></li>
+      <li>⑲~㉕ — <code>eval/results.md</code> 「2026-10-12 ~ 10-15 · 판정 Jev — 다음 칸 규칙(#430) · 「물은 칸과 다른 답」(#440 · #444) · 실기기 · 부하 · B1 · B5」 절 · PR #411 · #430 · #444 · #459 · #470 · #474 · #483 · #487 · #500 · #501 · #518 · #522 본문 · 단가 · 적정 인원은 #460 치영 댓글(<a href="https://github.com/ai-project-team3/bootcamp-final-project/issues/460#issuecomment-6144269192">②</a> · <a href="https://github.com/ai-project-team3/bootcamp-final-project/issues/460#issuecomment-6145490174">④</a> · <a href="https://github.com/ai-project-team3/bootcamp-final-project/issues/460#issuecomment-6160076027">인원별</a>) · ⑱ 작은 라야 s6 는 같은 파일 「CPU 용 작은 Laya s6」 · 깃에 올리지 않은 <code>run_offslot_variants.py</code> · <code>run_b1b5.py</code> · <code>run_lowconf_luna.py</code></li>
       <li><code>eval/baselines/jev-latest_0922.jsonl</code> (#330) · <code>eval/fixtures_judge.jsonl</code> · <code>fixtures_judge_demo.jsonl</code> · <code>fixtures_mode.jsonl</code> · <code>fixtures_coop_reason.jsonl</code></li>
       <li>로컬 <code>D:\dev\laya_eval</code> — <code>bench_laya.py</code> · <code>bench_modes_laya.py</code> · <code>klue_baseline.py</code> · <code>stt_sim.py</code> · <code>synth/</code></li>
       <li><code>docs/받아쓰기_미세조정.md</code> — 아이 목소리 받아쓰기 실측 오류율(⑧의 근거)</li>
@@ -735,5 +888,28 @@
     {label:'보통 답', sub:'152문항', values:{a:97.4, b:94.1}},
     {label:'다른 답', sub:'51문항', values:{a:9.8, b:13.7}}
   ], '%', 100);
+  buildChart('chart8', [{key:'a', color:'var(--series-v3)', label:'Jev에서 끝남'},{key:'b', color:'var(--series-turbo)', label:'루나로 넘어감'}], [
+    {label:'배포 전', sub:'10-12 20:40', values:{a:14, b:10}},
+    {label:'배포 뒤', sub:'#430 · 규칙 9번', values:{a:24, b:0}}
+  ], '번', 24);
+  buildChart('chart9', [{key:'a', color:'var(--series-lora1)', label:'다른 칸 답 찾음'}], [
+    {label:'A', sub:'지금', values:{a:9}},
+    {label:'B', sub:'달라도 된다', values:{a:22}},
+    {label:'C', sub:'+ 칸 설명 · 채택', values:{a:23}},
+    {label:'D', sub:'물은 칸 비움', values:{a:25}},
+    {label:'L', sub:'루나', values:{a:41}}
+  ], '문항', 57);
+  buildChart('chart10', [{key:'a', color:'var(--series-lora1)', label:'p50'},{key:'b', color:'var(--series-lora2)', label:'p95'}], [
+    {label:'초당 0.3', sub:'1,000가정', values:{a:0.23, b:0.26}},
+    {label:'초당 3', sub:'10,000가정', values:{a:0.23, b:0.27}},
+    {label:'30개 × 3', sub:'발표 날', values:{a:0.41, b:0.51}},
+    {label:'초당 6', sub:'그 2배', values:{a:0.23, b:0.26}},
+    {label:'초당 15', sub:'그 5배', values:{a:0.23, b:0.26}}
+  ], '초', 0.6);
+  buildChart('chart11', [{key:'a', color:'var(--series-turbo)', label:'다시 묻기'},{key:'b', color:'var(--series-v3)', label:'틀린 값'}], [
+    {label:'지금', sub:'칸 비움 · 기본', values:{a:33, b:7}},
+    {label:'두 번째 의견', sub:'agree', values:{a:14, b:12}},
+    {label:'루나가 대신', sub:'luna', values:{a:8, b:14}}
+  ], '문항', 35);
 })();
 </script>
