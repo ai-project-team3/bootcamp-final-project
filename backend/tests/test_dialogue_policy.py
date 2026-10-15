@@ -300,3 +300,17 @@ def test_the_old_value_copied_back_changes_nothing_and_sends_no_line():
     # the slot Otto just filled: taken back and asked again, with no line that repeats the old value
     v, out, back = settle("repair", req("놀이터 아니야"), JudgeResult(reason="x"), line, ["place"])
     assert out is None and back == ["place"] and v.next_slot == "place"
+
+
+def test_an_act_keeps_its_question_on_a_turn_the_judge_called_ready():
+    # #482 coop: the judge said story_ready on 「오또는 뭐 좋아해?」 and shape() dropped the question — Otto answered and asked nothing
+    from app.routers.turn import apply_act, shape
+    from app.schemas.turn import Line
+    v = JudgeResult(reason="jev", story_ready=True)
+    act, out, _, _ = apply_act("answer_back", d("ask_back"), req("오또는 뭐 좋아해?"), v)
+    assert act == "answer_back" and out.story_ready is False
+    line = shape(Line(ack="오또는 소방차를 좋아해!", question="놀이터에서 무슨 일이 있었어?"), req(), out)
+    assert line.question == "놀이터에서 무슨 일이 있었어?"
+    # a plain turn still ends when the judge says so
+    act, out, _, _ = apply_act(None, d("answer"), req("미끄럼틀 탔어"), JudgeResult(reason="jev", story_ready=True))
+    assert out.story_ready is True
