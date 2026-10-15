@@ -113,6 +113,9 @@ class MainActivity : ComponentActivity() {
         if (!debuggable && byDefault) appUpdate = com.example.finalproject_demo.net.AppUpdate(this)
         com.example.finalproject_demo.net.CallLimits.enabled = !debuggable   // 스토어 빌드만 — 팀 개발 앱 · 검사는 막지 않는다
         Voice.attach(this)        // 진짜 마이크 · 마스코트 목소리 — 서버 모드에서만 쓴다 (net/Voice.kt)
+        // 대사를 나눠 바뀌는 곳만 /tts 로 — 구운 문장 · 이미 받은 문장은 다시 쓴다 (10-14 · net/VoiceSplice.kt). `-e splice off` 면 예전처럼 통째로
+        com.example.finalproject_demo.net.VoiceSplice.attach(this)
+        extra("splice")?.let { com.example.finalproject_demo.net.VoiceSplice.on = it != "off" }
         com.example.finalproject_demo.net.Bgm.attach(this)    // 동화책 배경음악 (#221)
         com.example.finalproject_demo.sound.ChildSound.attach(this)   // 아이가 만든 소리 — 폰에만 (#42)
         com.example.finalproject_demo.net.ChildCall.attach(this)     // 마스코트가 아이를 부르는 말 — 부모가 정함 (10-02)
