@@ -130,7 +130,11 @@ class StoryAdaptiveBeforeAfterTest {
             assertEquals(0, server.requests.count { it.first == "/judge" })
             requests.forEach {
                 assertFalse(it.toString().contains(historyText))
-                assertFalse(it.has("history")); assertFalse(it.has("age")); assertFalse(it.has("languageEvidence"))
+                // the story so far rides along (#323) — this story's answers only, never the reloaded book
+                it.optJSONArray("history")?.let { h ->
+                    (0 until h.length()).forEach { i -> assertTrue(h.getJSONObject(i).getJSONObject("child").getString("text") in texts) }
+                }
+                assertFalse(it.has("age")); assertFalse(it.has("languageEvidence"))
             }
             JSONObject().put("levels", JSONArray(requests.map { it.getString("level") }))
                 .put("round_trips", requests.size).put("counted_turns", d.s.turn)

@@ -155,7 +155,7 @@ suspend fun Director.askStory(
             else -> return reply
         }
         val by = if (reply is Reply.Spoke) "child" else if ((reply as Reply.Tapped).byMascot) "mascot" else "card"
-        val response = exchangeStoryTurnWithRetry(askedSlot, question.text, utterance, by, request)
+        val response = exchangeStoryTurnWithRetry(askedSlot, question.text, utterance, by, spoken = reply is Reply.Spoke, request = request)
         if (response.verdict!!.reason == "blocked_by_filter") {
             log("서버 안전 판정으로 답을 책 재료에서 제외 · 다른 이야기로 이어가기")
             currentQuestion = question.copy(text = "다른 생각도 들려줄래? ${question.text}")
@@ -180,6 +180,9 @@ suspend fun Director.askStory(
         if (reaction.isNotBlank()) {
             say(reaction)
             pause(600)
+        } else {
+            // the line failed on a repair turn — the baked words still show Otto heard it (#323 · same as the diary)
+            when (response.act) { "repair" -> SORRY_LINE; "rephrase" -> ASK_AGAIN_LINE; else -> null }?.let { say(it); pause(600) }
         }
         // the app chose a name the child did not say — the child hears it once, it is not filled silently (guidelines/7 §3-2 · #375 review)
         s.storyAppNamed?.let { named ->
@@ -275,9 +278,10 @@ private suspend fun Director.awaitStoryCardReply(show: () -> Unit): Reply? = cor
 
 private suspend fun Director.exchangeStoryTurnWithRetry(
     askedSlot: String?, question: String, utterance: String, by: String,
+    spoken: Boolean = false,
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult {
-    var response = s.exchangeStoryTurn(askedSlot, question, utterance, by, request)
+    var response = s.exchangeStoryTurn(askedSlot, question, utterance, by, spoken, request)
     while (response?.verdict == null) {
         inputs(false, false)
         s.stage = Stage.Confirm(Art.Mascot, "다시 연결", "방으로")
@@ -290,7 +294,7 @@ private suspend fun Director.exchangeStoryTurnWithRetry(
         }
         s.stage = Stage.Making("이야기를 다시 연결하는 중…")
         buttons()
-        response = s.exchangeStoryTurn(askedSlot, question, utterance, by, request)
+        response = s.exchangeStoryTurn(askedSlot, question, utterance, by, spoken, request)
     }
     return response
 }
@@ -308,7 +312,7 @@ internal suspend fun Director.notifyStorySoundChoice(prompt: StoryPrompt) {
 
 suspend fun DemoState.exchangeTurn(
     mode: String, askedSlot: String?, question: String, utterance: String,
-    /** the session so far (#323 · diary). Null for every other caller — the request is unchanged */
+    /** the session so far (#323 · diary · story spoken answers). Null for every other caller — the request is unchanged */
     history: List<Server.HistoryTurn>? = null,
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult? {
@@ -357,19 +361,27 @@ suspend fun DemoState.exchangeTurn(
 suspend fun DemoState.exchangeStoryTurn(
     askedSlot: String?, question: String, utterance: String,
     by: String = "child",
+    /** the child's own spoken answer (#323) — not a card, a mascot pick or the app's note of a recorded sound */
+    spoken: Boolean = false,
     request: suspend (Server.Turn) -> Server.TurnResult? = { Server.turn(it) },
 ): Server.TurnResult? {
     if (mode != StoryMode.STORY) return null
+    // the child's spoken answers carry the story so far, so the server can tell 「그거 아니야」 · 「오또는?」 · 「뭐라고?」
+    // from an answer (#323). Anything else is not the child's words — no history, no decider
     StoryEvaluation.state(this, "turn_before") {
         org.json.JSONObject().put("asked_slot", askedSlot ?: org.json.JSONObject.NULL)
             .put("question", question).put("raw_text", utterance).put("who", by)
     }
-    val result = exchangeTurn("story", askedSlot, question, utterance, request = request)
+    val result = exchangeTurn("story", askedSlot, question, utterance, history = if (spoken) storyTalk.toList() else null,
+        request = request)
     if (result == null) {
         StoryEvaluation.state(this, "turn_after") { org.json.JSONObject().put("status", "no_response").put("who", by) }
         return null
     }
     return result.also { response ->
+        // the slots the child said were wrong go back before the verdict lands, so the next question can pick them again
+        response.retract.forEach { slot -> restoreStorySlot(slot) }
+        val before = slots.toMap()
         // ending words are no story — the judge copied 「그만할래」 into the asked solution (10-09 device · Laya v5)
         val ending = by == "child" && storyEndIntent(utterance)
         val guard = response.verdict?.let { applyStoryVerdict(if (ending) it.copy(fills = emptyList()) else it, by, askedSlot) }
@@ -388,6 +400,7 @@ suspend fun DemoState.exchangeStoryTurn(
         }
         // 「이제 끝이야」 — the judge does not always end; the child's ending words do (StoryEndIntent.kt)
         if (response.verdict != null && response.verdict.reason != "blocked_by_filter") applyStoryEndIntent(utterance, by)
+        if (spoken) rememberStoryTurn(askedSlot, question, utterance, response, before)
         StoryEvaluation.state(this, "turn_after") {
             org.json.JSONObject().put("route", "judge").put("who", by)
                 .put("who_guard", org.json.JSONObject().put("reask", guard.reask ?: org.json.JSONObject.NULL).put("rejected", org.json.JSONArray(guard.rejected)))
@@ -397,11 +410,38 @@ suspend fun DemoState.exchangeStoryTurn(
                 } ?: org.json.JSONObject.NULL)
         }
         val verdict = response.verdict
-        Trace.line("story_verdict", "asked=$askedSlot by=$by ready=${verdict?.storyReady} " +
+        Trace.line("story_verdict", "asked=$askedSlot by=$by ready=${verdict?.storyReady} act=${response.act} " +
+            "retract=${response.retract} " +
             "next=${verdict?.nextSlot} applied=$storyNextSlot unclear=${verdict?.unclear} " +
             "unneeded=${verdict?.noLongerNeeded} fills=${verdict?.fills?.map { it.first }} " +
             "question=${response.line?.question}")
     }
+}
+
+/** The value a slot held before the child's last turn that filled it — what a repair puts back. Null = empty it */
+private fun DemoState.storyPrevOf(slot: String): String? =
+    storyTalk.asReversed().firstNotNullOfOrNull { h -> h.fills.lastOrNull { it.slot == slot } }?.prev
+
+/** A slot the child said was wrong (#323 `retract`) — back to its earlier value, or empty so it is asked again */
+private fun DemoState.restoreStorySlot(slot: String) {
+    if (slot !in Server.SLOTS) return
+    val prev = storyPrevOf(slot)
+    if (prev != null) { slots[slot] = prev; slotBy[slot] = "child" } else { slots.remove(slot); slotBy.remove(slot) }
+    Trace.line("story_verdict", "retract [$slot] → ${if (prev == null) "empty" else "earlier value"}")
+}
+
+/** One spoken turn for the history — the question asked, the child's words, what Otto said back, what changed (rule 5) */
+private fun DemoState.rememberStoryTurn(
+    askedSlot: String?, question: String, utterance: String, response: Server.TurnResult, before: Map<String, String>,
+) {
+    val fills = Server.SLOTS.filter { slots[it] != before[it] && !slots[it].isNullOrBlank() }
+        .map { Server.HistoryFill(it, slots.getValue(it), before[it]?.takeIf(String::isNotBlank)) }
+    val said = storyReaction(response.line?.ack, response.line?.expand).takeIf(String::isNotBlank)
+    storyTalk += Server.HistoryTurn(
+        turn = storyTalk.size + 1, askedSlot = askedSlot?.takeIf { it in Server.SLOTS },
+        otto = Server.OttoSaid(ack = said, expand = null, question = question),
+        child = utterance.trim(), fills = fills, act = response.act,
+    )
 }
 
 /**
