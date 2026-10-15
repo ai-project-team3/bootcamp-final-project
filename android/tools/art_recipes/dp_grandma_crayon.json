@@ -1,0 +1,15 @@
+{
+  "name": "dp_grandma_crayon",
+  "kind": "cut",
+  "text": "cute doll of a kind grandmother, curly light grey hair, gentle smile, rosy cheeks, mustard yellow vest over a pink blouse with a round white collar, long blue skirt, brown shoes, chibi proportions with a big round head and a short body, standing straight, arms down at the sides, whole body visible from head to shoes",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 891105339,
+  "prompt": "cute doll of a kind grandmother, curly light grey hair, gentle smile, rosy cheeks, mustard yellow vest over a pink blouse with a round white collar, long blue skirt, brown shoes, chibi proportions with a big round head and a short body, standing straight, arms down at the sides, whole body visible from head to shoes, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-14",
+  "of": "dp_grandma"
+}
