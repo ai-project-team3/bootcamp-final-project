@@ -361,11 +361,14 @@ private fun SavedStoryBody(d: Director, stage: Stage.SavedStory) {
  */
 internal fun SavedStoryBook.withOpenMissions(s: DemoState, m1Done: Boolean, m2Done: Boolean): SavedStoryBook {
     if (m1Done && m2Done) return this
+    val keep = Triple(s.storyCaptions, s.m1Result, s.m2Result)
     val results = runCatching {
-        val keep = Triple(s.storyCaptions, s.m1Result, s.m2Result)
         s.storyCaptions = s.storyCaptions ?: pages.map { it.caption }
         s.m1Result = s.m1Result ?: "solo"; s.m2Result = s.m2Result ?: "solo"
-        pages.indices.map { s.storyMissionResult(it + 1) }.also { s.storyCaptions = keep.first; s.m1Result = keep.second; s.m2Result = keep.third }
+        pages.indices.map { s.storyMissionResult(it + 1) }
+    }.also {
+        // Restore even when storyMissionResult throws, so the open book is not left at m1Result = "solo"
+        s.storyCaptions = keep.first; s.m1Result = keep.second; s.m2Result = keep.third
     }.getOrNull() ?: return this
     return copy(pages = pages.mapIndexed { i, p ->
         val open = (p.kind == PageKind.RUB && !m1Done) || (p.kind == PageKind.DRAG && !m2Done)

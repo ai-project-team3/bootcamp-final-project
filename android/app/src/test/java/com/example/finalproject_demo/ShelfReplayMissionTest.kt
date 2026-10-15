@@ -47,6 +47,17 @@ class ShelfReplayMissionTest {
         assertSame(book, book.withOpenMissions(reader.s, m1Done = true, m2Done = true))
     }
 
+    /** The reader's own state is borrowed only while the results are worked out (#498 review) */
+    @Test
+    fun theReaderStateIsGivenBack() {
+        val book = savedBook()
+        val s = DemoState().apply { templateKey = "C" }
+        book.withOpenMissions(s, m1Done = false, m2Done = false)
+        assertEquals(null, s.storyCaptions)
+        assertEquals(null, s.m1Result)
+        assertEquals(null, s.m2Result)
+    }
+
     @Test
     fun theMissionPageIsPlayableAndSkippable() {
         val book = savedBook()
