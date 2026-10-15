@@ -457,8 +457,16 @@ class Director(
     fun prefetchSpeech(text: String) {
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)
-        synchronized(prefetched) { prefetched.getOrPut(line) { scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } } } }
+        synchronized(prefetched) { prefetched.getOrPut(line) { scope.async { lineVoice(line) } } }
     }
+
+    /**
+     * A line's voice: baked into the app · already heard this session ([heardVoices]) · or `/tts`.
+     * 10-14: a line said again (Otto's face tapped · ◀ back a page · 「말하기」 · a page re-read after its mission ·
+     * a prefetch that fell out of [prefetched]) went to `/tts` again and was paid again, though its voice was kept
+     */
+    internal suspend fun lineVoice(line: String): ByteArray? =
+        Voice.baked(line) ?: synchronized(heardVoices) { heardVoices[line] } ?: Server.tts(line)?.also { heard(line, it) }
 
     /**
      * Server voices of this session's last lines, by spoken text (#179). A diary keeps its page voices with the book
@@ -519,8 +527,8 @@ class Director(
         val mode = s.mode
         val ready = if (saved == null) synchronized(prefetched) { prefetched.remove(line) } else null
         val audio = (ready ?: scope.async {
-            if (saved != null) savedBookVoice(saved, mode, line) { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }
-            else Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) }
+            if (saved != null) savedBookVoice(saved, mode, line) { lineVoice(line) }
+            else lineVoice(line)
         }).also { queueVoice(it) }
         queueSpoken(if (waitForVoice) s.lineId else null) { audio.await() }
     }
