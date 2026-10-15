@@ -31,6 +31,12 @@ data class DiaryBoard(
  */
 data object DiaryAsk : DiaryStage
 
+/**
+ * 30분쯤 마무리 제안 — 다 그린 뒤 화면(D3) 그대로, 오른쪽에 [응, 만들자!] · [더 할래].
+ * 10-14 실기기: 이 답이 시연 서랍에만 있어 화면에 고를 것이 없었다 — 30분을 넘긴 판(이어 하기 포함)이 여기서 멈췄다
+ */
+data object DiaryWrapUp : DiaryStage
+
 /** D4 — 「그림일기를 꿰매는 중…」 */
 data object DiaryStitch : DiaryStage
 
