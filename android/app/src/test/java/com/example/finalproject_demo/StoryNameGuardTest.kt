@@ -71,6 +71,50 @@ class StoryNameGuardTest {
     private fun started() = DemoState().apply { turn = 4; slots["problem"] = "길이 막혔어" }
 
     @Test
+    fun relationshipPredicatesAreNotNamesButBareRolesAndUnknownNamesAreKept() {
+        listOf("커다란 바다거북이 엄마야", "큰 거북이는 아빠야!", "그 토끼는 친구야", "작은 곰은 동생이야")
+            .forEach { assertTrue(it, storyLooksLikeSentence(it)) }
+        listOf("커다란 바다거북", "엄마 거북", "아기 거북이 엄마", "외계인 친구", "보라색 카구야", "엄마야")
+            .forEach { assertFalse(it, storyLooksLikeSentence(it)) }
+    }
+
+    /** #505: a relationship answer must not become the label on the book, card or voice prompt. */
+    @Test
+    fun aRelationshipAnswerKeepsTheFriendAndTheOriginalStoryDetail() = runBlocking {
+        val s = started().apply { slots["newcomer"] = "거북이"; friendName = "거북이" }
+        val said = "커다란 바다거북이 엄마야"
+        s.exchangeStoryTurn("name", "아기 거북이의 엄마는 누구였을까?", said) {
+            Server.TurnResult(verdict("name" to said, next = "cause"), null)
+        }
+        s.syncStoryPresentation()
+        assertNull(s.slots["name"])
+        assertEquals("거북이", s.friendName)
+        assertEquals(said, s.storyServerInput().slots["extra"])
+        assertEquals("child", s.storyServerInput().sources["extra"])
+        assertEquals("name", s.nextStoryPrompt(s.storyServerQuestion)?.slot)
+
+        // A second relationship answer keeps the detail once and does not keep asking for a name.
+        s.exchangeStoryTurn("name", "그 친구를 뭐라고 부를까?", said) {
+            Server.TurnResult(verdict("name" to said, next = "name"), null)
+        }
+        assertNull(s.slots["name"])
+        assertEquals(said, s.storyServerInput().slots["extra"])
+        assertFalse("name" == s.nextStoryPrompt(s.storyServerQuestion)?.slot)
+    }
+
+    @Test
+    fun aRelationshipAnswerIsNotGuessedIntoANewcomer() = runBlocking {
+        val s = started()
+        val said = "커다란 바다거북이 엄마야"
+        s.exchangeStoryTurn("newcomer", "누구였을까?", said) {
+            Server.TurnResult(verdict("newcomer" to said, next = "cause"), null)
+        }
+        assertNull(s.slots["newcomer"])
+        assertEquals(said, s.storyServerInput().slots["extra"])
+        assertEquals("newcomer", s.nextStoryPrompt(s.storyServerQuestion)?.slot)
+    }
+
+    @Test
     fun aSentenceIsNotTheNewcomerAndTheQuestionComesOnceMore() = runBlocking {
         val s = started()
         val said = "눈보라가 불어서 길을 잃었어"

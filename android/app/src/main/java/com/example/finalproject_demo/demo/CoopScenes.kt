@@ -466,7 +466,9 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
     if (idx != null && firstAsk) track.partQuestions[idx] = shown
     // Choices already asked — a no-answer goes to the choices again, not down to an open rung: 「…. 그래서 어떻게 했어?」 →
     // 「그다음에 뭐 했어?」 sounded like a new question right after the choices (10-12 user · review)
-    val asking = if (hasCoopChoices(shown) && q.ladder.any(::hasCoopChoices)) q.copy(ladder = q.ladder.filter(::hasCoopChoices)) else q
+    val asking = (if (hasCoopChoices(shown) && q.ladder.any(::hasCoopChoices)) q.copy(ladder = q.ladder.filter(::hasCoopChoices)) else q)
+        // the line just asked is not asked again as the next rung — the open 「그래서 어떻게 했어?」 is both (B5 · 10-14)
+        .let { a -> if (shown in a.ladder) a.copy(ladder = a.ladder - shown) else a }
     val (r, askedLast, stillAsking) = askAnsweringChildQuestions(asking, key, shown)
     if (stillAsking) {
         // A third question in one step — the current flow (an easier question). Not into a slot or the rejected list (coopLiveValueAsSaid) · no ack
@@ -1204,7 +1206,7 @@ private fun DemoState.coopChildSaid(): String {
 internal val SOUND_THING = mapOf(SoundProp.SIREN to "소방차", SoundProp.CAR to "자동차", SoundProp.TRAIN to "기차",
     SoundProp.LION to "사자", SoundProp.DOG to "강아지", SoundProp.CHEER to "공")
 internal val FIX_THING = mapOf(FixProp.FIRE to "불", FixProp.FAUCET to "수도꼭지", FixProp.BALL to "공",
-    FixProp.PIECES to "떨어진 조각", FixProp.BLOCKS to "블록")
+    FixProp.PIECES to "떨어진 조각", FixProp.BLOCKS to "블록", FixProp.MARBLE to "구슬", FixProp.SNOWBALL to "눈덩이")
 
 /**
  * 이 미션 쪽이 **책 문장에** 들어가나. 상상 이야기(좋아해요)는 늘 들어간다 — 동화처럼 꾸며 써도 된다.

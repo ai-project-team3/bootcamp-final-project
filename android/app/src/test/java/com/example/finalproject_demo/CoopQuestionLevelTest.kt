@@ -33,7 +33,10 @@ class CoopQuestionLevelTest {
         assertEquals("큰 소방서에서 불이 나면 소방관은 무슨 일을 할까?",
             f("problem", Level.CHAIN, CoopReason.SOON, mapOf("place" to "큰 소방서"), template = "거기서 불이 나면 소방관은 무슨 일을 할까?"))
         assertEquals("유치원에서 무슨 일이 있었어?", f("problem", Level.CHAIN, CoopReason.DONE, mapOf("place" to "유치원"), pick = zoo))
-        assertEquals("바다에서 뭐 봤어?", f("problem", Level.PICK, CoopReason.DONE, mapOf("place" to "바다"), pick = zoo))
+        // every level asks what happened — 「바다에서 뭐 봤어?」 asked for a sight and held the problem answer under the judge's
+        // floor (coop book check B5 · 10-14)
+        assertEquals("바다에서 무슨 일이 있었어?", f("problem", Level.PICK, CoopReason.DONE, mapOf("place" to "바다"), pick = zoo))
+        assertEquals("바다에서 무슨 일이 생길까?", f("problem", Level.PICK, CoopReason.SOON, mapOf("place" to "바다"), pick = zoo))
         // 장소를 못 들었으면 이어 받기 없음 → 템플릿 그대로
         assertNull(f("problem", Level.CHAIN, CoopReason.DONE, emptyMap(), pick = zoo))
     }
@@ -69,13 +72,13 @@ class CoopQuestionLevelTest {
 
     @Test
     fun theSolutionQuestionFollowsTheLevel() {
-        val pick = f("solution", Level.PICK, CoopReason.DONE, emptyMap(), pick = CoopPick("job", "소방관", "done"))!!
-        // choices of what to do, then 「어떻게」 — not 「그다음에 뭐 했어?」, which asks for a new event (10-12 user)
-        assertTrue(pick, pick.endsWith(". 그래서 어떻게 했어?"))
-        assertTrue(pick, "그다음에" !in pick)
-        val school = f("solution", Level.PICK, CoopReason.SOON, emptyMap(), pick = CoopPick("place", "학교", "soon"))!!
-        assertTrue(school, school.endsWith(". 그러면 어떻게 할까?") && "먼저 사과하기" in school)
-        assertEquals("그다음에 뭐 할까?", f("solution", Level.CHAIN, CoopReason.SOON, emptyMap()))
+        // 고르며 짓기 asks the open 「어떻게」 first — an answer outside three choices sat under the judge's floor (B5 · 10-14).
+        // The choices come after a 「몰라」, from the ladder. Never 「그다음에 뭐 했어?」, which asks for a new event (10-12 user)
+        assertEquals("그래서 어떻게 했어?", f("solution", Level.PICK, CoopReason.DONE, emptyMap(), pick = CoopPick("job", "소방관", "done")))
+        assertEquals("그러면 어떻게 할까?", f("solution", Level.PICK, CoopReason.SOON, emptyMap(), pick = CoopPick("place", "학교", "soon")))
+        // 이어 짓기 asks how too — 「그다음에 뭐 할까?」 asked for the next event, not the fix (B5 · 10-14)
+        assertEquals("그러면 어떻게 할까?", f("solution", Level.CHAIN, CoopReason.SOON, emptyMap()))
+        assertEquals("그래서 어떻게 했어?", f("solution", Level.CHAIN, CoopReason.DONE, emptyMap()))
         assertEquals("불은 어떻게 됐어?", f("solution", Level.REASON, CoopReason.DONE, mapOf("thing" to "불")))
         assertEquals("그래서 어떻게 될까?", f("solution", Level.REASON, CoopReason.SOON, emptyMap()))
     }

@@ -103,6 +103,10 @@ import com.example.finalproject_demo.ui.missions.FixMission
 import com.example.finalproject_demo.ui.missions.StackMission
 import com.example.finalproject_demo.demo.missions.soundProp
 import com.example.finalproject_demo.demo.missions.blowProp
+import com.example.finalproject_demo.demo.missions.FixProp
+import com.example.finalproject_demo.demo.missions.slot2PlayProp
+import com.example.finalproject_demo.demo.missions.SaidSound
+import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.mission2
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -520,7 +524,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
             }
             // 미션 자리 1 — 아이 말에 불 것(촛불 · 민들레 · 먼지 · 바람)이 있으면 C1 불기, 아니면 A6 문지르기 (#101)
             PageKind.RUB -> s.blowProp()?.let { BlowMission(d, stage.m1Done, heroArt, it) }
-                ?: s.soundProp()?.let { SoundMission(d, stage.m1Done, heroArt, it) }
+                ?: s.soundProp()?.let { SoundMission(d, stage.m1Done, heroArt, it, (s.slot1Prop() as? SaidSound)?.art) }
                 ?: RubMission(d, stage.m1Done, heroArt, dinoArt, tool, scripted = scripted)
             // 미션 2가 **틀에 따라 갈라진다** (9/23 · 미션 구상 §4).
             // 「다시 쌓다 · 맞추다 · 되돌리다」로 푸는 틀(A 도전-성취 · G 우화-교훈)은 퍼즐이,
@@ -531,7 +535,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                     MissionId.A3 -> PuzzleMission(d, stage.m2Done)
                     MissionId.A1 -> HoseMission(d, stage.m2Done, heroArt)       // 「불을 껐어」 (#101)
                     MissionId.A4 -> TurnMission(d, stage.m2Done, heroArt)       // 「꽉 잠갔어」 (#101)
-                    MissionId.D4 -> RollMission(d, stage.m2Done, heroArt)       // 「공을 굴렸어 · 골인」 (#101)
+                    MissionId.D4 -> RollMission(d, stage.m2Done, heroArt, s.slot2PlayProp() ?: FixProp.MARBLE)   // 「공 · 구슬 · 눈덩이를 굴렸어」 (#101)
                     MissionId.E2 -> FixMission(d, stage.m2Done, heroArt)        // 「부서졌어 · 고쳤어」 (#101)
                     MissionId.A5 -> StackMission(d, stage.m2Done, heroArt)      // 「무너졌어 · 다시 쌓았어」 (#101)
                     else -> GiveMission(d, stage.m2Done, heroArt, tool)
@@ -604,13 +608,19 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
             if (page > 0) RoundBtn("◀", Wool) { onReply(Reply.Tapped("prev", "앞")) }
         }
         Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)) {
-            val canNext = when (kind) { PageKind.RUB -> stage.m1Done; PageKind.DRAG -> stage.m2Done; else -> true }
+            val missionOpen = when (kind) { PageKind.RUB -> !stage.m1Done; PageKind.DRAG -> !stage.m2Done; else -> false }
+            // a re-read from the shelf never locks the page — the mission can be played or skipped (J1 「▶ 그냥 읽기」)
+            val canNext = !missionOpen || savedBook != null
             if (page == last) {
                 FeltButton(FeltMustard, onClick = { onReply(Reply.Tapped("next", "다음")) }, modifier = Modifier.size(Touch.KidMin), shape = CircleShape) {
                     ArtView(Art.Img("ic_books", Art.Emoji("📚")), Modifier.size(40.dp))
                 }
             } else {
                 RoundBtn("▶", if (canNext) FeltCoral else WoolCream.copy(alpha = 0.6f)) { if (canNext) onReply(Reply.Tapped("next", "다음")) }
+            }
+            if (missionOpen && savedBook != null && page != last) {
+                Text("그냥 읽기", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.BottomCenter).offset(y = 22.dp))
             }
         }
     }

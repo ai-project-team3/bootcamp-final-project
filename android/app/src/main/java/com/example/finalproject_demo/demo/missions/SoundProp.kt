@@ -84,7 +84,31 @@ fun DemoState.soundProp(): SoundProp? = pinnedMissions()?.sound            // a 
 /** 이 책 자리 1 의 소품 말 — C1 · C3 면 그 소품, 아니면 null(A6 문지르기 · `Missions.kt` 원래 문장) */
 fun DemoState.slot1Prop(): Slot1Prop? = blowProp() ?: soundProp()?.let { p ->
     // a re-read book has no words left — the word it was made with is pinned (#491 review)
-    pinnedMissions()?.let { pin -> pin.soundWord?.let { namedSound(p, it) } } ?: saidSound(p, storyFacts().slot1Words) ?: p
+    pinnedMissions()?.let { pin -> pin.soundWord?.let { namedSound(p, it) } } ?: saidSound(p, storyFacts().slot1Words)
+        ?: themeSound(p, storyFacts().slot1Words, storyTheme()) ?: p
+}
+
+/**
+ * The words of the whole story the theme is read from — the co-op card's name and what the child filled. A police story's
+ * 「삐뽀삐뽀」 is a police car though the slot-1 words never said so (10-14 device: 「소방차처럼…」 in a police story)
+ */
+private fun DemoState.storyTheme(): String = (listOfNotNull(coopPick?.name) +
+    slots.filterKeys { slotBy[it] in setOf("child", "card") }.values).joinToString(" ")
+
+/** What a sound's story is about → the thing that makes it there. Only the siren has more than one maker */
+private val SOUND_THEMES = mapOf(
+    SoundProp.SIREN to listOf(listOf("경찰", "도둑") to "경찰차", listOf("구급", "병원", "응급") to "구급차"),
+)
+
+/**
+ * The sound prop under the story's theme — only when the slot-1 words name no maker of the sound themselves
+ * (「소방차가 삐뽀삐뽀」 in a police story stays 소방차)
+ */
+internal fun themeSound(p: SoundProp, slot1Words: String, theme: String): SaidSound? {
+    val (own, others) = SOUND_NAMES[p] ?: return null
+    if (saysAny(slot1Words, listOf(own) + others)) return null
+    if (saysAny(theme, listOf(own, own.removeSuffix("차")))) return null
+    return SOUND_THEMES[p]?.firstOrNull { (words, _) -> saysAny(theme, words) }?.let { (_, word) -> SaidSound(p, own, word) }
 }
 
 /** The thing each sound prop names in its lines, and the other things the child may have said for the same sound */
@@ -110,6 +134,8 @@ internal fun saidSound(p: SoundProp, said: String): SaidSound? {
 internal fun namedSound(p: SoundProp, word: String): SaidSound? = SOUND_NAMES[p]?.let { (own, _) -> SaidSound(p, own, word) }
 
 class SaidSound(val prop: SoundProp, private val own: String, val word: String) : Slot1Prop {
+    /** The maker's own picture when one is drawn — the C3 screen falls back to the prop's (no police car art baked yet) */
+    val art: String? get() = WORD_ART[word]
     private fun named(line: String) = line.replace(own, word).let { fixParticles(it, word) }
     override val before get() = named(prop.before)
     override val result get() = named(prop.result)
@@ -119,6 +145,8 @@ class SaidSound(val prop: SoundProp, private val own: String, val word: String) 
     override val badge get() = prop.badge
     override val motion get() = prop.motion
 }
+
+private val WORD_ART = mapOf("경찰차" to "prop_police_car", "구급차" to "prop_ambulance")
 
 /** 「사자가」 → 「호랑이가」 is fine, but 「버스가」 after 「자동차가」 needs its particle checked — 이/가 · 은/는 · 을/를 follow the new word */
 private fun fixParticles(line: String, word: String): String {

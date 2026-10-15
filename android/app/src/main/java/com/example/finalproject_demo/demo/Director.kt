@@ -457,8 +457,16 @@ class Director(
     fun prefetchSpeech(text: String) {
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)
-        synchronized(prefetched) { prefetched.getOrPut(line) { scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } } } }
+        synchronized(prefetched) { prefetched.getOrPut(line) { scope.async { lineVoice(line) } } }
     }
+
+    /**
+     * A line's voice: baked into the app · already heard this session ([heardVoices]) · or `/tts`.
+     * 10-14: a line said again (Otto's face tapped · ◀ back a page · 「말하기」 · a page re-read after its mission ·
+     * a prefetch that fell out of [prefetched]) went to `/tts` again and was paid again, though its voice was kept
+     */
+    internal suspend fun lineVoice(line: String): ByteArray? =
+        Voice.baked(line) ?: synchronized(heardVoices) { heardVoices[line] } ?: Server.tts(line)?.also { heard(line, it) }
 
     /**
      * Server voices of this session's last lines, by spoken text (#179). A diary keeps its page voices with the book
@@ -519,8 +527,8 @@ class Director(
         val mode = s.mode
         val ready = if (saved == null) synchronized(prefetched) { prefetched.remove(line) } else null
         val audio = (ready ?: scope.async {
-            if (saved != null) savedBookVoice(saved, mode, line) { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }
-            else Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) }
+            if (saved != null) savedBookVoice(saved, mode, line) { lineVoice(line) }
+            else lineVoice(line)
         }).also { queueVoice(it) }
         queueSpoken(if (waitForVoice) s.lineId else null) { audio.await() }
     }
@@ -1102,6 +1110,10 @@ class Director(
                 send(Reply.Tapped(c.value, c.label))
             }
             log("모호한 말 확인: 뜻이 여럿인 말이라 그림 카드 3장을 바로 띄움 · 말로 답해도 됨 (구현대본 §0-1)")
+        } else if (s.isCoop && hasCoopChoices(q.text)) {
+            // co-op's 고르며 · 이어 짓기 attach the item's choices to the 「왜 · 어떻게」 (CoopQuestions.kt) — the log said
+            // 「선택지를 말하지 않고」 over a line that read three choices (10-14 demo review)
+            log("선택지를 붙인 질문 — 고르며 · 이어 짓기 수준이라 후보 셋을 먼저 들려준다. 말로 다르게 답해도 된다 (협업 질문 §5 · CoopQuestions.kt)")
         } else {
             log("소크라틱 열린 질문 — 선택지를 말하지 않고 아이가 떠올리게 한다 (v0.8 · 결정 30)")
         }

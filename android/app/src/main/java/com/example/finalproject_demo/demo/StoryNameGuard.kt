@@ -24,6 +24,8 @@ private const val JONG_BS = 18
 /** Polite endings — 「있어요」 · 「보여요」 · 「내려요」 · 「가요」 · 「놀아요」 · 「했어요」 · 「갑니다」. 「요요」 stays a name */
 private val POLITE_END = Regex("(?:어|아|해|에|예|와|워|봐|줘|여|려|가|서|세|래|대|네|내|돼|져|쳐|켜)요$|니다$")
 private val LINKING_END = Regex("(?:서|고|는데|니까|면서)$")
+/** Multiword relationship answers (#505), not arbitrary names ending in 야 (「보라색 카구야」). */
+private val RELATIONSHIP_END = Regex("(?:(?:엄마|아빠|친구|누나|언니|오빠|할머니|할아버지)야|(?:동생|형|선생님)이야)")
 private val MEETING = Regex("^(?:만났|만나|봤|보았|나타났|나왔|왔|찾았|발견했)")
 /** Verbs whose one-met is the object (을 · 를), not a 가 subject — 「봤어」 · 「만났어」 · 「찾았어」 */
 private val SEEING = Regex("^(?:만났|만나|봤|보았|찾았|발견했)")
@@ -80,6 +82,7 @@ internal fun storyLooksLikeSentence(value: String): Boolean {
     val words = value.trim().trimEnd('.', '!', '?', '~', '…').split(Regex("\\s+")).filter(String::isNotEmpty)
     val last = words.lastOrNull() ?: return false
     if (POLITE_END.containsMatchIn(last)) return true
+    if (words.size >= 2 && RELATIONSHIP_END.matches(last)) return true
     if (last.length >= 2 && last.last() in "어아다지네") {
         val before = jong(last[last.length - 2])
         if (before == JONG_SS || before == JONG_BS) return true
