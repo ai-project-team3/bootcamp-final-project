@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     judge_jev_modes: str = ""
     typesafe_api_key: str = ""
     jev_model: str = "jev-latest"
+    # Diary · coop turns where Jev picked a slot under its 0.6 floor (#440 follow-up · 10-14 server PC, 203 questions):
+    # "" — leave it empty and the app asks again (served) · "agree" — ask luna and keep Jev's pick only if luna
+    # names it too (right 163 → 177, ask-again 33 → 14, wrong 7 → 12) · "luna" — luna's verdict instead
+    # (181 · 8 · 14). That turn takes about 3 s more; past the deadline it is left empty as before. Off until a
+    # set of real child answers confirms the trade (eval/results.md)
+    jev_low_confidence: str = ""
+    jev_low_confidence_deadline_s: float = 4.0
     # Dialogue repair (#323): who reads what the child meant — "jev" now, Laya once #324 measures it.
     # Runs next to the judge, only when the app sends history. "mock" = words only (tests).
     dialogue_decider: str = "jev"
