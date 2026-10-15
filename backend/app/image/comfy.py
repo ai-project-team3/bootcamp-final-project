@@ -99,7 +99,7 @@ async def _cancel(base: str, pid: str) -> None:
 
 async def background(scene: str, style: str = "felt", mode: str = "story") -> bytes:
     """PNG bytes. Raises ComfyError; the caller owns the deadline and cancelling cancels the job."""
-    return await run(workflow(scene, random.randrange(2 ** 31), style, mode), front=True)
+    return await draw(workflow(scene, random.randrange(2 ** 31), style, mode), "background", front=True)
 
 
 # ── characters: img2img from a posed mannequin (docs/캐릭터_생성_규격.md §8) ──────────
@@ -142,16 +142,19 @@ async def upload(png: bytes, name: str) -> str:
     return (j["subfolder"] + "/" if j.get("subfolder") else "") + j["name"]
 
 
-def character_workflow(subject: str, rig: str, seed: int, template: str | None, style: str = "felt") -> dict:
+def character_workflow(subject: str, rig: str, seed: int, template: str | None, style: str = "felt",
+                       template_b64: str | None = None) -> dict:
+    """[template] is the mannequin's name in PC2's input folder; on Modal it rides in the graph as [template_b64]."""
     st = styles(style)
     wf = workflow("", seed, style)
     wf["2"]["inputs"]["text"] = f"a cute {subject} {'drawing' if style == 'crayon' else 'puppet'}, {CHAR_POSE[rig]}{st['char']}"
     wf["3"]["inputs"]["text"] = st["char_neg"]
     wf["7"]["inputs"]["filename_prefix"] = "otto/char"
-    if template is None:                       # blob: nothing to keep, plain text-to-image
+    if template is None and template_b64 is None:     # blob: nothing to keep, plain text-to-image
         wf["4"]["inputs"].update({"width": 1024, "height": 1024})
         return wf
-    wf["10"] = {"class_type": "LoadImage", "inputs": {"image": template}}
+    wf["10"] = ({"class_type": "OttoLoadImageB64", "inputs": {"png_base64": template_b64}} if template_b64 is not None
+                else {"class_type": "LoadImage", "inputs": {"image": template}})
     wf["11"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["10", 0], "vae": ["1", 2]}}
     wf["5"]["inputs"].update({"latent_image": ["11", 0], "denoise": CHAR_DENOISE[rig]})
     del wf["4"]
@@ -167,14 +170,36 @@ async def _forget(base: str, pid: str) -> None:
         pass
 
 
+KINDS = ("redraw", "background", "character")
+
+
+def on_modal(kind: str) -> bool:
+    """Does this kind of picture go to our Modal GPU (REDRAW_MODAL_URL set and the kind in MODAL_KINDS)?"""
+    return bool(settings.redraw_modal_url) and kind in {k.strip() for k in settings.modal_kinds.split(",")}
+
+
+def memory_graph(wf: dict) -> dict:
+    """The graph as the Modal GPU runs it: the picture comes back through OttoReturnImageB64 instead of SaveImage,
+    since nothing there may write a file. A LoadImage would need PC2's input folder — the graph must bring its
+    picture itself (OttoLoadImageB64)."""
+    out = {}
+    for nid, node in wf.items():
+        if node["class_type"] == "LoadImage":
+            raise ComfyError("LoadImage on modal")
+        if node["class_type"] == "SaveImage":
+            node = {"class_type": "OttoReturnImageB64", "inputs": {"images": node["inputs"]["images"]}}
+        out[nid] = node
+    return out
+
+
 def _modal_headers() -> dict:
     return {"Modal-Key": settings.redraw_modal_key, "Modal-Secret": settings.redraw_modal_secret}
 
 
 async def _run_modal(wf: dict) -> bytes:
-    """The redraw on our Modal GPU (backend/modal_gpu/ · #460 ⑥). The drawing rides in this one POST body
+    """One picture on our Modal GPU (backend/modal_gpu/ · #460 ⑥). A redraw's drawing rides in this one POST body
     and Modal does not store a Server's requests (docs/그림생성_API_조사_410.md §0-5 ④). Errors name only
-    the kind of failure — never the body, which holds the child's drawing."""
+    the kind of failure — never the body, which may hold the child's drawing."""
     base = settings.redraw_modal_url.rstrip("/")
     try:
         async with httpx.AsyncClient(timeout=30) as http:
@@ -206,12 +231,13 @@ async def _wake() -> None:
         pass                                    # a wake is a hint — the redraw itself still waits for a container
 
 
-def wake_redraw() -> None:
-    """Ask the Modal GPU to be up soon, without waiting. Called on every picture-diary turn so the GPU stays
-    up while the child draws and the redraw does not pay a cold start (§0-5 ②: kept up 4/4 within 45 s,
-    woken once at the start 4/4 but only because the GPU came fast that hour). No-op when Modal is off."""
+def wake_gpu(mode: str) -> None:
+    """Ask the Modal GPU to be up soon, without waiting. Called on every /turn so the GPU stays up through
+    the book and a picture does not pay a cold start (§0-5 ②: kept up 4/4 within 45 s, woken once at the
+    start 4/4 but only because the GPU came fast that hour). The redraw alone wakes it for the diary only,
+    as #471 measured it; a background or a character may come in any mode. No-op when Modal is off."""
     global _woke_at
-    if not settings.redraw_modal_url:
+    if not (on_modal("background") or on_modal("character") or (mode == "diary" and on_modal("redraw"))):
         return
     now = time.monotonic()
     if now - _woke_at < _WAKE_EVERY_S:
@@ -222,19 +248,23 @@ def wake_redraw() -> None:
     task.add_done_callback(_wakes.discard)
 
 
+async def draw(wf: dict, kind: str, front: bool = False) -> bytes:
+    """One picture of [kind] (redraw · background · character): our Modal GPU when on_modal(kind), else PC2 (run)."""
+    if on_modal(kind):
+        return await _run_modal(memory_graph(wf))
+    return await run(wf, front)
+
+
 async def run(wf: dict, front: bool = False) -> bytes:
-    """Queue one graph and return its first PNG. Cancelling cancels the ComfyUI job.
+    """Queue one graph on PC2's ComfyUI and return its first PNG. Cancelling cancels the ComfyUI job.
 
     A graph that returns its picture through OttoReturnImageB64 (the redraw) is read from the
     history entry, and that entry is deleted whatever happens — nothing of it stays on PC2.
-    With REDRAW_MODAL_URL set, that graph goes to our Modal GPU instead (_run_modal).
     [front] puts the job at the head of ComfyUI's queue — a picture a child is waiting for
     (background · character) goes ahead of redraws already queued (#32, 10-02).
     """
     base = settings.comfy_url.rstrip("/")
     in_memory = any(n["class_type"] == "OttoReturnImageB64" for n in wf.values())
-    if in_memory and settings.redraw_modal_url:
-        return await _run_modal(wf)
     pid = None
     try:
         async with httpx.AsyncClient(timeout=10) as http:
@@ -327,8 +357,11 @@ def redraw_workflow(subject: str, seed: int, drawing_b64: str, denoise: float | 
 
 async def warm_up() -> None:
     """Load the models once at server start. Cold, the first picture took 48.9 s (09-29);
-    warm, 4.6-4.7 s. Without this the first child of the day always gets the preset."""
+    warm, 4.6-4.7 s. Without this the first child of the day always gets the preset.
+    Always PC2's ComfyUI, and not at all once every kind is on Modal — waking Modal here would bill an idle GPU."""
+    if all(on_modal(k) for k in KINDS):
+        return
     try:
-        await background("a sunny meadow with a small hill")
+        await run(workflow("a sunny meadow with a small hill", random.randrange(2 ** 31)), front=True)
     except Exception:
         pass                             # ComfyUI not up yet — /image falls back to presets anyway

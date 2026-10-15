@@ -91,12 +91,15 @@ class Settings(BaseSettings):
     # A redraw has no child waiting on it — the diary shows it at the next brush pause, so it may
     # wait behind the story pictures and still arrive (#32, 10-02). Phone waits 50 s.
     redraw_deadline_s: float = 45.0
-    # Redraw on a Modal GPU in our own account instead of PC2 (#460 ⑥ · backend/modal_gpu/). Empty = off,
+    # Pictures on a Modal GPU in our own account instead of PC2 (#460 ⑥ · backend/modal_gpu/). Empty = off,
     # PC2 as before. The URL is the Modal Server's (`modal deploy` prints it); the key and secret are a
-    # Modal proxy auth token. Only the redraw goes there — backgrounds and characters stay on comfy_url.
+    # Modal proxy auth token. The names say redraw because it went first (#471); the server draws any kind.
     redraw_modal_url: str = ""
     redraw_modal_key: str = ""
     redraw_modal_secret: str = ""
+    # Which kinds go there once the URL is set (comma list of redraw · background · character); the rest stay
+    # on comfy_url. Default redraw only, as #471 shipped — the lead picks how far to go.
+    modal_kinds: str = "redraw"
     # Every server deadline sits under the phone's wait (net/Server.kt), so the server answers
     # first — a verdict, a fallback or an error — instead of the phone giving up mid-call (10-01).
     turn_deadline_s: float = 25.0        # phone waits 30 s · judge ≤ 18 s, the line gets what is left

@@ -1,6 +1,8 @@
 """「오또가 그려 줘」 (kind redraw) on a Modal GPU in our own account (#460 ⑥ · 10-13 lead decision: 「우리 서버」).
 
-Off by default — the backend only calls this when REDRAW_MODAL_URL is set (app/config.py).
+Off by default — the backend only calls this when REDRAW_MODAL_URL is set (app/config.py). Backgrounds and
+characters come here too when MODAL_KINDS names them; the backend turns their SaveImage into OttoReturnImageB64
+and sends the mannequin inside the graph (comfy.memory_graph), so the same in-process executor draws all three.
 
 Why a Modal *Server* (`@app.server`) and not `@modal.fastapi_endpoint`: Modal keeps a Web Function's inputs
 and outputs for up to 7 days, while a Server's request and response are not stored, only proxied to the
