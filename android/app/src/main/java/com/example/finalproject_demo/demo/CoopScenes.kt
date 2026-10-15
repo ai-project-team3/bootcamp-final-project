@@ -466,7 +466,9 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
     if (idx != null && firstAsk) track.partQuestions[idx] = shown
     // Choices already asked — a no-answer goes to the choices again, not down to an open rung: 「…. 그래서 어떻게 했어?」 →
     // 「그다음에 뭐 했어?」 sounded like a new question right after the choices (10-12 user · review)
-    val asking = if (hasCoopChoices(shown) && q.ladder.any(::hasCoopChoices)) q.copy(ladder = q.ladder.filter(::hasCoopChoices)) else q
+    val asking = (if (hasCoopChoices(shown) && q.ladder.any(::hasCoopChoices)) q.copy(ladder = q.ladder.filter(::hasCoopChoices)) else q)
+        // the line just asked is not asked again as the next rung — the open 「그래서 어떻게 했어?」 is both (B5 · 10-14)
+        .let { a -> if (shown in a.ladder) a.copy(ladder = a.ladder - shown) else a }
     val (r, askedLast, stillAsking) = askAnsweringChildQuestions(asking, key, shown)
     if (stillAsking) {
         // A third question in one step — the current flow (an easier question). Not into a slot or the rejected list (coopLiveValueAsSaid) · no ack
