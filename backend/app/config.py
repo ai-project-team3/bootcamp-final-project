@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     judge_jev_modes: str = ""
     typesafe_api_key: str = ""
     jev_model: str = "jev-latest"
+    # Diary · coop turns where Jev picked a slot under its 0.6 floor (#440 follow-up · 10-14 server PC, 203 questions):
+    # "" — leave it empty and the app asks again (served) · "agree" — ask luna and keep Jev's pick only if luna
+    # names it too (right 163 → 177, ask-again 33 → 14, wrong 7 → 12) · "luna" — luna's verdict instead
+    # (181 · 8 · 14). That turn takes about 3 s more; past the deadline it is left empty as before. Off until a
+    # set of real child answers confirms the trade (eval/results.md)
+    jev_low_confidence: str = ""
+    jev_low_confidence_deadline_s: float = 4.0
     # Dialogue repair (#323): who reads what the child meant — "jev" now, Laya once #324 measures it.
     # Runs next to the judge, only when the app sends history. "mock" = words only (tests).
     dialogue_decider: str = "jev"
@@ -84,6 +91,12 @@ class Settings(BaseSettings):
     # A redraw has no child waiting on it — the diary shows it at the next brush pause, so it may
     # wait behind the story pictures and still arrive (#32, 10-02). Phone waits 50 s.
     redraw_deadline_s: float = 45.0
+    # Redraw on a Modal GPU in our own account instead of PC2 (#460 ⑥ · backend/modal_gpu/). Empty = off,
+    # PC2 as before. The URL is the Modal Server's (`modal deploy` prints it); the key and secret are a
+    # Modal proxy auth token. Only the redraw goes there — backgrounds and characters stay on comfy_url.
+    redraw_modal_url: str = ""
+    redraw_modal_key: str = ""
+    redraw_modal_secret: str = ""
     # Every server deadline sits under the phone's wait (net/Server.kt), so the server answers
     # first — a verdict, a fallback or an error — instead of the phone giving up mid-call (10-01).
     turn_deadline_s: float = 25.0        # phone waits 30 s · judge ≤ 18 s, the line gets what is left

@@ -1468,6 +1468,8 @@ class DemoState {
 
     /** 시작 화면에 한 번 띄우는 안내 (하루 별 0 등) */
     var notice by mutableStateOf<String?>(null)
+    /** The mode whose new start was refused; UI-only, not part of a saved book or server contract. */
+    var noticeMode by mutableStateOf<StoryMode?>(null)
 
     /** 고른 모드의 책장이 꽉 찼다 — 방이 「책장이 꽉 찼어!」 알림을 띄운다 (#80 · `Shelves.kt`) */
     var shelfFull by mutableStateOf<StoryMode?>(null)
@@ -1500,6 +1502,8 @@ class DemoState {
     val talk = mutableStateListOf<TalkLine>()
     var talkStartedAtMs = 0L
     var reportProfileId: String = AnswerHistory.profileId
+    /** Display-only author captured for this session; null means an older record has no known call. */
+    var sessionAuthorCall by mutableStateOf<String?>(com.example.finalproject_demo.net.ChildCall.call)
     /** The last shelved book's report — the parent screen shows it once the session is reset */
     var lastReport by mutableStateOf<SessionReport?>(null)
 
@@ -1514,6 +1518,7 @@ class DemoState {
 
     /** 이야기 한 권 분량만 지운다. 책장 · 부모 설정 · 하루 별 · 도감 · 수준(다음 세션 시작점) · 쓴 질문은 남긴다 */
     fun resetStory() {
+        StoryEvaluation.reset(this)
         dropDiaryDay()                // a half-made picture diary is not resumed by a new story (#335)
         // A session left before its book still tells what it called (10-06 · per-mode call counts)
         com.example.finalproject_demo.net.Server.callSummary().takeIf { it.isNotEmpty() }
@@ -1562,6 +1567,7 @@ class DemoState {
         achievements.clear(); rewardNews.clear(); reactions = 0
         log.clear(); done.clear(); events.clear(); talk.clear(); talkStartedAtMs = 0L
         reportProfileId = AnswerHistory.profileId
+        sessionAuthorCall = childName
         heroTries.clear()
         heroCreationDraft = null
         modeVoice = 0; modeCard = 0; modeDraw = 0; modeSilent = 0
@@ -1583,7 +1589,7 @@ class DemoState {
         heroes += Hero("안경 쓴 친구", HeroAttr(glasses = "round", shirt = Color(0xFF3F7BD9)))
         heroes += Hero("빨간 옷 친구", HeroAttr(glasses = "none", shirt = Color(0xFFF25C4C), bottom = "shorts"))
         shelf.clear()
-        limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null
+        limitOn = true; dailyLimit = 3; usedToday = 0; pinToStart = false; artStyle = "felt"; notice = null; noticeMode = null
         usedVariants.clear()
         partnerKey = "mom"
         partnerCall = null

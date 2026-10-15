@@ -104,13 +104,26 @@ class CoopFlowTest {
      * 🎲(시연 답)로 걸음을 넘기며 오또가 [text] 를 물을 때까지 — 부모 질문은 자유 꼬리 자리
      * (하던 일 · 한 말 · 해 본 것 · 집에 와서)에 들어가서 몇 번째 질문인지는 앞 답에 따라 다르다 (10-05)
      */
-    private suspend fun Director.pushUntilAsked(text: String) {
+    private suspend fun Director.pushUntilAsked(text: String, calm: Boolean = false) {
         var pushes = 0
         while (asked() != text && pushes++ < 8) {
             if (await(4_000) { s.buttons.any { "🎲" in it.label } } == null) break
-            assertTrue(push("🎲"))
+            if (calm) assertTrue(pushCalm()) else assertTrue(push("🎲"))
             await(3_000) { asked() == text }
         }
+    }
+
+    /** Feeling words in the demo answers (CoopSteps `emo`) — an answer with one fills the feeling slot on the way */
+    private val FEELING_WORD = Regex("속상|아팠|아플|기뻤|기쁠|신났|신날|신나|무서|뿌듯|좋았|좋을|설레|슬펐|슬플|화났|화날|걱정")
+
+    /**
+     * Like 🎲, but always a demo answer with no feeling in it. 🎲 picks at random, and a feeling answer
+     * (「비가 오면 못 놀 수도 있어. 그럼 속상할 거야.」) fills the feeling slot before the parent's feeling question —
+     * then that question cannot cover the step. That made the test fail 16 of 30 runs (#460 ⑤)
+     */
+    private suspend fun Director.pushCalm(): Boolean {
+        val b = s.buttons.firstOrNull { it.label.startsWith("🗣") && !FEELING_WORD.containsMatchIn(it.label) } ?: return false
+        return push(b.label)
     }
 
     /** 마스코트가 지금 묻고 있는 말 */
@@ -508,8 +521,10 @@ class CoopFlowTest {
         val s = d.s
         val said = watchLines(d)
         d.startCoopWith("가기 전에 어떤 기분이 들어?", pick = CoopPick("place", "동물원", "soon"))
-        d.pushUntilAsked("가기 전에 어떤 기분이 들어?")
+        // no feeling on the way — the parent's question must be the first time the feeling is said (#460 ⑤)
+        d.pushUntilAsked("가기 전에 어떤 기분이 들어?", calm = true)
         assertEquals("가기 전에 어떤 기분이 들어?", d.asked())
+        assertNull("an earlier answer already filled the feeling: ${s.reaction}", s.reaction)
         d.answer("설레")
         assertTrue("the feeling step did not take the parent's answer: ${s.reaction}", await(10_000) { s.reaction == "설레" } != null)
         await(8_000) { s.micEnabled }

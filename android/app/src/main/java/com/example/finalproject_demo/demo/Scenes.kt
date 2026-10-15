@@ -122,6 +122,12 @@ private val STORY_ONLY = setOf(
  */
 private fun Director.seedDiary(order: Int) {
     if (order <= Scene.entries.indexOf(Scene.DIARY)) return
+    // A book the child answered (a resumed co-op · a diary) is never seeded — the demo playground line
+    // 「선생님과 함께 블록을 다시 쌓았어요」 landed on a resumed zoo book's page 7 as the child's words (10-14 device run)
+    if (s.slotBy.isNotEmpty()) {
+        if (order > Scene.entries.indexOf(Scene.MAKING) && s.title == null) s.title = s.autoTitleFor()
+        return
+    }
     if (s.place == null) {
         s.placeLabel = "놀이터"; s.place = "놀이터"; s.slots["place"] = "놀이터에 갔어요"
         s.slotBy["place"] = "child"
@@ -217,6 +223,7 @@ suspend fun Director.pinGate(purpose: String): Boolean {
 private suspend fun Director.sceneAdult() {
     s.stage = Stage.Adult
     s.notice = null
+    s.noticeMode = null
     buttons(
         DemoBtn("🖐 이야기 만들기 탭 (동화 모드)") { send(Reply.Tapped("start", "이야기 만들기")) },
         DemoBtn("🌙 오늘 있었던 일로 탭 (일기 모드)") { send(Reply.Tapped("diary", "오늘 있었던 일로")) },
@@ -232,6 +239,7 @@ private suspend fun Director.sceneAdult() {
         "resume" -> {
             val sc = s.paused
             s.paused = null
+            StoryEvaluation.state(s, "session_resumed")
             if (sc != null) { log("만들던 이야기 이어서 — 「${sc.label}」부터 (별은 이미 썼다)"); go(sc); return }
         }
         "parent" -> {
@@ -269,13 +277,14 @@ private suspend fun Director.sceneAdult() {
     }
     // ⭐ 0이면 오늘은 여기까지 — 누를 때 한 번만 말해 준다 (결정 2)
     if (s.limitOn && s.dayStars <= 0) {
-        s.notice = "오늘 만들 이야기는 다 썼어요! 책장에서 지난 이야기를 볼까요?"
+        s.noticeMode = picked
+        s.notice = "오늘 정한 횟수를\n다 썼어.\n" + startLimitNextAction()
         log("하루 별 0 → 시작을 막고 책장을 권한다. 누를 때 한 번만 말하고 재촉하지 않는다 (결정 2 · ⭐2)")
         buttons(
             DemoBtn("📚 책장 보기") { send(Reply.Tapped("notice:shelf", "책장")) },
             DemoBtn("🙂 괜찮아") { send(Reply.Tapped("notice:ok", "괜찮아")) },
         )
-        if (awaitValue("notice:shelf", "notice:ok") == "notice:shelf") go(Scene.SHELF) else go(Scene.ADULT)
+        finishStartLimitNotice()
         return
     }
     // 부모 설정 — 시작할 때 비밀번호 (아이 혼자 별을 써 버리거나 계속 만드는 것을 막는다)
@@ -283,22 +292,25 @@ private suspend fun Director.sceneAdult() {
         log("부모 설정: 이야기를 시작하려면 비밀번호 → 어른이 함께 있을 때만 시작")
         if (!pinGate("start")) { go(Scene.ADULT); return }
     }
-    // 서버 연결판 하루 한도 (10-06 팀 합의 · CallLimits) — 부모의 하루 별과 따로, 부모가 풀 수 없다(비용 상한)
-    if (Server.liveFor(picked) && com.example.finalproject_demo.net.CallLimits.booksLeftToday() <= 0) {
-        s.notice = "오늘은 오또랑 책을 두 권이나 만들었어! 새 이야기는 내일 같이 하자. 책장에서 만든 책을 볼까?"
-        log("서버 연결 하루 ${com.example.finalproject_demo.net.CallLimits.BOOKS_PER_DAY}권을 다 썼다 → 새 이야기를 막고 책장을 권한다")
+    // 별이 없다 (#445 · CallLimits) — 서버 책 한 권은 별 하나. 부모의 「하루에 쓸 수 있는 별」과 따로다.
+    // 오또는 별을 사 달라는 말을 하지 않는다 — 구매는 어른 길(부모 비밀번호 뒤)에만 있다
+    if (Server.liveFor(picked) && com.example.finalproject_demo.net.CallLimits.starsLeft() <= 0) {
+        s.noticeMode = picked
+        s.notice = "별을 다 썼어.\n" + startLimitNextAction()
+        log("별 0 → 새 이야기를 막고 책장을 권한다 (매일 주는 별은 없다 — 구매 · 광고는 어른 길에만)")
         buttons(
             DemoBtn("📚 책장 보기") { send(Reply.Tapped("notice:shelf", "책장")) },
             DemoBtn("🙂 괜찮아") { send(Reply.Tapped("notice:ok", "괜찮아")) },
         )
-        if (awaitValue("notice:shelf", "notice:ok") == "notice:shelf") go(Scene.SHELF) else go(Scene.ADULT)
+        finishStartLimitNotice()
         return
     }
     s.paused = null          // 새 이야기 — 멈춰 둔 이야기는 버린다
     discardDraft()           // …and its copy on the phone (#336) — the star for this new book is spent below
     s.resetStory()
     s.mode = picked
-    if (Server.liveFor(picked)) com.example.finalproject_demo.net.CallLimits.bookStarted()
+    StoryEvaluation.begin(s)
+    if (Server.liveFor(picked)) com.example.finalproject_demo.net.CallLimits.starSpent()
     if (s.isDiary) {
         s.diaryStart = System.currentTimeMillis()
         mark("diaryentry")
@@ -341,6 +353,24 @@ private suspend fun Director.sceneAdult() {
 }
 
 // ── 장면 2 · 도감 (⭐8 주인공 4칸 + 점선 ＋ 버튼) ──────────────────
+
+/** A refused new start must keep the old draft reachable without spending another start. */
+private fun Director.startLimitNextAction() =
+    if (s.paused != null) "만들던 건 이어서 해!" else "책장에서 다시 볼까?"
+
+private suspend fun Director.finishStartLimitNotice() {
+    val action = awaitValue("notice:shelf", "notice:ok", "resume")
+    s.notice = null; s.noticeMode = null
+    when (action) {
+        "notice:shelf" -> go(Scene.SHELF)
+        "resume" -> {
+            val scene = s.paused
+            s.paused = null
+            go(scene ?: Scene.ADULT)
+        }
+        else -> go(Scene.ADULT)
+    }
+}
 
 private suspend fun Director.sceneBestiary() {
     while (true) {
@@ -1596,24 +1626,32 @@ private suspend fun Director.sceneMaking() {
         p += 0.05f
     }
     s.title = s.autoTitleFor()
+    val evaluationAttempt = StoryEvaluation.generation(s)
     if (s.mode == StoryMode.STORY && Server.liveFor(s.mode)) {
         s.stage = Stage.Making("이야기 문장을 쓰는 중… (${plannedPageCount}쪽)")
         val mask = s.nameMask()
         val storyInput = s.storyServerInput()
-        val book = Server.storyBook(
+        val book = try { Server.storyBook(
             mode = "story",
             slots = mask.maskSlots(storyInput.slots),
             slotBy = storyInput.sources,
             template = t.key,
             level = s.level.name.lowercase(),
             pages = s.storyPagePlan(),
-        )
-        if (s.useGeneratedStory(book?.captions?.map(mask::unmask))) {
+            diagnostic = StoryEvaluation.diagnostic(s, evaluationAttempt),
+        ) } catch (e: kotlinx.coroutines.CancellationException) {
+            StoryEvaluation.cancelled(s, evaluationAttempt)
+            throw e
+        }
+        val restoredCaptions = book?.captions?.map(mask::unmask)
+        val accepted = s.useGeneratedStory(restoredCaptions)
+        StoryEvaluation.generated(s, evaluationAttempt, book, restoredCaptions, accepted)
+        if (accepted) {
             book?.title?.let { s.title = mask.unmask(it) }
             log("서버가 쓴 동화 ${s.pageCount}쪽을 받음")
             completeStoryBackgroundFromBook()
         } else log("동화 생성 실패 또는 쪽 목록 불일치 → 템플릿 책 사용")
-    }
+    } else StoryEvaluation.generated(s, evaluationAttempt, null, null, false, "live_disabled")
     coopWriteBook()                             // 협업 책 문장 — 서버를 켰을 때만 (CoopScenes.kt · #47)
     s.stage = Stage.Making("『${s.title}』", 1f)
     say("다 만들었어! 제목은 『${s.title}』${if (bat(s.title!!)) "이야" else "야"}.")
@@ -1986,7 +2024,7 @@ private suspend fun Director.sceneParent() {
             }
             v == "set:limit" -> {
                 s.limitOn = !s.limitOn
-                log("하루 한도 ${if (s.limitOn) "켬 — 하루 ${s.dailyLimit}권" else "끔 — 별을 쓰지 않음"}")
+                log("하루에 쓸 수 있는 별 ${if (s.limitOn) "켬 — 하루 ${s.dailyLimit}개" else "끔"}")
             }
             v == "set:limit+" -> { s.dailyLimit = (s.dailyLimit + 1).coerceAtMost(5); log("하루 ${s.dailyLimit}권") }
             v == "set:limit-" -> { s.dailyLimit = (s.dailyLimit - 1).coerceAtLeast(1); log("하루 ${s.dailyLimit}권") }

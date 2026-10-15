@@ -51,6 +51,18 @@ def test_refusal_is_left_to_the_modes_own_ladder():
     assert policy.act_for(d("refuse")) is None
 
 
+def test_a_sure_refusal_is_signalled_but_takes_no_act():
+    # 「없어」 to 「내일 또 하고 싶은 거 있어?」 — the phone leaves that slot empty (#405); the verdict stays as it is
+    assert policy.refused(d("refuse")) and policy.act_for(d("refuse")) is None
+
+
+def test_a_refusal_needs_the_costly_floor_to_be_signalled():
+    # taking a real answer for 「I'd rather not」 throws the child's words away — same 0.8 as a correction
+    assert not policy.refused(d("refuse", conf=0.7))
+    assert policy.refused(d("refuse", conf=0.8))
+    assert not policy.refused(d("answer")) and not policy.refused(None)
+
+
 def test_a_child_still_telling_is_a_plain_turn_this_round():
     assert policy.act_for(d("continue")) is None
 
@@ -76,6 +88,11 @@ def test_repair_takes_back_the_slot_the_child_named():
 def test_an_unsure_target_falls_back_to_the_last_slot_otto_filled():
     # Otto's last 「~구나!」 was about the place, so that is what 「그거 아니야」 denies
     assert policy.retract_for("repair", d("correct", target="companion", target_conf=0.4), req()) == ["place"]
+
+
+def test_a_sure_target_that_is_still_empty_falls_back_to_the_last_slot_otto_filled():
+    # 10-13 story bench c02: 「그거 아니야」 pointed at the question asked, which holds nothing yet
+    assert policy.retract_for("repair", d("correct", target="problem", target_conf=0.75), req()) == ["place"]
 
 
 def test_a_bare_denial_leaves_a_slot_filled_before_otto_s_last_reaction():

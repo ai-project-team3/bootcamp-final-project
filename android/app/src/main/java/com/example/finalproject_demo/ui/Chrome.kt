@@ -45,6 +45,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
@@ -209,7 +211,11 @@ fun ProgressTrack(filled: Int, total: Int, modifier: Modifier = Modifier, beads:
  * 한도가 꺼져 있으면 ∞.
  */
 @Composable
-fun StarWallet(count: Int, unlimited: Boolean, modifier: Modifier = Modifier, flightSource: Boolean = false) {
+fun StarWallet(
+    count: Int, unlimited: Boolean, modifier: Modifier = Modifier, flightSource: Boolean = false,
+    /** 「+」 — opens the grown-up check before the star shop (#445). Still and plain: it must not invite a child to buy */
+    onPlus: (() -> Unit)? = null,
+) {
     Box(modifier.height(48.dp), contentAlignment = Alignment.CenterStart) {
         // the coin glows while a star leaves it for the mode (ui/StarFlight.kt)
         if (flightSource && StarFlight.leaving > 0f) Box(
@@ -226,8 +232,13 @@ fun StarWallet(count: Int, unlimited: Boolean, modifier: Modifier = Modifier, fl
             Text(
                 if (unlimited) "∞" else "$count",
                 fontSize = 20.sp, color = InkBrown,
-                modifier = Modifier.align(Alignment.CenterEnd).padding(start = 32.dp, end = 16.dp),
+                modifier = Modifier.align(Alignment.CenterEnd).padding(start = 32.dp, end = if (onPlus != null) 42.dp else 16.dp),
             )
+            if (onPlus != null) Box(
+                Modifier.align(Alignment.CenterEnd).padding(end = 5.dp).size(26.dp).clip(CircleShape).background(InkBrown.copy(alpha = 0.1f))
+                    .semantics { contentDescription = "별 구매" }.clickable { onPlus() },
+                contentAlignment = Alignment.Center,
+            ) { Text("+", fontSize = 18.sp, color = InkBrown) }
         }
         // 코랄 책 동전
         Box(

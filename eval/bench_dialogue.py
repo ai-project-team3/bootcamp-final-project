@@ -6,6 +6,8 @@ server's own /turn function (judge on Jev for diary, as served since 10-05).
 
     py eval/bench_dialogue.py --runs 3 --yes-spend [--env C:/path/.env] [--variants B,R,M]
     py eval/bench_dialogue.py --score eval/raw/dialogue_<stamp>.jsonl      # score a saved run again
+    py eval/bench_dialogue.py --fixtures eval/fixtures_dialogue_story.jsonl --tag story --variants B,R ...
+                                               # another mode's set; raw files get the tag, diary's stay as they were
 
 Writes every call to eval/raw/ (git-ignored) and prints the table for eval/results.md. The blind
 pairs for the satisfaction check (B vs R, run 1, sides shuffled) go to eval/raw/ too.
@@ -30,7 +32,11 @@ from app.llm import client, jev  # noqa: E402
 from app.routers import turn  # noqa: E402
 from app.schemas.turn import TurnRequest  # noqa: E402
 
-CASES = [json.loads(l) for l in (EVAL / "fixtures_dialogue.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+def load_cases(path: Path) -> list[dict]:
+    return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
+
+
+CASES = load_cases(EVAL / "fixtures_dialogue.jsonl")      # --fixtures swaps it before anything runs
 RAW = EVAL / "raw"
 PRICES: dict[str, float] = {}                # set only from the command line (--cached-usd · --jev-won)
 
@@ -359,7 +365,13 @@ def main() -> None:
     ap.add_argument("--cached-usd", type=float, default=None, help="luna cached input $/Mtok — with --jev-won, adds won per turn")
     ap.add_argument("--jev-won", type=float, default=None, help="won per Jev call, once known from the bill")
     ap.add_argument("--decider-only", action="store_true", help="re-measure only the decider (Jev), no judge or line")
+    ap.add_argument("--fixtures", default=None, help="a cases file other than eval/fixtures_dialogue.jsonl (score with the same one)")
+    ap.add_argument("--tag", default=None, help="put into raw file names, so another set's runs do not sit among diary's")
     a = ap.parse_args()
+    global CASES
+    if a.fixtures:
+        CASES = load_cases(Path(a.fixtures))
+    tag = f"{a.tag}_" if a.tag else ""
     if a.cached_usd is not None and a.jev_won is not None:
         PRICES.update(cached_usd=a.cached_usd, jev_won=a.jev_won)
     if a.score:
@@ -370,7 +382,7 @@ def main() -> None:
         if not a.yes_spend:
             sys.exit(f"{len(CASES)} cases × {a.runs} runs on the decider — add --yes-spend")
         RAW.mkdir(exist_ok=True)
-        sink = RAW / f"dialogue_decider_{time.strftime('%m%d_%H%M')}.jsonl"
+        sink = RAW / f"dialogue_decider_{tag}{time.strftime('%m%d_%H%M')}.jsonl"
         rows = asyncio.run(run_decider(a.runs, sink))
         show({"R-decider": score_decider(rows)})
         print(f"raw: eval/raw/{sink.name}")
@@ -381,7 +393,7 @@ def main() -> None:
         other = Settings(_env_file=a.env)
         for k in ("openai_api_key", "typesafe_api_key", "openai_base_url"):
             setattr(settings, k, getattr(other, k))
-    stamp = ("mock_" if a.mock else "") + time.strftime("%m%d_%H%M")
+    stamp = tag + ("mock_" if a.mock else "") + time.strftime("%m%d_%H%M")
     RAW.mkdir(exist_ok=True)
     rows = asyncio.run(run(a.variants.split(","), a.runs, a.mock, RAW / f"dialogue_{stamp}.jsonl"))
     blind_pairs(rows, stamp)

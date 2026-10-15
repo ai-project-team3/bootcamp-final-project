@@ -75,6 +75,43 @@ def _modes(setting: str) -> set[str]:
     return {m.strip() for m in setting.split(",") if m.strip()}
 
 
+def _low_pick(picked: str) -> str | None:
+    """Jev's own slot from its raw 「slot confidence」 log label, when it is a slot under the floor."""
+    slot, _, conf = (picked or "").partition(" ")
+    try:
+        low = float(conf) < jev.FLOOR
+    except ValueError:
+        return None
+    return slot if low and slot in SLOT_NAMES else None
+
+
+async def _second_opinion(req: JudgeRequest, result: JudgeResult, picked: str) -> JudgeResult:
+    """A diary · coop turn Jev answered under its floor: ask luna instead of handing it back to the child
+    (settings.jev_low_confidence). Any luna failure or a slow answer keeps the empty slot — the app asks again."""
+    pick = _low_pick(picked)
+    if pick is None:
+        return result
+    try:
+        raw = await complete(judge_prompt.system(req.mode), judge_prompt.user(req), judge_prompt.schema(),
+                             effort=settings.llm_effort_judge, timeout_s=settings.jev_low_confidence_deadline_s)
+        luna = enforce(JudgeResult.model_validate(raw), req)
+    except (LLMError, ValidationError) as e:
+        log.warning("judge jev low confidence: luna failed, ask again: %s", e)
+        return result
+    if settings.jev_low_confidence == "luna":
+        log.info("judge jev low confidence %s → luna %s", pick, luna.slot_1)
+        return luna
+    if pick not in (luna.slot_1, luna.slot_2):
+        log.info("judge jev low confidence %s · luna %s/%s · no agreement, ask again", pick, luna.slot_1, luna.slot_2)
+        return result
+    # both name it: Jev's pick, the child's words as Jev keeps them, and the diary · coop rules again for what is next
+    out = result.model_dump()
+    out.update(slot_1=pick, value_1=" ".join(jev.mask_names(req.utterance, req.names).split()[:8]))
+    out = judge_rules.apply(out, req, out.get("next_slot"))
+    log.info("judge jev low confidence %s · luna agrees", pick)
+    return enforce(JudgeResult.model_validate(out), req)
+
+
 async def run(req: JudgeRequest) -> JudgeResult:
     """The verdict with its guardrails. Raises LLMError; /judge and /turn both call this."""
     if is_blocked(req.utterance):
@@ -99,7 +136,8 @@ async def run(req: JudgeRequest) -> JudgeResult:
             raw = await jev.judge(judge_prompt.system(), jev.mask_names(judge_prompt.user(req), req.names),
                                   jev.mask_names(req.utterance, req.names), mode=req.mode)
             # labels only, no words
-            log.info("judge jev %.2fs · %s · slot_1 %s", raw.pop("_seconds", 0.0), req.mode, raw.pop("_slot_1", "-"))
+            picked = raw.pop("_slot_1", "-")
+            log.info("judge jev %.2fs · %s · slot_1 %s", raw.pop("_seconds", 0.0), req.mode, picked)
             # diary · coop: the ending and the next slot are rules, as on Laya (judge_rules.py · 12 of the 13
             # labelled mode cases) — Jev's own story_ready / next_slot there are guesses about a diary order it
             # never saw. A story keeps Jev's verdict and the #156 recovery below: its required slots depend on
@@ -107,6 +145,8 @@ async def run(req: JudgeRequest) -> JudgeResult:
             if req.mode != "story":
                 raw = judge_rules.apply(raw, req, raw.get("next_slot"))
             result = enforce(JudgeResult.model_validate(raw), req)
+            if req.mode != "story" and result.slot_1 is None and settings.jev_low_confidence:
+                result = await _second_opinion(req, result, picked)
             if req.mode == "story" and not result.story_ready and result.next_slot is None:
                 # Jev left the next slot open or enforce() wiped it: ask the next empty beat instead of a full luna
                 # judge (2~3 s and luna's price a turn — 10-12 device, most story turns went there). Once the

@@ -38,8 +38,9 @@ fun DemoState.storyPagePlan(): List<Server.Page> {
         val prop = when (page.kind) {
             // the co-op missions too (10-06): what is blown (촛불) · whose sound (소방차) · what is fixed (불 · 수도꼭지)
             PageKind.RUB -> when (val p = slot1Prop()) {
-                is BlowProp -> p.word
+                is BlowProp -> p.serverWord
                 is SoundProp -> SOUND_THING[p]
+                is com.example.finalproject_demo.demo.missions.SaidSound -> p.word
                 // a default dust is not sent — the page set up dust the child never said (#259 §4-3 4 · picture-book M8)
                 else -> mission1().blobName.takeIf { !defaultRub() }
             }
@@ -58,6 +59,22 @@ fun DemoState.useGeneratedStory(captions: List<String>?): Boolean {
     val valid = expected != null && captions != null && captions.size == expected && captions.all { it.isNotBlank() }
     storyCaptions = if (valid) captions!!.toList() else null
     return valid
+}
+
+/** The fallback must read the answers the template actually collected. Quotes keep
+ * compound events, negation and wishes intact without guessing grammar or an actor. */
+internal fun DemoState.storyFallbackEnding(): String? {
+    if (mode != StoryMode.STORY) return null
+    // The scripted path keeps its answer in solutionLine, not these live answer slots.
+    // A lone goal/reflect must not hide that solution or the partner's scripted contribution.
+    if (slots["solution"].isNullOrBlank() && slots["resolve"].isNullOrBlank()) return null
+    val keys = listOf("solution") + template?.ending.orEmpty() + listOf("extra") +
+        slots.keys.filter { it.startsWith("${STORY_SUPPLEMENT_PREFIX}solution:") ||
+            it.startsWith("${STORY_SUPPLEMENT_PREFIX}extra:") }
+    val lines = keys.mapNotNull { slots[it]?.takeIf(String::isNotBlank) }
+        .flatMap { it.split(" / ", "\n") }.map(String::trim).filter(String::isNotBlank).distinct()
+    if (lines.isEmpty()) return null
+    return "이야기는 이렇게 끝났어요. " + lines.joinToString(" ") { "「$it」" }
 }
 
 /** Slot 1 rubs the nameless default (NAMELESS_RUB · was 「먼지」) — nothing the child said (#321 review · #329) */

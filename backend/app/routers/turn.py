@@ -20,6 +20,7 @@ from ..dialogue import policy, recipes
 from ..dialogue.decide import Decision, decide, state_text
 from ..dialogue.decide import mock as mock_decision
 from ..filters.blocklist import eojeol, has_unknown_placeholder, is_blocked
+from ..image import comfy
 from ..llm.client import LLMError, complete
 from ..llm.judge_prompt import load_schema, system_block
 from ..schemas.judge import SLOT_NAMES, JudgeResult
@@ -260,6 +261,8 @@ async def turn(req: TurnRequest) -> TurnResult:
     # one deadline for the whole turn, under the phone's 30 s: the judge first (≤ 18 s),
     # the line gets what is left — a slow vendor costs the line, never the verdict
     t0 = time.monotonic()
+    if req.mode == "diary":                  # the child may ask Otto to redraw soon: keep the Modal GPU up (#460 ⑥)
+        comfy.wake_redraw()
     if req.history is not None and settings.dialogue_policy == "llm":
         v = await _judge(req)
         line, act, d = await run_line_choosing(req, v, settings.turn_deadline_s - (time.monotonic() - t0))
@@ -267,7 +270,7 @@ async def turn(req: TurnRequest) -> TurnResult:
         v, line, retract = settle(act, req, v, line, retract)
         if v is None and line is None:
             raise HTTPException(502, "judge and line both failed")
-        return TurnResult(judge=v, line=line, act=act, retract=retract)
+        return TurnResult(judge=v, line=line, act=act, retract=retract, refused=policy.refused(d))
 
     # with history (#323) the quick decider runs next to the judge, so the turn waits for the slower
     # of the two, not both. It never raises: no opinion = the turn runs as before
@@ -284,4 +287,4 @@ async def turn(req: TurnRequest) -> TurnResult:
     v, line, retract = settle(act, req, v, line, retract)
     if v is None and line is None:
         raise HTTPException(502, "judge and line both failed")
-    return TurnResult(judge=v, line=line, act=act, retract=retract)
+    return TurnResult(judge=v, line=line, act=act, retract=retract, refused=policy.refused(d))

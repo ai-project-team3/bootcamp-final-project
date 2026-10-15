@@ -60,6 +60,7 @@ fun DemoState.captureStoryVisuals() = SavedStoryVisuals(
 /** Build a separate reading state; reopening a book must not overwrite the current conversation. */
 fun DemoState.restoreStoryBook(book: SavedStoryBook): Boolean {
     val visual = book.visuals ?: return false
+    sessionAuthorCall = book.authorCall
     mode = StoryMode.STORY
     templateKey = visual.templateKey
     persona = visual.persona

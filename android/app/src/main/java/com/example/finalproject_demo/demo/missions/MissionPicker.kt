@@ -55,7 +55,8 @@ private fun DemoState.coopImagined(): Boolean =
  *    A slot the child's words chose is never rotated away.
  * 2. **Otherwise rotate** — closest to 「do what the hero did」 first:
  *    slot 2: the frame's default (E1 handing over · A3 puzzle for frames A · G) → A5 stacking → E2 fixing → D4 rolling;
- *    slot 1: A6 rubbing → C1 blowing a borrowed leaf (an imagined story only — a real day gets no prop the child never said).
+ *    slot 1: A6 rubbing → C1 blowing — a borrowed leaf in an imagined story, the nameless breeze on a real day
+ *    (a real day gets no prop name the child never said · #259 §4-3).
  * 3. **Not the combination of the last two books** of this mode ([recent], newest first). When every candidate is
  *    one of them, the one used longest ago.
  *
@@ -74,10 +75,19 @@ fun pickMissions(facts: StoryFacts, recent: List<String> = emptyList()): BookMis
         words && SERVER_KNOWS_C3 && soundPropIn(facts.slot1Words) != null -> MissionId.C3
         else -> null
     }
-    val slot1s = said1?.let(::listOf) ?: (listOf(MissionId.A6) + if (words && !facts.realDay) listOf(MissionId.C1) else emptyList())
-    val combos = slot2s.flatMap { b -> slot1s.map { a -> BookMissions(a, b, said1 != null, fix != null) } }
+    // a real day blows too — with the nameless breeze, not a borrowed leaf ([blowProp] · coop book check A1 · 10-14)
+    val slot1s = said1?.let(::listOf) ?: (listOf(MissionId.A6) + if (words) listOf(MissionId.C1) else emptyList())
+    // Both slots turn together — slot 2 by book, slot 1 shifted once per round of slot 2: A6:E1 → C1:A5 → A6:E2 → C1:D4 →
+    // C1:E1 → … Every pair comes once, and the last two books never pull slot 2 back to its first one (coop book check A1 · 10-14)
+    val n2 = slot2s.size; val n1 = slot1s.size
+    val combos = (0 until n2 * n1).map { k ->
+        val a = slot1s[if (n2 % n1 == 0) (k + k / n2) % n1 else k % n1]
+        BookMissions(a, slot2s[k % n2], said1 != null, fix != null)
+    }
     val avoid = recent.take(2).toSet()
-    val pick = combos.firstOrNull { it.combo !in avoid }
+    // round the list from the one after the last book's — the first free one from the top kept three pairs in turn
+    val start = combos.indexOfFirst { it.combo == recent.firstOrNull() } + 1
+    val pick = (combos.drop(start) + combos.take(start)).firstOrNull { it.combo !in avoid }
         // every candidate is one of the last two — the one used longest ago (never used counts as longest)
         ?: combos.maxBy { c -> recent.indexOf(c.combo).let { if (it < 0) Int.MAX_VALUE else it } }
     check(pick.slot1.built && pick.slot2.built) { "picked a mission without a screen: ${pick.combo}" }
@@ -103,9 +113,11 @@ data class PinnedMissions(
     val sound: SoundProp? = null,
     val fix: FixProp? = null,
     val fixInBook: Boolean = false,
+    /** the child's word for [sound] when it was not the prop's own (「호랑이」 for LION · [SaidSound]) */
+    val soundWord: String? = null,
 ) {
     /** 「A6-:E1-|blow=LEAF|sound=|fix=BLOCKS|book=0」 — the first part is the pre-review format, still read alone */
-    fun encode(): String = listOf(missions.encode(), "blow=${blow?.name.orEmpty()}", "sound=${sound?.name.orEmpty()}",
+    fun encode(): String = listOf(missions.encode(), "blow=${blow?.name.orEmpty()}", "sound=${sound?.name.orEmpty()}${soundWord?.let { ":$it" }.orEmpty()}",
         "fix=${fix?.name.orEmpty()}", "book=${if (fixInBook) 1 else 0}").joinToString("|")
 
     companion object {
@@ -116,9 +128,10 @@ data class PinnedMissions(
             return PinnedMissions(
                 m,
                 kv["blow"]?.takeIf(String::isNotEmpty)?.let { n -> BlowProp.entries.firstOrNull { it.name == n } },
-                kv["sound"]?.takeIf(String::isNotEmpty)?.let { n -> SoundProp.entries.firstOrNull { it.name == n } },
+                kv["sound"]?.substringBefore(':')?.takeIf(String::isNotEmpty)?.let { n -> SoundProp.entries.firstOrNull { it.name == n } },
                 kv["fix"]?.takeIf(String::isNotEmpty)?.let { n -> FixProp.entries.firstOrNull { it.name == n } },
                 kv["book"] == "1",
+                kv["sound"]?.substringAfter(':', "")?.takeIf(String::isNotEmpty),
             )
         }
     }
@@ -129,7 +142,7 @@ internal fun DemoState.pinnedMissions(): PinnedMissions? = synchronized(picked) 
 
 /** This book's missions and props as they are now — saved with the book */
 fun DemoState.missionRecord(): String =
-    PinnedMissions(missions(), blowProp(), soundProp(), slot2PlayProp(), slot2Prop() != null).encode()
+    PinnedMissions(missions(), blowProp(), soundProp(), slot2PlayProp(), slot2Prop() != null, (slot1Prop() as? SaidSound)?.word).encode()
 
 /**
  * This book's two missions. While a book is being made they follow its facts and this mode's history; a saved

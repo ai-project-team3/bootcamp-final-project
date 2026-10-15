@@ -101,6 +101,10 @@ import com.example.finalproject_demo.ui.missions.FixMission
 import com.example.finalproject_demo.ui.missions.StackMission
 import com.example.finalproject_demo.demo.missions.soundProp
 import com.example.finalproject_demo.demo.missions.blowProp
+import com.example.finalproject_demo.demo.missions.FixProp
+import com.example.finalproject_demo.demo.missions.slot2PlayProp
+import com.example.finalproject_demo.demo.missions.SaidSound
+import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.mission2
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -220,16 +224,17 @@ private fun RoundBtn(text: String, bg: Color, size: Int = 64, onClick: () -> Uni
 
 /** 도구별 반응 글자 — 누른 것 바로 위에 뜬다 (HTML 데모와 같은 방식) */
 internal fun reactionFor(s: DemoState, tool: String, target: String, objName: String? = null, objTap: String? = null,
-    liveStory: Boolean = com.example.finalproject_demo.net.Server.liveFor(s.mode)): String {
+    liveStory: Boolean = com.example.finalproject_demo.net.Server.liveFor(s.mode),
+    authorCall: String = s.sessionAuthorCall?.takeIf(String::isNotBlank) ?: "아이"): String {
     val f = s.friendName
     return when (tool) {
         "hammer" -> "간지러워!"
         "feather" -> "깔깔깔!"
         "glass" -> when (target) {
             "hero" -> when {
-                s.isDiary -> "${s.childName}의 오늘 이야기!"
-                liveStory -> "${s.childName}의 이야기!"   // 서버 모드엔 기본 탈것이 없다(10-02)
-                else -> "${s.childName}${eun(s.childName)} ${s.th.vehicle} 선장!"
+                s.isDiary -> "${authorCall}의 오늘 이야기!"
+                liveStory -> "${authorCall}의 이야기!"   // 서버 모드엔 기본 탈것이 없다(10-02)
+                else -> "${authorCall}${eun(authorCall)} ${s.th.vehicle} 선장!"
             }
             "dino" -> "${s.dino.label} · ${s.dino.look}"
             "friend" -> if (s.isDiary) "${s.friendCallName} · ${s.coopMetLabel() ?: "오늘 만난 사람"}" else "$f · ${s.newcomerKind} 친구"
@@ -257,6 +262,7 @@ internal fun reactionFor(s: DemoState, tool: String, target: String, objName: St
 fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? = null, onReply: (Reply) -> Unit = d::send) {
     val s = d.s
     val page = stage.index
+    val authorCall = (if (savedBook != null) savedBook.authorCall else s.sessionAuthorCall)?.takeIf(String::isNotBlank) ?: "아이"
     val liveStory = savedBook?.visuals?.liveStory ?: com.example.finalproject_demo.net.Server.liveFor(s.mode)
     var tool by remember { mutableStateOf("hand") }
     val heroArt = s.storyHeroArt
@@ -302,7 +308,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
         val walkMod = if (walkIn) Modifier.graphicsLayer { translationX = -walk.value * screenW * (xf + 0.12f) } else Modifier
         val body: @Composable () -> Unit = {
             Tappable(
-                text = { reactionFor(s, tool, target, liveStory = liveStory) },
+                text = { reactionFor(s, tool, target, liveStory = liveStory, authorCall = authorCall) },
                 modifier = Modifier.fillMaxSize(),
                 onTap = { if (tool == "hand" && onHand != null) onHand() else react(target) },
             ) { ArtView(art, Modifier.fillMaxSize(), if (walking) RigMotion.WALK else act) }
@@ -445,7 +451,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
         }
 
         when (kind) {
-            PageKind.COVER -> Cover(d, heroArt, liveStory)
+            PageKind.COVER -> Cover(d, heroArt, liveStory, authorCall)
             PageKind.DEPART -> {
                 Scenery()
                 // 일기 화이트보드는 배경이나 친구 그림으로 바꾸지 않고 첫 쪽에 원본 획을 붙인다.
@@ -510,7 +516,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
             }
             // 미션 자리 1 — 아이 말에 불 것(촛불 · 민들레 · 먼지 · 바람)이 있으면 C1 불기, 아니면 A6 문지르기 (#101)
             PageKind.RUB -> s.blowProp()?.let { BlowMission(d, stage.m1Done, heroArt, it) }
-                ?: s.soundProp()?.let { SoundMission(d, stage.m1Done, heroArt, it) }
+                ?: s.soundProp()?.let { SoundMission(d, stage.m1Done, heroArt, it, (s.slot1Prop() as? SaidSound)?.art) }
                 ?: RubMission(d, stage.m1Done, heroArt, dinoArt, tool, scripted = scripted)
             // 미션 2가 **틀에 따라 갈라진다** (9/23 · 미션 구상 §4).
             // 「다시 쌓다 · 맞추다 · 되돌리다」로 푸는 틀(A 도전-성취 · G 우화-교훈)은 퍼즐이,
@@ -521,7 +527,7 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
                     MissionId.A3 -> PuzzleMission(d, stage.m2Done)
                     MissionId.A1 -> HoseMission(d, stage.m2Done, heroArt)       // 「불을 껐어」 (#101)
                     MissionId.A4 -> TurnMission(d, stage.m2Done, heroArt)       // 「꽉 잠갔어」 (#101)
-                    MissionId.D4 -> RollMission(d, stage.m2Done, heroArt)       // 「공을 굴렸어 · 골인」 (#101)
+                    MissionId.D4 -> RollMission(d, stage.m2Done, heroArt, s.slot2PlayProp() ?: FixProp.MARBLE)   // 「공 · 구슬 · 눈덩이를 굴렸어」 (#101)
                     MissionId.E2 -> FixMission(d, stage.m2Done, heroArt)        // 「부서졌어 · 고쳤어」 (#101)
                     MissionId.A5 -> StackMission(d, stage.m2Done, heroArt)      // 「무너졌어 · 다시 쌓았어」 (#101)
                     else -> GiveMission(d, stage.m2Done, heroArt, tool)
@@ -594,13 +600,19 @@ fun BookPageView(d: Director, stage: Stage.BookPage, savedBook: SavedStoryBook? 
             if (page > 0) RoundBtn("◀", Wool) { onReply(Reply.Tapped("prev", "앞")) }
         }
         Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)) {
-            val canNext = when (kind) { PageKind.RUB -> stage.m1Done; PageKind.DRAG -> stage.m2Done; else -> true }
+            val missionOpen = when (kind) { PageKind.RUB -> !stage.m1Done; PageKind.DRAG -> !stage.m2Done; else -> false }
+            // a re-read from the shelf never locks the page — the mission can be played or skipped (J1 「▶ 그냥 읽기」)
+            val canNext = !missionOpen || savedBook != null
             if (page == last) {
                 FeltButton(FeltMustard, onClick = { onReply(Reply.Tapped("next", "다음")) }, modifier = Modifier.size(Touch.KidMin), shape = CircleShape) {
                     ArtView(Art.Img("ic_books", Art.Emoji("📚")), Modifier.size(40.dp))
                 }
             } else {
                 RoundBtn("▶", if (canNext) FeltCoral else WoolCream.copy(alpha = 0.6f)) { if (canNext) onReply(Reply.Tapped("next", "다음")) }
+            }
+            if (missionOpen && savedBook != null && page != last) {
+                Text("그냥 읽기", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.BottomCenter).offset(y = 22.dp))
             }
         }
     }
@@ -615,7 +627,7 @@ private fun FadeIn(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Cover(d: Director, heroArt: Art, liveStory: Boolean) {
+private fun Cover(d: Director, heroArt: Art, liveStory: Boolean, authorCall: String) {
     val s = d.s
     Box(Modifier.fillMaxSize().background(Color(0x55000000)))
     Column(
@@ -644,7 +656,7 @@ private fun Cover(d: Director, heroArt: Art, liveStory: Boolean) {
         // 지은이는 **아이 이름만** 쓴다 (9/22).
         // 전에는 "· 함께 {어른}" 이 늘 붙었다. 어른이 지은 자리가 하나도 없는 날에도 붙어서
         // 아이가 혼자 지은 책에 어른 이름이 올라갔다. 이 책의 지은이는 아이다.
-        Text("글 · 그림 ${s.childName}", fontSize = 13.sp, color = Color.White)
+        Text("글 · 그림 $authorCall", fontSize = 13.sp, color = Color.White)
         s.template?.let { Text("${s.pageCount}쪽", fontSize = 11.sp, color = Color.White.copy(alpha = 0.75f)) }
     }
 }

@@ -228,6 +228,22 @@ class SessionDraftTest {
         assertNull(store.load())
     }
 
+    /** 10-14 — 이어 하면 나가 있던 시간을 빼고 이야기한 시간만 이어서 잰다(어제 하다 만 일기가 열자마자 「30분 지남」이 되지 않게) */
+    @Test fun diaryTalkTimeContinuesAfterResumeWithoutTheTimeAway() {
+        val now = System.currentTimeMillis()
+        val a = DemoState().apply { mode = StoryMode.DIARY; newDiaryDay(); diaryStart = now - 12 * 60_000L }
+        val json = JSONObject(a.captureDraft(Scene.DIARY).toJson().toString())
+        val yesterday = now - 26 * 60 * 60_000L
+        fun restored(o: JSONObject) = DemoState().apply { applyDraft(SessionDraft.fromJson(o)!!) }
+        // saved yesterday after 12 minutes of talk — the clock goes on from 12 minutes, not from yesterday
+        json.getJSONObject("state").put("diaryStart", yesterday)
+        val talked = System.currentTimeMillis() - restored(json).diaryStart
+        assertTrue("이어서 잰 시간 ${talked / 60_000}분", talked in 12 * 60_000L..13 * 60_000L)
+        // a draft saved before this change keeps its start as it was
+        json.getJSONObject("state").remove("diaryTalkedMs")
+        assertEquals(yesterday, restored(json).diaryStart)
+    }
+
     @Test fun diaryPiecesAndCoopPlanRoundTrip() {
         val a = DemoState().apply {
             mode = StoryMode.DIARY
@@ -351,7 +367,7 @@ class SessionDraftTest {
             assertEquals("출처가 바뀌었다", by, e.s.slotBy.toMap())
             assertEquals(talk, e.s.talk.toList())
             assertEquals(turn to reactions, e.s.turn to e.s.reactions)
-            val booksLeft = CallLimits.booksLeftToday()
+            val booksLeft = CallLimits.starsLeft()
             val startEvents = e.s.events.count { it.startsWith("story_start") }
             e.go(Scene.ADULT)
             assertNotNull(await { e.s.scene == Scene.ADULT && e.s.buttons.isNotEmpty() })
@@ -359,7 +375,7 @@ class SessionDraftTest {
             e.send(Reply.Tapped("resume", "이어서"))
             assertNotNull("「이어서」로 멈춘 장면에 안 갔다", await { e.s.scene == Scene.CAUSE })
             assertEquals("이어 가는데 하루 별을 썼다", 0, e.s.usedToday)
-            assertEquals("이어 가는데 새 책으로 셌다", booksLeft, CallLimits.booksLeftToday())
+            assertEquals("이어 가는데 새 책으로 셌다", booksLeft, CallLimits.starsLeft())
             assertEquals("이어 가는데 별이 날아갔다", 0, e.s.starFlights)
             assertEquals("이어 가는데 story_start 가 또 찍혔다", startEvents, e.s.events.count { it.startsWith("story_start") })
             assertEquals(slots, e.s.slots.filterKeys { it in slots }.toMap())

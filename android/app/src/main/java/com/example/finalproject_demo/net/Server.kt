@@ -1,16 +1,19 @@
 package com.example.finalproject_demo.net
 
 import android.util.Log
+import com.example.finalproject_demo.BuildConfig
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.example.finalproject_demo.demo.StoryMode
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -169,8 +172,12 @@ object Server {
      * Either half may be null — fill it from the script. [question] is null when [ask] was false or the story is ready.
      * [act] (#323): what this turn does with a reply that is not an answer — "repair" · "answer_back" · "rephrase", null =
      * a plain turn. Outside [line] so a failed line keeps it. [retract]: slots the child said were wrong — put back their prev.
+     * [refused] (#405): the decider is sure the child would rather not answer — a signal only, the verdict is as the judge wrote it.
      */
-    data class TurnResult(val verdict: Verdict?, val line: Line?, val act: String? = null, val retract: List<String> = emptyList())
+    data class TurnResult(
+        val verdict: Verdict?, val line: Line?, val act: String? = null, val retract: List<String> = emptyList(),
+        val refused: Boolean = false,
+    )
 
     /**
      * One turn: the verdict, then the mascot's three pieces, in one round trip (~3.3s, 09-29).
@@ -201,6 +208,7 @@ object Server {
                 },
                 act = str(j, "act"),
                 retract = j.optJSONArray("retract")?.let { a -> (0 until a.length()).mapNotNull { a.optString(it).takeIf { s -> s in SLOTS } } }.orEmpty(),
+                refused = j.optBoolean("refused", false),
             )
         } catch (e: Exception) { warn("/turn parse", e); null }
     }
@@ -266,6 +274,8 @@ object Server {
         mode: String, slots: Map<String, String?>, slotBy: Map<String, String> = emptyMap(),
         keep: String? = null, template: String? = null, level: String? = null,
         pages: List<Page>? = null, reason: String? = null, stage: List<String>? = null,
+        /** Optional detached debug observations; not part of the HTTP request or result contract. */
+        diagnostic: ((String, JSONObject) -> Unit)? = null,
     ): StoryBook? {
         val body = JSONObject()
             .put("mode", mode)
@@ -288,17 +298,26 @@ object Server {
         // debug builds only, logcat only (Trace): what the book was asked with and what came back before unmask —
         // a bare 「주인공」 on the pages (10-12 device) is the server's or the app's only once the raw answer is seen
         Trace.long("story_request", body.toString())
-        val j = postJson("/story", body, readMs = 60_000) ?: return null.also { Trace.line("story_response", "(none)") }
+        storyDiagnostic(diagnostic, "request") { JSONObject().put("status", "request").put("request_format", "JSONObject_reserialized").put("request", body) }
+        val j = postJson("/story", body, readMs = 60_000, diagnostic = diagnostic) ?: return null.also { Trace.line("story_response", "(none)") }
         Trace.long("story_response", j.toString())
         return try {
             val a = j.getJSONArray("scenes")
             val caps = List(a.length()) { a.getJSONObject(it).getString("caption") }
+            storyDiagnostic(diagnostic, "response") {
+                JSONObject().put("status", "parsed_captions").put("response_format", "parsed_fields")
+                    .put("captions", JSONArray(caps)).put("title", (j.opt("title") as? String) ?: JSONObject.NULL)
+            }
             // the server already refuses a wrong count; checking again costs nothing and keeps missions in place
             if (pages != null && caps.size != pages.size) {
                 Log.w(TAG, "/story ${caps.size} pages, want ${pages.size}")
+                storyDiagnostic(diagnostic, "response") { JSONObject().put("status", "invalid_count").put("actual_count", caps.size).put("expected_count", pages.size) }
                 null
             } else StoryBook(caps, (j.opt("title") as? String)?.trim()?.takeIf(String::isNotBlank))
-        } catch (e: Exception) { warn("/story parse", e); null }
+        } catch (e: Exception) {
+            storyDiagnostic(diagnostic, "response") { JSONObject().put("status", "invalid_scene_shape") }
+            warn("/story parse", e); null
+        }
     }
 
     // ── /image ─────────────────────────────────────────────────────
@@ -429,11 +448,27 @@ object Server {
     private fun str(j: JSONObject, key: String): String? =
         if (j.isNull(key)) null else j.optString(key).takeIf { it.isNotEmpty() }
 
-    private suspend fun postJson(path: String, body: JSONObject, readMs: Int = 15_000): JSONObject? {
-        val (code, bytes) = post(path, body.toString().toByteArray(), JSON, readMs) ?: return null
+    private fun storyDiagnostic(observer: ((String, JSONObject) -> Unit)?, phase: String, data: () -> JSONObject) {
+        if (!BuildConfig.DEBUG || observer == null) return
+        // A detached, explicitly constructed JSON copy cannot alter the request or parsed book.
+        runCatching { observer(phase, JSONObject(data().toString())) }
+    }
+
+    private suspend fun postJson(path: String, body: JSONObject, readMs: Int = 15_000, diagnostic: ((String, JSONObject) -> Unit)? = null): JSONObject? {
+        val (code, bytes) = try { post(path, body.toString().toByteArray(), JSON, readMs, diagnostic) }
+        catch (e: CancellationException) {
+            storyDiagnostic(diagnostic, "response") { JSONObject().put("status", "cancelled") }
+            throw e
+        } ?: return null
         // capped: a 422 echoes the request back, and a redraw request holds the child's drawing
-        if (code != 200) { Log.w(TAG, "$path $code ${bytes.decodeToString().take(300)}"); return null }
-        return try { JSONObject(bytes.decodeToString()) } catch (e: Exception) { warn("$path json", e); null }
+        if (code != 200) {
+            storyDiagnostic(diagnostic, "response") { JSONObject().put("status", "http_error").put("http_status", code) }
+            Log.w(TAG, "$path $code ${bytes.decodeToString().take(300)}"); return null
+        }
+        return try { JSONObject(bytes.decodeToString()) } catch (e: Exception) {
+            storyDiagnostic(diagnostic, "response") { JSONObject().put("status", "invalid_json") }
+            warn("$path json", e); null
+        }
     }
 
     // ── calls per session (10-06) ──────────────────────────────────
@@ -456,15 +491,21 @@ object Server {
 
     fun resetCalls() { calls.clear(); callsSince = System.currentTimeMillis() }
 
-    private suspend fun post(path: String, body: ByteArray, type: String, readMs: Int = 15_000): Pair<Int, ByteArray>? =
+    private suspend fun post(path: String, body: ByteArray, type: String, readMs: Int = 15_000, diagnostic: ((String, JSONObject) -> Unit)? = null): Pair<Int, ByteArray>? =
         withContext(Dispatchers.IO) {
-            val b = base ?: return@withContext null
+            val b = base ?: return@withContext null.also { storyDiagnostic(diagnostic, "response") { JSONObject().put("status", "missing_server") } }
             // Play build call limits (10-06 · CallLimits) — past them a call is null, as when the server is down
-            CallLimits.blocks(path, calls)?.let { why -> Trace.line("limit", "$path not called · $why"); return@withContext null }
+            CallLimits.blocks(path, calls)?.let { why ->
+                storyDiagnostic(diagnostic, "response") { JSONObject().put("status", "call_limit") }
+                Trace.line("limit", "$path not called · $why"); return@withContext null
+            }
             calls.merge(path, 1, Int::plus)
             CallLimits.counted(path)
             val t0 = System.nanoTime()
-            val c = try { URL(b + path).openConnection() as HttpURLConnection } catch (e: Exception) { warn(path, e); return@withContext null }
+            val c = try { URL(b + path).openConnection() as HttpURLConnection } catch (e: Exception) {
+                storyDiagnostic(diagnostic, "response") { JSONObject().put("status", "transport_error") }
+                warn(path, e); return@withContext null
+            }
             // 10-09 — a blocking read does not stop when the caller is cancelled, so leaving a scene (🏠 · ⏸ 방으로)
             // waited for the server's answer, up to the read timeout (그림일기 화이트보드에서 「나가기」가 늦었다).
             // Cancelling now drops the connection; a call that finished keeps it for reuse.
@@ -485,6 +526,7 @@ object Server {
                     Trace.line("server", "$path $code ${(System.nanoTime() - t0) / 1_000_000} ms")
                     code to bytes
                 } catch (e: Exception) {
+                    storyDiagnostic(diagnostic, "response") { JSONObject().put("status", if (!isActive) "cancelled" else "transport_error") }
                     Trace.line("server", "$path failed ${(System.nanoTime() - t0) / 1_000_000} ms"); warn(path, e); null
                 } finally { done = true; abort.cancel() }
             }

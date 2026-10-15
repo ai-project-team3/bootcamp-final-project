@@ -143,6 +143,14 @@ def test_diary_and_coop_ask_for_another_slot_a_story_keeps_its_wording(monkeypat
     assert seen == ["coop"] and v.slot_1 == "companion"   # the logged raw pick never reaches the result
 
 
+def test_a_doll_or_an_animal_can_go_along_in_diary_and_coop_only():
+    # #484 B1: the line names non-people for diary · coop; a story still asks with its own unchanged lines
+    coop, story = jev.questions("coop"), jev.questions()
+    assert "인형" in coop["slot_1"]["criteria"]["companion"] and "동물" in coop["slot_1"]["criteria"]["companion"]
+    assert story["slot_1"]["criteria"] == jev.SLOT_CRITERIA
+    assert "인형" not in story["slot_1"]["criteria"]["companion"]
+
+
 def test_mask_names_skips_blanks_and_placeholders():
     assert jev.mask_names("친구랑 놀았어", ["", "{친구1}"]) == "친구랑 놀았어"
     assert jev.mask_names("아무 이름 없음", []) == "아무 이름 없음"

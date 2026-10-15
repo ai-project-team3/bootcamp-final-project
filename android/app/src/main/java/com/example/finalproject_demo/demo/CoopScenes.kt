@@ -1,5 +1,6 @@
 package com.example.finalproject_demo.demo
 
+import com.example.finalproject_demo.demo.missions.SaidSound
 import com.example.finalproject_demo.demo.missions.soundProp
 import com.example.finalproject_demo.demo.missions.slot1Prop
 import com.example.finalproject_demo.demo.missions.slot2Prop
@@ -126,10 +127,27 @@ private val COOP_STEP_TOPIC = mapOf(
     "cause" to Regex("왜"),
 )
 
-/** The child's answer to a parent question that already asked what [slot]'s step asks — null when none did */
-internal fun DemoState.coopParentCovered(slot: String): String? {
+/** A parent question's answer that covers a later step — the answer and where it came from (`child` · `card`) */
+internal data class CoopParentCover(val said: String, val by: String)
+
+/**
+ * The answer to a parent question that already asked what [slot]'s step asks — null when none did.
+ * Also null when that answer is not one the step can use: one Otto filled at the ladder's end (`mascot` — #439 review,
+ * the step asks as usual then) or a non-answer like 「몰라」 (#460 ⑤)
+ */
+internal fun DemoState.coopParentCovered(slot: String): CoopParentCover? =
+    coopParentCover(slot, coopTrack.parentQuestionOf, slots, slotBy)
+
+/** [coopParentCovered] on plain maps — parent question per book key (`parent1` …), book text and source per key */
+internal fun coopParentCover(
+    slot: String, questionOf: Map<String, String>, slots: Map<String, String>, slotBy: Map<String, String>,
+): CoopParentCover? {
     val topic = COOP_STEP_TOPIC[slot] ?: return null
-    return coopParentAnswers.firstOrNull { (question, _) -> topic.containsMatchIn(question) }?.second
+    val book = questionOf.entries.sortedBy { it.key.removePrefix(COOP_PARENT_KEY).toIntOrNull() ?: 0 }
+        .firstOrNull { (book, question) -> topic.containsMatchIn(question) && !slots[book].isNullOrBlank() }?.key ?: return null
+    val said = slots.getValue(book)
+    val by = slotBy[book] ?: "child"
+    return CoopParentCover(said, by).takeIf { by != "mascot" && !isNonAnswer(said) }
 }
 
 /** 부모 질문을 끼우는 꼬리 자리 — 하던 일 · 한 말 · 해 본 것 · 집에 와서. 답의 뜻이 정해지지 않은 자리들이다 */
@@ -448,7 +466,9 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
     if (idx != null && firstAsk) track.partQuestions[idx] = shown
     // Choices already asked — a no-answer goes to the choices again, not down to an open rung: 「…. 그래서 어떻게 했어?」 →
     // 「그다음에 뭐 했어?」 sounded like a new question right after the choices (10-12 user · review)
-    val asking = if (hasCoopChoices(shown) && q.ladder.any(::hasCoopChoices)) q.copy(ladder = q.ladder.filter(::hasCoopChoices)) else q
+    val asking = (if (hasCoopChoices(shown) && q.ladder.any(::hasCoopChoices)) q.copy(ladder = q.ladder.filter(::hasCoopChoices)) else q)
+        // the line just asked is not asked again as the next rung — the open 「그래서 어떻게 했어?」 is both (B5 · 10-14)
+        .let { a -> if (shown in a.ladder) a.copy(ladder = a.ladder - shown) else a }
     val (r, askedLast, stillAsking) = askAnsweringChildQuestions(asking, key, shown)
     if (stillAsking) {
         // A third question in one step — the current flow (an easier question). Not into a slot or the rejected list (coopLiveValueAsSaid) · no ack
@@ -474,9 +494,12 @@ private suspend fun Director.coopAskInFlow(q: Question): Reply {
     }
     if (r is Reply.Spoke) {
         // Negation — did the child deny the premise of Otto's question (「아니, 안 줬어」) or correct an answer (「놀이터 말고 수영장」) (#327 ② §5). Live speech only
-        val negation = if (r.isLiveSpeech()) classifyCoopReply(r.text, text).takeIf { it is CoopReply.PremiseDenied || it is CoopReply.Corrected } else null
         val step = COOP_STEPS.firstOrNull { "diary_${it.bookKey}" == q.id }
         val parentStep = src == CoopSource.PARENT || q.id in track.parentSteps
+        val negation = if (!r.isLiveSpeech()) null
+            else classifyCoopReply(r.text, text).takeIf { it is CoopReply.PremiseDenied || it is CoopReply.Corrected }
+                // a tail step takes no empty negation, whatever it asked — 「아니 안 했어」 to 「그때 뭐 하고 있었어?」 went into the book (10-14)
+                ?: bareNegation(r.text).takeIf { step != null && !step.required && !parentStep }
         if (negation != null) {
             val label = if (negation is CoopReply.PremiseDenied) "premise_denied" else "corrected"
             log("[$key] reply kind — $label · 「${r.text.trim()}」 ← 「$text」")
@@ -1161,8 +1184,9 @@ internal fun DemoState.coopPageMission(kind: PageKind): String? = missionFor(kin
  */
 internal fun DemoState.coopMissionProp(kind: PageKind): String? = when (kind) {
     PageKind.RUB -> when (val p = slot1Prop()) {
-        is BlowProp -> p.word
+        is BlowProp -> p.serverWord
         is SoundProp -> SOUND_THING[p]
+        is SaidSound -> p.word
         else -> if (missionFor(kind) == MissionId.A6 && mission1FromChildWords()) mission1().blobName else null
     }
     PageKind.DRAG -> slot2Prop()?.let { FIX_THING[it] }
@@ -1182,7 +1206,7 @@ private fun DemoState.coopChildSaid(): String {
 internal val SOUND_THING = mapOf(SoundProp.SIREN to "소방차", SoundProp.CAR to "자동차", SoundProp.TRAIN to "기차",
     SoundProp.LION to "사자", SoundProp.DOG to "강아지", SoundProp.CHEER to "공")
 internal val FIX_THING = mapOf(FixProp.FIRE to "불", FixProp.FAUCET to "수도꼭지", FixProp.BALL to "공",
-    FixProp.PIECES to "떨어진 조각", FixProp.BLOCKS to "블록")
+    FixProp.PIECES to "떨어진 조각", FixProp.BLOCKS to "블록", FixProp.MARBLE to "구슬", FixProp.SNOWBALL to "눈덩이")
 
 /**
  * 이 미션 쪽이 **책 문장에** 들어가나. 상상 이야기(좋아해요)는 늘 들어간다 — 동화처럼 꾸며 써도 된다.

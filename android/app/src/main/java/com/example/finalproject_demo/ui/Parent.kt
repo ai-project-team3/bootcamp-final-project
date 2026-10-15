@@ -1,5 +1,7 @@
 package com.example.finalproject_demo.ui
 
+import com.example.finalproject_demo.demo.newStoryAllowance
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,6 +53,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.finalproject_demo.demo.ART_STYLES
@@ -303,13 +307,16 @@ private fun RecordTab(d: Director) {
                 contentAlignment = Alignment.Center,
             ) { Text("아이 화면에서 이야기 만들기", fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.Bold) }
         }
+        StorySpeechHistoryView { d.send(Reply.Tapped("tab:set", "설정")) }
         return
     }
     if (talkOpen) {
-        SessionTalkView(r, s.childName, onBack = { talkOpen = false })
+        SessionTalkView(r, r.authorCall?.takeIf(String::isNotBlank) ?: "아이", onBack = { talkOpen = false })
         return
     }
-    SessionReportView(r, s.childName, onTalk = { talkOpen = true })
+    SessionReportView(r, r.authorCall?.takeIf(String::isNotBlank) ?: "아이", onTalk = { talkOpen = true }, afterSpeech = {
+        StorySpeechHistoryView { d.send(Reply.Tapped("tab:set", "설정")) }
+    })
     // 협업 칸은 지금 세션의 것 — 지난 책을 고른 동안은 보이지 않는다
     val coopNow = s.isCoop && picked == null && live != null
 
@@ -997,62 +1004,79 @@ private fun ChildCallSection() {
     var pendingCall by remember { mutableStateOf<String?>(null) }
     var resetting by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
+    var editCall by remember { mutableStateOf(false) }
+    var editAge by remember { mutableStateOf(false) }
     PCard(Modifier.fillMaxWidth()) {
-        Text("오또가 아이를 뭐라고 부를까요?", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
-        Text("실명 대신 별명을 권해요 · 오또가 이야기와 목소리에서 이렇게 불러요 · 비우면 「친구」", fontSize = 12.sp, color = PSub)
-        Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextField(
-                value = text,
-                onValueChange = { text = it.take(10) },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                placeholder = { Text("예: 콩이 · 별님 · 꼬마공룡", fontSize = 14.sp, color = PSub.copy(alpha = 0.6f)) },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = PBg, unfocusedContainerColor = PBg,
-                    focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
-                ),
-            )
-            Spacer(Modifier.width(8.dp))
-            PButton("저장", PAccent, Modifier.widthIn(min = 72.dp)) {
-                val clean = com.example.finalproject_demo.net.ChildCall.clean(text)
-                if (clean == com.example.finalproject_demo.net.ChildCall.name) {
-                    com.example.finalproject_demo.net.ChildCall.set(text)
-                } else { pendingCall = clean ?: ""; resetting = false; failed = false }
-            }
+            Text("호칭 · ${com.example.finalproject_demo.net.ChildCall.call}", fontSize = 15.sp, color = Ink, modifier = Modifier.weight(1f))
+            androidx.compose.material3.TextButton(modifier = Modifier.semantics { contentDescription = "호칭 고치기" },
+                onClick = { editCall = !editCall; pendingCall = null }) { Text(if (editCall) "접기" else "고치기") }
         }
-        pendingCall?.let { call ->
-            Text("호칭만 바꾸나요, 다른 아이가 쓰나요?", fontSize = 14.sp, color = Ink)
-            Text("다른 아이는 말 기록과 나이 정보를 새로 시작해요. 책과 책별 리포트는 그대로 있어요.", fontSize = 12.sp, color = PSub)
-            PButton("같은 아이예요", PMint, Modifier.fillMaxWidth()) {
-                com.example.finalproject_demo.net.ChildCall.set(call); pendingCall = null
+        if (editCall) {
+            Text("오또가 아이를 뭐라고 부를까요?", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
+            Text("실명 대신 별명을 권해요 · 오또가 이야기와 목소리에서 이렇게 불러요 · 비우면 「친구」", fontSize = 12.sp, color = PSub)
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextField(
+                    value = text,
+                    onValueChange = { text = it.take(10) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    placeholder = { Text("예: 콩이 · 별님 · 꼬마공룡", fontSize = 14.sp, color = PSub.copy(alpha = 0.6f)) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = PBg, unfocusedContainerColor = PBg,
+                        focusedIndicatorColor = PAccent, unfocusedIndicatorColor = PLine,
+                    ),
+                )
+                Spacer(Modifier.width(8.dp))
+                PButton("저장", PAccent, Modifier.widthIn(min = 72.dp)) {
+                    val clean = com.example.finalproject_demo.net.ChildCall.clean(text)
+                    if (clean == com.example.finalproject_demo.net.ChildCall.name) {
+                        com.example.finalproject_demo.net.ChildCall.set(text)
+                    } else { pendingCall = clean ?: ""; resetting = false; failed = false }
+                }
             }
-            PButton("다른 아이가 써요", PAccent, Modifier.fillMaxWidth(), outline = true) {
-                if (com.example.finalproject_demo.demo.AnswerHistory.startNewChild()) {
+            pendingCall?.let { call ->
+                Text("호칭만 바꾸나요, 다른 아이가 쓰나요?", fontSize = 14.sp, color = Ink)
+                Text("다른 아이는 말 기록과 나이 정보를 새로 시작해요. 책과 책별 리포트는 그대로 있어요.", fontSize = 12.sp, color = PSub)
+                PButton("같은 아이예요", PMint, Modifier.fillMaxWidth()) {
                     com.example.finalproject_demo.net.ChildCall.set(call); pendingCall = null
-                } else failed = true
+                }
+                PButton("다른 아이가 써요", PAccent, Modifier.fillMaxWidth(), outline = true) {
+                    resetting = true; failed = false
+                }
+                PButton("취소", PSub, Modifier.fillMaxWidth(), outline = true) { pendingCall = null }
             }
-            PButton("취소", PSub, Modifier.fillMaxWidth(), outline = true) { pendingCall = null }
         }
         Spacer(Modifier.height(8.dp))
-        ChildAgeSection()
-        if (com.example.finalproject_demo.demo.AnswerHistory.readFailed) {
-            Text("말 기록을 읽지 못했어요. 기존 자료는 보존했고, 새 기록 저장과 책 삭제는 잠시 멈췄어요.", fontSize = 13.sp, color = Curtain)
-        } else {
-            Text("질문별 말 기록 · ${com.example.finalproject_demo.demo.AnswerHistory.all().size}권 누적", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
-            Text("열린·까닭 질문에 말한 답 ${com.example.finalproject_demo.demo.AnswerHistory.languageAnswers().size}개 · 선택 답 ${com.example.finalproject_demo.demo.AnswerHistory.choiceAnswers().size}개", fontSize = 13.sp, color = PSub)
-            StorySpeechHistoryView()
+        val age = com.example.finalproject_demo.demo.AnswerHistory.childAge
+        val ageLabel = if (age == null) "선택하지 않았어요" else "만 ${age.years}세" +
+            when (age.half) { 0 -> " 0~5개월"; 1 -> " 6~11개월"; else -> "" }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("나이 · $ageLabel", fontSize = 15.sp, color = Ink, modifier = Modifier.weight(1f))
+            androidx.compose.material3.TextButton(modifier = Modifier.semantics { contentDescription = "나이 고치기" },
+                onClick = { editAge = !editAge }) { Text(if (editAge) "접기" else "고치기") }
         }
-        if (com.example.finalproject_demo.demo.AnswerHistory.writeFailed) Text("말 기록을 저장하지 못했어요. 저장 공간을 확인해 주세요.", fontSize = 13.sp, color = Curtain)
-        Text("질문 문구로 분류하며, 확인 답과 유형을 모르는 답은 언어 지표에서 빼요. 원문은 기기에만 남겨요.", fontSize = 12.sp, color = PSub)
+        if (editAge) ChildAgeSection()
+        AnswerHistoryNotice()
         if (resetting) {
-            Text("누적 말 기록과 나이 정보를 비울까요? 책과 책별 리포트는 지우지 않아요. 다음 새 책부터 기록해요.", fontSize = 14.sp, color = Ink)
-            PButton("네, 새로 시작할게요", PAccent, Modifier.fillMaxWidth()) {
-                if (com.example.finalproject_demo.demo.AnswerHistory.startNewChild()) resetting = false else failed = true
-            }
-            PButton("그대로 둘게요", PSub, Modifier.fillMaxWidth(), outline = true) { resetting = false }
-        } else PButton("말 기록 새로 시작", PSub, Modifier.fillMaxWidth(), outline = true) { resetting = true; pendingCall = null; failed = false }
-        if (failed) Text("기기에 저장하지 못했어요. 다시 시도해 주세요.", fontSize = 13.sp, color = Curtain)
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { resetting = false },
+                title = { Text("아이 기록 초기화") },
+                text = { Column {
+                    Text("지금까지의 말 기록과 나이를 지워요. 만든 책과 책별 리포트는 그대로 있어요.")
+                    if (failed) Text("기기에 저장하지 못했어요. 다시 시도해 주세요.", color = Curtain)
+                } },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = {
+                    if (com.example.finalproject_demo.demo.AnswerHistory.startNewChild()) {
+                        pendingCall?.let { com.example.finalproject_demo.net.ChildCall.set(it) }
+                        pendingCall = null; resetting = false; failed = false
+                    } else failed = true
+                }) { Text("네, 초기화할게요") } },
+                dismissButton = { androidx.compose.material3.TextButton(onClick = { resetting = false }) { Text("그대로 둘게요") } },
+            )
+        }
+        PButton("아이 기록 초기화", PSub, Modifier.fillMaxWidth(), outline = true) { resetting = true; pendingCall = null; failed = false }
     }
 }
 
@@ -1072,19 +1096,40 @@ private fun SettingsTab(d: Director) {
     ConsentWithdrawSection()
     Spacer(Modifier.height(10.dp))
     PCard(Modifier.fillMaxWidth()) {
-        SettingRow("하루 한도", "하루에 만들 수 있는 이야기 수를 정해요 · 끄면 별을 쓰지 않아요", s.limitOn) { d.send(Reply.Tapped("set:limit", "한도")) }
+        SettingRow("하루에 쓸 수 있는 별", "별이 남아 있어도 하루에 이만큼만 새 이야기를 시작해요", s.limitOn) { d.send(Reply.Tapped("set:limit", "한도")) }
         if (s.limitOn) {
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("하루에", fontSize = 14.sp, color = Ink)
                 Spacer(Modifier.width(10.dp))
                 Stepper("−") { d.send(Reply.Tapped("set:limit-", "−")) }
-                Text("${s.dailyLimit}권", fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                Text("${s.dailyLimit}개", fontSize = 18.sp, color = Ink, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
                 Stepper("＋") { d.send(Reply.Tapped("set:limit+", "＋")) }
                 Spacer(Modifier.weight(1f))
-                Chip("오늘 남은 이야기 ${s.dayStars}권", Sun)
+                Chip("오늘 ${s.dayStars}개 남음", Sun)
             }
         }
+    }
+    Spacer(Modifier.height(10.dp))
+    // 별 (#445) — 책 한 권이 별 하나. 금액과 구매는 이 부모 영역 안에만 있다
+    PCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("별", fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Bold)
+                val stars = s.newStoryAllowance().service
+                Text(
+                    if (stars != null) "지금 가진 별 ${stars}개 · 구매하거나 광고를 보고 받을 수 있어요"
+                    else "별 하나로 책 한 권을 만들어요 · 구매하거나 광고를 보고 받을 수 있어요",
+                    fontSize = 12.sp, color = PSub,
+                )
+            }
+            Box(
+                Modifier.height(38.dp).clip(RoundedCornerShape(19.dp)).background(PAccent)
+                    .clickable { com.example.finalproject_demo.ui.shell.Shell.sheet = com.example.finalproject_demo.ui.shell.Sheet.STAR_SHOP }.padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text("별 구매하기", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold) }
+        }
+        Text("새 이야기를 시작할 때 별 하나를 써요. 중간에 나가도 돌아오지 않고, 만들던 이야기를 이어서 할 때는 쓰지 않아요.", fontSize = 11.sp, color = PSub, modifier = Modifier.padding(top = 8.dp))
     }
     Spacer(Modifier.height(10.dp))
     PCard(Modifier.fillMaxWidth()) {

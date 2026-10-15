@@ -1,5 +1,7 @@
 package com.example.finalproject_demo
 
+import com.example.finalproject_demo.demo.newStoryAllowance
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -218,7 +220,8 @@ fun DemoApp() {
 
         // 시작 화면 오른쪽 위 — 하루 별
         if (s.scene == Scene.ADULT && pinStage == null) {
-            StarWallet(s.dayStars, unlimited = !s.limitOn, modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 16.dp))
+            val left = s.newStoryAllowance().remaining
+            StarWallet(left ?: 0, unlimited = left == null, modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 16.dp))
         }
 
         s.countdown?.let { left ->

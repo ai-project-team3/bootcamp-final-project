@@ -33,6 +33,7 @@ data class SavedDiaryBook(
     val aspect: Float = 1f,
     /** The art style the diary was made in — its place picture is read in it (demo/WorldStyle.kt). Before 10-07: felt */
     val artStyle: String = "felt",
+    val authorCall: String? = null,
 ) {
     val mode: String get() = "diary"
 }
@@ -62,6 +63,7 @@ fun DemoState.completedDiaryBook(title: String, today: LocalDate = LocalDate.now
         UUID.randomUUID().toString(), title, today.toString(), pages, input,
         pieces.map { it.copy(strokes = it.strokes.map { s -> s.copy(pts = s.pts.toList()) }) },
         day.weather, day.weatherBy, drawingAspect.takeIf { it > 0f } ?: 1f, bookStyle,
+        authorCall = sessionAuthorCall,
     )
 }
 
@@ -210,6 +212,7 @@ internal fun SavedDiaryBook.toJson(): JSONObject {
         })
     return JSONObject().put("id", id).put("title", title).put("madeAt", madeAt).put("pages", pages)
         .put("mode", mode).put("diary", diary).put("artStyle", artStyle)
+        .put("authorCall", authorCall ?: JSONObject.NULL)
 }
 
 internal fun diaryBookFromJson(obj: JSONObject, png: (String, Int) -> ByteArray?): SavedDiaryBook {
@@ -253,6 +256,7 @@ internal fun diaryBookFromJson(obj: JSONObject, png: (String, Int) -> ByteArray?
         if (d.isNull("weatherBy")) null else d.getString("weatherBy"),
         d.getDouble("aspect").toFloat(),
         obj.optString("artStyle", "felt"),
+        if (obj.isNull("authorCall")) null else obj.getString("authorCall"),
     )
 }
 

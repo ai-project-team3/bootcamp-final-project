@@ -174,10 +174,12 @@ suspend fun Director.liveStoryConversation() = coroutineScope {
                 if (s.recordTemplateAnswer(prompt, value, by))
                     event("slot_filled", "slot" to "extra", "of" to prompt.slot, "value" to value, "source" to by)
             } else if (by != "child" && prompt.slot != null && s.slots[prompt.slot].isNullOrBlank()) {
+                StoryEvaluation.state(s, "turn_before") { org.json.JSONObject().put("route", "fallback_choice").put("who", by).put("raw_text", value) }
                 // A visible card or an audible mascot choice is a real choice, not child speech.
                 s.slots[prompt.slot] = value
                 s.slotBy[prompt.slot] = by
                 event("slot_filled", "slot" to prompt.slot, "value" to value, "source" to by)
+                StoryEvaluation.state(s, "turn_after") { org.json.JSONObject().put("route", "fallback_choice").put("who", by) }
             }
             s.mascotPicks = if (by == "mascot") s.mascotPicks + 1 else 0
             s.syncStoryPresentation()

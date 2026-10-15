@@ -106,10 +106,12 @@ class Director(
 
     /** 실패한 저장은 책장에 성공한 것처럼 표시하지 않는다. */
     fun saveFinishedStory(): Boolean {
-        val book = s.completedStoryBook() ?: return false
+        val book = s.completedStoryBook() ?: return false.also { StoryEvaluation.saving(s, "book_save_failed", StoryEvaluation.savingSnapshot(s, null), "incomplete_book") }
+        val evaluationSave = StoryEvaluation.savingSnapshot(s, book)
+        StoryEvaluation.saving(s, "book_save_started", evaluationSave, "started")
         return try {
-            if (book.soundClipId != null && storyBookStore == null) return false
-            if (!s.keepStorySound(book)) return false
+            if (book.soundClipId != null && storyBookStore == null) return false.also { StoryEvaluation.saving(s, "book_save_failed", evaluationSave, "store_unavailable") }
+            if (!s.keepStorySound(book)) return false.also { StoryEvaluation.saving(s, "book_save_failed", evaluationSave, "sound_not_kept") }
             storyBookStore?.save(book)
             keepBookVoices(book, StoryMode.STORY)
             // the next books avoid this one's missions (#259)
@@ -119,8 +121,9 @@ class Director(
             s.shelf.add(0, book.onShelf(fresh = true))
             SessionReports.keep(s, book.id)
             recoverStoryImages()
+            StoryEvaluation.saving(s, "book_saved", evaluationSave, if (storyBookStore == null) "runtime_only" else "stored")
             true
-        } catch (_: Exception) { false }
+        } catch (_: Exception) { StoryEvaluation.saving(s, "book_save_failed", evaluationSave, "save_exception"); false }
     }
 
     fun savedStory(id: String): SavedStoryBook? = savedStories.firstOrNull { it.id == id }
@@ -193,13 +196,14 @@ class Director(
 
     /**
      * On launch: put a saved unfinished book back and mark it paused, so the room offers 「만들던 이야기 이어서 할까?」
-     * through the existing `resume` path. No star, no `CallLimits.bookStarted` — it is not a new book.
+     * through the existing `resume` path. No star, no `CallLimits.starSpent` — it is not a new book.
      */
     fun restoreDraft(): Boolean {
         val draft = draftStore?.let { runCatching { it.load() }.getOrNull() } ?: return false
         return runCatching {
             s.applyDraft(draft)
             s.paused = draft.scene
+            StoryEvaluation.restored(s)
             log("App relaunched — restored the unfinished book (scene ${draft.scene.name}) from the phone; the room asks whether to continue (#336)")
             true
         }.getOrElse {
@@ -387,6 +391,9 @@ class Director(
             reportQuestionType(askedText ?: it.text, it.kind == Kind.CHOICE)
         } ?: ReportQuestionType.UNKNOWN
         s.talk += TalkLine(who, text.trim(), questionType = type, question = askedText ?: currentQ?.text)
+        StoryEvaluation.observe(s, "utterance") {
+            org.json.JSONObject().put("who", who).put("raw_text", text).put("stored_text", text.trim()).put("turn", s.turn)
+        }
         saveDraft()                                   // after each answer — a kill then loses only the scene's own progress (#336)
     }
 
@@ -450,8 +457,16 @@ class Director(
     fun prefetchSpeech(text: String) {
         if (!Server.liveFor(s.mode) || text.isBlank() || !Voice.canSpeak) return
         val line = s.nameMask().speakable(text)
-        synchronized(prefetched) { prefetched.getOrPut(line) { scope.async { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } } } }
+        synchronized(prefetched) { prefetched.getOrPut(line) { scope.async { lineVoice(line) } } }
     }
+
+    /**
+     * A line's voice: baked into the app · already heard this session ([heardVoices]) · or `/tts`.
+     * 10-14: a line said again (Otto's face tapped · ◀ back a page · 「말하기」 · a page re-read after its mission ·
+     * a prefetch that fell out of [prefetched]) went to `/tts` again and was paid again, though its voice was kept
+     */
+    internal suspend fun lineVoice(line: String): ByteArray? =
+        Voice.baked(line) ?: synchronized(heardVoices) { heardVoices[line] } ?: Server.tts(line)?.also { heard(line, it) }
 
     /**
      * Server voices of this session's last lines, by spoken text (#179). A diary keeps its page voices with the book
@@ -512,8 +527,8 @@ class Director(
         val mode = s.mode
         val ready = if (saved == null) synchronized(prefetched) { prefetched.remove(line) } else null
         val audio = (ready ?: scope.async {
-            if (saved != null) savedBookVoice(saved, mode, line) { Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) } }
-            else Voice.baked(line) ?: Server.tts(line)?.also { heard(line, it) }
+            if (saved != null) savedBookVoice(saved, mode, line) { lineVoice(line) }
+            else lineVoice(line)
         }).also { queueVoice(it) }
         queueSpoken(if (waitForVoice) s.lineId else null) { audio.await() }
     }
@@ -937,6 +952,7 @@ class Director(
     fun holdSession() {
         if (s.holding) return
         s.holding = true
+        StoryEvaluation.state(s, "session_paused") { org.json.JSONObject().put("status", "hold") }
         saveDraft()                                   // ON_STOP comes here — the process may be killed next (#336)
         hushVoice()
         Bgm.hold("pause")
@@ -956,6 +972,7 @@ class Director(
     fun resumeSession() {
         if (!s.holding) return
         s.holding = false
+        StoryEvaluation.state(s, "session_resumed")
         Bgm.resume("pause")
         log("▶ 이어 하기")
         replayLine()
@@ -967,6 +984,7 @@ class Director(
         // 방에서 동화 만들기를 누를 때마다 「이어서 할까?」가 뜨고 이어 가면 그 책 마지막 쪽이 다시 열렸다 (09-29 사용자 지적)
         if (s.scene !in setOf(Scene.ADULT, Scene.PARENT, Scene.SHELF, Scene.BOOK)) {
             s.paused = s.scene
+            StoryEvaluation.state(s, "session_paused") { org.json.JSONObject().put("status", "left_scene") }
             log("이야기 도중 나감 — 「${s.scene.label}」을 기억해 둔다. 다시 들어오면 이어서 할지 묻는다")
             saveDraft()
         }
@@ -1092,6 +1110,10 @@ class Director(
                 send(Reply.Tapped(c.value, c.label))
             }
             log("모호한 말 확인: 뜻이 여럿인 말이라 그림 카드 3장을 바로 띄움 · 말로 답해도 됨 (구현대본 §0-1)")
+        } else if (s.isCoop && hasCoopChoices(q.text)) {
+            // co-op's 고르며 · 이어 짓기 attach the item's choices to the 「왜 · 어떻게」 (CoopQuestions.kt) — the log said
+            // 「선택지를 말하지 않고」 over a line that read three choices (10-14 demo review)
+            log("선택지를 붙인 질문 — 고르며 · 이어 짓기 수준이라 후보 셋을 먼저 들려준다. 말로 다르게 답해도 된다 (협업 질문 §5 · CoopQuestions.kt)")
         } else {
             log("소크라틱 열린 질문 — 선택지를 말하지 않고 아이가 떠올리게 한다 (v0.8 · 결정 30)")
         }

@@ -250,3 +250,40 @@ def test_a_cut_off_answer_says_its_shape_not_its_words(monkeypatch):
     assert msg.startswith("output is not JSON")
     assert "reason=max_output_tokens" in msg and "out=768/768" in msg and "starts='{'" in msg and "ends=text" in msg
     assert "지우" not in msg and "놀이터" not in msg
+
+
+def _answering(monkeypatch, text):
+    import asyncio
+    import httpx
+    from app.llm import client as llm
+
+    class Fake:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, url, headers, json):
+            return httpx.Response(200, json={"status": "completed", "usage": {"input_tokens": 9, "output_tokens": 9},
+                                             "output": [{"type": "message", "content": [
+                                                 {"type": "output_text", "text": text}]}]})
+
+    monkeypatch.setattr(settings, "openai_api_key", "test")
+    monkeypatch.setattr(llm.httpx, "AsyncClient", Fake)
+    return lambda: asyncio.run(llm.complete("s", "u", {}, effort="none", name="line"))
+
+
+LINE = '{"ack":"무서웠는데 재밌었구나.","expand":null,"question":"무슨 일이 있었어?","options":["a","b","c"]}'
+
+
+@pytest.mark.parametrize("tail", [" tuliskan JSON only.", "  \n</|im_end|> (invalid format presumably)",
+                                  " \n…\n" + LINE, "黑大战\ntart\n"])
+def test_text_after_a_whole_answer_is_dropped(monkeypatch, caplog, tail):
+    """#376: 10-13 raw failures were one whole object with something after its `}`."""
+    with caplog.at_level("WARNING", logger="llm"):
+        assert _answering(monkeypatch, "\n" + LINE + tail)()["ack"] == "무서웠는데 재밌었구나."
+    assert "dropped" in caplog.text and "무서웠" not in caplog.text and "tuliskan" not in caplog.text
+
+
+def test_an_answer_that_does_not_start_as_json_still_fails(monkeypatch):
+    from app.llm import client as llm
+    with pytest.raises(llm.LLMError):
+        _answering(monkeypatch, "```json\n" + LINE + "\n```")()

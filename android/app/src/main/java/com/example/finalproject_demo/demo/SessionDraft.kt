@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicReference
  * This file writes the same thing to the phone: the scene the story stopped in plus the book's state, at every
  * scene boundary and after each answer. On the next launch the draft is put back into `DemoState` and
  * `paused` is set, so the room offers the existing 「만들던 이야기 이어서 할까?」 and the existing `resume` path
- * (`Scenes.sceneAdult`) runs it — no new start, so no star, no `CallLimits.bookStarted`, no new book count.
+ * (`Scenes.sceneAdult`) runs it — no new start, so no star, no `CallLimits.starSpent`, no new book count.
  *
  * Contract:
  *  - **Local only.** App-private `files/session_draft/draft.json`, never sent to the server. `LocalWipe` deletes it.
@@ -222,6 +222,7 @@ fun DemoState.captureDraft(scene: Scene, now: Long = System.currentTimeMillis())
 
 internal fun DemoState.captureDraftState(): JSONObject = JSONObject().apply {
     put("reportProfileId", reportProfileId)
+    putN("sessionAuthorCall", sessionAuthorCall)
     // the story's facts
     putN("place", place); putN("problem", problem); putN("cause", cause); putN("newcomer", newcomer)
     putN("friend", friend); putN("sound", sound); putN("solution", solution); putN("title", title); putN("reaction", reaction)
@@ -233,6 +234,8 @@ internal fun DemoState.captureDraftState(): JSONObject = JSONObject().apply {
     putN("partnerHelp", partnerHelp); putN("partnerHelpLine", partnerHelpLine)
     put("partnerKey", partnerKey); putN("partnerCall", partnerCall)
     put("diaryStart", diaryStart); put("diaryTimeUp", diaryTimeUp); put("mascotPicks", mascotPicks)
+    // 지금까지 이야기한 시간 — 이어 하면 나가 있던 시간을 빼고 이어서 잰다(30분 마무리 제안 · 책의 「○분」) (10-14)
+    put("diaryTalkedMs", if (diaryStart > 0L) (System.currentTimeMillis() - diaryStart).coerceAtLeast(0L) else 0L)
     put("storyAnswers", storyAnswers); put("storyGaugeHigh", storyGaugeHigh); putN("endReason", endReason)
     put("companionKind", companionKind)
     putN("parentAsk", parentAsk); put("parentRung", parentRung); putN("adultLine", adultLine); put("stepsDone", stepsDone)
@@ -319,6 +322,7 @@ fun DemoState.applyDraft(d: SessionDraft) {
     resetStory()
     // An unfinished book keeps its original child. An old draft with no owner stays unknown.
     reportProfileId = d.state.optStr("reportProfileId") ?: ""
+    sessionAuthorCall = o.optStr("sessionAuthorCall")
     mode = d.mode
     place = o.optStr("place"); problem = o.optStr("problem"); cause = o.optStr("cause"); newcomer = o.optStr("newcomer")
     friend = o.optStr("friend"); sound = o.optStr("sound"); solution = o.optStr("solution"); title = o.optStr("title")
@@ -331,6 +335,8 @@ fun DemoState.applyDraft(d: SessionDraft) {
     partnerHelp = o.optStr("partnerHelp"); partnerHelpLine = o.optStr("partnerHelpLine")
     partnerKey = o.optString("partnerKey", partnerKey); partnerCall = o.optStr("partnerCall")
     diaryStart = o.optLong("diaryStart"); diaryTimeUp = o.optBoolean("diaryTimeUp"); mascotPicks = o.optInt("mascotPicks")
+    // 이야기한 시간이 있으면 그만큼 전에 시작한 것으로 — 어제 하다 만 일기를 오늘 열자마자 「30분 지남」이 되지 않는다 (10-14)
+    if (diaryStart > 0L && o.has("diaryTalkedMs")) diaryStart = System.currentTimeMillis() - o.optLong("diaryTalkedMs")
     storyAnswers = o.optInt("storyAnswers"); storyGaugeHigh = o.optInt("storyGaugeHigh"); endReason = o.optStr("endReason")
     companionKind = o.optString("companionKind")
     parentAsk = o.optStr("parentAsk"); parentRung = o.optInt("parentRung"); adultLine = o.optStr("adultLine"); stepsDone = o.optInt("stepsDone")

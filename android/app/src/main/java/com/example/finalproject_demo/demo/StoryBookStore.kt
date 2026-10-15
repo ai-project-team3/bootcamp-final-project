@@ -22,6 +22,7 @@ data class SavedStoryBook(
     val madeAt: String = "",
     /** The art style the book was made in — read in it later (demo/WorldStyle.kt). Books from before 10-07 are felt */
     val artStyle: String = "felt",
+    val authorCall: String? = null,
 )
 
 /** 완성된 동화만 저장한다. 진행 중인 이야기와 다른 모드의 책은 이 저장소의 범위 밖이다. */
@@ -44,7 +45,8 @@ fun DemoState.completedStoryBook(): SavedStoryBook? {
     val pages = (1..pageCount).map { SavedStoryPage(pageKind(it), bookCaption(it)) }
     if (pages.any { it.caption.isBlank() }) return null
     return SavedStoryBook(storySoundBookId ?: UUID.randomUUID().toString(), title ?: autoTitleFor(),
-        themeKey, bgName, pages, captureStoryVisuals(), storySoundClip?.id, LocalDate.now().toString(), bookStyle)
+        themeKey, bgName, pages, captureStoryVisuals(), storySoundClip?.id, LocalDate.now().toString(), bookStyle,
+        authorCall = sessionAuthorCall)
 }
 
 /** 앱 내부 저장소에만 보관한다. 저장 시 전체 배열을 한 번에 교체해 중간 상태를 남기지 않는다. */
@@ -104,6 +106,7 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
                         if (obj.isNull("soundClipId")) null else obj.optString("soundClipId").takeIf(String::isNotBlank),
                         obj.optString("madeAt", ""),
                         obj.optString("artStyle", "felt"),
+                        if (obj.isNull("authorCall")) null else obj.getString("authorCall"),
                     )
                 } catch (_: Exception) { null }
             }
@@ -161,6 +164,7 @@ class LocalStoryBookStore(context: Context) : StoryBookStore {
             array.put(JSONObject()
                 .put("id", entry.id).put("title", entry.title).put("madeAt", entry.madeAt).put("artStyle", entry.artStyle)
                 .put("themeKey", entry.themeKey).put("bgName", entry.bgName)
+                .put("authorCall", entry.authorCall ?: JSONObject.NULL)
                 .put("pages", pages).put("visuals", entry.visuals?.toJson() ?: JSONObject.NULL)
                 .put("soundClipId", entry.soundClipId ?: JSONObject.NULL))
         }

@@ -1,5 +1,9 @@
 package com.example.finalproject_demo.ui.shell
 
+import com.example.finalproject_demo.demo.newStoryAllowance
+import com.example.finalproject_demo.demo.allowExtraParentStart
+import androidx.compose.foundation.layout.widthIn
+
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -452,7 +456,9 @@ fun OttoRoom(d: Director, tutorial: Boolean = false, sample: Boolean = false, op
             // 왼쪽 위 부모 문 — 누르면 부모 비밀번호
             LockDoor(Modifier.padding(12.dp)) { d.send(Reply.Tapped("parent", "부모 모드")) }
             // 오른쪽 위 오늘 만들 수 있는 책
-            StarWallet(s.dayStars, unlimited = !s.limitOn, modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 64.dp), flightSource = true)
+            val left = s.newStoryAllowance().remaining
+            StarWallet(left ?: 0, unlimited = left == null, modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 64.dp), flightSource = true,
+                onPlus = if (sample) null else ({ Shell.sheet = Sheet.STAR_GATE }))
         }
 
         if (asking) target?.let { t ->
@@ -728,6 +734,7 @@ fun ConfirmDialog(
 @Composable
 private fun DailyLimit(d: Director) {
     var adult by remember { mutableStateOf(false) }
+    val allowance = d.s.newStoryAllowance(d.s.noticeMode)
     Box(Modifier.fillMaxSize().background(Color(0xFF3B4A6B)).noRippleClickable { }) {
         AssetImage("night_bg", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) { Canvas(Modifier.fillMaxSize()) {
             val rnd = java.util.Random(3)
@@ -736,10 +743,18 @@ private fun DailyLimit(d: Director) {
             drawRect(StageWoodDeep, Offset(0f, size.height * 0.8f), Size(size.width, size.height * 0.2f))
         } }
         Otto(Pose.YAWN, Modifier.align(Alignment.Center).padding(top = 30.dp).size(240.dp))
-        SpeakBubble("오늘은 여기까지! 내일 또 만나", Modifier.align(Alignment.CenterStart).padding(start = 36.dp, bottom = 60.dp))
+        SpeakBubble(d.s.notice.orEmpty(), Modifier.align(Alignment.CenterStart).padding(start = 36.dp, bottom = 60.dp).widthIn(max = 280.dp))
         // 아이가 할 일 하나 — 지난 책 보기 (막다른 화면이 없게)
-        FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped("notice:shelf", "책장")) }, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 40.dp).size(120.dp), shape = RoundedCornerShape(30.dp)) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("📚", fontSize = 40.sp); Text("책장", fontSize = 18.sp, color = FeltWhite) }
+        Column(Modifier.align(Alignment.CenterEnd).padding(end = 24.dp).width(128.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (d.s.paused != null) FeltButton(FeltTeal, onClick = { d.send(Reply.Tapped("resume", "이어서")) }, modifier = Modifier.fillMaxWidth().height(64.dp)) {
+                Text("이어서", fontSize = 18.sp, color = FeltWhite)
+            }
+            FeltButton(FeltCoral, onClick = { d.send(Reply.Tapped("notice:shelf", "책장")) }, modifier = Modifier.fillMaxWidth().height(64.dp)) {
+                Text("책장", fontSize = 18.sp, color = FeltWhite)
+            }
+            FeltButton(FeltSky, onClick = { d.send(Reply.Tapped("notice:ok", "방으로")) }, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                Text("방으로", fontSize = 16.sp, color = FeltWhite)
+            }
         }
         // 어른 경로 하나 — 구석 · 작게 → 부모 비밀번호 → 한 권 더 (Lingokids · YouTube Kids)
         Row(
@@ -750,20 +765,28 @@ private fun DailyLimit(d: Director) {
             ParentText {
                 Column(Modifier.width(560.dp).felt(Wool, RoundedCornerShape(28.dp), lift = 10.dp, texture = false).padding(24.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("오늘 한 권 더 만들기", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = InkBrown, modifier = Modifier.weight(1f))
+                        Text(if (allowance.parentCanAllowExtra) "새 이야기 한 번 더 시작하기" else "별이 없어요", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = InkBrown, modifier = Modifier.weight(1f))
                         Text("닫기", fontSize = 14.sp, color = InkSoft, modifier = Modifier.clickable { adult = false }.padding(8.dp))
                     }
                     Spacer(Modifier.height(14.dp))
-                    if (Shell.hasPin) PinPad("부모 비밀번호", "한 권 더 만들려면 비밀번호를 넣어 주세요", onDone = { ok -> Shell.checkPin(ok).also { if (it) {
+                    if (!allowance.parentCanAllowExtra) {
+                        // no stars left (#445) — the only way on is the shop (buy, or watch an ad), behind the parent PIN
+                        Text("별 하나로 책 한 권을 만들어요. 별은 구매하거나 광고를 보고 받을 수 있어요.", color = InkBrown, fontSize = 14.sp)
+                        Text("만들던 이야기 이어하기와 책장 읽기는 별 없이 할 수 있어요.", color = InkSoft, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                        Spacer(Modifier.height(14.dp))
+                        Box(
+                            Modifier.height(44.dp).clip(RoundedCornerShape(22.dp)).background(FeltCoral).clickable { adult = false; Shell.sheet = Sheet.STAR_GATE }.padding(horizontal = 22.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Text("별 구매하기", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FeltWhite) }
+                    } else if (Shell.hasPin) PinPad("부모 비밀번호", "한 번 더 시작하려면 비밀번호를 넣어 주세요", onDone = { ok -> Shell.checkPin(ok).also { if (it && d.s.allowExtraParentStart()) {
                         adult = false
-                        d.s.usedToday = (d.s.usedToday - 1).coerceAtLeast(0)
                         d.send(Reply.Tapped("notice:ok", "한 권 더"))
                     } } })
                     else YearPad(onPass = {
-                        adult = false
-                        // 한 권 더 — 오늘 쓴 수를 하나 되돌린다(하루 한도 자체는 부모 설정에서 바꾼다)
-                        d.s.usedToday = (d.s.usedToday - 1).coerceAtLeast(0)
-                        d.send(Reply.Tapped("notice:ok", "한 권 더"))
+                        if (d.s.allowExtraParentStart()) {
+                            adult = false
+                            d.send(Reply.Tapped("notice:ok", "한 번 더"))
+                        }
                     })
                 }
             }

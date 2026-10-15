@@ -62,6 +62,8 @@ fun OttoShell(d: Director) {
         if (!ConsentStore.guardianAgreed && !Shell.sampleOnly) Shell.step = Step.CONSENT
         else if (d.s.stage == Stage.Adult) OttoRoom(d, sample = Shell.sampleOnly)
         if (Shell.sheet == Sheet.PIN_CHANGE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { PinChangeSheet() }
+        // 별 구매하기 (#445) — 방의 「+」는 부모 비밀번호부터, 부모 설정에서는 바로
+        else if (Shell.sheet == Sheet.STAR_GATE || Shell.sheet == Sheet.STAR_SHOP) Shield(onBack = { Shell.sheet = Sheet.NONE }) { StarShopSheet() }
         else if (Shell.sheet != Sheet.NONE) Shield(onBack = { Shell.sheet = Sheet.NONE }) { WithdrawSheet(d) }
         // 부모 영역 → 계정 → 기능 안내 다시 보기
         if (Shell.guide) Shield(onBack = { Shell.guide = false }) {
@@ -156,8 +158,9 @@ fun OttoShell(d: Director) {
                         else -> { Shell.markReady(g); Step.FEATURES }
                     }
                 })
-                Step.PIN -> PinStep(onBack = { Shell.step = Step.MIC }, onDone = { Shell.step = Step.SETUP })
-                Step.SETUP -> SetupStep(onBack = { Shell.step = Step.PIN }, onDone = { Shell.applySetup(d.s); Shell.step = Step.FEATURES })
+                Step.PIN -> PinStep(onBack = { Shell.step = Step.MIC }, onDone = { Shell.step = Step.CHILD_INTRODUCTION })
+                Step.CHILD_INTRODUCTION -> ChildIntroductionStep(onBack = { Shell.step = Step.PIN }, onDone = { Shell.step = Step.SETUP })
+                Step.SETUP -> SetupStep(onBack = { Shell.step = Step.CHILD_INTRODUCTION }, onDone = { Shell.applySetup(d.s); Shell.step = Step.FEATURES })
                 // 10-05 — 보호자가 기능을 먼저 다 보고(⑥), 아이에게 건넨 뒤(⑦) 아이가 방을 둘러보고(⑧) 말해 본다(⑨)
                 Step.FEATURES -> FeatureGuide { Shell.step = Step.HANDOFF }
                 Step.HANDOFF -> HandoffStep { Shell.step = Step.TUTORIAL_TAP }

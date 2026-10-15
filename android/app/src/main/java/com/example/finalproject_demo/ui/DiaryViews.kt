@@ -99,6 +99,7 @@ import com.example.finalproject_demo.demo.DiaryPageKind
 import com.example.finalproject_demo.demo.DiaryPaper
 import com.example.finalproject_demo.demo.DiaryPiece
 import com.example.finalproject_demo.demo.DiaryStage
+import com.example.finalproject_demo.demo.DiaryWrapUp
 import com.example.finalproject_demo.demo.DiaryStart
 import com.example.finalproject_demo.demo.DiaryStitch
 import com.example.finalproject_demo.demo.DiaryWeather
@@ -194,6 +195,10 @@ fun DiaryStageView(d: Director, stage: DiaryStage) {
             DiaryStitch -> DiaryStitchView(d, cq)
             is DiaryPaper -> DiaryPaperView(d, stage, cq)
             DiaryGift -> DiaryGiftView(d, cq)
+            DiaryWrapUp -> {
+                DiaryAskView(d, cq)
+                WrapUpButtons(d, cq, Modifier.align(Alignment.CenterEnd))
+            }
         }
         when (stage) {
             // 말풍선은 화면 왼쪽 끝 — 🎤 를 품지 않아 낮아서 크레용 아래 ↶ ↷ 를 가리지 않는다 (10-05 진웅)
@@ -244,6 +249,33 @@ private fun DiaryStartView(d: Director, cq: Dp) {
                 contentAlignment = Alignment.Center,
             ) { Text("그림 없이 말할래", fontSize = (cq.value * 3.4f).sp, color = InkBrown) }
         }
+    }
+}
+
+/** 30분쯤 마무리 제안의 답 — [응, 만들자!] · [더 할래] (10-14 · 전에는 시연 서랍에만 있었다) */
+@Composable
+private fun WrapUpButtons(d: Director, cq: Dp, modifier: Modifier) {
+    Column(
+        modifier.padding(end = cq * 6),
+        verticalArrangement = Arrangement.spacedBy(cq * 2.6f),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        val shape = RoundedCornerShape(cq * 5.5f)
+        Box(
+            Modifier.size(cq * 26, cq * 10)
+                .shadow(cq * 1.6f, shape)
+                .background(Brush.linearGradient(listOf(Color(0xFFFF9A76), FeltCoral, Color(0xFFD9483A))), shape)
+                .clickable { d.send(Reply.Tapped("wrap", "응")) }
+                .testTag("diary-wrap"),
+            contentAlignment = Alignment.Center,
+        ) { Text("📔 응, 만들자!", fontSize = (cq.value * 3.4f).sp, color = Color.White) }
+        Box(
+            Modifier.size(cq * 26, cq * 10)
+                .felt(WoolCream, shape, lift = 4.dp)
+                .clickable { d.send(Reply.Tapped("more", "더 할래")) }
+                .testTag("diary-more"),
+            contentAlignment = Alignment.Center,
+        ) { Text("더 할래", fontSize = (cq.value * 3.4f).sp, color = InkBrown) }
     }
 }
 

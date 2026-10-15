@@ -221,6 +221,25 @@ class BlowMissionTest {
         assertTrue("공을 골대에 넣었는데 안 끝났다: $reply", reply is Reply.Tapped && reply.value == "mission")
     }
 
+    /** D4 구슬 (10-14) — 공과 같은 출발 · 도착 자리라 같은 끌기로 끝난다(탭 길) */
+    @Test
+    fun draggingTheMarbleIntoTheHoleEndsTheRollMission() = dragRoll(com.example.finalproject_demo.demo.missions.FixProp.MARBLE)
+
+    /** D4 눈덩이 (10-14) — 눈사람 머리 자리까지 끌면 끝난다 */
+    @Test
+    fun draggingTheSnowballOntoTheSnowmanEndsTheRollMission() = dragRoll(com.example.finalproject_demo.demo.missions.FixProp.SNOWBALL)
+
+    private fun dragRoll(prop: com.example.finalproject_demo.demo.missions.FixProp) {
+        val reply = runMission("roll_${prop.name.lowercase()}", { com.example.finalproject_demo.ui.missions.RollMission(it, false, hero, prop) }) {
+            val from = Offset(width * 0.36f, height * 0.56f)
+            val to = Offset(width * 0.82f, height * 0.50f)
+            down(from)
+            for (k in 1..30) moveTo(from + (to - from) * (k / 30f), delayMillis = 16)
+            up()
+        }
+        assertTrue("${prop.name}: 끌어다 넣었는데 안 끝났다: $reply", reply is Reply.Tapped && reply.value == "mission")
+    }
+
     private fun runMission(name: String, content: @androidx.compose.runtime.Composable (Director) -> Unit, act: androidx.compose.ui.test.TouchInjectionScope.() -> Unit): Reply? {
         val d = coopBirthdayBook()
         compose.mainClock.autoAdvance = false

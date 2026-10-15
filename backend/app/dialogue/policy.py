@@ -41,6 +41,13 @@ def act_for(d: Decision | None) -> Optional[Act]:
     return ACTS.get(d.intent)
 
 
+def refused(d: Decision | None) -> bool:
+    """The child would rather not answer — at the costly floor, like a correction (#405). No act follows."""
+    if d is None or d.intent != "refuse":
+        return False
+    return d.intent_conf is None or d.intent_conf >= FLOOR_COSTLY
+
+
 def _last_filled(req: TurnRequest) -> str | None:
     """The slot Otto last wrote down — what a bare 「그거 아니야」 most likely points at."""
     for h in reversed(req.history or []):
@@ -66,7 +73,9 @@ def is_stale(retract: list[str], req: TurnRequest) -> bool:
 def retract_for(act: Optional[Act], d: Decision | None, req: TurnRequest) -> list[str]:
     if act != "repair" or d is None:
         return []
-    sure = d.target and (d.target_conf is None or d.target_conf >= FLOOR)
+    # an empty slot holds nothing to deny — the decider then pointed at the question asked, not at what
+    # Otto wrote down (10-13 story bench c02: 「그거 아니야」 → target `problem` 0.71–0.75, 3/3)
+    sure = d.target and req.slots.get(d.target) and (d.target_conf is None or d.target_conf >= FLOOR)
     slot = d.target if sure else _last_filled(req)
     if not slot or not req.slots.get(slot):
         return []

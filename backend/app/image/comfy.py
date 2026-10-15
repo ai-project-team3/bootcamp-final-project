@@ -11,6 +11,7 @@ routers/image.py runs the check.
 import asyncio
 import base64
 import random
+import time
 import urllib.parse
 
 import httpx
@@ -166,16 +167,74 @@ async def _forget(base: str, pid: str) -> None:
         pass
 
 
+def _modal_headers() -> dict:
+    return {"Modal-Key": settings.redraw_modal_key, "Modal-Secret": settings.redraw_modal_secret}
+
+
+async def _run_modal(wf: dict) -> bytes:
+    """The redraw on our Modal GPU (backend/modal_gpu/ · #460 ⑥). The drawing rides in this one POST body
+    and Modal does not store a Server's requests (docs/그림생성_API_조사_410.md §0-5 ④). Errors name only
+    the kind of failure — never the body, which holds the child's drawing."""
+    base = settings.redraw_modal_url.rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=30) as http:
+            while True:
+                r = await http.post(f"{base}/draw", json={"workflow": wf}, headers=_modal_headers())
+                if r.status_code != 503:
+                    break
+                await asyncio.sleep(1)          # no container up yet: the proxy turns us away instead of queuing
+    except httpx.HTTPError as e:
+        raise ComfyError(f"modal network: {type(e).__name__}") from None
+    if r.status_code != 200:
+        raise ComfyError(f"modal HTTP {r.status_code}")
+    try:
+        return base64.b64decode(r.json()["png_base64"])
+    except (ValueError, KeyError, TypeError) as e:
+        raise ComfyError(f"modal answer: {type(e).__name__}") from None
+
+
+_WAKE_EVERY_S = 10.0
+_woke_at = 0.0
+_wakes: set = set()                             # running wake tasks, held so they are not collected
+
+
+async def _wake() -> None:
+    try:
+        async with httpx.AsyncClient(timeout=5) as http:
+            await http.get(f"{settings.redraw_modal_url.rstrip('/')}/wake", headers=_modal_headers())
+    except Exception:
+        pass                                    # a wake is a hint — the redraw itself still waits for a container
+
+
+def wake_redraw() -> None:
+    """Ask the Modal GPU to be up soon, without waiting. Called on every picture-diary turn so the GPU stays
+    up while the child draws and the redraw does not pay a cold start (§0-5 ②: kept up 4/4 within 45 s,
+    woken once at the start 4/4 but only because the GPU came fast that hour). No-op when Modal is off."""
+    global _woke_at
+    if not settings.redraw_modal_url:
+        return
+    now = time.monotonic()
+    if now - _woke_at < _WAKE_EVERY_S:
+        return
+    _woke_at = now
+    task = asyncio.get_running_loop().create_task(_wake())
+    _wakes.add(task)
+    task.add_done_callback(_wakes.discard)
+
+
 async def run(wf: dict, front: bool = False) -> bytes:
     """Queue one graph and return its first PNG. Cancelling cancels the ComfyUI job.
 
     A graph that returns its picture through OttoReturnImageB64 (the redraw) is read from the
     history entry, and that entry is deleted whatever happens — nothing of it stays on PC2.
+    With REDRAW_MODAL_URL set, that graph goes to our Modal GPU instead (_run_modal).
     [front] puts the job at the head of ComfyUI's queue — a picture a child is waiting for
     (background · character) goes ahead of redraws already queued (#32, 10-02).
     """
     base = settings.comfy_url.rstrip("/")
     in_memory = any(n["class_type"] == "OttoReturnImageB64" for n in wf.values())
+    if in_memory and settings.redraw_modal_url:
+        return await _run_modal(wf)
     pid = None
     try:
         async with httpx.AsyncClient(timeout=10) as http:
