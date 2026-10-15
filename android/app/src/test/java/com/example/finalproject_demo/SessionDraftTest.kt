@@ -230,14 +230,14 @@ class SessionDraftTest {
 
     /** 10-14 — 이어 하면 나가 있던 시간을 빼고 이야기한 시간만 이어서 잰다(어제 하다 만 일기가 열자마자 「30분 지남」이 되지 않게) */
     @Test fun diaryTalkTimeContinuesAfterResumeWithoutTheTimeAway() {
-        val now = System.currentTimeMillis()
-        val a = DemoState().apply { mode = StoryMode.DIARY; newDiaryDay(); diaryStart = now - 12 * 60_000L }
+        val a = DemoState().apply { mode = StoryMode.DIARY; newDiaryDay(); diaryStart = 1L }
         val json = JSONObject(a.captureDraft(Scene.DIARY).toJson().toString())
-        val yesterday = now - 26 * 60 * 60_000L
+        val yesterday = 1_000_000L
         fun restored(o: JSONObject) = DemoState().apply { applyDraft(SessionDraft.fromJson(o)!!) }
-        // saved yesterday after 12 minutes of talk — the clock goes on from 12 minutes, not from yesterday
-        json.getJSONObject("state").put("diaryStart", yesterday)
-        val talked = System.currentTimeMillis() - restored(json).diaryStart
+        // saved yesterday after 12 minutes of talk — the clock goes on from 12 minutes, not from yesterday.
+        // Read back by saving again: the app's clock is Robolectric's, not this test's — mixing the two failed on CI (11 min)
+        json.getJSONObject("state").put("diaryStart", yesterday).put("diaryTalkedMs", 12 * 60_000L)
+        val talked = JSONObject(restored(json).captureDraft(Scene.DIARY).toJson().toString()).getJSONObject("state").getLong("diaryTalkedMs")
         assertTrue("이어서 잰 시간 ${talked / 60_000}분", talked in 12 * 60_000L..13 * 60_000L)
         // a draft saved before this change keeps its start as it was
         json.getJSONObject("state").remove("diaryTalkedMs")
