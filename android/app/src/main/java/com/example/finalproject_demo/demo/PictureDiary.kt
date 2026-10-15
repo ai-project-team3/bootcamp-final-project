@@ -1915,12 +1915,17 @@ internal fun echoBack(raw: String): String {
 
 /** 30분쯤 — 마무리를 **한 번** 제안한다. 더 하고 싶다면 계속한다. 되묻지 않는다 */
 private suspend fun Director.offerWrapUp(): Boolean {
+    val back = s.stage
     say("오늘 이야기 정말 많이 했다! 이제 그림일기로 만들어 볼까?")
+    inputs(mic = false, next = false)                   // 말이 아니라 화면 버튼으로 받는다 — 아이 말을 뜻으로 읽지 않는다
+    s.stage = DiaryWrapUp
     buttons(
         DemoBtn("🗣 \"응, 만들자\"") { send(Reply.Tapped("wrap", "응")) },
         DemoBtn("🗣 \"더 할래\"") { send(Reply.Tapped("more", "더 할래")) },
     )
     val wrap = awaitValue("wrap", "more") == "wrap"
+    buttons()
+    s.stage = back
     log(if (wrap) "30분 — 마무리 제안에 응 → 책으로" else "30분 — 더 하고 싶다 → 계속한다 (다시 제안하지 않는다)")
     if (!wrap) { say("좋아, 더 이야기해 줘!"); pause(600) }
     return wrap
@@ -2134,60 +2139,66 @@ private fun Director.keepPageVoices(book: SavedDiaryBook) {
  */
 private suspend fun Director.readPictureDiary(day: DiaryDay, reread: Boolean = false, bookId: String? = null) {
     var i = 0
-    val missing = mutableSetOf<String>()
     // 쪽 목소리를 미리 받는다 — 전에는 쪽을 넘길 때마다 그제야 /tts 를 불러 쪽마다 1.8~3.5초 기다렸다 (#262 · 10-07 실기기).
     // 책 옆에 남긴 목소리(#179)는 값이 없으니 펼칠 때 다 넘기고, 새로 받는 것은 지금 쪽과 그다음 [BOOK_PREFETCH_AHEAD] 쪽만 —
     // 중간에 나가는 아이에게 책 한 권 값을 다 쓰지 않는다 (#276 리뷰)
     if (bookId != null) buildDiaryBook(s.diaryBookInput()).map(::diaryPageCaption).distinct().forEach { line ->
         DiaryShelf.voice(s, bookId, line)?.let { offerVoice(line, it) }
     }
-    while (true) {
-        val pages = buildDiaryBook(s.diaryBookInput())
-        val p = pages[i]
-        val last = i == pages.lastIndex
-        val caption = diaryPageCaption(p)
-        // 쪽마다 그 분위기의 곡 — 동화책과 같은 곡들 (#221 · BookMood.kt)
-        com.example.finalproject_demo.net.Bgm.play(trackOf(diaryMoodOf(p.kind, p.text), diaryBookKey(pages)))
-        pages.drop(i).take(BOOK_PREFETCH_AHEAD + 1).map(::diaryPageCaption)
-            .filter { line -> bookId?.let { DiaryShelf.voice(s, it, line) } == null }
-            .forEach(::prefetchSpeech)
-        if (bookId != null) DiaryShelf.voice(s, bookId, caption)?.let { offerVoice(caption, it) } ?: missing.add(caption)
-        say(caption)
-        s.stage = DiaryPaper(i)                      // 말한 뒤에 쪽을 연다 — 쪽의 글자가 이 문장의 목소리를 기다린다(#262)
-        val b = mutableListOf<DemoBtn>()
-        if (i == 0 && day.weather == null) DiaryWeather.entries.forEach { w ->
-            b += DemoBtn("${w.emoji} 날씨 ${w.label}") { send(Reply.Tapped("wx:${w.name}", w.label)) }
-        }
-        if (p.asksFeel) DiaryFeel.entries.forEach { f ->
-            b += DemoBtn("${f.emoji} ${f.line}") { send(Reply.Tapped("feel:${f.name}", f.line)) }
-        }
-        // 넘기기가 앞이다 — 동화 책(sceneBook)과 같은 차례. 앞 쪽이 먼저면 앞으로만 누르는 손이 책 앞뒤를 오간다
-        b += DemoBtn(if (last) "📔 다 읽었어" else "▶ 다음 쪽") { send(Reply.Tapped("next", "다음")) }
-        if (i > 0) b += DemoBtn("◀ 앞 쪽") { send(Reply.Tapped("prev", "앞")) }
-        buttons(*b.toTypedArray())
-        val r = awaitReply() as? Reply.Tapped ?: continue
-        when {
-            r.value.startsWith("wx:") -> {
-                day.pickWeather(DiaryWeather.valueOf(r.value.removePrefix("wx:")))
-                s.reactions++
-                event("utterance", "speaker" to "child", "mode" to "card", "text" to "날씨 ${r.label}")
+    // 다시 읽다 받은 쪽 목소리는 어떻게 나가든 책 옆에 남긴다 — 읽은 쪽도, 미리 받아 둔 다음 쪽도. 전에는 「다 읽었어」에서
+    // 읽은 쪽만 남겨, 중간에 나가면 값을 내고 받은 소리를 버리고 다음에 또 /tts 를 불렀다 (10-14 · 방으로 · 책장으로는 이 코루틴을 취소한다)
+    try {
+        while (true) {
+            val pages = buildDiaryBook(s.diaryBookInput())
+            val p = pages[i]
+            val last = i == pages.lastIndex
+            val caption = diaryPageCaption(p)
+            // 쪽마다 그 분위기의 곡 — 동화책과 같은 곡들 (#221 · BookMood.kt)
+            com.example.finalproject_demo.net.Bgm.play(trackOf(diaryMoodOf(p.kind, p.text), diaryBookKey(pages)))
+            pages.drop(i).take(BOOK_PREFETCH_AHEAD + 1).map(::diaryPageCaption)
+                .filter { line -> bookId?.let { DiaryShelf.voice(s, it, line) } == null }
+                .forEach(::prefetchSpeech)
+            if (bookId != null) DiaryShelf.voice(s, bookId, caption)?.let { offerVoice(caption, it) }
+            say(caption)
+            s.stage = DiaryPaper(i)                      // 말한 뒤에 쪽을 연다 — 쪽의 글자가 이 문장의 목소리를 기다린다(#262)
+            val b = mutableListOf<DemoBtn>()
+            if (i == 0 && day.weather == null) DiaryWeather.entries.forEach { w ->
+                b += DemoBtn("${w.emoji} 날씨 ${w.label}") { send(Reply.Tapped("wx:${w.name}", w.label)) }
             }
-            r.value.startsWith("feel:") -> {
-                day.feel = DiaryFeel.valueOf(r.value.removePrefix("feel:"))
-                s.reactions++
-                s.modeCard++
-                event("utterance", "speaker" to "child", "mode" to "card", "text" to r.label)
-                log("오늘 기분을 얼굴로 골랐다 → by: card (주고받기에는 세고, 수준 신호 · 인용에는 안 넣는다)")
+            if (p.asksFeel) DiaryFeel.entries.forEach { f ->
+                b += DemoBtn("${f.emoji} ${f.line}") { send(Reply.Tapped("feel:${f.name}", f.line)) }
             }
-            r.value == "title" -> if (!reread) askTitle()
-            r.value == "prev" -> i = (i - 1).coerceAtLeast(0)
-            r.value == "next" -> if (!last) i++ else {
-                // 다 읽고 나면 제목을 한 번 묻는다 — 내용을 다 본 뒤라 아이가 붙이기 쉽다. 이미 붙였으면 묻지 않는다 (10-01 안 2)
-                if (!reread && s.slotBy["title"] != "child") askTitle()     // 책장에서 다시 읽을 때는 묻지 않는다
-                if (bookId != null) missing.forEach { line -> voiceOf(line)?.let { DiaryShelf.keepVoice(s, bookId, line, it) } }
-                return
+            // 넘기기가 앞이다 — 동화 책(sceneBook)과 같은 차례. 앞 쪽이 먼저면 앞으로만 누르는 손이 책 앞뒤를 오간다
+            b += DemoBtn(if (last) "📔 다 읽었어" else "▶ 다음 쪽") { send(Reply.Tapped("next", "다음")) }
+            if (i > 0) b += DemoBtn("◀ 앞 쪽") { send(Reply.Tapped("prev", "앞")) }
+            buttons(*b.toTypedArray())
+            val r = awaitReply() as? Reply.Tapped ?: continue
+            when {
+                r.value.startsWith("wx:") -> {
+                    day.pickWeather(DiaryWeather.valueOf(r.value.removePrefix("wx:")))
+                    s.reactions++
+                    event("utterance", "speaker" to "child", "mode" to "card", "text" to "날씨 ${r.label}")
+                }
+                r.value.startsWith("feel:") -> {
+                    day.feel = DiaryFeel.valueOf(r.value.removePrefix("feel:"))
+                    s.reactions++
+                    s.modeCard++
+                    event("utterance", "speaker" to "child", "mode" to "card", "text" to r.label)
+                    log("오늘 기분을 얼굴로 골랐다 → by: card (주고받기에는 세고, 수준 신호 · 인용에는 안 넣는다)")
+                }
+                r.value == "title" -> if (!reread) askTitle()
+                r.value == "prev" -> i = (i - 1).coerceAtLeast(0)
+                r.value == "next" -> if (!last) i++ else {
+                    // 다 읽고 나면 제목을 한 번 묻는다 — 내용을 다 본 뒤라 아이가 붙이기 쉽다. 이미 붙였으면 묻지 않는다 (10-01 안 2)
+                    if (!reread && s.slotBy["title"] != "child") askTitle()     // 책장에서 다시 읽을 때는 묻지 않는다
+                    return
+                }
             }
         }
+    } finally {
+        if (bookId != null) buildDiaryBook(s.diaryBookInput()).map(::diaryPageCaption).distinct()
+            .filter { line -> DiaryShelf.voice(s, bookId, line) == null }
+            .forEach { line -> voiceOf(line)?.let { DiaryShelf.keepVoice(s, bookId, line, it) } }
     }
 }
 

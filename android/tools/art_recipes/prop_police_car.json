@@ -1,0 +1,15 @@
+{
+  "name": "prop_police_car",
+  "kind": "cut",
+  "text": "a cute toy police car seen from the side, white body with dark blue doors and hood, a small red and blue siren light on the roof, black wheels, no writing",
+  "style": "room",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 1099540833,
+  "prompt": "a cute toy police car seen from the side, white body with dark blue doors and hood, a small red and blue siren light on the roof, black wheels, no writing, single subject centered, full body, front view, isolated on plain pure white background, no shadow, soft wool felt and fabric craft 3D children's picture book illustration, visible felt fibers and stitched edges, cute rounded shapes, warm pastel colors (cream, mustard yellow, coral, teal, sky blue), gentle soft lighting, cozy, no text, no letters, no numbers, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-14",
+  "flip": "mirrored so the cab is on the left like prop_firetruck"
+}

@@ -228,6 +228,22 @@ class SessionDraftTest {
         assertNull(store.load())
     }
 
+    /** 10-14 — 이어 하면 나가 있던 시간을 빼고 이야기한 시간만 이어서 잰다(어제 하다 만 일기가 열자마자 「30분 지남」이 되지 않게) */
+    @Test fun diaryTalkTimeContinuesAfterResumeWithoutTheTimeAway() {
+        val now = System.currentTimeMillis()
+        val a = DemoState().apply { mode = StoryMode.DIARY; newDiaryDay(); diaryStart = now - 12 * 60_000L }
+        val json = JSONObject(a.captureDraft(Scene.DIARY).toJson().toString())
+        val yesterday = now - 26 * 60 * 60_000L
+        fun restored(o: JSONObject) = DemoState().apply { applyDraft(SessionDraft.fromJson(o)!!) }
+        // saved yesterday after 12 minutes of talk — the clock goes on from 12 minutes, not from yesterday
+        json.getJSONObject("state").put("diaryStart", yesterday)
+        val talked = System.currentTimeMillis() - restored(json).diaryStart
+        assertTrue("이어서 잰 시간 ${talked / 60_000}분", talked in 12 * 60_000L..13 * 60_000L)
+        // a draft saved before this change keeps its start as it was
+        json.getJSONObject("state").remove("diaryTalkedMs")
+        assertEquals(yesterday, restored(json).diaryStart)
+    }
+
     @Test fun diaryPiecesAndCoopPlanRoundTrip() {
         val a = DemoState().apply {
             mode = StoryMode.DIARY

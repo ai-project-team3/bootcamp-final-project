@@ -54,7 +54,9 @@ internal fun coopFollowUpCandidates(
     val whyOk = whyAsked < COOP_WHY_MAX
     return when (slot) {
         "problem" -> when (level) {
-            Level.PICK -> listOf(reason.pick("{place:에서} 뭐 봤어?", "{place:에서} 뭘 볼까?", "{place:에서} 뭘 봤을까?"))
+            // the problem step asks what happened — 「뭐 봤어?」 asked for a sight, and the judge held 「회전목마 줄이 길었어」
+            // under its floor for problem (0.57–0.64 · coop book check B5 · 10-14)
+            Level.PICK -> listOf(reason.pick("{place:에서} 무슨 일이 있었어?", "{place:에서} 무슨 일이 생길까?", "{place:에서} 무슨 일이 생겼을까?"))
             else -> listOfNotNull(
                 template?.takeIf { it.startsWith("거기서 ") }?.replaceFirst("거기서 ", "{place:에서} "),
                 reason.pick("{place:에서} 무슨 일이 있었어?", "{place:에서} 무슨 일이 생길까?", "{place:에서} 무슨 일이 생겼을까?"),
@@ -73,9 +75,12 @@ internal fun coopFollowUpCandidates(
             }
         }
         "solution" -> {
-            val next = reason.pick("그다음에 뭐 했어?", "그다음에 뭐 할까?", "그다음에 뭐 했을까?")
+            // the solution step asks how it was dealt with — 「그다음에 뭐 했어?」 asks for what came next (B5 · 10-14)
+            val next = coopSolutionHow(reason)
             when (level) {
-                Level.PICK -> listOfNotNull(item?.let { withChoices(it.fixes, coopSolutionHow(reason)) }, ladderChoice)
+                // the open 「어떻게」 first, the item's choices only after a 「몰라」 — an answer outside the three choices sat under the
+                // judge's floor for solution (0.37–0.52 · coop book check B5 · 10-14). The cause keeps its choices first (#517)
+                Level.PICK -> listOf(coopSolutionHow(reason))
                 Level.CHAIN -> listOf(next)
                 Level.REASON -> listOfNotNull(
                     // 가정 질문 — 까닭 짓기 + 상상에서만 (Scenes.kt 소크라틱 원칙과 같은 기준에 상상을 더한다)

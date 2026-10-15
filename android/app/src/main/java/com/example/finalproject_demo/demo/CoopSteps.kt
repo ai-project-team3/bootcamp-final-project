@@ -89,7 +89,8 @@ val COOP_STEPS: List<DiaryStep> = listOf(
             val heardPlace = p != "오늘 있었던 곳"
             listOf(
                 if (heardPlace) "${p}에서 무슨 일이 있었어?" else "오늘 무슨 일이 있었어?",
-                if (heardPlace) "거기서 뭐 했어?" else "오늘은 뭐 하고 지냈어?",
+                // the step asks what happened, not what the child did — an activity answer sat under the judge's floor (B5 · 10-14)
+                if (heardPlace) "거기서 어떤 일이 기억나?" else "오늘 어떤 일이 있었는지 말해 줄래?",
                 "오늘 기억나는 일 하나만 말해 줄래?",
                 "오늘 마음에 남은 일이 있어?",
             )
@@ -263,7 +264,8 @@ val COOP_STEPS: List<DiaryStep> = listOf(
         rungs = {
             if (it.hadTrouble()) listOf(
                 "그래서 어떻게 됐어?",
-                "그다음에 뭐 했어?",      // ⚠️ 순차 답을 유도하는 자리 — 판정이 가장 많이 틀린다 (일기 §4-4)
+                // was 「그다음에 뭐 했어?」 — it asked for what came next, and the judge missed the fix most here (일기 §4-4 · B5 · 10-14)
+                "어떻게 해서 괜찮아졌어?",
                 "누가 도와줬어?",
                 "다 끝나고 뭐 했어?",
             ) else listOf(

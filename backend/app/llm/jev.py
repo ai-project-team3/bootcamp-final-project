@@ -56,7 +56,10 @@ CHOICE_Q = {
 MODE_SLOT_CRITERIA = {
     **SLOT_CRITERIA,
     # 「아빠」 was not a 「friend」; a feeling, a 「~해서」 reason and an ending had no shape to match
-    "companion": "같이 간 사람 — 엄마 · 아빠 · 할머니 같은 가족, 친구, 캐릭터 · 실존 인물 (「아빠랑 갔어」 · 「친구랑」)",
+    # a doll, an animal or a toy goes along too (#484 B1 · 10-14 server PC): 「뽀로로 인형」 · 「문어」 · 「곰 인형」 fell
+    # under the floor or to extra — 11 of 21 tries found the companion before this line, 16 after; no guard turned
+    "companion": ("같이 간 사람 — 엄마 · 아빠 · 할머니 같은 가족, 친구, 캐릭터 · 실존 인물 (「아빠랑 갔어」 · 「친구랑」). "
+                  "동물 · 인형 · 장난감도 아이가 같이 갔다고 하면 같이 간 이다 (「뽀로로 인형이랑」 · 「문어」)"),
     "reaction": "그래서 어떻게 됐나 · 그때 마음 (「무서웠어」 · 「재밌었어」 · 「깜짝 놀랐어」)",
     "cause": "왜 그랬나 — 까닭 (「~해서」 · 「~라서 그랬대」처럼 이유를 대는 말)",
     "solution": "어떻게 풀었나 · 끝에 어떻게 됐나 (「인사하고 집에 왔어」)",
