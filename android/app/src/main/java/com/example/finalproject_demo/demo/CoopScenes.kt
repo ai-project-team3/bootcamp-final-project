@@ -1204,7 +1204,7 @@ private fun DemoState.coopChildSaid(): String {
 internal val SOUND_THING = mapOf(SoundProp.SIREN to "소방차", SoundProp.CAR to "자동차", SoundProp.TRAIN to "기차",
     SoundProp.LION to "사자", SoundProp.DOG to "강아지", SoundProp.CHEER to "공")
 internal val FIX_THING = mapOf(FixProp.FIRE to "불", FixProp.FAUCET to "수도꼭지", FixProp.BALL to "공",
-    FixProp.PIECES to "떨어진 조각", FixProp.BLOCKS to "블록")
+    FixProp.PIECES to "떨어진 조각", FixProp.BLOCKS to "블록", FixProp.MARBLE to "구슬", FixProp.SNOWBALL to "눈덩이")
 
 /**
  * 이 미션 쪽이 **책 문장에** 들어가나. 상상 이야기(좋아해요)는 늘 들어간다 — 동화처럼 꾸며 써도 된다.
