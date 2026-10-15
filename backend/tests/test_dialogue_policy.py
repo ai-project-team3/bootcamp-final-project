@@ -260,3 +260,43 @@ def test_an_older_slot_is_fixed_even_when_the_decider_missed_the_new_value():
     assert back == ["place"]
     v, kept, back = policy.settle_repair("repair", r, JudgeResult(reason="x"), "공원", back)
     assert (v.slot_1, v.value_1, back, kept) == ("place", "공원", ["place"], True)
+
+
+# --- an older slot needs a value that is new and is not the answer to the question asked (10-15 review) ---
+
+def _alone_req():
+    # 「혼자 있었어, 아니면 같이 있었어?」 → 「아니야, 혼자 있었어」 — an answer to the question asked (10-12 device round:
+    # the decider pointed at the older place 3/3)
+    r = _older_place_req("아니야, 혼자 있었어")
+    return r.model_copy(update={"asked_slot": "companion", "question": "혼자 있었어, 아니면 같이 있었어?",
+                                "slots": {**r.slots, "companion": None}})
+
+
+def test_an_answer_to_the_question_asked_is_not_a_correction_of_an_older_slot():
+    from app.routers.turn import apply_act
+    v = JudgeResult(reason="jev", slot_1="companion", value_1="아니야, 혼자 있었어")
+    act, out, back, _ = apply_act("repair", d("correct", target="place", new_value=True), _alone_req(), v)
+    # a plain turn: the place stays, and the judge's companion fill stands
+    assert (act, back, out.slot_1) == (None, [], "companion")
+
+
+def test_a_just_filled_slot_is_still_corrected_while_the_judge_fills_the_question_asked():
+    # 「아니야, 엄마랑 갔어」 right after 「아빠랑 갔구나!」 — the denied slot is the one Otto just wrote down
+    from app.routers.turn import apply_act
+    r = req("아니야, 엄마랑 갔어", asked_slot="place", slots={**req().slots, "place": None},
+            history=[req().history[0]])
+    v = JudgeResult(reason="jev", slot_1="place", value_1="아니야, 엄마랑 갔어")
+    act, _, back, _ = apply_act("repair", d("correct", target="companion", new_value=True), r, v)
+    assert (act, back) == ("repair", ["companion"])
+
+
+def test_the_old_value_copied_back_changes_nothing_and_sends_no_line():
+    # the line model copied 「놀이터」 — in the child's words, but it is the value being denied
+    from app.routers.turn import settle
+    from app.schemas.turn import Line
+    line = Line(ack="앗, 내가 잘못 알았구나!", expand="놀이터였구나.", question="놀이터에서 무슨 일이 있었어?", fixed_value="놀이터")
+    v, out, back = settle("repair", _older_place_req("놀이터 아니고 공원이야"), JudgeResult(reason="x"), line, ["place"])
+    assert out is None and back == [] and v.slot_1 is None
+    # the slot Otto just filled: taken back and asked again, with no line that repeats the old value
+    v, out, back = settle("repair", req("놀이터 아니야"), JudgeResult(reason="x"), line, ["place"])
+    assert out is None and back == ["place"] and v.next_slot == "place"

@@ -165,9 +165,13 @@ async def run_line(req: TurnRequest, v: JudgeResult | None, budget_s: float = 30
 
 
 def apply_act(act: Act | None, d: Decision | None, req: TurnRequest,
-              v: JudgeResult | None) -> tuple[JudgeResult | None, list[str], recipes.Recipe | None]:
+              v: JudgeResult | None) -> tuple[Act | None, JudgeResult | None, list[str], recipes.Recipe | None]:
     """The rules after an act is known — the same whether the rules (R) or the line model (M) picked it."""
     retract = policy.retract_for(act, d, req)
+    if policy.answered_the_question(act, req, v, retract):
+        # 「아니야, 혼자 있었어」 answers the question asked — a plain turn, the older slot stays (10-15 review)
+        log.info("repair aimed at older %s, but the judge filled the asked %s — a plain turn", retract, req.asked_slot)
+        act, retract = None, []
     recipe = recipes.build(act, req, d, retract) if act else None
     if act and v is not None and v.reason != "blocked_by_filter":
         v = policy.trim_verdict(act, d, v)
@@ -177,7 +181,7 @@ def apply_act(act: Act | None, d: Decision | None, req: TurnRequest,
             v = v.model_copy(update={"next_slot": recipe.question_slot})
     if act:
         log.info("dialogue act %s · retract %s", act, retract)
-    return v, retract, recipe
+    return act, v, retract, recipe
 
 
 # --- M: the line model picks the act itself (measurement only · #323 「규칙 대 LLM」) ---
@@ -232,7 +236,12 @@ async def run_line_choosing(req: TurnRequest, v: JudgeResult | None,
 def settle(act: Act | None, req: TurnRequest, v: JudgeResult | None, line: Line | None,
            retract: list[str]) -> tuple[JudgeResult | None, Line | None, list[str]]:
     """A repair's value: the slot the decider picked, the words the line model copied — no extra call."""
+    echo = act == "repair" and policy.echoes_old(req, retract, line.fixed_value if line else None)
     v, kept, retract = policy.settle_repair(act, req, v, line.fixed_value if line else None, retract)
+    if line is not None and echo:
+        # the line copied back the value the child denied — it would say the wrong value again (10-15 review)
+        log.warning("repair value is the denied value — the line is not sent")
+        return v, None, retract
     if line is not None and act == "repair" and not retract:
         # 10-14: no slot changed, so the line must not say one did — it was written for a correction
         # (「공원이었구나. 공원에서 무슨 일이 있었어?」 while the place stayed 「놀이터」, re-measure c03 · c06).
@@ -273,7 +282,7 @@ async def turn(req: TurnRequest) -> TurnResult:
     if req.history is not None and settings.dialogue_policy == "llm":
         v = await _judge(req)
         line, act, d = await run_line_choosing(req, v, settings.turn_deadline_s - (time.monotonic() - t0))
-        v, retract, _ = apply_act(act, d, req, v)
+        act, v, retract, _ = apply_act(act, d, req, v)
         v, line, retract = settle(act, req, v, line, retract)
         if v is None and line is None:
             raise HTTPException(502, "judge and line both failed")
@@ -289,7 +298,7 @@ async def turn(req: TurnRequest) -> TurnResult:
         d = None
 
     act = policy.act_for(d)
-    v, retract, recipe = apply_act(act, d, req, v)
+    act, v, retract, recipe = apply_act(act, d, req, v)
     line = await run_line(req, v, settings.turn_deadline_s - (time.monotonic() - t0), recipe)
     v, line, retract = settle(act, req, v, line, retract)
     if v is None and line is None:

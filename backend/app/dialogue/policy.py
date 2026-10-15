@@ -120,6 +120,24 @@ def from_the_child(value: str | None, utterance: str) -> bool:
     return squash(value) in squash(utterance)
 
 
+def answered_the_question(act: Optional[Act], req: TurnRequest, v: JudgeResult | None, retract: list[str]) -> bool:
+    """「아니야, 혼자 있었어」 to 「혼자 있었어, 아니면 같이 있었어?」 — the judge put the reply in the slot asked while the
+    decider pointed at an older slot: the child answered the question, so nothing older is taken back.
+
+    Without `new_value` as a gate (10-14) such a reply could overwrite the place with 「혼자 있었어」 (10-15 review ·
+    10-12 device round: the decider pointed at the place 3/3). Model signals only — the child's words are not read."""
+    return (act == "repair" and bool(retract) and v is not None and bool(req.asked_slot)
+            and v.slot_1 == req.asked_slot and retract[0] != req.asked_slot and is_stale(retract, req))
+
+
+def echoes_old(req: TurnRequest, retract: list[str], fixed_value: str | None) -> bool:
+    """The line copied back the very value the child denied (「놀이터」 from 「놀이터 아니고 공원이야」) — in the child's
+    words, but nothing would change, and a line repeating it would say the wrong value again (10-15 review)."""
+    old = req.slots.get(retract[0]) if retract else None
+    squash = lambda s: "".join(s.split())
+    return bool(fixed_value and old) and squash(fixed_value) == squash(old)
+
+
 def settle_repair(act: Optional[Act], req: TurnRequest, v: JudgeResult | None, fixed_value: str | None,
                   retract: list[str]) -> tuple[JudgeResult | None, bool, list[str]]:
     """After the line: put the child's right value in the slot taken back, or ask that slot again.
@@ -129,6 +147,8 @@ def settle_repair(act: Optional[Act], req: TurnRequest, v: JudgeResult | None, f
         return v, True, retract
     slot = retract[0]
     base = v or JudgeResult(reason="dialogue_repair")
+    if echoes_old(req, retract, fixed_value):
+        fixed_value = None                          # nothing new — as if no value came
     if from_the_child(fixed_value, req.utterance):
         return base.model_copy(update={"slot_1": slot, "value_1": fixed_value.strip(),
                                        "slot_2": None, "value_2": None}), True, retract
