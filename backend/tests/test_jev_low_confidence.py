@@ -34,7 +34,8 @@ def served(monkeypatch):
         if luna.get("fail"):
             raise LLMError("over 4s")
         return {"reason": "luna", "slot_1": luna["slot_1"], "value_1": "x", "slot_2": luna["slot_2"],
-                "value_2": "y" if luna["slot_2"] else None}
+                "value_2": "y" if luna["slot_2"] else None,
+                **{k: luna[k] for k in ("next_slot", "story_ready") if k in luna}}
 
     monkeypatch.setattr(jev, "judge", fake_jev)
     monkeypatch.setattr(judge, "complete", fake_luna)
@@ -94,6 +95,33 @@ def test_luna_mode_takes_lunas_verdict(served, monkeypatch):
     monkeypatch.setattr(settings, "jev_low_confidence", "luna")
     luna.update(slot_1="reaction", slot_2=None)
     assert asyncio.run(judge.run(req())).slot_1 == "reaction"
+
+
+def test_luna_mode_runs_the_diary_coop_rules_again(served, monkeypatch):
+    _, _, luna = served
+    monkeypatch.setattr(settings, "jev_low_confidence", "luna")
+    luna.update(slot_1="reaction", slot_2=None, next_slot="place", story_ready=True)   # luna's own guesses
+    v = asyncio.run(judge.run(req()))
+    assert v.slot_1 == "reaction"
+    assert v.next_slot == "problem" and not v.story_ready      # first empty in the diary order, not luna's pick
+    luna.update(slot_1="solution", next_slot="cause", story_ready=False)
+    v = asyncio.run(judge.run(req()))
+    assert v.story_ready and v.next_slot is None              # the ending is in
+
+
+@pytest.mark.parametrize("value", ["off", "0", "false", "no", "agre", "lunar", "yes"])
+def test_any_other_value_is_off(served, monkeypatch, value):
+    calls, _, _ = served
+    monkeypatch.setattr(settings, "jev_low_confidence", value)
+    v = asyncio.run(judge.run(req()))
+    assert v.slot_1 is None and calls == ["jev"]
+
+
+@pytest.mark.parametrize("value, mode", [("", ""), ("agree", "agree"), ("luna", "luna"), (" Agree ", "agree"),
+                                         ("LUNA", "luna"), ("off", "")])
+def test_the_three_values(monkeypatch, value, mode):
+    monkeypatch.setattr(settings, "jev_low_confidence", value)
+    assert judge._low_confidence_mode() == mode
 
 
 def test_a_luna_failure_or_a_confident_or_none_pick_changes_nothing(served, monkeypatch):

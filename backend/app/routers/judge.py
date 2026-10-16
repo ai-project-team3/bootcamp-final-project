@@ -93,6 +93,22 @@ def _low_pick(picked: str) -> tuple[str, float] | None:
 _DENIAL = re.compile(r"아니(야|에요|거든)|아닌데|안 ?(갔|했|해|갈|할)")
 
 
+# The values settings.jev_low_confidence takes. Anything else — 「off」, 「0」, a typo — is off: a wrong word in .env
+# must never switch on the mode with the most wrong fills (#537 review)
+_LOW_CONFIDENCE_MODES = ("agree", "luna")
+
+
+def _low_confidence_mode() -> str:
+    """"agree", "luna" or "" (off)."""
+    mode = settings.jev_low_confidence.strip().lower()
+    if mode in _LOW_CONFIDENCE_MODES:
+        return mode
+    if mode:
+        log.warning("jev_low_confidence=%r is not one of %s · treated as off", settings.jev_low_confidence,
+                    "/".join(_LOW_CONFIDENCE_MODES))
+    return ""
+
+
 async def _second_opinion(req: JudgeRequest, result: JudgeResult, picked: str) -> JudgeResult:
     """A diary · coop turn Jev answered under its floor: ask luna instead of handing it back to the child
     (settings.jev_low_confidence). Any luna failure or a slow answer keeps the empty slot — the app asks again."""
@@ -100,7 +116,7 @@ async def _second_opinion(req: JudgeRequest, result: JudgeResult, picked: str) -
     if low is None:
         return result
     pick, conf = low
-    agree = settings.jev_low_confidence == "agree"
+    agree = _low_confidence_mode() == "agree"
     if agree and (conf < settings.jev_low_confidence_min or _DENIAL.search(req.utterance)):
         log.info("judge jev low confidence %s %.2f · below %.2f or a denial, ask again", pick, conf,
                  settings.jev_low_confidence_min)
@@ -113,8 +129,10 @@ async def _second_opinion(req: JudgeRequest, result: JudgeResult, picked: str) -
         log.warning("judge jev low confidence: luna failed, ask again: %s", e)
         return result
     if not agree:
+        # the diary · coop rules decide what is next, as on every other Jev turn — luna's own guess is not used
+        out = judge_rules.apply(luna.model_dump(), req, luna.next_slot)
         log.info("judge jev low confidence %s → luna %s", pick, luna.slot_1)
-        return luna
+        return enforce(JudgeResult.model_validate(out), req)
     # luna's first slot only: its second one named 「아빠랑 사자 있는 데 갔어」 a companion when the place was asked
     if pick != luna.slot_1:
         log.info("judge jev low confidence %s · luna %s/%s · no agreement, ask again", pick, luna.slot_1, luna.slot_2)
@@ -160,7 +178,7 @@ async def run(req: JudgeRequest) -> JudgeResult:
             if req.mode != "story":
                 raw = judge_rules.apply(raw, req, raw.get("next_slot"))
             result = enforce(JudgeResult.model_validate(raw), req)
-            if req.mode != "story" and result.slot_1 is None and settings.jev_low_confidence:
+            if req.mode != "story" and result.slot_1 is None and _low_confidence_mode():
                 result = await _second_opinion(req, result, picked)
             if req.mode == "story" and not result.story_ready and result.next_slot is None:
                 # Jev left the next slot open or enforce() wiped it: ask the next empty beat instead of a full luna

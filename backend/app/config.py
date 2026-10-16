@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # jev_low_confidence_min sure, the child did not deny it, and luna's slot_1 names it too (10-15 re-count: right
     # 163 → 174, ask-again 33 → 22, wrong 7 → 7; the first agree rule — luna's slot_1 or slot_2, no gates — was
     # 177 · 14 · 12) · "luna" — luna's verdict instead (181 · 8 · 14). That turn takes about 3 s more; past the
-    # deadline it is left empty as before (eval/results.md)
+    # deadline it is left empty as before (eval/results.md). Any other value (「off」, 「0」, a typo) is off (#537 review)
     jev_low_confidence: str = ""
     jev_low_confidence_deadline_s: float = 4.0
     jev_low_confidence_min: float = 0.45
