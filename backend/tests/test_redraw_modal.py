@@ -282,3 +282,24 @@ def test_which_turns_wake_the_gpu(monkeypatch, kinds, mode, wakes):
         await asyncio.sleep(0)
     asyncio.run(turn())
     assert sent == ([1] if wakes else [])
+
+
+def test_a_book_start_wakes_the_gpu_at_once_and_says_whether_it_did(monkeypatch):
+    """/wake (the app calls it when a book starts or resumes) — the mode only, an answer at once."""
+    sent = []
+
+    async def wake():
+        sent.append(1)
+    monkeypatch.setattr(comfy, "_wake", wake)
+    monkeypatch.setattr(comfy, "_woke_at", -100.0)
+    monkeypatch.setattr(settings, "mock", False)
+    client = TestClient(app)
+    assert client.post("/wake", json={"mode": "story"}).json() == {"woke": False}     # Modal off
+    monkeypatch.setattr(settings, "redraw_modal_url", "https://otto-redraw.example")
+    monkeypatch.setattr(settings, "modal_kinds", "redraw")
+    assert client.post("/wake", json={"mode": "story"}).json() == {"woke": False}     # redraw is diary-only
+    assert client.post("/wake", json={"mode": "diary"}).json() == {"woke": True}
+    assert sent == [1]
+    assert client.post("/wake", json={"mode": "diary"}).json() == {"woke": True}      # within 10 s: no second call
+    assert sent == [1]
+    assert client.post("/wake", json={"mode": "bedtime"}).status_code == 422

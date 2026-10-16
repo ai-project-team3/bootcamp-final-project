@@ -231,21 +231,23 @@ async def _wake() -> None:
         pass                                    # a wake is a hint — the redraw itself still waits for a container
 
 
-def wake_gpu(mode: str) -> None:
-    """Ask the Modal GPU to be up soon, without waiting. Called on every /turn so the GPU stays up through
-    the book and a picture does not pay a cold start (§0-5 ②: kept up 4/4 within 45 s, woken once at the
-    start 4/4 but only because the GPU came fast that hour). The redraw alone wakes it for the diary only,
-    as #471 measured it; a background or a character may come in any mode. No-op when Modal is off."""
+def wake_gpu(mode: str) -> bool:
+    """Ask the Modal GPU to be up soon, without waiting. Called when a book starts or resumes (/wake) and on
+    every /turn so the GPU stays up through the book and a picture does not pay a cold start (§0-5 ②: kept up
+    4/4 within 45 s; §7-2 ②: woken at the book's start, ready before the first background 6/8). The redraw
+    alone wakes it for the diary only, as #471 measured it; a background or a character may come in any mode.
+    False when no picture of this mode goes to Modal (then it is a no-op)."""
     global _woke_at
     if not (on_modal("background") or on_modal("character") or (mode == "diary" and on_modal("redraw"))):
-        return
+        return False
     now = time.monotonic()
     if now - _woke_at < _WAKE_EVERY_S:
-        return
+        return True
     _woke_at = now
     task = asyncio.get_running_loop().create_task(_wake())
     _wakes.add(task)
     task.add_done_callback(_wakes.discard)
+    return True
 
 
 async def draw(wf: dict, kind: str, front: bool = False) -> bytes:

@@ -25,7 +25,7 @@ from ..filters.blocklist import is_blocked
 from ..image import character, check, comfy
 from ..llm.client import LLMError, complete
 from ..llm.judge_prompt import load_schema, system_block
-from ..schemas.image import ImageRequest, ImageResult
+from ..schemas.image import ImageRequest, ImageResult, WakeRequest
 
 router = APIRouter()
 log = logging.getLogger("image")
@@ -154,3 +154,11 @@ async def image(req: ImageRequest) -> ImageResult:
         return await asyncio.wait_for(_draw(req), timeout=limit)
     except asyncio.TimeoutError:
         return preset(f"over {limit:.0f}s")
+
+
+@router.post("/wake")
+async def wake(req: WakeRequest) -> dict:
+    """A book starts or resumes: wake the Modal picture GPU now, so the first background or character does
+    not pay its cold start (3~4 min, 10-16) — /turn only comes after the first question. Answers at once;
+    `woke` is false when no picture of this mode goes to Modal (MODAL_KINDS · REDRAW_MODAL_URL)."""
+    return {"woke": comfy.wake_gpu(req.mode)}
