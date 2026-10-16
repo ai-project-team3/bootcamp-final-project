@@ -25,7 +25,7 @@ package com.example.finalproject_demo.ui.shell
  */
 
 /** 약관 판 — 위 규칙대로만 올린다 */
-const val TERMS_VERSION = "2026-10-15"
+const val TERMS_VERSION = "2026-10-16"
 
 /**
  * 판마다 바뀐 것, 오래된 판부터 — 다시 동의 화면에 보인다. 보호자가 마지막에 동의한 판보다 새 판의 줄만 모은다.
@@ -48,7 +48,7 @@ val TERMS_CHANGES: List<Pair<String, List<String>>> = listOf(
         "나이를 입력하지 않아도 앱을 쓸 수 있고, 부모 설정에서 수정하거나 지울 수 있어요",
     ),
     // #460 ⑥ — 수탁사(Modal)와 그쪽으로 가는 항목이 앱 화면에 새로 들어가 판을 올린다(위 규칙)
-    "2026-10-15" to listOf(
+    "2026-10-16" to listOf(
         "그림을 그리는 GPU 장비를 운영자 계정으로 Modal(미국)에서 빌려 써요 — 「오또가 그려 줘」를 고른 그림 조각과 배경 · 인물 그림의 설명 문장이 가고, 그린 즉시 지워요",
     ),
 )
