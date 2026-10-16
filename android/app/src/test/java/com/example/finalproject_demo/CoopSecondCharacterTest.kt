@@ -33,6 +33,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.example.finalproject_demo.demo.WorldStyle
+import org.junit.After
+import org.junit.Before
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -44,6 +47,11 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class CoopSecondCharacterTest {
+    // The family dolls are baked (#520); pin it so the result does not depend on whether a MainActivity test ran first
+    private val hadArt = WorldStyle.has
+    @Before fun bakedDolls() { WorldStyle.has = { it.startsWith("dp_") } }
+    @After fun restoreArt() { WorldStyle.has = hadArt }
+
 
     private fun coop(reason: String = "done") = DemoState().apply {
         mode = StoryMode.COOP
@@ -91,7 +99,7 @@ class CoopSecondCharacterTest {
         val s = coop().apply { slots["parent1"] = "할머니랑 놀았어" }
         assertEquals("할머니", s.coopSecondCharacter())
         assertTrue(s.charactersToDraw().none { it.role == COOP_SECOND_ROLE })
-        assertEquals("ic_p_grandma", (s.coopSecondArt() as? Art.Img)?.name)
+        assertEquals("dp_grandma", (s.coopSecondArt() as? Art.Img)?.name)
         val giraffe = coop().apply { slots["parent1"] = "얼룩말한테 인사했어" }
         assertTrue(giraffe.charactersToDraw().any { it.role == COOP_SECOND_ROLE && it.words == "얼룩말" })
     }
@@ -114,7 +122,7 @@ class CoopSecondCharacterTest {
         assertNull(s.coopSecondOnPage(PageKind.COVER, "할머니랑 놀았어요"))
         assertNull(s.coopSecondOnPage(PageKind.RUB, "할머니랑 놀았어요"))
         assertNull("a page not naming it", s.coopSecondOnPage(PageKind.DEPART, "동물원에 갔어요"))
-        assertEquals("ic_p_grandma", (s.coopSecondOnPage(PageKind.DEPART, "할머니랑 사자를 봤어요") as? Art.Img)?.name)
+        assertEquals("dp_grandma", (s.coopSecondOnPage(PageKind.DEPART, "할머니랑 사자를 봤어요") as? Art.Img)?.name)
     }
 
     /** A reopened book keeps the doll it was made with */

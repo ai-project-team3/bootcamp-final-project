@@ -1,0 +1,15 @@
+{
+  "name": "dp_mom_crayon",
+  "kind": "cut",
+  "text": "cute doll of a young mother, long brown hair tied in a low side ponytail, gentle open smile, rosy cheeks, salmon pink sweater, light blue trousers, brown shoes, chibi proportions with a big round head and a short body, standing straight, arms down at the sides, whole body visible from head to shoes",
+  "style": "crayon",
+  "size": [
+    1024,
+    1024
+  ],
+  "seed": 149652983,
+  "prompt": "cute doll of a young mother, long brown hair tied in a low side ponytail, gentle open smile, rosy cheeks, salmon pink sweater, light blue trousers, brown shoes, chibi proportions with a big round head and a short body, standing straight, arms down at the sides, whole body visible from head to shoes, single subject centered, full body, front view, isolated on plain pure white background, no shadow, cute children's crayon drawing illustration on white paper, thick dark brown hand-drawn outlines, waxy crayon colouring with visible crayon strokes, simple flat rounded shapes, bright warm colours, friendly and playful, flat 2D, no shading, no 3D, no text, no letters, high quality",
+  "model": "krea2_turbo_nvfp4.safetensors",
+  "made": "2026-10-14",
+  "of": "dp_mom"
+}

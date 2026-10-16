@@ -31,6 +31,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.example.finalproject_demo.demo.WorldStyle
+import org.junit.After
+import org.junit.Before
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -42,22 +45,27 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class CoopCompanionPresetTest {
+    // The family dolls are baked (#520); pin it so the result does not depend on whether a MainActivity test ran first
+    private val hadArt = WorldStyle.has
+    @Before fun bakedDolls() { WorldStyle.has = { it.startsWith("dp_") } }
+    @After fun restoreArt() { WorldStyle.has = hadArt }
+
 
     private fun name(a: Art?) = (a as? Art.Img)?.name
 
     @Test
     fun theLastWordIsWhoItIs() {
-        assertEquals("ic_p_mom", name(coopCompanionPreset("엄마")))
-        assertEquals("ic_p_grandma", name(coopCompanionPreset("우리 할머니")))
-        assertEquals("ic_p_dad", name(coopCompanionPreset("엄마랑 아빠")))
+        assertEquals("dp_mom", name(coopCompanionPreset("엄마")))
+        assertEquals("dp_grandma", name(coopCompanionPreset("우리 할머니")))
+        assertEquals("dp_dad", name(coopCompanionPreset("엄마랑 아빠")))
         assertEquals("dp_teacher", name(coopCompanionPreset("유치원 선생님")))
         assertEquals("dp_teacher", name(coopCompanionPreset("선생님이랑")))
         assertNull(coopCompanionPreset("엄마 친구 강아지"))
         assertNull(coopCompanionPreset("할머니 고양이"))
         assertNull(coopCompanionPreset("선생님 강아지"))
-        assertEquals("⚖️3 엄마 기본 그림", "ic_p_mom", name(coopCompanionPreset("친구 엄마")))
+        assertEquals("⚖️3 엄마 기본 그림", "dp_mom", name(coopCompanionPreset("친구 엄마")))
         assertNull("「친구」는 기본 친구(GENERIC_FRIEND)로", coopCompanionPreset("친구"))
-        assertEquals("ic_p_grandma", name(coopCompanionPreset("할머니하고")))
+        assertEquals("dp_grandma", name(coopCompanionPreset("할머니하고")))
         assertEquals("dp_friend_g", name(coopCompanionPreset("동생도")))
         assertNull(coopCompanionPreset(""))
     }
@@ -76,11 +84,11 @@ class CoopCompanionPresetTest {
         assertEquals("엄마 친구", companionName("엄마 친구"))
 
         fun arts(said: String) = DemoState().apply { mode = StoryMode.COOP; companionKind = companionName(said) }.companionArts.map(::name)
-        assertEquals(listOf("ic_p_mom", "ic_p_dad"), arts("엄마 아빠"))
-        assertEquals(listOf("ic_p_mom", "ic_p_dad"), arts("엄마랑 아빠"))
-        assertEquals(listOf("ic_p_mom"), arts("친구의 엄마"))
-        assertEquals(listOf("ic_p_mom"), arts("친구 엄마"))
-        assertEquals(listOf("ic_p_dad"), arts("아빠"))
+        assertEquals(listOf("dp_mom", "dp_dad"), arts("엄마 아빠"))
+        assertEquals(listOf("dp_mom", "dp_dad"), arts("엄마랑 아빠"))
+        assertEquals(listOf("dp_mom"), arts("친구의 엄마"))
+        assertEquals(listOf("dp_mom"), arts("친구 엄마"))
+        assertEquals(listOf("dp_dad"), arts("아빠"))
     }
 
     /** 10-12 device review — 「엄마, 아빠」 stays in the slot, but Otto reads it 「엄마 아빠」, not with a pause */
@@ -110,11 +118,11 @@ class CoopCompanionPresetTest {
             coopFill("{place:에서} 놀았어?", mapOf("place" to "사자 우리, 기린 마당")))
     }
 
-    /** The diary is unchanged (⚖️4 · Jinwoong) — a name containing a preset word keeps that preset */
+    /** The non-co-op matching rule is unchanged (⚖️4 · Jinwoong) — a name containing a preset word keeps that preset. Only the data value is dp_ now: the picture diary (sceneDiary → pictureDiary) never draws a companion doll */
     @Test
     fun theDiaryKeepsItsPresets() {
-        assertEquals("ic_p_mom", name(companionPreset("엄마 친구 강아지")))
-        assertEquals("ic_p_grandma", name(companionPreset("할머니 고양이")))
+        assertEquals("dp_mom", name(companionPreset("엄마 친구 강아지")))
+        assertEquals("dp_grandma", name(companionPreset("할머니 고양이")))
         assertEquals("dp_teacher", name(companionPreset("선생님 강아지")))
     }
 

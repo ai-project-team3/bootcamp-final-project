@@ -132,9 +132,11 @@ private fun Director.diaryStage(bump: Boolean = false): Stage {
     val items = buildList {
         add(if (kit) WorldItem(diaryHero, HERO_SPOT.x, 0.34f, 0.11f, depth = HERO_SPOT.depth) else WorldItem(diaryHero, 0.22f, 0.34f, 0.11f))
         // everyone the child named — 「엄마, 아빠」 stand side by side, the second a step left (10-12 user)
+        // a portrait with no full-body doll (아빠 · 엄마 …) stands smaller so it does not tower over the others (10-14 device)
         s.companionArts.take(2).forEachIndexed { i, it ->
             val dx = -0.12f * i
-            add(if (kit) WorldItem(it, FRIEND_SPOT.x + dx, 0.32f, 0.12f, depth = FRIEND_SPOT.depth) else WorldItem(it, 0.58f + dx, 0.32f, 0.12f))
+            val wf = if (it.isBust) 0.12f * BUST_SCALE else 0.12f
+            add(if (kit) WorldItem(it, FRIEND_SPOT.x + dx, 0.32f, wf, depth = FRIEND_SPOT.depth) else WorldItem(it, 0.58f + dx, 0.32f, wf))
         }
         // co-op's second character — the middle spot on a kit, the right edge on a background picture (#339 ② §4-2)
         s.coopSecondArt()?.let {
