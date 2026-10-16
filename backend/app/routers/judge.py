@@ -4,6 +4,8 @@ the eval harness and judge.run() for /turn.
 The model reads the whole slot state and decides what to ask next; the rules
 here keep the story from wandering. Spec: guidelines/7_프롬프트.md §2.
 """
+import re
+
 from fastapi import APIRouter, HTTPException
 from pydantic import ValidationError
 
@@ -75,21 +77,33 @@ def _modes(setting: str) -> set[str]:
     return {m.strip() for m in setting.split(",") if m.strip()}
 
 
-def _low_pick(picked: str) -> str | None:
-    """Jev's own slot from its raw 「slot confidence」 log label, when it is a slot under the floor."""
+def _low_pick(picked: str) -> tuple[str, float] | None:
+    """Jev's own slot and confidence from its raw 「slot confidence」 log label, when it is a slot under the floor."""
     slot, _, conf = (picked or "").partition(" ")
     try:
-        low = float(conf) < jev.FLOOR
+        c = float(conf)
     except ValueError:
         return None
-    return slot if low and slot in SLOT_NAMES else None
+    return (slot, c) if c < jev.FLOOR and slot in SLOT_NAMES else None
+
+
+# The child denies doing it (「아니야, 쿠키 안 구웠어」 · 「축구장 안 갔어」): no slot to fill, however sure both models are.
+# On the 10-15 re-count every such sentence in the 203 + device set had an empty gold, and these were three of the
+# five extra wrong fills under the old agree rule; 「안 남았어」 · 「안 젖었어」 (real answers) do not match.
+_DENIAL = re.compile(r"아니(야|에요|거든)|아닌데|안 ?(갔|했|해|갈|할)")
 
 
 async def _second_opinion(req: JudgeRequest, result: JudgeResult, picked: str) -> JudgeResult:
     """A diary · coop turn Jev answered under its floor: ask luna instead of handing it back to the child
     (settings.jev_low_confidence). Any luna failure or a slow answer keeps the empty slot — the app asks again."""
-    pick = _low_pick(picked)
-    if pick is None:
+    low = _low_pick(picked)
+    if low is None:
+        return result
+    pick, conf = low
+    agree = settings.jev_low_confidence == "agree"
+    if agree and (conf < settings.jev_low_confidence_min or _DENIAL.search(req.utterance)):
+        log.info("judge jev low confidence %s %.2f · below %.2f or a denial, ask again", pick, conf,
+                 settings.jev_low_confidence_min)
         return result
     try:
         raw = await complete(judge_prompt.system(req.mode), judge_prompt.user(req), judge_prompt.schema(),
@@ -98,10 +112,11 @@ async def _second_opinion(req: JudgeRequest, result: JudgeResult, picked: str) -
     except (LLMError, ValidationError) as e:
         log.warning("judge jev low confidence: luna failed, ask again: %s", e)
         return result
-    if settings.jev_low_confidence == "luna":
+    if not agree:
         log.info("judge jev low confidence %s → luna %s", pick, luna.slot_1)
         return luna
-    if pick not in (luna.slot_1, luna.slot_2):
+    # luna's first slot only: its second one named 「아빠랑 사자 있는 데 갔어」 a companion when the place was asked
+    if pick != luna.slot_1:
         log.info("judge jev low confidence %s · luna %s/%s · no agreement, ask again", pick, luna.slot_1, luna.slot_2)
         return result
     # both name it: Jev's pick, the child's words as Jev keeps them, and the diary · coop rules again for what is next
