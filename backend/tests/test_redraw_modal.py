@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "modal_gpu"))
 
+from app import limits                           # noqa: E402
 from app.config import settings                  # noqa: E402
 from app.image import check, comfy               # noqa: E402
 from app.routers import image as image_route     # noqa: E402
@@ -41,6 +42,15 @@ OUT = base64.b64encode(_png((40, 40, 200))).decode()
 def _traces(text: str) -> bool:
     """Any recognisable piece of the drawing's base64 (the backend re-encodes it, so look for a long run)."""
     return B64[40:80] in text or B64[:60] in text
+
+
+@pytest.fixture(autouse=True)
+def _fresh_cap(tmp_path, monkeypatch):
+    """Modal pictures and wakes count against the daily cap — each test starts a fresh day in its own file"""
+    monkeypatch.setattr(settings, "daily_cap_state", str(tmp_path / "cap.json"))
+    limits.reset()
+    yield
+    limits.reset()
 
 
 @pytest.fixture
@@ -303,3 +313,116 @@ def test_a_book_start_wakes_the_gpu_at_once_and_says_whether_it_did(monkeypatch)
     assert client.post("/wake", json={"mode": "diary"}).json() == {"woke": True}      # within 10 s: no second call
     assert sent == [1]
     assert client.post("/wake", json={"mode": "bedtime"}).status_code == 422
+
+
+def test_a_real_wake_counts_its_gpu_uptime_and_stops_at_the_daily_cap(monkeypatch):
+    """No login in front of /wake: a wake every 50 s would keep an L4 up all day. Each real wake adds the
+    uptime it buys (at most the 60 s scaledown) to the day's total; past the cap, no more wakes."""
+    sent = []
+
+    async def wake():
+        sent.append(1)
+    monkeypatch.setattr(comfy, "_wake", wake)
+    monkeypatch.setattr(comfy, "_woke_at", -100.0)
+    monkeypatch.setattr(settings, "mock", False)
+    monkeypatch.setattr(settings, "redraw_modal_url", "https://otto-redraw.example")
+    monkeypatch.setattr(settings, "modal_kinds", "redraw,background,character")
+    client = TestClient(app)
+    assert client.post("/wake", json={"mode": "story"}).json() == {"woke": True}
+    assert limits.today()["spent_krw"] == round(60 * limits.MODAL_WON_PER_S, 1)
+    assert client.post("/wake", json={"mode": "story"}).json() == {"woke": True}      # skipped: not counted again
+    assert limits.today()["spent_krw"] == round(60 * limits.MODAL_WON_PER_S, 1)
+    monkeypatch.setattr(settings, "daily_cap_krw", 10.0)
+    monkeypatch.setattr(comfy, "_woke_at", -100.0)
+    assert client.post("/wake", json={"mode": "story"}).json() == {"woke": False}
+    assert sent == [1]
+
+
+def test_mock_never_wakes_the_gpu(monkeypatch):
+    sent = []
+
+    async def wake():
+        sent.append(1)
+    monkeypatch.setattr(comfy, "_wake", wake)
+    monkeypatch.setattr(comfy, "_woke_at", -100.0)
+    monkeypatch.setattr(settings, "mock", True)
+    monkeypatch.setattr(settings, "redraw_modal_url", "https://otto-redraw.example")
+    monkeypatch.setattr(settings, "modal_kinds", "background")
+    assert TestClient(app).post("/wake", json={"mode": "story"}).json() == {"woke": False}
+    assert sent == []
+
+
+def _character_on_modal(modal_on, monkeypatch, calls):
+    use, _ = modal_on
+    monkeypatch.setattr(settings, "modal_kinds", "character")
+    monkeypatch.setattr(settings, "mock", False)
+
+    def handler(req: httpx.Request):
+        calls.append(req)
+        return httpx.Response(200, json={"png_base64": OUT})
+    use(handler)
+
+    async def order(*_, **__):
+        return {"safe": True, "subject": "robot", "rig": "human"}
+    monkeypatch.setattr(image_route, "complete", order)
+
+    async def safe(*_):
+        return True, "ok"
+    monkeypatch.setattr(check, "is_safe", safe)
+    monkeypatch.setattr(image_route.character, "cut_and_fit", lambda raw: raw)
+
+
+def test_a_picture_drawn_on_modal_counts_and_none_is_drawn_past_the_cap(modal_on, monkeypatch):
+    calls = []
+    _character_on_modal(modal_on, monkeypatch, calls)
+    client = TestClient(app)
+    body = {"kind": "character", "description": "로봇", "mode": "story"}
+    assert client.post("/image", json=body).json()["preset"] is False
+    assert limits.today()["spent_krw"] == round(limits.MODAL["modal picture"], 1)
+    monkeypatch.setattr(settings, "daily_cap_krw", 1.0)
+    r = client.post("/image", json=body).json()
+    assert r["preset"] is True and r["reason"] == "daily cap"
+    assert len(calls) == 1                                        # the second never reached Modal
+
+
+def test_a_picture_drawn_on_pc2_is_not_counted(monkeypatch):
+    monkeypatch.setattr(settings, "mock", False)
+
+    async def order(*_, **__):
+        return {"safe": True, "scene": "a sunny park"}
+    monkeypatch.setattr(image_route, "complete", order)
+
+    async def paint(*_):
+        return DRAWING
+    monkeypatch.setattr(image_route, "_paint", paint)
+
+    async def safe(*_):
+        return True, "ok"
+    monkeypatch.setattr(check, "is_safe", safe)
+    r = TestClient(app).post("/image", json={"kind": "background", "place": "공원", "mode": "story"})
+    assert r.json()["preset"] is False and limits.today()["spent_krw"] == 0
+
+
+def test_a_modal_redraw_skips_the_pc2_queue(modal_on, monkeypatch):
+    """_redraw_turn keeps PC2's queue one redraw long; on Modal each container draws its own"""
+    monkeypatch.setattr(settings, "mock", False)
+    taken = []
+
+    class Turn:
+        async def __aenter__(self):
+            taken.append(1)
+
+        async def __aexit__(self, *a):
+            return False
+    monkeypatch.setattr(image_route, "_redraw_turn", Turn())
+
+    async def draw(wf, kind, front=False):
+        return DRAWING
+    monkeypatch.setattr(comfy, "draw", draw)
+    monkeypatch.setattr(image_route.character, "cut_out_all", lambda raw: raw)
+    req = image_route.ImageRequest(kind="redraw", description="우리 집", png_base64=B64, mode="diary")
+    asyncio.run(image_route._paint(req, "a small red house", None))
+    assert taken == []                                            # redraw is on Modal by default (modal_kinds)
+    monkeypatch.setattr(settings, "modal_kinds", "background")
+    asyncio.run(image_route._paint(req, "a small red house", None))
+    assert taken == [1]

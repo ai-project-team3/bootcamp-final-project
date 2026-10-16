@@ -20,6 +20,7 @@ from functools import lru_cache
 
 from fastapi import APIRouter
 
+from .. import limits
 from ..config import REPO, settings
 from ..filters.blocklist import is_blocked
 from ..image import character, check, comfy
@@ -83,11 +84,16 @@ async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
             if req.mode == "diary":              # colored pencil keeps an outline an outline: fill it (10-05)
                 drawing = await asyncio.to_thread(character.fill_closed, drawing)
         # one redraw in ComfyUI at a time: the queue behind a story picture stays at most one
-        # redraw long (~5 s), and the story picture still jumps the rest (front=True)
-        async with _redraw_turn:
-            raw = await comfy.draw(comfy.redraw_workflow(scene, random.randrange(2 ** 31),
-                                                         base64.b64encode(drawing).decode(), mode=req.mode,
-                                                         role=req.role, style=req.style), "redraw")
+        # redraw long (~5 s), and the story picture still jumps the rest (front=True). On Modal each
+        # container draws its own, so there is no PC2 queue to protect
+        wf = comfy.redraw_workflow(scene, random.randrange(2 ** 31), base64.b64encode(drawing).decode(),
+                                   mode=req.mode, role=req.role, style=req.style)
+        if comfy.on_modal("redraw"):
+            raw = await comfy.draw(wf, "redraw")
+        else:
+            async with _redraw_turn:
+                raw = await comfy.draw(wf, "redraw")
+        del wf
         del drawing
         if backdrop:                             # a scene behind everything — nothing to cut out
             return raw
@@ -149,16 +155,25 @@ async def image(req: ImageRequest) -> ImageResult:
         return ImageResult(preset=False, reason="mock", scene="mock scene",
                            rig="human" if req.kind == "character" else None,
                            png_base64=base64.b64encode(_MOCK_PNG).decode())
+    paid = comfy.on_modal(req.kind)             # Modal bills by the second; PC2 is ours
+    if paid and limits.over("modal picture"):
+        return preset("daily cap")
     limit = settings.redraw_deadline_s if req.kind == "redraw" else settings.image_deadline_s
     try:
-        return await asyncio.wait_for(_draw(req), timeout=limit)
+        out = await asyncio.wait_for(_draw(req), timeout=limit)
     except asyncio.TimeoutError:
         return preset(f"over {limit:.0f}s")
+    if paid and not out.preset:
+        limits.spent("modal picture")
+    return out
 
 
 @router.post("/wake")
 async def wake(req: WakeRequest) -> dict:
     """A book starts or resumes: wake the Modal picture GPU now, so the first background or character does
     not pay its cold start (3~4 min, 10-16) — /turn only comes after the first question. Answers at once;
-    `woke` is false when no picture of this mode goes to Modal (MODAL_KINDS · REDRAW_MODAL_URL)."""
+    `woke` is false when no picture of this mode goes to Modal (MODAL_KINDS · REDRAW_MODAL_URL), under MOCK,
+    or once today's cap is spent (each real wake counts the GPU uptime it adds · limits.py)."""
+    if settings.mock:
+        return {"woke": False}
     return {"woke": comfy.wake_gpu(req.mode)}
