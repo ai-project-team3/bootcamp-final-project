@@ -602,6 +602,7 @@
           <div class="tl-body">
             <p>Jev가 칸을 골랐는데 확신이 0.6 아래면 지금은 칸을 비우고 앱이 아이에게 다시 묻는다. 이 턴을 루나에게 맡기면? 203문항에서 <b>다시 묻기 33 → 14</b>(루나가 Jev와 같은 칸을 고를 때만 채움) · 8(루나 판정을 그대로 씀)로 줄지만, <b>틀린 값이 7 → 12 · 14</b>로 늘었다. 확신 낮은 턴(35턴)은 루나를 부르느라 p95 3.0초.</p>
             <p>다시 물으면 아이가 한 번 더 말하면 되지만, 틀린 값은 <b>책에 조용히 남는다</b>. 시험 문항이 만든 문장이고 실기기 문장은 15개뿐이라, 설정 하나(<code>JEV_LOW_CONFIDENCE</code>)로만 켜지게 넣고 <b>기본은 꺼 두었다</b> — 실제 아이 말로 다시 잰 뒤 켤지 정한다.</p>
+            <p>10-15에 같은 결과를 새 호출 없이 다시 셌다. 늘어난 틀린 값 5개 중 3개는 「안 갔어」 · 「아니야」 같은 <b>부정 말</b>이었다. 동의를 <b>루나 첫 칸 · Jev 확신 0.45 이상 · 부정 말 아님</b>으로 좁히니 <b>다시 묻기 33 → 22 · 틀린 값 7 → 7</b>(맞음 163 → 174)이었고, 실기기 문장에서도 새 틀림이 없었다(#537 · 켜는 건 조장 판단).</p>
             <span class="chip ref">참고 — 코드는 있음 · 기본 꺼짐</span>
           </div>
         </div>
@@ -744,10 +745,10 @@
     </div>
 
     <h3 style="font-size:17px; margin:40px 0 4px">⑩ Jev가 자신 없는 턴을 어떻게 할까 (㉓)</h3>
-    <p class="sec-dek" style="margin-bottom:4px"><code>fixtures_modetest</code> 203문항 · 10-14 서버 PC · 맞음은 지금 163 · 두 번째 의견 177 · 루나가 대신 181 · 「틀린 값」 = 물은 칸 베낌 + 다른 칸 틀림</p>
+    <p class="sec-dek" style="margin-bottom:4px"><code>fixtures_modetest</code> 203문항 · 10-14 서버 PC · 맞음은 지금 163 · 두 번째 의견 177 · 좁힌 의견 174(10-15 다시 세기) · 루나가 대신 181 · 「틀린 값」 = 물은 칸 베낌 + 다른 칸 틀림</p>
     <div class="chart-card">
       <div class="chart-title">다시 묻기 · 틀린 값 (문항, 낮을수록 좋음)</div>
-      <div class="chart-sub">다시 묻기는 줄지만 책에 조용히 남는 틀린 값이 늘어 기본은 꺼 둠(#500)</div>
+      <div class="chart-sub">다시 묻기는 줄지만 책에 조용히 남는 틀린 값이 늘어 기본은 꺼 둠(#500) · 동의를 좁히면 틀린 값은 그대로(#537)</div>
       <div class="legend">
         <div class="legend-item"><span class="legend-swatch" style="background:var(--series-turbo)"></span>다시 묻기</div>
         <div class="legend-item"><span class="legend-swatch" style="background:var(--series-v3)"></span>틀린 값</div>
@@ -909,6 +910,7 @@
   buildChart('chart11', [{key:'a', color:'var(--series-turbo)', label:'다시 묻기'},{key:'b', color:'var(--series-v3)', label:'틀린 값'}], [
     {label:'지금', sub:'칸 비움 · 기본', values:{a:33, b:7}},
     {label:'두 번째 의견', sub:'agree', values:{a:14, b:12}},
+    {label:'좁힌 의견', sub:'#537', values:{a:22, b:7}},
     {label:'루나가 대신', sub:'luna', values:{a:8, b:14}}
   ], '문항', 35);
 })();

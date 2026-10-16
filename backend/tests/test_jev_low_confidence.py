@@ -67,6 +67,28 @@ def test_agree_asks_again_when_luna_disagrees(served, monkeypatch):
     assert asyncio.run(judge.run(req())).slot_1 is None
 
 
+def test_agree_needs_lunas_first_slot_not_its_second(served, monkeypatch):
+    _, _, luna = served
+    monkeypatch.setattr(settings, "jev_low_confidence", "agree")
+    luna.update(slot_1="place", slot_2="problem")      # 「아빠랑 사자 있는 데 갔어」 shape: only luna's second slot
+    assert asyncio.run(judge.run(req())).slot_1 is None
+
+
+def test_agree_skips_luna_under_the_minimum_or_on_a_denial(served, monkeypatch):
+    calls, jev_pick, _ = served
+    monkeypatch.setattr(settings, "jev_low_confidence", "agree")
+    jev_pick["label"] = "problem 0.40"
+    assert asyncio.run(judge.run(req())).slot_1 is None and calls == ["jev"]
+    jev_pick["label"] = "problem 0.52"
+    for words in ("아니야, 쿠키 안 구웠어. 그런 거 안 했다니까.", "나 축구장 안 갔어. 오늘 수영장 갔다니까!"):
+        calls.clear()
+        r = req()
+        r.utterance = words
+        assert asyncio.run(judge.run(r)).slot_1 is None and calls == ["jev"]
+    for words in ("하나도 안 젖었어", "우주선이 별에 콕 박혀서 안 빠졌어."):   # real answers with 안 — not denials
+        assert judge._DENIAL.search(words) is None
+
+
 def test_luna_mode_takes_lunas_verdict(served, monkeypatch):
     _, _, luna = served
     monkeypatch.setattr(settings, "jev_low_confidence", "luna")
