@@ -1,6 +1,8 @@
 """「오또가 그려 줘」 (kind redraw) on a Modal GPU in our own account (#460 ⑥ · 10-13 lead decision: 「우리 서버」).
 
-Off by default — the backend only calls this when REDRAW_MODAL_URL is set (app/config.py).
+Off by default — the backend only calls this when REDRAW_MODAL_URL is set (app/config.py). Backgrounds and
+characters come here too when MODAL_KINDS names them; the backend turns their SaveImage into OttoReturnImageB64
+and sends the mannequin inside the graph (comfy.memory_graph), so the same in-process executor draws all three.
 
 Why a Modal *Server* (`@app.server`) and not `@modal.fastapi_endpoint`: Modal keeps a Web Function's inputs
 and outputs for up to 7 days, while a Server's request and response are not stored, only proxied to the
@@ -128,7 +130,7 @@ WARM = {
 
 # scaledown 60 s: the backend wakes this on every picture-diary turn (≈ 25 s apart), so it stays up while
 # a child draws and goes away a minute after the diary ends (§0-5 ②: kept up, 4/4 within 45 s)
-@app.server(gpu="L4", volumes={"/models": volume.read_only()}, scaledown_window=60, max_containers=2,
+@app.server(gpu="L4", volumes={"/models": volume.read_only()}, scaledown_window=60, max_containers=5,
             startup_timeout=300, enable_memory_snapshot=True, experimental_options={"enable_gpu_snapshot": True})
 class Redraw:
     @modal.enter(snap=True)

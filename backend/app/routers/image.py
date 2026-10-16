@@ -25,7 +25,7 @@ from ..filters.blocklist import is_blocked
 from ..image import character, check, comfy
 from ..llm.client import LLMError, complete
 from ..llm.judge_prompt import load_schema, system_block
-from ..schemas.image import ImageRequest, ImageResult
+from ..schemas.image import ImageRequest, ImageResult, WakeRequest
 
 router = APIRouter()
 log = logging.getLogger("image")
@@ -85,18 +85,23 @@ async def _paint(req: ImageRequest, scene: str, rig: str | None) -> bytes:
         # one redraw in ComfyUI at a time: the queue behind a story picture stays at most one
         # redraw long (~5 s), and the story picture still jumps the rest (front=True)
         async with _redraw_turn:
-            raw = await comfy.run(comfy.redraw_workflow(scene, random.randrange(2 ** 31),
-                                                        base64.b64encode(drawing).decode(), mode=req.mode,
-                                                        role=req.role, style=req.style))
+            raw = await comfy.draw(comfy.redraw_workflow(scene, random.randrange(2 ** 31),
+                                                         base64.b64encode(drawing).decode(), mode=req.mode,
+                                                         role=req.role, style=req.style), "redraw")
         del drawing
         if backdrop:                             # a scene behind everything — nothing to cut out
             return raw
         return await asyncio.to_thread(character.cut_out_all, raw)
     tmpl = character.template(rig)
-    if tmpl is not None and rig not in _uploaded:
-        _uploaded[rig] = await comfy.upload(tmpl, f"otto_mannequin_{rig}.png")
-    raw = await comfy.run(comfy.character_workflow(scene, rig, random.randrange(2 ** 31), _uploaded.get(rig), req.style),
-                          front=True)
+    seed = random.randrange(2 ** 31)
+    if comfy.on_modal("character"):              # no input folder there: the mannequin rides in the graph
+        wf = comfy.character_workflow(scene, rig, seed, None, req.style,
+                                      template_b64=None if tmpl is None else base64.b64encode(tmpl).decode())
+    else:
+        if tmpl is not None and rig not in _uploaded:
+            _uploaded[rig] = await comfy.upload(tmpl, f"otto_mannequin_{rig}.png")
+        wf = comfy.character_workflow(scene, rig, seed, _uploaded.get(rig), req.style)
+    raw = await comfy.draw(wf, "character", front=True)
     return await asyncio.to_thread(character.cut_and_fit, raw)
 
 
@@ -149,3 +154,11 @@ async def image(req: ImageRequest) -> ImageResult:
         return await asyncio.wait_for(_draw(req), timeout=limit)
     except asyncio.TimeoutError:
         return preset(f"over {limit:.0f}s")
+
+
+@router.post("/wake")
+async def wake(req: WakeRequest) -> dict:
+    """A book starts or resumes: wake the Modal picture GPU now, so the first background or character does
+    not pay its cold start (3~4 min, 10-16) — /turn only comes after the first question. Answers at once;
+    `woke` is false when no picture of this mode goes to Modal (MODAL_KINDS · REDRAW_MODAL_URL)."""
+    return {"woke": comfy.wake_gpu(req.mode)}

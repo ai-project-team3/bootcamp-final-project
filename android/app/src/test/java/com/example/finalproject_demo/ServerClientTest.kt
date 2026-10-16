@@ -98,6 +98,17 @@ class ServerClientTest {
     }
 
     @Test
+    fun wakeSendsTheModeOnlyAndNeverThrows() = runBlocking {
+        json("/wake", """{"woke":true}""")
+        Server.wake(com.example.finalproject_demo.demo.StoryMode.COOP)!!.join()
+        assertEquals("""{"mode":"coop"}""", seen.getValue("/wake"))
+        Server.base = "http://127.0.0.1:1"      // nothing listens: the book goes on
+        Server.wake(com.example.finalproject_demo.demo.StoryMode.DIARY)!!.join()
+        Server.base = null
+        assertNull("no address must mean no call", Server.wake(com.example.finalproject_demo.demo.StoryMode.DIARY))
+    }
+
+    @Test
     fun storyReturnsCaptionsAndSendsWhoFilledWhat() = runBlocking {
         json("/story", """{"scenes":[{"index":1,"caption":"놀이터에 갔어요.","keywords":"x"},{"index":2,"caption":"넘어졌어요.","keywords":"y"}]}""")
         val caps = Server.story("diary", mapOf("place" to "놀이터"), mapOf("place" to "child", "keep" to "x"), keep = "또 갈래")

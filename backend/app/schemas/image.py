@@ -44,6 +44,11 @@ class ImageRequest(BaseModel):
         return (self.place if self.kind == "background" else self.description) or ""
 
 
+class WakeRequest(BaseModel):
+    """/wake — a book starts or resumes in this mode. Nothing of the child: the mode only."""
+    mode: Literal["story", "diary", "coop"] = "story"
+
+
 class ImageResult(BaseModel):
     # preset = true → use the app's own picture. Always a 200: a missing picture
     # is a normal outcome here, not an error (rule 8: 15 s → preset).

@@ -281,8 +281,7 @@ async def turn(req: TurnRequest) -> TurnResult:
     # one deadline for the whole turn, under the phone's 30 s: the judge first (≤ 18 s),
     # the line gets what is left — a slow vendor costs the line, never the verdict
     t0 = time.monotonic()
-    if req.mode == "diary":                  # the child may ask Otto to redraw soon: keep the Modal GPU up (#460 ⑥)
-        comfy.wake_redraw()
+    comfy.wake_gpu(req.mode)                 # a picture may come soon: keep the Modal GPU up (#460 ⑥) — no-op when off
     if req.history is not None and settings.dialogue_policy == "llm":
         v = await _judge(req)
         line, act, d = await run_line_choosing(req, v, settings.turn_deadline_s - (time.monotonic() - t0))
