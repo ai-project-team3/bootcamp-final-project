@@ -16,6 +16,7 @@ import urllib.parse
 
 import httpx
 
+from .. import limits
 from ..config import settings
 
 # Wool felt since 10-05, to match the app's own felt art (the lead: 「양모 펠트 초안 괜찮네」 10-03; device
@@ -219,6 +220,7 @@ async def _run_modal(wf: dict) -> bytes:
 
 
 _WAKE_EVERY_S = 10.0
+_SCALEDOWN_S = 60.0                             # backend/modal_gpu/otto_redraw_modal.py scaledown_window
 _woke_at = 0.0
 _wakes: set = set()                             # running wake tasks, held so they are not collected
 
@@ -240,9 +242,13 @@ def wake_gpu(mode: str) -> bool:
     global _woke_at
     if not (on_modal("background") or on_modal("character") or (mode == "diary" and on_modal("redraw"))):
         return False
+    if limits.over("modal wake"):                    # today's cap is spent: no more paid GPU time
+        return False
     now = time.monotonic()
     if now - _woke_at < _WAKE_EVERY_S:
         return True
+    # a wake keeps a container up for the scaledown window (60 s): count the uptime this one adds
+    limits.spent("modal wake", min(now - _woke_at, _SCALEDOWN_S) * limits.MODAL_WON_PER_S)
     _woke_at = now
     task = asyncio.get_running_loop().create_task(_wake())
     _wakes.add(task)

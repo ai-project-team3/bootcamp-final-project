@@ -128,8 +128,9 @@ WARM = {
 }
 
 
-# scaledown 60 s: the backend wakes this on every picture-diary turn (≈ 25 s apart), so it stays up while
-# a child draws and goes away a minute after the diary ends (§0-5 ②: kept up, 4/4 within 45 s)
+# scaledown 60 s: the backend wakes this when a book starts (/wake) and on every /turn of a mode that draws
+# here (≈ 25 s apart), so it stays up through the book and goes away a minute after it ends (§0-5 ②: kept
+# up, 4/4 within 45 s). Each real wake counts against the server's daily cap (app/limits.py)
 @app.server(gpu="L4", volumes={"/models": volume.read_only()}, scaledown_window=60, max_containers=5,
             startup_timeout=300, enable_memory_snapshot=True, experimental_options={"enable_gpu_snapshot": True})
 class Redraw:
