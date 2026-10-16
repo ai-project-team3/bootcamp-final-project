@@ -8,6 +8,9 @@ import androidx.compose.runtime.setValue
 import com.example.finalproject_demo.demo.StoryMode
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
@@ -436,6 +439,20 @@ object Server {
             if (c.responseCode != 200) null
             else JSONObject(c.inputStream.use { it.readBytes() }.decodeToString()).optBoolean("mock")
         } catch (e: Exception) { warn("/health", e); null }
+    }
+
+    /** Calls nobody waits for — they outlive the scene that made them ([wake]). */
+    private val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * A book of [mode] starts or resumes: the server wakes the picture GPU now (Modal · #460 ⑥), so the first
+     * background or character does not wait out its cold start — `/turn` only comes after the first question.
+     * Nothing of the child goes: the mode only. Fire-and-forget; a scene change does not cancel it. A no-op on
+     * the server when no picture goes to Modal. The caller guards with [liveFor].
+     */
+    fun wake(mode: StoryMode): Job? {
+        if (base == null) return null
+        return background.launch { postJson("/wake", JSONObject().put("mode", mode.name.lowercase()), readMs = 5_000) }
     }
 
     // ── plumbing ───────────────────────────────────────────────────

@@ -240,6 +240,7 @@ private suspend fun Director.sceneAdult() {
             val sc = s.paused
             s.paused = null
             StoryEvaluation.state(s, "session_resumed")
+            if (sc != null && Server.liveFor(s.mode)) Server.wake(s.mode)     // pictures may come soon: wake the GPU
             if (sc != null) { log("만들던 이야기 이어서 — 「${sc.label}」부터 (별은 이미 썼다)"); go(sc); return }
         }
         "parent" -> {
@@ -311,6 +312,7 @@ private suspend fun Director.sceneAdult() {
     s.mode = picked
     StoryEvaluation.begin(s)
     if (Server.liveFor(picked)) com.example.finalproject_demo.net.CallLimits.starSpent()
+    if (Server.liveFor(picked)) Server.wake(picked)     // the first picture is a minute away: wake the GPU (Modal · cold start 3~4 min)
     if (s.isDiary) {
         s.diaryStart = System.currentTimeMillis()
         mark("diaryentry")
@@ -366,6 +368,7 @@ private suspend fun Director.finishStartLimitNotice() {
         "resume" -> {
             val scene = s.paused
             s.paused = null
+            if (scene != null && Server.liveFor(s.mode)) Server.wake(s.mode)
             go(scene ?: Scene.ADULT)
         }
         else -> go(Scene.ADULT)
