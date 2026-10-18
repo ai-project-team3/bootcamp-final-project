@@ -10,6 +10,8 @@
 | `run_eval.sh` | 폰에서 클립마다 whisper-cli를 돌려 `이름, 로딩 ms, 전체 ms, 글자`를 tsv로 남긴다. 중간에 끊겨도 이어서 돈다 |
 | `score_phone.py` | 폰 tsv를 채점하고 GPU 기준선 CSV와 비교한다. `--collapse`는 앱의 연속 반복 제거 |
 | `score_gpu.py` | GPU 실행 CSV 두 개(원래 small, 미세 조정 small)를 나이별로 비교한다 |
+| `bench_gpu_sessions.py` | 비교용. 서버처럼 GPU 한 장에서 large-v3를 한 번에 하나씩 돌리고, 동시 N세션(아이마다 20~30초에 한 번)일 때 대기를 잰다. `py bench_gpu_sessions.py 10 20 30 40 50` |
+| `bench_gpu_conc.py` | 비교용. N명이 같은 순간에 말할 때의 대기(최악). `py bench_gpu_conc.py 1 2 4 8 16 32` |
 
 순서: 모델 변환(`convert-h5-to-ggml.py`) → 폰에서 `quantize ... q8_0` → `prep_list.py` → `adb push` → `run_eval.sh <모델> 1 fitcap <out.tsv> -nf` → `adb pull` → `score_phone.py`.
 
